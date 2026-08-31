@@ -1,9 +1,10 @@
 import Image from "next/image";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import type { Profile } from "@/lib/types";
+import type { Connection, Profile } from "@/lib/types";
 import { COUNTIES } from "@/lib/clubs";
 import { initials } from "@/lib/format";
+import ConnectButton from "./connect-button";
 
 export default async function CommunityPage({
   searchParams,
@@ -74,6 +75,19 @@ export default async function CommunityPage({
 
   const { data: members } = await query.limit(60).returns<Profile[]>();
 
+  const { data: connections } = await supabase
+    .from("connections")
+    .select("*")
+    .or(`requester_id.eq.${user.id},recipient_id.eq.${user.id}`)
+    .returns<Connection[]>();
+
+  const connectionByMember = new Map(
+    (connections ?? []).map((connection) => [
+      connection.requester_id === user.id ? connection.recipient_id : connection.requester_id,
+      connection,
+    ])
+  );
+
   return (
     <div>
       {header}
@@ -109,6 +123,7 @@ export default async function CommunityPage({
             {members.map((m) => {
               const name = `${m.first_name} ${m.last_name}`;
               const isMe = m.id === user.id;
+              const connection = connectionByMember.get(m.id);
               return (
                 <div key={m.id} className="bg-surface border border-line rounded-2xl p-6 text-center shadow-sm hover:shadow-md hover:-translate-y-0.5 transition">
                   <div
@@ -125,13 +140,17 @@ export default async function CommunityPage({
                     {m.county && <span className="bg-cream-100 text-xs font-bold px-2.5 py-1 rounded-full">{m.county}</span>}
                     {m.handicap != null && <span className="bg-red-100 text-red-600 text-xs font-bold px-2.5 py-1 rounded-full">{m.handicap} hcp</span>}
                   </div>
-                  <button
-                    disabled
-                    title={isMe ? undefined : "Messaging is coming in the next update"}
-                    className="w-full py-2.5 rounded-full font-bold text-sm border-[1.5px] border-green-700 text-green-700 opacity-40 cursor-not-allowed"
-                  >
-                    {isMe ? "This is you" : "Connect (soon)"}
-                  </button>
+                  {isMe ? (
+                    <span className="block w-full py-2.5 rounded-full font-bold text-sm border-[1.5px] border-green-700 text-green-700 opacity-40">
+                      This is you
+                    </span>
+                  ) : (
+                    <ConnectButton
+                      memberId={m.id}
+                      initialStatus={connection?.status}
+                      incoming={connection?.recipient_id === user.id}
+                    />
+                  )}
                 </div>
               );
             })}
@@ -141,3 +160,4 @@ export default async function CommunityPage({
     </div>
   );
 }
+
