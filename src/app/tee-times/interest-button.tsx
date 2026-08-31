@@ -10,6 +10,7 @@ const initialState: InterestState = {};
 const STATUS_STYLES: Record<InterestStatus, string> = {
   pending: "bg-cream-100 text-ink-900",
   accepted: "bg-green-100 text-green-800",
+  confirmed: "bg-green-700 text-cream-50",
   declined: "bg-red-100 text-red-600",
 };
 
@@ -50,3 +51,4 @@ export default function InterestButton({
     </form>
   );
 }
+
