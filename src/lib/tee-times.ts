@@ -17,14 +17,16 @@ export const STATUS_STYLES: Record<InviteStatus, string> = {
 };
 
 export const INTEREST_STATUS_LABELS: Record<InterestStatus, string> = {
-  pending: "Pending",
-  accepted: "Accepted",
+  pending: "Waiting for host",
+  accepted: "Awaiting your confirmation",
+  confirmed: "Confirmed",
   declined: "Declined",
 };
 
 export const INTEREST_STATUS_STYLES: Record<InterestStatus, string> = {
   pending: "bg-cream-100 text-ink-900",
   accepted: "bg-green-100 text-green-800",
+  confirmed: "bg-green-700 text-cream-50",
   declined: "bg-red-100 text-red-600",
 };
 
@@ -55,3 +57,4 @@ export function formatTimeRange(from: string | null, to: string | null): string 
   if (from && to) return `${formatClock(from)}–${formatClock(to)}`;
   return formatClock(from ?? to);
 }
+
