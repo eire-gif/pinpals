@@ -2,12 +2,14 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import type { InterestWithDetails, MyTeeTimeRequest, Profile, TeeTimeInvite } from "@/lib/types";
+import type { ConnectionProfile, ConnectionWithProfiles, InterestWithDetails, MyTeeTimeRequest, Profile, TeeTimeInvite } from "@/lib/types";
 import { initials } from "@/lib/format";
 import { profileCompletion } from "@/lib/profile";
 import MyAvailability from "./my-availability";
 import InterestedGolfers from "./interested-golfers";
 import MyTeeTimeRequests from "./my-tee-time-requests";
+import ConnectionRequests from "./connection-requests";
+import ConnectionList from "./connection-list";
 
 type QuickLink = {
   href: string;
@@ -41,6 +43,20 @@ const QUICK_LINKS: QuickLink[] = [
         <path d="M3.5 19c0-3 2.5-5 5.5-5s5.5 2 5.5 5" />
         <circle cx="17" cy="8.5" r="2.4" />
         <path d="M15.2 14.3c2.6.2 4.8 2.1 4.8 4.7" />
+      </svg>
+    ),
+  },
+  {
+    href: "/dashboard/connections",
+    label: "My connections",
+    description: "See all the golfers in your Pinpals network.",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-5 h-5">
+        <path d="M8.5 12.5l2 2 5-5" />
+        <circle cx="8" cy="8" r="3" />
+        <path d="M2.5 19c0-3 2.4-5 5.5-5 1.2 0 2.3.3 3.2.8" />
+        <circle cx="17" cy="8" r="2.5" />
+        <path d="M15 14.5c2.8.1 5 1.9 5 4.5" />
       </svg>
     ),
   },
@@ -128,6 +144,21 @@ export default async function DashboardPage({
     .in("status", ["pending", "accepted", "confirmed"])
     .order("created_at", { ascending: false })
     .returns<MyTeeTimeRequest[]>();
+
+  const { data: connectionRows } = await supabase
+    .from("connections")
+    .select("*, requester:profiles!connections_requester_id_fkey(*), recipient:profiles!connections_recipient_id_fkey(*)")
+    .or(`requester_id.eq.${user.id},recipient_id.eq.${user.id}`)
+    .order("created_at", { ascending: false })
+    .returns<ConnectionWithProfiles[]>();
+
+  const incomingConnections = (connectionRows ?? []).filter(
+    (connection) => connection.recipient_id === user.id && connection.status === "pending"
+  );
+  const connectedPeople = (connectionRows ?? [])
+    .filter((connection) => connection.status === "accepted")
+    .map((connection) => connection.requester_id === user.id ? connection.recipient : connection.requester)
+    .filter((person): person is ConnectionProfile => person !== null);
 
   const pendingInterestCount = (interests ?? []).filter((i) => i.status === "pending").length;
 
@@ -258,6 +289,31 @@ export default async function DashboardPage({
             )}
           </div>
         </div>
+      </div>
+
+      <div className="mt-12 pt-10 border-t border-line">
+        <div className="flex items-center gap-2.5 mb-4 flex-wrap">
+          <h2 className="font-display font-bold text-xl">Connection requests</h2>
+          {incomingConnections.length > 0 && (
+            <span className="bg-gold-500 text-navy-900 text-xs font-bold px-2.5 py-1 rounded-full">
+              {incomingConnections.length} waiting on you
+            </span>
+          )}
+        </div>
+        <ConnectionRequests requests={incomingConnections} />
+      </div>
+
+      <div className="mt-12 pt-10 border-t border-line">
+        <div className="flex items-center justify-between gap-4 mb-4">
+          <div>
+            <h2 className="font-display font-bold text-xl">Your connections</h2>
+            <p className="text-sm text-ink-500 mt-1">Golfers you have connected with.</p>
+          </div>
+          <Link href="/dashboard/connections" className="shrink-0 text-sm font-bold text-green-700 hover:text-green-600">
+            View all &rarr;
+          </Link>
+        </div>
+        <ConnectionList people={connectedPeople.slice(0, 6)} compact />
       </div>
 
       <div className="mt-12 pt-10 border-t border-line">
