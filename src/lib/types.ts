@@ -112,3 +112,26 @@ export type MyTeeTimeRequest = TeeTimeInterest & {
 // interest in each invite, so it can swap the button for a status.
 export type MyInterest = Pick<TeeTimeInterest, "invite_id" | "status">;
 
+// ============ MEMBER CONNECTIONS ============
+
+export type ConnectionStatus = "pending" | "accepted" | "declined";
+
+export type Connection = {
+  id: number;
+  requester_id: string;
+  recipient_id: string;
+  status: ConnectionStatus;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ConnectionProfile = Pick<
+  Profile,
+  "id" | "first_name" | "last_name" | "home_club" | "county" | "handicap" | "handicap_visible" | "avatar_color"
+>;
+
+export type ConnectionWithProfiles = Connection & {
+  requester: ConnectionProfile | null;
+  recipient: ConnectionProfile | null;
+};
+
