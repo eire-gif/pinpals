@@ -74,7 +74,7 @@ export default function InterestedGolfers({ interests }: { interests: InterestWi
                   disabled={pending}
                   className="flex-1 py-2.5 rounded-full font-bold text-xs bg-green-700 text-cream-50 hover:bg-green-600 transition disabled:opacity-50"
                 >
-                  {isBusy ? "Accepting…" : "Accept"}
+                  {isBusy ? "Offering…" : "Offer place"}
                 </button>
                 <button
                   onClick={() => respond(interest.id, false)}
@@ -85,9 +85,22 @@ export default function InterestedGolfers({ interests }: { interests: InterestWi
                 </button>
               </div>
             )}
+
+            {interest.status === "accepted" && (
+              <p className="mt-4 rounded-xl bg-green-100 px-3.5 py-3 text-xs font-semibold text-green-800">
+                Place offered — waiting for {name} to confirm attendance.
+              </p>
+            )}
+
+            {interest.status === "confirmed" && (
+              <p className="mt-4 rounded-xl bg-green-700 px-3.5 py-3 text-xs font-semibold text-cream-50">
+                Tee time confirmed with {name}.
+              </p>
+            )}
           </div>
         );
       })}
     </div>
   );
 }
+
