@@ -7,13 +7,13 @@ export default function HomePage() {
       {/* HERO */}
       <div className="relative text-white overflow-hidden">
         <Image
-          src="/images/hero.jpg"
+          src="/images/homepage-sunset.png"
           alt="Sunset over a links golf course"
           fill
           priority
           className="object-cover -z-10"
         />
-        <div className="absolute inset-0 bg-gradient-to-b from-[rgba(9,22,40,0.55)] to-[rgba(9,22,40,0.85)] -z-10" />
+        <div className="absolute inset-0 bg-gradient-to-b from-[rgba(9,22,40,0.42)] to-[rgba(9,22,40,0.62)] -z-10" />
         <div className="max-w-6xl mx-auto px-6 pt-24 pb-28">
           <div className="max-w-[680px]">
             <span className="inline-flex items-center gap-2 text-xs font-bold tracking-widest uppercase text-gold-500">
