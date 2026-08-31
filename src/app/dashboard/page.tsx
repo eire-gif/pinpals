@@ -2,11 +2,12 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import type { InterestWithDetails, Profile, TeeTimeInvite } from "@/lib/types";
+import type { InterestWithDetails, MyTeeTimeRequest, Profile, TeeTimeInvite } from "@/lib/types";
 import { initials } from "@/lib/format";
 import { profileCompletion } from "@/lib/profile";
 import MyAvailability from "./my-availability";
 import InterestedGolfers from "./interested-golfers";
+import MyTeeTimeRequests from "./my-tee-time-requests";
 
 type QuickLink = {
   href: string;
@@ -117,6 +118,16 @@ export default async function DashboardPage({
     .eq("tee_time_invites.member_id", user.id)
     .order("created_at", { ascending: false })
     .returns<InterestWithDetails[]>();
+
+  const { data: myTeeTimeRequests } = await supabase
+    .from("tee_time_interests")
+    .select(
+      "*, tee_time_invites(id, club_name, play_date, time_from, time_to, exact_tee_time, has_tee_time_booked, status)"
+    )
+    .eq("member_id", user.id)
+    .in("status", ["pending", "accepted", "confirmed"])
+    .order("created_at", { ascending: false })
+    .returns<MyTeeTimeRequest[]>();
 
   const pendingInterestCount = (interests ?? []).filter((i) => i.status === "pending").length;
 
@@ -250,6 +261,11 @@ export default async function DashboardPage({
       </div>
 
       <div className="mt-12 pt-10 border-t border-line">
+        <h2 className="font-display font-bold text-xl mb-4">Your tee-time requests</h2>
+        <MyTeeTimeRequests requests={myTeeTimeRequests ?? []} />
+      </div>
+
+      <div className="mt-12 pt-10 border-t border-line">
         <MyAvailability invites={myInvites ?? []} />
       </div>
 
@@ -267,3 +283,4 @@ export default async function DashboardPage({
     </div>
   );
 }
+
