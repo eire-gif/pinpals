@@ -71,7 +71,7 @@ export type TeeTimeInviteWithHost = TeeTimeInvite & { profiles: InviteHost | nul
 
 // ============ TEE-TIME INTERESTS ("I'm interested") ============
 
-export type InterestStatus = "pending" | "accepted" | "declined";
+export type InterestStatus = "pending" | "accepted" | "confirmed" | "declined";
 
 export type TeeTimeInterest = {
   id: number;
@@ -94,6 +94,21 @@ export type InterestWithDetails = TeeTimeInterest & {
   tee_time_invites: Pick<TeeTimeInvite, "id" | "club_name" | "play_date"> | null;
 };
 
+export type MyTeeTimeRequest = TeeTimeInterest & {
+  tee_time_invites: Pick<
+    TeeTimeInvite,
+    | "id"
+    | "club_name"
+    | "play_date"
+    | "time_from"
+    | "time_to"
+    | "exact_tee_time"
+    | "has_tee_time_booked"
+    | "status"
+  > | null;
+};
+
 // What the browse page needs to know about the current member's own
 // interest in each invite, so it can swap the button for a status.
 export type MyInterest = Pick<TeeTimeInterest, "invite_id" | "status">;
+
