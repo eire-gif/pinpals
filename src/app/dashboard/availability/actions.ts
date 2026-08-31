@@ -113,3 +113,54 @@ export async function respondToInterest(interestId: number, accept: boolean) {
   revalidatePath("/tee-times");
   return {};
 }
+
+export async function confirmTeeTimePlace(interestId: number, attending: boolean) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) redirect("/login");
+
+  const { data: interest } = await supabase
+    .from("tee_time_interests")
+    .select("invite_id, status")
+    .eq("id", interestId)
+    .eq("member_id", user.id)
+    .single();
+
+  if (!interest || interest.status !== "accepted") {
+    return { error: "That tee-time offer is no longer awaiting confirmation." };
+  }
+
+  const { error } = await supabase
+    .from("tee_time_interests")
+    .update({ status: attending ? "confirmed" : "declined" })
+    .eq("id", interestId)
+    .eq("member_id", user.id)
+    .eq("status", "accepted");
+
+  if (error) {
+    return { error: "Couldn't update your tee-time response — please try again." };
+  }
+
+  if (!attending) {
+    const { data: invite } = await supabase
+      .from("tee_time_invites")
+      .select("spaces_available, status")
+      .eq("id", interest.invite_id)
+      .single();
+
+    if (invite && !["cancelled", "completed"].includes(invite.status)) {
+      await supabase
+        .from("tee_time_invites")
+        .update({ spaces_available: invite.spaces_available + 1, status: "open" })
+        .eq("id", interest.invite_id);
+    }
+  }
+
+  revalidatePath("/dashboard");
+  revalidatePath("/tee-times");
+  return {};
+}
+
