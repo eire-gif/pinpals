@@ -7,7 +7,7 @@ export default function HomePage() {
       {/* HERO */}
       <div className="relative text-white overflow-hidden">
         <Image
-          src="/images/hero.jpg"
+          src="/images/homepage-sunset.png"
           alt="Sunset over a links golf course"
           fill
           priority
