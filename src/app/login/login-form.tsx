@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState } from "react";
 import { logIn, type LoginState } from "./actions";
 
@@ -16,7 +17,12 @@ export default function LoginForm() {
           className="px-3.5 py-3 rounded-lg border-[1.5px] border-line focus:outline-none focus:border-green-600" />
       </div>
       <div className="grid gap-1.5">
-        <label htmlFor="password" className="text-[13.5px] font-bold">Password</label>
+        <div className="flex items-center justify-between">
+          <label htmlFor="password" className="text-[13.5px] font-bold">Password</label>
+          <Link href="/forgot-password" className="text-[13px] text-green-700 font-bold hover:text-green-600">
+            Forgot password?
+          </Link>
+        </div>
         <input id="password" name="password" type="password" required autoComplete="current-password"
           className="px-3.5 py-3 rounded-lg border-[1.5px] border-line focus:outline-none focus:border-green-600" />
       </div>
