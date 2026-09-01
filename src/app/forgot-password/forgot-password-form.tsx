@@ -1,14 +1,43 @@
 "use client";
 
-import { useActionState } from "react";
-import { requestPasswordReset, type ForgotPasswordState } from "./actions";
-
-const initialState: ForgotPasswordState = {};
+import { useState, type FormEvent } from "react";
+import { createClient } from "@/lib/supabase/client";
 
 export default function ForgotPasswordForm() {
-  const [state, formAction, pending] = useActionState(requestPasswordReset, initialState);
+  const [supabase] = useState(() => createClient());
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
 
-  if (state.success) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(null);
+
+    const email = String(new FormData(event.currentTarget).get("email") || "").trim();
+    if (!email) {
+      setError("Please enter the email address for your account.");
+      return;
+    }
+
+    setPending(true);
+    // Sent from the browser so the reset link always points back to the exact
+    // domain the member is on (which is on the Supabase redirect allow-list).
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+    setPending(false);
+
+    if (error) {
+      setError(error.message);
+      return;
+    }
+
+    // Always report success even if the email isn't registered — this avoids
+    // revealing which addresses have accounts.
+    setSuccess(true);
+  }
+
+  if (success) {
     return (
       <div className="text-center py-6">
         <div className="w-16 h-16 rounded-full bg-green-100 text-green-700 flex items-center justify-center mx-auto mb-4">
@@ -27,7 +56,7 @@ export default function ForgotPasswordForm() {
   }
 
   return (
-    <form action={formAction} className="grid gap-4">
+    <form onSubmit={handleSubmit} className="grid gap-4">
       <div className="grid gap-1.5">
         <label htmlFor="email" className="text-[13.5px] font-bold">Email</label>
         <input id="email" name="email" type="email" required autoComplete="email"
@@ -35,8 +64,8 @@ export default function ForgotPasswordForm() {
         <span className="text-xs text-ink-500">We&rsquo;ll email you a link to set a new password.</span>
       </div>
 
-      {state.error && (
-        <p className="text-sm text-red-600 bg-red-100 rounded-lg px-3.5 py-2.5">{state.error}</p>
+      {error && (
+        <p className="text-sm text-red-600 bg-red-100 rounded-lg px-3.5 py-2.5">{error}</p>
       )}
 
       <button
