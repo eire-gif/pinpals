@@ -1,0 +1,77 @@
+import type { ReactNode } from "react";
+import Link from "next/link";
+import { requireStaff } from "@/lib/admin/authorization";
+import { ROLE_LABELS } from "@/lib/admin/roles";
+import SignOutButton from "@/components/sign-out-button";
+
+// Placeholders for later phases — deliberately not linked to real pages yet
+// except Overview. Keeping the full nav visible (disabled) from day one so
+// the shape of the console is clear before each section is built.
+const NAV_ITEMS: { href: string; label: string; enabled?: boolean }[] = [
+  { href: "/admin", label: "Overview", enabled: true },
+  { href: "/admin/users", label: "Users" },
+  { href: "/admin/listings", label: "Listings" },
+  { href: "/admin/tee-times", label: "Tee-times" },
+  { href: "/admin/orders", label: "Orders" },
+  { href: "/admin/payouts", label: "Payouts" },
+  { href: "/admin/clubs", label: "Clubs" },
+  { href: "/admin/reports", label: "Reports" },
+  { href: "/admin/settings", label: "Settings" },
+  { href: "/admin/audit-log", label: "Audit log" },
+];
+
+export default async function AdminLayout({ children }: { children: ReactNode }) {
+  // The layout's own guard. Every page under /admin also calls requireStaff()
+  // itself (see src/lib/admin/authorization.ts for why) — this call keeps the
+  // chrome (nav, identity, role badge) itself from ever rendering for a
+  // non-staff request.
+  const { user, staff } = await requireStaff();
+
+  return (
+    <div className="min-h-screen bg-cream-50">
+      <header className="bg-navy-900 text-cream-50 border-b border-white/10">
+        <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between gap-4">
+          <Link href="/admin" className="font-display font-bold text-lg text-white">
+            Pinpals <span className="text-gold-500">Admin</span>
+          </Link>
+          <div className="flex items-center gap-3 text-sm">
+            <span className="text-white/70 hidden sm:inline">{user.email}</span>
+            <span className="bg-gold-500 text-navy-900 text-xs font-bold px-2.5 py-1 rounded-full uppercase tracking-wide">
+              {ROLE_LABELS[staff.role]}
+            </span>
+            <SignOutButton />
+          </div>
+        </div>
+      </header>
+
+      <div className="max-w-6xl mx-auto px-6 py-8 grid md:grid-cols-[220px_1fr] gap-8">
+        <nav className="space-y-1">
+          {NAV_ITEMS.map((item) =>
+            item.enabled ? (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="block px-3 py-2 rounded-lg text-sm font-semibold text-ink-900 hover:bg-cream-100 transition"
+              >
+                {item.label}
+              </Link>
+            ) : (
+              <span
+                key={item.href}
+                aria-disabled="true"
+                className="flex items-center justify-between px-3 py-2 rounded-lg text-sm text-ink-500 cursor-not-allowed"
+              >
+                {item.label}
+                <span className="text-[10px] font-bold uppercase tracking-wide text-ink-500/70">
+                  Soon
+                </span>
+              </span>
+            )
+          )}
+        </nav>
+
+        <main>{children}</main>
+      </div>
+    </div>
+  );
+}
