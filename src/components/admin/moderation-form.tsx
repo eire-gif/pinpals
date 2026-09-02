@@ -26,6 +26,12 @@ export default function ModerationForm({
   pendingLabel,
   tone = "default",
   placeholder = "Reason (recorded in the audit log)",
+  // Every existing caller (suspend/reinstate, hide/restore, cancel/restore)
+  // is a "reason for a status change", hence the default. The admin notes
+  // form (src/app/admin/users/[id]/page.tsx) reuses this same component for
+  // a free-text note body rather than a reason, so it overrides this to
+  // "note" — existing callers are unaffected since they don't pass it.
+  fieldName = "reason",
 }: {
   action: (state: ModerationState, formData: FormData) => Promise<ModerationState>;
   idField: string;
@@ -34,6 +40,7 @@ export default function ModerationForm({
   pendingLabel: string;
   tone?: "default" | "danger";
   placeholder?: string;
+  fieldName?: string;
 }) {
   const [state, formAction, pending] = useActionState(action, initialState);
 
@@ -49,7 +56,7 @@ export default function ModerationForm({
     <form action={formAction} className="flex flex-col gap-2">
       <input type="hidden" name={idField} value={id} />
       <textarea
-        name="reason"
+        name={fieldName}
         required
         rows={2}
         placeholder={placeholder}
