@@ -24,11 +24,21 @@ import type { StaffRole } from "./roles";
 // needs real pagination, replace the full-table reads below with
 // server-side filtering and a cursor.
 
-async function emailMap(): Promise<Map<string, string | null>> {
+type AuthUserInfo = { email: string | null; bannedUntil: string | null };
+
+// Everything about a member that lives in Supabase Auth rather than
+// `profiles` — today just email and ban status. `banned_until` only comes
+// back from the Auth admin API (auth.admin.listUsers/getUserById), never
+// from a DB join, so this is still the one place that reads it. Named
+// generically (not "emailMap") now that suspend/reinstate (see
+// src/app/admin/users/[id]/actions.ts) needs the ban status too.
+async function authUserMap(): Promise<Map<string, AuthUserInfo>> {
   const admin = createAdminClient();
   const { data, error } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
   if (error) throw new Error(`Failed to list auth users: ${error.message}`);
-  return new Map(data.users.map((u) => [u.id, u.email ?? null]));
+  return new Map(
+    data.users.map((u) => [u.id, { email: u.email ?? null, bannedUntil: u.banned_until ?? null }])
+  );
 }
 
 function matches(query: string, ...fields: (string | null | undefined)[]): boolean {
@@ -46,10 +56,17 @@ function countBy<T, K extends keyof T>(rows: T[], key: K): Map<string, number> {
   return map;
 }
 
-export type AdminProfile = Profile & { email: string | null };
+export type AdminProfile = Profile & { email: string | null; banned_until: string | null };
 
-function withEmail(profile: Profile, emails: Map<string, string | null>): AdminProfile {
-  return { ...profile, email: emails.get(profile.id) ?? null };
+function withEmail(profile: Profile, authUsers: Map<string, AuthUserInfo>): AdminProfile {
+  const info = authUsers.get(profile.id);
+  return { ...profile, email: info?.email ?? null, banned_until: info?.bannedUntil ?? null };
+}
+
+/** Whether a suspension is currently in effect — a past `banned_until` means
+ * the ban has already lapsed (Supabase doesn't clear the field on its own). */
+export function isUserSuspended(profile: Pick<AdminProfile, "banned_until">): boolean {
+  return profile.banned_until != null && new Date(profile.banned_until).getTime() > Date.now();
 }
 
 // ---------- Users ----------
@@ -61,10 +78,10 @@ export type AdminUserListItem = AdminProfile & {
 
 export async function listUsers(query = ""): Promise<AdminUserListItem[]> {
   const admin = createAdminClient();
-  const [{ data: profiles, error }, emails, { data: listingRows }, { data: inviteRows }] =
+  const [{ data: profiles, error }, authUsers, { data: listingRows }, { data: inviteRows }] =
     await Promise.all([
       admin.from("profiles").select("*").order("created_at", { ascending: false }).returns<Profile[]>(),
-      emailMap(),
+      authUserMap(),
       admin.from("listings").select("seller_id").returns<Pick<Listing, "seller_id">[]>(),
       admin
         .from("tee_time_invites")
@@ -78,7 +95,7 @@ export async function listUsers(query = ""): Promise<AdminUserListItem[]> {
 
   return (profiles ?? [])
     .map((profile) => ({
-      ...withEmail(profile, emails),
+      ...withEmail(profile, authUsers),
       listing_count: listingCountBySeller.get(profile.id) ?? 0,
       invite_count: inviteCountByMember.get(profile.id) ?? 0,
     }))
@@ -94,10 +111,10 @@ export type AdminUserDetail = {
 
 export async function getUserDetail(id: string): Promise<AdminUserDetail | null> {
   const admin = createAdminClient();
-  const [{ data: profile }, emails, { data: listings }, { data: invites }, { data: offersMade }] =
+  const [{ data: profile }, authUsers, { data: listings }, { data: invites }, { data: offersMade }] =
     await Promise.all([
       admin.from("profiles").select("*").eq("id", id).maybeSingle<Profile>(),
-      emailMap(),
+      authUserMap(),
       admin
         .from("listings")
         .select("*")
@@ -121,7 +138,7 @@ export async function getUserDetail(id: string): Promise<AdminUserDetail | null>
   if (!profile) return null;
 
   return {
-    profile: withEmail(profile, emails),
+    profile: withEmail(profile, authUsers),
     listings: listings ?? [],
     invites: invites ?? [],
     offersMade: offersMade ?? [],
@@ -134,10 +151,10 @@ export type AdminListingListItem = Listing & { seller: AdminProfile | null };
 
 export async function listListings(query = "", status = ""): Promise<AdminListingListItem[]> {
   const admin = createAdminClient();
-  const [{ data: listings, error }, { data: profiles }, emails] = await Promise.all([
+  const [{ data: listings, error }, { data: profiles }, authUsers] = await Promise.all([
     admin.from("listings").select("*").order("created_at", { ascending: false }).returns<Listing[]>(),
     admin.from("profiles").select("*").returns<Profile[]>(),
-    emailMap(),
+    authUserMap(),
   ]);
   if (error) throw new Error(`Failed to list listings: ${error.message}`);
 
@@ -148,7 +165,7 @@ export async function listListings(query = "", status = ""): Promise<AdminListin
       const sellerProfile = profileById.get(listing.seller_id) ?? null;
       return {
         ...listing,
-        seller: sellerProfile ? withEmail(sellerProfile, emails) : null,
+        seller: sellerProfile ? withEmail(sellerProfile, authUsers) : null,
       };
     })
     .filter((l) => !status || l.status === status)
@@ -172,9 +189,9 @@ export type AdminListingDetail = {
 
 export async function getListingDetail(id: number): Promise<AdminListingDetail | null> {
   const admin = createAdminClient();
-  const [{ data: listing }, emails, { data: offers }] = await Promise.all([
+  const [{ data: listing }, authUsers, { data: offers }] = await Promise.all([
     admin.from("listings").select("*").eq("id", id).maybeSingle<Listing>(),
-    emailMap(),
+    authUserMap(),
     admin
       .from("offers")
       .select("*")
@@ -198,10 +215,10 @@ export async function getListingDetail(id: number): Promise<AdminListingDetail |
 
   return {
     listing,
-    seller: sellerProfile ? withEmail(sellerProfile, emails) : null,
+    seller: sellerProfile ? withEmail(sellerProfile, authUsers) : null,
     offers: (offers ?? []).map((offer) => {
       const buyerProfile = buyerById.get(offer.buyer_id) ?? null;
-      return { ...offer, buyer: buyerProfile ? withEmail(buyerProfile, emails) : null };
+      return { ...offer, buyer: buyerProfile ? withEmail(buyerProfile, authUsers) : null };
     }),
   };
 }
@@ -218,7 +235,7 @@ export async function listTeeTimeInvites(
   status = ""
 ): Promise<AdminInviteListItem[]> {
   const admin = createAdminClient();
-  const [{ data: invites, error }, { data: profiles }, emails, { data: interestRows }] =
+  const [{ data: invites, error }, { data: profiles }, authUsers, { data: interestRows }] =
     await Promise.all([
       admin
         .from("tee_time_invites")
@@ -226,7 +243,7 @@ export async function listTeeTimeInvites(
         .order("play_date", { ascending: false })
         .returns<TeeTimeInvite[]>(),
       admin.from("profiles").select("*").returns<Profile[]>(),
-      emailMap(),
+      authUserMap(),
       admin
         .from("tee_time_interests")
         .select("invite_id")
@@ -242,7 +259,7 @@ export async function listTeeTimeInvites(
       const hostProfile = profileById.get(invite.member_id) ?? null;
       return {
         ...invite,
-        host: hostProfile ? withEmail(hostProfile, emails) : null,
+        host: hostProfile ? withEmail(hostProfile, authUsers) : null,
         interest_count: interestCountByInvite.get(String(invite.id)) ?? 0,
       };
     })
@@ -266,9 +283,9 @@ export type AdminInviteDetail = {
 
 export async function getTeeTimeInviteDetail(id: number): Promise<AdminInviteDetail | null> {
   const admin = createAdminClient();
-  const [{ data: invite }, emails, { data: interests }] = await Promise.all([
+  const [{ data: invite }, authUsers, { data: interests }] = await Promise.all([
     admin.from("tee_time_invites").select("*").eq("id", id).maybeSingle<TeeTimeInvite>(),
-    emailMap(),
+    authUserMap(),
     admin
       .from("tee_time_interests")
       .select("*")
@@ -292,10 +309,10 @@ export async function getTeeTimeInviteDetail(id: number): Promise<AdminInviteDet
 
   return {
     invite,
-    host: hostProfile ? withEmail(hostProfile, emails) : null,
+    host: hostProfile ? withEmail(hostProfile, authUsers) : null,
     interests: (interests ?? []).map((interest) => {
       const memberProfile = memberById.get(interest.member_id) ?? null;
-      return { ...interest, member: memberProfile ? withEmail(memberProfile, emails) : null };
+      return { ...interest, member: memberProfile ? withEmail(memberProfile, authUsers) : null };
     }),
   };
 }
@@ -370,7 +387,7 @@ export async function listAuditLog(filters: AuditLogFilters = {}, page = 1): Pro
   const { data, error, count } = await query.returns<AdminAuditLogEntry[]>();
   if (error) throw new Error(`Failed to list audit log: ${error.message}`);
 
-  const emails = await emailMap();
+  const authUsers = await authUserMap();
   const actorIds = [...new Set((data ?? []).map((row) => row.actor_id))];
   const { data: actorProfiles } = actorIds.length
     ? await admin.from("profiles").select("*").in("id", actorIds).returns<Profile[]>()
@@ -379,7 +396,7 @@ export async function listAuditLog(filters: AuditLogFilters = {}, page = 1): Pro
 
   const rows = (data ?? []).map((entry) => {
     const actorProfile = actorById.get(entry.actor_id) ?? null;
-    return { ...entry, actor: actorProfile ? withEmail(actorProfile, emails) : null };
+    return { ...entry, actor: actorProfile ? withEmail(actorProfile, authUsers) : null };
   });
 
   return { rows, total: count ?? 0, page: safePage, pageSize };
@@ -395,9 +412,9 @@ export type AuditLogActor = { id: string; name: string; email: string | null };
  */
 export async function listAuditLogActors(): Promise<AuditLogActor[]> {
   const admin = createAdminClient();
-  const [{ data: staffRows }, emails] = await Promise.all([
+  const [{ data: staffRows }, authUsers] = await Promise.all([
     admin.from("staff_roles").select("user_id").returns<{ user_id: string }[]>(),
-    emailMap(),
+    authUserMap(),
   ]);
   const staffIds = [...new Set((staffRows ?? []).map((row) => row.user_id))];
   if (!staffIds.length) return [];
@@ -409,6 +426,6 @@ export async function listAuditLogActors(): Promise<AuditLogActor[]> {
     .returns<Profile[]>();
 
   return (profiles ?? [])
-    .map((p) => ({ id: p.id, name: `${p.first_name} ${p.last_name}`.trim(), email: emails.get(p.id) ?? null }))
+    .map((p) => ({ id: p.id, name: `${p.first_name} ${p.last_name}`.trim(), email: authUsers.get(p.id)?.email ?? null }))
     .sort((a, b) => a.name.localeCompare(b.name));
 }
