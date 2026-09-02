@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isUserSuspended } from "./queries";
+import { buildUserSearchOrFilter, isUserSuspended, sanitizeSearchTerm } from "./queries";
 
 describe("isUserSuspended", () => {
   it("is false when there's no ban on record", () => {
@@ -14,5 +14,64 @@ describe("isUserSuspended", () => {
   it("is false when banned_until has already passed", () => {
     const past = new Date(Date.now() - 60_000).toISOString();
     expect(isUserSuspended({ banned_until: past })).toBe(false);
+  });
+});
+
+describe("sanitizeSearchTerm", () => {
+  it("passes plain names through unchanged (aside from trimming)", () => {
+    expect(sanitizeSearchTerm("  Grace Walsh  ")).toBe("Grace Walsh");
+  });
+
+  it("keeps hyphens and apostrophes, which appear in real Irish names", () => {
+    expect(sanitizeSearchTerm("O'Brien-Murphy")).toBe("O'Brien-Murphy");
+  });
+
+  it("keeps accented letters (fada), which appear in real club/county names", () => {
+    expect(sanitizeSearchTerm("Dún Laoghaire")).toBe("Dún Laoghaire");
+  });
+
+  it("strips characters that are reserved in either ILIKE patterns or PostgREST filter syntax", () => {
+    expect(sanitizeSearchTerm("50%_off,(test)\\path")).toBe("50offtestpath");
+  });
+
+  it("truncates to a sane maximum length", () => {
+    const long = "a".repeat(500);
+    expect(sanitizeSearchTerm(long)).toHaveLength(100);
+  });
+
+  it("reduces a punctuation-only query to an empty string", () => {
+    expect(sanitizeSearchTerm("%,.()")).toBe("");
+  });
+});
+
+describe("buildUserSearchOrFilter", () => {
+  it("returns null when there's nothing to filter on", () => {
+    expect(buildUserSearchOrFilter("", [])).toBeNull();
+    expect(buildUserSearchOrFilter("   ", [])).toBeNull();
+    expect(buildUserSearchOrFilter("%,.()", [])).toBeNull();
+  });
+
+  it("builds an ilike clause across all four indexed columns", () => {
+    const filter = buildUserSearchOrFilter("Grace", []);
+    expect(filter).toBe(
+      "first_name.ilike.%Grace%,last_name.ilike.%Grace%,home_club.ilike.%Grace%,county.ilike.%Grace%"
+    );
+  });
+
+  it("appends an id.in clause for email-matched ids", () => {
+    const id = "3fa85f64-5717-4562-b3fc-2c963f66afa6";
+    const filter = buildUserSearchOrFilter("", [id]);
+    expect(filter).toBe(`id.in.(${id})`);
+  });
+
+  it("combines name/club/county ilike clauses with email-matched ids", () => {
+    const id = "3fa85f64-5717-4562-b3fc-2c963f66afa6";
+    const filter = buildUserSearchOrFilter("Grace", [id]);
+    expect(filter).toContain("first_name.ilike.%Grace%");
+    expect(filter).toContain(`id.in.(${id})`);
+  });
+
+  it("drops malformed ids rather than trusting them into the filter string", () => {
+    expect(buildUserSearchOrFilter("", ["not-a-uuid", "; drop table profiles;"])).toBeNull();
   });
 });
