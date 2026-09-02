@@ -39,6 +39,8 @@ export default async function AdminListingsPage({
           <option value="">All statuses</option>
           <option value="active">Active</option>
           <option value="reserved">Sale agreed</option>
+          <option value="sold">Sold</option>
+          <option value="removed">Removed by admin</option>
         </select>
         <button
           type="submit"
