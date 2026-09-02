@@ -3,6 +3,7 @@ import { requireStaff } from "@/lib/admin/authorization";
 import { ROLE_LABELS } from "@/lib/admin/roles";
 import { getOverviewMetrics } from "@/lib/admin/queries";
 import { canSeeFinanceMetrics, UNAVAILABLE_METRICS } from "@/lib/admin/overview";
+import UnavailableCard from "@/components/admin/unavailable-card";
 
 // Bounded operational overview — every real number below comes from an
 // indexed count query (see getOverviewMetrics() in queries.ts), never a full
@@ -109,15 +110,5 @@ function StatCard({
       <div className="font-display font-bold text-3xl mt-1 text-ink-900">{value}</div>
       {sub && <div className="text-xs text-ink-500 mt-1">{sub}</div>}
     </Link>
-  );
-}
-
-function UnavailableCard({ label, reason }: { label: string; reason: string }) {
-  return (
-    <div className="bg-surface border border-dashed border-line rounded-2xl p-6">
-      <div className="text-xs uppercase tracking-wide text-ink-500 font-semibold">{label}</div>
-      <div className="font-display font-bold text-lg mt-1 text-ink-500">Data unavailable</div>
-      <div className="text-xs text-ink-500 mt-1">{reason}</div>
-    </div>
   );
 }

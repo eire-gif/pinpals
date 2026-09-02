@@ -4,6 +4,7 @@ import {
   LISTING_STATUS_LABELS,
   OFFER_STATUS_STYLES,
   personName,
+  sellerStatusLabel,
   statusLabel,
   statusStyle,
 } from "./format";
@@ -45,5 +46,29 @@ describe("formatDateTime", () => {
     const formatted = formatDateTime("2026-09-01T14:50:12.000Z");
     expect(formatted).toContain("2026");
     expect(formatted).toMatch(/Sep/);
+  });
+});
+
+describe("sellerStatusLabel", () => {
+  it("labels a member with no listings as not selling", () => {
+    expect(sellerStatusLabel([])).toBe("Not selling — no listings");
+  });
+
+  it("labels a member with an active listing as an active seller", () => {
+    expect(sellerStatusLabel([{ status: "active" }])).toContain("Active seller");
+  });
+
+  it("counts reserved listings as active (sale agreed, not yet paid)", () => {
+    expect(sellerStatusLabel([{ status: "reserved" }, { status: "active" }])).toContain("2 live");
+  });
+
+  it("labels a member whose only listings are sold/removed as an inactive seller", () => {
+    expect(sellerStatusLabel([{ status: "sold" }, { status: "removed" }])).toBe(
+      "Inactive seller — no active listings"
+    );
+  });
+
+  it("uses singular wording for exactly one live listing", () => {
+    expect(sellerStatusLabel([{ status: "active" }])).toBe("Active seller — 1 live listing");
   });
 });

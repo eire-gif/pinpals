@@ -6,18 +6,29 @@ import AdminAvatar from "@/components/admin/avatar";
 export default async function AdminUsersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; suspended?: string }>;
+  searchParams: Promise<{ q?: string; suspended?: string; page?: string }>;
 }) {
   await requireStaff();
-  const { q = "", suspended } = await searchParams;
+  const { q = "", suspended, page: pageParam } = await searchParams;
   const suspendedOnly = suspended === "1";
-  const users = await listUsers(q, suspendedOnly);
+  const page = Math.max(1, Number.parseInt(pageParam ?? "1", 10) || 1);
+  const { rows: users, total, pageSize } = await listUsers(q, suspendedOnly, page);
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+
+  function pageHref(targetPage: number) {
+    const params = new URLSearchParams();
+    if (q) params.set("q", q);
+    if (suspendedOnly) params.set("suspended", "1");
+    if (targetPage > 1) params.set("page", String(targetPage));
+    const qs = params.toString();
+    return qs ? `/admin/users?${qs}` : "/admin/users";
+  }
 
   return (
     <div>
       <h1 className="font-display font-bold text-2xl mb-1">Users</h1>
       <p className="text-ink-500 mb-6">
-        {users.length} {users.length === 1 ? "member" : "members"}
+        {total} {total === 1 ? "member" : "members"}
         {suspendedOnly && " · suspended"}
         {q && (
           <>
@@ -105,6 +116,32 @@ export default async function AdminUsersPage({
           </table>
         )}
       </div>
+
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between mt-6 text-sm text-ink-500">
+          <span>
+            Page {page} of {totalPages}
+          </span>
+          <div className="flex gap-2">
+            {page > 1 && (
+              <Link
+                href={pageHref(page - 1)}
+                className="px-4 py-2 rounded-full border-[1.5px] border-line hover:bg-cream-100 transition"
+              >
+                Previous
+              </Link>
+            )}
+            {page < totalPages && (
+              <Link
+                href={pageHref(page + 1)}
+                className="px-4 py-2 rounded-full border-[1.5px] border-line hover:bg-cream-100 transition"
+              >
+                Next
+              </Link>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -19,6 +19,7 @@ import type { StaffRole } from "./roles";
 export const ADMIN_ACTIONS = [
   "user.suspend",
   "user.reinstate",
+  "user.note_added",
   "listing.hide",
   "listing.restore",
   "invite.cancel",

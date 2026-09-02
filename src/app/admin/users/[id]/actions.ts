@@ -92,3 +92,48 @@ export async function reinstateUser(_prev: ModerationState, formData: FormData):
   revalidatePath("/admin/users");
   return { success: true };
 }
+
+const NOTE_MAX_LENGTH = 4000; // matches admin_user_notes' own check constraint
+
+// Unlike suspend/reinstate, adding a note isn't a moderation action — it's
+// the "help" half of "Support may view/help; higher roles may suspend"
+// (see the project task's own role rules), so this is gated to *any* active
+// staff member via a bare requireStaff() call, not MODERATION_ROLES. The
+// note itself has no "reason" — the body *is* the content — but every write
+// through the service-role client still gets an audit row, per this file's
+// own established pattern (see the top-of-file comment in queries.ts).
+export async function addUserNote(_prev: ModerationState, formData: FormData): Promise<ModerationState> {
+  const { user, staff } = await requireStaff();
+  const targetId = String(formData.get("userId") ?? "").trim();
+  const body = String(formData.get("note") ?? "").trim();
+
+  if (!targetId) return { error: "Missing user id." };
+  if (!body) return { error: "A note can't be empty." };
+  if (body.length > NOTE_MAX_LENGTH) {
+    return { error: `Notes are limited to ${NOTE_MAX_LENGTH} characters.` };
+  }
+
+  const admin = createAdminClient();
+  const { error } = await admin.from("admin_user_notes").insert({
+    target_user_id: targetId,
+    author_id: user.id,
+    author_role: staff.role,
+    body,
+  });
+
+  await recordAdminAction({
+    actor: { id: user.id, role: staff.role },
+    action: "user.note_added",
+    targetType: "user",
+    targetId,
+    outcome: error ? "failure" : "success",
+    metadata: error ? { error: error.message } : undefined,
+  });
+
+  if (error) {
+    return { error: "Couldn't save this note — please try again." };
+  }
+
+  revalidatePath(`/admin/users/${targetId}`);
+  return { success: true };
+}
