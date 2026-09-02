@@ -1,15 +1,18 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Listing, Offer, Profile, TeeTimeInterest, TeeTimeInvite } from "@/lib/types";
+import type { StaffRole } from "./roles";
 
 // Every read in this file goes through the service-role client, deliberately
 // bypassing RLS: the admin console needs to see every user's data (not just
 // what a given staff member's own row would let them see under the app's
 // normal owner-scoped policies), and every caller of these functions sits
-// behind requireStaff() already — see src/lib/admin/authorization.ts. This
-// file only ever reads. The moment a Phase 3 mutation needs this client, it
-// must also write an audit_log row (see admin-architecture-review.md §6) —
-// nothing here does that yet because nothing here writes anything yet.
+// behind requireStaff() already — see src/lib/admin/authorization.ts. Every
+// function above the "Audit log" section only ever reads. The moment a
+// Phase 3 mutation needs this client to write, it must also record a row via
+// src/lib/admin/audit.ts's recordAdminAction() — see
+// admin-architecture-review.md §6 — nothing here does that yet because no
+// mutation exists yet.
 //
 // The whole member base is a handful of rows today (see the row counts in
 // admin-architecture-review.md). Fetching each table in full and joining /
@@ -295,4 +298,117 @@ export async function getTeeTimeInviteDetail(id: number): Promise<AdminInviteDet
       return { ...interest, member: memberProfile ? withEmail(memberProfile, emails) : null };
     }),
   };
+}
+
+// ---------- Audit log ----------
+//
+// Unlike everything above, this does NOT fetch-full-table-and-filter-in-memory
+// — the audit log is expected to grow unbounded (every future admin mutation
+// writes a row, forever), so it's the first admin query to earn real
+// server-side filtering and range()-based pagination rather than borrowing
+// the small-scale approach the rest of this file uses today.
+
+export type AdminAuditLogEntry = {
+  id: number;
+  actor_id: string;
+  actor_role: StaffRole;
+  action: string;
+  target_type: string;
+  target_id: string | null;
+  reason: string | null;
+  metadata: Record<string, unknown>;
+  correlation_id: string | null;
+  outcome: "success" | "failure";
+  created_at: string;
+};
+
+export type AdminAuditLogListItem = AdminAuditLogEntry & { actor: AdminProfile | null };
+
+export type AuditLogFilters = {
+  actorId?: string;
+  action?: string;
+  targetType?: string;
+  /** ISO date/timestamp — inclusive lower bound on created_at. */
+  from?: string;
+  /** ISO date/timestamp — inclusive upper bound on created_at. */
+  to?: string;
+};
+
+export type AuditLogPage = {
+  rows: AdminAuditLogListItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+};
+
+const AUDIT_LOG_PAGE_SIZE = 50;
+
+export async function listAuditLog(filters: AuditLogFilters = {}, page = 1): Promise<AuditLogPage> {
+  const admin = createAdminClient();
+  const pageSize = AUDIT_LOG_PAGE_SIZE;
+  const safePage = Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
+  const rangeFrom = (safePage - 1) * pageSize;
+  const rangeTo = rangeFrom + pageSize - 1;
+
+  let query = admin
+    .from("admin_audit_log")
+    .select("*", { count: "exact" })
+    // Stable sort: created_at alone can tie (two actions in the same
+    // millisecond), so id breaks the tie deterministically rather than
+    // leaving page boundaries to whatever order Postgres happens to return
+    // equal-timestamp rows in.
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
+    .range(rangeFrom, rangeTo);
+
+  if (filters.actorId) query = query.eq("actor_id", filters.actorId);
+  if (filters.action) query = query.eq("action", filters.action);
+  if (filters.targetType) query = query.eq("target_type", filters.targetType);
+  if (filters.from) query = query.gte("created_at", filters.from);
+  if (filters.to) query = query.lte("created_at", filters.to);
+
+  const { data, error, count } = await query.returns<AdminAuditLogEntry[]>();
+  if (error) throw new Error(`Failed to list audit log: ${error.message}`);
+
+  const emails = await emailMap();
+  const actorIds = [...new Set((data ?? []).map((row) => row.actor_id))];
+  const { data: actorProfiles } = actorIds.length
+    ? await admin.from("profiles").select("*").in("id", actorIds).returns<Profile[]>()
+    : { data: [] as Profile[] };
+  const actorById = new Map((actorProfiles ?? []).map((p) => [p.id, p]));
+
+  const rows = (data ?? []).map((entry) => {
+    const actorProfile = actorById.get(entry.actor_id) ?? null;
+    return { ...entry, actor: actorProfile ? withEmail(actorProfile, emails) : null };
+  });
+
+  return { rows, total: count ?? 0, page: safePage, pageSize };
+}
+
+export type AuditLogActor = { id: string; name: string; email: string | null };
+
+/**
+ * The staff roster, for the audit page's actor filter dropdown. Deliberately
+ * separate from listAuditLog(): the filter options only need the (tiny)
+ * staff_roles table, not a scan of the (potentially large, and growing)
+ * audit log itself.
+ */
+export async function listAuditLogActors(): Promise<AuditLogActor[]> {
+  const admin = createAdminClient();
+  const [{ data: staffRows }, emails] = await Promise.all([
+    admin.from("staff_roles").select("user_id").returns<{ user_id: string }[]>(),
+    emailMap(),
+  ]);
+  const staffIds = [...new Set((staffRows ?? []).map((row) => row.user_id))];
+  if (!staffIds.length) return [];
+
+  const { data: profiles } = await admin
+    .from("profiles")
+    .select("*")
+    .in("id", staffIds)
+    .returns<Profile[]>();
+
+  return (profiles ?? [])
+    .map((p) => ({ id: p.id, name: `${p.first_name} ${p.last_name}`.trim(), email: emails.get(p.id) ?? null }))
+    .sort((a, b) => a.name.localeCompare(b.name));
 }
