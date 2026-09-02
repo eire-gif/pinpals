@@ -76,7 +76,7 @@ export type AdminUserListItem = AdminProfile & {
   invite_count: number;
 };
 
-export async function listUsers(query = ""): Promise<AdminUserListItem[]> {
+export async function listUsers(query = "", suspendedOnly = false): Promise<AdminUserListItem[]> {
   const admin = createAdminClient();
   const [{ data: profiles, error }, authUsers, { data: listingRows }, { data: inviteRows }] =
     await Promise.all([
@@ -99,6 +99,7 @@ export async function listUsers(query = ""): Promise<AdminUserListItem[]> {
       listing_count: listingCountBySeller.get(profile.id) ?? 0,
       invite_count: inviteCountByMember.get(profile.id) ?? 0,
     }))
+    .filter((u) => !suspendedOnly || isUserSuspended(u))
     .filter((u) => matches(query, u.first_name, u.last_name, u.email, u.home_club, u.county));
 }
 
@@ -428,4 +429,72 @@ export async function listAuditLogActors(): Promise<AuditLogActor[]> {
   return (profiles ?? [])
     .map((p) => ({ id: p.id, name: `${p.first_name} ${p.last_name}`.trim(), email: authUsers.get(p.id)?.email ?? null }))
     .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+// ---------- Overview ----------
+//
+// Unlike listUsers()/listListings()/listTeeTimeInvites() above (which fetch
+// each table in full — fine at today's row counts, per the file-level
+// comment at the top of this file), every number here is a genuine
+// indexed/count query: `{ count: "exact", head: true }` asks PostgREST for
+// just the row count, not the rows themselves, so this function's cost does
+// not grow with table size the way a fetch-and-filter would. The one
+// exception is suspendedMembers, which reuses authUserMap() — that's the
+// same bounded (page size 1000) Auth Admin API call every other function in
+// this file already relies on for email/ban data, not a new full-table scan.
+
+export type OverviewMetrics = {
+  totalMembers: number;
+  suspendedMembers: number;
+  totalListings: number;
+  activeListings: number;
+  removedListings: number;
+  totalInvites: number;
+  openInvites: number;
+};
+
+export async function getOverviewMetrics(): Promise<OverviewMetrics> {
+  const admin = createAdminClient();
+
+  const [
+    { count: totalMembers, error: membersError },
+    authUsers,
+    { count: totalListings, error: totalListingsError },
+    { count: activeListings, error: activeListingsError },
+    { count: removedListings, error: removedListingsError },
+    { count: totalInvites, error: totalInvitesError },
+    { count: openInvites, error: openInvitesError },
+  ] = await Promise.all([
+    admin.from("profiles").select("*", { count: "exact", head: true }),
+    authUserMap(),
+    admin.from("listings").select("*", { count: "exact", head: true }),
+    admin.from("listings").select("*", { count: "exact", head: true }).eq("status", "active"),
+    admin.from("listings").select("*", { count: "exact", head: true }).eq("status", "removed"),
+    admin.from("tee_time_invites").select("*", { count: "exact", head: true }),
+    admin.from("tee_time_invites").select("*", { count: "exact", head: true }).eq("status", "open"),
+  ]);
+
+  const error =
+    membersError ??
+    totalListingsError ??
+    activeListingsError ??
+    removedListingsError ??
+    totalInvitesError ??
+    openInvitesError;
+  if (error) throw new Error(`Failed to load overview metrics: ${error.message}`);
+
+  let suspendedMembers = 0;
+  for (const info of authUsers.values()) {
+    if (isUserSuspended({ banned_until: info.bannedUntil })) suspendedMembers += 1;
+  }
+
+  return {
+    totalMembers: totalMembers ?? 0,
+    suspendedMembers,
+    totalListings: totalListings ?? 0,
+    activeListings: activeListings ?? 0,
+    removedListings: removedListings ?? 0,
+    totalInvites: totalInvites ?? 0,
+    openInvites: openInvites ?? 0,
+  };
 }
