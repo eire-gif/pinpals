@@ -4,14 +4,15 @@ import { requireStaff } from "@/lib/admin/authorization";
 import { ROLE_LABELS } from "@/lib/admin/roles";
 import SignOutButton from "@/components/sign-out-button";
 
-// Placeholders for later phases — deliberately not linked to real pages yet
-// except Overview. Keeping the full nav visible (disabled) from day one so
-// the shape of the console is clear before each section is built.
+// Placeholders for later phases — deliberately not linked to real pages yet.
+// Keeping the full nav visible (disabled) from day one so the shape of the
+// console is clear before each section is built. Users/Listings/Tee-times
+// shipped in Phase 2 (read-only); Orders onward are still Phase 3+.
 const NAV_ITEMS: { href: string; label: string; enabled?: boolean }[] = [
   { href: "/admin", label: "Overview", enabled: true },
-  { href: "/admin/users", label: "Users" },
-  { href: "/admin/listings", label: "Listings" },
-  { href: "/admin/tee-times", label: "Tee-times" },
+  { href: "/admin/users", label: "Users", enabled: true },
+  { href: "/admin/listings", label: "Listings", enabled: true },
+  { href: "/admin/tee-times", label: "Tee-times", enabled: true },
   { href: "/admin/orders", label: "Orders" },
   { href: "/admin/payouts", label: "Payouts" },
   { href: "/admin/clubs", label: "Clubs" },
