@@ -1,14 +1,20 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { requireStaff } from "@/lib/admin/authorization";
-import { ROLE_LABELS } from "@/lib/admin/roles";
+import { ROLE_LABELS, type StaffRole } from "@/lib/admin/roles";
 import SignOutButton from "@/components/sign-out-button";
 
 // Placeholders for later phases — deliberately not linked to real pages yet.
 // Keeping the full nav visible (disabled) from day one so the shape of the
 // console is clear before each section is built. Users/Listings/Tee-times
-// shipped in Phase 2 (read-only); Orders onward are still Phase 3+.
-const NAV_ITEMS: { href: string; label: string; enabled?: boolean }[] = [
+// shipped in Phase 2 (read-only); the audit log framework (still no
+// mutations to log yet) shipped ahead of the rest of Phase 3.
+//
+// `roles`, when set, hides the item from staff outside that set — this is a
+// UX nicety only (not the security boundary; requireStaff()'s own `roles`
+// check on the page itself is), so a moderator/support/finance/admin staff
+// member doesn't see a live-looking link that 404s for them.
+const NAV_ITEMS: { href: string; label: string; enabled?: boolean; roles?: readonly StaffRole[] }[] = [
   { href: "/admin", label: "Overview", enabled: true },
   { href: "/admin/users", label: "Users", enabled: true },
   { href: "/admin/listings", label: "Listings", enabled: true },
@@ -18,7 +24,7 @@ const NAV_ITEMS: { href: string; label: string; enabled?: boolean }[] = [
   { href: "/admin/clubs", label: "Clubs" },
   { href: "/admin/reports", label: "Reports" },
   { href: "/admin/settings", label: "Settings" },
-  { href: "/admin/audit-log", label: "Audit log" },
+  { href: "/admin/audit-log", label: "Audit log", enabled: true, roles: ["super_admin"] },
 ];
 
 export default async function AdminLayout({ children }: { children: ReactNode }) {
@@ -47,7 +53,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
 
       <div className="max-w-6xl mx-auto px-6 py-8 grid md:grid-cols-[220px_1fr] gap-8">
         <nav className="space-y-1">
-          {NAV_ITEMS.map((item) =>
+          {NAV_ITEMS.filter((item) => !item.roles || item.roles.includes(staff.role)).map((item) =>
             item.enabled ? (
               <Link
                 key={item.href}
