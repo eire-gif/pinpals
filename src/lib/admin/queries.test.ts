@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildUserSearchOrFilter, isUserSuspended, sanitizeSearchTerm } from "./queries";
+import { buildListingSearchOrFilter, buildUserSearchOrFilter, isUserSuspended, sanitizeSearchTerm } from "./queries";
 
 describe("isUserSuspended", () => {
   it("is false when there's no ban on record", () => {
@@ -73,5 +73,35 @@ describe("buildUserSearchOrFilter", () => {
 
   it("drops malformed ids rather than trusting them into the filter string", () => {
     expect(buildUserSearchOrFilter("", ["not-a-uuid", "; drop table profiles;"])).toBeNull();
+  });
+});
+
+describe("buildListingSearchOrFilter", () => {
+  it("returns null when there's nothing to filter on", () => {
+    expect(buildListingSearchOrFilter("", [])).toBeNull();
+    expect(buildListingSearchOrFilter("   ", [])).toBeNull();
+    expect(buildListingSearchOrFilter("%,.()", [])).toBeNull();
+  });
+
+  it("builds an ilike clause across title and description", () => {
+    const filter = buildListingSearchOrFilter("Driver", []);
+    expect(filter).toBe("title.ilike.%Driver%,description.ilike.%Driver%");
+  });
+
+  it("appends a seller_id.in clause for name-matched sellers", () => {
+    const id = "3fa85f64-5717-4562-b3fc-2c963f66afa6";
+    const filter = buildListingSearchOrFilter("", [id]);
+    expect(filter).toBe(`seller_id.in.(${id})`);
+  });
+
+  it("combines title/description ilike clauses with seller-matched ids", () => {
+    const id = "3fa85f64-5717-4562-b3fc-2c963f66afa6";
+    const filter = buildListingSearchOrFilter("Driver", [id]);
+    expect(filter).toContain("title.ilike.%Driver%");
+    expect(filter).toContain(`seller_id.in.(${id})`);
+  });
+
+  it("drops malformed ids rather than trusting them into the filter string", () => {
+    expect(buildListingSearchOrFilter("", ["not-a-uuid", "; drop table listings;"])).toBeNull();
   });
 });
