@@ -9,11 +9,15 @@ import { INTEREST_STATUS_LABELS, INTEREST_STATUS_STYLES, STATUS_LABELS, STATUS_S
 export const LISTING_STATUS_LABELS: Record<string, string> = {
   active: "Active",
   reserved: "Sale agreed",
+  sold: "Sold",
+  removed: "Removed by admin",
 };
 
 export const LISTING_STATUS_STYLES: Record<string, string> = {
   active: "bg-green-100 text-green-800",
   reserved: "bg-cream-100 text-ink-900",
+  sold: "bg-cream-100 text-ink-500",
+  removed: "bg-red-100 text-red-600",
 };
 
 export const OFFER_STATUS_LABELS: Record<string, string> = {
