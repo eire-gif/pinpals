@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireStaff } from "@/lib/admin/authorization";
 import { getTeeTimeInviteDetail } from "@/lib/admin/queries";
+import { canAccess } from "@/lib/admin/roles";
 import {
   formatDateTime,
   INVITE_STATUS_LABELS,
@@ -9,16 +10,19 @@ import {
   INVITE_INTEREST_STATUS_LABELS,
   INVITE_INTEREST_STATUS_STYLES,
 } from "@/lib/admin/format";
+import { MODERATION_ROLES } from "@/lib/admin/moderation";
 import { formatClock, formatInviteDate, formatTimeRange } from "@/lib/tee-times";
 import AdminAvatar from "@/components/admin/avatar";
 import StatusBadge from "@/components/admin/status-badge";
+import ModerationForm from "@/components/admin/moderation-form";
+import { cancelInvite, restoreInvite } from "./actions";
 
 export default async function AdminTeeTimeDetailPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await requireStaff();
+  const { staff } = await requireStaff();
   const { id } = await params;
   const inviteId = Number(id);
   if (!inviteId || Number.isNaN(inviteId)) notFound();
@@ -28,6 +32,7 @@ export default async function AdminTeeTimeDetailPage({
 
   const { invite, host, interests } = detail;
   const hostName = host ? `${host.first_name} ${host.last_name}` : "Unknown host";
+  const canModerate = canAccess(staff, MODERATION_ROLES);
   const timeRange =
     formatTimeRange(invite.time_from, invite.time_to) ??
     (invite.exact_tee_time ? formatClock(invite.exact_tee_time) : null);
@@ -76,6 +81,33 @@ export default async function AdminTeeTimeDetailPage({
           <span>Expires {formatDateTime(invite.expires_at)}</span>
         </div>
       </div>
+
+      {canModerate && (invite.status === "cancelled" || invite.status === "open" || invite.status === "full") && (
+        <Section title="Moderation">
+          <div className="p-5">
+            {invite.status === "cancelled" ? (
+              <ModerationForm
+                action={restoreInvite}
+                idField="inviteId"
+                id={invite.id}
+                submitLabel="Restore"
+                pendingLabel="Restoring…"
+                placeholder="Reason for restoring (recorded in the audit log)"
+              />
+            ) : (
+              <ModerationForm
+                action={cancelInvite}
+                idField="inviteId"
+                id={invite.id}
+                submitLabel="Cancel"
+                pendingLabel="Cancelling…"
+                tone="danger"
+                placeholder="Reason for cancelling (recorded in the audit log)"
+              />
+            )}
+          </div>
+        </Section>
+      )}
 
       <Section title="Host">
         {host ? (

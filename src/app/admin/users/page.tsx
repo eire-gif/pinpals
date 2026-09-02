@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requireStaff } from "@/lib/admin/authorization";
-import { listUsers } from "@/lib/admin/queries";
+import { listUsers, isUserSuspended } from "@/lib/admin/queries";
 import AdminAvatar from "@/components/admin/avatar";
 
 export default async function AdminUsersPage({
@@ -63,6 +63,11 @@ export default async function AdminUsersPage({
                       <Link href={`/admin/users/${u.id}`} className="flex items-center gap-3">
                         <AdminAvatar name={name} color={u.avatar_color} />
                         <span className="font-semibold text-ink-900">{name}</span>
+                        {isUserSuspended(u) && (
+                          <span className="bg-red-100 text-red-600 text-xs font-bold px-2 py-0.5 rounded-full">
+                            Suspended
+                          </span>
+                        )}
                       </Link>
                     </td>
                     <td className="px-5 py-3 text-ink-500">{u.email ?? "—"}</td>
