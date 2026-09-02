@@ -126,7 +126,21 @@ export default async function AdminUserDetailPage({
         </Section>
       )}
 
-      <Section title={`Listings (${listings.length})`}>
+      <Section
+        title={
+          <div className="flex items-center justify-between gap-3">
+            <span>Listings ({listings.length})</span>
+            {listings.length > 0 && (
+              <Link
+                href={`/admin/listings?seller=${profile.id}`}
+                className="text-xs font-semibold text-ink-500 hover:text-ink-900 normal-case tracking-normal"
+              >
+                Open in Listings →
+              </Link>
+            )}
+          </div>
+        }
+      >
         {listings.length === 0 ? (
           <EmptyRow>No listings.</EmptyRow>
         ) : (
@@ -261,7 +275,7 @@ export default async function AdminUserDetailPage({
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, children }: { title: React.ReactNode; children: React.ReactNode }) {
   return (
     <div className="mb-8">
       <h2 className="font-display font-bold text-lg mb-3">{title}</h2>
