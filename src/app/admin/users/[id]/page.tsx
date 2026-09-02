@@ -11,14 +11,17 @@ import {
   INVITE_STATUS_STYLES,
   OFFER_STATUS_LABELS,
   OFFER_STATUS_STYLES,
+  sellerStatusLabel,
 } from "@/lib/admin/format";
 import { MODERATION_ROLES } from "@/lib/admin/moderation";
+import { ROLE_LABELS } from "@/lib/admin/roles";
 import { formatPrice } from "@/lib/format";
 import { formatInviteDate } from "@/lib/tee-times";
 import AdminAvatar from "@/components/admin/avatar";
 import StatusBadge from "@/components/admin/status-badge";
 import ModerationForm from "@/components/admin/moderation-form";
-import { suspendUser, reinstateUser } from "./actions";
+import UnavailableCard from "@/components/admin/unavailable-card";
+import { suspendUser, reinstateUser, addUserNote } from "./actions";
 
 export default async function AdminUserDetailPage({
   params,
@@ -30,9 +33,10 @@ export default async function AdminUserDetailPage({
   const detail = await getUserDetail(id);
   if (!detail) notFound();
 
-  const { profile, listings, invites, offersMade } = detail;
+  const { profile, listings, invites, offersMade, notes } = detail;
   const name = `${profile.first_name} ${profile.last_name}`;
   const suspended = isUserSuspended(profile);
+  const sellerStatus = sellerStatusLabel(listings);
   // A UX nicety only — canAccess() re-checks this server-side inside
   // suspendUser()/reinstateUser() themselves, which is the real boundary.
   const canModerate = canAccess(staff, MODERATION_ROLES);
@@ -77,9 +81,21 @@ export default async function AdminUserDetailPage({
           </div>
           {profile.bio && <p className="text-sm text-ink-500 mt-3 max-w-[60ch]">{profile.bio}</p>}
         </div>
-        <div className="text-sm text-ink-500 text-right shrink-0">
-          Joined
-          <div className="text-ink-900 font-semibold">{formatDateTime(profile.created_at)}</div>
+        <div className="text-sm text-ink-500 text-right shrink-0 space-y-2">
+          <div>
+            Account status
+            <div className={`font-semibold ${suspended ? "text-red-600" : "text-green-700"}`}>
+              {suspended ? "Suspended" : "Active"}
+            </div>
+          </div>
+          <div>
+            Joined
+            <div className="text-ink-900 font-semibold">{formatDateTime(profile.created_at)}</div>
+          </div>
+          <div>
+            Seller status
+            <div className="text-ink-900 font-semibold">{sellerStatus}</div>
+          </div>
         </div>
       </div>
 
@@ -180,6 +196,65 @@ export default async function AdminUserDetailPage({
               </tr>
             ))}
           </Table>
+        )}
+      </Section>
+
+      <Section title="Orders">
+        <div className="p-5">
+          <UnavailableCard
+            label="Orders"
+            reason="No orders table exists yet — the marketplace is offer-negotiation only, with no payment step."
+          />
+        </div>
+      </Section>
+
+      <Section title="Reports">
+        <div className="p-5">
+          <UnavailableCard
+            label="Reports involving this member"
+            reason="No reporting/flagging mechanism exists yet — nothing for members to report with."
+          />
+        </div>
+      </Section>
+
+      <Section title={`Internal notes (${notes.length})`}>
+        <div className="p-5 border-b border-line">
+          {/* Any active staff member can add a note — see the comment on
+              addUserNote() in ./actions.ts for why this isn't gated to
+              MODERATION_ROLES the way suspend/reinstate above is. */}
+          <ModerationForm
+            action={addUserNote}
+            idField="userId"
+            id={profile.id}
+            fieldName="note"
+            submitLabel="Add note"
+            pendingLabel="Saving…"
+            placeholder="Add an internal note about this member — visible to all staff"
+          />
+        </div>
+        {notes.length === 0 ? (
+          <EmptyRow>No notes yet.</EmptyRow>
+        ) : (
+          <ul>
+            {notes.map((n) => {
+              const authorName = n.author
+                ? `${n.author.first_name} ${n.author.last_name}`.trim()
+                : "Unknown staff member";
+              return (
+                <li key={n.id} className="px-5 py-4 border-b border-line last:border-0">
+                  <div className="flex items-center gap-2.5 mb-2">
+                    <AdminAvatar name={authorName} color={n.author?.avatar_color ?? null} size="sm" />
+                    <div className="text-sm">
+                      <span className="font-semibold text-ink-900">{authorName}</span>
+                      <span className="text-ink-500"> · {ROLE_LABELS[n.author_role]}</span>
+                      <span className="text-ink-500"> · {formatDateTime(n.created_at)}</span>
+                    </div>
+                  </div>
+                  <p className="text-sm text-ink-900 whitespace-pre-wrap">{n.body}</p>
+                </li>
+              );
+            })}
+          </ul>
         )}
       </Section>
     </div>
