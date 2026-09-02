@@ -37,7 +37,10 @@ export async function hideListing(_prev: ModerationState, formData: FormData): P
     targetId: listingId,
     reason,
     outcome: error ? "failure" : "success",
-    metadata: error ? { error: error.message } : undefined,
+    // previousStatus/newStatus, not just the error, so the listing detail
+    // page's "moderation history" section can show a before → after trail
+    // even on the success path, not only when something went wrong.
+    metadata: error ? { error: error.message } : { previousStatus: listing.status, newStatus: "removed" },
   });
 
   if (error) {
@@ -73,7 +76,7 @@ export async function restoreListing(_prev: ModerationState, formData: FormData)
     targetId: listingId,
     reason,
     outcome: error ? "failure" : "success",
-    metadata: error ? { error: error.message } : undefined,
+    metadata: error ? { error: error.message } : { previousStatus: listing.status, newStatus: "active" },
   });
 
   if (error) {
