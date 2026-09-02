@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireStaff } from "@/lib/admin/authorization";
-import { getUserDetail } from "@/lib/admin/queries";
+import { getUserDetail, isUserSuspended } from "@/lib/admin/queries";
+import { canAccess } from "@/lib/admin/roles";
 import {
   formatDateTime,
   LISTING_STATUS_LABELS,
@@ -11,23 +12,30 @@ import {
   OFFER_STATUS_LABELS,
   OFFER_STATUS_STYLES,
 } from "@/lib/admin/format";
+import { MODERATION_ROLES } from "@/lib/admin/moderation";
 import { formatPrice } from "@/lib/format";
 import { formatInviteDate } from "@/lib/tee-times";
 import AdminAvatar from "@/components/admin/avatar";
 import StatusBadge from "@/components/admin/status-badge";
+import ModerationForm from "@/components/admin/moderation-form";
+import { suspendUser, reinstateUser } from "./actions";
 
 export default async function AdminUserDetailPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await requireStaff();
+  const { staff } = await requireStaff();
   const { id } = await params;
   const detail = await getUserDetail(id);
   if (!detail) notFound();
 
   const { profile, listings, invites, offersMade } = detail;
   const name = `${profile.first_name} ${profile.last_name}`;
+  const suspended = isUserSuspended(profile);
+  // A UX nicety only — canAccess() re-checks this server-side inside
+  // suspendUser()/reinstateUser() themselves, which is the real boundary.
+  const canModerate = canAccess(staff, MODERATION_ROLES);
 
   return (
     <div>
@@ -41,6 +49,11 @@ export default async function AdminUserDetailPage({
           <h1 className="font-display font-bold text-2xl">{name}</h1>
           <p className="text-ink-500">{profile.email ?? "No email on file"}</p>
           <div className="flex flex-wrap gap-2 mt-3">
+            {suspended && (
+              <span className="bg-red-100 text-red-600 text-xs font-bold px-2.5 py-1 rounded-full">
+                Suspended
+              </span>
+            )}
             {profile.home_club && (
               <span className="bg-cream-100 text-xs font-bold px-2.5 py-1 rounded-full">
                 {profile.home_club}
@@ -69,6 +82,33 @@ export default async function AdminUserDetailPage({
           <div className="text-ink-900 font-semibold">{formatDateTime(profile.created_at)}</div>
         </div>
       </div>
+
+      {canModerate && (
+        <Section title="Moderation">
+          <div className="p-5">
+            {suspended ? (
+              <ModerationForm
+                action={reinstateUser}
+                idField="userId"
+                id={profile.id}
+                submitLabel="Reinstate"
+                pendingLabel="Reinstating…"
+                placeholder="Reason for reinstating (recorded in the audit log)"
+              />
+            ) : (
+              <ModerationForm
+                action={suspendUser}
+                idField="userId"
+                id={profile.id}
+                submitLabel="Suspend"
+                pendingLabel="Suspending…"
+                tone="danger"
+                placeholder="Reason for suspending (recorded in the audit log)"
+              />
+            )}
+          </div>
+        </Section>
+      )}
 
       <Section title={`Listings (${listings.length})`}>
         {listings.length === 0 ? (
