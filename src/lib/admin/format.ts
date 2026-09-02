@@ -64,3 +64,21 @@ export function personName(person: { first_name: string; last_name: string } | n
   if (!person) return "Unknown member";
   return `${person.first_name} ${person.last_name}`.trim();
 }
+
+/**
+ * A member's seller status, computed from their own listings — there's no
+ * separate seller-onboarding concept yet (no Stripe Connect; see
+ * admin-architecture-review.md §8 Phase 5), so this is the honest summary
+ * available today: whether they currently have anything for sale, have sold
+ * before but nothing active now, or have never listed anything. Pure and
+ * DB-free — takes whatever listings the caller already fetched rather than
+ * querying anything itself.
+ */
+export function sellerStatusLabel(listings: { status: string }[]): string {
+  if (listings.length === 0) return "Not selling — no listings";
+  const activeCount = listings.filter((l) => l.status === "active" || l.status === "reserved").length;
+  if (activeCount > 0) {
+    return `Active seller — ${activeCount} live ${activeCount === 1 ? "listing" : "listings"}`;
+  }
+  return "Inactive seller — no active listings";
+}
