@@ -6,17 +6,19 @@ import AdminAvatar from "@/components/admin/avatar";
 export default async function AdminUsersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; suspended?: string }>;
 }) {
   await requireStaff();
-  const { q = "" } = await searchParams;
-  const users = await listUsers(q);
+  const { q = "", suspended } = await searchParams;
+  const suspendedOnly = suspended === "1";
+  const users = await listUsers(q, suspendedOnly);
 
   return (
     <div>
       <h1 className="font-display font-bold text-2xl mb-1">Users</h1>
       <p className="text-ink-500 mb-6">
         {users.length} {users.length === 1 ? "member" : "members"}
+        {suspendedOnly && " · suspended"}
         {q && (
           <>
             {" "}
@@ -26,14 +28,28 @@ export default async function AdminUsersPage({
         .
       </p>
 
-      <form className="mb-6">
+      <form className="flex flex-wrap gap-3 mb-6">
         <input
           type="text"
           name="q"
           defaultValue={q}
           placeholder="Search by name, email, club or county…"
-          className="w-full max-w-md px-4 py-2.5 rounded-full border-[1.5px] border-line bg-surface text-sm"
+          className="flex-1 min-w-[240px] px-4 py-2.5 rounded-full border-[1.5px] border-line bg-surface text-sm"
         />
+        <select
+          name="suspended"
+          defaultValue={suspendedOnly ? "1" : ""}
+          className="px-4 py-2.5 rounded-full border-[1.5px] border-line bg-surface text-sm"
+        >
+          <option value="">All members</option>
+          <option value="1">Suspended only</option>
+        </select>
+        <button
+          type="submit"
+          className="px-5 py-2.5 rounded-full font-bold text-sm bg-navy-900 text-cream-50 hover:bg-navy-800 transition"
+        >
+          Filter
+        </button>
       </form>
 
       <div className="bg-surface border border-line rounded-2xl overflow-hidden shadow-sm">
