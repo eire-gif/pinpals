@@ -15,14 +15,24 @@ import type { StaffRole } from "./roles";
 // mutation exists yet.
 //
 // The whole member base is a handful of rows today (see the row counts in
-// admin-architecture-review.md). Fetching each table in full and joining /
-// searching in memory is simpler and plenty fast at this scale, and it's how
-// we get each user's email onto their profile at all — Supabase Auth emails
-// live in auth.users, which PostgREST doesn't expose, so the only way to
-// read them is the Auth admin API (`auth.admin.listUsers`), not a DB join.
-// Once the member base grows past a page of Auth users (1000) or search
-// needs real pagination, replace the full-table reads below with
-// server-side filtering and a cursor.
+// admin-architecture-review.md). For listListings()/listTeeTimeInvites(),
+// fetching each table in full and joining/searching in memory is simpler
+// and plenty fast at this scale. listUsers() *used* to work the same way,
+// but the task that added Phase 5 (user detail + real pagination) replaced
+// it with genuine server-side `.range()` pagination and indexed `ilike`
+// search (see supabase/migrations/0012_profiles_search_indexes.sql) — see
+// the "Users" section below for why, and why email search still works
+// without a SQL column to search on.
+//
+// Every function in this file needs each user's email attached to their
+// profile — Supabase Auth emails live in auth.users, which PostgREST
+// doesn't expose, so the only way to read them is the Auth admin API
+// (`auth.admin.listUsers`), not a DB join. That call is bounded to 1000
+// users (one Admin API page) regardless of how many profile rows are
+// actually being displayed, which is the same bounded-cost pattern
+// getOverviewMetrics() relies on below for suspendedMembers. Once the
+// member base grows past 1000 auth users, this needs real cursor-paged
+// Admin API reads instead of one bounded page.
 
 type AuthUserInfo = { email: string | null; bannedUntil: string | null };
 
@@ -76,31 +86,174 @@ export type AdminUserListItem = AdminProfile & {
   invite_count: number;
 };
 
-export async function listUsers(query = "", suspendedOnly = false): Promise<AdminUserListItem[]> {
+export type AdminUserPage = {
+  rows: AdminUserListItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+};
+
+const USERS_PAGE_SIZE = 20;
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Reduces a raw search-box query down to characters that are inert in both
+ * Postgres's ILIKE pattern language (where `\` `%` `_` are wildcards/escapes)
+ * and PostgREST's filter mini-language (where `,` `.` `:` `(` `)` are
+ * reserved separators). Rather than correctly *escaping* for both layers at
+ * once — fragile to get right, and only verifiable by testing against a live
+ * query — this sidesteps the problem: nothing that survives can ever act as
+ * a wildcard or break filter syntax. Letters (Unicode-aware, so fada-accented
+ * Irish spellings like "Dún Laoghaire" or "Ó Súilleabháin" still match),
+ * digits, spaces, hyphens and apostrophes cover every real first name,
+ * surname, club, and county this app has. Exported for unit testing.
+ */
+export function sanitizeSearchTerm(raw: string): string {
+  return raw
+    .normalize("NFC")
+    .replace(/[^\p{L}\p{N}\s'-]/gu, "")
+    .trim()
+    .slice(0, 100);
+}
+
+/**
+ * Builds the `.or()` filter string for listUsers()'s indexed search: ILIKE
+ * across the four indexed profile columns the search box matches against
+ * (see 0012_profiles_search_indexes.sql), plus an `id.in.(...)` clause for
+ * any profile ids that matched by email (email itself isn't a SQL column —
+ * see the file-header comment). Returns null when there's nothing to filter
+ * on, so the caller can skip `.or()` entirely rather than pass an empty
+ * clause. Pure and DB-free by design so it's testable without mocking
+ * Supabase — same reasoning as audit.ts's sanitizeMetadata(). Exported for
+ * unit testing.
+ */
+export function buildUserSearchOrFilter(query: string, emailMatchedIds: string[]): string | null {
+  const term = sanitizeSearchTerm(query);
+  const clauses: string[] = [];
+
+  if (term) {
+    const pattern = `%${term}%`;
+    clauses.push(
+      `first_name.ilike.${pattern}`,
+      `last_name.ilike.${pattern}`,
+      `home_club.ilike.${pattern}`,
+      `county.ilike.${pattern}`
+    );
+  }
+
+  // Defense in depth: these ids come from our own authUserMap() lookup
+  // (Supabase Auth's own user ids), never straight from the request, but
+  // validate the shape before it ever reaches a filter string anyway.
+  const validIds = emailMatchedIds.filter((id) => UUID_RE.test(id));
+  if (validIds.length) clauses.push(`id.in.(${validIds.join(",")})`);
+
+  return clauses.length ? clauses.join(",") : null;
+}
+
+/**
+ * Paginated, server-side-filtered member list for /admin/users. Unlike
+ * listListings()/listTeeTimeInvites(), this never reads more `profiles` rows
+ * than one page's worth: search runs as an indexed `ilike`/`id.in` filter in
+ * the query itself (see buildUserSearchOrFilter()), and the per-user
+ * listing/invite counts are looked up scoped to just this page's ids, not
+ * every listing/invite in the system.
+ */
+export async function listUsers(
+  query = "",
+  suspendedOnly = false,
+  page = 1
+): Promise<AdminUserPage> {
   const admin = createAdminClient();
-  const [{ data: profiles, error }, authUsers, { data: listingRows }, { data: inviteRows }] =
-    await Promise.all([
-      admin.from("profiles").select("*").order("created_at", { ascending: false }).returns<Profile[]>(),
-      authUserMap(),
-      admin.from("listings").select("seller_id").returns<Pick<Listing, "seller_id">[]>(),
-      admin
-        .from("tee_time_invites")
-        .select("member_id")
-        .returns<Pick<TeeTimeInvite, "member_id">[]>(),
-    ]);
+  const safePage = Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
+  const rangeFrom = (safePage - 1) * USERS_PAGE_SIZE;
+  const rangeTo = rangeFrom + USERS_PAGE_SIZE - 1;
+
+  // Needed up front (not just for attaching email/ban status to the result
+  // page) because search-by-email and the suspended-only filter both have to
+  // be resolved against the Auth roster *before* the profiles query runs —
+  // there's no SQL column for either. Bounded to ≤1000 rows regardless of
+  // how many profiles exist or which page is being viewed — see the
+  // file-header comment.
+  const authUsers = await authUserMap();
+
+  const trimmedQuery = query.trim();
+  const emailMatchedIds = trimmedQuery
+    ? [...authUsers.entries()]
+        .filter(([, info]) => info.email?.toLowerCase().includes(trimmedQuery.toLowerCase()))
+        .map(([id]) => id)
+    : [];
+
+  let profilesQuery = admin
+    .from("profiles")
+    .select("*", { count: "exact" })
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
+    .range(rangeFrom, rangeTo);
+
+  if (suspendedOnly) {
+    const suspendedIds = [...authUsers.entries()]
+      .filter(([, info]) => isUserSuspended({ banned_until: info.bannedUntil }))
+      .map(([id]) => id);
+    // No suspended members at all — short-circuit rather than send a query
+    // that can only ever come back empty (an empty `.in()` list is also
+    // invalid PostgREST syntax, so this guard is required, not just an
+    // optimization).
+    if (suspendedIds.length === 0) {
+      return { rows: [], total: 0, page: safePage, pageSize: USERS_PAGE_SIZE };
+    }
+    profilesQuery = profilesQuery.in("id", suspendedIds);
+  }
+
+  if (trimmedQuery) {
+    // A search term that sanitizes to nothing (e.g. punctuation-only) and
+    // matched no emails means "no additional constraint" — .or() is only
+    // applied when there's an actual filter to apply.
+    const filter = buildUserSearchOrFilter(trimmedQuery, emailMatchedIds);
+    if (filter) profilesQuery = profilesQuery.or(filter);
+  }
+
+  const { data, error, count } = await profilesQuery.returns<Profile[]>();
   if (error) throw new Error(`Failed to list profiles: ${error.message}`);
+  return await attachCountsAndReturn(admin, data ?? [], count ?? 0, safePage, authUsers);
+}
+
+/** Shared tail of listUsers()'s two query paths: attach email/ban status and
+ * per-user listing/invite counts, scoped to just this page's ids. */
+async function attachCountsAndReturn(
+  admin: ReturnType<typeof createAdminClient>,
+  profiles: Profile[],
+  total: number,
+  page: number,
+  authUsers: Map<string, AuthUserInfo>
+): Promise<AdminUserPage> {
+  const pageIds = profiles.map((p) => p.id);
+
+  const [{ data: listingRows }, { data: inviteRows }] = pageIds.length
+    ? await Promise.all([
+        admin
+          .from("listings")
+          .select("seller_id")
+          .in("seller_id", pageIds)
+          .returns<Pick<Listing, "seller_id">[]>(),
+        admin
+          .from("tee_time_invites")
+          .select("member_id")
+          .in("member_id", pageIds)
+          .returns<Pick<TeeTimeInvite, "member_id">[]>(),
+      ])
+    : [{ data: [] as Pick<Listing, "seller_id">[] }, { data: [] as Pick<TeeTimeInvite, "member_id">[] }];
 
   const listingCountBySeller = countBy(listingRows ?? [], "seller_id");
   const inviteCountByMember = countBy(inviteRows ?? [], "member_id");
 
-  return (profiles ?? [])
-    .map((profile) => ({
-      ...withEmail(profile, authUsers),
-      listing_count: listingCountBySeller.get(profile.id) ?? 0,
-      invite_count: inviteCountByMember.get(profile.id) ?? 0,
-    }))
-    .filter((u) => !suspendedOnly || isUserSuspended(u))
-    .filter((u) => matches(query, u.first_name, u.last_name, u.email, u.home_club, u.county));
+  const rows = profiles.map((profile) => ({
+    ...withEmail(profile, authUsers),
+    listing_count: listingCountBySeller.get(profile.id) ?? 0,
+    invite_count: inviteCountByMember.get(profile.id) ?? 0,
+  }));
+
+  return { rows, total, page, pageSize: USERS_PAGE_SIZE };
 }
 
 export type AdminUserDetail = {
@@ -108,11 +261,12 @@ export type AdminUserDetail = {
   listings: Listing[];
   invites: TeeTimeInvite[];
   offersMade: (Offer & { listing: Pick<Listing, "id" | "title"> | null })[];
+  notes: AdminUserNoteListItem[];
 };
 
 export async function getUserDetail(id: string): Promise<AdminUserDetail | null> {
   const admin = createAdminClient();
-  const [{ data: profile }, authUsers, { data: listings }, { data: invites }, { data: offersMade }] =
+  const [{ data: profile }, authUsers, { data: listings }, { data: invites }, { data: offersMade }, notes] =
     await Promise.all([
       admin.from("profiles").select("*").eq("id", id).maybeSingle<Profile>(),
       authUserMap(),
@@ -134,6 +288,7 @@ export async function getUserDetail(id: string): Promise<AdminUserDetail | null>
         .eq("buyer_id", id)
         .order("created_at", { ascending: false })
         .returns<(Offer & { listing: Pick<Listing, "id" | "title"> | null })[]>(),
+      listUserNotes(id),
     ]);
 
   if (!profile) return null;
@@ -143,7 +298,53 @@ export async function getUserDetail(id: string): Promise<AdminUserDetail | null>
     listings: listings ?? [],
     invites: invites ?? [],
     offersMade: offersMade ?? [],
+    notes,
   };
+}
+
+// ---------- Admin notes ----------
+//
+// Read side of admin_user_notes (see supabase/migrations/0013_admin_user_notes.sql).
+// The write side (addUserNote()) lives in
+// src/app/admin/users/[id]/actions.ts, next to suspendUser()/reinstateUser()
+// — it's a Server Action tied to that one route, not a general-purpose query.
+
+export type AdminUserNote = {
+  id: number;
+  target_user_id: string;
+  author_id: string;
+  author_role: StaffRole;
+  body: string;
+  created_at: string;
+};
+
+export type AdminUserNoteListItem = AdminUserNote & { author: AdminProfile | null };
+
+/** Every note on one member, newest first — scoped by the indexed
+ * (target_user_id, created_at) composite index, never a full-table read. */
+export async function listUserNotes(targetUserId: string): Promise<AdminUserNoteListItem[]> {
+  const admin = createAdminClient();
+  const [{ data, error }, authUsers] = await Promise.all([
+    admin
+      .from("admin_user_notes")
+      .select("*")
+      .eq("target_user_id", targetUserId)
+      .order("created_at", { ascending: false })
+      .returns<AdminUserNote[]>(),
+    authUserMap(),
+  ]);
+  if (error) throw new Error(`Failed to list admin notes: ${error.message}`);
+
+  const authorIds = [...new Set((data ?? []).map((n) => n.author_id))];
+  const { data: authorProfiles } = authorIds.length
+    ? await admin.from("profiles").select("*").in("id", authorIds).returns<Profile[]>()
+    : { data: [] as Profile[] };
+  const authorById = new Map((authorProfiles ?? []).map((p) => [p.id, p]));
+
+  return (data ?? []).map((note) => {
+    const authorProfile = authorById.get(note.author_id) ?? null;
+    return { ...note, author: authorProfile ? withEmail(authorProfile, authUsers) : null };
+  });
 }
 
 // ---------- Listings ----------
