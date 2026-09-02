@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireStaff } from "@/lib/admin/authorization";
 import { getListingDetail } from "@/lib/admin/queries";
+import { canAccess } from "@/lib/admin/roles";
 import {
   formatDateTime,
   LISTING_STATUS_LABELS,
@@ -10,16 +11,19 @@ import {
   OFFER_STATUS_LABELS,
   OFFER_STATUS_STYLES,
 } from "@/lib/admin/format";
+import { MODERATION_ROLES } from "@/lib/admin/moderation";
 import { formatPrice } from "@/lib/format";
 import AdminAvatar from "@/components/admin/avatar";
 import StatusBadge from "@/components/admin/status-badge";
+import ModerationForm from "@/components/admin/moderation-form";
+import { hideListing, restoreListing } from "./actions";
 
 export default async function AdminListingDetailPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await requireStaff();
+  const { staff } = await requireStaff();
   const { id } = await params;
   const listingId = Number(id);
   if (!listingId || Number.isNaN(listingId)) notFound();
@@ -29,6 +33,7 @@ export default async function AdminListingDetailPage({
 
   const { listing, seller, offers } = detail;
   const sellerName = seller ? `${seller.first_name} ${seller.last_name}` : "Unknown seller";
+  const canModerate = canAccess(staff, MODERATION_ROLES);
 
   return (
     <div>
@@ -80,6 +85,33 @@ export default async function AdminListingDetailPage({
           <p className="text-xs text-ink-500 mt-4">Listed {formatDateTime(listing.created_at)}</p>
         </div>
       </div>
+
+      {canModerate && (listing.status === "active" || listing.status === "removed") && (
+        <Section title="Moderation">
+          <div className="p-5">
+            {listing.status === "removed" ? (
+              <ModerationForm
+                action={restoreListing}
+                idField="listingId"
+                id={listing.id}
+                submitLabel="Restore"
+                pendingLabel="Restoring…"
+                placeholder="Reason for restoring (recorded in the audit log)"
+              />
+            ) : (
+              <ModerationForm
+                action={hideListing}
+                idField="listingId"
+                id={listing.id}
+                submitLabel="Hide"
+                pendingLabel="Hiding…"
+                tone="danger"
+                placeholder="Reason for hiding (recorded in the audit log)"
+              />
+            )}
+          </div>
+        </Section>
+      )}
 
       <Section title="Seller">
         {seller ? (
