@@ -21,7 +21,7 @@ const NAV_ITEMS: { href: string; label: string; enabled?: boolean; roles?: reado
   { href: "/admin/listings", label: "Listings", enabled: true },
   { href: "/admin/tee-times", label: "Tee-times", enabled: true },
   { href: "/admin/orders", label: "Orders", enabled: true, roles: FINANCE_ROLES },
-  { href: "/admin/payouts", label: "Payouts" },
+  { href: "/admin/payouts", label: "Payouts", enabled: true, roles: FINANCE_ROLES },
   { href: "/admin/clubs", label: "Clubs" },
   { href: "/admin/reports", label: "Reports", enabled: true },
   { href: "/admin/settings", label: "Settings" },

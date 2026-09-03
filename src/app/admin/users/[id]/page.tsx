@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireStaff } from "@/lib/admin/authorization";
-import { getUserDetail, isUserSuspended, listReports } from "@/lib/admin/queries";
+import { getSellerAccountDetail, getUserDetail, isUserSuspended, listReports } from "@/lib/admin/queries";
 import { canAccess } from "@/lib/admin/roles";
+import { FINANCE_ROLES } from "@/lib/admin/finance";
 import {
   formatDateTime,
   LISTING_STATUS_LABELS,
@@ -15,7 +16,7 @@ import {
 } from "@/lib/admin/format";
 import { MODERATION_ROLES } from "@/lib/admin/moderation";
 import { ROLE_LABELS } from "@/lib/admin/roles";
-import { formatPrice } from "@/lib/format";
+import { formatPrice, sellerAccountStatusLabel } from "@/lib/format";
 import { formatInviteDate } from "@/lib/tee-times";
 import AdminAvatar from "@/components/admin/avatar";
 import StatusBadge from "@/components/admin/status-badge";
@@ -52,6 +53,16 @@ export default async function AdminUserDetailPage({
   // A UX nicety only — canAccess() re-checks this server-side inside
   // suspendUser()/reinstateUser() themselves, which is the real boundary.
   const canModerate = canAccess(staff, MODERATION_ROLES);
+  // Same reasoning: /admin/payouts itself is gated to FINANCE_ROLES (see
+  // src/lib/admin/finance.ts), so a moderator/support staff member shouldn't
+  // see a live-looking link into a page requireStaff() would 404 them out of.
+  const canViewPayouts = canAccess(staff, FINANCE_ROLES);
+  // Deliberately a separate lookup from sellerStatus above — that's about
+  // listings (has this member ever sold anything on Pinpals), this is about
+  // Stripe Connect payout readiness (can they actually be paid out). See
+  // sellerAccountStatusLabel() in src/lib/format.ts for why these stay two
+  // distinct concepts rather than merged into one "seller status".
+  const payoutAccount = canViewPayouts ? (await getSellerAccountDetail(profile.id))?.account ?? null : null;
 
   return (
     <div>
@@ -108,6 +119,23 @@ export default async function AdminUserDetailPage({
             Seller status
             <div className="text-ink-900 font-semibold">{sellerStatus}</div>
           </div>
+          {canViewPayouts && (
+            <div>
+              Payout readiness
+              <div className="text-ink-900 font-semibold">
+                {payoutAccount ? (
+                  // /admin/payouts/[id] 404s when no connected-account row
+                  // exists yet (getSellerAccountDetail returns null) — only
+                  // link when there's actually something to open.
+                  <Link href={`/admin/payouts/${profile.id}`} className="hover:underline">
+                    {sellerAccountStatusLabel(payoutAccount)} →
+                  </Link>
+                ) : (
+                  sellerAccountStatusLabel(payoutAccount)
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

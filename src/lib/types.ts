@@ -173,3 +173,30 @@ export type Order = {
   updated_at: string;
 };
 
+// ============ STRIPE CONNECTED ACCOUNTS ============
+// See supabase/migrations/0020_stripe_connected_accounts.sql. One row per
+// Pinpals member who has started (or completed) Stripe Connect Express
+// onboarding. Every boolean/array field below is a cached copy of what
+// Stripe's Connected Account object reported as of last_synced_at — Stripe
+// itself, never this table, is the source of truth. See
+// sellerAccountStatusLabel() in src/lib/format.ts for the derived,
+// human-readable summary shown in the UI; nothing here is a Pinpals-invented
+// status of its own.
+
+export type StripeConnectedAccount = {
+  id: number;
+  user_id: string;
+  stripe_account_id: string;
+  charges_enabled: boolean;
+  payouts_enabled: boolean;
+  details_submitted: boolean;
+  /** Stripe requirement codes (e.g. "individual.verification.document") —
+   * never the values submitted for them. */
+  requirements_currently_due: string[];
+  requirements_past_due: string[];
+  disabled_reason: string | null;
+  last_synced_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+

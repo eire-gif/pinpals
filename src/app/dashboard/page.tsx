@@ -94,6 +94,18 @@ const QUICK_LINKS: QuickLink[] = [
       </svg>
     ),
   },
+  {
+    href: "/dashboard/payouts",
+    label: "Get paid for sales",
+    description: "Set up (or check) your Stripe payout account.",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-5 h-5">
+        <rect x="3.5" y="6" width="17" height="12" rx="2" />
+        <path d="M3.5 10h17" />
+        <path d="M6.5 14.5h4" />
+      </svg>
+    ),
+  },
 ];
 
 export default async function DashboardPage({

@@ -120,13 +120,14 @@ export function personName(person: { first_name: string; last_name: string } | n
 }
 
 /**
- * A member's seller status, computed from their own listings — there's no
- * separate seller-onboarding concept yet (no Stripe Connect; see
- * admin-architecture-review.md §8 Phase 5), so this is the honest summary
- * available today: whether they currently have anything for sale, have sold
- * before but nothing active now, or have never listed anything. Pure and
- * DB-free — takes whatever listings the caller already fetched rather than
- * querying anything itself.
+ * A member's *marketplace activity*, computed purely from their own
+ * listings — whether they currently have anything for sale, have sold
+ * before but nothing active now, or have never listed anything. Deliberately
+ * separate from sellerAccountStatusLabel() in src/lib/format.ts: this says whether they're
+ * listing items, that says whether Stripe will actually pay them for a sale
+ * — a member can be an active seller here with no payout account at all, or
+ * vice versa. Pure and DB-free — takes whatever listings the caller already
+ * fetched rather than querying anything itself.
  */
 export function sellerStatusLabel(listings: { status: string }[]): string {
   if (listings.length === 0) return "Not selling — no listings";
