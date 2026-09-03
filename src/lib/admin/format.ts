@@ -1,4 +1,4 @@
-import type { InterestStatus, InviteStatus } from "@/lib/types";
+import type { InterestStatus, InviteStatus, OrderStatus, PaymentStatus, PayoutStatus } from "@/lib/types";
 import { INTEREST_STATUS_LABELS, INTEREST_STATUS_STYLES, STATUS_LABELS, STATUS_STYLES } from "@/lib/tee-times";
 
 // `Listing["status"]` and `Offer["status"]` aren't strict unions in
@@ -30,6 +30,60 @@ export const OFFER_STATUS_STYLES: Record<string, string> = {
   pending: "bg-cream-100 text-ink-900",
   accepted: "bg-green-100 text-green-800",
   declined: "bg-red-100 text-red-600",
+};
+
+// /admin/orders — three independent status dimensions (see
+// supabase/migrations/0019_orders.sql). Unlike LISTING_STATUS_LABELS/
+// OFFER_STATUS_LABELS above, these are keyed to the real OrderStatus/
+// PaymentStatus/PayoutStatus unions since Order is a fully-typed column
+// (src/lib/types.ts), not a loose string — but still routed through
+// statusLabel()/statusStyle() everywhere they're rendered, same as the rest
+// of this file, so an unrecognised value never breaks the page.
+export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
+  pending: "Pending",
+  completed: "Completed",
+  cancelled: "Cancelled",
+  refunded: "Refunded",
+};
+
+export const ORDER_STATUS_STYLES: Record<OrderStatus, string> = {
+  pending: "bg-cream-100 text-ink-900",
+  completed: "bg-green-100 text-green-800",
+  cancelled: "bg-red-100 text-red-600",
+  // Same gold treatment as REPORT_PRIORITY_STYLES.high (reports.ts) for the
+  // one status in each map that's neither a plain "in progress" neutral nor
+  // a clean green/red — a refund is a distinct outcome worth its own tone.
+  refunded: "bg-gold-500/20 text-gold-700",
+};
+
+export const PAYMENT_STATUS_LABELS: Record<PaymentStatus, string> = {
+  unpaid: "Unpaid",
+  pending: "Pending",
+  paid: "Paid",
+  failed: "Failed",
+  refunded: "Refunded",
+};
+
+export const PAYMENT_STATUS_STYLES: Record<PaymentStatus, string> = {
+  unpaid: "bg-cream-100 text-ink-500",
+  pending: "bg-cream-100 text-ink-900",
+  paid: "bg-green-100 text-green-800",
+  failed: "bg-red-100 text-red-600",
+  refunded: "bg-gold-500/20 text-gold-700",
+};
+
+export const PAYOUT_STATUS_LABELS: Record<PayoutStatus, string> = {
+  not_started: "Not started",
+  pending: "Pending",
+  paid_out: "Paid out",
+  held: "Held",
+};
+
+export const PAYOUT_STATUS_STYLES: Record<PayoutStatus, string> = {
+  not_started: "bg-cream-100 text-ink-500",
+  pending: "bg-cream-100 text-ink-900",
+  paid_out: "bg-green-100 text-green-800",
+  held: "bg-red-100 text-red-600",
 };
 
 // Re-exported under admin-neutral names so admin pages have one place to
