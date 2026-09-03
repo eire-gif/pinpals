@@ -3,6 +3,10 @@ import {
   formatDateTime,
   LISTING_STATUS_LABELS,
   OFFER_STATUS_STYLES,
+  ORDER_STATUS_LABELS,
+  ORDER_STATUS_STYLES,
+  PAYMENT_STATUS_LABELS,
+  PAYOUT_STATUS_LABELS,
   personName,
   sellerStatusLabel,
   statusLabel,
@@ -26,6 +30,38 @@ describe("statusStyle", () => {
 
   it("falls back to a neutral style for anything unrecognised, never throwing", () => {
     expect(statusStyle(OFFER_STATUS_STYLES, "refunded")).toBe("bg-cream-100 text-ink-900");
+  });
+});
+
+describe("order status/payment status/payout status vocab", () => {
+  // /admin/orders (src/app/admin/orders/) renders every value of
+  // OrderStatus/PaymentStatus/PayoutStatus (src/lib/types.ts) through these
+  // maps via StatusBadge — a value missing a label or style would silently
+  // render as the raw string / a fallback style rather than fail loudly, so
+  // pin every status to its expected label here the same way
+  // reports.test.ts pins the report vocab.
+  it("has a label for every order status", () => {
+    expect(Object.keys(ORDER_STATUS_LABELS).sort()).toEqual(
+      ["cancelled", "completed", "pending", "refunded"].sort()
+    );
+  });
+
+  it("has a style for every order status", () => {
+    for (const status of Object.keys(ORDER_STATUS_LABELS)) {
+      expect(ORDER_STATUS_STYLES).toHaveProperty(status);
+    }
+  });
+
+  it("has a label for every payment status", () => {
+    expect(Object.keys(PAYMENT_STATUS_LABELS).sort()).toEqual(
+      ["failed", "paid", "pending", "refunded", "unpaid"].sort()
+    );
+  });
+
+  it("has a label for every payout status", () => {
+    expect(Object.keys(PAYOUT_STATUS_LABELS).sort()).toEqual(
+      ["held", "not_started", "paid_out", "pending"].sort()
+    );
   });
 });
 
