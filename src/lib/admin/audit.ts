@@ -32,17 +32,30 @@ export const ADMIN_ACTIONS = [
   "report.resolved",
   "report.dismissed",
   "report.note_added",
+  // The only admin *interaction* this phase's Stripe Connect work audits —
+  // an admin's manual "Refresh from Stripe" click on /admin/payouts/[id]
+  // (src/app/admin/payouts/[id]/actions.ts). Read-only views (the list/detail
+  // pages themselves) aren't audited, same as every other admin read-only
+  // page in this app.
+  "seller_account.synced",
 ] as const;
 export type AdminAction = (typeof ADMIN_ACTIONS)[number];
 
-// "order" is forward-declared, same as "message"/"conversation" were added
-// to reports' target_type ahead of a messaging system: no admin mutation
-// writes one yet (this phase is read-only per its "no ad-hoc money
-// movement" instruction — see src/app/admin/orders/), but a later phase's
-// refund/payout actions (refund.requested/refund.completed above already
-// anticipate this) need the column's shape to exist without another
-// migration.
-export const AUDIT_TARGET_TYPES = ["user", "listing", "tee_time_invite", "offer", "staff_role", "report", "order"] as const;
+// "order" was forward-declared the same way "message"/"conversation" were
+// added to reports' target_type ahead of a messaging system; "seller_account"
+// follows the same pattern now that seller_account.synced above needs it.
+// admin_audit_log.target_type has no DB-level check constraint (unlike
+// reports.target_type) — this array is the only place the closed list lives.
+export const AUDIT_TARGET_TYPES = [
+  "user",
+  "listing",
+  "tee_time_invite",
+  "offer",
+  "staff_role",
+  "report",
+  "order",
+  "seller_account",
+] as const;
 export type AuditTargetType = (typeof AUDIT_TARGET_TYPES)[number];
 
 export type AuditOutcome = "success" | "failure";
