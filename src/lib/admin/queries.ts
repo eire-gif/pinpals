@@ -15,14 +15,15 @@ import type { StaffRole } from "./roles";
 // mutation exists yet.
 //
 // The whole member base is a handful of rows today (see the row counts in
-// admin-architecture-review.md). For listListings()/listTeeTimeInvites(),
-// fetching each table in full and joining/searching in memory is simpler
-// and plenty fast at this scale. listUsers() *used* to work the same way,
-// but the task that added Phase 5 (user detail + real pagination) replaced
-// it with genuine server-side `.range()` pagination and indexed `ilike`
-// search (see supabase/migrations/0012_profiles_search_indexes.sql) — see
-// the "Users" section below for why, and why email search still works
-// without a SQL column to search on.
+// admin-architecture-review.md). For listTeeTimeInvites(), fetching the
+// table in full and filtering in memory is simpler and plenty fast at this
+// scale. listUsers() and listListings() *used* to work the same way, but
+// Phase 5 (user detail + real pagination) and Phase 6 (listing moderation)
+// replaced them with genuine server-side `.range()` pagination and indexed
+// `ilike` search (see supabase/migrations/0012_profiles_search_indexes.sql
+// and 0014_listings_search_indexes.sql) — see the "Users" and "Listings"
+// sections below for why, and why email/seller-name search still work
+// without a SQL column to search email on directly.
 //
 // Every function in this file needs each user's email attached to their
 // profile — Supabase Auth emails live in auth.users, which PostgREST
@@ -351,42 +352,137 @@ export async function listUserNotes(targetUserId: string): Promise<AdminUserNote
 
 export type AdminListingListItem = Listing & { seller: AdminProfile | null };
 
-export async function listListings(query = "", status = ""): Promise<AdminListingListItem[]> {
+export type AdminListingPage = {
+  rows: AdminListingListItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+};
+
+/** Everything /admin/listings can filter on beyond the free-text search box.
+ * `category` and `county` are exact-match (they're closed-ish vocabularies —
+ * see CATEGORIES in src/lib/marketplace.ts — so a dropdown, not free text, is
+ * the right UI and a plain equality filter is all the existing
+ * listings_category_idx/listings_county_idx indexes need). `from`/`to` are
+ * ISO timestamps, inclusive bounds on created_at — see the "whole day"
+ * comment on the audit-log page for why `to` needs a time component added by
+ * the caller, not just a bare date. */
+export type AdminListingFilters = {
+  status?: string;
+  sellerId?: string;
+  category?: string;
+  county?: string;
+  from?: string;
+  to?: string;
+};
+
+const LISTINGS_PAGE_SIZE = 20;
+
+/**
+ * Builds the `.or()` filter string for listListings()'s indexed search:
+ * ILIKE across title/description (see 0014_listings_search_indexes.sql) plus
+ * an `seller_id.in.(...)` clause for any seller whose name matched (title
+ * text has no column for a seller's name — same shape of problem
+ * buildUserSearchOrFilter() solves for email). Pure and DB-free — same
+ * reasoning as that function, and exported for the same reason: unit
+ * testing without mocking Supabase.
+ */
+export function buildListingSearchOrFilter(query: string, sellerMatchedIds: string[]): string | null {
+  const term = sanitizeSearchTerm(query);
+  const clauses: string[] = [];
+
+  if (term) {
+    const pattern = `%${term}%`;
+    clauses.push(`title.ilike.${pattern}`, `description.ilike.${pattern}`);
+  }
+
+  const validIds = sellerMatchedIds.filter((id) => UUID_RE.test(id));
+  if (validIds.length) clauses.push(`seller_id.in.(${validIds.join(",")})`);
+
+  return clauses.length ? clauses.join(",") : null;
+}
+
+/**
+ * Paginated, server-side-filtered listing list for /admin/listings. Like
+ * listUsers(), this never reads more `listings` rows than one page's worth —
+ * search runs as an indexed `ilike`/`seller_id.in` filter in the query
+ * itself, not a full-table fetch followed by in-memory filtering.
+ */
+export async function listListings(
+  query = "",
+  filters: AdminListingFilters = {},
+  page = 1
+): Promise<AdminListingPage> {
   const admin = createAdminClient();
-  const [{ data: listings, error }, { data: profiles }, authUsers] = await Promise.all([
-    admin.from("listings").select("*").order("created_at", { ascending: false }).returns<Listing[]>(),
-    admin.from("profiles").select("*").returns<Profile[]>(),
-    authUserMap(),
-  ]);
+  const safePage = Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
+  const rangeFrom = (safePage - 1) * LISTINGS_PAGE_SIZE;
+  const rangeTo = rangeFrom + LISTINGS_PAGE_SIZE - 1;
+
+  const trimmedQuery = query.trim();
+  const term = trimmedQuery ? sanitizeSearchTerm(trimmedQuery) : "";
+
+  // Resolve seller-name matches against `profiles` (indexed — see
+  // 0012_profiles_search_indexes.sql) *before* the listings query runs,
+  // same two-step shape listUsers() uses for email search: there's no
+  // seller-name column on `listings` itself to search directly.
+  let sellerMatchedIds: string[] = [];
+  if (term) {
+    const pattern = `%${term}%`;
+    const { data: matchedProfiles } = await admin
+      .from("profiles")
+      .select("id")
+      .or(`first_name.ilike.${pattern},last_name.ilike.${pattern}`)
+      .returns<Pick<Profile, "id">[]>();
+    sellerMatchedIds = (matchedProfiles ?? []).map((p) => p.id);
+  }
+
+  let listingsQuery = admin
+    .from("listings")
+    .select("*", { count: "exact" })
+    // Stable sort — see the identical comment on listAuditLog() below.
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
+    .range(rangeFrom, rangeTo);
+
+  if (filters.status) listingsQuery = listingsQuery.eq("status", filters.status);
+  if (filters.sellerId) listingsQuery = listingsQuery.eq("seller_id", filters.sellerId);
+  if (filters.category) listingsQuery = listingsQuery.eq("category", filters.category);
+  if (filters.county) listingsQuery = listingsQuery.eq("county", filters.county);
+  if (filters.from) listingsQuery = listingsQuery.gte("created_at", filters.from);
+  if (filters.to) listingsQuery = listingsQuery.lte("created_at", filters.to);
+
+  if (trimmedQuery) {
+    const filter = buildListingSearchOrFilter(trimmedQuery, sellerMatchedIds);
+    if (filter) listingsQuery = listingsQuery.or(filter);
+  }
+
+  const { data: listings, error, count } = await listingsQuery.returns<Listing[]>();
   if (error) throw new Error(`Failed to list listings: ${error.message}`);
 
+  const authUsers = await authUserMap();
+  const sellerIds = [...new Set((listings ?? []).map((l) => l.seller_id))];
+  const { data: profiles } = sellerIds.length
+    ? await admin.from("profiles").select("*").in("id", sellerIds).returns<Profile[]>()
+    : { data: [] as Profile[] };
   const profileById = new Map((profiles ?? []).map((p) => [p.id, p]));
 
-  return (listings ?? [])
-    .map((listing) => {
-      const sellerProfile = profileById.get(listing.seller_id) ?? null;
-      return {
-        ...listing,
-        seller: sellerProfile ? withEmail(sellerProfile, authUsers) : null,
-      };
-    })
-    .filter((l) => !status || l.status === status)
-    .filter((l) =>
-      matches(
-        query,
-        l.title,
-        l.description,
-        l.category,
-        l.county,
-        l.seller ? `${l.seller.first_name} ${l.seller.last_name}` : null
-      )
-    );
+  const rows = (listings ?? []).map((listing) => {
+    const sellerProfile = profileById.get(listing.seller_id) ?? null;
+    return { ...listing, seller: sellerProfile ? withEmail(sellerProfile, authUsers) : null };
+  });
+
+  return { rows, total: count ?? 0, page: safePage, pageSize: LISTINGS_PAGE_SIZE };
 }
 
 export type AdminListingDetail = {
   listing: Listing;
   seller: AdminProfile | null;
   offers: (Offer & { buyer: AdminProfile | null })[];
+  /** Every admin_audit_log entry for this listing (hide/restore), newest
+   * first — see the "Audit log" section below. Bounded by
+   * AUDIT_LOG_PAGE_SIZE (50): plenty for one listing's history, since a
+   * single listing is moderated at most a handful of times in practice. */
+  moderationHistory: AdminAuditLogListItem[];
 };
 
 export async function getListingDetail(id: number): Promise<AdminListingDetail | null> {
@@ -403,11 +499,10 @@ export async function getListingDetail(id: number): Promise<AdminListingDetail |
   ]);
   if (!listing) return null;
 
-  const { data: sellerProfile } = await admin
-    .from("profiles")
-    .select("*")
-    .eq("id", listing.seller_id)
-    .maybeSingle<Profile>();
+  const [{ data: sellerProfile }, { rows: moderationHistory }] = await Promise.all([
+    admin.from("profiles").select("*").eq("id", listing.seller_id).maybeSingle<Profile>(),
+    listAuditLog({ targetType: "listing", targetId: String(id) }, 1),
+  ]);
 
   const buyerIds = [...new Set((offers ?? []).map((o) => o.buyer_id))];
   const { data: buyerProfiles } = buyerIds.length
@@ -422,6 +517,7 @@ export async function getListingDetail(id: number): Promise<AdminListingDetail |
       const buyerProfile = buyerById.get(offer.buyer_id) ?? null;
       return { ...offer, buyer: buyerProfile ? withEmail(buyerProfile, authUsers) : null };
     }),
+    moderationHistory,
   };
 }
 
@@ -547,6 +643,11 @@ export type AuditLogFilters = {
   actorId?: string;
   action?: string;
   targetType?: string;
+  /** A single target row's id (e.g. one listing) — used by
+   * getListingDetail()'s "moderation history" section, which the
+   * super_admin-only /admin/audit-log page doesn't need since it browses
+   * every target at once. */
+  targetId?: string;
   /** ISO date/timestamp — inclusive lower bound on created_at. */
   from?: string;
   /** ISO date/timestamp — inclusive upper bound on created_at. */
@@ -583,6 +684,7 @@ export async function listAuditLog(filters: AuditLogFilters = {}, page = 1): Pro
   if (filters.actorId) query = query.eq("actor_id", filters.actorId);
   if (filters.action) query = query.eq("action", filters.action);
   if (filters.targetType) query = query.eq("target_type", filters.targetType);
+  if (filters.targetId) query = query.eq("target_id", filters.targetId);
   if (filters.from) query = query.gte("created_at", filters.from);
   if (filters.to) query = query.lte("created_at", filters.to);
 

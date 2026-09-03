@@ -12,10 +12,12 @@ import {
   OFFER_STATUS_STYLES,
 } from "@/lib/admin/format";
 import { MODERATION_ROLES } from "@/lib/admin/moderation";
+import { ROLE_LABELS } from "@/lib/admin/roles";
 import { formatPrice } from "@/lib/format";
 import AdminAvatar from "@/components/admin/avatar";
 import StatusBadge from "@/components/admin/status-badge";
 import ModerationForm from "@/components/admin/moderation-form";
+import UnavailableCard from "@/components/admin/unavailable-card";
 import { hideListing, restoreListing } from "./actions";
 
 export default async function AdminListingDetailPage({
@@ -31,7 +33,7 @@ export default async function AdminListingDetailPage({
   const detail = await getListingDetail(listingId);
   if (!detail) notFound();
 
-  const { listing, seller, offers } = detail;
+  const { listing, seller, offers, moderationHistory } = detail;
   const sellerName = seller ? `${seller.first_name} ${seller.last_name}` : "Unknown seller";
   const canModerate = canAccess(staff, MODERATION_ROLES);
 
@@ -113,15 +115,31 @@ export default async function AdminListingDetailPage({
         </Section>
       )}
 
+      {/* Sensitive seller data stays minimized here — name, club/county, and
+          a link to the full profile, not email/handicap/GUI number. Staff
+          who need those for this member specifically are one click away on
+          /admin/users/[id], which is the right place for them (its own
+          moderation actions, notes, and full activity live there), rather
+          than duplicated on every listing they've ever posted. */}
       <Section title="Seller">
         {seller ? (
-          <Link href={`/admin/users/${seller.id}`} className="flex items-center gap-3 p-5">
-            <AdminAvatar name={sellerName} color={seller.avatar_color} />
-            <div>
-              <div className="font-semibold text-ink-900">{sellerName}</div>
-              <div className="text-sm text-ink-500">{seller.email ?? "No email on file"}</div>
-            </div>
-          </Link>
+          <div className="flex items-center justify-between gap-3 p-5 flex-wrap">
+            <Link href={`/admin/users/${seller.id}`} className="flex items-center gap-3">
+              <AdminAvatar name={sellerName} color={seller.avatar_color} />
+              <div>
+                <div className="font-semibold text-ink-900">{sellerName}</div>
+                <div className="text-sm text-ink-500">
+                  {[seller.home_club, seller.county].filter(Boolean).join(" · ") || "No club/county on file"}
+                </div>
+              </div>
+            </Link>
+            <Link
+              href={`/admin/listings?seller=${seller.id}`}
+              className="text-xs font-semibold text-ink-500 hover:text-ink-900 whitespace-nowrap"
+            >
+              All listings by this seller →
+            </Link>
+          </div>
         ) : (
           <EmptyRow>Seller account no longer exists.</EmptyRow>
         )}
@@ -160,6 +178,69 @@ export default async function AdminListingDetailPage({
                       <StatusBadge status={o.status} labels={OFFER_STATUS_LABELS} styles={OFFER_STATUS_STYLES} />
                     </td>
                     <td className="px-5 py-3 text-ink-500">{formatDateTime(o.created_at)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </Section>
+
+      <Section title="Reports">
+        <div className="p-5">
+          <UnavailableCard
+            label="Reports on this listing"
+            reason="No reporting/flagging mechanism exists yet — nothing for members to report with."
+          />
+        </div>
+      </Section>
+
+      <Section title={`Moderation history (${moderationHistory.length})`}>
+        {moderationHistory.length === 0 ? (
+          <EmptyRow>No moderation actions have been taken on this listing.</EmptyRow>
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-ink-500 text-xs uppercase tracking-wide border-b border-line">
+                <th className="px-5 py-3 font-semibold">When</th>
+                <th className="px-5 py-3 font-semibold">Staff member</th>
+                <th className="px-5 py-3 font-semibold">Action</th>
+                <th className="px-5 py-3 font-semibold">Reason</th>
+                <th className="px-5 py-3 font-semibold">Outcome</th>
+              </tr>
+            </thead>
+            <tbody>
+              {moderationHistory.map((entry) => {
+                const actorName = entry.actor
+                  ? `${entry.actor.first_name} ${entry.actor.last_name}`.trim()
+                  : "Unknown staff member";
+                return (
+                  <tr key={entry.id} className="border-b border-line last:border-0">
+                    <td className="px-5 py-3 text-ink-500 whitespace-nowrap">{formatDateTime(entry.created_at)}</td>
+                    <td className="px-5 py-3">
+                      <div className="flex items-center gap-2.5">
+                        <AdminAvatar name={actorName} color={entry.actor?.avatar_color ?? null} />
+                        <div>
+                          <div className="font-semibold text-ink-900">{actorName}</div>
+                          <div className="text-xs text-ink-500">{ROLE_LABELS[entry.actor_role]}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-5 py-3 font-mono text-xs text-ink-900">{entry.action}</td>
+                    <td className="px-5 py-3 text-ink-500 max-w-[28ch] truncate" title={entry.reason ?? undefined}>
+                      {entry.reason ?? "—"}
+                    </td>
+                    <td className="px-5 py-3">
+                      <span
+                        className={`text-xs font-bold px-2.5 py-1 rounded-full ${
+                          entry.outcome === "success"
+                            ? "bg-green-100 text-green-800"
+                            : "bg-red-100 text-red-600"
+                        }`}
+                      >
+                        {entry.outcome}
+                      </span>
+                    </td>
                   </tr>
                 );
               })}
