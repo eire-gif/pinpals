@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { buildListingSearchOrFilter, buildUserSearchOrFilter, isUserSuspended, sanitizeSearchTerm } from "./queries";
+import {
+  buildListingSearchOrFilter,
+  buildReportSearchOrFilter,
+  buildUserSearchOrFilter,
+  isUserSuspended,
+  sanitizeSearchTerm,
+} from "./queries";
 
 describe("isUserSuspended", () => {
   it("is false when there's no ban on record", () => {
@@ -103,5 +109,35 @@ describe("buildListingSearchOrFilter", () => {
 
   it("drops malformed ids rather than trusting them into the filter string", () => {
     expect(buildListingSearchOrFilter("", ["not-a-uuid", "; drop table listings;"])).toBeNull();
+  });
+});
+
+describe("buildReportSearchOrFilter", () => {
+  it("returns null when there's nothing to filter on", () => {
+    expect(buildReportSearchOrFilter("", [])).toBeNull();
+    expect(buildReportSearchOrFilter("   ", [])).toBeNull();
+    expect(buildReportSearchOrFilter("%,.()", [])).toBeNull();
+  });
+
+  it("builds an ilike clause against description", () => {
+    const filter = buildReportSearchOrFilter("harassment", []);
+    expect(filter).toBe("description.ilike.%harassment%");
+  });
+
+  it("appends a reporter_id.in clause for name-matched reporters", () => {
+    const id = "3fa85f64-5717-4562-b3fc-2c963f66afa6";
+    const filter = buildReportSearchOrFilter("", [id]);
+    expect(filter).toBe(`reporter_id.in.(${id})`);
+  });
+
+  it("combines the description ilike clause with reporter-matched ids", () => {
+    const id = "3fa85f64-5717-4562-b3fc-2c963f66afa6";
+    const filter = buildReportSearchOrFilter("spam", [id]);
+    expect(filter).toContain("description.ilike.%spam%");
+    expect(filter).toContain(`reporter_id.in.(${id})`);
+  });
+
+  it("drops malformed ids rather than trusting them into the filter string", () => {
+    expect(buildReportSearchOrFilter("", ["not-a-uuid", "; drop table reports;"])).toBeNull();
   });
 });
