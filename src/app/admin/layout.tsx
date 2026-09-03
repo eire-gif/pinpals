@@ -22,7 +22,7 @@ const NAV_ITEMS: { href: string; label: string; enabled?: boolean; roles?: reado
   { href: "/admin/orders", label: "Orders" },
   { href: "/admin/payouts", label: "Payouts" },
   { href: "/admin/clubs", label: "Clubs" },
-  { href: "/admin/reports", label: "Reports" },
+  { href: "/admin/reports", label: "Reports", enabled: true },
   { href: "/admin/settings", label: "Settings" },
   { href: "/admin/audit-log", label: "Audit log", enabled: true, roles: ["super_admin"] },
 ];
