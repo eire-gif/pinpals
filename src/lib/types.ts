@@ -135,3 +135,41 @@ export type ConnectionWithProfiles = Connection & {
   recipient: ConnectionProfile | null;
 };
 
+// ============ ORDERS ============
+// See supabase/migrations/0019_orders.sql. Created by respondToOffer()'s
+// accept branch (src/app/marketplace/[id]/actions.ts), one row per accepted
+// offer. listing_title/category/condition/image_url are a SNAPSHOT taken at
+// that moment — never re-read from `listings`, so a later listing edit (or
+// removal) never rewrites a historical order.
+
+export type OrderStatus = "pending" | "completed" | "cancelled" | "refunded";
+export type PaymentStatus = "unpaid" | "pending" | "paid" | "failed" | "refunded";
+export type PayoutStatus = "not_started" | "pending" | "paid_out" | "held";
+
+export type Order = {
+  id: number;
+  listing_id: number | null;
+  offer_id: number | null;
+  buyer_id: string;
+  seller_id: string;
+  listing_title: string;
+  listing_category: string;
+  listing_condition: string;
+  listing_image_url: string | null;
+  amount_eur: number;
+  platform_fee_eur: number;
+  total_eur: number;
+  status: OrderStatus;
+  payment_status: PaymentStatus;
+  payout_status: PayoutStatus;
+  payment_reference: string | null;
+  payout_reference: string | null;
+  refund_reason: string | null;
+  refunded_amount_eur: number | null;
+  completed_at: string | null;
+  cancelled_at: string | null;
+  refunded_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
