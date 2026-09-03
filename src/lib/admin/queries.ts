@@ -1,6 +1,6 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
-import type { Listing, Offer, Order, Profile, TeeTimeInterest, TeeTimeInvite } from "@/lib/types";
+import type { Listing, Offer, Order, Profile, StripeConnectedAccount, TeeTimeInterest, TeeTimeInvite } from "@/lib/types";
 import type { StaffRole } from "./roles";
 import type { ReportCategory, ReportPriority, ReportStatus, ReportTargetType } from "./reports";
 import { AUDIT_TARGET_TYPES } from "./audit";
@@ -1372,6 +1372,126 @@ export async function getOrderDetail(id: number): Promise<AdminOrderDetail | nul
     seller: sellerProfile ? withEmail(sellerProfile, authUsers) : null,
     listing: listing ?? null,
     offer: offer ?? null,
+    history: historyResult.rows,
+  };
+}
+
+// ---------- Seller connected accounts (Stripe Connect) ----------
+//
+// /admin/payouts — see supabase/migrations/0020_stripe_connected_accounts.sql.
+// Same read-only list + detail shape as Orders above, plus one audited
+// action this file doesn't define: refreshSellerAccountStatus() in
+// src/app/admin/payouts/[id]/actions.ts, which calls recordAdminAction()
+// itself, same split as every other admin mutation.
+
+export type AdminSellerAccountListItem = StripeConnectedAccount & { seller: AdminProfile | null };
+
+export type AdminSellerAccountPage = {
+  rows: AdminSellerAccountListItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+};
+
+export type AdminSellerAccountFilters = {
+  /** Same two-step name-or-uuid resolution as orders' buyer/seller filters
+   * — see resolvePersonFilter() above. */
+  seller?: string;
+  /** "Needs attention" = payouts_enabled is false. This deliberately doesn't
+   * also check requirements_past_due directly (that would need an array
+   * `<> '{}'` filter PostgREST doesn't have a clean operator for) — in
+   * practice Stripe disables payouts on an account once its requirements go
+   * past due, so payouts_enabled=false already captures that case. Good
+   * enough for a quick admin filter at this table's scale; a
+   * finance-critical query would want to check the array directly. */
+  needsAttention?: boolean;
+};
+
+const SELLER_ACCOUNTS_PAGE_SIZE = 20;
+
+/**
+ * Paginated, server-side-filtered seller connected-account list for
+ * /admin/payouts. Same `.range()` + stable sort shape as every other list in
+ * this file, sorted by most-recently-synced first (stripe_connected_accounts_
+ * updated_at_idx) rather than created_at, since "what changed recently on
+ * Stripe's side" is the more useful default order for this table.
+ */
+export async function listSellerAccounts(
+  filters: AdminSellerAccountFilters = {},
+  page = 1
+): Promise<AdminSellerAccountPage> {
+  const admin = createAdminClient();
+  const safePage = Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
+  const rangeFrom = (safePage - 1) * SELLER_ACCOUNTS_PAGE_SIZE;
+  const rangeTo = rangeFrom + SELLER_ACCOUNTS_PAGE_SIZE - 1;
+
+  const { ids: sellerIds } = await resolvePersonFilter(admin, filters.seller);
+  if (filters.seller && sellerIds?.length === 0) {
+    return { rows: [], total: 0, page: safePage, pageSize: SELLER_ACCOUNTS_PAGE_SIZE };
+  }
+
+  let query = admin
+    .from("stripe_connected_accounts")
+    .select("*", { count: "exact" })
+    .order("updated_at", { ascending: false })
+    .order("id", { ascending: false })
+    .range(rangeFrom, rangeTo);
+
+  if (sellerIds) query = query.in("user_id", sellerIds);
+  if (filters.needsAttention) query = query.eq("payouts_enabled", false);
+
+  const { data: accounts, error, count } = await query.returns<StripeConnectedAccount[]>();
+  if (error) throw new Error(`Failed to list seller connected accounts: ${error.message}`);
+
+  const authUsers = await authUserMap();
+  const sellerProfileIds = [...new Set((accounts ?? []).map((a) => a.user_id))];
+  const { data: profiles } = sellerProfileIds.length
+    ? await admin.from("profiles").select("*").in("id", sellerProfileIds).returns<Profile[]>()
+    : { data: [] as Profile[] };
+  const profileById = new Map((profiles ?? []).map((p) => [p.id, p]));
+
+  const rows = (accounts ?? []).map((account) => {
+    const sellerProfile = profileById.get(account.user_id) ?? null;
+    return { ...account, seller: sellerProfile ? withEmail(sellerProfile, authUsers) : null };
+  });
+
+  return { rows, total: count ?? 0, page: safePage, pageSize: SELLER_ACCOUNTS_PAGE_SIZE };
+}
+
+export type AdminSellerAccountDetail = {
+  account: StripeConnectedAccount;
+  seller: AdminProfile | null;
+  /** admin_audit_log entries against this account (target_type
+   * "seller_account") — populated once an admin has clicked "Refresh from
+   * Stripe" at least once. */
+  history: AdminAuditLogListItem[];
+};
+
+/**
+ * Looked up by Pinpals user_id, not the connected-account row's own bigint
+ * id — the migration's unique(user_id) constraint makes that a safe 1:1
+ * lookup, and it means a link from /admin/users/[id] (which only knows the
+ * user id) doesn't need to look up an unrelated internal id first.
+ */
+export async function getSellerAccountDetail(userId: string): Promise<AdminSellerAccountDetail | null> {
+  const admin = createAdminClient();
+  const { data: account, error } = await admin
+    .from("stripe_connected_accounts")
+    .select("*")
+    .eq("user_id", userId)
+    .maybeSingle<StripeConnectedAccount>();
+  if (error) throw new Error(`Failed to load seller connected account: ${error.message}`);
+  if (!account) return null;
+
+  const [authUsers, { data: profile }, historyResult] = await Promise.all([
+    authUserMap(),
+    admin.from("profiles").select("*").eq("id", userId).maybeSingle<Profile>(),
+    listAuditLog({ targetType: "seller_account", targetId: String(account.id) }, 1),
+  ]);
+
+  return {
+    account,
+    seller: profile ? withEmail(profile, authUsers) : null,
     history: historyResult.rows,
   };
 }
