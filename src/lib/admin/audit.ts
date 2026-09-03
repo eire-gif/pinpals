@@ -27,10 +27,15 @@ export const ADMIN_ACTIONS = [
   "refund.requested",
   "refund.completed",
   "admin.role_changed",
+  "report.claimed",
+  "report.status_changed",
+  "report.resolved",
+  "report.dismissed",
+  "report.note_added",
 ] as const;
 export type AdminAction = (typeof ADMIN_ACTIONS)[number];
 
-export const AUDIT_TARGET_TYPES = ["user", "listing", "tee_time_invite", "offer", "staff_role"] as const;
+export const AUDIT_TARGET_TYPES = ["user", "listing", "tee_time_invite", "offer", "staff_role", "report"] as const;
 export type AuditTargetType = (typeof AUDIT_TARGET_TYPES)[number];
 
 export type AuditOutcome = "success" | "failure";

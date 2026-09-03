@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireStaff } from "@/lib/admin/authorization";
-import { getUserDetail, isUserSuspended } from "@/lib/admin/queries";
+import { getUserDetail, isUserSuspended, listReports } from "@/lib/admin/queries";
 import { canAccess } from "@/lib/admin/roles";
 import {
   formatDateTime,
@@ -21,6 +21,7 @@ import AdminAvatar from "@/components/admin/avatar";
 import StatusBadge from "@/components/admin/status-badge";
 import ModerationForm from "@/components/admin/moderation-form";
 import UnavailableCard from "@/components/admin/unavailable-card";
+import { REPORT_CATEGORY_LABELS, REPORT_STATUS_LABELS, REPORT_STATUS_STYLES } from "@/lib/admin/reports";
 import { suspendUser, reinstateUser, addUserNote } from "./actions";
 
 export default async function AdminUserDetailPage({
@@ -32,6 +33,17 @@ export default async function AdminUserDetailPage({
   const { id } = await params;
   const detail = await getUserDetail(id);
   if (!detail) notFound();
+
+  // Separate from getUserDetail() the same way listListings(seller: ...) is
+  // a separate query from getUserDetail() elsewhere — one page's worth of
+  // reports against this member, not a full-table fetch. First page only:
+  // this section is a summary, not the queue itself — see the "Open in
+  // Reports →" link for the full filtered view.
+  const { rows: reportsAboutThem, total: reportsAboutThemTotal } = await listReports(
+    "",
+    { targetType: "user", targetId: id },
+    1
+  );
 
   const { profile, listings, invites, offersMade, notes } = detail;
   const name = `${profile.first_name} ${profile.last_name}`;
@@ -222,13 +234,47 @@ export default async function AdminUserDetailPage({
         </div>
       </Section>
 
-      <Section title="Reports">
-        <div className="p-5">
-          <UnavailableCard
-            label="Reports involving this member"
-            reason="No reporting/flagging mechanism exists yet — nothing for members to report with."
-          />
-        </div>
+      <Section
+        title={
+          <div className="flex items-center justify-between gap-3">
+            <span>Reports involving this member ({reportsAboutThemTotal})</span>
+            {reportsAboutThemTotal > 0 && (
+              <Link
+                href={`/admin/reports?target=user&targetId=${profile.id}`}
+                className="text-xs font-semibold text-ink-500 hover:text-ink-900 normal-case tracking-normal"
+              >
+                Open in Reports →
+              </Link>
+            )}
+          </div>
+        }
+      >
+        {reportsAboutThem.length === 0 ? (
+          <EmptyRow>No reports filed against this member.</EmptyRow>
+        ) : (
+          <Table headers={["Category", "Reporter", "Priority", "Status", "Filed"]}>
+            {reportsAboutThem.map((r) => {
+              const rowReporterName = r.reporter
+                ? `${r.reporter.first_name} ${r.reporter.last_name}`.trim()
+                : "Unknown member";
+              return (
+                <tr key={r.id} className="border-b border-line last:border-0">
+                  <td className="px-5 py-3">
+                    <Link href={`/admin/reports/${r.id}`} className="font-semibold text-ink-900 hover:underline">
+                      {REPORT_CATEGORY_LABELS[r.category]}
+                    </Link>
+                  </td>
+                  <td className="px-5 py-3 text-ink-500">{rowReporterName}</td>
+                  <td className="px-5 py-3 text-ink-500">{r.priority}</td>
+                  <td className="px-5 py-3">
+                    <StatusBadge status={r.status} labels={REPORT_STATUS_LABELS} styles={REPORT_STATUS_STYLES} />
+                  </td>
+                  <td className="px-5 py-3 text-ink-500">{formatDateTime(r.created_at)}</td>
+                </tr>
+              );
+            })}
+          </Table>
+        )}
       </Section>
 
       <Section title={`Internal notes (${notes.length})`}>

@@ -2,7 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireStaff } from "@/lib/admin/authorization";
-import { getListingDetail } from "@/lib/admin/queries";
+import { getListingDetail, listReports } from "@/lib/admin/queries";
 import { canAccess } from "@/lib/admin/roles";
 import {
   formatDateTime,
@@ -17,7 +17,7 @@ import { formatPrice } from "@/lib/format";
 import AdminAvatar from "@/components/admin/avatar";
 import StatusBadge from "@/components/admin/status-badge";
 import ModerationForm from "@/components/admin/moderation-form";
-import UnavailableCard from "@/components/admin/unavailable-card";
+import { REPORT_CATEGORY_LABELS, REPORT_STATUS_LABELS, REPORT_STATUS_STYLES } from "@/lib/admin/reports";
 import { hideListing, restoreListing } from "./actions";
 
 export default async function AdminListingDetailPage({
@@ -32,6 +32,16 @@ export default async function AdminListingDetailPage({
 
   const detail = await getListingDetail(listingId);
   if (!detail) notFound();
+
+  // Separate from getListingDetail() the same way moderationHistory is its
+  // own query underneath — one page's worth of reports against this
+  // listing, not a full-table fetch. First page only: a summary, not the
+  // queue itself — see the "Open in Reports →" link for the full view.
+  const { rows: reportsOnListing, total: reportsOnListingTotal } = await listReports(
+    "",
+    { targetType: "listing", targetId: id },
+    1
+  );
 
   const { listing, seller, offers, moderationHistory } = detail;
   const sellerName = seller ? `${seller.first_name} ${seller.last_name}` : "Unknown seller";
@@ -186,13 +196,58 @@ export default async function AdminListingDetailPage({
         )}
       </Section>
 
-      <Section title="Reports">
-        <div className="p-5">
-          <UnavailableCard
-            label="Reports on this listing"
-            reason="No reporting/flagging mechanism exists yet — nothing for members to report with."
-          />
-        </div>
+      <Section
+        title={
+          <div className="flex items-center justify-between gap-3">
+            <span>Reports on this listing ({reportsOnListingTotal})</span>
+            {reportsOnListingTotal > 0 && (
+              <Link
+                href={`/admin/reports?target=listing&targetId=${listing.id}`}
+                className="text-xs font-semibold text-ink-500 hover:text-ink-900 normal-case tracking-normal"
+              >
+                Open in Reports →
+              </Link>
+            )}
+          </div>
+        }
+      >
+        {reportsOnListing.length === 0 ? (
+          <EmptyRow>No reports filed against this listing.</EmptyRow>
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-ink-500 text-xs uppercase tracking-wide border-b border-line">
+                <th className="px-5 py-3 font-semibold">Category</th>
+                <th className="px-5 py-3 font-semibold">Reporter</th>
+                <th className="px-5 py-3 font-semibold">Priority</th>
+                <th className="px-5 py-3 font-semibold">Status</th>
+                <th className="px-5 py-3 font-semibold">Filed</th>
+              </tr>
+            </thead>
+            <tbody>
+              {reportsOnListing.map((r) => {
+                const rowReporterName = r.reporter
+                  ? `${r.reporter.first_name} ${r.reporter.last_name}`.trim()
+                  : "Unknown member";
+                return (
+                  <tr key={r.id} className="border-b border-line last:border-0">
+                    <td className="px-5 py-3">
+                      <Link href={`/admin/reports/${r.id}`} className="font-semibold text-ink-900 hover:underline">
+                        {REPORT_CATEGORY_LABELS[r.category]}
+                      </Link>
+                    </td>
+                    <td className="px-5 py-3 text-ink-500">{rowReporterName}</td>
+                    <td className="px-5 py-3 text-ink-500">{r.priority}</td>
+                    <td className="px-5 py-3">
+                      <StatusBadge status={r.status} labels={REPORT_STATUS_LABELS} styles={REPORT_STATUS_STYLES} />
+                    </td>
+                    <td className="px-5 py-3 text-ink-500">{formatDateTime(r.created_at)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
       </Section>
 
       <Section title={`Moderation history (${moderationHistory.length})`}>
@@ -252,7 +307,7 @@ export default async function AdminListingDetailPage({
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, children }: { title: React.ReactNode; children: React.ReactNode }) {
   return (
     <div className="mb-8">
       <h2 className="font-display font-bold text-lg mb-3">{title}</h2>

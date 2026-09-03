@@ -2,6 +2,8 @@ import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Listing, Offer, Profile, TeeTimeInterest, TeeTimeInvite } from "@/lib/types";
 import type { StaffRole } from "./roles";
+import type { ReportCategory, ReportPriority, ReportStatus, ReportTargetType } from "./reports";
+import { AUDIT_TARGET_TYPES } from "./audit";
 
 // Every read in this file goes through the service-role client, deliberately
 // bypassing RLS: the admin console needs to see every user's data (not just
@@ -799,5 +801,400 @@ export async function getOverviewMetrics(): Promise<OverviewMetrics> {
     removedListings: removedListings ?? 0,
     totalInvites: totalInvites ?? 0,
     openInvites: openInvites ?? 0,
+  };
+}
+
+// ---------- Reports ----------
+//
+// /admin/reports unified moderation queue — see
+// supabase/migrations/0016_admin_reports.sql and 0017_reports_search_indexes.sql.
+// Like listAuditLog()/listListings(), this is real server-side `.range()`
+// pagination with a stable sort (created_at desc, id desc), not
+// fetch-all-and-filter-in-memory: the queue is expected to grow without
+// bound the same way the audit log does.
+
+export type AdminReport = {
+  id: number;
+  reporter_id: string;
+  target_type: ReportTargetType;
+  target_id: string;
+  category: ReportCategory;
+  description: string | null;
+  priority: ReportPriority;
+  status: ReportStatus;
+  assigned_admin: string | null;
+  claimed_at: string | null;
+  evidence_refs: unknown[];
+  resolution: string | null;
+  resolved_at: string | null;
+  resolved_by: string | null;
+  linked_action_id: number | null;
+  created_at: string;
+  updated_at: string;
+};
+
+/** A short, target-type-appropriate summary for a report row — resolved in
+ * a single batched lookup per page (see resolveTargetSummaries()), not a
+ * per-row query. `href` is null when there's nowhere to link yet: a
+ * message/conversation target (no messaging system exists — see
+ * src/lib/admin/reports.ts) or a target row that no longer exists. */
+export type AdminReportTargetSummary = {
+  type: ReportTargetType;
+  label: string;
+  href: string | null;
+};
+
+export type AdminReportListItem = AdminReport & {
+  reporter: AdminProfile | null;
+  assignedStaff: AdminProfile | null;
+  target: AdminReportTargetSummary;
+};
+
+export type AdminReportPage = {
+  rows: AdminReportListItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+};
+
+export type AdminReportFilters = {
+  status?: ReportStatus;
+  priority?: ReportPriority;
+  category?: ReportCategory;
+  targetType?: ReportTargetType;
+  /** A single target's reports — used by the listing/user detail pages'
+   * "Reports" section. Paired with targetType there (target_id alone isn't
+   * unique across target types). */
+  targetId?: string;
+  /** A specific staff user id, or the literal "unassigned" for
+   * assigned_admin IS NULL (the queue's default "needs a claim" view). */
+  assignedAdmin?: string;
+};
+
+const REPORTS_PAGE_SIZE = 20;
+
+/**
+ * Builds the `.or()` filter string for listReports()'s free-text search:
+ * ILIKE on `description` (see 0017_reports_search_indexes.sql) plus a
+ * `reporter_id.in.(...)` clause for any reporter whose name matched — same
+ * two-step shape buildListingSearchOrFilter() uses for seller name. Pure and
+ * DB-free, exported for unit testing.
+ */
+export function buildReportSearchOrFilter(query: string, reporterMatchedIds: string[]): string | null {
+  const term = sanitizeSearchTerm(query);
+  const clauses: string[] = [];
+
+  if (term) {
+    clauses.push(`description.ilike.%${term}%`);
+  }
+
+  const validIds = reporterMatchedIds.filter((id) => UUID_RE.test(id));
+  if (validIds.length) clauses.push(`reporter_id.in.(${validIds.join(",")})`);
+
+  return clauses.length ? clauses.join(",") : null;
+}
+
+/**
+ * Batch-resolves a page of reports' targets into display summaries without a
+ * per-row query: groups ids by target_type, fetches each table once, and
+ * falls back to a "no longer exists" label when a target row is gone.
+ * message/conversation targets never hit a table — no messaging system
+ * exists yet (see src/lib/admin/reports.ts) — so they always resolve to a
+ * plain, unlinked label built from the report's own fields.
+ */
+async function resolveTargetSummaries(
+  admin: ReturnType<typeof createAdminClient>,
+  rows: { target_type: ReportTargetType; target_id: string }[]
+): Promise<Map<string, AdminReportTargetSummary>> {
+  const key = (type: string, id: string) => `${type}:${id}`;
+  const summaries = new Map<string, AdminReportTargetSummary>();
+
+  const userIds = [...new Set(rows.filter((r) => r.target_type === "user").map((r) => r.target_id))];
+  const listingIds = [...new Set(rows.filter((r) => r.target_type === "listing").map((r) => r.target_id))]
+    .map((id) => Number(id))
+    .filter((id) => Number.isFinite(id));
+  const inviteIds = [...new Set(rows.filter((r) => r.target_type === "tee_time_invite").map((r) => r.target_id))]
+    .map((id) => Number(id))
+    .filter((id) => Number.isFinite(id));
+
+  const [{ data: users }, { data: listings }, { data: invites }] = await Promise.all([
+    userIds.length
+      ? admin
+          .from("profiles")
+          .select("id, first_name, last_name")
+          .in("id", userIds)
+          .returns<Pick<Profile, "id" | "first_name" | "last_name">[]>()
+      : Promise.resolve({ data: [] as Pick<Profile, "id" | "first_name" | "last_name">[] }),
+    listingIds.length
+      ? admin.from("listings").select("id, title").in("id", listingIds).returns<Pick<Listing, "id" | "title">[]>()
+      : Promise.resolve({ data: [] as Pick<Listing, "id" | "title">[] }),
+    inviteIds.length
+      ? admin
+          .from("tee_time_invites")
+          .select("id, club_name")
+          .in("id", inviteIds)
+          .returns<Pick<TeeTimeInvite, "id" | "club_name">[]>()
+      : Promise.resolve({ data: [] as Pick<TeeTimeInvite, "id" | "club_name">[] }),
+  ]);
+
+  const userById = new Map((users ?? []).map((u) => [u.id, u]));
+  const listingById = new Map((listings ?? []).map((l) => [String(l.id), l]));
+  const inviteById = new Map((invites ?? []).map((i) => [String(i.id), i]));
+
+  for (const row of rows) {
+    const k = key(row.target_type, row.target_id);
+    if (summaries.has(k)) continue;
+
+    if (row.target_type === "user") {
+      const u = userById.get(row.target_id);
+      summaries.set(
+        k,
+        u
+          ? { type: "user", label: `${u.first_name} ${u.last_name}`.trim(), href: `/admin/users/${row.target_id}` }
+          : { type: "user", label: "Member no longer exists", href: null }
+      );
+    } else if (row.target_type === "listing") {
+      const l = listingById.get(row.target_id);
+      summaries.set(
+        k,
+        l
+          ? { type: "listing", label: l.title, href: `/admin/listings/${row.target_id}` }
+          : { type: "listing", label: `Listing #${row.target_id} no longer exists`, href: null }
+      );
+    } else if (row.target_type === "tee_time_invite") {
+      const i = inviteById.get(row.target_id);
+      summaries.set(
+        k,
+        i
+          ? { type: "tee_time_invite", label: i.club_name, href: `/admin/tee-times/${row.target_id}` }
+          : { type: "tee_time_invite", label: `Invite #${row.target_id} no longer exists`, href: null }
+      );
+    } else {
+      // message / conversation — no backing table to resolve against yet.
+      // See src/lib/admin/reports.ts and the report detail page for the
+      // minimal-context handling this deliberately leaves for a future
+      // message-moderation phase.
+      summaries.set(k, {
+        type: row.target_type,
+        label: `${row.target_type === "message" ? "Message" : "Conversation"} #${row.target_id}`,
+        href: null,
+      });
+    }
+  }
+
+  return summaries;
+}
+
+/**
+ * Paginated, server-side-filtered report list for /admin/reports. Same
+ * indexed-search shape as listListings()/listUsers() — see
+ * buildReportSearchOrFilter() — rather than a full-table fetch.
+ */
+export async function listReports(
+  query = "",
+  filters: AdminReportFilters = {},
+  page = 1
+): Promise<AdminReportPage> {
+  const admin = createAdminClient();
+  const safePage = Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
+  const rangeFrom = (safePage - 1) * REPORTS_PAGE_SIZE;
+  const rangeTo = rangeFrom + REPORTS_PAGE_SIZE - 1;
+
+  const trimmedQuery = query.trim();
+  const term = trimmedQuery ? sanitizeSearchTerm(trimmedQuery) : "";
+
+  // Resolve reporter-name matches against `profiles` before the reports
+  // query runs — same two-step shape listListings() uses for seller name;
+  // reports has no reporter-name column to search directly.
+  let reporterMatchedIds: string[] = [];
+  if (term) {
+    const pattern = `%${term}%`;
+    const { data: matchedProfiles } = await admin
+      .from("profiles")
+      .select("id")
+      .or(`first_name.ilike.${pattern},last_name.ilike.${pattern}`)
+      .returns<Pick<Profile, "id">[]>();
+    reporterMatchedIds = (matchedProfiles ?? []).map((p) => p.id);
+  }
+
+  let reportsQuery = admin
+    .from("reports")
+    .select("*", { count: "exact" })
+    // Stable sort — same reasoning as listAuditLog()/listListings().
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
+    .range(rangeFrom, rangeTo);
+
+  if (filters.status) reportsQuery = reportsQuery.eq("status", filters.status);
+  if (filters.priority) reportsQuery = reportsQuery.eq("priority", filters.priority);
+  if (filters.category) reportsQuery = reportsQuery.eq("category", filters.category);
+  if (filters.targetType) reportsQuery = reportsQuery.eq("target_type", filters.targetType);
+  if (filters.targetId) reportsQuery = reportsQuery.eq("target_id", filters.targetId);
+  if (filters.assignedAdmin === "unassigned") {
+    reportsQuery = reportsQuery.is("assigned_admin", null);
+  } else if (filters.assignedAdmin) {
+    reportsQuery = reportsQuery.eq("assigned_admin", filters.assignedAdmin);
+  }
+
+  if (trimmedQuery) {
+    const filter = buildReportSearchOrFilter(trimmedQuery, reporterMatchedIds);
+    if (filter) reportsQuery = reportsQuery.or(filter);
+  }
+
+  const { data, error, count } = await reportsQuery.returns<AdminReport[]>();
+  if (error) throw new Error(`Failed to list reports: ${error.message}`);
+  const rows = data ?? [];
+
+  const [authUsers, targetSummaries] = await Promise.all([authUserMap(), resolveTargetSummaries(admin, rows)]);
+
+  const peopleIds = [
+    ...new Set(rows.flatMap((r) => [r.reporter_id, r.assigned_admin].filter((id): id is string => !!id))),
+  ];
+  const { data: peopleProfiles } = peopleIds.length
+    ? await admin.from("profiles").select("*").in("id", peopleIds).returns<Profile[]>()
+    : { data: [] as Profile[] };
+  const profileById = new Map((peopleProfiles ?? []).map((p) => [p.id, p]));
+
+  const resultRows: AdminReportListItem[] = rows.map((r) => {
+    const reporterProfile = profileById.get(r.reporter_id) ?? null;
+    const assignedProfile = r.assigned_admin ? profileById.get(r.assigned_admin) ?? null : null;
+    return {
+      ...r,
+      reporter: reporterProfile ? withEmail(reporterProfile, authUsers) : null,
+      assignedStaff: assignedProfile ? withEmail(assignedProfile, authUsers) : null,
+      target: targetSummaries.get(`${r.target_type}:${r.target_id}`) ?? {
+        type: r.target_type,
+        label: `${r.target_type} #${r.target_id}`,
+        href: null,
+      },
+    };
+  });
+
+  return { rows: resultRows, total: count ?? 0, page: safePage, pageSize: REPORTS_PAGE_SIZE };
+}
+
+// ---------- Report notes ----------
+//
+// Read side of report_notes (see supabase/migrations/0016_admin_reports.sql).
+// The write side (addReportNote()) lives in
+// src/app/admin/reports/[id]/actions.ts, same split as
+// listUserNotes()/addUserNote().
+
+export type AdminReportNote = {
+  id: number;
+  report_id: number;
+  author_id: string;
+  author_role: StaffRole;
+  body: string;
+  created_at: string;
+};
+
+export type AdminReportNoteListItem = AdminReportNote & { author: AdminProfile | null };
+
+/** Every internal note on one report, newest first — scoped by the indexed
+ * (report_id, created_at) composite index, never a full-table read. Same
+ * shape as listUserNotes(). */
+export async function listReportNotes(reportId: number): Promise<AdminReportNoteListItem[]> {
+  const admin = createAdminClient();
+  const [{ data, error }, authUsers] = await Promise.all([
+    admin
+      .from("report_notes")
+      .select("*")
+      .eq("report_id", reportId)
+      .order("created_at", { ascending: false })
+      .returns<AdminReportNote[]>(),
+    authUserMap(),
+  ]);
+  if (error) throw new Error(`Failed to list report notes: ${error.message}`);
+
+  const authorIds = [...new Set((data ?? []).map((n) => n.author_id))];
+  const { data: authorProfiles } = authorIds.length
+    ? await admin.from("profiles").select("*").in("id", authorIds).returns<Profile[]>()
+    : { data: [] as Profile[] };
+  const authorById = new Map((authorProfiles ?? []).map((p) => [p.id, p]));
+
+  return (data ?? []).map((note) => {
+    const authorProfile = authorById.get(note.author_id) ?? null;
+    return { ...note, author: authorProfile ? withEmail(authorProfile, authUsers) : null };
+  });
+}
+
+export type AdminReportDetail = {
+  report: AdminReport;
+  reporter: AdminProfile | null;
+  assignedStaff: AdminProfile | null;
+  resolvedByStaff: AdminProfile | null;
+  target: AdminReportTargetSummary;
+  notes: AdminReportNoteListItem[];
+  /** This target's own recent moderation history (e.g. a listing's
+   * hide/restore entries) — powers the resolution form's optional "link to
+   * a moderation action" picker, and lets staff see what's already been done
+   * to this target without leaving the report. Always empty for
+   * message/conversation targets (audit.ts's AUDIT_TARGET_TYPES has no entry
+   * for either — there's nothing to look up yet) and for targets with no
+   * moderation history. */
+  targetModerationHistory: AdminAuditLogListItem[];
+  linkedAction: AdminAuditLogListItem | null;
+};
+
+export async function getReportDetail(id: number): Promise<AdminReportDetail | null> {
+  const admin = createAdminClient();
+  const { data: report, error } = await admin.from("reports").select("*").eq("id", id).maybeSingle<AdminReport>();
+  if (error) throw new Error(`Failed to load report: ${error.message}`);
+  if (!report) return null;
+
+  const isAuditableTarget = (AUDIT_TARGET_TYPES as readonly string[]).includes(report.target_type);
+
+  const [authUsers, targetSummaries, notes, moderationHistoryResult, linkedActionRowResult] = await Promise.all([
+    authUserMap(),
+    resolveTargetSummaries(admin, [report]),
+    listReportNotes(report.id),
+    isAuditableTarget
+      ? listAuditLog({ targetType: report.target_type, targetId: report.target_id }, 1)
+      : Promise.resolve({ rows: [], total: 0, page: 1, pageSize: AUDIT_LOG_PAGE_SIZE } as AuditLogPage),
+    report.linked_action_id
+      ? admin
+          .from("admin_audit_log")
+          .select("*")
+          .eq("id", report.linked_action_id)
+          .maybeSingle<AdminAuditLogEntry>()
+      : Promise.resolve({ data: null as AdminAuditLogEntry | null }),
+  ]);
+
+  const peopleIds = [
+    ...new Set(
+      [report.reporter_id, report.assigned_admin, report.resolved_by, linkedActionRowResult.data?.actor_id].filter(
+        (id): id is string => !!id
+      )
+    ),
+  ];
+  const { data: peopleProfiles } = peopleIds.length
+    ? await admin.from("profiles").select("*").in("id", peopleIds).returns<Profile[]>()
+    : { data: [] as Profile[] };
+  const profileById = new Map((peopleProfiles ?? []).map((p) => [p.id, p]));
+
+  let linkedAction: AdminAuditLogListItem | null = null;
+  if (linkedActionRowResult.data) {
+    const actorProfile = profileById.get(linkedActionRowResult.data.actor_id) ?? null;
+    linkedAction = { ...linkedActionRowResult.data, actor: actorProfile ? withEmail(actorProfile, authUsers) : null };
+  }
+
+  const reporterProfile = profileById.get(report.reporter_id) ?? null;
+  const assignedProfile = report.assigned_admin ? profileById.get(report.assigned_admin) ?? null : null;
+  const resolvedByProfile = report.resolved_by ? profileById.get(report.resolved_by) ?? null : null;
+
+  return {
+    report,
+    reporter: reporterProfile ? withEmail(reporterProfile, authUsers) : null,
+    assignedStaff: assignedProfile ? withEmail(assignedProfile, authUsers) : null,
+    resolvedByStaff: resolvedByProfile ? withEmail(resolvedByProfile, authUsers) : null,
+    target: targetSummaries.get(`${report.target_type}:${report.target_id}`) ?? {
+      type: report.target_type,
+      label: `${report.target_type} #${report.target_id}`,
+      href: null,
+    },
+    notes,
+    targetModerationHistory: moderationHistoryResult.rows,
+    linkedAction,
   };
 }
