@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { requireStaff } from "@/lib/admin/authorization";
 import { ROLE_LABELS, type StaffRole } from "@/lib/admin/roles";
+import { FINANCE_ROLES } from "@/lib/admin/finance";
 import SignOutButton from "@/components/sign-out-button";
 
 // Placeholders for later phases — deliberately not linked to real pages yet.
@@ -19,7 +20,7 @@ const NAV_ITEMS: { href: string; label: string; enabled?: boolean; roles?: reado
   { href: "/admin/users", label: "Users", enabled: true },
   { href: "/admin/listings", label: "Listings", enabled: true },
   { href: "/admin/tee-times", label: "Tee-times", enabled: true },
-  { href: "/admin/orders", label: "Orders" },
+  { href: "/admin/orders", label: "Orders", enabled: true, roles: FINANCE_ROLES },
   { href: "/admin/payouts", label: "Payouts" },
   { href: "/admin/clubs", label: "Clubs" },
   { href: "/admin/reports", label: "Reports", enabled: true },

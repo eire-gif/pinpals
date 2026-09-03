@@ -35,7 +35,14 @@ export const ADMIN_ACTIONS = [
 ] as const;
 export type AdminAction = (typeof ADMIN_ACTIONS)[number];
 
-export const AUDIT_TARGET_TYPES = ["user", "listing", "tee_time_invite", "offer", "staff_role", "report"] as const;
+// "order" is forward-declared, same as "message"/"conversation" were added
+// to reports' target_type ahead of a messaging system: no admin mutation
+// writes one yet (this phase is read-only per its "no ad-hoc money
+// movement" instruction — see src/app/admin/orders/), but a later phase's
+// refund/payout actions (refund.requested/refund.completed above already
+// anticipate this) need the column's shape to exist without another
+// migration.
+export const AUDIT_TARGET_TYPES = ["user", "listing", "tee_time_invite", "offer", "staff_role", "report", "order"] as const;
 export type AuditTargetType = (typeof AUDIT_TARGET_TYPES)[number];
 
 export type AuditOutcome = "success" | "failure";

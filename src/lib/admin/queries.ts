@@ -1,6 +1,6 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
-import type { Listing, Offer, Profile, TeeTimeInterest, TeeTimeInvite } from "@/lib/types";
+import type { Listing, Offer, Order, Profile, TeeTimeInterest, TeeTimeInvite } from "@/lib/types";
 import type { StaffRole } from "./roles";
 import type { ReportCategory, ReportPriority, ReportStatus, ReportTargetType } from "./reports";
 import { AUDIT_TARGET_TYPES } from "./audit";
@@ -1196,5 +1196,182 @@ export async function getReportDetail(id: number): Promise<AdminReportDetail | n
     notes,
     targetModerationHistory: moderationHistoryResult.rows,
     linkedAction,
+  };
+}
+
+// ---------- Orders ----------
+//
+// /admin/orders — see supabase/migrations/0019_orders.sql. Read-only this
+// phase (no claim/resolve/note actions like reports have — the task this
+// shipped under is explicit: "Do not implement ad-hoc money movement in the
+// admin UI in this phase"), so this section is only listOrders()/
+// getOrderDetail(), the same shape as listListings()/getListingDetail()
+// before Phase 3 added listing moderation actions.
+
+export type AdminOrderListItem = Order & { buyer: AdminProfile | null; seller: AdminProfile | null };
+
+export type AdminOrderPage = {
+  rows: AdminOrderListItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+};
+
+/** Everything /admin/orders can filter on. `buyer`/`seller` each accept
+ * either a profile id directly (the shape a link from /admin/users/[id]
+ * arrives in) or free-text to match against that person's name — resolved
+ * in listOrders() below, same two-step shape listListings() uses for its
+ * seller-name search. `orderId` is an exact primary-key match, not a search
+ * term. `from`/`to` are ISO timestamps, inclusive bounds on created_at. */
+export type AdminOrderFilters = {
+  orderId?: number;
+  buyer?: string;
+  seller?: string;
+  status?: string;
+  paymentStatus?: string;
+  from?: string;
+  to?: string;
+};
+
+const ORDERS_PAGE_SIZE = 20;
+
+/**
+ * Resolves a buyer/seller filter box's raw input into the profile ids to
+ * match against buyer_id/seller_id — a well-formed uuid is used as-is,
+ * anything else is treated as a name and looked up against `profiles`
+ * (indexed — see 0012_profiles_search_indexes.sql). Returns `{ ids: null }`
+ * for an empty/blank filter (meaning "don't filter on this at all") versus
+ * `{ ids: [] }` for a name that matched nobody (meaning "filter to zero
+ * rows") — listOrders() below relies on that distinction.
+ */
+async function resolvePersonFilter(
+  admin: ReturnType<typeof createAdminClient>,
+  raw: string | undefined
+): Promise<{ ids: string[] | null }> {
+  if (!raw || !raw.trim()) return { ids: null };
+  if (UUID_RE.test(raw.trim())) return { ids: [raw.trim()] };
+
+  const term = sanitizeSearchTerm(raw);
+  if (!term) return { ids: null };
+
+  const pattern = `%${term}%`;
+  const { data } = await admin
+    .from("profiles")
+    .select("id")
+    .or(`first_name.ilike.${pattern},last_name.ilike.${pattern}`)
+    .returns<Pick<Profile, "id">[]>();
+  return { ids: (data ?? []).map((p) => p.id) };
+}
+
+/**
+ * Paginated, server-side-filtered order list for /admin/orders. Same
+ * `.range()` + stable `(created_at desc, id desc)` sort as every other list
+ * in this file — see listListings()'s file-header comment for why that
+ * matters once a table grows past one page.
+ */
+export async function listOrders(filters: AdminOrderFilters = {}, page = 1): Promise<AdminOrderPage> {
+  const admin = createAdminClient();
+  const safePage = Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
+  const rangeFrom = (safePage - 1) * ORDERS_PAGE_SIZE;
+  const rangeTo = rangeFrom + ORDERS_PAGE_SIZE - 1;
+
+  const [{ ids: buyerIds }, { ids: sellerIds }] = await Promise.all([
+    resolvePersonFilter(admin, filters.buyer),
+    resolvePersonFilter(admin, filters.seller),
+  ]);
+
+  // A name that matched no profile at all means the filter should return
+  // zero orders, not "no filter" — short-circuit rather than let an empty
+  // `.in()` list silently match everything.
+  if ((filters.buyer && buyerIds?.length === 0) || (filters.seller && sellerIds?.length === 0)) {
+    return { rows: [], total: 0, page: safePage, pageSize: ORDERS_PAGE_SIZE };
+  }
+
+  let query = admin
+    .from("orders")
+    .select("*", { count: "exact" })
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
+    .range(rangeFrom, rangeTo);
+
+  if (filters.orderId) query = query.eq("id", filters.orderId);
+  if (buyerIds) query = query.in("buyer_id", buyerIds);
+  if (sellerIds) query = query.in("seller_id", sellerIds);
+  if (filters.status) query = query.eq("status", filters.status);
+  if (filters.paymentStatus) query = query.eq("payment_status", filters.paymentStatus);
+  if (filters.from) query = query.gte("created_at", filters.from);
+  if (filters.to) query = query.lte("created_at", filters.to);
+
+  const { data: orders, error, count } = await query.returns<Order[]>();
+  if (error) throw new Error(`Failed to list orders: ${error.message}`);
+
+  const authUsers = await authUserMap();
+  const peopleIds = [...new Set((orders ?? []).flatMap((o) => [o.buyer_id, o.seller_id]))];
+  const { data: profiles } = peopleIds.length
+    ? await admin.from("profiles").select("*").in("id", peopleIds).returns<Profile[]>()
+    : { data: [] as Profile[] };
+  const profileById = new Map((profiles ?? []).map((p) => [p.id, p]));
+
+  const rows = (orders ?? []).map((order) => {
+    const buyerProfile = profileById.get(order.buyer_id) ?? null;
+    const sellerProfile = profileById.get(order.seller_id) ?? null;
+    return {
+      ...order,
+      buyer: buyerProfile ? withEmail(buyerProfile, authUsers) : null,
+      seller: sellerProfile ? withEmail(sellerProfile, authUsers) : null,
+    };
+  });
+
+  return { rows, total: count ?? 0, page: safePage, pageSize: ORDERS_PAGE_SIZE };
+}
+
+export type AdminOrderDetail = {
+  order: Order;
+  buyer: AdminProfile | null;
+  seller: AdminProfile | null;
+  /** The listing this order snapshotted from, if it still exists — a
+   * drill-through link only. The order's own listing_title/category/
+   * condition/image_url fields (the snapshot) are what the detail page
+   * actually renders as "the item", never this. */
+  listing: Listing | null;
+  /** The originating offer, if it still exists — drill-through only, same
+   * reasoning as `listing` above. */
+  offer: Offer | null;
+  /** Any admin_audit_log entries against this order (target_type "order")
+   * — empty today (this phase ships no admin mutation that would write
+   * one), same forward-looking section shape as getListingDetail()'s
+   * moderationHistory, ready for a later phase's refund/payout actions. */
+  history: AdminAuditLogListItem[];
+};
+
+export async function getOrderDetail(id: number): Promise<AdminOrderDetail | null> {
+  const admin = createAdminClient();
+  const { data: order, error } = await admin.from("orders").select("*").eq("id", id).maybeSingle<Order>();
+  if (error) throw new Error(`Failed to load order: ${error.message}`);
+  if (!order) return null;
+
+  const [authUsers, { data: profiles }, { data: listing }, { data: offer }, historyResult] = await Promise.all([
+    authUserMap(),
+    admin.from("profiles").select("*").in("id", [order.buyer_id, order.seller_id]).returns<Profile[]>(),
+    order.listing_id
+      ? admin.from("listings").select("*").eq("id", order.listing_id).maybeSingle<Listing>()
+      : Promise.resolve({ data: null as Listing | null }),
+    order.offer_id
+      ? admin.from("offers").select("*").eq("id", order.offer_id).maybeSingle<Offer>()
+      : Promise.resolve({ data: null as Offer | null }),
+    listAuditLog({ targetType: "order", targetId: String(id) }, 1),
+  ]);
+
+  const profileById = new Map((profiles ?? []).map((p) => [p.id, p]));
+  const buyerProfile = profileById.get(order.buyer_id) ?? null;
+  const sellerProfile = profileById.get(order.seller_id) ?? null;
+
+  return {
+    order,
+    buyer: buyerProfile ? withEmail(buyerProfile, authUsers) : null,
+    seller: sellerProfile ? withEmail(sellerProfile, authUsers) : null,
+    listing: listing ?? null,
+    offer: offer ?? null,
+    history: historyResult.rows,
   };
 }
