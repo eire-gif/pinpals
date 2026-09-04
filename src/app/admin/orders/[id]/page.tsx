@@ -4,17 +4,24 @@ import { requireStaff } from "@/lib/admin/authorization";
 import { FINANCE_ROLES } from "@/lib/admin/finance";
 import { getOrderDetail } from "@/lib/admin/queries";
 import {
+  DISPUTE_STATUS_LABELS,
+  DISPUTE_STATUS_STYLES,
   ORDER_STATUS_LABELS,
   ORDER_STATUS_STYLES,
   PAYMENT_STATUS_LABELS,
   PAYMENT_STATUS_STYLES,
   PAYOUT_STATUS_LABELS,
   PAYOUT_STATUS_STYLES,
+  REFUND_STATUS_LABELS,
+  REFUND_STATUS_STYLES,
   formatDateTime,
 } from "@/lib/admin/format";
 import { formatPrice } from "@/lib/format";
+import { computeRefundableAmountEur, isOrderRefundable, stripeDisputeDashboardUrl } from "@/lib/stripe/refunds";
 import AdminAvatar from "@/components/admin/avatar";
 import StatusBadge from "@/components/admin/status-badge";
+import RefundForm from "@/components/admin/refund-form";
+import { requestOrderRefund } from "./actions";
 
 export default async function AdminOrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
   await requireStaff({ roles: FINANCE_ROLES });
@@ -25,10 +32,13 @@ export default async function AdminOrderDetailPage({ params }: { params: Promise
   const detail = await getOrderDetail(orderId);
   if (!detail) notFound();
 
-  const { order, buyer, seller, listing, offer, history } = detail;
+  const { order, buyer, seller, listing, offer, history, refunds, disputes } = detail;
 
   const buyerName = buyer ? `${buyer.first_name} ${buyer.last_name}`.trim() : "Unknown buyer";
   const sellerName = seller ? `${seller.first_name} ${seller.last_name}`.trim() : "Unknown seller";
+
+  const refundableEur = computeRefundableAmountEur(order, refunds);
+  const canRefund = isOrderRefundable(order) && refundableEur > 0;
 
   // Every order has a created_at milestone; the other three are mutually
   // exclusive outcomes (an order lands in at most one of completed/
@@ -184,6 +194,65 @@ export default async function AdminOrderDetailPage({ params }: { params: Promise
       {order.refund_reason && (
         <Section title="Refund">
           <div className="p-5 text-sm text-ink-900 whitespace-pre-wrap">{order.refund_reason}</div>
+        </Section>
+      )}
+
+      {canRefund && (
+        <Section title="Process a refund">
+          <div className="p-5">
+            <RefundForm orderId={order.id} refundableEur={refundableEur} action={requestOrderRefund} />
+          </div>
+        </Section>
+      )}
+
+      {refunds.length > 0 && (
+        <Section title="Refund history">
+          <ul>
+            {refunds.map((refund) => (
+              <li key={refund.id} className="px-5 py-3 border-b border-line last:border-0 text-sm">
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-ink-900 font-semibold">{formatPrice(refund.amount_eur)}</span>
+                  <StatusBadge status={refund.status} labels={REFUND_STATUS_LABELS} styles={REFUND_STATUS_STYLES} />
+                </div>
+                <div className="text-ink-500 mt-1 whitespace-pre-wrap">{refund.reason}</div>
+                <div className="text-xs text-ink-500 mt-1">
+                  Requested {formatDateTime(refund.created_at)}
+                  {refund.stripe_refund_id && <> · <span className="font-mono">{refund.stripe_refund_id}</span></>}
+                </div>
+                {refund.failure_reason && (
+                  <p className="text-xs text-red-600 bg-red-100 rounded-lg px-3 py-2 mt-2">{refund.failure_reason}</p>
+                )}
+              </li>
+            ))}
+          </ul>
+        </Section>
+      )}
+
+      {disputes.length > 0 && (
+        <Section title="Disputes">
+          <ul>
+            {disputes.map((dispute) => (
+              <li key={dispute.id} className="px-5 py-3 border-b border-line last:border-0 text-sm">
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-ink-900 font-semibold">{formatPrice(dispute.amount_eur)}</span>
+                  <StatusBadge status={dispute.status} labels={DISPUTE_STATUS_LABELS} styles={DISPUTE_STATUS_STYLES} />
+                </div>
+                <div className="text-xs text-ink-500 mt-1">
+                  {dispute.reason && <>{dispute.reason} · </>}
+                  Opened {formatDateTime(dispute.created_at)}
+                  {dispute.evidence_due_by && <> · Evidence due {formatDateTime(dispute.evidence_due_by)}</>}
+                </div>
+                <a
+                  href={stripeDisputeDashboardUrl(dispute.stripe_dispute_id, dispute.livemode)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-xs text-ink-900 hover:underline mt-1 inline-block"
+                >
+                  Open in Stripe →
+                </a>
+              </li>
+            ))}
+          </ul>
         </Section>
       )}
 
