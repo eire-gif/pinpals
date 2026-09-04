@@ -183,7 +183,7 @@ export default async function AdminOrderDetailPage({ params }: { params: Promise
                 supports more than EUR. payout_reference is actually this
                 order's Stripe TRANSFER id (see 0024_payouts.sql's comment on
                 that column) — it only becomes an actual Payout once Stripe
-                sweeps it up, which is what the "Payout" row below traces. *}
+                sweeps it up, which is what the "Payout" row below traces. */}
             {order.payment_reference && <Row label="Payment reference" value={order.payment_reference} mono />}
             {order.payment_reference && <Row label="Currency" value={order.currency.toUpperCase()} />}
             {order.payout_reference && <Row label="Transfer reference" value={order.payout_reference} mono />}
