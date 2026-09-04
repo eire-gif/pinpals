@@ -49,6 +49,20 @@ export const ADMIN_ACTIONS = [
   // *interaction* this phase's payment persistence work audits, same
   // reasoning as seller_account.synced above.
   "webhook_event.retried",
+  // Phase 12 (finance/admin payout visibility & reconciliation, see
+  // supabase/migrations/0024_payouts.sql) — an admin's manual "Sync from
+  // Stripe" click on /admin/payouts/ledger/[id]
+  // (src/app/admin/payouts/ledger/[id]/actions.ts), same
+  // "Refresh from Stripe" shape as seller_account.synced above.
+  "payout.synced",
+  // An admin manually flagging (or releasing) a payout's orders for
+  // follow-up — sets/clears the pre-existing but previously-unused 'held'
+  // payout_status (0019) on every order that payout swept up. Not a Stripe
+  // mutation of any kind, and never touches bank/account details — see
+  // holdPayoutOrders()/releasePayoutOrders() in
+  // src/app/admin/payouts/ledger/[id]/actions.ts.
+  "payout.held",
+  "payout.released",
 ] as const;
 export type AdminAction = (typeof ADMIN_ACTIONS)[number];
 
@@ -67,6 +81,7 @@ export const AUDIT_TARGET_TYPES = [
   "order",
   "seller_account",
   "webhook_event",
+  "payout",
 ] as const;
 export type AuditTargetType = (typeof AUDIT_TARGET_TYPES)[number];
 
