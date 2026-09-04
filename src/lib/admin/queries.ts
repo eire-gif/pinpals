@@ -5,6 +5,7 @@ import type {
   Listing,
   Offer,
   Order,
+  Payout,
   Profile,
   Refund,
   StripeConnectedAccount,
@@ -1363,6 +1364,11 @@ export type AdminOrderDetail = {
    * first — visibility only, per the task ("links/references rather than
    * attempting to replicate all Stripe dispute tooling"). */
   disputes: Dispute[];
+  /** The payout this order's transfer was swept into, once reconciled (see
+   * supabase/migrations/0024_payouts.sql) — drill-through only, same
+   * reasoning as `listing`/`offer` above. Null until reconciliation runs, or
+   * for any order that predates Phase 12. */
+  payout: Payout | null;
 };
 
 export async function getOrderDetail(id: number): Promise<AdminOrderDetail | null> {
@@ -1371,7 +1377,7 @@ export async function getOrderDetail(id: number): Promise<AdminOrderDetail | nul
   if (error) throw new Error(`Failed to load order: ${error.message}`);
   if (!order) return null;
 
-  const [authUsers, { data: profiles }, { data: listing }, { data: offer }, historyResult, { data: refunds }, { data: disputes }] =
+  const [authUsers, { data: profiles }, { data: listing }, { data: offer }, historyResult, { data: refunds }, { data: disputes }, { data: payout }] =
     await Promise.all([
       authUserMap(),
       admin.from("profiles").select("*").in("id", [order.buyer_id, order.seller_id]).returns<Profile[]>(),
@@ -1384,6 +1390,9 @@ export async function getOrderDetail(id: number): Promise<AdminOrderDetail | nul
       listAuditLog({ targetType: "order", targetId: String(id) }, 1),
       admin.from("refunds").select("*").eq("order_id", id).order("created_at", { ascending: false }).returns<Refund[]>(),
       admin.from("disputes").select("*").eq("order_id", id).order("created_at", { ascending: false }).returns<Dispute[]>(),
+      order.payout_id
+        ? admin.from("payouts").select("*").eq("id", order.payout_id).maybeSingle<Payout>()
+        : Promise.resolve({ data: null as Payout | null }),
     ]);
 
   const profileById = new Map((profiles ?? []).map((p) => [p.id, p]));
@@ -1399,6 +1408,7 @@ export async function getOrderDetail(id: number): Promise<AdminOrderDetail | nul
     history: historyResult.rows,
     refunds: refunds ?? [],
     disputes: disputes ?? [],
+    payout: payout ?? null,
   };
 }
 
@@ -1619,6 +1629,133 @@ export async function getWebhookEventDetail(id: number): Promise<AdminWebhookEve
   return {
     event,
     relatedOrder: relatedOrder ?? null,
+    history: historyResult.rows,
+  };
+}
+
+// ---------- Payouts (finance ledger + reconciliation) ----------
+//
+// /admin/payouts/ledger — see supabase/migrations/0024_payouts.sql. Deliberately
+// a separate route/section from /admin/payouts above: that page (Phase 9) is
+// a seller's Connect ONBOARDING-readiness list (has the account finished
+// signing up, are payouts_enabled) — this is the actual MONEY ledger, tracing
+// order -> payment -> fee -> transfer -> payout. Same read-only list +
+// detail shape as every other section in this file, plus three audited
+// actions this file doesn't define — syncPayoutsForSeller(),
+// holdPayoutOrders(), releasePayoutOrders() — all in
+// src/app/admin/payouts/ledger/[id]/actions.ts, each calling
+// recordAdminAction() itself, same split as every other admin mutation.
+
+export type AdminPayoutListItem = Payout & { seller: AdminProfile | null };
+
+export type AdminPayoutPage = {
+  rows: AdminPayoutListItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+};
+
+export type AdminPayoutFilters = {
+  /** Same two-step name-or-uuid resolution as orders'/seller-accounts' own
+   * seller filters — see resolvePersonFilter() above. */
+  seller?: string;
+  status?: Payout["status"];
+  /** The "failed & blocked" actionable queue — status in (failed, canceled),
+   * same reasoning as BLOCKED_PAYOUT_STATUSES in src/lib/admin/format.ts
+   * (not imported directly here to keep this file's only dependency on
+   * @/lib/types, matching every other filter type in it). */
+  blockedOnly?: boolean;
+};
+
+const PAYOUTS_PAGE_SIZE = 20;
+
+/**
+ * Paginated, server-side-filtered payout list for /admin/payouts/ledger.
+ * Same `.range()` + stable sort shape as every other list in this file,
+ * sorted by stripe_created_at (when Stripe itself created the payout, the
+ * business-meaningful ordering — see the migration) rather than this app's
+ * own created_at, which can lag behind on a backfilled sync.
+ */
+export async function listPayouts(filters: AdminPayoutFilters = {}, page = 1): Promise<AdminPayoutPage> {
+  const admin = createAdminClient();
+  const safePage = Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
+  const rangeFrom = (safePage - 1) * PAYOUTS_PAGE_SIZE;
+  const rangeTo = rangeFrom + PAYOUTS_PAGE_SIZE - 1;
+
+  const { ids: sellerIds } = await resolvePersonFilter(admin, filters.seller);
+  if (filters.seller && sellerIds?.length === 0) {
+    return { rows: [], total: 0, page: safePage, pageSize: PAYOUTS_PAGE_SIZE };
+  }
+
+  let query = admin
+    .from("payouts")
+    .select("*", { count: "exact" })
+    .order("stripe_created_at", { ascending: false })
+    .order("id", { ascending: false })
+    .range(rangeFrom, rangeTo);
+
+  if (sellerIds) query = query.in("user_id", sellerIds);
+  if (filters.blockedOnly) {
+    query = query.in("status", ["failed", "canceled"]);
+  } else if (filters.status) {
+    query = query.eq("status", filters.status);
+  }
+
+  const { data: payouts, error, count } = await query.returns<Payout[]>();
+  if (error) throw new Error(`Failed to list payouts: ${error.message}`);
+
+  const authUsers = await authUserMap();
+  const sellerProfileIds = [...new Set((payouts ?? []).map((p) => p.user_id))];
+  const { data: profiles } = sellerProfileIds.length
+    ? await admin.from("profiles").select("*").in("id", sellerProfileIds).returns<Profile[]>()
+    : { data: [] as Profile[] };
+  const profileById = new Map((profiles ?? []).map((p) => [p.id, p]));
+
+  const rows = (payouts ?? []).map((payout) => {
+    const sellerProfile = profileById.get(payout.user_id) ?? null;
+    return { ...payout, seller: sellerProfile ? withEmail(sellerProfile, authUsers) : null };
+  });
+
+  return { rows, total: count ?? 0, page: safePage, pageSize: PAYOUTS_PAGE_SIZE };
+}
+
+export type AdminPayoutDetail = {
+  payout: Payout;
+  seller: AdminProfile | null;
+  /** Every order this payout has been reconciled against so far (via
+   * orders.payout_id, 0024) — the "order -> payment -> fee -> transfer ->
+   * payout status" trace the task requires, most recent order first. Can be
+   * empty for a payout still pending/in_transit (reconciliation only runs
+   * once a payout reaches a terminal state — see reconcilePayoutTransfers()
+   * in src/lib/stripe/payouts.ts) or one Stripe reports zero transfers for. */
+  orders: Order[];
+  /** admin_audit_log entries against this payout (target_type "payout") —
+   * sync clicks plus any hold/release actions taken on it. */
+  history: AdminAuditLogListItem[];
+};
+
+export async function getPayoutDetail(id: number): Promise<AdminPayoutDetail | null> {
+  const admin = createAdminClient();
+  const { data: payout, error } = await admin.from("payouts").select("*").eq("id", id).maybeSingle<Payout>();
+  if (error) throw new Error(`Failed to load payout: ${error.message}`);
+  if (!payout) return null;
+
+  const [authUsers, { data: profile }, { data: orders }, historyResult] = await Promise.all([
+    authUserMap(),
+    admin.from("profiles").select("*").eq("id", payout.user_id).maybeSingle<Profile>(),
+    admin
+      .from("orders")
+      .select("*")
+      .eq("payout_id", id)
+      .order("created_at", { ascending: false })
+      .returns<Order[]>(),
+    listAuditLog({ targetType: "payout", targetId: String(id) }, 1),
+  ]);
+
+  return {
+    payout,
+    seller: profile ? withEmail(profile, authUsers) : null,
+    orders: orders ?? [],
     history: historyResult.rows,
   };
 }
