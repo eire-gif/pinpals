@@ -1,10 +1,12 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type {
+  Dispute,
   Listing,
   Offer,
   Order,
   Profile,
+  Refund,
   StripeConnectedAccount,
   TeeTimeInterest,
   TeeTimeInvite,
@@ -1347,10 +1349,20 @@ export type AdminOrderDetail = {
    * reasoning as `listing` above. */
   offer: Offer | null;
   /** Any admin_audit_log entries against this order (target_type "order")
-   * — empty today (this phase ships no admin mutation that would write
-   * one), same forward-looking section shape as getListingDetail()'s
-   * moderationHistory, ready for a later phase's refund/payout actions. */
+   * — includes refund.requested/completed/failed entries as of this phase
+   * (src/app/admin/orders/[id]/actions.ts), same forward-looking section
+   * shape as getListingDetail()'s moderationHistory. */
   history: AdminAuditLogListItem[];
+  /** Every refund ATTEMPT against this order, most recent first — see
+   * supabase/migrations/0023_refunds_and_disputes.sql. Distinct from
+   * order.refund_reason/refunded_amount_eur/refunded_at, which stay as the
+   * order's own aggregate summary maintained by the pre-existing
+   * charge.refunded webhook path. */
+  refunds: Refund[];
+  /** Every Stripe dispute/chargeback linked to this order, most recent
+   * first — visibility only, per the task ("links/references rather than
+   * attempting to replicate all Stripe dispute tooling"). */
+  disputes: Dispute[];
 };
 
 export async function getOrderDetail(id: number): Promise<AdminOrderDetail | null> {
@@ -1359,17 +1371,20 @@ export async function getOrderDetail(id: number): Promise<AdminOrderDetail | nul
   if (error) throw new Error(`Failed to load order: ${error.message}`);
   if (!order) return null;
 
-  const [authUsers, { data: profiles }, { data: listing }, { data: offer }, historyResult] = await Promise.all([
-    authUserMap(),
-    admin.from("profiles").select("*").in("id", [order.buyer_id, order.seller_id]).returns<Profile[]>(),
-    order.listing_id
-      ? admin.from("listings").select("*").eq("id", order.listing_id).maybeSingle<Listing>()
-      : Promise.resolve({ data: null as Listing | null }),
-    order.offer_id
-      ? admin.from("offers").select("*").eq("id", order.offer_id).maybeSingle<Offer>()
-      : Promise.resolve({ data: null as Offer | null }),
-    listAuditLog({ targetType: "order", targetId: String(id) }, 1),
-  ]);
+  const [authUsers, { data: profiles }, { data: listing }, { data: offer }, historyResult, { data: refunds }, { data: disputes }] =
+    await Promise.all([
+      authUserMap(),
+      admin.from("profiles").select("*").in("id", [order.buyer_id, order.seller_id]).returns<Profile[]>(),
+      order.listing_id
+        ? admin.from("listings").select("*").eq("id", order.listing_id).maybeSingle<Listing>()
+        : Promise.resolve({ data: null as Listing | null }),
+      order.offer_id
+        ? admin.from("offers").select("*").eq("id", order.offer_id).maybeSingle<Offer>()
+        : Promise.resolve({ data: null as Offer | null }),
+      listAuditLog({ targetType: "order", targetId: String(id) }, 1),
+      admin.from("refunds").select("*").eq("order_id", id).order("created_at", { ascending: false }).returns<Refund[]>(),
+      admin.from("disputes").select("*").eq("order_id", id).order("created_at", { ascending: false }).returns<Dispute[]>(),
+    ]);
 
   const profileById = new Map((profiles ?? []).map((p) => [p.id, p]));
   const buyerProfile = profileById.get(order.buyer_id) ?? null;
@@ -1382,6 +1397,8 @@ export async function getOrderDetail(id: number): Promise<AdminOrderDetail | nul
     listing: listing ?? null,
     offer: offer ?? null,
     history: historyResult.rows,
+    refunds: refunds ?? [],
+    disputes: disputes ?? [],
   };
 }
 

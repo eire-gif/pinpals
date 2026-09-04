@@ -180,6 +180,54 @@ export type Order = {
   updated_at: string;
 };
 
+// ============ REFUNDS & DISPUTES ============
+// See supabase/migrations/0023_refunds_and_disputes.sql. `refunds` is one
+// row per refund ATTEMPT (not per order) — a finance admin's requested
+// amount/reason plus Stripe's own refund id and settlement status; the
+// pre-existing Order.refund_reason/refunded_amount_eur/refunded_at fields
+// above are unrelated and keep being maintained separately by the existing
+// charge.refunded webhook path as the order's own aggregate summary.
+// `disputes` is a pure read-only projection of Stripe Dispute objects — this
+// app never acts on one, only shows it (see
+// src/lib/stripe/refunds.ts's stripeDisputeDashboardUrl()).
+
+export type RefundStatus = "pending" | "requires_action" | "succeeded" | "failed" | "canceled";
+
+export type Refund = {
+  id: number;
+  order_id: number;
+  stripe_refund_id: string | null;
+  stripe_payment_intent_id: string;
+  amount_eur: number;
+  currency: string;
+  /** The admin's own typed justification — distinct from Stripe's short
+   * refund-reason enum threaded into Order.refund_reason. */
+  reason: string;
+  status: RefundStatus;
+  failure_reason: string | null;
+  idempotency_key: string;
+  requested_by: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type Dispute = {
+  id: number;
+  order_id: number | null;
+  stripe_dispute_id: string;
+  stripe_charge_id: string | null;
+  stripe_payment_intent_id: string | null;
+  amount_eur: number;
+  currency: string;
+  reason: string | null;
+  /** Stripe's own dispute status string (e.g. needs_response, under_review, won, lost) — shown as-is, not narrowed to a closed union (see the migration's comment on why). */
+  status: string;
+  evidence_due_by: string | null;
+  livemode: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
 // ============ WEBHOOK EVENTS ============
 // See supabase/migrations/0021_payments.sql. One row per Stripe webhook
 // event this app has ever been delivered, keyed uniquely on
@@ -236,4 +284,3 @@ export type StripeConnectedAccount = {
   created_at: string;
   updated_at: string;
 };
-
