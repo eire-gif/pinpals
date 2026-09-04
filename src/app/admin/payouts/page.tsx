@@ -38,11 +38,15 @@ export default async function AdminPayoutsPage({
 
   return (
     <div>
-      <h1 className="font-display font-bold text-2xl mb-1">Payouts</h1>
+      <h1 className="font-display font-bold text-2xl mb-1">Seller accounts</h1>
       <p className="text-ink-500 mb-6">
         {total} seller {total === 1 ? "account" : "accounts"} — Stripe Connect onboarding and payout
         readiness. Every status here is a cached copy of what Stripe last reported, not a live balance
-        or ledger.
+        or ledger. For the actual money ledger — payouts, amounts, which orders they paid out — see{" "}
+        <Link href="/admin/payouts/ledger" className="text-ink-900 hover:underline">
+          Payout ledger
+        </Link>
+        .
       </p>
 
       <form className="flex flex-wrap gap-3 mb-6">
