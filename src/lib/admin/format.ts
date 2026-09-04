@@ -1,4 +1,4 @@
-import type { InterestStatus, InviteStatus, OrderStatus, PaymentStatus, PayoutStatus } from "@/lib/types";
+import type { InterestStatus, InviteStatus, OrderStatus, PaymentStatus, PayoutStatus, WebhookEventStatus } from "@/lib/types";
 import { INTEREST_STATUS_LABELS, INTEREST_STATUS_STYLES, STATUS_LABELS, STATUS_STYLES } from "@/lib/tee-times";
 
 // `Listing["status"]` and `Offer["status"]` aren't strict unions in
@@ -84,6 +84,29 @@ export const PAYOUT_STATUS_STYLES: Record<PayoutStatus, string> = {
   pending: "bg-cream-100 text-ink-900",
   paid_out: "bg-green-100 text-green-800",
   held: "bg-red-100 text-red-600",
+};
+
+// /admin/webhook-events — see supabase/migrations/0021_payments.sql.
+// 'received'/'processing' are both mid-flight (processing is reserved for a
+// future async worker — nothing sets it today); 'processed'/'ignored' both
+// mean "done, no action needed" but stay visually distinct so an admin
+// scanning the queue can tell "this changed an order" apart from "this
+// event type isn't handled" at a glance; 'failed' is the queue's whole
+// reason to exist.
+export const WEBHOOK_EVENT_STATUS_LABELS: Record<WebhookEventStatus, string> = {
+  received: "Received",
+  processing: "Processing",
+  processed: "Processed",
+  ignored: "Ignored",
+  failed: "Failed",
+};
+
+export const WEBHOOK_EVENT_STATUS_STYLES: Record<WebhookEventStatus, string> = {
+  received: "bg-cream-100 text-ink-900",
+  processing: "bg-cream-100 text-ink-900",
+  processed: "bg-green-100 text-green-800",
+  ignored: "bg-cream-100 text-ink-500",
+  failed: "bg-red-100 text-red-600",
 };
 
 // Re-exported under admin-neutral names so admin pages have one place to

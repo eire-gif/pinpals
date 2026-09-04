@@ -1,6 +1,15 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
-import type { Listing, Offer, Order, Profile, StripeConnectedAccount, TeeTimeInterest, TeeTimeInvite } from "@/lib/types";
+import type {
+  Listing,
+  Offer,
+  Order,
+  Profile,
+  StripeConnectedAccount,
+  TeeTimeInterest,
+  TeeTimeInvite,
+  WebhookEvent,
+} from "@/lib/types";
 import type { StaffRole } from "./roles";
 import type { ReportCategory, ReportPriority, ReportStatus, ReportTargetType } from "./reports";
 import { AUDIT_TARGET_TYPES } from "./audit";
@@ -1492,6 +1501,107 @@ export async function getSellerAccountDetail(userId: string): Promise<AdminSelle
   return {
     account,
     seller: profile ? withEmail(profile, authUsers) : null,
+    history: historyResult.rows,
+  };
+}
+
+// ---------- Webhook events ----------
+//
+// /admin/webhook-events — see supabase/migrations/0021_payments.sql. Same
+// read-only list + detail shape as Orders/Payouts above, plus one audited
+// action this file doesn't define: retryFailedWebhookEvent() in
+// src/app/admin/webhook-events/[id]/actions.ts, which calls
+// recordAdminAction() itself, same split as every other admin mutation.
+
+export type AdminWebhookEventListItem = WebhookEvent;
+
+export type AdminWebhookEventPage = {
+  rows: AdminWebhookEventListItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+};
+
+export type AdminWebhookEventFilters = {
+  status?: string;
+  eventType?: string;
+  orderId?: number;
+};
+
+const WEBHOOK_EVENTS_PAGE_SIZE = 20;
+
+/**
+ * Paginated, server-side-filtered webhook event list for
+ * /admin/webhook-events. Same `.range()` + stable sort shape as every other
+ * list in this file — default sort is most-recently-received first, since
+ * "what just came in / what's failing right now" is what this queue is for.
+ */
+export async function listWebhookEvents(
+  filters: AdminWebhookEventFilters = {},
+  page = 1
+): Promise<AdminWebhookEventPage> {
+  const admin = createAdminClient();
+  const safePage = Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
+  const rangeFrom = (safePage - 1) * WEBHOOK_EVENTS_PAGE_SIZE;
+  const rangeTo = rangeFrom + WEBHOOK_EVENTS_PAGE_SIZE - 1;
+
+  let query = admin
+    .from("webhook_events")
+    .select("*", { count: "exact" })
+    .order("received_at", { ascending: false })
+    .order("id", { ascending: false })
+    .range(rangeFrom, rangeTo);
+
+  if (filters.status) query = query.eq("status", filters.status);
+  if (filters.eventType) query = query.eq("event_type", filters.eventType);
+  if (filters.orderId) query = query.eq("related_order_id", filters.orderId);
+
+  const { data, error, count } = await query.returns<WebhookEvent[]>();
+  if (error) throw new Error(`Failed to list webhook events: ${error.message}`);
+
+  return { rows: data ?? [], total: count ?? 0, page: safePage, pageSize: WEBHOOK_EVENTS_PAGE_SIZE };
+}
+
+/** Distinct event types seen so far, for the list page's filter dropdown —
+ * same "small, bounded lookup" shape as listAuditLogActors(). */
+export async function listWebhookEventTypes(): Promise<string[]> {
+  const admin = createAdminClient();
+  const { data, error } = await admin.from("webhook_events").select("event_type").returns<{ event_type: string }[]>();
+  if (error) throw new Error(`Failed to list webhook event types: ${error.message}`);
+  return [...new Set((data ?? []).map((row) => row.event_type))].sort();
+}
+
+export type AdminWebhookEventDetail = {
+  event: WebhookEvent;
+  /** The order this event was matched to, if any — a drill-through link
+   * only, same reasoning as AdminOrderDetail.listing/offer. */
+  relatedOrder: Order | null;
+  /** Any admin_audit_log entries against this event (target_type
+   * "webhook_event") — populated once an admin has clicked "Retry" at least
+   * once. */
+  history: AdminAuditLogListItem[];
+};
+
+export async function getWebhookEventDetail(id: number): Promise<AdminWebhookEventDetail | null> {
+  const admin = createAdminClient();
+  const { data: event, error } = await admin
+    .from("webhook_events")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle<WebhookEvent>();
+  if (error) throw new Error(`Failed to load webhook event: ${error.message}`);
+  if (!event) return null;
+
+  const [{ data: relatedOrder }, historyResult] = await Promise.all([
+    event.related_order_id
+      ? admin.from("orders").select("*").eq("id", event.related_order_id).maybeSingle<Order>()
+      : Promise.resolve({ data: null as Order | null }),
+    listAuditLog({ targetType: "webhook_event", targetId: String(id) }, 1),
+  ]);
+
+  return {
+    event,
+    relatedOrder: relatedOrder ?? null,
     history: historyResult.rows,
   };
 }

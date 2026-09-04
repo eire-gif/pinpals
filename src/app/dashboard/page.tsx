@@ -106,6 +106,17 @@ const QUICK_LINKS: QuickLink[] = [
       </svg>
     ),
   },
+  {
+    href: "/dashboard/orders",
+    label: "Your orders",
+    description: "Everything you've bought or sold, and any payment still due.",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-5 h-5">
+        <path d="M6 3.5h12v17l-3-2-3 2-3-2-3 2v-17z" />
+        <path d="M9 8.5h6M9 12h6M9 15.5h3.5" />
+      </svg>
+    ),
+  },
 ];
 
 export default async function DashboardPage({

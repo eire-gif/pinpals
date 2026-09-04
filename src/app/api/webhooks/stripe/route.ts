@@ -1,12 +1,15 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getStripeClient } from "@/lib/stripe/client";
-import { syncConnectedAccountFromStripe } from "@/lib/stripe/connect";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { claimWebhookEvent, processStripeEvent } from "@/lib/stripe/payments";
 
-// Stripe's webhook endpoint for this app — currently handles only
-// account.updated (Connect onboarding/payout status changes). This is the
-// "authenticated Stripe webhook" half of the task's sync requirement; the
-// other half is the safe server-side retrieve in
-// src/app/dashboard/payouts/return/route.ts.
+// Stripe's one webhook endpoint for this app — account.updated (Connect
+// onboarding/payout status changes), payment_intent.succeeded/
+// payment_intent.payment_failed/charge.refunded (marketplace payment
+// persistence). This is the "authenticated Stripe webhook" half of the
+// task's sync requirement; the other halves are the safe server-side
+// retrieves in src/app/dashboard/payouts/return/route.ts and
+// src/app/dashboard/orders/[id]/actions.ts.
 //
 // Authentication here is the signature check below, not a user session —
 // Stripe calls this endpoint directly, unauthenticated in the app-session
@@ -19,6 +22,15 @@ import { syncConnectedAccountFromStripe } from "@/lib/stripe/connect";
 // required for signature verification to succeed, and safe by default here:
 // unlike the old Pages Router, an App Router Route Handler never
 // auto-parses a request body, so no bodyParser config is needed.
+//
+// Idempotency/retry-safety: every verified event is claimed in
+// webhook_events (supabase/migrations/0021_payments.sql) BEFORE any effect
+// runs — a redelivery of an event this app already finished processing
+// short-circuits without re-running anything. See
+// src/lib/stripe/payments.ts's processStripeEvent() for the actual routing
+// and why a *business-logic* failure (no matching order, an amount
+// mismatch) still returns 200 here rather than asking Stripe to retry a
+// delivery that can never resolve itself on retry alone.
 export async function POST(request: NextRequest) {
   const signature = request.headers.get("stripe-signature");
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
@@ -45,14 +57,29 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid signature." }, { status: 400 });
   }
 
-  if (event.type === "account.updated") {
-    await syncConnectedAccountFromStripe(event.data.object);
+  const admin = createAdminClient();
+
+  try {
+    const ledgerRow = await claimWebhookEvent(admin, {
+      eventId: event.id,
+      eventType: event.type,
+      apiVersion: event.api_version ?? null,
+      payload: event,
+    });
+
+    await processStripeEvent(admin, event, ledgerRow);
+  } catch {
+    // A genuine infrastructure failure (the ledger claim itself couldn't be
+    // written, or a downstream write threw in a way processStripeEvent()
+    // couldn't itself record) — never log the caught error's message here
+    // for the same reason as the signature-verification catch above, and
+    // return 5xx so Stripe's own retry schedule redelivers this event
+    // later. A business-logic failure (no matching order, an amount
+    // mismatch, an unhandled event type) is NOT this branch — those are
+    // handled inside processStripeEvent(), recorded in the ledger, and
+    // still fall through to the 200 below.
+    return NextResponse.json({ error: "Failed to process webhook event." }, { status: 500 });
   }
 
-  // Every other event type is acknowledged, not rejected — this endpoint
-  // only subscribes to account.updated in the Stripe dashboard, but
-  // returning 200 for anything unrecognised (rather than erroring) is
-  // Stripe's own recommended handling for events an endpoint doesn't act
-  // on, and avoids pointless retries.
   return NextResponse.json({ received: true });
 }
