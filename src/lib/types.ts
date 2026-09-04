@@ -164,11 +164,48 @@ export type Order = {
   payout_status: PayoutStatus;
   payment_reference: string | null;
   payout_reference: string | null;
+  /** Currency Stripe actually reported on the PaymentIntent — a
+   * reconciliation check, not multi-currency support (see
+   * supabase/migrations/0021_payments.sql). Always "eur" today. */
+  currency: string;
+  /** Stripe's own decline/failure message from the most recent failed
+   * payment attempt, cleared on success. Never a secret or a raw payload. */
+  payment_last_error: string | null;
   refund_reason: string | null;
   refunded_amount_eur: number | null;
   completed_at: string | null;
   cancelled_at: string | null;
   refunded_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+// ============ WEBHOOK EVENTS ============
+// See supabase/migrations/0021_payments.sql. One row per Stripe webhook
+// event this app has ever been delivered, keyed uniquely on
+// (provider, event_id) for idempotency. Written only by
+// claim_webhook_event()/apply_order_payment_*()/mark_webhook_event_terminal()
+// (src/lib/stripe/payments.ts), via the service-role client — never a direct
+// insert from application code. `payload` is Stripe's own verified event
+// body (signature already checked before it's ever written here) — safe
+// operational data (amounts, ids, statuses, at most a card's brand/last4),
+// never a secret and never a full card number.
+
+export type WebhookEventStatus = "received" | "processing" | "processed" | "failed" | "ignored";
+
+export type WebhookEvent = {
+  id: number;
+  provider: "stripe";
+  event_id: string;
+  event_type: string;
+  api_version: string | null;
+  status: WebhookEventStatus;
+  attempts: number;
+  last_error: string | null;
+  payload: Record<string, unknown>;
+  related_order_id: number | null;
+  received_at: string;
+  processed_at: string | null;
   created_at: string;
   updated_at: string;
 };
