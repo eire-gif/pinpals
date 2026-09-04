@@ -326,3 +326,40 @@ export type Payout = {
   created_at: string;
   updated_at: string;
 };
+
+// ============ MESSAGING ============
+// See supabase/migrations/0025_messaging.sql for the full privacy model
+// (who may start a conversation, RLS, the admin access model). A
+// conversation always has exactly two participants — user_a_id/user_b_id
+// carry no "who initiated" meaning the way connections.requester_id/
+// recipient_id do, they're just an unordered pair.
+
+export type Conversation = {
+  id: number;
+  user_a_id: string;
+  user_b_id: string;
+  last_message_at: string | null;
+  created_at: string;
+};
+
+export type Message = {
+  id: number;
+  conversation_id: number;
+  sender_id: string;
+  body: string;
+  created_at: string;
+  /** Moderation flag only — see hideMessage()/restoreMessage() in
+   * src/app/admin/reports/[id]/actions.ts. `body` above is never rewritten
+   * or cleared when a message is hidden; the UI decides whether to render
+   * it, based on these three fields. */
+  hidden_at: string | null;
+  hidden_by: string | null;
+  hidden_reason: string | null;
+};
+
+// What a conversation list/thread shows about the other participant — same
+// public-fields-only shape as InviteHost above, never their email.
+export type ConversationParticipant = Pick<
+  Profile,
+  "id" | "first_name" | "last_name" | "avatar_color"
+>;

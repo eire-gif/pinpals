@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import type { ConnectionStatus } from "@/lib/types";
 import { sendConnectionRequest, type ConnectionActionState } from "@/app/connections/actions";
+import StartConversationButton from "@/components/start-conversation-button";
 
 const initialState: ConnectionActionState = {};
 
@@ -20,7 +21,12 @@ export default function ConnectButton({
   const status = state.success ? "pending" : initialStatus;
 
   if (status === "accepted") {
-    return <span className="block w-full py-2.5 rounded-full font-bold text-sm bg-green-100 text-green-800">Connected</span>;
+    return (
+      <div className="flex flex-col gap-2">
+        <span className="block w-full py-2.5 rounded-full font-bold text-sm bg-green-100 text-green-800 text-center">Connected</span>
+        <StartConversationButton otherUserId={memberId} />
+      </div>
+    );
   }
   if (status === "pending") {
     return (

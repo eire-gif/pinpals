@@ -63,6 +63,17 @@ export const ADMIN_ACTIONS = [
   // src/app/admin/payouts/ledger/[id]/actions.ts.
   "payout.held",
   "payout.released",
+  // The single audit event every privileged view of message content writes
+  // — see grantConversationAccess() in src/app/admin/reports/[id]/actions.ts
+  // and the privacy-model comment at the top of
+  // supabase/migrations/0025_messaging.sql. Written on EVERY reveal/"load
+  // older" call, not just the first, since each one is a fresh look at
+  // another member's private conversation.
+  "conversation.access_viewed",
+  // hideMessage()/restoreMessage() (same file) — never rewrites
+  // messages.body, only the hidden_at/hidden_by/hidden_reason flag.
+  "message.hidden",
+  "message.restored",
 ] as const;
 export type AdminAction = (typeof ADMIN_ACTIONS)[number];
 
@@ -82,6 +93,14 @@ export const AUDIT_TARGET_TYPES = [
   "seller_account",
   "webhook_event",
   "payout",
+  // A privileged VIEW is always audited against the *conversation*
+  // (conversation.access_viewed, targetId = conversation id) even when the
+  // triggering report named a single message, since that's the actual thing
+  // access was opened to. A hide/restore MODERATION action, though, targets
+  // the specific message row it acted on (message.hidden/message.restored,
+  // targetId = message id) — see src/app/admin/reports/[id]/actions.ts.
+  "conversation",
+  "message",
 ] as const;
 export type AuditTargetType = (typeof AUDIT_TARGET_TYPES)[number];
 

@@ -61,6 +61,17 @@ const QUICK_LINKS: QuickLink[] = [
     ),
   },
   {
+    href: "/conversations",
+    label: "Messages",
+    description: "Chat with golfers you're connected with, or mid-deal with.",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-5 h-5">
+        <path d="M4 5.5h16v10a1.5 1.5 0 01-1.5 1.5H9l-4 3.5V17H5.5A1.5 1.5 0 014 15.5v-10z" />
+        <path d="M8 10h8M8 13h5" />
+      </svg>
+    ),
+  },
+  {
     href: "/tee-times",
     label: "Browse tee-time invites",
     description: "See open tee times other Pinpals members have posted.",

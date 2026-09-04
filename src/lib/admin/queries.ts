@@ -910,9 +910,12 @@ export function buildReportSearchOrFilter(query: string, reporterMatchedIds: str
  * Batch-resolves a page of reports' targets into display summaries without a
  * per-row query: groups ids by target_type, fetches each table once, and
  * falls back to a "no longer exists" label when a target row is gone.
- * message/conversation targets never hit a table — no messaging system
- * exists yet (see src/lib/admin/reports.ts) — so they always resolve to a
- * plain, unlinked label built from the report's own fields.
+ * message/conversation targets deliberately never resolve to an `href` here
+ * — there is no general conversation-browsing admin page to link to (see
+ * src/lib/admin/reports.ts and supabase/migrations/0025_messaging.sql); the
+ * only way to see a conversation's content is the reason-gated, audited
+ * panel on that report's own detail page
+ * (conversation-access-panel.tsx), not a link from the queue.
  */
 async function resolveTargetSummaries(
   admin: ReturnType<typeof createAdminClient>,
@@ -982,10 +985,11 @@ async function resolveTargetSummaries(
           : { type: "tee_time_invite", label: `Invite #${row.target_id} no longer exists`, href: null }
       );
     } else {
-      // message / conversation — no backing table to resolve against yet.
-      // See src/lib/admin/reports.ts and the report detail page for the
-      // minimal-context handling this deliberately leaves for a future
-      // message-moderation phase.
+      // message / conversation — deliberately not resolved to a real row or
+      // an href here, even though the tables now exist (0025_messaging.sql).
+      // See the comment above resolveTargetSummaries() and
+      // conversation-access-panel.tsx: content only ever surfaces through
+      // that reason-gated, audited panel, never a link from this queue.
       summaries.set(k, {
         type: row.target_type,
         label: `${row.target_type === "message" ? "Message" : "Conversation"} #${row.target_id}`,
@@ -1141,10 +1145,13 @@ export type AdminReportDetail = {
   /** This target's own recent moderation history (e.g. a listing's
    * hide/restore entries) — powers the resolution form's optional "link to
    * a moderation action" picker, and lets staff see what's already been done
-   * to this target without leaving the report. Always empty for
-   * message/conversation targets (audit.ts's AUDIT_TARGET_TYPES has no entry
-   * for either — there's nothing to look up yet) and for targets with no
-   * moderation history. */
+   * to this target without leaving the report. For a message/conversation
+   * report this is looked up by target_type/target_id exactly like every
+   * other target (both are real AUDIT_TARGET_TYPES entries — see audit.ts),
+   * so it shows past conversation.access_viewed/message.hidden/
+   * message.restored entries WITHOUT itself revealing any message content —
+   * only the audit metadata (actor, reason, timestamp). Empty for targets
+   * with no moderation history yet. */
   targetModerationHistory: AdminAuditLogListItem[];
   linkedAction: AdminAuditLogListItem | null;
 };
