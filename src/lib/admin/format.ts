@@ -1,4 +1,4 @@
-import type { InterestStatus, InviteStatus, OrderStatus, PaymentStatus, PayoutStatus, WebhookEventStatus } from "@/lib/types";
+import type { InterestStatus, InviteStatus, OrderStatus, PaymentStatus, PayoutStatus, RefundStatus, WebhookEventStatus } from "@/lib/types";
 import { INTEREST_STATUS_LABELS, INTEREST_STATUS_STYLES, STATUS_LABELS, STATUS_STYLES } from "@/lib/tee-times";
 
 // `Listing["status"]` and `Offer["status"]` aren't strict unions in
@@ -107,6 +107,54 @@ export const WEBHOOK_EVENT_STATUS_STYLES: Record<WebhookEventStatus, string> = {
   processed: "bg-green-100 text-green-800",
   ignored: "bg-cream-100 text-ink-500",
   failed: "bg-red-100 text-red-600",
+};
+
+// /admin/orders' refund history section — see
+// supabase/migrations/0023_refunds_and_disputes.sql. Distinct from
+// PAYMENT_STATUS_LABELS/ORDER_STATUS_LABELS above, which describe the
+// order's own aggregate state; this describes one refund ATTEMPT.
+export const REFUND_STATUS_LABELS: Record<RefundStatus, string> = {
+  pending: "Pending",
+  requires_action: "Requires action",
+  succeeded: "Succeeded",
+  failed: "Failed",
+  canceled: "Canceled",
+};
+
+export const REFUND_STATUS_STYLES: Record<RefundStatus, string> = {
+  pending: "bg-cream-100 text-ink-900",
+  requires_action: "bg-cream-100 text-ink-900",
+  succeeded: "bg-green-100 text-green-800",
+  failed: "bg-red-100 text-red-600",
+  canceled: "bg-cream-100 text-ink-500",
+};
+
+// /admin/orders' disputes section. Dispute.status is Stripe's own string,
+// not a closed union (see src/lib/types.ts's comment on why) — keyed
+// loosely like LISTING_STATUS_STYLES/OFFER_STATUS_STYLES above, and always
+// routed through statusLabel()/statusStyle() so an unrecognised future
+// Stripe status still renders (as itself, with the neutral fallback style)
+// rather than breaking the page.
+export const DISPUTE_STATUS_LABELS: Record<string, string> = {
+  warning_needs_response: "Needs response (early fraud warning)",
+  warning_under_review: "Under review (early fraud warning)",
+  warning_closed: "Closed (early fraud warning)",
+  needs_response: "Needs response",
+  under_review: "Under review",
+  won: "Won",
+  lost: "Lost",
+  charge_refunded: "Charge refunded",
+};
+
+export const DISPUTE_STATUS_STYLES: Record<string, string> = {
+  warning_needs_response: "bg-gold-500/20 text-gold-700",
+  warning_under_review: "bg-cream-100 text-ink-900",
+  warning_closed: "bg-cream-100 text-ink-500",
+  needs_response: "bg-red-100 text-red-600",
+  under_review: "bg-gold-500/20 text-gold-700",
+  won: "bg-green-100 text-green-800",
+  lost: "bg-red-100 text-red-600",
+  charge_refunded: "bg-cream-100 text-ink-500",
 };
 
 // Re-exported under admin-neutral names so admin pages have one place to
