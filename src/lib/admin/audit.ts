@@ -38,6 +38,11 @@ export const ADMIN_ACTIONS = [
   // pages themselves) aren't audited, same as every other admin read-only
   // page in this app.
   "seller_account.synced",
+  // An admin's manual "Retry" click on a failed /admin/webhook-events row
+  // (src/app/admin/webhook-events/[id]/actions.ts) — the one admin
+  // *interaction* this phase's payment persistence work audits, same
+  // reasoning as seller_account.synced above.
+  "webhook_event.retried",
 ] as const;
 export type AdminAction = (typeof ADMIN_ACTIONS)[number];
 
@@ -55,6 +60,7 @@ export const AUDIT_TARGET_TYPES = [
   "report",
   "order",
   "seller_account",
+  "webhook_event",
 ] as const;
 export type AuditTargetType = (typeof AUDIT_TARGET_TYPES)[number];
 
