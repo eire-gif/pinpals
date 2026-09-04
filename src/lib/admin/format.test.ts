@@ -8,6 +8,8 @@ import {
   PAYMENT_STATUS_LABELS,
   PAYOUT_STATUS_LABELS,
   personName,
+  REFUND_STATUS_LABELS,
+  REFUND_STATUS_STYLES,
   sellerStatusLabel,
   statusLabel,
   statusStyle,
@@ -80,6 +82,24 @@ describe("webhook event status vocab", () => {
   it("has a style for every webhook event status", () => {
     for (const status of Object.keys(WEBHOOK_EVENT_STATUS_LABELS)) {
       expect(WEBHOOK_EVENT_STATUS_STYLES).toHaveProperty(status);
+    }
+  });
+});
+
+describe("refund status vocab", () => {
+  // /admin/orders' refund history section renders every value of
+  // RefundStatus (src/lib/types.ts) through these maps via StatusBadge —
+  // same reasoning as the order/payment/payout and webhook event vocab
+  // tests above.
+  it("has a label for every refund status", () => {
+    expect(Object.keys(REFUND_STATUS_LABELS).sort()).toEqual(
+      ["canceled", "failed", "pending", "requires_action", "succeeded"].sort()
+    );
+  });
+
+  it("has a style for every refund status", () => {
+    for (const status of Object.keys(REFUND_STATUS_LABELS)) {
+      expect(REFUND_STATUS_STYLES).toHaveProperty(status);
     }
   });
 });
