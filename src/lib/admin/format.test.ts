@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
+  BLOCKED_PAYOUT_STATUSES,
   formatDateTime,
   LISTING_STATUS_LABELS,
   OFFER_STATUS_STYLES,
   ORDER_STATUS_LABELS,
   ORDER_STATUS_STYLES,
   PAYMENT_STATUS_LABELS,
+  PAYOUT_ROW_STATUS_LABELS,
+  PAYOUT_ROW_STATUS_STYLES,
   PAYOUT_STATUS_LABELS,
   personName,
   REFUND_STATUS_LABELS,
@@ -64,8 +67,29 @@ describe("order status/payment status/payout status vocab", () => {
 
   it("has a label for every payout status", () => {
     expect(Object.keys(PAYOUT_STATUS_LABELS).sort()).toEqual(
-      ["held", "not_started", "paid_out", "pending"].sort()
+      ["failed", "held", "not_started", "paid_out", "pending"].sort()
     );
+  });
+});
+
+describe("payout ledger status vocab (Payout['status'], distinct from orders.payout_status)", () => {
+  // /admin/payouts/ledger renders every value of Payout["status"]
+  // (src/lib/types.ts) through these maps via StatusBadge — same reasoning
+  // as the order/payment/payout vocab tests above.
+  it("has a label for every payout row status", () => {
+    expect(Object.keys(PAYOUT_ROW_STATUS_LABELS).sort()).toEqual(
+      ["canceled", "failed", "in_transit", "paid", "pending"].sort()
+    );
+  });
+
+  it("has a style for every payout row status", () => {
+    for (const status of Object.keys(PAYOUT_ROW_STATUS_LABELS)) {
+      expect(PAYOUT_ROW_STATUS_STYLES).toHaveProperty(status);
+    }
+  });
+
+  it("treats failed and canceled as the actionable 'blocked' queue, nothing else", () => {
+    expect([...BLOCKED_PAYOUT_STATUSES].sort()).toEqual(["canceled", "failed"]);
   });
 });
 

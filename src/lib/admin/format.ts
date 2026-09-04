@@ -1,4 +1,4 @@
-import type { InterestStatus, InviteStatus, OrderStatus, PaymentStatus, PayoutStatus, RefundStatus, WebhookEventStatus } from "@/lib/types";
+import type { InterestStatus, InviteStatus, OrderStatus, Payout, PaymentStatus, PayoutStatus, RefundStatus, WebhookEventStatus } from "@/lib/types";
 import { INTEREST_STATUS_LABELS, INTEREST_STATUS_STYLES, STATUS_LABELS, STATUS_STYLES } from "@/lib/tee-times";
 
 // `Listing["status"]` and `Offer["status"]` aren't strict unions in
@@ -77,6 +77,11 @@ export const PAYOUT_STATUS_LABELS: Record<PayoutStatus, string> = {
   pending: "Pending",
   paid_out: "Paid out",
   held: "Held",
+  // Set by apply_payout_reconciliation() (0024) when the payout that would
+  // have paid this order out itself failed or was canceled by Stripe — see
+  // that migration's comment. Distinct from Payout["status"]'s own "failed"
+  // below: this is the order's view of it, that's the payout's.
+  failed: "Payout failed",
 };
 
 export const PAYOUT_STATUS_STYLES: Record<PayoutStatus, string> = {
@@ -84,7 +89,35 @@ export const PAYOUT_STATUS_STYLES: Record<PayoutStatus, string> = {
   pending: "bg-cream-100 text-ink-900",
   paid_out: "bg-green-100 text-green-800",
   held: "bg-red-100 text-red-600",
+  failed: "bg-red-100 text-red-600",
 };
+
+// /admin/payouts/ledger — see supabase/migrations/0024_payouts.sql. Stripe's
+// own Payout.status vocabulary, distinct from PAYOUT_STATUS_LABELS above
+// (which describes orders.payout_status, an order's view of its own
+// transfer/payout journey — this describes the payout object itself, the
+// thing that actually aggregates many orders together).
+export const PAYOUT_ROW_STATUS_LABELS: Record<Payout["status"], string> = {
+  paid: "Paid",
+  pending: "Pending",
+  in_transit: "In transit",
+  canceled: "Canceled",
+  failed: "Failed",
+};
+
+export const PAYOUT_ROW_STATUS_STYLES: Record<Payout["status"], string> = {
+  paid: "bg-green-100 text-green-800",
+  pending: "bg-cream-100 text-ink-900",
+  in_transit: "bg-cream-100 text-ink-900",
+  canceled: "bg-red-100 text-red-600",
+  failed: "bg-red-100 text-red-600",
+};
+
+/** The "failed & blocked" actionable-queue filter on /admin/payouts/ledger —
+ * a payout Stripe itself reports as failed or canceled needs a human to look
+ * at it (retry via Stripe, or the seller's own onboarding needs fixing);
+ * pending/in_transit are just normal payouts still in flight. */
+export const BLOCKED_PAYOUT_STATUSES: readonly Payout["status"][] = ["failed", "canceled"];
 
 // /admin/webhook-events — see supabase/migrations/0021_payments.sql.
 // 'received'/'processing' are both mid-flight (processing is reserved for a

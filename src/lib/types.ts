@@ -144,7 +144,7 @@ export type ConnectionWithProfiles = Connection & {
 
 export type OrderStatus = "pending" | "completed" | "cancelled" | "refunded";
 export type PaymentStatus = "unpaid" | "pending" | "paid" | "failed" | "refunded";
-export type PayoutStatus = "not_started" | "pending" | "paid_out" | "held";
+export type PayoutStatus = "not_started" | "pending" | "paid_out" | "held" | "failed";
 
 export type Order = {
   id: number;
@@ -163,7 +163,15 @@ export type Order = {
   payment_status: PaymentStatus;
   payout_status: PayoutStatus;
   payment_reference: string | null;
+  /** The Stripe Transfer id created alongside this order's destination
+   * charge (see supabase/migrations/0024_payouts.sql) — despite the name,
+   * NOT a Payout id; a transfer only gets swept into a Payout later, once
+   * `payout_id` below is set. */
   payout_reference: string | null;
+  /** Which `payouts` row swept this order's transfer into an actual bank
+   * deposit, once known. Nullable — a payout routinely aggregates many
+   * orders, on Stripe's own schedule, never a fixed 1:1. */
+  payout_id: number | null;
   /** Currency Stripe actually reported on the PaymentIntent — a
    * reconciliation check, not multi-currency support (see
    * supabase/migrations/0021_payments.sql). Always "eur" today. */
@@ -281,6 +289,40 @@ export type StripeConnectedAccount = {
   requirements_past_due: string[];
   disabled_reason: string | null;
   last_synced_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+// ============ PAYOUTS ============
+// See supabase/migrations/0024_payouts.sql. One row per Stripe Payout
+// object per connected account — Stripe sweeps a seller's Connect balance
+// (built up from the Transfer that lands there automatically alongside
+// every destination-charge order, see orders.payout_reference above) into a
+// Payout on its own schedule, aggregating many orders' transfers into one
+// bank deposit. Written only via the service-role client (the payout.*
+// webhook handlers and an admin's "Sync from Stripe" action, both in
+// src/lib/stripe/payouts.ts) — Stripe itself, never this table, is the
+// source of truth.
+
+export type Payout = {
+  id: number;
+  user_id: string;
+  stripe_account_id: string;
+  stripe_payout_id: string;
+  amount_eur: number;
+  currency: string;
+  /** Stripe's own Payout.status values. */
+  status: "paid" | "pending" | "in_transit" | "canceled" | "failed";
+  failure_code: string | null;
+  failure_message: string | null;
+  arrival_date: string | null;
+  /** "standard" | "instant", Stripe's own values — shown as-is. */
+  method: string | null;
+  /** "bank_account" | "card", Stripe's own values — shown as-is. */
+  type: string | null;
+  livemode: boolean;
+  stripe_created_at: string;
+  last_synced_at: string;
   created_at: string;
   updated_at: string;
 };

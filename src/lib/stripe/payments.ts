@@ -4,7 +4,8 @@ import type Stripe from "stripe";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { syncConnectedAccountFromStripe } from "./connect";
 import { mapStripeRefundStatus } from "./refunds";
-import type { Order, Refund, WebhookEventStatus } from "@/lib/types";
+import { orderPayoutStatusForPayout, reconcilePayoutTransfers, upsertPayout } from "./payouts";
+import type { Order, Payout, Refund, StripeConnectedAccount, WebhookEventStatus } from "@/lib/types";
 
 // The one place that decides what a Stripe webhook event *means* for
 // Pinpals' payment projection — every caller (the webhook route itself, and
@@ -273,6 +274,132 @@ async function handleChargeRefunded(admin: SupabaseClient, ledgerRowId: number, 
 }
 
 /**
+ * charge.succeeded — the moment this app first learns the Stripe Transfer id
+ * that destination-charge checkout (src/app/dashboard/orders/[id]/actions.ts)
+ * automatically created alongside the charge. Captures it onto the order via
+ * apply_order_transfer_captured() (0024), which is what starts that order's
+ * payout_status moving from 'not_started' to 'pending' — nothing else in
+ * this app ever sets payout_reference. A charge with no transfer (shouldn't
+ * happen for this app's own checkout flow, but Stripe sends charge.succeeded
+ * for other charge shapes too) is acknowledged without effect, not treated
+ * as a routing failure.
+ */
+async function handleChargeSucceeded(admin: SupabaseClient, ledgerRowId: number, charge: Stripe.Charge): Promise<void> {
+  const paymentIntentId = typeof charge.payment_intent === "string" ? charge.payment_intent : charge.payment_intent?.id;
+  if (!paymentIntentId) {
+    await markWebhookEventTerminal(admin, {
+      eventRowId: ledgerRowId,
+      status: "failed",
+      error: "charge.succeeded event had no payment_intent id.",
+      relatedOrderId: null,
+    });
+    return;
+  }
+
+  const order = await findOrderByPaymentReference(admin, paymentIntentId);
+  if (!order) {
+    await markWebhookEventTerminal(admin, {
+      eventRowId: ledgerRowId,
+      status: "failed",
+      error: `No order found with payment_reference ${paymentIntentId}.`,
+      relatedOrderId: null,
+    });
+    return;
+  }
+
+  const transferId = typeof charge.transfer === "string" ? charge.transfer : charge.transfer?.id ?? null;
+  if (!transferId) {
+    await markWebhookEventTerminal(admin, {
+      eventRowId: ledgerRowId,
+      status: "processed",
+      error: null,
+      relatedOrderId: order.id,
+    });
+    return;
+  }
+
+  // apply_order_transfer_captured() itself marks the ledger row processed —
+  // same shape as applyOrderPaymentSucceeded() etc. above.
+  const { error } = await admin.rpc("apply_order_transfer_captured", {
+    p_event_row_id: ledgerRowId,
+    p_order_id: order.id,
+    p_transfer_id: transferId,
+  });
+  if (error) throw new Error(`Failed to capture transfer for order ${order.id}: ${error.message}`);
+}
+
+/**
+ * payout.created/updated/paid/failed/canceled — all Connect events, so
+ * event.account carries the connected account this payout belongs to
+ * (requires "Listen to events on Connected accounts" enabled on the Stripe
+ * Dashboard webhook endpoint — see the Phase 12 manual-test notes). Looks up
+ * the Pinpals seller who owns that connected account, upserts the payout row
+ * (src/lib/stripe/payouts.ts's upsertPayout()), and — only once the payout
+ * has reached a terminal state — reconciles which of this app's orders it
+ * actually swept up (reconcilePayoutTransfers()). A payout for an account
+ * this app has no record of (shouldn't happen for an account this app
+ * itself onboarded, but a stray/misconfigured webhook is not impossible) is
+ * acknowledged as a routing failure, same as an unmatched payment_intent
+ * elsewhere in this file.
+ */
+async function handlePayoutEvent(
+  admin: SupabaseClient,
+  ledgerRowId: number,
+  payout: Stripe.Payout,
+  stripeAccountId: string | undefined,
+  livemode: boolean
+): Promise<void> {
+  if (!stripeAccountId) {
+    await markWebhookEventTerminal(admin, {
+      eventRowId: ledgerRowId,
+      status: "failed",
+      error: "Payout event had no connected account id (event.account).",
+      relatedOrderId: null,
+    });
+    return;
+  }
+
+  const { data: connectedAccount } = await admin
+    .from("stripe_connected_accounts")
+    .select("user_id")
+    .eq("stripe_account_id", stripeAccountId)
+    .maybeSingle<Pick<StripeConnectedAccount, "user_id">>();
+
+  if (!connectedAccount) {
+    await markWebhookEventTerminal(admin, {
+      eventRowId: ledgerRowId,
+      status: "failed",
+      error: `No connected account on file for ${stripeAccountId}.`,
+      relatedOrderId: null,
+    });
+    return;
+  }
+
+  const payoutRowId = await upsertPayout(admin, payout, {
+    userId: connectedAccount.user_id,
+    stripeAccountId,
+    livemode,
+  });
+
+  const payoutStatus = payout.status as Payout["status"];
+  if (orderPayoutStatusForPayout(payoutStatus) !== null) {
+    await reconcilePayoutTransfers(admin, {
+      payoutRowId,
+      stripeAccountId,
+      stripePayoutId: payout.id,
+      payoutStatus,
+    });
+  }
+
+  await markWebhookEventTerminal(admin, {
+    eventRowId: ledgerRowId,
+    status: "processed",
+    error: null,
+    relatedOrderId: null,
+  });
+}
+
+/**
  * Reconciles one `refunds` row against Stripe's own current view of a
  * Refund object — called for both refund.updated and refund.failed (Stripe
  * emits refund.updated on every status change, including to 'failed';
@@ -402,6 +529,18 @@ export async function processStripeEvent(
 
     case "charge.refunded":
       await handleChargeRefunded(admin, ledgerRow.id, event.data.object as Stripe.Charge);
+      return "processed";
+
+    case "charge.succeeded":
+      await handleChargeSucceeded(admin, ledgerRow.id, event.data.object as Stripe.Charge);
+      return "processed";
+
+    case "payout.created":
+    case "payout.updated":
+    case "payout.paid":
+    case "payout.failed":
+    case "payout.canceled":
+      await handlePayoutEvent(admin, ledgerRow.id, event.data.object as Stripe.Payout, event.account, event.livemode);
       return "processed";
 
     case "refund.updated":
