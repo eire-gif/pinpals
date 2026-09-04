@@ -58,6 +58,7 @@ export type TeeTimeInvite = {
   updated_at: string;
   expires_at: string;
 };
+
 // What the browse page shows about the host — never their email or any
 // other auth data, just the same public fields the community directory uses.
 // handicap only ever renders on a card when handicap_visible is true.
@@ -133,6 +134,7 @@ export type ConnectionWithProfiles = Connection & {
   requester: ConnectionProfile | null;
   recipient: ConnectionProfile | null;
 };
+
 // ============ ORDERS ============
 // See supabase/migrations/0019_orders.sql. Created by respondToOffer()'s
 // accept branch (src/app/marketplace/[id]/actions.ts), one row per accepted
@@ -177,6 +179,7 @@ export type Order = {
   created_at: string;
   updated_at: string;
 };
+
 // ============ REFUNDS & DISPUTES ============
 // See supabase/migrations/0023_refunds_and_disputes.sql. `refunds` is one
 // row per refund ATTEMPT (not per order) — a finance admin's requested
@@ -217,8 +220,7 @@ export type Dispute = {
   amount_eur: number;
   currency: string;
   reason: string | null;
-  /** Stripe's own dispute status string (e.g. needs_response, under_review,
-   * won, lost) — shown as-is, not narrowed to a closed union (see the
+  /** Stripe's own dispute status string (e.g. needs_response, under_review, won, lost) — shown as-is, not narrowed to a closed union (see the
    * migration's comment on why). */
   status: string;
   evidence_due_by: string | null;
@@ -226,6 +228,7 @@ export type Dispute = {
   created_at: string;
   updated_at: string;
 };
+
 // ============ WEBHOOK EVENTS ============
 // See supabase/migrations/0021_payments.sql. One row per Stripe webhook
 // event this app has ever been delivered, keyed uniquely on
