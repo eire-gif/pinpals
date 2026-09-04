@@ -21,7 +21,12 @@ const NAV_ITEMS: { href: string; label: string; enabled?: boolean; roles?: reado
   { href: "/admin/listings", label: "Listings", enabled: true },
   { href: "/admin/tee-times", label: "Tee-times", enabled: true },
   { href: "/admin/orders", label: "Orders", enabled: true, roles: FINANCE_ROLES },
-  { href: "/admin/payouts", label: "Payouts", enabled: true, roles: FINANCE_ROLES },
+  // Two distinct sections sharing the "payouts" word: this one (Phase 9) is
+  // seller Connect ONBOARDING readiness; ledger (Phase 12, 0024_payouts.sql)
+  // is the actual money ledger, tracing order -> payment -> fee -> transfer
+  // -> payout. Labeled apart here so staff don't confuse the two.
+  { href: "/admin/payouts", label: "Seller accounts", enabled: true, roles: FINANCE_ROLES },
+  { href: "/admin/payouts/ledger", label: "Payout ledger", enabled: true, roles: FINANCE_ROLES },
   { href: "/admin/webhook-events", label: "Webhook events", enabled: true, roles: FINANCE_ROLES },
   { href: "/admin/clubs", label: "Clubs" },
   { href: "/admin/reports", label: "Reports", enabled: true },
