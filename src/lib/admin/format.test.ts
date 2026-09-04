@@ -11,6 +11,8 @@ import {
   sellerStatusLabel,
   statusLabel,
   statusStyle,
+  WEBHOOK_EVENT_STATUS_LABELS,
+  WEBHOOK_EVENT_STATUS_STYLES,
 } from "./format";
 
 describe("statusLabel", () => {
@@ -62,6 +64,23 @@ describe("order status/payment status/payout status vocab", () => {
     expect(Object.keys(PAYOUT_STATUS_LABELS).sort()).toEqual(
       ["held", "not_started", "paid_out", "pending"].sort()
     );
+  });
+});
+
+describe("webhook event status vocab", () => {
+  // /admin/webhook-events renders every value of WebhookEventStatus
+  // (src/lib/types.ts) through these maps via StatusBadge — same reasoning
+  // as the order/payment/payout vocab tests above.
+  it("has a label for every webhook event status", () => {
+    expect(Object.keys(WEBHOOK_EVENT_STATUS_LABELS).sort()).toEqual(
+      ["failed", "ignored", "processed", "processing", "received"].sort()
+    );
+  });
+
+  it("has a style for every webhook event status", () => {
+    for (const status of Object.keys(WEBHOOK_EVENT_STATUS_LABELS)) {
+      expect(WEBHOOK_EVENT_STATUS_STYLES).toHaveProperty(status);
+    }
   });
 });
 
