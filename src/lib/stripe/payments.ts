@@ -3,7 +3,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type Stripe from "stripe";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { syncConnectedAccountFromStripe } from "./connect";
-import type { Order, WebhookEventStatus } from "@/lib/types";
+import { mapStripeRefundStatus } from "./refunds";
+import type { Order, Refund, WebhookEventStatus } from "@/lib/types";
 
 // The one place that decides what a Stripe webhook event *means* for
 // Pinpals' payment projection — every caller (the webhook route itself, and
@@ -271,6 +272,88 @@ async function handleChargeRefunded(admin: SupabaseClient, ledgerRowId: number, 
   });
 }
 
+/**
+ * Reconciles one `refunds` row against Stripe's own current view of a
+ * Refund object — called for both refund.updated and refund.failed (Stripe
+ * emits refund.updated on every status change, including to 'failed';
+ * refund.failed is a second, more specific event for the same transition,
+ * so both land here and simply reconcile to whatever status the event
+ * itself reports). This is the task's "reconcile final state from Stripe/
+ * webhooks" requirement — the synchronous requestOrderRefund() Server
+ * Action (src/app/admin/orders/[id]/actions.ts) already records this same
+ * row's initial outcome from stripe.refunds.create()'s own synchronous
+ * response, so this handler's job is only to catch a LATER status change
+ * for a refund that didn't finish settling synchronously (some payment
+ * methods return 'pending'/'requires_action' first). Deliberately does not
+ * write a second admin_audit_log entry — the admin's requested/succeeded/
+ * failed audit trail is written once, at request time, by the Server
+ * Action; a webhook has no admin actor to attribute a second entry to.
+ * mark_refund_outcome_by_stripe_id() itself guards against regressing an
+ * already-terminal row, so redelivery/out-of-order delivery is safe.
+ */
+async function handleRefundReconciliation(admin: SupabaseClient, ledgerRowId: number, refund: Stripe.Refund): Promise<void> {
+  const { data, error } = await admin.rpc("mark_refund_outcome_by_stripe_id", {
+    p_stripe_refund_id: refund.id,
+    p_status: mapStripeRefundStatus(refund.status),
+    p_failure_reason: truncateErrorMessage(refund.failure_reason ?? null),
+  });
+  if (error) throw new Error(`Failed to reconcile refund ${refund.id}: ${error.message}`);
+
+  const row = (data as Refund[] | null)?.[0] ?? null;
+  await markWebhookEventTerminal(admin, {
+    eventRowId: ledgerRowId,
+    // No matching `refunds` row is not treated as a routing failure the way
+    // a missing order is elsewhere in this file — a refund this app itself
+    // never initiated (or one whose row the synchronous action hasn't
+    // written yet, in a rare race) is still safely acknowledged rather than
+    // surfaced as something a human needs to act on.
+    status: "processed",
+    error: null,
+    relatedOrderId: row?.order_id ?? null,
+  });
+}
+
+/**
+ * Upserts one Stripe Dispute object into `disputes`, keyed on
+ * stripe_dispute_id — same "service-role upsert, no dedicated function"
+ * shape as connect.ts's syncConnectedAccountFromStripe(), since a dispute
+ * row is a pure Stripe projection with no guard logic to centralize (unlike
+ * refunds, nothing else in this app ever writes one). Visibility only, per
+ * the task — this never submits evidence or otherwise acts on a dispute.
+ */
+async function handleDisputeEvent(admin: SupabaseClient, ledgerRowId: number, dispute: Stripe.Dispute, livemode: boolean): Promise<void> {
+  const paymentIntentId = typeof dispute.payment_intent === "string" ? dispute.payment_intent : dispute.payment_intent?.id ?? null;
+  const chargeId = typeof dispute.charge === "string" ? dispute.charge : dispute.charge?.id ?? null;
+
+  const order = paymentIntentId ? await findOrderByPaymentReference(admin, paymentIntentId) : null;
+
+  const { error } = await admin.from("disputes").upsert(
+    {
+      order_id: order?.id ?? null,
+      stripe_dispute_id: dispute.id,
+      stripe_charge_id: chargeId,
+      stripe_payment_intent_id: paymentIntentId,
+      amount_eur: dispute.amount / 100,
+      currency: dispute.currency,
+      reason: dispute.reason ?? null,
+      status: dispute.status,
+      evidence_due_by: dispute.evidence_details?.due_by
+        ? new Date(dispute.evidence_details.due_by * 1000).toISOString()
+        : null,
+      livemode,
+    },
+    { onConflict: "stripe_dispute_id" }
+  );
+  if (error) throw new Error(`Failed to upsert dispute ${dispute.id}: ${error.message}`);
+
+  await markWebhookEventTerminal(admin, {
+    eventRowId: ledgerRowId,
+    status: "processed",
+    error: null,
+    relatedOrderId: order?.id ?? null,
+  });
+}
+
 export type ProcessEventOutcome = "duplicate" | "processed" | "ignored" | "failed";
 
 /**
@@ -321,11 +404,22 @@ export async function processStripeEvent(
       await handleChargeRefunded(admin, ledgerRow.id, event.data.object as Stripe.Charge);
       return "processed";
 
+    case "refund.updated":
+    case "refund.failed":
+      await handleRefundReconciliation(admin, ledgerRow.id, event.data.object as Stripe.Refund);
+      return "processed";
+
+    case "charge.dispute.created":
+    case "charge.dispute.updated":
+    case "charge.dispute.closed":
+      await handleDisputeEvent(admin, ledgerRow.id, event.data.object as Stripe.Dispute, event.livemode);
+      return "processed";
+
     default:
       // Every other event type is acknowledged, not rejected — this app
-      // only subscribes to the four handled above in the Stripe dashboard,
-      // but the ledger still records that it was seen (and won't be
-      // reprocessed if redelivered), same "ack what you don't act on"
+      // only subscribes to the event types handled above in the Stripe
+      // dashboard, but the ledger still records that it was seen (and won't
+      // be reprocessed if redelivered), same "ack what you don't act on"
       // handling this endpoint already used for everything but
       // account.updated before this migration.
       await markWebhookEventTerminal(admin, {
