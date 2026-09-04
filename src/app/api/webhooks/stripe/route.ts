@@ -5,11 +5,16 @@ import { claimWebhookEvent, processStripeEvent } from "@/lib/stripe/payments";
 
 // Stripe's one webhook endpoint for this app — account.updated (Connect
 // onboarding/payout status changes), payment_intent.succeeded/
-// payment_intent.payment_failed/charge.refunded (marketplace payment
-// persistence). This is the "authenticated Stripe webhook" half of the
-// task's sync requirement; the other halves are the safe server-side
-// retrieves in src/app/dashboard/payouts/return/route.ts and
-// src/app/dashboard/orders/[id]/actions.ts.
+// payment_intent.payment_failed/charge.refunded/charge.succeeded
+// (marketplace payment persistence), refund.updated/refund.failed and
+// charge.dispute.* (refund/dispute administration, 0023), and
+// payout.created/updated/paid/failed/canceled (finance payout
+// reconciliation, 0024 — a Connect event, requires "Listen to events on
+// connected accounts" enabled on this endpoint in the Stripe Dashboard, or
+// it will never arrive here at all). This is the "authenticated Stripe
+// webhook" half of the task's sync requirement; the other halves are the
+// safe server-side retrieves in src/app/dashboard/payouts/return/route.ts
+// and src/app/dashboard/orders/[id]/actions.ts.
 //
 // Authentication here is the signature check below, not a user session —
 // Stripe calls this endpoint directly, unauthenticated in the app-session
