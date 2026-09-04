@@ -220,8 +220,7 @@ export type Dispute = {
   amount_eur: number;
   currency: string;
   reason: string | null;
-  /** Stripe's own dispute status string (e.g. needs_response, under_review, won, lost) — shown as-is, not narrowed to a closed union (see the
-   * migration's comment on why). */
+  /** Stripe's own dispute status string (e.g. needs_response, under_review, won, lost) — shown as-is, not narrowed to a closed union (see the migration's comment on why). */
   status: string;
   evidence_due_by: string | null;
   livemode: boolean;
