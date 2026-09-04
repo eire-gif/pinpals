@@ -158,16 +158,26 @@ export default async function AdminOrderDetailPage({ params }: { params: Promise
         )}
       </Section>
 
-      {(order.payment_reference || order.payout_reference) && (
+      {(order.payment_reference || order.payout_reference || order.payment_last_error) && (
         <Section title="Payment & payout references">
           <div className="p-5 grid gap-2 text-sm">
-            {/* These are opaque reference ids (e.g. a future Stripe
-                PaymentIntent/Payout id) safe to show a finance admin — never
-                a secret key. Nothing populates them yet (see
-                0019_orders.sql); this section only renders once one does. */}
+            {/* payment_reference/payout_reference are opaque Stripe ids
+                (PaymentIntent/Payout) safe to show a finance admin — never a
+                secret key. currency/payment_last_error come from
+                supabase/migrations/0021_payments.sql — currency is Stripe's
+                own reconciliation-checked value (see
+                src/lib/stripe/payments.ts's reconcilePaymentIntentAmount()),
+                not evidence this app supports more than EUR. */}
             {order.payment_reference && <Row label="Payment reference" value={order.payment_reference} mono />}
+            {order.payment_reference && <Row label="Currency" value={order.currency.toUpperCase()} />}
             {order.payout_reference && <Row label="Payout reference" value={order.payout_reference} mono />}
           </div>
+          {order.payment_last_error && (
+            <div className="px-5 pb-5">
+              <div className="text-xs text-ink-500 mb-1">Last payment error</div>
+              <p className="text-sm text-red-600 bg-red-100 rounded-lg px-3 py-2">{order.payment_last_error}</p>
+            </div>
+          )}
         </Section>
       )}
 
