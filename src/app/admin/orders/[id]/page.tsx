@@ -10,14 +10,17 @@ import {
   ORDER_STATUS_STYLES,
   PAYMENT_STATUS_LABELS,
   PAYMENT_STATUS_STYLES,
+  PAYOUT_ROW_STATUS_LABELS,
   PAYOUT_STATUS_LABELS,
   PAYOUT_STATUS_STYLES,
   REFUND_STATUS_LABELS,
   REFUND_STATUS_STYLES,
   formatDateTime,
+  statusLabel,
 } from "@/lib/admin/format";
 import { formatPrice } from "@/lib/format";
 import { computeRefundableAmountEur, isOrderRefundable, stripeDisputeDashboardUrl } from "@/lib/stripe/refunds";
+import { stripePayoutDashboardUrl } from "@/lib/stripe/payouts";
 import AdminAvatar from "@/components/admin/avatar";
 import StatusBadge from "@/components/admin/status-badge";
 import RefundForm from "@/components/admin/refund-form";
@@ -32,7 +35,7 @@ export default async function AdminOrderDetailPage({ params }: { params: Promise
   const detail = await getOrderDetail(orderId);
   if (!detail) notFound();
 
-  const { order, buyer, seller, listing, offer, history, refunds, disputes } = detail;
+  const { order, buyer, seller, listing, offer, history, refunds, disputes, payout } = detail;
 
   const buyerName = buyer ? `${buyer.first_name} ${buyer.last_name}`.trim() : "Unknown buyer";
   const sellerName = seller ? `${seller.first_name} ${seller.last_name}`.trim() : "Unknown seller";
@@ -171,17 +174,44 @@ export default async function AdminOrderDetailPage({ params }: { params: Promise
       {(order.payment_reference || order.payout_reference || order.payment_last_error) && (
         <Section title="Payment & payout references">
           <div className="p-5 grid gap-2 text-sm">
-            {/* payment_reference/payout_reference are opaque Stripe ids
-                (PaymentIntent/Payout) safe to show a finance admin — never a
-                secret key. currency/payment_last_error come from
-                supabase/migrations/0021_payments.sql — currency is Stripe's
-                own reconciliation-checked value (see
-                src/lib/stripe/payments.ts's reconcilePaymentIntentAmount()),
-                not evidence this app supports more than EUR. */}
+            {/* payment_reference is an opaque Stripe PaymentIntent id, safe
+                to show a finance admin — never a secret key. currency/
+                payment_last_error come from supabase/migrations/
+                0021_payments.sql — currency is Stripe's own
+                reconciliation-checked value (see src/lib/stripe/payments.ts's
+                reconcilePaymentIntentAmount()), not evidence this app
+                supports more than EUR. payout_reference is actually this
+                order's Stripe TRANSFER id (see 0024_payouts.sql's comment on
+                that column) — it only becomes an actual Payout once Stripe
+                sweeps it up, which is what the "Payout" row below traces. *}
             {order.payment_reference && <Row label="Payment reference" value={order.payment_reference} mono />}
             {order.payment_reference && <Row label="Currency" value={order.currency.toUpperCase()} />}
-            {order.payout_reference && <Row label="Payout reference" value={order.payout_reference} mono />}
+            {order.payout_reference && <Row label="Transfer reference" value={order.payout_reference} mono />}
           </div>
+          {payout && (
+            <div className="px-5 pb-5">
+              <Row
+                label="Payout"
+                value={`${formatPrice(payout.amount_eur)} · ${statusLabel(PAYOUT_ROW_STATUS_LABELS, payout.status)}`}
+              />
+              <div className="flex items-center gap-3 mt-1">
+                <Link
+                  href={`/admin/payouts/ledger/${payout.id}`}
+                  className="text-xs text-ink-900 hover:underline inline-block"
+                >
+                  Open payout detail →
+                </Link>
+                <a
+                  href={stripePayoutDashboardUrl(payout.stripe_account_id, payout.stripe_payout_id, payout.livemode)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-xs text-ink-900 hover:underline inline-block"
+                >
+                  Open in Stripe →
+                </a>
+              </div>
+            </div>
+          )}
           {order.payment_last_error && (
             <div className="px-5 pb-5">
               <div className="text-xs text-ink-500 mb-1">Last payment error</div>
