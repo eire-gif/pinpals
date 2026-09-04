@@ -26,6 +26,12 @@ export const ADMIN_ACTIONS = [
   "invite.restore",
   "refund.requested",
   "refund.completed",
+  // Distinct from "refund.completed" — a refund whose Stripe call (or later
+  // webhook reconciliation) failed. The task requires requested/succeeded/
+  // failed as three separately auditable outcomes; "refund.completed" is
+  // reused as the "succeeded" outcome rather than renamed, since it already
+  // existed forward-declared and unused before this phase.
+  "refund.failed",
   "admin.role_changed",
   "report.claimed",
   "report.status_changed",
