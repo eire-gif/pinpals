@@ -13,7 +13,7 @@ import type {
   TeeTimeInvite,
   WebhookEvent,
 } from "@/lib/types";
-import type { StaffRole } from "./roles";
+import type { StaffRole, StaffStatus } from "./roles";
 import type { ReportCategory, ReportPriority, ReportStatus, ReportTargetType } from "./reports";
 import type {
   SupportCaseCategory,
@@ -1559,7 +1559,7 @@ export async function listSupportCases(
  * createCase Server Action) requires exactly one match and shows a
  * disambiguation error otherwise, never guesses.
  */
-export async function findSupportCaseRequesterCandidates(raw: string): Promise<AdminProfile[]> {
+async function findProfileCandidatesByQuery(raw: string): Promise<AdminProfile[]> {
   const admin = createAdminClient();
   const trimmed = raw.trim();
   if (!trimmed) return [];
@@ -1586,6 +1586,24 @@ export async function findSupportCaseRequesterCandidates(raw: string): Promise<A
 
   const { data } = await admin.from("profiles").select("*").or(orClauses.join(",")).returns<Profile[]>();
   return (data ?? []).map((p) => withEmail(p, authUsers));
+}
+
+export async function findSupportCaseRequesterCandidates(raw: string): Promise<AdminProfile[]> {
+  return findProfileCandidatesByQuery(raw);
+}
+
+/**
+ * Resolves the "member" field on /admin/staff's "Grant staff access" form —
+ * same email-then-name lookup as findSupportCaseRequesterCandidates() above
+ * (both now share findProfileCandidatesByQuery() so the two never drift
+ * apart), because granting staff access is exactly the same kind of
+ * "resolve a raw client-supplied identity string to a real, existing member"
+ * problem: the caller (grantStaffRole() in src/app/admin/staff/actions.ts)
+ * must require exactly one match, never guess, and never create a
+ * staff_roles row for anyone who isn't already an established member.
+ */
+export async function findStaffGrantCandidates(raw: string): Promise<AdminProfile[]> {
+  return findProfileCandidatesByQuery(raw);
 }
 
 // ---------- Support case notes ----------
@@ -2331,4 +2349,87 @@ export async function getPayoutDetail(id: number): Promise<AdminPayoutDetail | n
     orders: orders ?? [],
     history: historyResult.rows,
   };
+}
+
+// ---------- Staff (governance) ----------
+//
+// /admin/staff — read side of staff_roles (see
+// supabase/migrations/0007_staff_roles.sql and
+// supabase/migrations/0027_staff_roles_lockdown.sql). The write side lives in
+// src/app/admin/staff/actions.ts, gated to super_admin only (see
+// admin-architecture-review.md §6) — nothing here enforces that; it's a
+// read-only query file, same discipline as every other section above.
+
+type StaffRoleRow = {
+  id: number;
+  user_id: string;
+  role: StaffRole;
+  status: StaffStatus;
+  created_at: string;
+  updated_at: string;
+  created_by: string | null;
+};
+
+export type AdminStaffMember = StaffRoleRow & {
+  /** The staff member themselves — their profile/email, same shape used
+   * everywhere else in the admin console. */
+  member: AdminProfile | null;
+  /** Who granted this row, if known — 0007's own manual-SQL bootstrap rows
+   * predate this feature and have a null created_by, so this is nullable
+   * even though every row created through /admin/staff from here on will
+   * always have one. */
+  grantedBy: AdminProfile | null;
+};
+
+// super_admin sorts first, since that's the row a reviewer of this page most
+// needs to double check; a fixed rank (not "most recently changed") keeps
+// the list from reordering itself between renders of the same data.
+const STAFF_ROLE_RANK: Record<StaffRole, number> = {
+  super_admin: 0,
+  admin: 1,
+  finance: 2,
+  moderator: 3,
+  support: 4,
+};
+
+/** Every staff_roles row — active and disabled alike, so a super_admin can
+ * see the whole roster in one place, not just who currently has access. The
+ * staff table is tiny (a handful of rows, same scale note as
+ * listTeeTimeInvites() above) so this reads it in full rather than paging. */
+export async function listStaffMembers(): Promise<AdminStaffMember[]> {
+  const admin = createAdminClient();
+  const [{ data: rows, error }, authUsers] = await Promise.all([
+    admin.from("staff_roles").select("*").returns<StaffRoleRow[]>(),
+    authUserMap(),
+  ]);
+  if (error) throw new Error(`Failed to list staff roles: ${error.message}`);
+
+  const staffRows = rows ?? [];
+  if (staffRows.length === 0) return [];
+
+  const profileIds = [
+    ...new Set(staffRows.flatMap((r) => [r.user_id, r.created_by].filter((id): id is string => Boolean(id)))),
+  ];
+  const { data: profiles, error: profilesError } = await admin
+    .from("profiles")
+    .select("*")
+    .in("id", profileIds)
+    .returns<Profile[]>();
+  if (profilesError) throw new Error(`Failed to load staff profiles: ${profilesError.message}`);
+
+  const profileMap = new Map((profiles ?? []).map((p) => [p.id, withEmail(p, authUsers)]));
+
+  return staffRows
+    .map((row) => ({
+      ...row,
+      member: profileMap.get(row.user_id) ?? null,
+      grantedBy: row.created_by ? (profileMap.get(row.created_by) ?? null) : null,
+    }))
+    .sort((a, b) => {
+      const rankDiff = STAFF_ROLE_RANK[a.role] - STAFF_ROLE_RANK[b.role];
+      if (rankDiff !== 0) return rankDiff;
+      const nameA = a.member ? `${a.member.first_name} ${a.member.last_name}` : "";
+      const nameB = b.member ? `${b.member.first_name} ${b.member.last_name}` : "";
+      return nameA.localeCompare(nameB);
+    });
 }

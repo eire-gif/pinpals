@@ -33,6 +33,14 @@ export const ADMIN_ACTIONS = [
   // existed forward-declared and unused before this phase.
   "refund.failed",
   "admin.role_changed",
+  // /admin/staff (see src/app/admin/staff/actions.ts and
+  // supabase/migrations/0027_staff_roles_lockdown.sql). "admin.role_changed"
+  // above was forward-declared for this phase and is reused as-is for a
+  // role change; these two cover the other two mutations a super_admin can
+  // make to a staff_roles row: granting a brand-new staff member, and
+  // disabling/reinstating an existing one.
+  "admin.granted",
+  "admin.status_changed",
   "report.claimed",
   "report.status_changed",
   "report.resolved",
