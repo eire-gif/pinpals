@@ -22,6 +22,7 @@ import type {
   SupportCaseStatus,
 } from "./support-cases";
 import { AUDIT_TARGET_TYPES } from "./audit";
+import { buildMessagesCursorFilter, nextMessagesCursor, type MessagesCursor } from "@/lib/messaging";
 
 // Every read in this file goes through the service-role client, deliberately
 // bypassing RLS: the admin console needs to see every user's data (not just
@@ -521,7 +522,7 @@ export async function getListingDetail(id: number): Promise<AdminListingDetail |
 
   const [{ data: sellerProfile }, { rows: moderationHistory }] = await Promise.all([
     admin.from("profiles").select("*").eq("id", listing.seller_id).maybeSingle<Profile>(),
-    listAuditLog({ targetType: "listing", targetId: String(id) }, 1),
+    listAuditLog({ targetType: "listing", targetId: String(id) }),
   ]);
 
   const buyerIds = [...new Set((offers ?? []).map((o) => o.buyer_id))];
@@ -676,31 +677,57 @@ export type AuditLogFilters = {
 
 export type AuditLogPage = {
   rows: AdminAuditLogListItem[];
-  total: number;
-  page: number;
+  /** Approximate row count for this filter set — from `count: "estimated"`
+   * (planner statistics, PostgREST's EXPLAIN-based estimate), not a real
+   * `count(*)`. admin_audit_log is append-only and grows forever, so an
+   * exact count re-scans a steadily larger table on every single page load
+   * for a number that's only ever shown as a rough "how much history is
+   * there" indicator — not worth the cost. Never exact; the UI must label
+   * it as approximate. */
+  approxTotal: number;
+  nextCursor: MessagesCursor | null;
   pageSize: number;
 };
 
 const AUDIT_LOG_PAGE_SIZE = 50;
 
-export async function listAuditLog(filters: AuditLogFilters = {}, page = 1): Promise<AuditLogPage> {
+/**
+ * Keyset/cursor-paginated (never OFFSET) — admin_audit_log is append-only
+ * and unbounded by design (every future admin mutation adds a row,
+ * forever), so paging deep into it with `.range()` would mean Postgres
+ * walking and discarding everything before the offset on every request.
+ * Ordered newest-first on (created_at, id) — see
+ * admin_audit_log_created_at_idx (0009) and the composite
+ * admin_audit_log_created_at_id_idx this pairs with (0029) — and paginated
+ * with the same buildMessagesCursorFilter()/nextMessagesCursor() helpers
+ * src/lib/messaging.ts already uses for message history, since the shape of
+ * the problem ("stable newest-first pagination over an ever-growing table")
+ * is identical.
+ *
+ * Omit `cursor` for the first page — this is what getListingDetail() /
+ * getReportDetail() / getPayoutDetail() / getUserDetail() do for a single
+ * target's (bounded, small) moderation history, and what /admin/audit-log
+ * does for its own first page.
+ */
+export async function listAuditLog(
+  filters: AuditLogFilters = {},
+  cursor?: MessagesCursor
+): Promise<AuditLogPage> {
   const admin = createAdminClient();
   const pageSize = AUDIT_LOG_PAGE_SIZE;
-  const safePage = Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
-  const rangeFrom = (safePage - 1) * pageSize;
-  const rangeTo = rangeFrom + pageSize - 1;
 
   let query = admin
     .from("admin_audit_log")
-    .select("*", { count: "exact" })
+    .select("*", { count: "estimated" })
     // Stable sort: created_at alone can tie (two actions in the same
     // millisecond), so id breaks the tie deterministically rather than
     // leaving page boundaries to whatever order Postgres happens to return
     // equal-timestamp rows in.
     .order("created_at", { ascending: false })
     .order("id", { ascending: false })
-    .range(rangeFrom, rangeTo);
+    .limit(pageSize);
 
+  if (cursor) query = query.or(buildMessagesCursorFilter(cursor));
   if (filters.actorId) query = query.eq("actor_id", filters.actorId);
   if (filters.action) query = query.eq("action", filters.action);
   if (filters.targetType) query = query.eq("target_type", filters.targetType);
@@ -723,7 +750,7 @@ export async function listAuditLog(filters: AuditLogFilters = {}, page = 1): Pro
     return { ...entry, actor: actorProfile ? withEmail(actorProfile, authUsers) : null };
   });
 
-  return { rows, total: count ?? 0, page: safePage, pageSize };
+  return { rows, approxTotal: count ?? 0, nextCursor: nextMessagesCursor(data ?? [], pageSize), pageSize };
 }
 
 export type AuditLogActor = { id: string; name: string; email: string | null };
@@ -758,17 +785,24 @@ export async function listAuditLogActors(): Promise<AuditLogActor[]> {
 //
 // Unlike listUsers()/listListings()/listTeeTimeInvites() above (which fetch
 // each table in full — fine at today's row counts, per the file-level
-// comment at the top of this file), every number here is a genuine
-// indexed/count query: `{ count: "exact", head: true }` asks PostgREST for
-// just the row count, not the rows themselves, so this function's cost does
-// not grow with table size the way a fetch-and-filter would. The one
-// exception is suspendedMembers, which reuses authUserMap() — that's the
-// same bounded (page size 1000) Auth Admin API call every other function in
-// this file already relies on for email/ban data, not a new full-table scan.
+// comment at the top of this file), every number here is a `head: true`
+// count query: PostgREST returns just the row count, never the rows
+// themselves. The two *unfiltered* whole-table counts (totalMembers,
+// totalListings) use `count: "estimated"` (planner statistics) rather than
+// `"exact"`, since at hundreds of thousands of rows an exact count is a real
+// index-wide scan for a dashboard number nobody needs to the exact digit;
+// every filtered count (active/removed listings, invites, support cases)
+// stays "exact", since a filter already bounds the scan and a moderation
+// queue's numbers should be trustworthy. The one exception to all of this is
+// suspendedMembers, which reuses authUserMap() — that's the same bounded
+// (page size 1000) Auth Admin API call every other function in this file
+// already relies on for email/ban data, not a new full-table scan.
 
 export type OverviewMetrics = {
+  /** Approximate — see the "estimated" note below. */
   totalMembers: number;
   suspendedMembers: number;
+  /** Approximate — see the "estimated" note below. */
   totalListings: number;
   activeListings: number;
   removedListings: number;
@@ -794,9 +828,18 @@ export async function getOverviewMetrics(): Promise<OverviewMetrics> {
     { count: openInvites, error: openInvitesError },
     { count: unresolvedSupportCases, error: unresolvedSupportCasesError },
   ] = await Promise.all([
-    admin.from("profiles").select("*", { count: "exact", head: true }),
+    // "estimated" (planner statistics, not a real COUNT(*)) for the two
+    // unfiltered whole-table counts on this dashboard — at hundreds of
+    // thousands of members/listings, an exact head-count still means
+    // Postgres walking a full index just to return a number nobody needs to
+    // the last digit on a page that loads on every staff sign-in. Every
+    // *filtered* count below (active/removed listings, invites,
+    // support cases) stays "exact": those results are cheap regardless of
+    // table size (the filter itself bounds the scan via its own index), and
+    // their exactness actually matters for a moderation queue.
+    admin.from("profiles").select("*", { count: "estimated", head: true }),
     authUserMap(),
-    admin.from("listings").select("*", { count: "exact", head: true }),
+    admin.from("listings").select("*", { count: "estimated", head: true }),
     admin.from("listings").select("*", { count: "exact", head: true }).eq("status", "active"),
     admin.from("listings").select("*", { count: "exact", head: true }).eq("status", "removed"),
     admin.from("tee_time_invites").select("*", { count: "exact", head: true }),
@@ -1187,8 +1230,8 @@ export async function getReportDetail(id: number): Promise<AdminReportDetail | n
     resolveTargetSummaries(admin, [report]),
     listReportNotes(report.id),
     isAuditableTarget
-      ? listAuditLog({ targetType: report.target_type, targetId: report.target_id }, 1)
-      : Promise.resolve({ rows: [], total: 0, page: 1, pageSize: AUDIT_LOG_PAGE_SIZE } as AuditLogPage),
+      ? listAuditLog({ targetType: report.target_type, targetId: report.target_id })
+      : Promise.resolve({ rows: [], approxTotal: 0, nextCursor: null, pageSize: AUDIT_LOG_PAGE_SIZE } as AuditLogPage),
     report.linked_action_id
       ? admin
           .from("admin_audit_log")
@@ -1764,11 +1807,11 @@ export async function getSupportCaseDetail(id: number): Promise<AdminSupportCase
       resolveLinkedTargetSummaries(admin, [caseRow]),
       listSupportCaseNotes(caseRow.id),
       listSupportCaseLinkedActions(caseRow.id),
-      listAuditLog({ targetType: "support_case", targetId: String(caseRow.id) }, 1),
-      listAuditLog({ targetType: "user", targetId: caseRow.requester_id }, 1),
+      listAuditLog({ targetType: "support_case", targetId: String(caseRow.id) }),
+      listAuditLog({ targetType: "user", targetId: caseRow.requester_id }),
       isAuditableLinkedTarget
-        ? listAuditLog({ targetType: caseRow.linked_target_type!, targetId: caseRow.linked_target_id! }, 1)
-        : Promise.resolve({ rows: [], total: 0, page: 1, pageSize: AUDIT_LOG_PAGE_SIZE } as AuditLogPage),
+        ? listAuditLog({ targetType: caseRow.linked_target_type!, targetId: caseRow.linked_target_id! })
+        : Promise.resolve({ rows: [], approxTotal: 0, nextCursor: null, pageSize: AUDIT_LOG_PAGE_SIZE } as AuditLogPage),
     ]);
 
   const peopleIds = [
@@ -1978,7 +2021,7 @@ export async function getOrderDetail(id: number): Promise<AdminOrderDetail | nul
       order.offer_id
         ? admin.from("offers").select("*").eq("id", order.offer_id).maybeSingle<Offer>()
         : Promise.resolve({ data: null as Offer | null }),
-      listAuditLog({ targetType: "order", targetId: String(id) }, 1),
+      listAuditLog({ targetType: "order", targetId: String(id) }),
       admin.from("refunds").select("*").eq("order_id", id).order("created_at", { ascending: false }).returns<Refund[]>(),
       admin.from("disputes").select("*").eq("order_id", id).order("created_at", { ascending: false }).returns<Dispute[]>(),
       order.payout_id
@@ -2113,7 +2156,7 @@ export async function getSellerAccountDetail(userId: string): Promise<AdminSelle
   const [authUsers, { data: profile }, historyResult] = await Promise.all([
     authUserMap(),
     admin.from("profiles").select("*").eq("id", userId).maybeSingle<Profile>(),
-    listAuditLog({ targetType: "seller_account", targetId: String(account.id) }, 1),
+    listAuditLog({ targetType: "seller_account", targetId: String(account.id) }),
   ]);
 
   return {
@@ -2131,7 +2174,14 @@ export async function getSellerAccountDetail(userId: string): Promise<AdminSelle
 // src/app/admin/webhook-events/[id]/actions.ts, which calls
 // recordAdminAction() itself, same split as every other admin mutation.
 
-export type AdminWebhookEventListItem = WebhookEvent;
+// Every column except `payload` — that's the verified, full Stripe event
+// body (arbitrary nested JSON, can run to tens of KB per row for a rich
+// event like an invoice or a charge with expanded objects). The list view
+// never renders it (see /admin/webhook-events/page.tsx), so there's no
+// reason to pull 20 rows' worth of full event payloads on every page load;
+// getWebhookEventDetail() below still selects "*" for the one row an admin
+// actually opens.
+export type AdminWebhookEventListItem = Omit<WebhookEvent, "payload">;
 
 export type AdminWebhookEventPage = {
   rows: AdminWebhookEventListItem[];
@@ -2147,6 +2197,9 @@ export type AdminWebhookEventFilters = {
 };
 
 const WEBHOOK_EVENTS_PAGE_SIZE = 20;
+
+const WEBHOOK_EVENT_LIST_COLUMNS =
+  "id, provider, event_id, event_type, api_version, status, attempts, last_error, related_order_id, received_at, processed_at, created_at, updated_at";
 
 /**
  * Paginated, server-side-filtered webhook event list for
@@ -2165,7 +2218,7 @@ export async function listWebhookEvents(
 
   let query = admin
     .from("webhook_events")
-    .select("*", { count: "exact" })
+    .select(WEBHOOK_EVENT_LIST_COLUMNS, { count: "exact" })
     .order("received_at", { ascending: false })
     .order("id", { ascending: false })
     .range(rangeFrom, rangeTo);
@@ -2174,19 +2227,26 @@ export async function listWebhookEvents(
   if (filters.eventType) query = query.eq("event_type", filters.eventType);
   if (filters.orderId) query = query.eq("related_order_id", filters.orderId);
 
-  const { data, error, count } = await query.returns<WebhookEvent[]>();
+  const { data, error, count } = await query.returns<AdminWebhookEventListItem[]>();
   if (error) throw new Error(`Failed to list webhook events: ${error.message}`);
 
   return { rows: data ?? [], total: count ?? 0, page: safePage, pageSize: WEBHOOK_EVENTS_PAGE_SIZE };
 }
 
-/** Distinct event types seen so far, for the list page's filter dropdown —
- * same "small, bounded lookup" shape as listAuditLogActors(). */
+/**
+ * Distinct event types seen so far, for the list page's filter dropdown.
+ * Calls the `admin_distinct_webhook_event_types()` SQL function (see
+ * 0030_webhook_event_types_rpc.sql) rather than `select("event_type")` over
+ * every row: webhook_events grows with every Stripe event this app ever
+ * receives, so "fetch every row just to dedupe one column in JS" would have
+ * become a full-table transfer at scale. The DISTINCT now runs inside
+ * Postgres, backed by webhook_events_event_type_idx (same migration).
+ */
 export async function listWebhookEventTypes(): Promise<string[]> {
   const admin = createAdminClient();
-  const { data, error } = await admin.from("webhook_events").select("event_type").returns<{ event_type: string }[]>();
+  const { data, error } = await admin.rpc("admin_distinct_webhook_event_types");
   if (error) throw new Error(`Failed to list webhook event types: ${error.message}`);
-  return [...new Set((data ?? []).map((row) => row.event_type))].sort();
+  return ((data as { event_type: string }[] | null) ?? []).map((row) => row.event_type);
 }
 
 export type AdminWebhookEventDetail = {
@@ -2214,7 +2274,7 @@ export async function getWebhookEventDetail(id: number): Promise<AdminWebhookEve
     event.related_order_id
       ? admin.from("orders").select("*").eq("id", event.related_order_id).maybeSingle<Order>()
       : Promise.resolve({ data: null as Order | null }),
-    listAuditLog({ targetType: "webhook_event", targetId: String(id) }, 1),
+    listAuditLog({ targetType: "webhook_event", targetId: String(id) }),
   ]);
 
   return {
@@ -2340,7 +2400,7 @@ export async function getPayoutDetail(id: number): Promise<AdminPayoutDetail | n
       .eq("payout_id", id)
       .order("created_at", { ascending: false })
       .returns<Order[]>(),
-    listAuditLog({ targetType: "payout", targetId: String(id) }, 1),
+    listAuditLog({ targetType: "payout", targetId: String(id) }),
   ]);
 
   return {

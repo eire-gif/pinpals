@@ -5,12 +5,40 @@ import { formatDateTime } from "@/lib/admin/format";
 import { ADMIN_ACTIONS, AUDIT_TARGET_TYPES } from "@/lib/admin/audit";
 import { ROLE_LABELS } from "@/lib/admin/roles";
 import AdminAvatar from "@/components/admin/avatar";
+import type { MessagesCursor } from "@/lib/messaging";
 
 // Restricted to super_admin — see claude/admin-architecture-review.md §6
 // ("super_admin — ... access the audit log"). Every other staff role gets
 // the same 404 a non-staff user would get hitting this URL (requireStaff()
 // with a `roles` restriction never distinguishes "wrong role" from "not
 // staff at all" in its response — see the comment on requireStaff() itself).
+//
+// Pagination here is keyset/cursor-based (see listAuditLog() in queries.ts),
+// not numbered pages: admin_audit_log is append-only and grows forever, so
+// there's no cheap "page 12 of 400" to compute. Instead the URL carries a
+// `history` param — a JSON-encoded stack of every cursor visited so far —
+// so "Previous" can navigate back without a reverse keyset query, and
+// "Next" pushes the freshly-fetched page's cursor onto that stack.
+
+function parseHistory(raw: string | undefined): MessagesCursor[] {
+  if (!raw) return [];
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (entry): entry is MessagesCursor =>
+        !!entry &&
+        typeof entry === "object" &&
+        typeof (entry as MessagesCursor).createdAt === "string" &&
+        typeof (entry as MessagesCursor).id === "number"
+    );
+  } catch {
+    // A malformed/tampered `history` param just means "start over from the
+    // first page" — never a 500.
+    return [];
+  }
+}
+
 export default async function AdminAuditLogPage({
   searchParams,
 }: {
@@ -20,14 +48,18 @@ export default async function AdminAuditLogPage({
     target?: string;
     from?: string;
     to?: string;
-    page?: string;
+    history?: string;
   }>;
 }) {
   await requireStaff({ roles: ["super_admin"] });
-  const { actor = "", action = "", target = "", from = "", to = "", page: pageParam } = await searchParams;
-  const page = Math.max(1, Number.parseInt(pageParam ?? "1", 10) || 1);
+  const { actor = "", action = "", target = "", from = "", to = "", history: historyParam } = await searchParams;
 
-  const [{ rows, total, pageSize }, actors] = await Promise.all([
+  // The last entry in the stack is the cursor that produced the page we're
+  // currently viewing (undefined/absent means "first page").
+  const history = parseHistory(historyParam);
+  const currentCursor = history.length ? history[history.length - 1] : undefined;
+
+  const [{ rows, approxTotal, nextCursor }, actors] = await Promise.all([
     listAuditLog(
       {
         actorId: actor || undefined,
@@ -39,31 +71,38 @@ export default async function AdminAuditLogPage({
         // that day" and silently exclude everything that happened on it.
         to: to ? `${to}T23:59:59.999Z` : undefined,
       },
-      page
+      currentCursor
     ),
     listAuditLogActors(),
   ]);
 
-  const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const hasFilters = Boolean(actor || action || target || from || to);
 
-  function pageHref(targetPage: number) {
+  function baseParams() {
     const params = new URLSearchParams();
     if (actor) params.set("actor", actor);
     if (action) params.set("action", action);
     if (target) params.set("target", target);
     if (from) params.set("from", from);
     if (to) params.set("to", to);
-    if (targetPage > 1) params.set("page", String(targetPage));
+    return params;
+  }
+
+  function hrefWithHistory(nextHistory: MessagesCursor[]) {
+    const params = baseParams();
+    if (nextHistory.length) params.set("history", JSON.stringify(nextHistory));
     const qs = params.toString();
     return qs ? `/admin/audit-log?${qs}` : "/admin/audit-log";
   }
+
+  const nextHref = nextCursor ? hrefWithHistory([...history, nextCursor]) : null;
+  const prevHref = history.length ? hrefWithHistory(history.slice(0, -1)) : null;
 
   return (
     <div>
       <h1 className="font-display font-bold text-2xl mb-1">Audit log</h1>
       <p className="text-ink-500 mb-6">
-        {total} {total === 1 ? "entry" : "entries"}
+        About {approxTotal} {approxTotal === 1 ? "entry" : "entries"}
         {hasFilters && " matching these filters"}. Every admin action that changes another
         member&rsquo;s data is recorded here, permanently — there is no way to edit or delete an
         entry from within the app.
@@ -195,23 +234,21 @@ export default async function AdminAuditLogPage({
         )}
       </div>
 
-      {totalPages > 1 && (
+      {(prevHref || nextHref) && (
         <div className="flex items-center justify-between mt-6 text-sm text-ink-500">
-          <span>
-            Page {page} of {totalPages}
-          </span>
+          <span>{history.length + 1 > 1 ? `Page ${history.length + 1}` : "Newest entries"}</span>
           <div className="flex gap-2">
-            {page > 1 && (
+            {prevHref && (
               <Link
-                href={pageHref(page - 1)}
+                href={prevHref}
                 className="px-4 py-2 rounded-full border-[1.5px] border-line hover:bg-cream-100 transition"
               >
                 Previous
               </Link>
             )}
-            {page < totalPages && (
+            {nextHref && (
               <Link
-                href={pageHref(page + 1)}
+                href={nextHref}
                 className="px-4 py-2 rounded-full border-[1.5px] border-line hover:bg-cream-100 transition"
               >
                 Next

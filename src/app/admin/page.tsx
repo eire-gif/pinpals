@@ -9,6 +9,9 @@ import UnavailableCard from "@/components/admin/unavailable-card";
 // indexed count query (see getOverviewMetrics() in queries.ts), never a full
 // table scan, and none of it is historical/trend analytics (that's Phase 7
 // per admin-architecture-review.md §8, deliberately out of scope here).
+// totalMembers/totalListings are shown with a "~": getOverviewMetrics() now
+// takes those two from planner statistics rather than a real COUNT(*), so
+// this page never claims a precision it doesn't have.
 export default async function AdminOverviewPage() {
   // Deliberately re-checked here rather than trusting the layout alone — see
   // the comment on requireStaff() in src/lib/admin/authorization.ts.
@@ -51,12 +54,12 @@ export default async function AdminOverviewPage() {
 
       <Section title="Community snapshot">
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
-          <StatCard href="/admin/users" label="Members" value={metrics.totalMembers} />
+          <StatCard href="/admin/users" label="Members" value={metrics.totalMembers} approx />
           <StatCard
             href="/admin/listings?status=active"
             label="Active listings"
             value={metrics.activeListings}
-            sub={`${metrics.totalListings} total`}
+            sub={`~${metrics.totalListings} total`}
           />
           <StatCard
             href="/admin/listings?status=removed"
@@ -100,11 +103,17 @@ function StatCard({
   label,
   value,
   sub,
+  approx,
 }: {
   href: string;
   label: string;
   value: number;
   sub?: string;
+  /** True for a count taken from planner statistics (`count: "estimated"`)
+   * rather than a real COUNT(*) — see getOverviewMetrics()'s own comment.
+   * Shown with a leading "~" so the dashboard never claims a precision it
+   * doesn't have. */
+  approx?: boolean;
 }) {
   return (
     <Link
@@ -112,7 +121,10 @@ function StatCard({
       className="block bg-surface border border-line rounded-2xl p-6 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition"
     >
       <div className="text-xs uppercase tracking-wide text-ink-500 font-semibold">{label}</div>
-      <div className="font-display font-bold text-3xl mt-1 text-ink-900">{value}</div>
+      <div className="font-display font-bold text-3xl mt-1 text-ink-900">
+        {approx && "~"}
+        {value}
+      </div>
       {sub && <div className="text-xs text-ink-500 mt-1">{sub}</div>}
     </Link>
   );
