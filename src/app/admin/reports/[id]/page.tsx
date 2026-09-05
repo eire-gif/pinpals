@@ -18,7 +18,7 @@ import AdminAvatar from "@/components/admin/avatar";
 import StatusBadge from "@/components/admin/status-badge";
 import ModerationForm from "@/components/admin/moderation-form";
 import SimpleActionForm from "@/components/admin/simple-action-form";
-import UnavailableCard from "@/components/admin/unavailable-card";
+import ConversationAccessPanel from "./conversation-access-panel";
 import ResolveReportForm from "./resolve-form";
 import PriorityForm from "./priority-form";
 import { claimReport, releaseReport, dismissReport, reopenReport, addReportNote } from "./actions";
@@ -175,10 +175,17 @@ export default async function AdminReportDetailPage({
       <Section title="Target">
         <div className="p-5">
           {isMessageTarget ? (
-            <UnavailableCard
-              label={REPORT_TARGET_TYPE_LABELS[report.target_type]}
-              reason="No messaging system exists in the app yet, so there's nothing to look up beyond this report's own fields above. Full conversation context will be available once a message-moderation access model ships in a later phase."
-            />
+            canModerate ? (
+              <ConversationAccessPanel
+                reportId={report.id}
+                label={REPORT_TARGET_TYPE_LABELS[report.target_type]}
+                canModerate={canModerate}
+              />
+            ) : (
+              <p className="text-sm text-ink-500">
+                Only moderators and above can view message content for this report.
+              </p>
+            )
           ) : target.href ? (
             <Link href={target.href} className="text-sm font-semibold text-ink-900 hover:underline">
               Open this {REPORT_TARGET_TYPE_LABELS[report.target_type].toLowerCase()} →

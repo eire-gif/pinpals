@@ -57,6 +57,13 @@ export default function MobileNav({
                 Dashboard
               </Link>
               <Link
+                href="/conversations"
+                onClick={() => setOpen(false)}
+                className="px-4 py-4 rounded-xl text-lg font-semibold text-white/90 hover:bg-white/10"
+              >
+                Messages
+              </Link>
+              <Link
                 href="/profile"
                 onClick={() => setOpen(false)}
                 className="px-4 py-4 rounded-xl text-lg font-semibold text-white/90 hover:bg-white/10"

@@ -32,10 +32,13 @@ export const REPORT_CATEGORIES = [
 ] as const;
 export type ReportCategory = (typeof REPORT_CATEGORIES)[number];
 
-// 'message'/'conversation' are declared in the DB (see 0016_admin_reports.sql)
-// so the column shape doesn't need a future migration, but no messaging
-// system exists in the app yet — see the report detail page for how those
-// two are deliberately shown with minimal, report-own-fields-only context.
+// 'message'/'conversation' were declared in the DB (see 0016_admin_reports.sql)
+// ahead of a messaging system — see supabase/migrations/0025_messaging.sql
+// for that system and src/app/admin/reports/[id]/conversation-access-panel.tsx
+// for how the two are handled: deliberately NOT a link into a general
+// conversation-browsing page (there isn't one) — content only ever appears
+// after a moderator submits a reason on this report's own page, and every
+// reveal is audited (see ADMIN_ACTIONS' conversation.access_viewed).
 export const REPORT_TARGET_TYPES = ["user", "listing", "tee_time_invite", "message", "conversation"] as const;
 export type ReportTargetType = (typeof REPORT_TARGET_TYPES)[number];
 
