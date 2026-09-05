@@ -35,6 +35,7 @@ const NAV_ITEMS: { href: string; label: string; enabled?: boolean; roles?: reado
   { href: "/admin/support", label: "Support cases", enabled: true },
   { href: "/admin/settings", label: "Settings" },
   { href: "/admin/audit-log", label: "Audit log", enabled: true, roles: ["super_admin"] },
+  { href: "/admin/staff", label: "Staff", enabled: true, roles: ["super_admin"] },
 ];
 
 export default async function AdminLayout({ children }: { children: ReactNode }) {
