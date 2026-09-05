@@ -33,6 +33,11 @@ export default async function AdminOverviewPage() {
             label="Suspended members"
             value={metrics.suspendedMembers}
           />
+          <StatCard
+            href="/admin/support"
+            label="Unresolved support cases"
+            value={metrics.unresolvedSupportCases}
+          />
           {attentionMetrics.map((m) => (
             <UnavailableCard key={m.key} label={m.label} reason={m.reason} />
           ))}

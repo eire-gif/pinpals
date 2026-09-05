@@ -15,6 +15,12 @@ import type {
 } from "@/lib/types";
 import type { StaffRole } from "./roles";
 import type { ReportCategory, ReportPriority, ReportStatus, ReportTargetType } from "./reports";
+import type {
+  SupportCaseCategory,
+  SupportCaseLinkedTargetType,
+  SupportCasePriority,
+  SupportCaseStatus,
+} from "./support-cases";
 import { AUDIT_TARGET_TYPES } from "./audit";
 
 // Every read in this file goes through the service-role client, deliberately
@@ -768,6 +774,11 @@ export type OverviewMetrics = {
   removedListings: number;
   totalInvites: number;
   openInvites: number;
+  /** open + claimed + waiting_on_member — mirrors isSupportCaseOpen() in
+   * support-cases.ts, but re-expressed as a count-query `.in()` filter here
+   * rather than fetched-and-filtered, same as every other number in this
+   * function. */
+  unresolvedSupportCases: number;
 };
 
 export async function getOverviewMetrics(): Promise<OverviewMetrics> {
@@ -781,6 +792,7 @@ export async function getOverviewMetrics(): Promise<OverviewMetrics> {
     { count: removedListings, error: removedListingsError },
     { count: totalInvites, error: totalInvitesError },
     { count: openInvites, error: openInvitesError },
+    { count: unresolvedSupportCases, error: unresolvedSupportCasesError },
   ] = await Promise.all([
     admin.from("profiles").select("*", { count: "exact", head: true }),
     authUserMap(),
@@ -789,6 +801,10 @@ export async function getOverviewMetrics(): Promise<OverviewMetrics> {
     admin.from("listings").select("*", { count: "exact", head: true }).eq("status", "removed"),
     admin.from("tee_time_invites").select("*", { count: "exact", head: true }),
     admin.from("tee_time_invites").select("*", { count: "exact", head: true }).eq("status", "open"),
+    admin
+      .from("support_cases")
+      .select("*", { count: "exact", head: true })
+      .in("status", ["open", "claimed", "waiting_on_member"]),
   ]);
 
   const error =
@@ -797,7 +813,8 @@ export async function getOverviewMetrics(): Promise<OverviewMetrics> {
     activeListingsError ??
     removedListingsError ??
     totalInvitesError ??
-    openInvitesError;
+    openInvitesError ??
+    unresolvedSupportCasesError;
   if (error) throw new Error(`Failed to load overview metrics: ${error.message}`);
 
   let suspendedMembers = 0;
@@ -813,6 +830,7 @@ export async function getOverviewMetrics(): Promise<OverviewMetrics> {
     removedListings: removedListings ?? 0,
     totalInvites: totalInvites ?? 0,
     openInvites: openInvites ?? 0,
+    unresolvedSupportCases: unresolvedSupportCases ?? 0,
   };
 }
 
@@ -1215,6 +1233,554 @@ export async function getReportDetail(id: number): Promise<AdminReportDetail | n
     notes,
     targetModerationHistory: moderationHistoryResult.rows,
     linkedAction,
+  };
+}
+
+// ---------- Support cases ----------
+//
+// /admin/support — see supabase/migrations/0026_support_cases.sql. Same
+// real server-side `.range()` pagination + stable sort as listReports()
+// above, for the same reason: the queue is expected to grow without bound.
+// Unlike reports, EVERY active staff role may work a case (see
+// support-cases.ts's file-header comment) — nothing here restricts by role,
+// that gate lives entirely in each Server Action's requireStaff() call.
+
+export type AdminSupportCase = {
+  id: number;
+  requester_id: string;
+  subject: string;
+  description: string | null;
+  category: SupportCaseCategory;
+  priority: SupportCasePriority;
+  status: SupportCaseStatus;
+  assigned_admin: string | null;
+  claimed_at: string | null;
+  linked_target_type: SupportCaseLinkedTargetType | null;
+  linked_target_id: string | null;
+  resolution: string | null;
+  resolved_at: string | null;
+  resolved_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+/** A short, target-type-appropriate summary for a case's optional linked
+ * record — resolved in a single batched lookup per page (see
+ * resolveLinkedTargetSummaries()), not a per-row query. `href` is null when
+ * there's nowhere to link yet: a conversation target (no messaging system
+ * exists — see support-cases.ts) or a target row that no longer exists. */
+export type AdminSupportCaseLinkedTargetSummary = {
+  type: SupportCaseLinkedTargetType;
+  label: string;
+  href: string | null;
+};
+
+export type AdminSupportCaseListItem = AdminSupportCase & {
+  requester: AdminProfile | null;
+  assignedStaff: AdminProfile | null;
+  linkedTarget: AdminSupportCaseLinkedTargetSummary | null;
+};
+
+export type AdminSupportCasePage = {
+  rows: AdminSupportCaseListItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+};
+
+export type AdminSupportCaseFilters = {
+  status?: SupportCaseStatus;
+  priority?: SupportCasePriority;
+  category?: SupportCaseCategory;
+  linkedTargetType?: SupportCaseLinkedTargetType;
+  /** A single linked record's cases — paired with linkedTargetType (an id
+   * alone isn't unique across target types), mirrors reports' targetId. */
+  linkedTargetId?: string;
+  /** A specific staff user id, or the literal "unassigned" for
+   * assigned_admin IS NULL (the queue's default "needs a claim" view). */
+  assignedAdmin?: string;
+  /** A single member's own cases — for a future "past cases" section on the
+   * user detail page; not wired to any page yet in this phase. */
+  requesterId?: string;
+};
+
+const SUPPORT_CASES_PAGE_SIZE = 20;
+
+/**
+ * Builds the `.or()` filter string for listSupportCases()'s free-text
+ * search: ILIKE on `subject`/`description` plus a `requester_id.in.(...)`
+ * clause for any requester whose name or email matched — same two-step
+ * shape buildReportSearchOrFilter() uses for reporter name, extended to
+ * email too (see listSupportCases() below) since staff are just as likely
+ * to look a case up by the member's email as by their name. Pure and
+ * DB-free, exported for unit testing.
+ */
+export function buildSupportCaseSearchOrFilter(query: string, requesterMatchedIds: string[]): string | null {
+  const term = sanitizeSearchTerm(query);
+  const clauses: string[] = [];
+
+  if (term) {
+    const pattern = `%${term}%`;
+    clauses.push(`subject.ilike.${pattern}`, `description.ilike.${pattern}`);
+  }
+
+  const validIds = requesterMatchedIds.filter((id) => UUID_RE.test(id));
+  if (validIds.length) clauses.push(`requester_id.in.(${validIds.join(",")})`);
+
+  return clauses.length ? clauses.join(",") : null;
+}
+
+/**
+ * Batch-resolves a page of cases' optional linked target into display
+ * summaries without a per-row query — same shape as reports'
+ * resolveTargetSummaries(), keyed on (linked_target_type, linked_target_id)
+ * instead of (target_type, target_id), and skipping rows with no linked
+ * target at all (most cases won't have one). `conversation` deliberately
+ * never hits a table, even though one exists (see support-cases.ts) — a
+ * support case shouldn't open a second, ungated path into private message
+ * content — so it always resolves to a plain, unlinked label built from the
+ * case's own fields.
+ */
+async function resolveLinkedTargetSummaries(
+  admin: ReturnType<typeof createAdminClient>,
+  rows: { linked_target_type: SupportCaseLinkedTargetType | null; linked_target_id: string | null }[]
+): Promise<Map<string, AdminSupportCaseLinkedTargetSummary>> {
+  const key = (type: string, id: string) => `${type}:${id}`;
+  const summaries = new Map<string, AdminSupportCaseLinkedTargetSummary>();
+
+  const linkedRows = rows.filter(
+    (r): r is { linked_target_type: SupportCaseLinkedTargetType; linked_target_id: string } =>
+      r.linked_target_type != null && r.linked_target_id != null
+  );
+
+  const orderIds = [...new Set(linkedRows.filter((r) => r.linked_target_type === "order").map((r) => r.linked_target_id))]
+    .map((id) => Number(id))
+    .filter((id) => Number.isFinite(id));
+  const listingIds = [
+    ...new Set(linkedRows.filter((r) => r.linked_target_type === "listing").map((r) => r.linked_target_id)),
+  ]
+    .map((id) => Number(id))
+    .filter((id) => Number.isFinite(id));
+  const inviteIds = [
+    ...new Set(linkedRows.filter((r) => r.linked_target_type === "tee_time_invite").map((r) => r.linked_target_id)),
+  ]
+    .map((id) => Number(id))
+    .filter((id) => Number.isFinite(id));
+  const reportIds = [
+    ...new Set(linkedRows.filter((r) => r.linked_target_type === "report").map((r) => r.linked_target_id)),
+  ]
+    .map((id) => Number(id))
+    .filter((id) => Number.isFinite(id));
+
+  const [{ data: orders }, { data: listings }, { data: invites }, { data: reports }] = await Promise.all([
+    orderIds.length
+      ? admin
+          .from("orders")
+          .select("id, listing_title")
+          .in("id", orderIds)
+          .returns<Pick<Order, "id" | "listing_title">[]>()
+      : Promise.resolve({ data: [] as Pick<Order, "id" | "listing_title">[] }),
+    listingIds.length
+      ? admin.from("listings").select("id, title").in("id", listingIds).returns<Pick<Listing, "id" | "title">[]>()
+      : Promise.resolve({ data: [] as Pick<Listing, "id" | "title">[] }),
+    inviteIds.length
+      ? admin
+          .from("tee_time_invites")
+          .select("id, club_name")
+          .in("id", inviteIds)
+          .returns<Pick<TeeTimeInvite, "id" | "club_name">[]>()
+      : Promise.resolve({ data: [] as Pick<TeeTimeInvite, "id" | "club_name">[] }),
+    reportIds.length
+      ? admin.from("reports").select("id, category").in("id", reportIds).returns<Pick<AdminReport, "id" | "category">[]>()
+      : Promise.resolve({ data: [] as Pick<AdminReport, "id" | "category">[] }),
+  ]);
+
+  const orderById = new Map((orders ?? []).map((o) => [String(o.id), o]));
+  const listingById = new Map((listings ?? []).map((l) => [String(l.id), l]));
+  const inviteById = new Map((invites ?? []).map((i) => [String(i.id), i]));
+  const reportById = new Map((reports ?? []).map((r) => [String(r.id), r]));
+
+  for (const row of linkedRows) {
+    const k = key(row.linked_target_type, row.linked_target_id);
+    if (summaries.has(k)) continue;
+
+    if (row.linked_target_type === "order") {
+      const o = orderById.get(row.linked_target_id);
+      summaries.set(
+        k,
+        o
+          ? { type: "order", label: `Order #${o.id} — ${o.listing_title}`, href: `/admin/orders/${row.linked_target_id}` }
+          : { type: "order", label: `Order #${row.linked_target_id} no longer exists`, href: null }
+      );
+    } else if (row.linked_target_type === "listing") {
+      const l = listingById.get(row.linked_target_id);
+      summaries.set(
+        k,
+        l
+          ? { type: "listing", label: l.title, href: `/admin/listings/${row.linked_target_id}` }
+          : { type: "listing", label: `Listing #${row.linked_target_id} no longer exists`, href: null }
+      );
+    } else if (row.linked_target_type === "tee_time_invite") {
+      const i = inviteById.get(row.linked_target_id);
+      summaries.set(
+        k,
+        i
+          ? { type: "tee_time_invite", label: i.club_name, href: `/admin/tee-times/${row.linked_target_id}` }
+          : { type: "tee_time_invite", label: `Invite #${row.linked_target_id} no longer exists`, href: null }
+      );
+    } else if (row.linked_target_type === "report") {
+      const r = reportById.get(row.linked_target_id);
+      summaries.set(
+        k,
+        r
+          ? { type: "report", label: `Report #${r.id}`, href: `/admin/reports/${row.linked_target_id}` }
+          : { type: "report", label: `Report #${row.linked_target_id} no longer exists`, href: null }
+      );
+    } else {
+      // conversation — deliberately not resolved into a link, even though a
+      // conversations table exists (0025_messaging.sql): there is no general
+      // conversation-browsing admin page, by design (see reports.ts's
+      // comment on REPORT_TARGET_TYPES) — message content only ever surfaces
+      // through a report's own permission-gated, audited reveal flow.
+      summaries.set(k, { type: "conversation", label: `Conversation #${row.linked_target_id}`, href: null });
+    }
+  }
+
+  return summaries;
+}
+
+/**
+ * Paginated, server-side-filtered case list for /admin/support. Same
+ * indexed-search shape as listReports() — see buildSupportCaseSearchOrFilter()
+ * — rather than a full-table fetch.
+ */
+export async function listSupportCases(
+  query = "",
+  filters: AdminSupportCaseFilters = {},
+  page = 1
+): Promise<AdminSupportCasePage> {
+  const admin = createAdminClient();
+  const safePage = Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
+  const rangeFrom = (safePage - 1) * SUPPORT_CASES_PAGE_SIZE;
+  const rangeTo = rangeFrom + SUPPORT_CASES_PAGE_SIZE - 1;
+
+  const trimmedQuery = query.trim();
+  const term = trimmedQuery ? sanitizeSearchTerm(trimmedQuery) : "";
+
+  // Resolve requester matches (by name AND email — unlike reports' reporter
+  // search, which is name-only) before the cases query runs; support_cases
+  // has no name/email column to search directly.
+  let requesterMatchedIds: string[] = [];
+  if (term || trimmedQuery) {
+    const pattern = `%${term}%`;
+    const [{ data: matchedProfiles }, authUsers] = await Promise.all([
+      term
+        ? admin
+            .from("profiles")
+            .select("id")
+            .or(`first_name.ilike.${pattern},last_name.ilike.${pattern}`)
+            .returns<Pick<Profile, "id">[]>()
+        : Promise.resolve({ data: [] as Pick<Profile, "id">[] }),
+      authUserMap(),
+    ]);
+    const nameMatched = (matchedProfiles ?? []).map((p) => p.id);
+    const emailMatched = [...authUsers.entries()]
+      .filter(([, info]) => info.email?.toLowerCase().includes(trimmedQuery.toLowerCase()))
+      .map(([id]) => id);
+    requesterMatchedIds = [...new Set([...nameMatched, ...emailMatched])];
+  }
+
+  let casesQuery = admin
+    .from("support_cases")
+    .select("*", { count: "exact" })
+    // Stable sort — same reasoning as listReports()/listAuditLog().
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
+    .range(rangeFrom, rangeTo);
+
+  if (filters.status) casesQuery = casesQuery.eq("status", filters.status);
+  if (filters.priority) casesQuery = casesQuery.eq("priority", filters.priority);
+  if (filters.category) casesQuery = casesQuery.eq("category", filters.category);
+  if (filters.linkedTargetType) casesQuery = casesQuery.eq("linked_target_type", filters.linkedTargetType);
+  if (filters.linkedTargetId) casesQuery = casesQuery.eq("linked_target_id", filters.linkedTargetId);
+  if (filters.requesterId) casesQuery = casesQuery.eq("requester_id", filters.requesterId);
+  if (filters.assignedAdmin === "unassigned") {
+    casesQuery = casesQuery.is("assigned_admin", null);
+  } else if (filters.assignedAdmin) {
+    casesQuery = casesQuery.eq("assigned_admin", filters.assignedAdmin);
+  }
+
+  if (trimmedQuery) {
+    const filter = buildSupportCaseSearchOrFilter(trimmedQuery, requesterMatchedIds);
+    if (filter) casesQuery = casesQuery.or(filter);
+  }
+
+  const { data, error, count } = await casesQuery.returns<AdminSupportCase[]>();
+  if (error) throw new Error(`Failed to list support cases: ${error.message}`);
+  const rows = data ?? [];
+
+  const [authUsers, linkedTargetSummaries] = await Promise.all([
+    authUserMap(),
+    resolveLinkedTargetSummaries(admin, rows),
+  ]);
+
+  const peopleIds = [
+    ...new Set(rows.flatMap((r) => [r.requester_id, r.assigned_admin].filter((id): id is string => !!id))),
+  ];
+  const { data: peopleProfiles } = peopleIds.length
+    ? await admin.from("profiles").select("*").in("id", peopleIds).returns<Profile[]>()
+    : { data: [] as Profile[] };
+  const profileById = new Map((peopleProfiles ?? []).map((p) => [p.id, p]));
+
+  const resultRows: AdminSupportCaseListItem[] = rows.map((r) => {
+    const requesterProfile = profileById.get(r.requester_id) ?? null;
+    const assignedProfile = r.assigned_admin ? profileById.get(r.assigned_admin) ?? null : null;
+    const linkedTarget =
+      r.linked_target_type && r.linked_target_id
+        ? linkedTargetSummaries.get(`${r.linked_target_type}:${r.linked_target_id}`) ?? null
+        : null;
+    return {
+      ...r,
+      requester: requesterProfile ? withEmail(requesterProfile, authUsers) : null,
+      assignedStaff: assignedProfile ? withEmail(assignedProfile, authUsers) : null,
+      linkedTarget,
+    };
+  });
+
+  return { rows: resultRows, total: count ?? 0, page: safePage, pageSize: SUPPORT_CASES_PAGE_SIZE };
+}
+
+/**
+ * Resolves the "member" field on the /admin/support/new form: a raw uuid is
+ * used as-is (the shape a future "open a case for this member" link from
+ * /admin/users/[id] would arrive in); anything else is matched against name
+ * (indexed ilike, same as listUsers()) and email (the Auth roster, same as
+ * listUsers()'s search) and returned as candidates — the caller (the
+ * createCase Server Action) requires exactly one match and shows a
+ * disambiguation error otherwise, never guesses.
+ */
+export async function findSupportCaseRequesterCandidates(raw: string): Promise<AdminProfile[]> {
+  const admin = createAdminClient();
+  const trimmed = raw.trim();
+  if (!trimmed) return [];
+
+  const authUsers = await authUserMap();
+
+  if (UUID_RE.test(trimmed)) {
+    const { data } = await admin.from("profiles").select("*").eq("id", trimmed).returns<Profile[]>();
+    return (data ?? []).map((p) => withEmail(p, authUsers));
+  }
+
+  const term = sanitizeSearchTerm(trimmed);
+  const emailMatchedIds = [...authUsers.entries()]
+    .filter(([, info]) => info.email?.toLowerCase().includes(trimmed.toLowerCase()))
+    .map(([id]) => id);
+
+  const orClauses: string[] = [];
+  if (term) {
+    const pattern = `%${term}%`;
+    orClauses.push(`first_name.ilike.${pattern}`, `last_name.ilike.${pattern}`);
+  }
+  if (emailMatchedIds.length) orClauses.push(`id.in.(${emailMatchedIds.join(",")})`);
+  if (!orClauses.length) return [];
+
+  const { data } = await admin.from("profiles").select("*").or(orClauses.join(",")).returns<Profile[]>();
+  return (data ?? []).map((p) => withEmail(p, authUsers));
+}
+
+// ---------- Support case notes ----------
+//
+// Read side of support_case_notes (see supabase/migrations/0026_support_cases.sql).
+// The write side (addCaseNote()) lives in src/app/admin/support/[id]/actions.ts,
+// same split as listReportNotes()/addReportNote().
+
+export type AdminSupportCaseNote = {
+  id: number;
+  case_id: number;
+  author_id: string;
+  author_role: StaffRole;
+  body: string;
+  created_at: string;
+};
+
+export type AdminSupportCaseNoteListItem = AdminSupportCaseNote & { author: AdminProfile | null };
+
+/** Every internal note on one case, newest first — scoped by the indexed
+ * (case_id, created_at) composite index, never a full-table read. Same
+ * shape as listReportNotes(). */
+export async function listSupportCaseNotes(caseId: number): Promise<AdminSupportCaseNoteListItem[]> {
+  const admin = createAdminClient();
+  const [{ data, error }, authUsers] = await Promise.all([
+    admin
+      .from("support_case_notes")
+      .select("*")
+      .eq("case_id", caseId)
+      .order("created_at", { ascending: false })
+      .returns<AdminSupportCaseNote[]>(),
+    authUserMap(),
+  ]);
+  if (error) throw new Error(`Failed to list support case notes: ${error.message}`);
+
+  const authorIds = [...new Set((data ?? []).map((n) => n.author_id))];
+  const { data: authorProfiles } = authorIds.length
+    ? await admin.from("profiles").select("*").in("id", authorIds).returns<Profile[]>()
+    : { data: [] as Profile[] };
+  const authorById = new Map((authorProfiles ?? []).map((p) => [p.id, p]));
+
+  return (data ?? []).map((note) => {
+    const authorProfile = authorById.get(note.author_id) ?? null;
+    return { ...note, author: authorProfile ? withEmail(authorProfile, authUsers) : null };
+  });
+}
+
+// ---------- Support case linked actions ----------
+//
+// Read side of support_case_linked_actions — a pure pointer table from a
+// case to an existing, already-authorized admin_audit_log row (see the
+// migration's file-header comment). The write side (linkCaseAction()) lives
+// in src/app/admin/support/[id]/actions.ts.
+
+export type AdminSupportCaseLinkedAction = {
+  id: number;
+  case_id: number;
+  audit_log_id: number;
+  linked_by: string;
+  note: string | null;
+  created_at: string;
+};
+
+export type AdminSupportCaseLinkedActionListItem = AdminSupportCaseLinkedAction & {
+  linkedByStaff: AdminProfile | null;
+  /** The actual admin_audit_log row this points at — null only if that row
+   * somehow no longer exists (audit_log_id has no ON DELETE CASCADE, since
+   * audit history is never deleted, but the type stays defensive). */
+  auditEntry: AdminAuditLogListItem | null;
+};
+
+export async function listSupportCaseLinkedActions(caseId: number): Promise<AdminSupportCaseLinkedActionListItem[]> {
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from("support_case_linked_actions")
+    .select("*")
+    .eq("case_id", caseId)
+    .order("created_at", { ascending: false })
+    .returns<AdminSupportCaseLinkedAction[]>();
+  if (error) throw new Error(`Failed to list support case linked actions: ${error.message}`);
+  const links = data ?? [];
+  if (links.length === 0) return [];
+
+  const auditLogIds = [...new Set(links.map((l) => l.audit_log_id))];
+  const [{ data: auditRows }, authUsers] = await Promise.all([
+    admin.from("admin_audit_log").select("*").in("id", auditLogIds).returns<AdminAuditLogEntry[]>(),
+    authUserMap(),
+  ]);
+
+  const peopleIds = [...new Set([...links.map((l) => l.linked_by), ...(auditRows ?? []).map((a) => a.actor_id)])];
+  const { data: peopleProfiles } = peopleIds.length
+    ? await admin.from("profiles").select("*").in("id", peopleIds).returns<Profile[]>()
+    : { data: [] as Profile[] };
+  const profileById = new Map((peopleProfiles ?? []).map((p) => [p.id, p]));
+  const auditById = new Map((auditRows ?? []).map((a) => [a.id, a]));
+
+  return links.map((link) => {
+    const linkedByProfile = profileById.get(link.linked_by) ?? null;
+    const auditRow = auditById.get(link.audit_log_id) ?? null;
+    const actorProfile = auditRow ? profileById.get(auditRow.actor_id) ?? null : null;
+    return {
+      ...link,
+      linkedByStaff: linkedByProfile ? withEmail(linkedByProfile, authUsers) : null,
+      auditEntry: auditRow ? { ...auditRow, actor: actorProfile ? withEmail(actorProfile, authUsers) : null } : null,
+    };
+  });
+}
+
+export type AdminSupportCaseDetail = {
+  case: AdminSupportCase;
+  requester: AdminProfile | null;
+  assignedStaff: AdminProfile | null;
+  resolvedByStaff: AdminProfile | null;
+  linkedTarget: AdminSupportCaseLinkedTargetSummary | null;
+  notes: AdminSupportCaseNoteListItem[];
+  linkedActions: AdminSupportCaseLinkedActionListItem[];
+  /** This case's own event timeline: every support_case.* admin_audit_log
+   * entry recorded against it (created, claimed, status/priority changed,
+   * resolved, closed, reopened, note added, action linked), oldest first so
+   * it reads top-to-bottom like a real timeline. Reuses listAuditLog()
+   * rather than a second, parallel history table — see the migration's
+   * file-header comment. Bounded to AUDIT_LOG_PAGE_SIZE (50), same as
+   * getListingDetail()'s moderationHistory — plenty for one case's history. */
+  timeline: AdminAuditLogListItem[];
+  /** The requester's own account moderation history (suspend/reinstate/
+   * note_added, etc.) — powers the "link an action to this case" picker's
+   * account-side candidates, and lets staff see what's already been done to
+   * this member without leaving the case. linkCaseAction() re-verifies any
+   * submitted id belongs here (or to linkedTargetHistory below) server-side,
+   * never trusting the form alone — same discipline as resolveReport()'s
+   * linkedActionId check. */
+  requesterAccountHistory: AdminAuditLogListItem[];
+  /** This case's own linked target's moderation/action history (e.g. an
+   * order's refund history) — empty when the case has no linked target, or
+   * the target type isn't an auditable one (conversation isn't — see
+   * AUDIT_TARGET_TYPES). The other half of the link-action picker's
+   * candidates. */
+  linkedTargetHistory: AdminAuditLogListItem[];
+};
+
+export async function getSupportCaseDetail(id: number): Promise<AdminSupportCaseDetail | null> {
+  const admin = createAdminClient();
+  const { data: caseRow, error } = await admin
+    .from("support_cases")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle<AdminSupportCase>();
+  if (error) throw new Error(`Failed to load support case: ${error.message}`);
+  if (!caseRow) return null;
+
+  const isAuditableLinkedTarget =
+    caseRow.linked_target_type != null &&
+    (AUDIT_TARGET_TYPES as readonly string[]).includes(caseRow.linked_target_type);
+
+  const [authUsers, linkedTargetSummaries, notes, linkedActions, timelinePage, requesterHistoryPage, linkedTargetHistoryPage] =
+    await Promise.all([
+      authUserMap(),
+      resolveLinkedTargetSummaries(admin, [caseRow]),
+      listSupportCaseNotes(caseRow.id),
+      listSupportCaseLinkedActions(caseRow.id),
+      listAuditLog({ targetType: "support_case", targetId: String(caseRow.id) }, 1),
+      listAuditLog({ targetType: "user", targetId: caseRow.requester_id }, 1),
+      isAuditableLinkedTarget
+        ? listAuditLog({ targetType: caseRow.linked_target_type!, targetId: caseRow.linked_target_id! }, 1)
+        : Promise.resolve({ rows: [], total: 0, page: 1, pageSize: AUDIT_LOG_PAGE_SIZE } as AuditLogPage),
+    ]);
+
+  const peopleIds = [
+    ...new Set(
+      [caseRow.requester_id, caseRow.assigned_admin, caseRow.resolved_by].filter((id): id is string => !!id)
+    ),
+  ];
+  const { data: peopleProfiles } = peopleIds.length
+    ? await admin.from("profiles").select("*").in("id", peopleIds).returns<Profile[]>()
+    : { data: [] as Profile[] };
+  const profileById = new Map((peopleProfiles ?? []).map((p) => [p.id, p]));
+
+  const requesterProfile = profileById.get(caseRow.requester_id) ?? null;
+  const assignedProfile = caseRow.assigned_admin ? profileById.get(caseRow.assigned_admin) ?? null : null;
+  const resolvedByProfile = caseRow.resolved_by ? profileById.get(caseRow.resolved_by) ?? null : null;
+
+  return {
+    case: caseRow,
+    requester: requesterProfile ? withEmail(requesterProfile, authUsers) : null,
+    assignedStaff: assignedProfile ? withEmail(assignedProfile, authUsers) : null,
+    resolvedByStaff: resolvedByProfile ? withEmail(resolvedByProfile, authUsers) : null,
+    linkedTarget:
+      caseRow.linked_target_type && caseRow.linked_target_id
+        ? linkedTargetSummaries.get(`${caseRow.linked_target_type}:${caseRow.linked_target_id}`) ?? null
+        : null,
+    notes,
+    linkedActions,
+    timeline: [...timelinePage.rows].reverse(),
+    requesterAccountHistory: requesterHistoryPage.rows,
+    linkedTargetHistory: linkedTargetHistoryPage.rows,
   };
 }
 

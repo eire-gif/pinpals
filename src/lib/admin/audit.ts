@@ -74,6 +74,23 @@ export const ADMIN_ACTIONS = [
   // messages.body, only the hidden_at/hidden_by/hidden_reason flag.
   "message.hidden",
   "message.restored",
+  // /admin/support — a lightweight support-case system (see
+  // supabase/migrations/0026_support_cases.sql). Case triage isn't a
+  // destructive action (any active staff role may perform all of these —
+  // see src/lib/admin/support-cases.ts), but every one is still audited the
+  // same as every other admin mutation in this app.
+  "support_case.created",
+  "support_case.claimed",
+  "support_case.status_changed",
+  "support_case.resolved",
+  "support_case.closed",
+  "support_case.reopened",
+  "support_case.note_added",
+  // Staff pointing this case at an existing, already-authorized
+  // admin_audit_log entry (a suspension, a refund, a listing takedown) —
+  // never a new mutation of its own, just the pointer (see
+  // support_case_linked_actions in 0026_support_cases.sql).
+  "support_case.action_linked",
 ] as const;
 export type AdminAction = (typeof ADMIN_ACTIONS)[number];
 
@@ -101,6 +118,7 @@ export const AUDIT_TARGET_TYPES = [
   // targetId = message id) — see src/app/admin/reports/[id]/actions.ts.
   "conversation",
   "message",
+  "support_case",
 ] as const;
 export type AuditTargetType = (typeof AUDIT_TARGET_TYPES)[number];
 
