@@ -10,6 +10,16 @@ type ConversationRow = Conversation & {
   user_b: ConversationParticipant | null;
 };
 
+// Bounded — a member could in principle have started a conversation with
+// every other member on the site, and this page has no "load more" of its
+// own yet, so a hard cap keeps it a single indexed range scan (see
+// conversations_user_a_idx/conversations_user_b_idx/conversations_last_message_at_idx
+// in 0025_messaging.sql) instead of an unbounded fetch that grows with a
+// member's own social graph. Most recently active conversation first, so
+// the cap only ever drops the conversations someone is least likely to be
+// looking for right now.
+const CONVERSATIONS_LIST_LIMIT = 50;
+
 export default async function ConversationsPage() {
   const supabase = await createClient();
   const {
@@ -23,6 +33,7 @@ export default async function ConversationsPage() {
     .or(`user_a_id.eq.${user.id},user_b_id.eq.${user.id}`)
     .order("last_message_at", { ascending: false, nullsFirst: false })
     .order("created_at", { ascending: false })
+    .limit(CONVERSATIONS_LIST_LIMIT)
     .returns<ConversationRow[]>();
 
   const conversations = rows ?? [];
