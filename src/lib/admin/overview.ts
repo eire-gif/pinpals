@@ -46,12 +46,6 @@ export const UNAVAILABLE_METRICS: UnavailableMetric[] = [
     financeOnly: false,
   },
   {
-    key: "unresolved_support_cases",
-    label: "Unresolved support cases",
-    reason: "No support-ticket system exists yet.",
-    financeOnly: false,
-  },
-  {
     key: "orders_needing_attention",
     label: "Orders needing attention",
     reason: "No orders table exists yet — the marketplace is offer-negotiation only, with no payment step.",

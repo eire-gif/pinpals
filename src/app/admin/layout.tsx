@@ -30,6 +30,9 @@ const NAV_ITEMS: { href: string; label: string; enabled?: boolean; roles?: reado
   { href: "/admin/webhook-events", label: "Webhook events", enabled: true, roles: FINANCE_ROLES },
   { href: "/admin/clubs", label: "Clubs" },
   { href: "/admin/reports", label: "Reports", enabled: true },
+  // No `roles` restriction — any active staff role may work a case (see
+  // src/lib/admin/support-cases.ts's file-header comment).
+  { href: "/admin/support", label: "Support cases", enabled: true },
   { href: "/admin/settings", label: "Settings" },
   { href: "/admin/audit-log", label: "Audit log", enabled: true, roles: ["super_admin"] },
 ];
