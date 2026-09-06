@@ -1,13 +1,17 @@
 // ============ MARKETPLACE FOUNDATION — DEVELOPMENT FIXTURE ============
 // Temporary, database-free stand-in for `listings`/`profiles` reads so the
-// new marketplace routes (src/app/marketplace/**) can be built, reviewed and
-// signed off on visually before the phase that reconnects them to Supabase.
+// new marketplace preview routes (src/app/marketplace-preview/**) can be
+// built, reviewed and signed off on visually before the phase that
+// reconnects them to Supabase. These are isolated preview routes, not
+// linked from primary navigation — the real, database-backed
+// src/app/marketplace/** routes (including src/app/marketplace/[id]/*'s
+// offer/bidding flow) are untouched and remain live at their existing URLs.
 //
 // Deliberately NOT wired to any table: no Supabase client is imported here,
 // nothing here can read or write `public.listings`/`public.offers`, and the
 // real bidding flow (offers, accept/decline, order creation — see
-// src/app/marketplace/[id]/actions.ts on the `main` branch prior to this
-// phase) has no equivalent here on purpose. When the database phase lands,
+// src/app/marketplace/[id]/actions.ts, still live on this branch) has no
+// equivalent here on purpose. When the database phase lands,
 // this file's exported functions (`listMockListings`/`getMockListingBySlug`)
 // are the seam to replace with real Supabase queries — the page components
 // that call them shouldn't need to change shape, only their data source.
