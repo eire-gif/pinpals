@@ -24,3 +24,49 @@ jobs:
         run: npm run lint
       - name: Production build
         run: npm run build
+
+  rls-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # There's no hosted Supabase branching on this project's plan to test
+    # schema/RLS changes against safely, so this replays every migration
+    # (plus a local-only bootstrap of Supabase's platform schema — roles,
+    # auth.users, auth.uid(), storage) into a plain Postgres service
+    # container and runs the RLS policy test suite against it. See
+    # supabase/tests/rls/replay-migrations.sh for the full explanation.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      RLS_TEST_DB: pinpals_rls_test
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Install psql client
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends postgresql-client
+      - name: Replay migrations into a throwaway database
+        run: npm run test:rls:replay
+      - name: Run RLS policy tests
+        run: npm run test:rls
