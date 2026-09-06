@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireStaff } from "@/lib/admin/authorization";
 import { getSupportCaseDetail } from "@/lib/admin/queries";
+import { canSeeFinanceMetrics } from "@/lib/admin/overview";
 import { ROLE_LABELS } from "@/lib/admin/roles";
 import { formatDateTime } from "@/lib/admin/format";
 import {
@@ -34,7 +35,9 @@ export default async function AdminSupportCaseDetailPage({
   const caseId = Number(id);
   if (!caseId || Number.isNaN(caseId)) notFound();
 
-  const detail = await getSupportCaseDetail(caseId);
+  // See resolveLinkedTargetSummaries()'s comment — masks the linked order's
+  // listing_title (finance transaction data) from non-finance staff roles.
+  const detail = await getSupportCaseDetail(caseId, canSeeFinanceMetrics(staff));
   if (!detail) notFound();
 
   const {

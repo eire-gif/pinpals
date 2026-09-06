@@ -5,9 +5,16 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { computeOfferTotal } from "@/lib/marketplace";
+import { checkRateLimit, rateLimitMessage } from "@/lib/rate-limit";
 import type { Listing, Offer } from "@/lib/types";
 
 export type OfferFormState = { error?: string; success?: boolean };
+
+// By user id — generous enough for genuine back-and-forth negotiation
+// across several listings, tight enough to blunt a scripted offer-spam loop
+// against sellers.
+const MAKE_OFFER_MAX_ATTEMPTS = 20;
+const MAKE_OFFER_WINDOW_SECONDS = 60 * 60;
 
 export async function makeOffer(
   listingId: number,
@@ -21,6 +28,16 @@ export async function makeOffer(
 
   if (!user) {
     redirect("/login");
+  }
+
+  const rateLimit = await checkRateLimit({
+    action: "make-offer",
+    identifier: user.id,
+    maxHits: MAKE_OFFER_MAX_ATTEMPTS,
+    windowSeconds: MAKE_OFFER_WINDOW_SECONDS,
+  });
+  if (!rateLimit.allowed) {
+    return { error: rateLimitMessage(rateLimit.retryAfterSeconds) };
   }
 
   const amount = Number(formData.get("amount"));
@@ -64,6 +81,24 @@ export async function respondToOffer(
     supabase.from("offers").select("*").eq("id", offerId).maybeSingle<Offer>(),
     supabase.from("listings").select("*").eq("id", listingId).maybeSingle<Listing>(),
   ]);
+
+  // Security-critical cross-check (IDOR guard): offerId and listingId are
+  // two independent client-supplied ids — offers-list.tsx always passes a
+  // matching pair, but nothing on the wire enforces that, and a caller could
+  // invoke this Server Action directly with an offerId belonging to a
+  // DIFFERENT listing the same seller also owns. Without this check, a
+  // seller who owns listings A and D could accept the real offer on D while
+  // supplying A's listingId: the offers RLS policy still lets the update
+  // through (only requires being the offer's own listing's seller), but
+  // every step below — reserving the listing, declining its other offers,
+  // and snapshotting an `orders` row — would then operate on the WRONG
+  // listing, fabricating a paid order against A for D's actual buyer while
+  // leaving D itself corrupted (never reserved, no order created). Checked
+  // before any write happens, not just before the order insert, so a
+  // mismatched pair fails closed instead of partially applying.
+  if (!offerBefore || !listingBefore || offerBefore.listing_id !== listingId) {
+    return { error: "That offer no longer matches this listing — refresh and try again." };
+  }
 
   const { error } = await supabase
     .from("offers")

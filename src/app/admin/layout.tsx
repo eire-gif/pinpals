@@ -5,6 +5,15 @@ import { ROLE_LABELS, type StaffRole } from "@/lib/admin/roles";
 import { FINANCE_ROLES } from "@/lib/admin/finance";
 import SignOutButton from "@/components/sign-out-button";
 
+// Belt-and-braces alongside proxy.ts's Cache-Control header: every /admin
+// page already renders dynamically in practice (requireStaff() reads
+// cookies on every request), but that's implicit — nothing stops a future
+// page from being written in a way that no longer triggers it. This makes
+// the requirement explicit at the layout level so the whole /admin subtree
+// fails safe (a build/type error pointing here) rather than silently
+// starting to prerender private admin data if that ever changes.
+export const dynamic = "force-dynamic";
+
 // Placeholders for later phases — deliberately not linked to real pages yet.
 // Keeping the full nav visible (disabled) from day one so the shape of the
 // console is clear before each section is built. Users/Listings/Tee-times

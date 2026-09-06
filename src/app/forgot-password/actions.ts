@@ -1,13 +1,30 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { checkRateLimit, rateLimitMessage } from "@/lib/rate-limit";
 
 export type ForgotPasswordState = { error?: string; success?: boolean };
+
+// By IP: this endpoint sends real email, so an unlimited caller can be used
+// to spam/harass arbitrary inboxes even without ever learning which emails
+// have accounts (the response is deliberately the same either way — see
+// the comment at the bottom of this function).
+const FORGOT_PASSWORD_MAX_ATTEMPTS = 5;
+const FORGOT_PASSWORD_WINDOW_SECONDS = 60 * 60;
 
 export async function requestPasswordReset(
   _prev: ForgotPasswordState,
   formData: FormData
 ): Promise<ForgotPasswordState> {
+  const rateLimit = await checkRateLimit({
+    action: "forgot-password",
+    maxHits: FORGOT_PASSWORD_MAX_ATTEMPTS,
+    windowSeconds: FORGOT_PASSWORD_WINDOW_SECONDS,
+  });
+  if (!rateLimit.allowed) {
+    return { error: rateLimitMessage(rateLimit.retryAfterSeconds) };
+  }
+
   const email = String(formData.get("email") || "").trim();
 
   if (!email) {

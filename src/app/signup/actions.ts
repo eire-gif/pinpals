@@ -1,10 +1,25 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { checkRateLimit, rateLimitMessage } from "@/lib/rate-limit";
 
 export type SignUpState = { error?: string; success?: boolean };
 
+// By IP: signup itself is the abuse surface here (mass account creation),
+// not any single email address.
+const SIGNUP_MAX_ATTEMPTS = 5;
+const SIGNUP_WINDOW_SECONDS = 60 * 60;
+
 export async function signUp(_prev: SignUpState, formData: FormData): Promise<SignUpState> {
+  const rateLimit = await checkRateLimit({
+    action: "signup",
+    maxHits: SIGNUP_MAX_ATTEMPTS,
+    windowSeconds: SIGNUP_WINDOW_SECONDS,
+  });
+  if (!rateLimit.allowed) {
+    return { error: rateLimitMessage(rateLimit.retryAfterSeconds) };
+  }
+
   const firstName = String(formData.get("first") || "").trim();
   const lastName = String(formData.get("last") || "").trim();
   const email = String(formData.get("email") || "").trim();
