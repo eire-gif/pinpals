@@ -2,8 +2,15 @@
 
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { checkRateLimit, rateLimitMessage } from "@/lib/rate-limit";
 
 export type ResetPasswordState = { error?: string };
+
+// By user id, not IP: this action only ever runs for an already-established
+// recovery session, so a real user id is always available and is the more
+// precise key.
+const RESET_PASSWORD_MAX_ATTEMPTS = 10;
+const RESET_PASSWORD_WINDOW_SECONDS = 60 * 60;
 
 export async function updatePassword(
   _prev: ResetPasswordState,
@@ -33,6 +40,16 @@ export async function updatePassword(
       error:
         "This reset link has expired or isn't valid anymore. Please request a new one from the Forgot password page.",
     };
+  }
+
+  const rateLimit = await checkRateLimit({
+    action: "reset-password",
+    identifier: user.id,
+    maxHits: RESET_PASSWORD_MAX_ATTEMPTS,
+    windowSeconds: RESET_PASSWORD_WINDOW_SECONDS,
+  });
+  if (!rateLimit.allowed) {
+    return { error: rateLimitMessage(rateLimit.retryAfterSeconds) };
   }
 
   const { error } = await supabase.auth.updateUser({ password });

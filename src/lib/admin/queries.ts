@@ -1386,7 +1386,17 @@ export function buildSupportCaseSearchOrFilter(query: string, requesterMatchedId
  */
 async function resolveLinkedTargetSummaries(
   admin: ReturnType<typeof createAdminClient>,
-  rows: { linked_target_type: SupportCaseLinkedTargetType | null; linked_target_id: string | null }[]
+  rows: { linked_target_type: SupportCaseLinkedTargetType | null; linked_target_id: string | null }[],
+  // Security-scoping, not a UX nicety: an order-linked case's label embeds
+  // orders.listing_title, which is finance transaction data — the same data
+  // clicking through to /admin/orders/[id] already 404s on for a non-finance
+  // staff role (support/moderator). Without this, the label on THIS list/
+  // detail view still showed the title to every active staff role, since
+  // neither caller used to pass any role context through at all. false masks
+  // it down to a bare "Order #<id>" so a non-finance viewer learns nothing
+  // more than "this case references some order" — still enough to triage
+  // the case itself, never the transaction it's about.
+  includeFinanceDetail: boolean
 ): Promise<Map<string, AdminSupportCaseLinkedTargetSummary>> {
   const key = (type: string, id: string) => `${type}:${id}`;
   const summaries = new Map<string, AdminSupportCaseLinkedTargetSummary>();
@@ -1452,7 +1462,11 @@ async function resolveLinkedTargetSummaries(
       summaries.set(
         k,
         o
-          ? { type: "order", label: `Order #${o.id} — ${o.listing_title}`, href: `/admin/orders/${row.linked_target_id}` }
+          ? {
+              type: "order",
+              label: includeFinanceDetail ? `Order #${o.id} — ${o.listing_title}` : `Order #${o.id}`,
+              href: `/admin/orders/${row.linked_target_id}`,
+            }
           : { type: "order", label: `Order #${row.linked_target_id} no longer exists`, href: null }
       );
     } else if (row.linked_target_type === "listing") {
@@ -1500,7 +1514,10 @@ async function resolveLinkedTargetSummaries(
 export async function listSupportCases(
   query = "",
   filters: AdminSupportCaseFilters = {},
-  page = 1
+  page = 1,
+  // See resolveLinkedTargetSummaries()'s own comment — defaults to false
+  // (mask) so a caller that forgets to pass it fails closed, not open.
+  includeFinanceDetail = false
 ): Promise<AdminSupportCasePage> {
   const admin = createAdminClient();
   const safePage = Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
@@ -1564,7 +1581,7 @@ export async function listSupportCases(
 
   const [authUsers, linkedTargetSummaries] = await Promise.all([
     authUserMap(),
-    resolveLinkedTargetSummaries(admin, rows),
+    resolveLinkedTargetSummaries(admin, rows, includeFinanceDetail),
   ]);
 
   const peopleIds = [
@@ -1787,7 +1804,12 @@ export type AdminSupportCaseDetail = {
   linkedTargetHistory: AdminAuditLogListItem[];
 };
 
-export async function getSupportCaseDetail(id: number): Promise<AdminSupportCaseDetail | null> {
+export async function getSupportCaseDetail(
+  id: number,
+  // See resolveLinkedTargetSummaries()'s own comment — defaults to false
+  // (mask) so a caller that forgets to pass it fails closed, not open.
+  includeFinanceDetail = false
+): Promise<AdminSupportCaseDetail | null> {
   const admin = createAdminClient();
   const { data: caseRow, error } = await admin
     .from("support_cases")
@@ -1804,7 +1826,7 @@ export async function getSupportCaseDetail(id: number): Promise<AdminSupportCase
   const [authUsers, linkedTargetSummaries, notes, linkedActions, timelinePage, requesterHistoryPage, linkedTargetHistoryPage] =
     await Promise.all([
       authUserMap(),
-      resolveLinkedTargetSummaries(admin, [caseRow]),
+      resolveLinkedTargetSummaries(admin, [caseRow], includeFinanceDetail),
       listSupportCaseNotes(caseRow.id),
       listSupportCaseLinkedActions(caseRow.id),
       listAuditLog({ targetType: "support_case", targetId: String(caseRow.id) }),

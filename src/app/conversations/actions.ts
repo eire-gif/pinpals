@@ -6,9 +6,19 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { MESSAGE_MAX_LENGTH, MESSAGES_PAGE_SIZE, buildMessagesCursorFilter, nextMessagesCursor, type MessagesCursor } from "@/lib/messaging";
 import { REPORT_CATEGORIES, type ReportCategory } from "@/lib/admin/reports";
+import { checkRateLimit, rateLimitMessage } from "@/lib/rate-limit";
 import type { Conversation, Message } from "@/lib/types";
 
 export type MessageActionState = { error?: string; success?: boolean };
+
+// By user id (both actions require an authenticated participant already).
+// Messages: generous enough for real back-and-forth conversation, tight
+// enough to blunt a scripted spam loop. Reports: the moderation queue is a
+// shared, limited-staff resource — a much lower ceiling than messages.
+const SEND_MESSAGE_MAX_ATTEMPTS = 30;
+const SEND_MESSAGE_WINDOW_SECONDS = 5 * 60;
+const REPORT_CONVERSATION_MAX_ATTEMPTS = 10;
+const REPORT_CONVERSATION_WINDOW_SECONDS = 60 * 60;
 
 function refreshThread(conversationId: number) {
   revalidatePath(`/conversations/${conversationId}`);
@@ -111,6 +121,16 @@ export async function sendMessage(conversationId: number, _prev: MessageActionSt
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
+  const rateLimit = await checkRateLimit({
+    action: "send-message",
+    identifier: user.id,
+    maxHits: SEND_MESSAGE_MAX_ATTEMPTS,
+    windowSeconds: SEND_MESSAGE_WINDOW_SECONDS,
+  });
+  if (!rateLimit.allowed) {
+    return { error: rateLimitMessage(rateLimit.retryAfterSeconds) };
+  }
+
   const body = String(formData.get("body") ?? "").trim();
   if (!body) return { error: "Message can't be empty." };
   if (body.length > MESSAGE_MAX_LENGTH) return { error: `Messages are limited to ${MESSAGE_MAX_LENGTH} characters.` };
@@ -141,6 +161,16 @@ export async function reportConversation(conversationId: number, _prev: MessageA
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
+
+  const rateLimit = await checkRateLimit({
+    action: "report-conversation",
+    identifier: user.id,
+    maxHits: REPORT_CONVERSATION_MAX_ATTEMPTS,
+    windowSeconds: REPORT_CONVERSATION_WINDOW_SECONDS,
+  });
+  if (!rateLimit.allowed) {
+    return { error: rateLimitMessage(rateLimit.retryAfterSeconds) };
+  }
 
   const category = String(formData.get("category") ?? "") as ReportCategory;
   const description = String(formData.get("description") ?? "").trim();

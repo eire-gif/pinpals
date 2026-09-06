@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requireStaff } from "@/lib/admin/authorization";
 import { listSupportCases } from "@/lib/admin/queries";
+import { canSeeFinanceMetrics } from "@/lib/admin/overview";
 import { formatDateTime } from "@/lib/admin/format";
 import {
   SUPPORT_CASE_CATEGORIES,
@@ -31,13 +32,19 @@ export default async function AdminSupportCasesPage({
     page?: string;
   }>;
 }) {
-  const { user } = await requireStaff();
+  const { user, staff } = await requireStaff();
   const { q = "", status = "", priority = "", category = "", assigned = "", page: pageParam } = await searchParams;
   const page = Math.max(1, Number.parseInt(pageParam ?? "1", 10) || 1);
 
   // "mine" resolves against the signed-in staff member's own id here, on the
   // server, rather than the client ever having to know or submit it.
   const assignedFilter = assigned === "mine" ? user.id : assigned || undefined;
+
+  // Support/moderator staff can triage a case linked to an order, but the
+  // order's own listing_title is finance transaction data — masked for
+  // anyone outside FINANCE_ROLES, same gate as the /admin overview page's
+  // finance metrics. See resolveLinkedTargetSummaries()'s comment.
+  const includeFinanceDetail = canSeeFinanceMetrics(staff);
 
   const { rows: cases, total, pageSize } = await listSupportCases(
     q,
@@ -47,7 +54,8 @@ export default async function AdminSupportCasesPage({
       category: (category as SupportCaseCategory) || undefined,
       assignedAdmin: assignedFilter,
     },
-    page
+    page,
+    includeFinanceDetail
   );
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const hasFilters = Boolean(q || status || priority || category || assigned);
