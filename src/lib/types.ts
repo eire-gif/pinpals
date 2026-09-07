@@ -34,6 +34,26 @@ export type SaleType = "fixed_price" | "offers_allowed" | "auction" | "auction_w
 
 export type DeliveryOption = "post" | "collection";
 
+// See supabase/migrations/0050_marketplace_checkout.sql. A buyer's own saved
+// delivery address — own-row-only visibility (plus staff), never joined
+// live into an order (an order snapshots a formatted copy into its own
+// delivery_detail instead, same "never rewrite history" discipline as every
+// other order snapshot column, 0019).
+export type Address = {
+  id: number;
+  user_id: string;
+  label: string;
+  recipient_name: string;
+  line1: string;
+  line2: string | null;
+  city: string;
+  county: string | null;
+  eircode: string | null;
+  phone: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type Listing = {
   id: number;
   seller_id: string;
@@ -239,10 +259,13 @@ export type ConnectionWithProfiles = Connection & {
 };
 
 // ============ ORDERS ============
-// See supabase/migrations/0019_orders.sql. Created by buyNow() directly, or
-// by offer_action()'s (0048_marketplace_offer_workflow.sql) shared accept
-// path — called from offerAction() (src/app/marketplace/[id]/actions.ts) —
-// one row per completed purchase or accepted offer. listing_title/category/
+// See supabase/migrations/0019_orders.sql. Created by create_purchase_order()
+// (0050_marketplace_checkout.sql, called from submitBuyNowCheckout() —
+// src/app/marketplace/[id]/checkout/actions.ts) for a Buy Now purchase, or by
+// offer_action()'s (0048_marketplace_offer_workflow.sql) shared accept path —
+// called from offerAction() (src/app/marketplace/[id]/actions.ts) — for an
+// accepted private offer. One row per completed purchase or accepted offer.
+// listing_title/category/
 // condition/image_url are a SNAPSHOT taken at that moment — never re-read
 // from `listings`, so a later listing edit (or removal) never rewrites a
 // historical order.
@@ -294,6 +317,12 @@ export type Order = {
    * nothing else — a paid order simply stops being swept because its status
    * is no longer 'pending'. */
   reservation_expires_at: string | null;
+  /** Set once this order's delivery method/address/total are finalized —
+   * see supabase/migrations/0050_marketplace_checkout.sql's own comment on
+   * why a Buy Now order gets this at creation while an accepted-offer order
+   * only gets it after a later finalize_offer_checkout() call. Null means
+   * the buyer still needs to visit the checkout page before paying. */
+  checkout_completed_at: string | null;
   completed_at: string | null;
   cancelled_at: string | null;
   refunded_at: string | null;

@@ -47,7 +47,7 @@ export default function PurchasePanel({
    * variant carries no price of its own. */
   priceEur: number | null;
   myOffers: Offer[];
-  myOrder: Pick<Order, "id" | "reservation_expires_at" | "status"> | null;
+  myOrder: Pick<Order, "id" | "reservation_expires_at" | "status" | "checkout_completed_at"> | null;
 }) {
   const minAmount = centsToEur(MIN_OFFER_AMOUNT_CENTS);
   const myAcceptedOffer = myOffers.find((o) => o.status === "accepted") ?? null;
