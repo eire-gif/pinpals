@@ -14,6 +14,7 @@ import {
   DEFAULT_CHECKOUT_WINDOW_MINUTES,
 } from "@/lib/marketplace";
 import { checkRateLimit, rateLimitMessage } from "@/lib/rate-limit";
+import { linkConversationToOrder } from "@/lib/conversations-server";
 import { sellerOnboardingStatus, isSellerPaymentReady } from "@/lib/stripe/connect";
 import { REPORT_CATEGORIES, type ReportCategory } from "@/lib/admin/reports";
 import type { Listing, Offer, Auction, Order, StripeConnectedAccount } from "@/lib/types";
@@ -336,6 +337,28 @@ export async function offerAction(
     return { error: message };
   }
 
+  // Best-effort conversation<->order link (see src/lib/conversations-server.ts) —
+  // offer_action() creates the order atomically inside its own transaction
+  // and returns the offer row, not the order, so this looks the resulting
+  // order back up by offer_id rather than threading a new return value
+  // through an already-shipped, tested RPC for this one, non-blocking
+  // follow-up write.
+  if (action === "accept") {
+    const { data: order } = await admin
+      .from("orders")
+      .select("id, buyer_id, seller_id")
+      .eq("offer_id", offerId)
+      .maybeSingle<Pick<Order, "id" | "buyer_id" | "seller_id">>();
+    if (order) {
+      await linkConversationToOrder({
+        listingId,
+        buyerId: order.buyer_id,
+        sellerId: order.seller_id,
+        orderId: order.id,
+      });
+    }
+  }
+
   revalidatePath(`/marketplace/${listingId}`);
   revalidatePath("/marketplace");
   revalidatePath("/dashboard/orders");
@@ -518,6 +541,11 @@ export async function buyNow(listingId: number): Promise<BuyNowState> {
     }
     orderId = order.id;
   }
+
+  // Best-effort conversation<->order link — see linkConversationToOrder()'s
+  // own comment (src/lib/conversations-server.ts) for why this never blocks
+  // or fails the purchase itself.
+  await linkConversationToOrder({ listingId, buyerId: user.id, sellerId: listing.seller_id, orderId });
 
   revalidatePath(`/marketplace/${listingId}`);
   revalidatePath("/marketplace");

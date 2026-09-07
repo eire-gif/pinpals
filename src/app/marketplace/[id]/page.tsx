@@ -317,6 +317,7 @@ export default async function ListingDetailPage({
             />
             <SellerCard
               sellerId={listing.seller_id}
+              listingId={listing.id}
               name={sellerName}
               homeClub={sellerProfile?.home_club ?? null}
               county={sellerProfile?.county ?? null}
@@ -358,6 +359,7 @@ export default async function ListingDetailPage({
             />
             <SellerCard
               sellerId={listing.seller_id}
+              listingId={listing.id}
               name={sellerName}
               homeClub={sellerProfile?.home_club ?? null}
               county={sellerProfile?.county ?? null}

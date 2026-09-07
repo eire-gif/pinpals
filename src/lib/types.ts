@@ -451,7 +451,38 @@ export type Conversation = {
   id: number;
   user_a_id: string;
   user_b_id: string;
+  /** Which listing this thread is about — null for a non-marketplace
+   * conversation (started via a connection or tee-time interest, 0025/0043).
+   * A pair may now have at most one listing-less conversation plus at most
+   * one conversation per distinct listing (0049's uniqueness change). */
+  listing_id: number | null;
+  /** Set once an order exists for this same buyer/seller/listing context —
+   * see linkConversationToOrder() in src/lib/conversations-server.ts. Never
+   * set by a client; `on delete set null` (0049), same drill-through-link
+   * convention as orders.listing_id. */
+  order_id: number | null;
+  /** Per-participant read cursor — "messages with created_at after this are
+   * unread for that side." Writable only by that side, and only this column
+   * plus its own archived_at (0049's prevent_conversation_tampering()). */
+  user_a_last_read_at: string | null;
+  user_b_last_read_at: string | null;
+  /** Per-participant archive state — hides the conversation from that
+   * side's default inbox view without affecting the other participant at
+   * all. Same column-per-side/self-service-only rule as the read cursors. */
+  user_a_archived_at: string | null;
+  user_b_archived_at: string | null;
   last_message_at: string | null;
+  created_at: string;
+};
+
+// See supabase/migrations/0049_marketplace_messaging.sql. Directional (a
+// blocking b doesn't imply the reverse) — RLS only ever lets a member read
+// their OWN block list (`blocker_id = auth.uid()`), never who has blocked
+// them, so this type is only ever populated from the blocker's own point of
+// view in the app.
+export type BlockedUser = {
+  blocker_id: string;
+  blocked_id: string;
   created_at: string;
 };
 

@@ -9,16 +9,20 @@ import { startConversation } from "@/app/conversations/actions";
  * on success — it's what a marketplace offer/negotiation is meant to route
  * through once eligibility is established (can_message(), see
  * supabase/migrations/0025_messaging.sql), so this is a thin client wrapper
- * around it rather than a second messaging entry point.
+ * around it rather than a second messaging entry point. Passing `listingId`
+ * is what makes this a marketplace conversation rather than a generic one —
+ * see 0049_marketplace_messaging.sql's listing-scoped uniqueness: the same
+ * buyer/seller pair gets a fresh thread per listing they message about,
+ * never merged into one catch-all conversation.
  */
-export default function MessageSellerButton({ sellerId }: { sellerId: string }) {
+export default function MessageSellerButton({ sellerId, listingId }: { sellerId: string; listingId: number }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
   function handleClick() {
     setError(null);
     startTransition(async () => {
-      const result = await startConversation(sellerId);
+      const result = await startConversation(sellerId, listingId);
       if (result?.error) setError(result.error);
     });
   }

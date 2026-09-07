@@ -22,7 +22,14 @@ export default function StartConversationButton({
   className?: string;
   label?: string;
 }) {
-  const action = startConversation.bind(null, otherUserId);
+  // A plain wrapper rather than startConversation.bind(null, otherUserId):
+  // startConversation now takes an optional second `listingId` param (see
+  // 0049_marketplace_messaging.sql), and bind's inferred remaining-params
+  // type no longer lines up with useActionState's own (state, payload)
+  // shape once that extra optional param exists.
+  async function action(_prevState: State): Promise<State> {
+    return startConversation(otherUserId);
+  }
   const [state, formAction, pending] = useActionState(action, initialState);
 
   return (
