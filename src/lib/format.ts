@@ -1,4 +1,5 @@
 import type { StripeConnectedAccount } from "./types";
+import type { SellerOnboardingStatus } from "./stripe/connect";
 
 export function initials(name: string): string {
   return name
@@ -17,6 +18,35 @@ export function formatPrice(eur: number): string {
     minimumFractionDigits: eur % 1 === 0 ? 0 : 2,
   }).format(eur);
 }
+
+/** "Joined March 2026" — deliberately month/year only, never the exact day,
+ * for the same reason a seller card shows a county rather than an address:
+ * enough for a buyer to gauge tenure, nothing more precise than that. */
+export function formatJoinedDate(iso: string): string {
+  return `Joined ${new Intl.DateTimeFormat("en-IE", { month: "long", year: "numeric" }).format(new Date(iso))}`;
+}
+
+// Labels/styles for SellerOnboardingStatus (src/lib/stripe/connect.ts) — the
+// seller-readiness page's badge vocabulary. Deliberately a separate map from
+// sellerAccountStatusLabel()/SELLER_ACCOUNT_STATUS_STYLES above: that pair
+// predates this five-value enum (phase 9) and /dashboard/payouts's existing
+// copy already depends on its exact strings, so this doesn't touch it —
+// same "narrow, additive change" discipline as everywhere else in this file.
+export const SELLER_ONBOARDING_STATUS_LABELS: Record<SellerOnboardingStatus, string> = {
+  not_started: "Not started",
+  requirements_due: "Action needed",
+  pending: "Under review",
+  enabled: "Ready to sell",
+  restricted: "Restricted",
+};
+
+export const SELLER_ONBOARDING_STATUS_STYLES: Record<SellerOnboardingStatus, string> = {
+  not_started: "bg-cream-100 text-ink-500",
+  requirements_due: "bg-gold-500/20 text-gold-700",
+  pending: "bg-cream-100 text-ink-900",
+  enabled: "bg-green-100 text-green-800",
+  restricted: "bg-red-100 text-red-600",
+};
 
 /**
  * A human-readable summary of a member's Stripe Connect payout readiness,

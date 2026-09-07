@@ -6,7 +6,85 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { computeOfferTotal } from "@/lib/marketplace";
 import { checkRateLimit, rateLimitMessage } from "@/lib/rate-limit";
-import type { Listing, Offer } from "@/lib/types";
+import { sellerOnboardingStatus, isSellerPaymentReady } from "@/lib/stripe/connect";
+import type { Listing, Offer, StripeConnectedAccount } from "@/lib/types";
+
+export type PublishListingState = { error?: string; success?: boolean };
+
+/**
+ * Moves a `draft` listing (see ../new/actions.ts's createListing()) to
+ * `active` once the seller is actually ready to be paid — the other half of
+ * the payment-readiness gate. Re-checks readiness here rather than trusting
+ * that the caller only shows this button when ready, since a Server Action
+ * is a public HTTP endpoint regardless of what the UI does or doesn't render.
+ *
+ * The actual status write goes through the service-role client on purpose:
+ * `validate_listing_status_transition()` (0045_marketplace_rls_hardening.sql)
+ * only allows a `draft -> active` transition for staff/service-role, not an
+ * ordinary seller updating their own row through RLS — this action IS that
+ * privileged, narrowly-scoped path, same pattern as respondToOffer() below
+ * inserting into `orders` via the admin client after re-verifying
+ * authorization itself, not inheriting it from a policy.
+ */
+export async function publishListing(listingId: number): Promise<PublishListingState> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/login");
+  }
+
+  const { data: listing } = await supabase
+    .from("listings")
+    .select("id, seller_id, status")
+    .eq("id", listingId)
+    .maybeSingle<Pick<Listing, "id" | "seller_id" | "status">>();
+
+  if (!listing || listing.seller_id !== user.id) {
+    return { error: "That listing couldn't be found." };
+  }
+  if (listing.status !== "draft") {
+    return { error: "Only a draft listing can be published." };
+  }
+
+  const { data: account } = await supabase
+    .from("stripe_connected_accounts")
+    .select("charges_enabled, payouts_enabled, details_submitted, requirements_currently_due, requirements_past_due, disabled_reason")
+    .eq("user_id", user.id)
+    .maybeSingle<
+      Pick<
+        StripeConnectedAccount,
+        | "charges_enabled"
+        | "payouts_enabled"
+        | "details_submitted"
+        | "requirements_currently_due"
+        | "requirements_past_due"
+        | "disabled_reason"
+      >
+    >();
+
+  if (!isSellerPaymentReady(sellerOnboardingStatus(account))) {
+    return { error: "Finish seller setup with Stripe before publishing — see Seller readiness in your dashboard." };
+  }
+
+  const admin = createAdminClient();
+  const { error } = await admin
+    .from("listings")
+    .update({ status: "active" })
+    .eq("id", listingId)
+    .eq("seller_id", user.id)
+    .eq("status", "draft");
+
+  if (error) {
+    return { error: "Couldn't publish that listing — please try again." };
+  }
+
+  revalidatePath(`/marketplace/${listingId}`);
+  revalidatePath("/marketplace");
+  return { success: true };
+}
 
 export type OfferFormState = { error?: string; success?: boolean };
 

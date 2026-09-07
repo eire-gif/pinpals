@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { formatPrice, initials, SELLER_ACCOUNT_STATUS_STYLES, sellerAccountStatusLabel } from "./format";
+import {
+  formatPrice,
+  formatJoinedDate,
+  initials,
+  SELLER_ACCOUNT_STATUS_STYLES,
+  sellerAccountStatusLabel,
+  SELLER_ONBOARDING_STATUS_LABELS,
+  SELLER_ONBOARDING_STATUS_STYLES,
+} from "./format";
+import type { SellerOnboardingStatus } from "./stripe/connect";
 
 describe("initials", () => {
   it("takes the first letter of each word, uppercased", () => {
@@ -113,6 +122,29 @@ describe("sellerAccountStatusLabel", () => {
     ];
     for (const label of possibleLabels) {
       expect(SELLER_ACCOUNT_STATUS_STYLES).toHaveProperty(label);
+    }
+  });
+});
+
+describe("formatJoinedDate", () => {
+  it("formats as month and year only, never the day", () => {
+    expect(formatJoinedDate("2026-03-14T09:00:00Z")).toBe("Joined March 2026");
+  });
+});
+
+describe("SELLER_ONBOARDING_STATUS_LABELS / STYLES", () => {
+  const statuses: SellerOnboardingStatus[] = [
+    "not_started",
+    "requirements_due",
+    "pending",
+    "enabled",
+    "restricted",
+  ];
+
+  it("has a label and a style for every SellerOnboardingStatus value", () => {
+    for (const status of statuses) {
+      expect(typeof SELLER_ONBOARDING_STATUS_LABELS[status]).toBe("string");
+      expect(typeof SELLER_ONBOARDING_STATUS_STYLES[status]).toBe("string");
     }
   });
 });

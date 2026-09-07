@@ -2,11 +2,13 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import type { Listing, Offer } from "@/lib/types";
+import type { Listing, Offer, StripeConnectedAccount } from "@/lib/types";
 import { formatPrice } from "@/lib/format";
+import { sellerOnboardingStatus, isSellerPaymentReady } from "@/lib/stripe/connect";
 import PriceSummary from "@/components/price-summary";
 import OfferForm from "./offer-form";
 import OffersList from "./offers-list";
+import PublishListingButton from "./publish-listing-button";
 
 export default async function ListingDetailPage({
   params,
@@ -31,6 +33,27 @@ export default async function ListingDetailPage({
   if (!listing) notFound();
 
   const isSeller = user?.id === listing.seller_id;
+  const isDraft = listing.status === "draft";
+
+  let paymentReady = false;
+  if (isSeller && isDraft) {
+    const { data: account } = await supabase
+      .from("stripe_connected_accounts")
+      .select("charges_enabled, payouts_enabled, details_submitted, requirements_currently_due, requirements_past_due, disabled_reason")
+      .eq("user_id", user!.id)
+      .maybeSingle<
+        Pick<
+          StripeConnectedAccount,
+          | "charges_enabled"
+          | "payouts_enabled"
+          | "details_submitted"
+          | "requirements_currently_due"
+          | "requirements_past_due"
+          | "disabled_reason"
+        >
+      >();
+    paymentReady = isSellerPaymentReady(sellerOnboardingStatus(account));
+  }
 
   let sellerOffers: Offer[] = [];
   let myOffer: Offer | null = null;
@@ -95,7 +118,11 @@ export default async function ListingDetailPage({
             )}
             {listing.status !== "active" && (
               <span className="bg-navy-900 text-white text-xs font-bold px-2.5 py-1 rounded-full">
-                {listing.status === "reserved" ? "Sale agreed" : listing.status}
+                {listing.status === "reserved"
+                  ? "Sale agreed"
+                  : listing.status === "draft"
+                    ? "Draft — not visible to buyers"
+                    : listing.status}
               </span>
             )}
           </div>
@@ -109,6 +136,27 @@ export default async function ListingDetailPage({
       <div className="mt-10 pt-8 border-t border-line">
         {isSeller ? (
           <>
+            {isDraft && (
+              <div className="bg-cream-100 rounded-xl p-5 mb-8 max-w-md">
+                <h2 className="font-display font-bold text-lg mb-2">This listing isn&apos;t live yet.</h2>
+                {paymentReady ? (
+                  <>
+                    <p className="text-sm text-ink-500 mb-4">
+                      You&apos;re all set up with Stripe — publish whenever you&apos;re ready.
+                    </p>
+                    <PublishListingButton listingId={listing.id} />
+                  </>
+                ) : (
+                  <p className="text-sm text-ink-500">
+                    Finish{" "}
+                    <Link href="/dashboard/payouts" className="font-bold text-green-700">
+                      seller setup
+                    </Link>{" "}
+                    with Stripe to publish it — buyers won&apos;t see this listing until then.
+                  </p>
+                )}
+              </div>
+            )}
             <h2 className="font-display font-bold text-xl mb-4">Offers on your listing</h2>
             <OffersList offers={sellerOffers} listingId={listing.id} />
           </>
