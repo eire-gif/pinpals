@@ -4,20 +4,12 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import {
-  computeOfferTotal,
-  eurToCents,
-  centsToEur,
-  auctionHasEnded,
-  listingUnavailableReason,
-  MIN_OFFER_AMOUNT_CENTS,
-  DEFAULT_CHECKOUT_WINDOW_MINUTES,
-} from "@/lib/marketplace";
+import { eurToCents, centsToEur, MIN_OFFER_AMOUNT_CENTS, DEFAULT_CHECKOUT_WINDOW_MINUTES } from "@/lib/marketplace";
 import { checkRateLimit, rateLimitMessage } from "@/lib/rate-limit";
 import { linkConversationToOrder } from "@/lib/conversations-server";
 import { sellerOnboardingStatus, isSellerPaymentReady } from "@/lib/stripe/connect";
 import { REPORT_CATEGORIES, type ReportCategory } from "@/lib/admin/reports";
-import type { Listing, Offer, Auction, Order, StripeConnectedAccount } from "@/lib/types";
+import type { Listing, Offer, Order, StripeConnectedAccount } from "@/lib/types";
 
 export type PublishListingState = { error?: string; success?: boolean };
 
@@ -316,9 +308,9 @@ export async function offerAction(
 
   // offer_action() is SECURITY DEFINER and revoked from anon/authenticated
   // (0048) — called only via the service-role client, exactly like
-  // createAdminClient() is already used for buyNow()'s/the old
-  // respondToOffer()'s own privileged writes. p_caller_id is this action's
-  // own re-verified session user, never trusted from the client, and
+  // create_purchase_order() (0050, ./checkout/actions.ts) uses the same
+  // client for its own privileged writes. p_caller_id is this action's own
+  // re-verified session user, never trusted from the client, and
   // offer_action() re-checks it again itself against the locked rows —
   // belt and suspenders, not a substitute for either layer.
   const admin = createAdminClient();
@@ -363,193 +355,6 @@ export async function offerAction(
   revalidatePath("/marketplace");
   revalidatePath("/dashboard/orders");
   return { success: true };
-}
-
-// ============ Listing detail page: Buy Now / Place Bid / Report ============
-
-export type BuyNowState = { error?: string };
-
-// By user id — a genuine buyer rarely hits this more than once or twice per
-// listing; this is sized to blunt a scripted attempt to hammer the atomic
-// claim below, not to constrain ordinary use.
-const BUY_NOW_MAX_ATTEMPTS = 10;
-const BUY_NOW_WINDOW_SECONDS = 60 * 60;
-
-/**
- * The buyer-initiated purchase path for a `fixed_price`/`offers_allowed`
- * listing, and for the Buy It Now price on an `auction_with_buy_now`
- * listing (which also ends the auction). This is the one Server Action
- * behind every "Buy Now" button the listing-detail page renders — the
- * button passes nothing but the listing id; everything about whether the
- * purchase is actually still possible, and its exact price, is read fresh
- * from the database right here (this phase's spec: "All eligibility and
- * price values must be recomputed on the server when an action begins").
- *
- * Until now the only buyer-purchase path anywhere in this app was the offer
- * flow (createOffer -> offerAction's accept branch, via offer_action()
- * (0048), creates the `orders` row). This mirrors that same shape — a
- * service-role insert into `orders` after re-verifying authorization
- * directly, since `orders` has no authenticated insert policy at all
- * (0019_orders.sql) — but reaches it directly rather than through a
- * negotiation step.
- *
- * On success this redirects straight to the new order's payment page
- * (createOrderPaymentIntent()/PayForm, src/app/dashboard/orders/[id]/) —
- * the exact same Stripe checkout the accepted-offer flow already uses,
- * never a second payment mechanism — rather than returning state; there is
- * nothing left to show on this page once the order exists.
- */
-export async function buyNow(listingId: number): Promise<BuyNowState> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-
-  const rateLimit = await checkRateLimit({
-    action: "buy-now",
-    identifier: user.id,
-    maxHits: BUY_NOW_MAX_ATTEMPTS,
-    windowSeconds: BUY_NOW_WINDOW_SECONDS,
-  });
-  if (!rateLimit.allowed) {
-    return { error: rateLimitMessage(rateLimit.retryAfterSeconds) };
-  }
-
-  const { data: listing } = await supabase.from("listings").select("*").eq("id", listingId).maybeSingle<Listing>();
-  if (!listing) return { error: "That listing couldn't be found." };
-  if (listing.seller_id === user.id) return { error: "You can't buy your own listing." };
-  if (listing.status !== "active") {
-    return { error: listingUnavailableReason(listing.status) ?? "This listing is no longer available." };
-  }
-
-  const admin = createAdminClient();
-  let orderId: number;
-
-  if (listing.sale_type === "auction_with_buy_now") {
-    const { data: auction } = await supabase
-      .from("auctions")
-      .select("*")
-      .eq("listing_id", listingId)
-      .maybeSingle<Auction>();
-
-    if (!auction || auction.buy_now_price_cents === null) {
-      return { error: "Buy It Now isn't available on this listing." };
-    }
-    if (auction.status === "ended" || auction.status === "cancelled" || auctionHasEnded(auction.ends_at)) {
-      return { error: "This auction has already ended." };
-    }
-
-    // Atomic claim, service-role only (no authenticated UPDATE policy
-    // exists on `auctions` at all — see 0039's header comment): only
-    // succeeds if the auction is still open AND its end time hasn't passed
-    // — the same `now() > ends_at` boundary validate_bid() enforces for a
-    // bid, re-applied here since nothing else in this schema flips an
-    // auction to 'ended' automatically once its timer runs out. Together
-    // with the status check, two buyers hitting Buy It Now on the same
-    // auction at once can't both win it, and neither can win it after it's
-    // timed out.
-    const { data: claimedAuction } = await admin
-      .from("auctions")
-      .update({ status: "ended" })
-      .eq("id", auction.id)
-      .in("status", ["scheduled", "live"])
-      .gt("ends_at", new Date().toISOString())
-      .select("id")
-      .maybeSingle();
-    if (!claimedAuction) {
-      return { error: "This auction just ended — Buy It Now is no longer available." };
-    }
-
-    // Best-effort courtesy, not the real gate: the auctions update above is
-    // what actually prevents a double-sale. Taking the listing off the
-    // public grid too just keeps browse/search from lagging behind.
-    await admin.from("listings").update({ status: "reserved" }).eq("id", listingId).eq("status", "active");
-
-    const { amount: amountEur, fee, total } = computeOfferTotal(centsToEur(auction.buy_now_price_cents));
-
-    const { data: order, error: orderError } = await admin
-      .from("orders")
-      .insert({
-        listing_id: listing.id,
-        buyer_id: user.id,
-        seller_id: listing.seller_id,
-        listing_title: listing.title,
-        listing_category: listing.category,
-        listing_condition: listing.condition,
-        listing_image_url: listing.image_url,
-        amount_eur: amountEur,
-        platform_fee_eur: fee,
-        total_eur: total,
-      })
-      .select("id")
-      .single<Pick<Order, "id">>();
-
-    if (orderError || !order) {
-      // The auction is already ended at this point — reverting that would
-      // reopen bidding on something this buyer was already told they'd
-      // won, which is worse than a support ticket. Logged, not retried,
-      // same non-blocking discipline the old respondToOffer() applied to
-      // its own order-write failure.
-      console.error(`Failed to create order for Buy It Now on auction ${auction.id}:`, orderError?.message);
-      return { error: "Couldn't complete that purchase — please contact support and reference this listing." };
-    }
-    orderId = order.id;
-  } else {
-    if (listing.price_eur === null) {
-      return { error: "This listing doesn't have a Buy Now price." };
-    }
-
-    // Atomic claim: the fixed-price equivalent of the auction guard above —
-    // only succeeds if the listing is still active.
-    const { data: claimed } = await admin
-      .from("listings")
-      .update({ status: "reserved" })
-      .eq("id", listingId)
-      .eq("status", "active")
-      .select("id")
-      .maybeSingle();
-    if (!claimed) {
-      return { error: "This listing is no longer available — someone may have just bought it." };
-    }
-
-    const { amount: amountEur, fee, total } = computeOfferTotal(listing.price_eur);
-
-    const { data: order, error: orderError } = await admin
-      .from("orders")
-      .insert({
-        listing_id: listing.id,
-        buyer_id: user.id,
-        seller_id: listing.seller_id,
-        listing_title: listing.title,
-        listing_category: listing.category,
-        listing_condition: listing.condition,
-        listing_image_url: listing.image_url,
-        amount_eur: amountEur,
-        platform_fee_eur: fee,
-        total_eur: total,
-      })
-      .select("id")
-      .single<Pick<Order, "id">>();
-
-    if (orderError || !order) {
-      // Nothing irreversible happened yet (unlike the ended-auction branch
-      // above) — hand the listing back so the buyer can just try again.
-      await admin.from("listings").update({ status: "active" }).eq("id", listingId).eq("status", "reserved");
-      console.error(`Failed to create order for Buy Now on listing ${listingId}:`, orderError?.message);
-      return { error: "Couldn't complete that purchase — please try again." };
-    }
-    orderId = order.id;
-  }
-
-  // Best-effort conversation<->order link — see linkConversationToOrder()'s
-  // own comment (src/lib/conversations-server.ts) for why this never blocks
-  // or fails the purchase itself.
-  await linkConversationToOrder({ listingId, buyerId: user.id, sellerId: listing.seller_id, orderId });
-
-  revalidatePath(`/marketplace/${listingId}`);
-  revalidatePath("/marketplace");
-  redirect(`/dashboard/orders/${orderId}`);
 }
 
 export type BidFormState = { error?: string; success?: boolean };

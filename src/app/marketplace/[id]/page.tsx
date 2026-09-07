@@ -171,7 +171,7 @@ export default async function ListingDetailPage({
 
   let sellerOffers: Offer[] = [];
   let myOffers: Offer[] = [];
-  let myOrder: Pick<Order, "id" | "reservation_expires_at" | "status"> | null = null;
+  let myOrder: Pick<Order, "id" | "reservation_expires_at" | "status" | "checkout_completed_at"> | null = null;
 
   if (isSeller) {
     // Most-recently-active first — offer history + seller action controls
@@ -206,9 +206,9 @@ export default async function ListingDetailPage({
       // resolve to the one order that actually belongs to them.
       const { data: orderRow } = await supabase
         .from("orders")
-        .select("id, reservation_expires_at, status")
+        .select("id, reservation_expires_at, status, checkout_completed_at")
         .eq("offer_id", acceptedOffer.id)
-        .maybeSingle<Pick<Order, "id" | "reservation_expires_at" | "status">>();
+        .maybeSingle<Pick<Order, "id" | "reservation_expires_at" | "status" | "checkout_completed_at">>();
       myOrder = orderRow ?? null;
     }
   }

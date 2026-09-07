@@ -124,7 +124,23 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
         </div>
       )}
 
-      {canPay && !checkoutDeadlinePassed && (
+      {/* An order from an accepted offer starts with no delivery choice at
+       * all (offer_action(), 0048, has no notion of one) — checkout_completed_at
+       * (0050) is null until the buyer finishes that step, so this sends
+       * them there first rather than showing Pay for an order that has no
+       * finalized delivery/total yet. A Buy Now order never hits this branch
+       * — create_purchase_order() (0050) always sets checkout_completed_at
+       * at the same instant it creates the row. */}
+      {canPay && !checkoutDeadlinePassed && !order.checkout_completed_at && (
+        <Link
+          href={`/dashboard/orders/${order.id}/checkout`}
+          className="block w-full text-center py-3.5 rounded-full font-bold bg-green-700 text-cream-50 hover:bg-green-600 transition"
+        >
+          Finish checkout
+        </Link>
+      )}
+
+      {canPay && !checkoutDeadlinePassed && order.checkout_completed_at && (
         <div className="bg-surface border border-line rounded-2xl shadow-lg p-8">
           <h2 className="font-display font-bold text-lg mb-1">
             {order.payment_status === "failed" ? "Try payment again" : "Complete payment"}

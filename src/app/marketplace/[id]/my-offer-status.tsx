@@ -52,7 +52,7 @@ export default function MyOfferStatus({
   askingPrice: number;
   minAmount: number;
   offers: Offer[];
-  order: Pick<Order, "id" | "reservation_expires_at" | "status"> | null;
+  order: Pick<Order, "id" | "reservation_expires_at" | "status" | "checkout_completed_at"> | null;
 }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -84,7 +84,11 @@ export default function MyOfferStatus({
             </p>
           )}
           <Link
-            href={`/dashboard/orders/${order.id}`}
+            href={
+              order.checkout_completed_at
+                ? `/dashboard/orders/${order.id}`
+                : `/dashboard/orders/${order.id}/checkout`
+            }
             className="block w-full text-center py-2.5 rounded-full font-bold text-sm bg-green-700 text-cream-50 hover:bg-green-600 transition"
           >
             Complete checkout

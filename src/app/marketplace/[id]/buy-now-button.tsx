@@ -1,16 +1,16 @@
-"use client";
-
-import { useState, useTransition } from "react";
-import { buyNow } from "./actions";
+import Link from "next/link";
 
 /**
- * One button, both Buy Now paths (fixed-price/offers-allowed, and the Buy
- * It Now price on an auction_with_buy_now listing) — buyNow() itself
- * branches on sale_type server-side, so this component only ever needs the
- * listing id. Same useTransition + plain-button shape as offers-list.tsx's
- * respond()/publish-listing-button.tsx's publish(), not useActionState:
- * there's no form of its own, and a successful call never returns here —
- * buyNow() redirects straight to the new order's payment page.
+ * One link, both Buy Now paths (fixed-price/offers-allowed, and the Buy It
+ * Now price on an auction_with_buy_now listing) — both now lead to the same
+ * checkout page (./checkout/page.tsx), which re-derives which price/flow
+ * applies from the listing itself, so this component only ever needs the
+ * listing id. No client-side pending/error state of its own any more: a
+ * plain navigation has nothing to fail the way the old direct buyNow()
+ * Server Action call could — every eligibility/price check now happens once
+ * the buyer is actually on the checkout page (and, authoritatively, when
+ * they submit it — see create_purchase_order()'s own header comment,
+ * supabase/migrations/0050_marketplace_checkout.sql).
  */
 export default function BuyNowButton({
   listingId,
@@ -21,35 +21,17 @@ export default function BuyNowButton({
   label?: string;
   variant?: "primary" | "secondary";
 }) {
-  const [pending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
-
-  function handleClick() {
-    setError(null);
-    startTransition(async () => {
-      const result = await buyNow(listingId);
-      // A successful call never resolves here — redirect() has already
-      // navigated the browser away. Only an error state comes back.
-      if (result?.error) setError(result.error);
-    });
-  }
-
   const styles =
     variant === "primary"
       ? "bg-green-700 text-cream-50 hover:bg-green-600"
       : "border-[1.5px] border-green-700 text-green-700 hover:bg-green-100";
 
   return (
-    <div className="flex flex-col gap-2">
-      <button
-        type="button"
-        onClick={handleClick}
-        disabled={pending}
-        className={`w-full py-3.5 rounded-full font-bold transition disabled:opacity-60 ${styles}`}
-      >
-        {pending ? "Starting checkout…" : label}
-      </button>
-      {error && <p className="text-sm text-red-600 bg-red-100 rounded-lg px-3.5 py-2.5">{error}</p>}
-    </div>
+    <Link
+      href={`/marketplace/${listingId}/checkout`}
+      className={`block w-full text-center py-3.5 rounded-full font-bold transition ${styles}`}
+    >
+      {label}
+    </Link>
   );
 }

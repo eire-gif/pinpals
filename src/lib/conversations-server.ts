@@ -6,10 +6,11 @@ import { createAdminClient } from "./supabase/admin";
  * (buyer, seller, listing) context to the order that context's purchase
  * just produced — see 0049_marketplace_messaging.sql's own header comment
  * on why this is opportunistic rather than transactional. Called from
- * buyNow() and offerAction()'s accept branch (src/app/marketplace/[id]/
- * actions.ts) right after each successfully creates an order — never
- * blocking, never surfaced to the caller as an error: a missed link only
- * means the thread doesn't show order context yet, not a failed purchase.
+ * submitBuyNowCheckout() (src/app/marketplace/[id]/checkout/actions.ts) and
+ * offerAction()'s accept branch (src/app/marketplace/[id]/actions.ts) right
+ * after each successfully creates an order — never blocking, never surfaced
+ * to the caller as an error: a missed link only means the thread doesn't
+ * show order context yet, not a failed purchase.
  *
  * Deliberately does NOT create a conversation if none exists — buyer and
  * seller may simply have never messaged about this listing (e.g. a straight
