@@ -1,4 +1,5 @@
-import type { StripeConnectedAccount } from "./types";
+import type { StripeConnectedAccount, ListingStatus, SaleType, DeliveryOption } from "./types";
+import type { SellerOnboardingStatus } from "./stripe/connect";
 
 export function initials(name: string): string {
   return name
@@ -17,6 +18,123 @@ export function formatPrice(eur: number): string {
     minimumFractionDigits: eur % 1 === 0 ? 0 : 2,
   }).format(eur);
 }
+
+/** Formats an integer-cents amount (auctions.*, listings.price_cents — see
+ * supabase/migrations/0046_listing_creation_workflow.sql) the same way
+ * formatPrice() formats a decimal-euro amount, so a bid/starting-price and a
+ * fixed price render identically wherever they appear together. */
+export function formatPriceCents(cents: number): string {
+  return formatPrice(cents / 100);
+}
+
+// Labels for the listing-creation workflow's enums (0046) — same
+// "value IS the display label" convention as CATEGORIES/CONDITIONS
+// (src/lib/marketplace.ts) wherever a value is already human-readable, and a
+// small lookup map wherever it isn't (sale_type/status, mirroring
+// SELLER_ONBOARDING_STATUS_LABELS above).
+
+export const SALE_TYPE_LABELS: Record<SaleType, string> = {
+  fixed_price: "Fixed price",
+  offers_allowed: "Fixed price — offers welcome",
+  auction: "Auction",
+  auction_with_buy_now: "Auction with Buy It Now",
+};
+
+export const DELIVERY_OPTION_LABELS: Record<DeliveryOption, string> = {
+  post: "Postage",
+  collection: "Local collection",
+};
+
+// The marketplace grid's own compact badge vocabulary (this phase's spec:
+// "Buy Now, Offers, Bidding or Buy Now + Bidding") — deliberately its own
+// map rather than reusing SALE_TYPE_LABELS above, whose longer wording
+// ("Fixed price — offers welcome") suits a form/detail page but doesn't fit
+// a small pill on a card. Same "one enum, several context-specific label
+// maps" precedent as SELLER_LISTING_STATUS_LABELS vs admin/format.ts's.
+export const MARKETPLACE_BADGE_LABELS: Record<SaleType, string> = {
+  fixed_price: "Buy Now",
+  offers_allowed: "Offers",
+  auction: "Bidding",
+  auction_with_buy_now: "Buy Now + Bidding",
+};
+
+/**
+ * "2d 4h left" / "45m left" / "Ending soon" / "Ended" for an auction card.
+ * Takes `now` explicitly (default `new Date()`) so it's testable without
+ * mocking the system clock — see src/lib/marketplace-discovery.test.ts.
+ */
+export function formatTimeRemaining(endsAtIso: string, now: Date = new Date()): string {
+  const msLeft = new Date(endsAtIso).getTime() - now.getTime();
+  if (msLeft <= 0) return "Ended";
+
+  const minutes = Math.floor(msLeft / 60_000);
+  if (minutes < 5) return "Ending soon";
+
+  const days = Math.floor(minutes / (60 * 24));
+  const hours = Math.floor((minutes % (60 * 24)) / 60);
+  const mins = minutes % 60;
+
+  if (days > 0) return `${days}d ${hours}h left`;
+  if (hours > 0) return `${hours}h ${mins}m left`;
+  return `${mins}m left`;
+}
+
+// My Listings' five tabs (src/app/dashboard/listings/) plus the two statuses
+// a listing can be in without ever appearing there (pending_review/expired —
+// see that page for why). Deliberately named apart from admin/format.ts's
+// (identically-shaped, differently-worded) LISTING_STATUS_LABELS/STYLES —
+// that pair is the admin console's own moderation-flavoured copy ("Removed
+// by admin", styled as a hard stop) with its own tested call sites; this is
+// the seller-facing vocabulary for the same enum, worded for the person who
+// owns the listing, not the person moderating it.
+export const SELLER_LISTING_STATUS_LABELS: Record<ListingStatus, string> = {
+  draft: "Draft",
+  pending_review: "Pending review",
+  active: "Active",
+  reserved: "Sale agreed",
+  sold: "Sold",
+  expired: "Expired",
+  removed: "Removed",
+};
+
+export const SELLER_LISTING_STATUS_STYLES: Record<ListingStatus, string> = {
+  draft: "bg-cream-100 text-ink-500",
+  pending_review: "bg-gold-500/20 text-gold-700",
+  active: "bg-green-100 text-green-800",
+  reserved: "bg-cream-100 text-ink-900",
+  sold: "bg-navy-900 text-white",
+  expired: "bg-cream-100 text-ink-500",
+  removed: "bg-red-100 text-red-600",
+};
+
+/** "Joined March 2026" — deliberately month/year only, never the exact day,
+ * for the same reason a seller card shows a county rather than an address:
+ * enough for a buyer to gauge tenure, nothing more precise than that. */
+export function formatJoinedDate(iso: string): string {
+  return `Joined ${new Intl.DateTimeFormat("en-IE", { month: "long", year: "numeric" }).format(new Date(iso))}`;
+}
+
+// Labels/styles for SellerOnboardingStatus (src/lib/stripe/connect.ts) — the
+// seller-readiness page's badge vocabulary. Deliberately a separate map from
+// sellerAccountStatusLabel()/SELLER_ACCOUNT_STATUS_STYLES above: that pair
+// predates this five-value enum (phase 9) and /dashboard/payouts's existing
+// copy already depends on its exact strings, so this doesn't touch it —
+// same "narrow, additive change" discipline as everywhere else in this file.
+export const SELLER_ONBOARDING_STATUS_LABELS: Record<SellerOnboardingStatus, string> = {
+  not_started: "Not started",
+  requirements_due: "Action needed",
+  pending: "Under review",
+  enabled: "Ready to sell",
+  restricted: "Restricted",
+};
+
+export const SELLER_ONBOARDING_STATUS_STYLES: Record<SellerOnboardingStatus, string> = {
+  not_started: "bg-cream-100 text-ink-500",
+  requirements_due: "bg-gold-500/20 text-gold-700",
+  pending: "bg-cream-100 text-ink-900",
+  enabled: "bg-green-100 text-green-800",
+  restricted: "bg-red-100 text-red-600",
+};
 
 /**
  * A human-readable summary of a member's Stripe Connect payout readiness,

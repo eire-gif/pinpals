@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type Stripe from "stripe";
-import { mapStripeAccountToRow } from "./connect";
+import {
+  mapStripeAccountToRow,
+  sellerOnboardingStatus,
+  isSellerPaymentReady,
+  type StripeConnectAccountRow,
+} from "./connect";
 
 // Minimal fixtures — only the fields mapStripeAccountToRow() reads. Cast
 // through `unknown` rather than constructing a full Stripe.Account (dozens
@@ -85,5 +90,79 @@ describe("mapStripeAccountToRow", () => {
     );
     expect(row.requirements_currently_due).toEqual([]);
     expect(row.requirements_past_due).toEqual([]);
+  });
+});
+
+function fakeRow(overrides: Partial<StripeConnectAccountRow> = {}): StripeConnectAccountRow {
+  return {
+    charges_enabled: false,
+    payouts_enabled: false,
+    details_submitted: false,
+    requirements_currently_due: [],
+    requirements_past_due: [],
+    disabled_reason: null,
+    ...overrides,
+  };
+}
+
+describe("sellerOnboardingStatus", () => {
+  it("is not_started when no row exists yet", () => {
+    expect(sellerOnboardingStatus(null)).toBe("not_started");
+  });
+
+  it("is restricted when Stripe has disabled the account, even if flags still read enabled", () => {
+    expect(
+      sellerOnboardingStatus(
+        fakeRow({ charges_enabled: true, payouts_enabled: true, disabled_reason: "rejected.fraud" })
+      )
+    ).toBe("restricted");
+  });
+
+  it("is restricted when a requirement is now past due, even if flags still read enabled", () => {
+    expect(
+      sellerOnboardingStatus(
+        fakeRow({
+          charges_enabled: true,
+          payouts_enabled: true,
+          requirements_past_due: ["individual.verification.document"],
+        })
+      )
+    ).toBe("restricted");
+  });
+
+  it("is requirements_due when something is currently due, even if flags still read enabled", () => {
+    expect(
+      sellerOnboardingStatus(
+        fakeRow({
+          charges_enabled: true,
+          payouts_enabled: true,
+          requirements_currently_due: ["individual.verification.document"],
+        })
+      )
+    ).toBe("requirements_due");
+  });
+
+  it("is enabled once charges and payouts are both on and nothing is outstanding", () => {
+    expect(
+      sellerOnboardingStatus(fakeRow({ charges_enabled: true, payouts_enabled: true }))
+    ).toBe("enabled");
+  });
+
+  it("is pending once submitted with nothing due but Stripe hasn't enabled charges/payouts yet", () => {
+    expect(sellerOnboardingStatus(fakeRow({ details_submitted: true }))).toBe("pending");
+  });
+
+  it("is requirements_due for a freshly created account with no requirements reported yet", () => {
+    expect(sellerOnboardingStatus(fakeRow())).toBe("requirements_due");
+  });
+});
+
+describe("isSellerPaymentReady", () => {
+  it("is true only for enabled", () => {
+    expect(isSellerPaymentReady("enabled")).toBe(true);
+    expect(isSellerPaymentReady("not_started")).toBe(false);
+    expect(isSellerPaymentReady("requirements_due")).toBe(false);
+    expect(isSellerPaymentReady("pending")).toBe(false);
+    expect(isSellerPaymentReady("restricted")).toBe(false);
   });
 });

@@ -192,7 +192,7 @@ export default async function AdminUserDetailPage({
                     {l.title}
                   </Link>
                 </td>
-                <td className="px-5 py-3 text-ink-500">{formatPrice(l.price_eur)}</td>
+                <td className="px-5 py-3 text-ink-500">{l.price_eur !== null ? formatPrice(l.price_eur) : "Auction"}</td>
                 <td className="px-5 py-3">
                   <StatusBadge status={l.status} labels={LISTING_STATUS_LABELS} styles={LISTING_STATUS_STYLES} />
                 </td>

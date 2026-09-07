@@ -12,6 +12,7 @@
 
 # testing
 /coverage
+supabase/tests/rls/.fixture-ids.json
 
 # next.js
 /.next/

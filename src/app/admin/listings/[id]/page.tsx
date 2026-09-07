@@ -76,7 +76,8 @@ export default async function AdminListingDetailPage({
           </div>
 
           <p className="font-display font-bold text-xl text-gold-600 mt-2">
-            {formatPrice(listing.price_eur)}
+            {/* Auction-type listings carry no listing-level price (0046). */}
+            {listing.price_eur !== null ? formatPrice(listing.price_eur) : "Auction listing"}
           </p>
 
           <div className="flex flex-wrap gap-2 mt-3">
