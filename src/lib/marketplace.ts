@@ -143,3 +143,61 @@ export function computeResponseRate(totalOffers: number, respondedOffers: number
   if (totalOffers === 0) return null;
   return Math.round((respondedOffers / totalOffers) * 100);
 }
+
+// ============ Listing detail page (this phase) ============
+
+/**
+ * "Why can't I buy this?" copy for every non-active listing status — the
+ * listing-detail page's purchase panel shows this instead of Buy Now/Place
+ * Bid whenever the server-recomputed status isn't 'active' (this phase's
+ * spec: "Reserved/sold/expired/removed: disable purchasing and state why").
+ * `null` for 'active' means "purchasing is allowed", the only falsy case a
+ * caller needs to branch on. Kept here (not inline in the page component)
+ * so it's trivially unit-testable and there is exactly one place this copy
+ * can drift from the seven-value ListingStatus enum.
+ */
+export function listingUnavailableReason(status: string): string | null {
+  switch (status) {
+    case "active":
+      return null;
+    case "reserved":
+      return "This listing is under offer and no longer available.";
+    case "sold":
+      return "This item has already sold.";
+    case "expired":
+      return "This listing has expired.";
+    case "removed":
+      return "This listing is no longer available.";
+    case "draft":
+      return "This listing isn't published yet.";
+    case "pending_review":
+      return "This listing is awaiting review.";
+    default:
+      return "This listing is no longer available.";
+  }
+}
+
+/**
+ * The lowest bid `validate_bid()` (supabase/migrations/0046_listing_creation_workflow.sql)
+ * will actually accept right now — the starting price with no bids yet, or
+ * the current high plus the auction's own minimum increment once there is
+ * one. Shown to a bidder as "minimum next bid" and used as the bid form's
+ * default value; the trigger itself (not this function) is what's actually
+ * enforced server-side when the bid is placed, so a stale value here can
+ * only ever produce a friendly client-side rejection, never an accepted
+ * under-bid.
+ */
+export function nextMinimumBidCents(
+  auction: { starting_price_cents: number; min_increment_cents: number },
+  currentHighCents: number | null
+): number {
+  return currentHighCents === null ? auction.starting_price_cents : currentHighCents + auction.min_increment_cents;
+}
+
+/** Takes `now` explicitly (default `new Date()`), same pattern as
+ * formatTimeRemaining() in src/lib/format.ts, so a component computing this
+ * inline stays a pure render — the impure clock read lives in this
+ * function's own default parameter, not inline in a component body. */
+export function auctionHasEnded(endsAtIso: string, now: Date = new Date()): boolean {
+  return new Date(endsAtIso).getTime() <= now.getTime();
+}

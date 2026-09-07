@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Listing, Auction, Bid } from "./types";
+import type { Listing, Auction } from "./types";
 import { CATEGORIES, SUBCATEGORIES, CONDITIONS, SALE_TYPES, DELIVERY_OPTIONS } from "./marketplace";
 import { COUNTIES } from "./clubs";
 
@@ -285,18 +285,41 @@ export async function fetchMarketplaceListings(
   const auctions = auctionsResult.data ?? [];
   const auctionByListingId = new Map(auctions.map((a) => [a.listing_id, a]));
 
-  const winningBidIds = auctions.map((a) => a.winning_bid_id).filter((id): id is number => id !== null);
-  const { data: winningBids } = winningBidIds.length
-    ? await supabase.from("bids").select("id, amount_cents").in("id", winningBidIds).returns<Pick<Bid, "id" | "amount_cents">[]>()
-    : { data: [] as Pick<Bid, "id" | "amount_cents">[] };
-  const bidAmountById = new Map((winningBids ?? []).map((b) => [b.id, b.amount_cents]));
+  // The current high bid, for anyone — not just the bidder themselves or
+  // the auction's own seller. `bids` itself has no SELECT policy that broad
+  // (see 0039_auctions_and_bids.sql: only "my own bids" or "bids on my own
+  // auction"), so querying it directly here would silently come back empty
+  // for every other viewer, understating or hiding the current price on a
+  // card/listing page anyone but those two people looks at.
+  // `public.auction_bid_history` (0045_marketplace_rls_hardening.sql) is the
+  // dedicated, intentionally narrower read surface for exactly this: amount
+  // + auction_id only, no bidder identity, granted to anon/authenticated —
+  // so a plain max() over it here is both correct for any viewer and one
+  // query instead of the two (auctions.winning_bid_id -> bids.id) this used
+  // to take.
+  const auctionIds = auctions.map((a) => a.id);
+  const { data: bidHistory } = auctionIds.length
+    ? await supabase
+        .from("auction_bid_history")
+        .select("auction_id, amount_cents")
+        .in("auction_id", auctionIds)
+        .returns<{ auction_id: number; amount_cents: number }[]>()
+    : { data: [] as { auction_id: number; amount_cents: number }[] };
+
+  const highestBidCentsByAuctionId = new Map<number, number>();
+  for (const bid of bidHistory ?? []) {
+    const current = highestBidCentsByAuctionId.get(bid.auction_id);
+    if (current === undefined || bid.amount_cents > current) {
+      highestBidCentsByAuctionId.set(bid.auction_id, bid.amount_cents);
+    }
+  }
 
   const favouritedIds = new Set((favouritesResult.data ?? []).map((f) => f.listing_id));
 
   const listings: MarketplaceListing[] = page.map((listing) => {
     const auction = auctionByListingId.get(listing.id) ?? null;
     const currentBidCents = auction
-      ? (auction.winning_bid_id !== null ? bidAmountById.get(auction.winning_bid_id) : undefined) ?? auction.starting_price_cents
+      ? (highestBidCentsByAuctionId.get(auction.id) ?? auction.starting_price_cents)
       : null;
     return {
       ...listing,

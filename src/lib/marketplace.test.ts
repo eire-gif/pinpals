@@ -6,6 +6,9 @@ import {
   centsToEur,
   isAuctionSaleType,
   auctionWindowError,
+  listingUnavailableReason,
+  nextMinimumBidCents,
+  auctionHasEnded,
   MIN_AUCTION_DURATION_HOURS,
   MAX_AUCTION_DURATION_DAYS,
 } from "./marketplace";
@@ -100,5 +103,50 @@ describe("auctionWindowError", () => {
 
   it("rejects an invalid date", () => {
     expect(auctionWindowError(new Date("not-a-date"), new Date())).toMatch(/valid/);
+  });
+});
+
+describe("listingUnavailableReason", () => {
+  it("is null for an active listing — purchasing is allowed", () => {
+    expect(listingUnavailableReason("active")).toBeNull();
+  });
+
+  it("has a distinct reason for every non-active status this app uses", () => {
+    for (const status of ["reserved", "sold", "expired", "removed", "draft", "pending_review"]) {
+      expect(typeof listingUnavailableReason(status)).toBe("string");
+      expect(listingUnavailableReason(status)).not.toBeNull();
+    }
+  });
+
+  it("falls back to a generic reason for an unrecognised status rather than throwing", () => {
+    expect(listingUnavailableReason("something-new")).toBe("This listing is no longer available.");
+  });
+});
+
+describe("nextMinimumBidCents", () => {
+  const auction = { starting_price_cents: 10000, min_increment_cents: 500 };
+
+  it("is the starting price when there's no bid yet", () => {
+    expect(nextMinimumBidCents(auction, null)).toBe(10000);
+  });
+
+  it("is the current high plus the increment once there's a bid", () => {
+    expect(nextMinimumBidCents(auction, 12000)).toBe(12500);
+  });
+});
+
+describe("auctionHasEnded", () => {
+  const now = new Date("2026-06-15T12:00:00.000Z");
+
+  it("is false while the end time is still in the future", () => {
+    expect(auctionHasEnded("2026-06-15T13:00:00.000Z", now)).toBe(false);
+  });
+
+  it("is true once the end time has passed", () => {
+    expect(auctionHasEnded("2026-06-15T11:00:00.000Z", now)).toBe(true);
+  });
+
+  it("is true at the exact end time", () => {
+    expect(auctionHasEnded("2026-06-15T12:00:00.000Z", now)).toBe(true);
   });
 });
