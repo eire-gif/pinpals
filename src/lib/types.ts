@@ -109,14 +109,34 @@ export type Bid = {
   created_at: string;
 };
 
-export type OfferStatus = "pending" | "accepted" | "declined";
+// See supabase/migrations/0048_marketplace_offer_workflow.sql. Single-round
+// negotiation: 'pending' (buyer's ask, awaiting the seller) -> the seller
+// accepts/declines/'countered' (awaiting the buyer) -> the buyer
+// accepts/declines. 'withdrawn' only ever applies to a 'pending' offer (the
+// buyer pulling their own ask before the seller responds); 'expired' covers
+// both a lapsed deadline and the listing becoming unavailable out from under
+// the offer (see that migration's own header comment on why one status
+// covers both).
+export type OfferStatus = "pending" | "countered" | "accepted" | "declined" | "withdrawn" | "expired";
 
 export type Offer = {
   id: number;
   listing_id: number;
   buyer_id: string;
+  /** The amount currently "on the table" — the buyer's original ask until a
+   * counter happens, then the counter amount from that point on. See
+   * original_amount_eur for the buyer's unchanging initial ask. */
   amount_eur: number;
+  /** The buyer's initial ask, set once at creation and never mutated —
+   * original_amount_eur/amount_eur only ever differ once status is
+   * 'countered' (or something terminal reached from a countered offer). */
+  original_amount_eur: number;
   status: OfferStatus;
+  /** When the side whose turn it currently is (the seller for 'pending', the
+   * buyer for 'countered') needs to act by — offer_action() (the migration
+   * above) refuses to act on a 'pending'/'countered' offer past this instant
+   * even before expire_stale_offers() has swept its status column to match. */
+  expires_at: string;
   created_at: string;
   updated_at: string;
 };
@@ -219,11 +239,13 @@ export type ConnectionWithProfiles = Connection & {
 };
 
 // ============ ORDERS ============
-// See supabase/migrations/0019_orders.sql. Created by respondToOffer()'s
-// accept branch (src/app/marketplace/[id]/actions.ts), one row per accepted
-// offer. listing_title/category/condition/image_url are a SNAPSHOT taken at
-// that moment — never re-read from `listings`, so a later listing edit (or
-// removal) never rewrites a historical order.
+// See supabase/migrations/0019_orders.sql. Created by buyNow() directly, or
+// by offer_action()'s (0048_marketplace_offer_workflow.sql) shared accept
+// path — called from offerAction() (src/app/marketplace/[id]/actions.ts) —
+// one row per completed purchase or accepted offer. listing_title/category/
+// condition/image_url are a SNAPSHOT taken at that moment — never re-read
+// from `listings`, so a later listing edit (or removal) never rewrites a
+// historical order.
 
 export type OrderStatus = "pending" | "completed" | "cancelled" | "refunded";
 export type PaymentStatus = "unpaid" | "pending" | "paid" | "failed" | "refunded";
@@ -264,6 +286,14 @@ export type Order = {
   payment_last_error: string | null;
   refund_reason: string | null;
   refunded_amount_eur: number | null;
+  /** Set only while status = 'pending' and this order originated from an
+   * accepted private offer (see supabase/migrations/0048_marketplace_offer_workflow.sql):
+   * the buyer's short checkout window. `release_expired_offer_reservations()`
+   * cancels the order and reactivates the listing once this passes without
+   * payment. Null for orders that were never offer-reserved, and cleared by
+   * nothing else — a paid order simply stops being swept because its status
+   * is no longer 'pending'. */
+  reservation_expires_at: string | null;
   completed_at: string | null;
   cancelled_at: string | null;
   refunded_at: string | null;

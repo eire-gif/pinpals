@@ -201,3 +201,39 @@ export function nextMinimumBidCents(
 export function auctionHasEnded(endsAtIso: string, now: Date = new Date()): boolean {
   return new Date(endsAtIso).getTime() <= now.getTime();
 }
+
+// ============ Private offer workflow ============
+// See supabase/migrations/0048_marketplace_offer_workflow.sql. As with the
+// listing-creation constants above, every number here mirrors a hardcoded
+// value in that migration's PL/pgSQL — the DB is what's actually enforced
+// (prepare_and_validate_offer() and offer_action() re-check all of this
+// server-side), these are for fast client-side hints only.
+
+/** Matches prepare_and_validate_offer()'s `v_amount_cents < 100` floor. */
+export const MIN_OFFER_AMOUNT_CENTS = 100;
+
+/** Matches prepare_and_validate_offer()'s `now() + interval '48 hours'`
+ * (initial offer) and offer_action()'s counter-offer branch, which resets
+ * the same 48-hour window. */
+export const OFFER_EXPIRY_HOURS = 48;
+
+/** Matches offer_action()'s `p_checkout_minutes integer default 30`. */
+export const DEFAULT_CHECKOUT_WINDOW_MINUTES = 30;
+
+/** The offer statuses a buyer/seller can still act on — everything else
+ * (accepted/declined/withdrawn/expired) is a terminal state the offer sheet
+ * should render as history, not controls. */
+export const ACTIONABLE_OFFER_STATUSES = ["pending", "countered"] as const;
+
+export function isOfferActionable(status: string): boolean {
+  return (ACTIONABLE_OFFER_STATUSES as readonly string[]).includes(status);
+}
+
+/** Same `now` param convention as auctionHasEnded() above. An offer past its
+ * expires_at is only truly gone once expire_stale_offers() next sweeps it
+ * (or a listing-unavailable trigger fires) — this is a client-side "don't
+ * let the buyer submit a response that's about to be rejected anyway" hint,
+ * not a substitute for the server's own expiry check inside offer_action(). */
+export function offerHasExpired(expiresAtIso: string, now: Date = new Date()): boolean {
+  return new Date(expiresAtIso).getTime() <= now.getTime();
+}

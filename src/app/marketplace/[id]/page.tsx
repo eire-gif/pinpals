@@ -3,13 +3,14 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import type { Listing, ListingImage, Auction, Offer, Profile, StripeConnectedAccount } from "@/lib/types";
+import type { Listing, ListingImage, Auction, Offer, Order, Profile, StripeConnectedAccount } from "@/lib/types";
 import { formatPrice, formatPriceCents, SELLER_LISTING_STATUS_LABELS } from "@/lib/format";
 import { isAuctionSaleType, summarizeRatings } from "@/lib/marketplace";
 import { sellerOnboardingStatus, isSellerPaymentReady } from "@/lib/stripe/connect";
 import { getSiteUrl } from "@/lib/site-url";
 import { fetchMarketplaceListings, EMPTY_MARKETPLACE_FILTERS } from "@/lib/marketplace-discovery";
 import { computeListingPurchaseState } from "./action-state";
+import { runOfferSweeps } from "./actions";
 import PublishListingButton from "./publish-listing-button";
 import OffersList from "./offers-list";
 import ListingGallery from "./listing-gallery";
@@ -100,6 +101,13 @@ export default async function ListingDetailPage({
   const { data: listing } = await supabase.from("listings").select("*").eq("id", listingId).maybeSingle<Listing>();
   if (!listing) notFound();
 
+  // Opportunistic sweep (see runOfferSweeps()' own comment,
+  // src/app/marketplace/[id]/actions.ts) — keeps what this page is about to
+  // render from lagging behind an offer/reservation that's actually already
+  // past its deadline. Never load-bearing for correctness, only for
+  // freshness of what's displayed.
+  await runOfferSweeps();
+
   const isSeller = user?.id === listing.seller_id;
   const isDraft = listing.status === "draft";
   const editHref = `/marketplace/${listing.id}/edit`;
@@ -162,26 +170,47 @@ export default async function ListingDetailPage({
   }
 
   let sellerOffers: Offer[] = [];
-  let myOffer: Offer | null = null;
+  let myOffers: Offer[] = [];
+  let myOrder: Pick<Order, "id" | "reservation_expires_at" | "status"> | null = null;
 
   if (isSeller) {
+    // Most-recently-active first — offer history + seller action controls
+    // (OffersList) reads top-to-bottom as "what needs my attention now",
+    // not a price ranking.
     const { data } = await supabase
       .from("offers")
       .select("*")
       .eq("listing_id", listingId)
-      .order("amount_eur", { ascending: false })
+      .order("updated_at", { ascending: false })
       .returns<Offer[]>();
     sellerOffers = data ?? [];
   } else if (user) {
+    // Every offer chain this buyer has ever made on this listing (not just
+    // the latest) — MyOfferStatus needs the full set to show both
+    // whichever chain is currently actionable/accepted AND the "N earlier
+    // offers" history underneath it. The one-active-chain unique index
+    // (0048) guarantees at most one row here is ever pending/countered.
     const { data } = await supabase
       .from("offers")
       .select("*")
       .eq("listing_id", listingId)
       .eq("buyer_id", user.id)
       .order("created_at", { ascending: false })
-      .limit(1)
       .returns<Offer[]>();
-    myOffer = data?.[0] ?? null;
+    myOffers = data ?? [];
+
+    const acceptedOffer = myOffers.find((o) => o.status === "accepted");
+    if (acceptedOffer) {
+      // The order offer_action() (0048) snapshotted at accept time — RLS-
+      // scoped to this buyer's own orders (0019), so this can only ever
+      // resolve to the one order that actually belongs to them.
+      const { data: orderRow } = await supabase
+        .from("orders")
+        .select("id, reservation_expires_at, status")
+        .eq("offer_id", acceptedOffer.id)
+        .maybeSingle<Pick<Order, "id" | "reservation_expires_at" | "status">>();
+      myOrder = orderRow ?? null;
+    }
   }
 
   const sellerProfile = sellerProfileResult.data;
@@ -278,7 +307,14 @@ export default async function ListingDetailPage({
            * offers/messages, not a stripped-down substitute for it. The
            * fixed MobileActionBar further down just scrolls here. */}
           <div className="lg:hidden mt-8 grid gap-5" id="purchase-panel-mobile">
-            <PurchasePanel listingId={listing.id} editHref={editHref} state={purchaseState} myOffer={myOffer} />
+            <PurchasePanel
+              listingId={listing.id}
+              editHref={editHref}
+              state={purchaseState}
+              priceEur={listing.price_eur}
+              myOffers={myOffers}
+              myOrder={myOrder}
+            />
             <SellerCard
               sellerId={listing.seller_id}
               name={sellerName}
@@ -312,7 +348,14 @@ export default async function ListingDetailPage({
          * own header comments. */}
         <div className="hidden lg:block">
           <div className="sticky top-24 grid gap-5">
-            <PurchasePanel listingId={listing.id} editHref={editHref} state={purchaseState} myOffer={myOffer} />
+            <PurchasePanel
+              listingId={listing.id}
+              editHref={editHref}
+              state={purchaseState}
+              priceEur={listing.price_eur}
+              myOffers={myOffers}
+              myOrder={myOrder}
+            />
             <SellerCard
               sellerId={listing.seller_id}
               name={sellerName}

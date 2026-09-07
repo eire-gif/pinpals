@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { formatPrice, formatPriceCents } from "@/lib/format";
-import type { Offer } from "@/lib/types";
-import PriceSummary from "@/components/price-summary";
+import { centsToEur, MIN_OFFER_AMOUNT_CENTS } from "@/lib/marketplace";
+import type { Offer, Order } from "@/lib/types";
 import BuyNowButton from "./buy-now-button";
 import BidForm from "./bid-form";
-import OfferForm from "./offer-form";
+import MyOfferStatus from "./my-offer-status";
 import type { ListingPurchaseState } from "./action-state";
 
 /**
@@ -21,18 +21,37 @@ import type { ListingPurchaseState } from "./action-state";
  *  - auction(_with_buy_now): "show current bid, minimum next bid and exact
  *    closing time" (BidForm), plus, when a Buy It Now price exists, "show
  *    both actions with clear consequences"
+ *
+ * `state.kind === "unavailable"` gets one deliberate exception: a listing
+ * goes 'reserved' the instant THIS viewer's own offer is accepted
+ * (offer_action(), 0048), which would otherwise show the generic "no longer
+ * available" message to the exact person who just won it. `myOffers`/
+ * `myOrder` (this listing's offer chain history and the order tied to it,
+ * fetched once in ../page.tsx) let this component special-case that one
+ * viewer instead — see the branch below.
  */
 export default function PurchasePanel({
   listingId,
   editHref,
   state,
-  myOffer,
+  priceEur,
+  myOffers,
+  myOrder,
 }: {
   listingId: number;
   editHref: string;
   state: ListingPurchaseState;
-  myOffer: Offer | null;
+  /** listing.price_eur, passed straight through regardless of `state.kind` —
+   * the "unavailable" branch below needs it too (for MyOfferStatus's own
+   * asking-price display) even though ListingPurchaseState's "unavailable"
+   * variant carries no price of its own. */
+  priceEur: number | null;
+  myOffers: Offer[];
+  myOrder: Pick<Order, "id" | "reservation_expires_at" | "status"> | null;
 }) {
+  const minAmount = centsToEur(MIN_OFFER_AMOUNT_CENTS);
+  const myAcceptedOffer = myOffers.find((o) => o.status === "accepted") ?? null;
+
   return (
     <div className="bg-surface border border-line rounded-2xl shadow-lg p-6">
       {state.kind === "seller" && (
@@ -64,25 +83,32 @@ export default function PurchasePanel({
         </div>
       )}
 
-      {state.kind === "unavailable" && (
-        <p className="text-sm text-ink-500 bg-cream-100 rounded-xl px-4 py-3.5">{state.reason}</p>
-      )}
+      {state.kind === "unavailable" &&
+        (myAcceptedOffer ? (
+          <MyOfferStatus
+            listingId={listingId}
+            askingPrice={priceEur ?? myAcceptedOffer.amount_eur}
+            minAmount={minAmount}
+            offers={myOffers}
+            order={myOrder}
+          />
+        ) : (
+          <p className="text-sm text-ink-500 bg-cream-100 rounded-xl px-4 py-3.5">{state.reason}</p>
+        ))}
 
       {state.kind === "fixed_price" && (
         <div className="grid gap-3">
           <p className="font-display font-bold text-2xl text-gold-600">{formatPrice(state.priceEur)}</p>
           <BuyNowButton listingId={listingId} />
-          {state.offersAllowed &&
-            (myOffer ? (
-              <MyOfferSummary offer={myOffer} />
-            ) : (
-              <details>
-                <summary className="cursor-pointer text-sm font-bold text-green-700">Make an offer instead</summary>
-                <div className="mt-3">
-                  <OfferForm listingId={listingId} askingPrice={state.priceEur} />
-                </div>
-              </details>
-            ))}
+          {state.offersAllowed && (
+            <MyOfferStatus
+              listingId={listingId}
+              askingPrice={state.priceEur}
+              minAmount={minAmount}
+              offers={myOffers}
+              order={myOrder}
+            />
+          )}
         </div>
       )}
 
@@ -118,28 +144,6 @@ export default function PurchasePanel({
           )}
         </div>
       )}
-    </div>
-  );
-}
-
-function MyOfferSummary({ offer }: { offer: Offer }) {
-  return (
-    <div className="bg-surface-tint border border-line rounded-xl p-4">
-      <div className="flex items-center justify-between mb-2">
-        <span className="font-bold">{formatPrice(offer.amount_eur)} offer</span>
-        <span
-          className={`text-xs font-bold px-2.5 py-1 rounded-full ${
-            offer.status === "accepted"
-              ? "bg-green-100 text-green-800"
-              : offer.status === "declined"
-                ? "bg-red-100 text-red-600"
-                : "bg-cream-100 text-ink-900"
-          }`}
-        >
-          {offer.status === "pending" ? "Waiting on seller" : offer.status === "accepted" ? "Accepted" : "Declined"}
-        </span>
-      </div>
-      {offer.status !== "declined" && <PriceSummary amountEur={offer.amount_eur} />}
     </div>
   );
 }

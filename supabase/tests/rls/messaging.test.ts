@@ -63,7 +63,16 @@ describe("conversations: INSERT (only between two eligible, can_message() users)
     // (satisfying can_message()'s offer-relationship clause), then seller2
     // starts the conversation — all in one transaction so the uncommitted
     // offer is visible to the insert policy's can_message() check.
-    await withRole("authenticated", USERS.buyer2, async (c) => {
+    await withRole("authenticated", USERS.seller2, async (c) => {
+      // seller2Active is fixed_price by default in the fixture (0048's
+      // prepare_and_validate_offer() now requires offers_allowed) — flip it
+      // first, as its own seller, same as auctions-and-bids.test.ts does for
+      // its own auction fixtures.
+      await c.query("update public.listings set sale_type = 'offers_allowed' where id = $1", [
+        ids.listings.seller2Active,
+      ]);
+
+      await setIdentity(c, USERS.buyer2);
       await c.query("insert into public.offers (listing_id, buyer_id, amount_eur) values ($1, $2, 90)", [
         ids.listings.seller2Active,
         USERS.buyer2,

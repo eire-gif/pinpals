@@ -20,16 +20,28 @@ export const LISTING_STATUS_STYLES: Record<string, string> = {
   removed: "bg-red-100 text-red-600",
 };
 
+// Six values since 0048_marketplace_offer_workflow.sql's negotiation
+// workflow (countered/withdrawn/expired, alongside the original three) —
+// still keyed loosely (Record<string, string>), not Offer["status"], since
+// this map predates that migration and other admin call sites still pass a
+// plain string; unrecognised values still render via statusLabel()'s
+// fallback.
 export const OFFER_STATUS_LABELS: Record<string, string> = {
   pending: "Pending",
+  countered: "Countered",
   accepted: "Accepted",
   declined: "Declined",
+  withdrawn: "Withdrawn",
+  expired: "Expired",
 };
 
 export const OFFER_STATUS_STYLES: Record<string, string> = {
   pending: "bg-cream-100 text-ink-900",
+  countered: "bg-gold-500/20 text-gold-700",
   accepted: "bg-green-100 text-green-800",
   declined: "bg-red-100 text-red-600",
+  withdrawn: "bg-cream-100 text-ink-500",
+  expired: "bg-cream-100 text-ink-500",
 };
 
 // /admin/orders — three independent status dimensions (see
