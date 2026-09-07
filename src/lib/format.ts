@@ -1,4 +1,4 @@
-import type { StripeConnectedAccount } from "./types";
+import type { StripeConnectedAccount, ListingStatus, SaleType, DeliveryOption } from "./types";
 import type { SellerOnboardingStatus } from "./stripe/connect";
 
 export function initials(name: string): string {
@@ -18,6 +18,60 @@ export function formatPrice(eur: number): string {
     minimumFractionDigits: eur % 1 === 0 ? 0 : 2,
   }).format(eur);
 }
+
+/** Formats an integer-cents amount (auctions.*, listings.price_cents — see
+ * supabase/migrations/0046_listing_creation_workflow.sql) the same way
+ * formatPrice() formats a decimal-euro amount, so a bid/starting-price and a
+ * fixed price render identically wherever they appear together. */
+export function formatPriceCents(cents: number): string {
+  return formatPrice(cents / 100);
+}
+
+// Labels for the listing-creation workflow's enums (0046) — same
+// "value IS the display label" convention as CATEGORIES/CONDITIONS
+// (src/lib/marketplace.ts) wherever a value is already human-readable, and a
+// small lookup map wherever it isn't (sale_type/status, mirroring
+// SELLER_ONBOARDING_STATUS_LABELS above).
+
+export const SALE_TYPE_LABELS: Record<SaleType, string> = {
+  fixed_price: "Fixed price",
+  offers_allowed: "Fixed price — offers welcome",
+  auction: "Auction",
+  auction_with_buy_now: "Auction with Buy It Now",
+};
+
+export const DELIVERY_OPTION_LABELS: Record<DeliveryOption, string> = {
+  post: "Postage",
+  collection: "Local collection",
+};
+
+// My Listings' five tabs (src/app/dashboard/listings/) plus the two statuses
+// a listing can be in without ever appearing there (pending_review/expired —
+// see that page for why). Deliberately named apart from admin/format.ts's
+// (identically-shaped, differently-worded) LISTING_STATUS_LABELS/STYLES —
+// that pair is the admin console's own moderation-flavoured copy ("Removed
+// by admin", styled as a hard stop) with its own tested call sites; this is
+// the seller-facing vocabulary for the same enum, worded for the person who
+// owns the listing, not the person moderating it.
+export const SELLER_LISTING_STATUS_LABELS: Record<ListingStatus, string> = {
+  draft: "Draft",
+  pending_review: "Pending review",
+  active: "Active",
+  reserved: "Sale agreed",
+  sold: "Sold",
+  expired: "Expired",
+  removed: "Removed",
+};
+
+export const SELLER_LISTING_STATUS_STYLES: Record<ListingStatus, string> = {
+  draft: "bg-cream-100 text-ink-500",
+  pending_review: "bg-gold-500/20 text-gold-700",
+  active: "bg-green-100 text-green-800",
+  reserved: "bg-cream-100 text-ink-900",
+  sold: "bg-navy-900 text-white",
+  expired: "bg-cream-100 text-ink-500",
+  removed: "bg-red-100 text-red-600",
+};
 
 /** "Joined March 2026" — deliberately month/year only, never the exact day,
  * for the same reason a seller card shows a county rather than an address:

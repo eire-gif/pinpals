@@ -106,6 +106,19 @@ const QUICK_LINKS: QuickLink[] = [
     ),
   },
   {
+    href: "/dashboard/listings",
+    label: "My listings",
+    description: "Manage your drafts and everything you've listed for sale.",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-5 h-5">
+        <rect x="4" y="4" width="7" height="7" rx="1" />
+        <rect x="13" y="4" width="7" height="7" rx="1" />
+        <rect x="4" y="13" width="7" height="7" rx="1" />
+        <rect x="13" y="13" width="7" height="7" rx="1" />
+      </svg>
+    ),
+  },
+  {
     href: "/dashboard/payouts",
     label: "Get paid for sales",
     description: "Set up (or check) your Stripe payout account.",

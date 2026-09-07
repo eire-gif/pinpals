@@ -17,6 +17,85 @@ export const CONDITIONS = [
   "Fair",
 ] as const;
 
+// Optional finer-grained grouping within a category — shown as a second
+// select once a category is chosen (src/app/marketplace/new/new-listing-form.tsx),
+// never required (a listing with no obvious subcategory just leaves it
+// null). Keyed by the exact CATEGORIES string above, same "value IS the
+// display label" convention as CATEGORIES/CONDITIONS themselves.
+export const SUBCATEGORIES: Record<(typeof CATEGORIES)[number], readonly string[]> = {
+  "Drivers": ["Standard", "Left-handed", "Junior / ladies", "Limited / tour edition"],
+  "Woods & hybrids": ["Fairway woods", "Hybrids", "Left-handed"],
+  "Irons": ["Iron sets", "Individual irons", "Left-handed"],
+  "Wedges": ["Pitching wedge", "Sand wedge", "Lob wedge", "Gap wedge"],
+  "Putters": ["Blade", "Mallet", "Left-handed"],
+  "Full sets": ["Men's set", "Women's set", "Junior set"],
+  "Bags & trolleys": ["Stand bags", "Cart bags", "Electric trolleys", "Push trolleys", "Travel bags"],
+  "Shoes & apparel": ["Shoes", "Waterproofs", "Gloves", "Headwear", "Other apparel"],
+  "Balls & accessories": ["Golf balls", "Tees", "Head covers", "Rangefinders / GPS", "Other accessories"],
+};
+
+// ============ Listing creation/edit workflow constants ============
+// See supabase/migrations/0046_listing_creation_workflow.sql — every limit
+// below mirrors a DB-level guardrail from that migration (or, for the image
+// limit/type/size, the pre-existing "listing-images" Storage bucket config
+// from 0003_marketplace.sql). Client/server validation duplicates these for
+// fast, friendly feedback; the DB constraint or Storage bucket setting is
+// what's actually trusted — same split as everywhere else in this schema.
+
+/** Matches listing_images_enforce_limit's hardcoded 8 (0046). */
+export const MAX_LISTING_IMAGES = 8;
+
+/** Matches the "listing-images" bucket's file_size_limit (0003): 5MB. */
+export const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
+
+/** Matches the "listing-images" bucket's allowed_mime_types (0003). */
+export const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
+
+export const SALE_TYPES = ["fixed_price", "offers_allowed", "auction", "auction_with_buy_now"] as const;
+
+export const DELIVERY_OPTIONS = ["post", "collection"] as const;
+
+/** Matches listings_collection_notes_length_check (0046). */
+export const MAX_COLLECTION_NOTES_LENGTH = 500;
+
+/** The two auction sale types — pulled out once since several call sites
+ * (this file's own price-required check mirror, the zod schema, the create
+ * form) all need to branch on "is this an auction" the same way. */
+export const AUCTION_SALE_TYPES = ["auction", "auction_with_buy_now"] as const;
+
+export function isAuctionSaleType(saleType: string): boolean {
+  return (AUCTION_SALE_TYPES as readonly string[]).includes(saleType);
+}
+
+// ============ Auction window validation ============
+// DB-enforced: ends_at > starts_at only (auctions_ends_after_starts_check,
+// 0039). The narrower bounds below are app-layer only — there's no
+// correctness reason to reject, say, a 45-day auction at the database level,
+// but an unbounded window makes for a bad create-listing experience (an
+// auction seller forgets to change a defaulted end date and lists something
+// for a year), so this phase's form/zod schema enforces a sane range.
+export const MIN_AUCTION_DURATION_HOURS = 1;
+export const MAX_AUCTION_DURATION_DAYS = 30;
+
+/** `null` when the window is valid, otherwise a user-facing reason. Pure
+ * function so both the zod schema (src/lib/validation/listing.ts) and any
+ * client-side inline hint can share one source of truth for the rule. */
+export function auctionWindowError(startsAt: Date, endsAt: Date): string | null {
+  if (Number.isNaN(startsAt.getTime()) || Number.isNaN(endsAt.getTime())) {
+    return "Enter a valid start and end time.";
+  }
+  const durationMs = endsAt.getTime() - startsAt.getTime();
+  const minMs = MIN_AUCTION_DURATION_HOURS * 60 * 60 * 1000;
+  const maxMs = MAX_AUCTION_DURATION_DAYS * 24 * 60 * 60 * 1000;
+  if (durationMs < minMs) {
+    return `An auction must run for at least ${MIN_AUCTION_DURATION_HOURS} hour.`;
+  }
+  if (durationMs > maxMs) {
+    return `An auction can run for at most ${MAX_AUCTION_DURATION_DAYS} days.`;
+  }
+  return null;
+}
+
 // The cut Pinpals takes on a completed sale, shown to the buyer as a
 // line-item on top of the agreed price (same pattern as Vinted's buyer fee).
 export const PLATFORM_FEE_RATE = 0.07;
@@ -25,6 +104,17 @@ export function computeOfferTotal(amountEur: number) {
   const fee = Math.round(amountEur * PLATFORM_FEE_RATE * 100) / 100;
   const total = Math.round((amountEur + fee) * 100) / 100;
   return { amount: amountEur, fee, total };
+}
+
+/** Euro <-> integer-cents, rounding to the nearest cent — the one place this
+ * conversion happens so price_eur and price_cents (0046) can never drift
+ * apart from independently-rounded call sites. */
+export function eurToCents(eur: number): number {
+  return Math.round(eur * 100);
+}
+
+export function centsToEur(cents: number): number {
+  return cents / 100;
 }
 
 // ============ Seller reputation (derived, read-only) ============

@@ -12,17 +12,100 @@ export type Profile = {
   created_at: string;
 };
 
+// ============ LISTINGS ============
+// price_eur/category/condition/status were left as plain `string` when this
+// type was first written (0003) and stay that way here for the fields that
+// predate strict typing elsewhere in this file — narrowing them now would
+// touch every existing read site for no behavioural change. The fields added
+// by supabase/migrations/0046_listing_creation_workflow.sql (this phase) get
+// proper unions from the start, matching how every other newer table in this
+// file (Offer, Order, Refund, ...) is typed.
+
+export type ListingStatus =
+  | "draft"
+  | "pending_review"
+  | "active"
+  | "reserved"
+  | "sold"
+  | "expired"
+  | "removed";
+
+export type SaleType = "fixed_price" | "offers_allowed" | "auction" | "auction_with_buy_now";
+
+export type DeliveryOption = "post" | "collection";
+
 export type Listing = {
   id: number;
   seller_id: string;
   title: string;
   description: string | null;
-  price_eur: number;
+  /** Nullable since 0046: an auction-type listing carries no listing-level
+   * price at all — its price lives entirely on its `auctions` row (see that
+   * migration's header comment). Always non-null for every other sale_type. */
+  price_eur: number | null;
   category: string;
+  subcategory: string | null;
   condition: string;
   county: string | null;
   image_url: string | null;
-  status: string;
+  status: ListingStatus;
+  sale_type: SaleType;
+  /** Integer cents mirror of price_eur, additive since 0046 — kept in sync
+   * by the create/edit actions, same nullability rule as price_eur above. */
+  price_cents: number | null;
+  /** Always 'eur' today (DB-enforced) — carried alongside price_cents so a
+   * future non-EUR listing needs no schema change, same pattern as
+   * orders.currency/auctions.currency. */
+  currency: string;
+  delivery_options: DeliveryOption[];
+  collection_notes: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+// listing_images (0036) — a listing's ordered photo gallery. `position`
+// controls display order; the lowest position is the cover image. See
+// supabase/migrations/0046_listing_creation_workflow.sql's
+// enforce_listing_image_limit() trigger for the max-images-per-listing cap
+// (mirrored client-side by MAX_LISTING_IMAGES in src/lib/marketplace.ts).
+export type ListingImage = {
+  id: number;
+  listing_id: number;
+  image_url: string;
+  position: number;
+  created_at: string;
+};
+
+// ============ AUCTIONS & BIDS ============
+// See supabase/migrations/0039_auctions_and_bids.sql (table shape) and
+// 0046_listing_creation_workflow.sql (min_increment_cents, edit-lock
+// triggers). Status is system-controlled only — see 0039's header comment —
+// so there is no seller-facing "set status" action to type against here.
+
+export type AuctionStatus = "scheduled" | "live" | "ended" | "cancelled";
+
+export type Auction = {
+  id: number;
+  listing_id: number;
+  starting_price_cents: number;
+  reserve_price_cents: number | null;
+  buy_now_price_cents: number | null;
+  min_increment_cents: number;
+  currency: string;
+  starts_at: string;
+  ends_at: string;
+  status: AuctionStatus;
+  winning_bid_id: number | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type Bid = {
+  id: number;
+  auction_id: number;
+  bidder_id: string;
+  amount_cents: number;
+  currency: string;
   created_at: string;
 };
 

@@ -212,7 +212,9 @@ export default async function AdminListingsPage({
                         <span className="text-ink-500">{rowSellerName}</span>
                       )}
                     </td>
-                    <td className="px-5 py-3 text-ink-900 font-semibold">{formatPrice(l.price_eur)}</td>
+                    <td className="px-5 py-3 text-ink-900 font-semibold">
+                      {l.price_eur !== null ? formatPrice(l.price_eur) : "Auction"}
+                    </td>
                     <td className="px-5 py-3 text-ink-500">{l.county ?? "—"}</td>
                     <td className="px-5 py-3">
                       <StatusBadge status={l.status} labels={LISTING_STATUS_LABELS} styles={LISTING_STATUS_STYLES} />

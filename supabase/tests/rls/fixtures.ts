@@ -69,18 +69,24 @@ export async function seed(client: Client): Promise<FixtureIds> {
   await insertUser(client, USERS.disabledStaff, "Declan", "Disabled");
 
   // ============ listings (one per status the schema recognises) ============
+  // priceEur defaults to a plain 120.00 for every ordinary fixed-price/offers
+  // fixture; an auction listing has to pass null explicitly (0046's
+  // listings_price_required_for_non_auction_check now rejects an auction row
+  // that still carries a listing-level price_eur — its price lives on
+  // `auctions` instead, see that migration's header comment).
   const listing = async (
     seller: string,
     title: string,
     status: string,
     saleType: string = "fixed_price",
+    priceEur: number | null = 120.0,
   ): Promise<string> => {
     const { rows } = await client.query<{ id: string }>(
       `insert into public.listings
          (seller_id, title, description, price_eur, category, condition, county, status, sale_type)
-       values ($1, $2, 'Fixture listing', 120.00, 'irons', 'good', 'Kerry', $3, $4)
+       values ($1, $2, 'Fixture listing', $5, 'irons', 'good', 'Kerry', $3, $4)
        returning id`,
-      [seller, title, status, saleType],
+      [seller, title, status, saleType, priceEur],
     );
     return rows[0].id;
   };
@@ -94,7 +100,7 @@ export async function seed(client: Client): Promise<FixtureIds> {
     pendingReview: await listing(USERS.seller1, "L6 pending review", "pending_review"),
     expired: await listing(USERS.seller1, "L7 expired", "expired"),
     seller2Active: await listing(USERS.seller2, "L8 seller2's active listing", "active"),
-    auction: await listing(USERS.seller1, "L9 auction listing", "active", "auction"),
+    auction: await listing(USERS.seller1, "L9 auction listing", "active", "auction", null),
   };
 
   const { rows: imgRows } = await client.query<{ id: string }>(

@@ -73,7 +73,7 @@ describe("auctions: SELECT (aligned with listing_is_visible())", () => {
       // seller2's active listing (L8) is fixed_price by default in the
       // fixture — flip it to auction sale_type first via the seller's own
       // permitted UPDATE, then start an auction on it.
-      await c.query("update public.listings set sale_type = 'auction' where id = $1", [ids.listings.seller2Active]);
+      await c.query("update public.listings set sale_type = 'auction', price_eur = null where id = $1", [ids.listings.seller2Active]);
       const r = await c.query(
         "insert into public.auctions (listing_id, starting_price_cents, ends_at) values ($1, 1000, now() + interval '3 days')",
         [ids.listings.seller2Active],
@@ -158,7 +158,7 @@ describe("bids: INSERT (eligible bidders only, validated by the trigger)", () =>
     // way — this is what lets a cross-user scenario stay in the same
     // always-rollback pattern the rest of the suite uses.
     await withRole("authenticated", USERS.seller2, async (c) => {
-      await c.query("update public.listings set sale_type = 'auction' where id = $1", [ids.listings.seller2Active]);
+      await c.query("update public.listings set sale_type = 'auction', price_eur = null where id = $1", [ids.listings.seller2Active]);
       const { rows } = await c.query<{ id: string }>(
         "insert into public.auctions (listing_id, starting_price_cents, ends_at) values ($1, 1000, now() + interval '3 days') returning id",
         [ids.listings.seller2Active],

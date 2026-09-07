@@ -25,7 +25,10 @@ export default function ListingCard({ listing }: { listing: Listing }) {
           </div>
         )}
         <span className="absolute top-3 right-3 bg-navy-900/90 text-white text-xs font-bold px-3 py-1.5 rounded-full">
-          {formatPrice(listing.price_eur)}
+          {/* Auction-type listings carry no listing-level price (0046) — a
+           * proper "current bid"/"starting bid" card treatment is later
+           * phase work; this is just the non-crashing fallback for now. */}
+          {listing.price_eur !== null ? formatPrice(listing.price_eur) : "Auction"}
         </span>
       </div>
       <div className="p-4">

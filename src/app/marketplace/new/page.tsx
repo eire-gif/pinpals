@@ -13,10 +13,12 @@ export default async function NewListingPage() {
 
   if (!user) redirect("/login");
 
-  // Same readiness check actions.ts's createListing() re-does server-side
-  // before actually inserting — this one is display-only, so the seller
-  // knows what to expect before they fill in the form, not a security
-  // boundary in itself.
+  // Display-only, same as before — createListing() (./actions.ts) always
+  // saves as a draft now regardless of payment readiness (publishing is
+  // exclusively ../[id]/actions.ts's publishListing(), which does its own
+  // authoritative re-check), so this is purely "does the seller need a
+  // heads-up before they start filling in the form", not a gate on the
+  // form itself.
   const { data: account } = await supabase
     .from("stripe_connected_accounts")
     .select("charges_enabled, payouts_enabled, details_submitted, requirements_currently_due, requirements_past_due, disabled_reason")
@@ -42,16 +44,15 @@ export default async function NewListingPage() {
         </span>
         <h1 className="font-display font-bold text-3xl mt-2.5">List an item for sale.</h1>
         <p className="text-ink-500 mt-2">
-          {paymentReady
-            ? "Add a photo and a few details — your listing goes live on the marketplace right away."
-            : "Add a photo and a few details — you can save it now, but it won't go live until you finish seller setup with Stripe."}
+          Add your photos and details, then save it as a draft — you&apos;ll get a chance to preview it and confirm
+          before it goes live on the marketplace.
         </p>
         {!paymentReady && (
           <p className="text-sm text-ink-500 mt-3 bg-cream-100 rounded-xl px-4 py-3">
             <Link href="/dashboard/payouts" className="font-bold text-green-700">
               Finish seller setup
             </Link>{" "}
-            first if you&apos;d like this listing to go live immediately.
+            with Stripe before you publish it — you can still put a draft together now.
           </p>
         )}
       </div>
