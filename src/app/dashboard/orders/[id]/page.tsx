@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { formatPrice } from "@/lib/format";
+import { formatPrice, formatTimeRemaining } from "@/lib/format";
 import {
   ORDER_STATUS_LABELS,
   ORDER_STATUS_STYLES,
@@ -11,6 +11,8 @@ import {
 } from "@/lib/admin/format";
 import StatusBadge from "@/components/admin/status-badge";
 import type { Order } from "@/lib/types";
+import { offerHasExpired } from "@/lib/marketplace";
+import { runOfferSweeps } from "@/app/marketplace/[id]/actions";
 import PayForm from "./pay-form";
 
 /**
@@ -33,6 +35,13 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
   } = await supabase.auth.getUser();
   if (!user) redirect(`/login?next=/dashboard/orders/${orderId}`);
 
+  // Opportunistic sweep (see runOfferSweeps()'s own comment,
+  // src/app/marketplace/[id]/actions.ts) — this is the buyer's own
+  // checkout page, so it's the single most relevant place in the app to
+  // make sure a lapsed reservation shows as 'cancelled' rather than a stale
+  // 'pending' that still offers a Pay button past its own deadline.
+  await runOfferSweeps();
+
   const { data: order } = await supabase.from("orders").select("*").eq("id", orderId).maybeSingle<Order>();
   if (!order) notFound();
 
@@ -41,6 +50,11 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
   if (!isBuyer && !isSeller) notFound();
 
   const canPay = isBuyer && order.status !== "cancelled" && order.payment_status !== "paid";
+  // offerHasExpired() takes the same shape as auctionHasEnded() elsewhere in
+  // this app — an ISO deadline plus a defaulted `now: Date = new Date()` —
+  // reused here rather than a raw `Date.now()` comparison in the component
+  // body itself.
+  const checkoutDeadlinePassed = order.reservation_expires_at !== null && offerHasExpired(order.reservation_expires_at);
 
   return (
     <div className="max-w-2xl mx-auto px-6 py-16">
@@ -90,7 +104,27 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
         )}
       </div>
 
-      {canPay && (
+      {/* This order's short checkout window (this phase's spec: "give the
+       * buyer a short, configurable checkout window") — only ever set on an
+       * order created from an accepted offer (offer_action(), 0048), and
+       * only meaningful while still 'pending'; the sweep above already
+       * cancels a 'pending' order once this passes, in the ordinary case,
+       * so `checkoutDeadlinePassed` here is a defensive fallback display
+       * only, for the rare case that sweep silently failed. */}
+      {canPay && order.reservation_expires_at && !checkoutDeadlinePassed && (
+        <div className="bg-gold-500/20 text-gold-700 rounded-xl px-4 py-3 mb-6 text-sm font-semibold">
+          Complete checkout {formatTimeRemaining(order.reservation_expires_at).toLowerCase()} or this reservation
+          will be released.
+        </div>
+      )}
+
+      {canPay && checkoutDeadlinePassed && (
+        <div className="bg-cream-100 text-ink-700 rounded-xl px-4 py-3 mb-6 text-sm">
+          Your checkout window for this order has expired — refresh this page for its current status.
+        </div>
+      )}
+
+      {canPay && !checkoutDeadlinePassed && (
         <div className="bg-surface border border-line rounded-2xl shadow-lg p-8">
           <h2 className="font-display font-bold text-lg mb-1">
             {order.payment_status === "failed" ? "Try payment again" : "Complete payment"}

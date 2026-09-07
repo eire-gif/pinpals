@@ -99,7 +99,7 @@ export async function seed(client: Client): Promise<FixtureIds> {
   };
 
   const listings: FixtureIds["listings"] = {
-    active: await listing(USERS.seller1, "L1 active with a pending offer", "active"),
+    active: await listing(USERS.seller1, "L1 active with a pending offer", "active", "offers_allowed"),
     draft: await listing(USERS.seller1, "L2 draft", "draft"),
     reserved: await listing(USERS.seller1, "L3 reserved (sale in progress)", "reserved"),
     sold: await listing(USERS.seller1, "L4 sold", "sold"),
@@ -119,15 +119,21 @@ export async function seed(client: Client): Promise<FixtureIds> {
   const listingImageId = imgRows[0].id;
 
   // ============ offers ============
+  // Seeded as the postgres superuser (auth.uid() is null on this
+  // connection), which is exactly the "privileged caller" path
+  // prepare_and_validate_offer() (0048) bypasses its own validation for —
+  // so these can freely set original_amount_eur/expires_at/status directly
+  // to represent a known state, the same way the auction fixture below
+  // pushes an auction straight to 'ended' via a plain UPDATE.
   const { rows: offerPending } = await client.query<{ id: string }>(
-    `insert into public.offers (listing_id, buyer_id, amount_eur, status)
-     values ($1, $2, 100.00, 'pending')
+    `insert into public.offers (listing_id, buyer_id, amount_eur, original_amount_eur, status, expires_at)
+     values ($1, $2, 100.00, 100.00, 'pending', now() + interval '48 hours')
      returning id`,
     [listings.active, USERS.buyer1],
   );
   const { rows: offerAccepted } = await client.query<{ id: string }>(
-    `insert into public.offers (listing_id, buyer_id, amount_eur, status)
-     values ($1, $2, 110.00, 'accepted')
+    `insert into public.offers (listing_id, buyer_id, amount_eur, original_amount_eur, status, expires_at)
+     values ($1, $2, 110.00, 110.00, 'accepted', now() - interval '1 hour')
      returning id`,
     [listings.reserved, USERS.buyer1],
   );
