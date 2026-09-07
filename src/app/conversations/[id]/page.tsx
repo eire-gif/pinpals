@@ -4,14 +4,17 @@ import { createClient } from "@/lib/supabase/server";
 import { initials } from "@/lib/format";
 import { otherParticipantId } from "@/lib/messaging";
 import type { Conversation, ConversationParticipant } from "@/lib/types";
-import { listLatestMessages } from "../actions";
+import { listLatestMessages, markConversationRead } from "../actions";
 import ThreadView from "./thread-view";
-import MessageForm from "./message-form";
 import ReportForm from "./report-form";
+import BlockControl from "./block-control";
+import ListingContextCard from "./listing-context-card";
 
 type ConversationRow = Conversation & {
   user_a: ConversationParticipant | null;
   user_b: ConversationParticipant | null;
+  listing: { id: number; title: string; status: string; price_eur: number | null; image_url: string | null } | null;
+  order: { id: number; status: string } | null;
 };
 
 export default async function ConversationThreadPage({ params }: { params: Promise<{ id: string }> }) {
@@ -31,7 +34,9 @@ export default async function ConversationThreadPage({ params }: { params: Promi
   // admin surface.
   const { data: conversation } = await supabase
     .from("conversations")
-    .select("*, user_a:profiles!conversations_user_a_id_fkey(id, first_name, last_name, avatar_color), user_b:profiles!conversations_user_b_id_fkey(id, first_name, last_name, avatar_color)")
+    .select(
+      "*, user_a:profiles!conversations_user_a_id_fkey(id, first_name, last_name, avatar_color), user_b:profiles!conversations_user_b_id_fkey(id, first_name, last_name, avatar_color), listing:listings(id, title, status, price_eur, image_url), order:orders(id, status)"
+    )
     .eq("id", conversationId)
     .maybeSingle<ConversationRow>();
   if (!conversation) notFound();
@@ -45,7 +50,24 @@ export default async function ConversationThreadPage({ params }: { params: Promi
   if (other) participants[other.id] = { id: other.id, name: otherName, avatar_color: other.avatar_color };
   if (me) participants[me.id] = { id: me.id, name: `${me.first_name} ${me.last_name}`.trim(), avatar_color: me.avatar_color };
 
-  const messagesResult = await listLatestMessages(conversationId);
+  const [messagesResult, blockedResult, myBlockResult] = await Promise.all([
+    listLatestMessages(conversationId),
+    // Either direction — this is what actually disables the composer, since
+    // messages' own insert policy (0049) rejects the send regardless of
+    // which side blocked the other.
+    otherId ? supabase.rpc("is_blocked", { a: user.id, b: otherId }) : Promise.resolve({ data: false }),
+    // Specifically "did I block them" — BlockControl's own toggle state
+    // (a viewer can only ever unblock a block THEY made).
+    otherId
+      ? supabase.from("blocked_users").select("blocker_id").eq("blocker_id", user.id).eq("blocked_id", otherId).maybeSingle()
+      : Promise.resolve({ data: null }),
+  ]);
+
+  // Best-effort — mark-as-read failing must never stop the thread from
+  // rendering (same non-blocking discipline as every other secondary write
+  // in this app). markConversationRead() re-verifies participancy itself.
+  void markConversationRead(conversationId);
+
   const initialMessages = "messages" in messagesResult ? messagesResult.messages : [];
   const initialCursor = "nextCursor" in messagesResult ? messagesResult.nextCursor : null;
 
@@ -55,15 +77,20 @@ export default async function ConversationThreadPage({ params }: { params: Promi
         ← All conversations
       </Link>
 
-      <div className="flex items-center gap-3 mb-6">
-        <div
-          className="w-11 h-11 rounded-full flex items-center justify-center text-white font-display font-bold text-sm shrink-0"
-          style={{ background: other?.avatar_color ?? "#1f5c2e" }}
-        >
-          {initials(otherName)}
+      <div className="flex items-center justify-between gap-3 mb-4">
+        <div className="flex items-center gap-3">
+          <div
+            className="w-11 h-11 rounded-full flex items-center justify-center text-white font-display font-bold text-sm shrink-0"
+            style={{ background: other?.avatar_color ?? "#1f5c2e" }}
+          >
+            {initials(otherName)}
+          </div>
+          <h1 className="font-display font-bold text-2xl">{otherName}</h1>
         </div>
-        <h1 className="font-display font-bold text-2xl">{otherName}</h1>
+        {otherId && <BlockControl otherUserId={otherId} initiallyBlocked={!!myBlockResult.data} />}
       </div>
+
+      <ListingContextCard listing={conversation.listing} order={conversation.order} />
 
       <div className="bg-surface border border-line rounded-2xl shadow-sm p-5 mb-4 min-h-[300px]">
         <ThreadView
@@ -72,14 +99,11 @@ export default async function ConversationThreadPage({ params }: { params: Promi
           initialCursor={initialCursor}
           currentUserId={user.id}
           participants={participants}
+          blocked={!!blockedResult.data}
         />
       </div>
 
-      <div className="mb-5">
-        <MessageForm conversationId={conversationId} />
-      </div>
-
-      <ReportForm conversationId={conversationId} />
+      <ReportForm target={{ type: "conversation", id: conversationId }} />
     </div>
   );
 }

@@ -15,6 +15,7 @@ import MessageSellerButton from "./message-seller-button";
  */
 export default function SellerCard({
   sellerId,
+  listingId,
   name,
   homeClub,
   county,
@@ -26,6 +27,7 @@ export default function SellerCard({
   viewerIsSeller,
 }: {
   sellerId: string;
+  listingId: number;
   name: string;
   homeClub: string | null;
   county: string | null;
@@ -69,7 +71,7 @@ export default function SellerCard({
 
       {viewerIsSignedIn && !viewerIsSeller && (
         <div className="mt-4">
-          <MessageSellerButton sellerId={sellerId} />
+          <MessageSellerButton sellerId={sellerId} listingId={listingId} />
         </div>
       )}
     </div>

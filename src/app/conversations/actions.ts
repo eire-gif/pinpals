@@ -4,21 +4,41 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { MESSAGE_MAX_LENGTH, MESSAGES_PAGE_SIZE, buildMessagesCursorFilter, nextMessagesCursor, type MessagesCursor } from "@/lib/messaging";
+import {
+  MESSAGE_MAX_LENGTH,
+  MESSAGES_PAGE_SIZE,
+  buildMessagesCursorFilter,
+  nextMessagesCursor,
+  otherParticipantId,
+  containsSensitiveData,
+  type MessagesCursor,
+} from "@/lib/messaging";
+import { conversationChannelTopic, inboxChannelTopic, broadcast } from "@/lib/realtime";
 import { REPORT_CATEGORIES, type ReportCategory } from "@/lib/admin/reports";
 import { checkRateLimit, rateLimitMessage } from "@/lib/rate-limit";
 import type { Conversation, Message } from "@/lib/types";
 
 export type MessageActionState = { error?: string; success?: boolean };
 
-// By user id (both actions require an authenticated participant already).
-// Messages: generous enough for real back-and-forth conversation, tight
-// enough to blunt a scripted spam loop. Reports: the moderation queue is a
-// shared, limited-staff resource — a much lower ceiling than messages.
+// By user id (every action below requires an authenticated participant
+// already). Messages: generous enough for real back-and-forth conversation,
+// tight enough to blunt a scripted spam loop. Reports: the moderation queue
+// is a shared, limited-staff resource — a much lower ceiling than messages.
+// Starting a conversation and blocking are both rare, deliberate actions a
+// real member does a handful of times, not dozens — tight ceilings, mainly
+// to blunt a scripted eligibility-probing or block/unblock-flapping loop.
+// Marking a thread read/archived isn't rate-limited at all: it's routine UI
+// state a member can toggle while just browsing their own inbox, bounded
+// anyway by how many conversations they actually have, and RLS (not this)
+// is what actually protects it.
 const SEND_MESSAGE_MAX_ATTEMPTS = 30;
 const SEND_MESSAGE_WINDOW_SECONDS = 5 * 60;
-const REPORT_CONVERSATION_MAX_ATTEMPTS = 10;
-const REPORT_CONVERSATION_WINDOW_SECONDS = 60 * 60;
+const REPORT_MAX_ATTEMPTS = 10;
+const REPORT_WINDOW_SECONDS = 60 * 60;
+const START_CONVERSATION_MAX_ATTEMPTS = 20;
+const START_CONVERSATION_WINDOW_SECONDS = 60 * 60;
+const BLOCK_USER_MAX_ATTEMPTS = 20;
+const BLOCK_USER_WINDOW_SECONDS = 60 * 60;
 
 function refreshThread(conversationId: number) {
   revalidatePath(`/conversations/${conversationId}`);
@@ -27,12 +47,15 @@ function refreshThread(conversationId: number) {
 
 /**
  * Starts (or reopens) a conversation with `otherUserId` and redirects into
- * it. The actual eligibility check is the `can_message()`-backed insert
- * policy on `conversations` (see supabase/migrations/0025_messaging.sql) —
- * this function's own guard is only there to turn a raw RLS rejection into
- * a friendly error instead of a generic Postgres error message.
+ * it. Pass `listingId` for a marketplace thread — this phase's own
+ * uniqueness rule (0049_marketplace_messaging.sql's partial unique indexes)
+ * means the same two members get one conversation per listing they talk
+ * about, plus at most one listing-less conversation for everything else
+ * (connections, tee-times). The actual eligibility check is the
+ * `can_message()`-backed insert policy — this function's own guard is only
+ * there to turn a raw RLS rejection into a friendly error.
  */
-export async function startConversation(otherUserId: string): Promise<MessageActionState> {
+export async function startConversation(otherUserId: string, listingId?: number): Promise<MessageActionState> {
   const supabase = await createClient();
   const {
     data: { user },
@@ -40,27 +63,38 @@ export async function startConversation(otherUserId: string): Promise<MessageAct
   if (!user) redirect("/login");
   if (otherUserId === user.id) return { error: "You can't message yourself." };
 
+  const rateLimit = await checkRateLimit({
+    action: "start-conversation",
+    identifier: user.id,
+    maxHits: START_CONVERSATION_MAX_ATTEMPTS,
+    windowSeconds: START_CONVERSATION_WINDOW_SECONDS,
+  });
+  if (!rateLimit.allowed) {
+    return { error: rateLimitMessage(rateLimit.retryAfterSeconds) };
+  }
+
   const [a, b] = [user.id, otherUserId].sort();
 
-  const { data: existing } = await supabase
-    .from("conversations")
-    .select("id")
-    .eq("user_a_id", a)
-    .eq("user_b_id", b)
-    .maybeSingle<Pick<Conversation, "id">>();
+  let existingQuery = supabase.from("conversations").select("id").eq("user_a_id", a).eq("user_b_id", b);
+  existingQuery = listingId ? existingQuery.eq("listing_id", listingId) : existingQuery.is("listing_id", null);
+  const { data: existing } = await existingQuery.maybeSingle<Pick<Conversation, "id">>();
 
   if (existing) redirect(`/conversations/${existing.id}`);
 
   const { data: created, error } = await supabase
     .from("conversations")
-    .insert({ user_a_id: a, user_b_id: b })
+    .insert({ user_a_id: a, user_b_id: b, listing_id: listingId ?? null })
     .select("id")
     .single<Pick<Conversation, "id">>();
 
   if (error || !created) {
     // The insert policy's can_message() check is what actually rejects an
-    // ineligible pair — this is the friendly version of that rejection.
-    return { error: "You can only message a golfer you're connected with, have exchanged a marketplace offer with, or have an accepted tee-time interest with." };
+    // ineligible pair (including a blocked one, since 0049 folded
+    // is_blocked() into can_message() itself) — this is the friendly
+    // version of that rejection.
+    return {
+      error: "You can only message a golfer you're connected with, have exchanged a marketplace offer with, or have an accepted tee-time interest with.",
+    };
   }
 
   redirect(`/conversations/${created.id}`);
@@ -116,6 +150,22 @@ export async function loadOlderMessages(conversationId: number, cursor: Messages
   return { messages: rows.slice().reverse(), nextCursor: nextMessagesCursor(rows, MESSAGES_PAGE_SIZE) };
 }
 
+/**
+ * Sends a message. Two friendly-error pre-checks ahead of the actual
+ * insert — a blocked-either-direction check (is_blocked(), granted to
+ * authenticated specifically for this — see 0049) and the same
+ * containsSensitiveData() heuristic validate_message_content() (0049)
+ * enforces server-side — neither is the real boundary, both just turn a
+ * raw DB rejection into a specific, actionable error message; the insert's
+ * own RLS policy and trigger are what's actually enforced regardless of
+ * what this function does or doesn't check first.
+ *
+ * After a successful insert, best-effort broadcasts the new message to
+ * anyone with this thread open right now, and a lightweight ping to the
+ * other participant's inbox — see src/lib/realtime.ts. Neither broadcast
+ * can fail this action; `refreshThread()`'s revalidation is what
+ * guarantees correctness regardless of whether the broadcast arrives.
+ */
 export async function sendMessage(conversationId: number, _prev: MessageActionState, formData: FormData): Promise<MessageActionState> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -135,15 +185,165 @@ export async function sendMessage(conversationId: number, _prev: MessageActionSt
   if (!body) return { error: "Message can't be empty." };
   if (body.length > MESSAGE_MAX_LENGTH) return { error: `Messages are limited to ${MESSAGE_MAX_LENGTH} characters.` };
 
-  const { error } = await supabase.from("messages").insert({
-    conversation_id: conversationId,
-    sender_id: user.id,
-    body,
-  });
+  const sensitive = containsSensitiveData(body);
+  if (sensitive.blocked) return { error: sensitive.reason };
 
-  if (error) return { error: "Couldn't send that message — please try again." };
+  const { data: conversation } = await supabase
+    .from("conversations")
+    .select("id, user_a_id, user_b_id")
+    .eq("id", conversationId)
+    .maybeSingle<Pick<Conversation, "id" | "user_a_id" | "user_b_id">>();
+  if (!conversation) return { error: "Conversation not found." };
+
+  const otherId = otherParticipantId(conversation, user.id);
+  if (otherId) {
+    // is_blocked() returns a plain scalar boolean (not a row/table), so this
+    // is a direct RPC call with no .single()/.returns() postprocessing.
+    const { data: blocked } = await supabase.rpc("is_blocked", { a: user.id, b: otherId });
+    if (blocked) {
+      return { error: "You can't send messages in this conversation." };
+    }
+  }
+
+  const { data: message, error } = await supabase
+    .from("messages")
+    .insert({ conversation_id: conversationId, sender_id: user.id, body })
+    .select("*")
+    .single<Message>();
+
+  if (error || !message) {
+    // validate_message_content() (0049) raises its own specific message for
+    // the sensitive-content case — surfaced directly on the off chance the
+    // client-side containsSensitiveData() check above missed something the
+    // DB's copy of the rule still catches, same "the DB's own exception text
+    // is already written for a human" discipline as placeBid()/offerAction()'s
+    // known-rejection-snippet matching elsewhere in this app.
+    const dbMessage = error?.message ?? "";
+    if (dbMessage.includes("card number") || dbMessage.includes("IBAN") || dbMessage.includes("verification")) {
+      return { error: dbMessage };
+    }
+    return { error: "Couldn't send that message — please try again." };
+  }
+
+  if (otherId) {
+    await broadcast(conversationChannelTopic(conversationId), "new_message", { message });
+    await broadcast(inboxChannelTopic(otherId), "new_message", {
+      conversationId,
+      senderId: user.id,
+      preview: body.slice(0, 140),
+      createdAt: message.created_at,
+    });
+  }
 
   refreshThread(conversationId);
+  return { success: true };
+}
+
+/**
+ * Marks everything in this conversation as read up to right now, for the
+ * caller's own side only — prevent_conversation_tampering() (0049) is what
+ * actually stops this from touching the other participant's read state or
+ * any other column; this function just picks `now()` and writes it to
+ * whichever of the two read-cursor columns is the caller's own.
+ */
+export async function markConversationRead(conversationId: number): Promise<MessageActionState> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const { data: conversation } = await supabase
+    .from("conversations")
+    .select("id, user_a_id, user_b_id")
+    .eq("id", conversationId)
+    .maybeSingle<Pick<Conversation, "id" | "user_a_id" | "user_b_id">>();
+  if (!conversation) return { error: "Conversation not found." };
+
+  const nowIso = new Date().toISOString();
+  const column = conversation.user_a_id === user.id ? "user_a_last_read_at" : "user_b_last_read_at";
+
+  const { error } = await supabase.from("conversations").update({ [column]: nowIso }).eq("id", conversationId);
+  if (error) return { error: "Couldn't mark this conversation read." };
+
+  revalidatePath("/conversations");
+  return { success: true };
+}
+
+async function setArchived(conversationId: number, archived: boolean): Promise<MessageActionState> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const { data: conversation } = await supabase
+    .from("conversations")
+    .select("id, user_a_id, user_b_id")
+    .eq("id", conversationId)
+    .maybeSingle<Pick<Conversation, "id" | "user_a_id" | "user_b_id">>();
+  if (!conversation) return { error: "Conversation not found." };
+
+  const column = conversation.user_a_id === user.id ? "user_a_archived_at" : "user_b_archived_at";
+  const { error } = await supabase
+    .from("conversations")
+    .update({ [column]: archived ? new Date().toISOString() : null })
+    .eq("id", conversationId);
+  if (error) return { error: "Couldn't update this conversation." };
+
+  refreshThread(conversationId);
+  return { success: true };
+}
+
+/** Archives this conversation for the caller only — the other participant's
+ * inbox is entirely unaffected (0049's per-side archive columns). */
+export async function archiveConversation(conversationId: number): Promise<MessageActionState> {
+  return setArchived(conversationId, true);
+}
+
+export async function unarchiveConversation(conversationId: number): Promise<MessageActionState> {
+  return setArchived(conversationId, false);
+}
+
+/**
+ * Blocks `otherUserId`: no more messages either direction in any existing
+ * conversation between them (messages' insert policy, 0049) and no new
+ * conversation can start (can_message(), 0049) until unblocked. Existing
+ * message history is untouched either way — blocking stops future contact,
+ * it isn't a delete/hide action.
+ */
+export async function blockUser(otherUserId: string): Promise<MessageActionState> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+  if (otherUserId === user.id) return { error: "You can't block yourself." };
+
+  const rateLimit = await checkRateLimit({
+    action: "block-user",
+    identifier: user.id,
+    maxHits: BLOCK_USER_MAX_ATTEMPTS,
+    windowSeconds: BLOCK_USER_WINDOW_SECONDS,
+  });
+  if (!rateLimit.allowed) {
+    return { error: rateLimitMessage(rateLimit.retryAfterSeconds) };
+  }
+
+  const { error } = await supabase.from("blocked_users").insert({ blocker_id: user.id, blocked_id: otherUserId });
+  if (error && error.code !== "23505") return { error: "Couldn't block that member — please try again." };
+
+  revalidatePath("/conversations");
+  return { success: true };
+}
+
+export async function unblockUser(otherUserId: string): Promise<MessageActionState> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const { error } = await supabase
+    .from("blocked_users")
+    .delete()
+    .eq("blocker_id", user.id)
+    .eq("blocked_id", otherUserId);
+  if (error) return { error: "Couldn't unblock that member — please try again." };
+
+  revalidatePath("/conversations");
   return { success: true };
 }
 
@@ -165,8 +365,8 @@ export async function reportConversation(conversationId: number, _prev: MessageA
   const rateLimit = await checkRateLimit({
     action: "report-conversation",
     identifier: user.id,
-    maxHits: REPORT_CONVERSATION_MAX_ATTEMPTS,
-    windowSeconds: REPORT_CONVERSATION_WINDOW_SECONDS,
+    maxHits: REPORT_MAX_ATTEMPTS,
+    windowSeconds: REPORT_WINDOW_SECONDS,
   });
   if (!rateLimit.allowed) {
     return { error: rateLimitMessage(rateLimit.retryAfterSeconds) };
@@ -200,5 +400,56 @@ export async function reportConversation(conversationId: number, _prev: MessageA
   if (error) return { error: "Couldn't file that report — please try again." };
 
   refreshThread(conversationId);
+  return { success: true };
+}
+
+/**
+ * The per-message counterpart to reportConversation() — 'message' has been
+ * a valid reports.target_type since 0016_admin_reports.sql, specifically
+ * anticipating this. Same participancy-then-service-role-insert shape:
+ * `messages`' own SELECT policy is the participancy check (a stranger's
+ * message id just returns no row), the service-role insert trusts that
+ * completely.
+ */
+export async function reportMessage(messageId: number, _prev: MessageActionState, formData: FormData): Promise<MessageActionState> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const rateLimit = await checkRateLimit({
+    action: "report-message",
+    identifier: user.id,
+    maxHits: REPORT_MAX_ATTEMPTS,
+    windowSeconds: REPORT_WINDOW_SECONDS,
+  });
+  if (!rateLimit.allowed) {
+    return { error: rateLimitMessage(rateLimit.retryAfterSeconds) };
+  }
+
+  const category = String(formData.get("category") ?? "") as ReportCategory;
+  const description = String(formData.get("description") ?? "").trim();
+
+  if (!REPORT_CATEGORIES.includes(category)) return { error: "Please choose a reason." };
+  if (description.length > 4000) return { error: "Please keep the description under 4000 characters." };
+
+  const { data: message } = await supabase
+    .from("messages")
+    .select("id, conversation_id")
+    .eq("id", messageId)
+    .maybeSingle<Pick<Message, "id" | "conversation_id">>();
+  if (!message) return { error: "Message not found." };
+
+  const admin = createAdminClient();
+  const { error } = await admin.from("reports").insert({
+    reporter_id: user.id,
+    target_type: "message",
+    target_id: String(messageId),
+    category,
+    description: description || null,
+  });
+
+  if (error) return { error: "Couldn't file that report — please try again." };
+
+  refreshThread(message.conversation_id);
   return { success: true };
 }
