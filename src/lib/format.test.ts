@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   formatPrice,
   formatJoinedDate,
+  formatTimeRemaining,
   initials,
+  MARKETPLACE_BADGE_LABELS,
   SELLER_ACCOUNT_STATUS_STYLES,
   sellerAccountStatusLabel,
   SELLER_ONBOARDING_STATUS_LABELS,
@@ -146,5 +148,38 @@ describe("SELLER_ONBOARDING_STATUS_LABELS / STYLES", () => {
       expect(typeof SELLER_ONBOARDING_STATUS_LABELS[status]).toBe("string");
       expect(typeof SELLER_ONBOARDING_STATUS_STYLES[status]).toBe("string");
     }
+  });
+});
+
+describe("MARKETPLACE_BADGE_LABELS", () => {
+  it("uses the compact card vocabulary from this phase's spec", () => {
+    expect(MARKETPLACE_BADGE_LABELS.fixed_price).toBe("Buy Now");
+    expect(MARKETPLACE_BADGE_LABELS.offers_allowed).toBe("Offers");
+    expect(MARKETPLACE_BADGE_LABELS.auction).toBe("Bidding");
+    expect(MARKETPLACE_BADGE_LABELS.auction_with_buy_now).toBe("Buy Now + Bidding");
+  });
+});
+
+describe("formatTimeRemaining", () => {
+  const now = new Date("2026-06-15T12:00:00.000Z");
+
+  it("shows days and hours when more than a day remains", () => {
+    expect(formatTimeRemaining("2026-06-17T16:00:00.000Z", now)).toBe("2d 4h left");
+  });
+
+  it("shows hours and minutes when under a day remains", () => {
+    expect(formatTimeRemaining("2026-06-15T15:12:00.000Z", now)).toBe("3h 12m left");
+  });
+
+  it("shows just minutes when under an hour remains", () => {
+    expect(formatTimeRemaining("2026-06-15T12:45:00.000Z", now)).toBe("45m left");
+  });
+
+  it("shows 'Ending soon' inside the last five minutes", () => {
+    expect(formatTimeRemaining("2026-06-15T12:03:00.000Z", now)).toBe("Ending soon");
+  });
+
+  it("shows 'Ended' once the end time has passed", () => {
+    expect(formatTimeRemaining("2026-06-15T11:00:00.000Z", now)).toBe("Ended");
   });
 });

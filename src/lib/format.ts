@@ -45,6 +45,40 @@ export const DELIVERY_OPTION_LABELS: Record<DeliveryOption, string> = {
   collection: "Local collection",
 };
 
+// The marketplace grid's own compact badge vocabulary (this phase's spec:
+// "Buy Now, Offers, Bidding or Buy Now + Bidding") — deliberately its own
+// map rather than reusing SALE_TYPE_LABELS above, whose longer wording
+// ("Fixed price — offers welcome") suits a form/detail page but doesn't fit
+// a small pill on a card. Same "one enum, several context-specific label
+// maps" precedent as SELLER_LISTING_STATUS_LABELS vs admin/format.ts's.
+export const MARKETPLACE_BADGE_LABELS: Record<SaleType, string> = {
+  fixed_price: "Buy Now",
+  offers_allowed: "Offers",
+  auction: "Bidding",
+  auction_with_buy_now: "Buy Now + Bidding",
+};
+
+/**
+ * "2d 4h left" / "45m left" / "Ending soon" / "Ended" for an auction card.
+ * Takes `now` explicitly (default `new Date()`) so it's testable without
+ * mocking the system clock — see src/lib/marketplace-discovery.test.ts.
+ */
+export function formatTimeRemaining(endsAtIso: string, now: Date = new Date()): string {
+  const msLeft = new Date(endsAtIso).getTime() - now.getTime();
+  if (msLeft <= 0) return "Ended";
+
+  const minutes = Math.floor(msLeft / 60_000);
+  if (minutes < 5) return "Ending soon";
+
+  const days = Math.floor(minutes / (60 * 24));
+  const hours = Math.floor((minutes % (60 * 24)) / 60);
+  const mins = minutes % 60;
+
+  if (days > 0) return `${days}d ${hours}h left`;
+  if (hours > 0) return `${hours}h ${mins}m left`;
+  return `${mins}m left`;
+}
+
 // My Listings' five tabs (src/app/dashboard/listings/) plus the two statuses
 // a listing can be in without ever appearing there (pending_review/expired —
 // see that page for why). Deliberately named apart from admin/format.ts's

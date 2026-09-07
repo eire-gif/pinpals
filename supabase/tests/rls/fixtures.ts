@@ -81,12 +81,19 @@ export async function seed(client: Client): Promise<FixtureIds> {
     saleType: string = "fixed_price",
     priceEur: number | null = 120.0,
   ): Promise<string> => {
+    // price_cents (0046) is meant to always mirror price_eur — the real
+    // create/edit actions (src/app/marketplace/new/actions.ts) insert both
+    // together, never one without the other. Deriving it here the same way
+    // (rather than leaving the column at its default null) is what makes
+    // marketplace-discovery.test.ts's price-sort fixtures behave like real
+    // listings instead of every row looking priceless to a price sort.
+    const priceCents = priceEur !== null ? Math.round(priceEur * 100) : null;
     const { rows } = await client.query<{ id: string }>(
       `insert into public.listings
-         (seller_id, title, description, price_eur, category, condition, county, status, sale_type)
-       values ($1, $2, 'Fixture listing', $5, 'irons', 'good', 'Kerry', $3, $4)
+         (seller_id, title, description, price_eur, price_cents, category, condition, county, status, sale_type)
+       values ($1, $2, 'Fixture listing', $5, $6, 'irons', 'good', 'Kerry', $3, $4)
        returning id`,
-      [seller, title, status, saleType, priceEur],
+      [seller, title, status, saleType, priceEur, priceCents],
     );
     return rows[0].id;
   };
