@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getStripeClient } from "@/lib/stripe/client";
 import { centsFromEur } from "@/lib/stripe/payments";
+import { isSellerPaymentReady, sellerOnboardingStatus } from "@/lib/stripe/connect";
 import type { Order, StripeConnectedAccount } from "@/lib/types";
 
 export type CheckoutState = { error?: string; clientSecret?: string };
@@ -59,11 +60,31 @@ export async function createOrderPaymentIntent(
   const admin = createAdminClient();
   const { data: sellerAccount } = await admin
     .from("stripe_connected_accounts")
-    .select("stripe_account_id, charges_enabled")
+    .select(
+      "stripe_account_id, charges_enabled, payouts_enabled, details_submitted, requirements_currently_due, requirements_past_due, disabled_reason"
+    )
     .eq("user_id", order.seller_id)
-    .maybeSingle<Pick<StripeConnectedAccount, "stripe_account_id" | "charges_enabled">>();
+    .maybeSingle<
+      Pick<
+        StripeConnectedAccount,
+        | "stripe_account_id"
+        | "charges_enabled"
+        | "payouts_enabled"
+        | "details_submitted"
+        | "requirements_currently_due"
+        | "requirements_past_due"
+        | "disabled_reason"
+      >
+    >();
 
-  if (!sellerAccount?.charges_enabled) {
+  // Same "enabled" bar the publish gate already trusts
+  // (isSellerPaymentReady()/sellerOnboardingStatus(), src/lib/stripe/
+  // connect.ts) — not just charges_enabled. A seller can have charges_enabled
+  // true while payouts_enabled is false (Stripe allows this transiently,
+  // e.g. mid-review) or while a requirement is currently/past due; none of
+  // those states should let a buyer start paying into a sale the seller
+  // can't actually be paid out for.
+  if (!sellerAccount || !isSellerPaymentReady(sellerOnboardingStatus(sellerAccount))) {
     return { error: "This seller hasn't finished setting up payouts yet — check back soon." };
   }
 
@@ -97,14 +118,25 @@ export async function createOrderPaymentIntent(
 
   let paymentIntent;
   try {
-    paymentIntent = await stripe.paymentIntents.create({
-      amount: centsFromEur(order.total_eur),
-      currency: "eur",
-      application_fee_amount: centsFromEur(order.platform_fee_eur),
-      transfer_data: { destination: sellerAccount.stripe_account_id },
-      automatic_payment_methods: { enabled: true },
-      metadata: { pinpals_order_id: String(order.id) },
-    });
+    paymentIntent = await stripe.paymentIntents.create(
+      {
+        amount: centsFromEur(order.total_eur),
+        currency: "eur",
+        application_fee_amount: centsFromEur(order.platform_fee_eur),
+        transfer_data: { destination: sellerAccount.stripe_account_id },
+        automatic_payment_methods: { enabled: true },
+        metadata: { pinpals_order_id: String(order.id) },
+      },
+      // Stable per-order key (order.total_eur/platform_fee_eur are immutable
+      // snapshots, so the request body is guaranteed identical on a retry) —
+      // closes the gap between "no reusable existing PaymentIntent found
+      // above" and "order.payment_reference written below": two concurrent
+      // submits (a double-click, or a retried request) that both reach this
+      // branch get back the SAME PaymentIntent from Stripe instead of two,
+      // same idempotency discipline already used for refunds
+      // (src/app/admin/orders/[id]/actions.ts).
+      { idempotencyKey: `pinpals-order-${order.id}-create-pi` }
+    );
   } catch {
     return { error: GENERIC_ERROR };
   }

@@ -7,13 +7,12 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminAction } from "@/lib/admin/audit";
 import { getStripeClient } from "@/lib/stripe/client";
 import { centsFromEur, truncateErrorMessage } from "@/lib/stripe/payments";
-import { computeRefundableAmountEur, isOrderRefundable, mapStripeRefundStatus } from "@/lib/stripe/refunds";
+import { computeRefundableAmountEur, isOrderRefundable, mapStripeRefundStatus, refundFailureMessage } from "@/lib/stripe/refunds";
 import type { Order, Refund } from "@/lib/types";
 
 export type RefundActionState = { error?: string; success?: boolean };
 
 const REASON_MAX_LENGTH = 4000; // matches refunds.reason's own check constraint
-const GENERIC_ERROR = "Couldn't process that refund just now — please try again in a moment.";
 
 function revalidateOrder(orderId: number) {
   revalidatePath(`/admin/orders/${orderId}`);
@@ -40,6 +39,15 @@ function revalidateOrder(orderId: number) {
  *    is ever submitted.
  *  - Stripe mutation server-side only: stripe.refunds.create() below, never
  *    reachable from the browser.
+ *  - fund allocation policy (confirmed, see claude/stripe-connect-business-
+ *    model-decision.md): reverse_transfer: true claws back the seller's
+ *    share of the refunded amount from their connected account;
+ *    refund_application_fee is deliberately left unset — Pinpals keeps its
+ *    own commission on a refunded sale. This can newly fail with Stripe's
+ *    `balance_insufficient` error if the seller's own balance can't cover
+ *    the claw-back — refundFailureMessage() (src/lib/stripe/refunds.ts)
+ *    gives that case a specific, actionable message rather than the generic
+ *    one.
  *  - idempotency: one idempotency key per request, generated here and
  *    stored on the refund row before the Stripe call, so a retried submit
  *    of the same click can't create two refunds.
@@ -130,6 +138,17 @@ export async function requestOrderRefund(_prev: RefundActionState, formData: For
       {
         payment_intent: order.payment_reference!,
         amount: centsFromEur(amountEur),
+        // Pinpals' confirmed refund/fee allocation policy (see
+        // claude/stripe-connect-business-model-decision.md): claw back the
+        // seller's share of a refunded sale, keep Pinpals' own commission.
+        // reverse_transfer reverses the transfer to the seller's connected
+        // account proportionally to the amount refunded (full or partial);
+        // refund_application_fee is deliberately left unset/false — Pinpals
+        // does not refund its own fee. Both params require the caller to be
+        // the platform that created the destination charge, which this
+        // action always is (stripe.refunds.create() below runs only
+        // server-side, under the platform's own secret key).
+        reverse_transfer: true,
         metadata: { pinpals_order_id: String(orderId), pinpals_refund_id: String(refund.id) },
       },
       { idempotencyKey }
@@ -152,7 +171,7 @@ export async function requestOrderRefund(_prev: RefundActionState, formData: For
       metadata: { refundId: refund.id, amountEur, error: message },
     });
     revalidateOrder(orderId);
-    return { error: GENERIC_ERROR };
+    return { error: refundFailureMessage(err) };
   }
 
   const finalStatus = mapStripeRefundStatus(stripeRefund.status);

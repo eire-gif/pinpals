@@ -67,6 +67,30 @@ export function mapStripeRefundStatus(status: Stripe.Refund["status"]): Refund["
   }
 }
 
+const GENERIC_REFUND_ERROR = "Couldn't process that refund just now — please try again in a moment.";
+
+/**
+ * Friendlier admin-facing message for a Stripe refund failure worth
+ * explaining specifically. requestOrderRefund() (src/app/admin/orders/[id]/
+ * actions.ts) sets `reverse_transfer: true` on every refund — Pinpals'
+ * confirmed policy of clawing back the seller's share of a refunded sale
+ * (see claude/stripe-connect-business-model-decision.md) — which means a
+ * refund can now fail for a reason it never could before: the seller's
+ * connected account balance can't cover the amount being reversed. Stripe's
+ * own error code for that case is `balance_insufficient`
+ * (https://docs.stripe.com/error-codes). Everything else falls back to a
+ * generic message — the raw Stripe error text is always preserved
+ * separately in the refund row and the admin audit log, so nothing is lost
+ * by not surfacing it directly here.
+ */
+export function refundFailureMessage(err: unknown): string {
+  const code = err && typeof err === "object" && "code" in err ? (err as { code?: unknown }).code : undefined;
+  if (code === "balance_insufficient") {
+    return "This refund also claws back money from the seller's balance, but the seller's account can't currently cover it. Try again once their balance recovers, or process it manually from the Stripe Dashboard.";
+  }
+  return GENERIC_REFUND_ERROR;
+}
+
 /** Direct link into Stripe's own dispute tooling — the task's explicit
  * "links/references rather than attempting to replicate all Stripe dispute
  * tooling" requirement. `livemode` picks the matching dashboard host so an

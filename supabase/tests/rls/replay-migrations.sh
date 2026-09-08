@@ -76,7 +76,8 @@ for f in 0019_orders.sql 0020_stripe_connected_accounts.sql 0021_payments.sql 00
   0042_notifications.sql 0043_conversations_marketplace_context.sql 0044_offers_self_dealing_trigger.sql \
   0045_marketplace_rls_hardening.sql 0046_listing_creation_workflow.sql \
   0047_marketplace_discovery.sql 0048_marketplace_offer_workflow.sql \
-  0049_marketplace_messaging.sql 0050_marketplace_checkout.sql; do
+  0049_marketplace_messaging.sql 0050_marketplace_checkout.sql \
+  0051_platform_fee_configuration.sql; do
   run "$f" "$MIGDIR/$f"
 done
 

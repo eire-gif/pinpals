@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { computeRefundableAmountEur, isOrderRefundable, mapStripeRefundStatus, stripeDisputeDashboardUrl } from "./refunds";
+import {
+  computeRefundableAmountEur,
+  isOrderRefundable,
+  mapStripeRefundStatus,
+  refundFailureMessage,
+  stripeDisputeDashboardUrl,
+} from "./refunds";
 
 describe("computeRefundableAmountEur", () => {
   it("returns the full total when there are no refunds yet", () => {
@@ -68,6 +74,28 @@ describe("mapStripeRefundStatus", () => {
 
   it("falls back to pending for null", () => {
     expect(mapStripeRefundStatus(null)).toBe("pending");
+  });
+});
+
+describe("refundFailureMessage", () => {
+  it("gives a specific, actionable message for balance_insufficient (reverse_transfer's new failure mode)", () => {
+    expect(refundFailureMessage({ code: "balance_insufficient" })).toMatch(/seller's account can't currently cover/);
+  });
+
+  it("falls back to a generic message for any other Stripe error code", () => {
+    expect(refundFailureMessage({ code: "charge_already_refunded" })).toBe(
+      "Couldn't process that refund just now — please try again in a moment."
+    );
+  });
+
+  it("falls back to a generic message when there's no code at all", () => {
+    expect(refundFailureMessage(new Error("network blip"))).toBe(
+      "Couldn't process that refund just now — please try again in a moment."
+    );
+    expect(refundFailureMessage("not even an object")).toBe(
+      "Couldn't process that refund just now — please try again in a moment."
+    );
+    expect(refundFailureMessage(null)).toBe("Couldn't process that refund just now — please try again in a moment.");
   });
 });
 
