@@ -7,13 +7,19 @@ import {
   ORDER_STATUS_STYLES,
   PAYMENT_STATUS_LABELS,
   PAYMENT_STATUS_STYLES,
+  DISPUTE_STATUS_LABELS,
+  DISPUTE_STATUS_STYLES,
   formatDateTime,
+  statusLabel,
+  statusStyle,
 } from "@/lib/admin/format";
 import StatusBadge from "@/components/admin/status-badge";
 import type { Order } from "@/lib/types";
 import { offerHasExpired } from "@/lib/marketplace";
 import { runOfferSweeps } from "@/app/marketplace/[id]/actions";
 import PayForm from "./pay-form";
+import ReportIssueForm from "./report-issue-form";
+import { getOrderDisputeStatus } from "./actions";
 
 /**
  * A member's own view of one order — the buyer/seller-facing counterpart to
@@ -50,6 +56,9 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
   if (!isBuyer && !isSeller) notFound();
 
   const canPay = isBuyer && order.status !== "cancelled" && order.payment_status !== "paid";
+  // Only meaningful once there's something to dispute — skip the RPC
+  // entirely for an order that hasn't even been paid yet.
+  const disputeStatus = order.payment_status === "paid" ? await getOrderDisputeStatus(order.id) : null;
   // offerHasExpired() takes the same shape as auctionHasEnded() elsewhere in
   // this app — an ISO deadline plus a defaulted `now: Date = new Date()` —
   // reused here rather than a raw `Date.now()` comparison in the component
@@ -157,6 +166,26 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
           Paid — thanks!
         </p>
       )}
+
+      {disputeStatus && (
+        <div className="bg-surface border border-line rounded-2xl shadow-sm p-5 mt-6 flex items-center justify-between gap-3">
+          <div>
+            <div className="font-display font-bold text-ink-900 text-sm">Payment dispute</div>
+            <p className="text-xs text-ink-500 mt-0.5">
+              The buyer&rsquo;s bank has raised a dispute on this payment — our team is handling it.
+            </p>
+          </div>
+          <span
+            className={`text-xs font-semibold px-3 py-1.5 rounded-full whitespace-nowrap ${statusStyle(DISPUTE_STATUS_STYLES, disputeStatus)}`}
+          >
+            {statusLabel(DISPUTE_STATUS_LABELS, disputeStatus)}
+          </span>
+        </div>
+      )}
+
+      <div className="mt-6">
+        <ReportIssueForm orderId={order.id} />
+      </div>
     </div>
   );
 }

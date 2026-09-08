@@ -5,13 +5,21 @@ import { requireStaff } from "@/lib/admin/authorization";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminAction } from "@/lib/admin/audit";
 import { MODERATION_ROLES, type ModerationState } from "@/lib/admin/moderation";
-import { REPORT_PRIORITIES, type ReportActionState, type ReportPriority } from "@/lib/admin/reports";
+import {
+  ESCALATION_ROLES,
+  REPORT_PRIORITIES,
+  type EscalationRole,
+  type ReportActionState,
+  type ReportPriority,
+} from "@/lib/admin/reports";
 import { getConversationAccessWindow, type ConversationAccessState } from "@/lib/admin/messaging";
 import type { MessagesCursor } from "@/lib/messaging";
 
 const NOTE_MAX_LENGTH = 4000; // matches report_notes' own check constraint
 const RESOLUTION_MAX_LENGTH = 4000; // matches reports.resolution's own check constraint
 const ACCESS_REASON_MAX_LENGTH = 4000; // matches admin_audit_log.reason having no length cap of its own, capped here for sanity
+const ESCALATION_REASON_MAX_LENGTH = 4000;
+const REDACTION_REASON_MAX_LENGTH = 4000;
 
 function revalidateReport(reportId: number) {
   revalidatePath(`/admin/reports/${reportId}`);
@@ -348,7 +356,17 @@ export async function dismissReport(_prev: ReportActionState, formData: FormData
 
   const { error } = await admin
     .from("reports")
-    .update({ status: "dismissed", resolution: reason, resolved_at: new Date().toISOString(), resolved_by: user.id })
+    .update({
+      status: "dismissed",
+      resolution: reason,
+      resolved_at: new Date().toISOString(),
+      resolved_by: user.id,
+      // Escalation is moot once a report is closed — see escalateReport()'s
+      // own comment on why this isn't a DB constraint.
+      escalated_to_role: null,
+      escalated_at: null,
+      escalated_by: null,
+    })
     .eq("id", reportId);
 
   await recordAdminAction({
@@ -423,6 +441,9 @@ export async function resolveReport(_prev: ReportActionState, formData: FormData
       resolved_at: new Date().toISOString(),
       resolved_by: user.id,
       linked_action_id: linkedActionId,
+      escalated_to_role: null,
+      escalated_at: null,
+      escalated_by: null,
     })
     .eq("id", reportId);
 
@@ -561,5 +582,147 @@ export async function addReportNote(_prev: ReportActionState, formData: FormData
   if (error) return { error: "Couldn't save this note — please try again." };
 
   revalidatePath(`/admin/reports/${reportId}`);
+  return { success: true };
+}
+
+/**
+ * Hands an open/claimed report to a specific higher role — the escalation
+ * path the task asked for. Deliberately gated to a bare requireStaff() (any
+ * active staff role, support included), not MODERATION_ROLES: escalating
+ * "I can't act on this, someone with more power should" is exactly the
+ * action support's own read-only role exists to take, not a moderation
+ * action of its own — same reasoning addReportNote() already documents for
+ * notes. escalated_to_role/escalated_at/escalated_by travel together by
+ * this single UPDATE, same both-or-neither convention as
+ * assigned_admin/claimed_at (claimReport()).
+ */
+export async function escalateReport(_prev: ReportActionState, formData: FormData): Promise<ReportActionState> {
+  const { user, staff } = await requireStaff();
+  const reportId = Number(formData.get("reportId"));
+  const escalatedToRole = String(formData.get("escalatedToRole") ?? "") as EscalationRole;
+  const reason = String(formData.get("reason") ?? "").trim();
+
+  if (!reportId || Number.isNaN(reportId)) return { error: "Missing report id." };
+  if (!ESCALATION_ROLES.includes(escalatedToRole)) return { error: "Choose a role to escalate to." };
+  if (!reason) return { error: "A reason is required." };
+  if (reason.length > ESCALATION_REASON_MAX_LENGTH) {
+    return { error: `Reasons are limited to ${ESCALATION_REASON_MAX_LENGTH} characters.` };
+  }
+
+  const admin = createAdminClient();
+  const { data: report } = await admin.from("reports").select("status").eq("id", reportId).maybeSingle();
+  if (!report) return { error: "Report not found." };
+  if (report.status === "resolved" || report.status === "dismissed") {
+    return { error: `This report is already "${report.status}" — reopen it first to escalate.` };
+  }
+
+  const { error } = await admin
+    .from("reports")
+    .update({ escalated_to_role: escalatedToRole, escalated_at: new Date().toISOString(), escalated_by: user.id })
+    .eq("id", reportId);
+
+  await recordAdminAction({
+    actor: { id: user.id, role: staff.role },
+    action: "report.escalated",
+    targetType: "report",
+    targetId: reportId,
+    reason,
+    outcome: error ? "failure" : "success",
+    metadata: error ? { error: error.message } : { escalatedToRole },
+  });
+
+  if (error) return { error: "Couldn't escalate this report — please try again." };
+
+  revalidateReport(reportId);
+  return { success: true };
+}
+
+/**
+ * Clears an escalation without resolving the underlying report — for when
+ * the escalating staff member changes their mind, or the escalated-to role
+ * already handled it out of band. Any active staff member may clear one,
+ * same reasoning as escalateReport() itself.
+ */
+export async function clearEscalation(_prev: ReportActionState, formData: FormData): Promise<ReportActionState> {
+  const { user, staff } = await requireStaff();
+  const reportId = Number(formData.get("reportId"));
+  if (!reportId || Number.isNaN(reportId)) return { error: "Missing report id." };
+
+  const admin = createAdminClient();
+  const { data: report } = await admin.from("reports").select("escalated_to_role").eq("id", reportId).maybeSingle();
+  if (!report) return { error: "Report not found." };
+  if (!report.escalated_to_role) return { error: "This report isn't currently escalated." };
+
+  const { error } = await admin
+    .from("reports")
+    .update({ escalated_to_role: null, escalated_at: null, escalated_by: null })
+    .eq("id", reportId);
+
+  await recordAdminAction({
+    actor: { id: user.id, role: staff.role },
+    action: "report.escalated",
+    targetType: "report",
+    targetId: reportId,
+    reason: "Escalation cleared",
+    outcome: error ? "failure" : "success",
+    metadata: error ? { error: error.message } : { previousEscalatedToRole: report.escalated_to_role },
+  });
+
+  if (error) return { error: "Couldn't clear this escalation — please try again." };
+
+  revalidateReport(reportId);
+  return { success: true };
+}
+
+/**
+ * Retention/redaction hook (super_admin only, always reason-required, same
+ * "manual state repair needs a reason" rule as every other privileged
+ * mutation in this app): clears a report's member-submitted free text —
+ * description and evidence_refs, the two fields most likely to carry
+ * someone else's personal data — while leaving category, status,
+ * resolution, and the full audit trail intact. Not a delete: the report
+ * itself, and the record that it existed and was handled a certain way,
+ * stays part of the moderation history. See
+ * supabase/migrations/0055_marketplace_trust_safety.sql's own header
+ * comment on why this is a "hook", not a full retention-policy engine.
+ */
+export async function redactReport(_prev: ReportActionState, formData: FormData): Promise<ReportActionState> {
+  const { user, staff } = await requireStaff({ roles: ["super_admin"] });
+  const reportId = Number(formData.get("reportId"));
+  const reason = String(formData.get("reason") ?? "").trim();
+
+  if (!reportId || Number.isNaN(reportId)) return { error: "Missing report id." };
+  if (!reason) return { error: "A reason is required." };
+  if (reason.length > REDACTION_REASON_MAX_LENGTH) {
+    return { error: `Reasons are limited to ${REDACTION_REASON_MAX_LENGTH} characters.` };
+  }
+
+  const admin = createAdminClient();
+  const { data: report } = await admin.from("reports").select("redacted_at").eq("id", reportId).maybeSingle();
+  if (!report) return { error: "Report not found." };
+  if (report.redacted_at) return { error: "This report has already been redacted." };
+
+  const { error } = await admin
+    .from("reports")
+    .update({
+      description: null,
+      evidence_refs: [],
+      redacted_at: new Date().toISOString(),
+      redacted_by: user.id,
+    })
+    .eq("id", reportId);
+
+  await recordAdminAction({
+    actor: { id: user.id, role: staff.role },
+    action: "report.redacted",
+    targetType: "report",
+    targetId: reportId,
+    reason,
+    outcome: error ? "failure" : "success",
+  });
+
+  if (error) return { error: "Couldn't redact this report — please try again." };
+
+  revalidateReport(reportId);
   return { success: true };
 }

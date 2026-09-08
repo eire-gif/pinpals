@@ -1,14 +1,18 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getStripeClient } from "@/lib/stripe/client";
 import { centsFromEur } from "@/lib/stripe/payments";
 import { isSellerPaymentReady, sellerOnboardingStatus } from "@/lib/stripe/connect";
+import { ORDER_REPORT_CATEGORIES, parseEvidenceRefs, type ReportCategory } from "@/lib/admin/reports";
+import { checkRateLimit, rateLimitMessage } from "@/lib/rate-limit";
 import type { Order, StripeConnectedAccount } from "@/lib/types";
 
 export type CheckoutState = { error?: string; clientSecret?: string };
+export type OrderActionState = { error?: string; success?: boolean };
 
 const GENERIC_ERROR = "Couldn't start checkout just now — please try again in a moment.";
 
@@ -154,4 +158,92 @@ export async function createOrderPaymentIntent(
   if (updateError) return { error: GENERIC_ERROR };
 
   return { clientSecret: paymentIntent.client_secret ?? undefined };
+}
+
+// Same shape and reasoning as REPORT_MAX_ATTEMPTS in
+// src/app/conversations/actions.ts — the moderation queue is a shared,
+// limited-staff resource.
+const REPORT_ORDER_MAX_ATTEMPTS = 10;
+const REPORT_ORDER_WINDOW_SECONDS = 60 * 60;
+
+/**
+ * The order-page counterpart to reportListing()/reportConversation() — the
+ * member-facing entry point for `target_type = 'order'`, which only became
+ * a valid report target in 0055_marketplace_trust_safety.sql. Setting
+ * `wants_refund` here is the entire "refund request" flow this phase's
+ * spec asked for — deliberately NOT a parallel money-movement path: a
+ * flagged report is what a finance-role staff member reviews and, if they
+ * agree, actions through the existing requestOrderRefund() (see
+ * src/app/admin/orders/[id]/actions.ts), which is what actually calls
+ * Stripe. This action only ever writes a `reports` row.
+ */
+export async function reportOrderIssue(orderId: number, _prev: OrderActionState, formData: FormData): Promise<OrderActionState> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const rateLimit = await checkRateLimit({
+    action: "report-order",
+    identifier: user.id,
+    maxHits: REPORT_ORDER_MAX_ATTEMPTS,
+    windowSeconds: REPORT_ORDER_WINDOW_SECONDS,
+  });
+  if (!rateLimit.allowed) {
+    return { error: rateLimitMessage(rateLimit.retryAfterSeconds) };
+  }
+
+  const category = String(formData.get("category") ?? "") as ReportCategory;
+  const description = String(formData.get("description") ?? "").trim();
+  const evidenceRefs = parseEvidenceRefs(String(formData.get("evidence") ?? ""));
+  const wantsRefund = formData.get("wantsRefund") === "true";
+
+  if (!ORDER_REPORT_CATEGORIES.includes(category)) return { error: "Please choose a reason." };
+  if (description.length > 4000) return { error: "Please keep the description under 4000 characters." };
+
+  // RLS-scoped read (0019_orders.sql) — a non-party's query for this id
+  // returns nothing, same participancy-check-then-service-role-insert shape
+  // as reportConversation()/reportListing().
+  const { data: order } = await supabase
+    .from("orders")
+    .select("id, buyer_id, seller_id")
+    .eq("id", orderId)
+    .maybeSingle<Pick<Order, "id" | "buyer_id" | "seller_id">>();
+  if (!order || (order.buyer_id !== user.id && order.seller_id !== user.id)) {
+    return { error: "Order not found." };
+  }
+
+  const admin = createAdminClient();
+  const { error } = await admin.from("reports").insert({
+    reporter_id: user.id,
+    target_type: "order",
+    target_id: String(orderId),
+    category,
+    description: description || null,
+    evidence_refs: evidenceRefs.length ? evidenceRefs : null,
+    wants_refund: wantsRefund,
+  });
+
+  if (error) return { error: "Couldn't file that report — please try again." };
+
+  revalidatePath(`/dashboard/orders/${orderId}`);
+  return { success: true };
+}
+
+/**
+ * A buyer/seller's own view of whether their order has an active Stripe
+ * dispute — `disputes` (0023_refunds_and_disputes.sql) has zero RLS read
+ * access for anon/authenticated at all (it's a one-directional,
+ * webhook-only table, deliberately), so this reads through the narrow
+ * get_order_dispute_status() SECURITY DEFINER RPC added in
+ * 0055_marketplace_trust_safety.sql instead — it returns just this order's
+ * dispute status string (or null), scoped internally to the caller's own
+ * buyer_id/seller_id, nothing else about the dispute.
+ */
+export async function getOrderDisputeStatus(orderId: number): Promise<string | null> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("get_order_dispute_status", { p_order_id: orderId });
+  if (error) return null;
+  return data ?? null;
 }

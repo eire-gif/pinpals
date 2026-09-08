@@ -14,7 +14,7 @@ import {
   type MessagesCursor,
 } from "@/lib/messaging";
 import { conversationChannelTopic, inboxChannelTopic, broadcast } from "@/lib/realtime";
-import { REPORT_CATEGORIES, type ReportCategory } from "@/lib/admin/reports";
+import { REPORT_CATEGORIES, parseEvidenceRefs, type ReportCategory } from "@/lib/admin/reports";
 import { checkRateLimit, rateLimitMessage } from "@/lib/rate-limit";
 import type { Conversation, Message } from "@/lib/types";
 
@@ -374,6 +374,7 @@ export async function reportConversation(conversationId: number, _prev: MessageA
 
   const category = String(formData.get("category") ?? "") as ReportCategory;
   const description = String(formData.get("description") ?? "").trim();
+  const evidenceRefs = parseEvidenceRefs(String(formData.get("evidence") ?? ""));
 
   if (!REPORT_CATEGORIES.includes(category)) return { error: "Please choose a reason." };
   if (description.length > 4000) return { error: "Please keep the description under 4000 characters." };
@@ -395,6 +396,7 @@ export async function reportConversation(conversationId: number, _prev: MessageA
     target_id: String(conversationId),
     category,
     description: description || null,
+    evidence_refs: evidenceRefs.length ? evidenceRefs : null,
   });
 
   if (error) return { error: "Couldn't file that report — please try again." };
@@ -428,6 +430,7 @@ export async function reportMessage(messageId: number, _prev: MessageActionState
 
   const category = String(formData.get("category") ?? "") as ReportCategory;
   const description = String(formData.get("description") ?? "").trim();
+  const evidenceRefs = parseEvidenceRefs(String(formData.get("evidence") ?? ""));
 
   if (!REPORT_CATEGORIES.includes(category)) return { error: "Please choose a reason." };
   if (description.length > 4000) return { error: "Please keep the description under 4000 characters." };
@@ -446,10 +449,123 @@ export async function reportMessage(messageId: number, _prev: MessageActionState
     target_id: String(messageId),
     category,
     description: description || null,
+    evidence_refs: evidenceRefs.length ? evidenceRefs : null,
   });
 
   if (error) return { error: "Couldn't file that report — please try again." };
 
   refreshThread(message.conversation_id);
+  return { success: true };
+}
+
+/**
+ * The member-facing counterpart to reportConversation()/reportMessage() for
+ * `target_type = 'user'` — the oldest of the three (valid on `reports`
+ * since 0016_admin_reports.sql), but never had a member-facing entry point
+ * until now. Deliberately requires an existing conversation between the
+ * two members (rather than accepting any profile id) as its participancy
+ * check, same "never trust the id alone" discipline as reportConversation()
+ * — a stranger can't be reported without ever having interacted with them.
+ */
+export async function reportUser(otherUserId: string, _prev: MessageActionState, formData: FormData): Promise<MessageActionState> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+  if (otherUserId === user.id) return { error: "You can't report yourself." };
+
+  const rateLimit = await checkRateLimit({
+    action: "report-user",
+    identifier: user.id,
+    maxHits: REPORT_MAX_ATTEMPTS,
+    windowSeconds: REPORT_WINDOW_SECONDS,
+  });
+  if (!rateLimit.allowed) {
+    return { error: rateLimitMessage(rateLimit.retryAfterSeconds) };
+  }
+
+  const category = String(formData.get("category") ?? "") as ReportCategory;
+  const description = String(formData.get("description") ?? "").trim();
+  const evidenceRefs = parseEvidenceRefs(String(formData.get("evidence") ?? ""));
+
+  if (!REPORT_CATEGORIES.includes(category)) return { error: "Please choose a reason." };
+  if (description.length > 4000) return { error: "Please keep the description under 4000 characters." };
+
+  const [a, b] = [user.id, otherUserId].sort();
+  const { data: sharedConversation } = await supabase
+    .from("conversations")
+    .select("id")
+    .eq("user_a_id", a)
+    .eq("user_b_id", b)
+    .limit(1)
+    .maybeSingle<Pick<Conversation, "id">>();
+  if (!sharedConversation) return { error: "You can only report a member you've been in conversation with." };
+
+  const admin = createAdminClient();
+  const { error } = await admin.from("reports").insert({
+    reporter_id: user.id,
+    target_type: "user",
+    target_id: otherUserId,
+    category,
+    description: description || null,
+    evidence_refs: evidenceRefs.length ? evidenceRefs : null,
+  });
+
+  if (error) return { error: "Couldn't file that report — please try again." };
+
+  refreshThread(sharedConversation.id);
+  return { success: true };
+}
+
+// Same shape and reasoning as BLOCK_USER_MAX_ATTEMPTS above — a rare,
+// deliberate action a real member does a handful of times, tight ceiling
+// mainly to blunt a scripted mute/unmute-flapping loop.
+const MUTE_USER_MAX_ATTEMPTS = 20;
+const MUTE_USER_WINDOW_SECONDS = 60 * 60;
+
+/**
+ * Mutes `otherUserId` — a purely personal, asymmetric "don't surface to me"
+ * signal (muted_users, 0055_marketplace_trust_safety.sql). Unlike
+ * blockUser(), this never touches messaging or offer eligibility: the
+ * other member can still message and trade normally, and has no way to
+ * see they've been muted (RLS on muted_users scopes every row to its own
+ * muter_id). It's purely a client-side/inbox-display signal for the
+ * muter's own conversation list.
+ */
+export async function muteUser(otherUserId: string): Promise<MessageActionState> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+  if (otherUserId === user.id) return { error: "You can't mute yourself." };
+
+  const rateLimit = await checkRateLimit({
+    action: "mute-user",
+    identifier: user.id,
+    maxHits: MUTE_USER_MAX_ATTEMPTS,
+    windowSeconds: MUTE_USER_WINDOW_SECONDS,
+  });
+  if (!rateLimit.allowed) {
+    return { error: rateLimitMessage(rateLimit.retryAfterSeconds) };
+  }
+
+  const { error } = await supabase.from("muted_users").insert({ muter_id: user.id, muted_id: otherUserId });
+  if (error && error.code !== "23505") return { error: "Couldn't mute that member — please try again." };
+
+  revalidatePath("/conversations");
+  return { success: true };
+}
+
+export async function unmuteUser(otherUserId: string): Promise<MessageActionState> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const { error } = await supabase
+    .from("muted_users")
+    .delete()
+    .eq("muter_id", user.id)
+    .eq("muted_id", otherUserId);
+  if (error) return { error: "Couldn't unmute that member — please try again." };
+
+  revalidatePath("/conversations");
   return { success: true };
 }

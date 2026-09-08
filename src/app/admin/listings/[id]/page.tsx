@@ -18,6 +18,8 @@ import AdminAvatar from "@/components/admin/avatar";
 import StatusBadge from "@/components/admin/status-badge";
 import ModerationForm from "@/components/admin/moderation-form";
 import { REPORT_CATEGORY_LABELS, REPORT_STATUS_LABELS, REPORT_STATUS_STYLES } from "@/lib/admin/reports";
+import { listFraudFlagsForTarget } from "@/lib/admin/queries";
+import RiskFlagsPanel from "@/components/admin/risk-flags-panel";
 import { hideListing, restoreListing } from "./actions";
 
 export default async function AdminListingDetailPage({
@@ -42,6 +44,7 @@ export default async function AdminListingDetailPage({
     { targetType: "listing", targetId: id },
     1
   );
+  const fraudFlags = await listFraudFlagsForTarget("listing", id);
 
   const { listing, seller, offers, moderationHistory } = detail;
   const sellerName = seller ? `${seller.first_name} ${seller.last_name}` : "Unknown seller";
@@ -250,6 +253,8 @@ export default async function AdminListingDetailPage({
           </table>
         )}
       </Section>
+
+      <RiskFlagsPanel targetType="listing" targetId={id} flags={fraudFlags} staff={staff} />
 
       <Section title={`Moderation history (${moderationHistory.length})`}>
         {moderationHistory.length === 0 ? (

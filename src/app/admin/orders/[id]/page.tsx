@@ -2,7 +2,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireStaff } from "@/lib/admin/authorization";
 import { FINANCE_ROLES } from "@/lib/admin/finance";
-import { getOrderDetail } from "@/lib/admin/queries";
+import { getOrderDetail, listFraudFlagsForTarget, listReports } from "@/lib/admin/queries";
+import { REPORT_CATEGORY_LABELS, REPORT_STATUS_LABELS, REPORT_STATUS_STYLES } from "@/lib/admin/reports";
+import RiskFlagsPanel from "@/components/admin/risk-flags-panel";
 import {
   DISPUTE_STATUS_LABELS,
   DISPUTE_STATUS_STYLES,
@@ -27,13 +29,24 @@ import RefundForm from "@/components/admin/refund-form";
 import { requestOrderRefund } from "./actions";
 
 export default async function AdminOrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  await requireStaff({ roles: FINANCE_ROLES });
+  const { staff } = await requireStaff({ roles: FINANCE_ROLES });
   const { id } = await params;
   const orderId = Number(id);
   if (!orderId || Number.isNaN(orderId)) notFound();
 
   const detail = await getOrderDetail(orderId);
   if (!detail) notFound();
+
+  // Same "one page's worth, first page only" summary shape as the listing/
+  // user detail pages' own "Reports on this X" section — see
+  // src/lib/admin/reports.ts's comment on why 'order' is a valid
+  // target_type now (marketplace-trust-safety, 0055).
+  const { rows: reportsOnOrder, total: reportsOnOrderTotal } = await listReports(
+    "",
+    { targetType: "order", targetId: id },
+    1
+  );
+  const fraudFlags = await listFraudFlagsForTarget("order", id);
 
   const { order, buyer, seller, listing, offer, history, refunds, disputes, payout } = detail;
 
@@ -285,6 +298,41 @@ export default async function AdminOrderDetailPage({ params }: { params: Promise
           </ul>
         </Section>
       )}
+
+      <Section
+        title={
+          <span className="flex items-center gap-2">
+            <span>Reports on this order ({reportsOnOrderTotal})</span>
+            {reportsOnOrderTotal > 0 && (
+              <Link href={`/admin/reports?target=order&targetId=${id}`} className="text-xs font-normal text-ink-500 hover:text-ink-900">
+                Open in Reports →
+              </Link>
+            )}
+          </span>
+        }
+      >
+        {reportsOnOrder.length === 0 ? (
+          <EmptyRow>No reports filed against this order.</EmptyRow>
+        ) : (
+          <ul>
+            {reportsOnOrder.map((r) => (
+              <li key={r.id} className="px-5 py-3 border-b border-line last:border-0 text-sm">
+                <div className="flex items-center justify-between gap-4 flex-wrap">
+                  <Link href={`/admin/reports/${r.id}`} className="font-semibold text-ink-900 hover:underline">
+                    {REPORT_CATEGORY_LABELS[r.category]}
+                    {r.wants_refund && <span className="ml-2 text-xs font-bold text-gold-700">Refund requested</span>}
+                  </Link>
+                  <StatusBadge status={r.status} labels={REPORT_STATUS_LABELS} styles={REPORT_STATUS_STYLES} />
+                </div>
+                {r.description && <div className="text-ink-500 mt-1">{r.description}</div>}
+                <div className="text-xs text-ink-500 mt-1">Filed {formatDateTime(r.created_at)}</div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Section>
+
+      <RiskFlagsPanel targetType="order" targetId={id} flags={fraudFlags} staff={staff} />
 
       <Section title="Order history">
         {history.length === 0 ? (

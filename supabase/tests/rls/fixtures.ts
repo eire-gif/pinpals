@@ -45,6 +45,7 @@ export type FixtureIds = {
   disputeId: string;
   payoutId: string;
   reportId: string;
+  fraudFlagId: string;
 };
 
 async function insertUser(client: Client, id: string, firstName: string, lastName: string) {
@@ -295,6 +296,18 @@ export async function seed(client: Client): Promise<FixtureIds> {
   );
   const reportId = reportRows[0].id;
 
+  // marketplace-trust-safety (0055) — fraud_flags follows the identical
+  // "staff can read, only service-role can write" shape as reports/
+  // webhook_events/refunds/disputes/payouts above, so it's seeded the same
+  // way for admin-only-tables.test.ts's STAFF_ONLY_TABLES table.
+  const { rows: fraudFlagRows } = await client.query<{ id: string }>(
+    `insert into public.fraud_flags (target_type, target_id, flag_type, severity, note, status, raised_by)
+     values ('user', $1::text, 'suspected_fraud', 'medium', 'Fixture flag', 'open', $2)
+     returning id`,
+    [USERS.buyer1, USERS.admin],
+  );
+  const fraudFlagId = fraudFlagRows[0].id;
+
   return {
     listings,
     listingImageId,
@@ -311,6 +324,7 @@ export async function seed(client: Client): Promise<FixtureIds> {
     disputeId,
     payoutId,
     reportId,
+    fraudFlagId,
   };
 }
 

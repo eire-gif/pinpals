@@ -18,6 +18,7 @@ const STAFF_ONLY_TABLES = [
   { table: "disputes", idKey: "disputeId" },
   { table: "payouts", idKey: "payoutId" },
   { table: "reports", idKey: "reportId" },
+  { table: "fraud_flags", idKey: "fraudFlagId" },
 ] as const;
 
 describe.each(STAFF_ONLY_TABLES)("$table: SELECT (staff-only)", ({ table, idKey }) => {

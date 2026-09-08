@@ -23,6 +23,8 @@ import StatusBadge from "@/components/admin/status-badge";
 import ModerationForm from "@/components/admin/moderation-form";
 import UnavailableCard from "@/components/admin/unavailable-card";
 import { REPORT_CATEGORY_LABELS, REPORT_STATUS_LABELS, REPORT_STATUS_STYLES } from "@/lib/admin/reports";
+import { listFraudFlagsForTarget } from "@/lib/admin/queries";
+import RiskFlagsPanel from "@/components/admin/risk-flags-panel";
 import { suspendUser, reinstateUser, addUserNote } from "./actions";
 
 export default async function AdminUserDetailPage({
@@ -45,6 +47,7 @@ export default async function AdminUserDetailPage({
     { targetType: "user", targetId: id },
     1
   );
+  const fraudFlags = await listFraudFlagsForTarget("user", id);
 
   const { profile, listings, invites, offersMade, notes } = detail;
   const name = `${profile.first_name} ${profile.last_name}`;
@@ -304,6 +307,8 @@ export default async function AdminUserDetailPage({
           </Table>
         )}
       </Section>
+
+      <RiskFlagsPanel targetType="user" targetId={id} flags={fraudFlags} staff={staff} />
 
       <Section title={`Internal notes (${notes.length})`}>
         <div className="p-5 border-b border-line">

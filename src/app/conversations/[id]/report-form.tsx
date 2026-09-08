@@ -2,11 +2,14 @@
 
 import { useActionState, useState } from "react";
 import { REPORT_CATEGORIES, REPORT_CATEGORY_LABELS } from "@/lib/admin/reports";
-import { reportConversation, reportMessage, type MessageActionState } from "../actions";
+import { reportConversation, reportMessage, reportUser, type MessageActionState } from "../actions";
 
 const initialState: MessageActionState = {};
 
-export type ReportTarget = { type: "conversation"; id: number } | { type: "message"; id: number };
+export type ReportTarget =
+  | { type: "conversation"; id: number }
+  | { type: "message"; id: number }
+  | { type: "user"; id: string };
 
 /** The user-facing entry point the admin privileged-access model depends on
  * — see the privacy model note in supabase/migrations/0025_messaging.sql.
@@ -22,7 +25,12 @@ export default function ReportForm({
   target: ReportTarget;
   label?: string;
 }) {
-  const action = target.type === "conversation" ? reportConversation.bind(null, target.id) : reportMessage.bind(null, target.id);
+  const action =
+    target.type === "conversation"
+      ? reportConversation.bind(null, target.id)
+      : target.type === "message"
+        ? reportMessage.bind(null, target.id)
+        : reportUser.bind(null, target.id);
   const [state, formAction, pending] = useActionState(action, initialState);
   const [open, setOpen] = useState(false);
 
@@ -68,6 +76,12 @@ export default function ReportForm({
         name="description"
         rows={2}
         placeholder="Anything else our team should know? (optional)"
+        className="text-sm rounded-lg border-[1.5px] border-line px-3 py-2 resize-none bg-surface"
+      />
+      <textarea
+        name="evidence"
+        rows={2}
+        placeholder="Links or references for evidence — one per line (optional)"
         className="text-sm rounded-lg border-[1.5px] border-line px-3 py-2 resize-none bg-surface"
       />
       {state.error && <p className="text-xs text-red-600">{state.error}</p>}
