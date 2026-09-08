@@ -323,6 +323,24 @@ export type Order = {
    * only gets it after a later finalize_offer_checkout() call. Null means
    * the buyer still needs to visit the checkout page before paying. */
   checkout_completed_at: string | null;
+  /** The buyer's chosen delivery method — see
+   * supabase/migrations/0034_orders_lifecycle_and_delivery_snapshot.sql
+   * (original columns) and 0050_marketplace_checkout.sql (the 'post'
+   * relabelling, and the first real writers: create_purchase_order()/
+   * finalize_offer_checkout()). Defaults 'collection' at the DB level for
+   * rows created before either function ever ran; every order created since
+   * 0050 always has a deliberate buyer choice here. These three columns
+   * existed in the DB well before this phase but were never added to this
+   * type — additive only, no existing read site is affected. */
+  delivery_method: "collection" | "post";
+  /** Integer cents, matching every other *_cents column's convention
+   * (0046) — 0 for collection, the flat DELIVERY_FEE_EUR (src/lib/orders.ts)
+   * in cents for post, snapshotted once at checkout and never recomputed. */
+  delivery_fee_cents: number;
+  /** A formatted delivery address (post) or the listing's own collection
+   * notes (collection) — see formatAddress()/create_purchase_order()'s
+   * snapshot logic (0050). Null only for a pre-0050 historical row. */
+  delivery_detail: string | null;
   completed_at: string | null;
   cancelled_at: string | null;
   refunded_at: string | null;
@@ -536,3 +554,22 @@ export type ConversationParticipant = Pick<
   Profile,
   "id" | "first_name" | "last_name" | "avatar_color"
 >;
+
+// ============ REVIEWS ============
+// See supabase/migrations/0041_reviews.sql. One row per (order, reviewer) —
+// a buyer/seller can each leave exactly one review of the other, only once
+// their shared order reaches status = 'completed' (validate_review()
+// enforces this, not RLS alone, since it needs a cross-table lookup). Public
+// reputation data (readable by anyone), same as a seller's own rating shown
+// on seller-card.tsx/dashboard/payouts. This type existed in the schema well
+// before this phase but was never added here — additive only.
+export type Review = {
+  id: number;
+  order_id: number;
+  reviewer_id: string;
+  reviewee_id: string;
+  rating: number;
+  body: string | null;
+  created_at: string;
+  updated_at: string;
+};

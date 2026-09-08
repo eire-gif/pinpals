@@ -141,6 +141,31 @@ const QUICK_LINKS: QuickLink[] = [
       </svg>
     ),
   },
+  {
+    href: "/dashboard/buying",
+    label: "My buying",
+    description: "Purchases by status, active offers and bids, saved items and messages, in one place.",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-5 h-5">
+        <circle cx="9" cy="20" r="1.4" />
+        <circle cx="17" cy="20" r="1.4" />
+        <path d="M2.5 4h2.5l2.4 11.6a2 2 0 002 1.6h8.4a2 2 0 002-1.6l1.5-7.6H6" />
+      </svg>
+    ),
+  },
+  {
+    href: "/dashboard/selling",
+    label: "My selling",
+    description: "Listing performance, offers and auctions, orders and payouts, in one place.",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-5 h-5">
+        <path d="M7 15L3 11l4-4" />
+        <path d="M3 11h11a4 4 0 004-4" />
+        <path d="M17 9l4 4-4 4" />
+        <path d="M21 13H10a4 4 0 00-4 4" />
+      </svg>
+    ),
+  },
 ];
 
 export default async function DashboardPage({

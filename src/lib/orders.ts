@@ -1,5 +1,5 @@
-import { PLATFORM_FEE_RATE } from "./marketplace";
-import type { Address, DeliveryOption } from "./types";
+import { PLATFORM_FEE_RATE, offerHasExpired } from "./marketplace";
+import type { Address, DeliveryOption, Order } from "./types";
 
 // ============ Buy Now / accepted-offer checkout ============
 // See supabase/migrations/0050_marketplace_checkout.sql for the actual
@@ -81,4 +81,74 @@ export function formatAddress(
   if (address.county) out += `, ${address.county}`;
   if (address.eircode) out += ` ${address.eircode}`;
   return out;
+}
+
+// ============ Buyer/seller workspace "next action" (this phase) ============
+// See this file's own header comment above: order.status has no TS-side
+// transition-graph mirror, by design — the two helpers below don't invent
+// one either. Both are pure READS of already-trusted columns, the same
+// discipline the existing canPay/checkoutDeadlinePassed checks inline in
+// src/app/dashboard/orders/[id]/page.tsx already use; buyerOrderNextAction()
+// below mirrors that page's own derivation exactly (same conditions, same
+// destination hrefs) so the new /dashboard/buying purchases list never
+// disagrees with the order detail page it links into.
+
+export type BuyerOrderAction = {
+  label: string;
+  href: string;
+  /** Passed straight to formatTimeRemaining() by the caller — null means no
+   * deadline applies (e.g. a payment retry with no active reservation). */
+  deadlineIso: string | null;
+};
+
+/**
+ * What a buyer still needs to do about one of their own orders. `null` means
+ * nothing is currently expected of them — it's either already paid, already
+ * settled some other way (cancelled/refunded), or its reservation has
+ * lapsed and the next thing that happens is release_expired_offer_reservations()
+ * cancelling it on its own, not a buyer click.
+ */
+export function buyerOrderNextAction(
+  order: Pick<Order, "id" | "status" | "payment_status" | "checkout_completed_at" | "reservation_expires_at">
+): BuyerOrderAction | null {
+  if (order.status !== "pending" || order.payment_status === "paid") return null;
+
+  const deadlinePassed =
+    order.reservation_expires_at !== null && offerHasExpired(order.reservation_expires_at);
+  if (deadlinePassed) return null;
+
+  if (!order.checkout_completed_at) {
+    return {
+      label: "Finish checkout",
+      href: `/dashboard/orders/${order.id}/checkout`,
+      deadlineIso: order.reservation_expires_at,
+    };
+  }
+
+  return {
+    label: order.payment_status === "failed" ? "Try payment again" : "Complete payment",
+    href: `/dashboard/orders/${order.id}`,
+    deadlineIso: order.reservation_expires_at,
+  };
+}
+
+/**
+ * A seller's own paid-and-unfulfilled orders — the seller workspace's
+ * "orders requiring action" queue. Deliberately the only real signal this
+ * schema has: there is no shipment/handover tracking column anywhere (no
+ * 'shipped'/'delivered' order status is ever actually reachable — see
+ * validate_order_status_transition(), 0050, and src/lib/types.ts's own
+ * comment on OrderStatus), so this can only ever describe every currently-
+ * paid order, never a shrinking to-do list an item disappears from once
+ * handled. The workspace page's own copy says this explicitly rather than
+ * implying a tracked state that doesn't exist.
+ */
+export function isSellerOrderAwaitingFulfilment(order: Pick<Order, "status" | "payment_status">): boolean {
+  return order.status === "completed" && order.payment_status === "paid";
+}
+
+/** What a seller needs to physically do for a paid order — plain description
+ * of the buyer's own delivery_method choice (0050), not a new status. */
+export function sellerFulfilmentLabel(order: Pick<Order, "delivery_method">): string {
+  return order.delivery_method === "post" ? "Post the item to the buyer" : "Arrange collection with the buyer";
 }
