@@ -5,8 +5,8 @@ import { claimWebhookEvent, processStripeEvent } from "@/lib/stripe/payments";
 
 // Stripe's one webhook endpoint for this app — account.updated (Connect
 // onboarding/payout status changes), payment_intent.succeeded/
-// payment_intent.payment_failed/charge.refunded/charge.succeeded
-// (marketplace payment persistence), refund.updated/refund.failed and
+// payment_intent.payment_failed/payment_intent.canceled/charge.refunded/
+// charge.succeeded (marketplace payment persistence), refund.updated/refund.failed and
 // charge.dispute.* (refund/dispute administration, 0023), and
 // payout.created/updated/paid/failed/canceled (finance payout
 // reconciliation, 0024 — a Connect event, requires "Listen to events on
@@ -55,10 +55,15 @@ export async function POST(request: NextRequest) {
     const stripe = getStripeClient();
     event = await stripe.webhooks.constructEventAsync(rawBody, signature, webhookSecret);
   } catch {
-    // Never log the raw payload or signature here — an invalid signature is
-    // exactly the situation where the body might not be a genuine Stripe
-    // payload at all, and this shouldn't be a place that echoes untrusted
-    // request content into logs.
+    // Never log the raw payload, the signature header, or the verification
+    // library's own error message here — an invalid signature is exactly
+    // the situation where the body might not be a genuine Stripe payload at
+    // all, and this shouldn't be a place that echoes untrusted request
+    // content into logs. A bare count of "this happened" is still a safe
+    // operational identifier (helps tell "webhook secret misconfigured" —
+    // every delivery fails — apart from a stray non-Stripe request), so log
+    // that much and nothing else.
+    console.error("[stripe-webhook] signature verification failed");
     return NextResponse.json({ error: "Invalid signature." }, { status: 400 });
   }
 
@@ -76,13 +81,18 @@ export async function POST(request: NextRequest) {
   } catch {
     // A genuine infrastructure failure (the ledger claim itself couldn't be
     // written, or a downstream write threw in a way processStripeEvent()
-    // couldn't itself record) — never log the caught error's message here
-    // for the same reason as the signature-verification catch above, and
-    // return 5xx so Stripe's own retry schedule redelivers this event
-    // later. A business-logic failure (no matching order, an amount
-    // mismatch, an unhandled event type) is NOT this branch — those are
-    // handled inside processStripeEvent(), recorded in the ledger, and
-    // still fall through to the 200 below.
+    // couldn't itself record) — return 5xx so Stripe's own retry schedule
+    // redelivers this event later. Stripe's own event id/type are safe
+    // operational identifiers (opaque ids Stripe itself exposes in its
+    // dashboard, never a card number or secret) and are exactly what's
+    // needed to find this delivery in /admin/webhook-events or the Stripe
+    // dashboard afterward — logged here instead of the caught error itself,
+    // whose message could in principle echo request content. A
+    // business-logic failure (no matching order, an amount mismatch, an
+    // unhandled event type) is NOT this branch — those are handled inside
+    // processStripeEvent(), recorded in the ledger, and still fall through
+    // to the 200 below.
+    console.error(`[stripe-webhook] failed to process event ${event.id} (${event.type})`);
     return NextResponse.json({ error: "Failed to process webhook event." }, { status: 500 });
   }
 

@@ -234,6 +234,43 @@ async function handlePaymentIntentFailed(
   });
 }
 
+/**
+ * payment_intent.canceled — a PaymentIntent that was explicitly canceled
+ * (an abandoned checkout) or auto-canceled by Stripe (an incomplete
+ * PaymentIntent past its own expiry), as distinct from a declined attempt
+ * (.payment_failed). Routed onto the exact same order-side outcome as a
+ * failed attempt — orders.payment_status (0019) has no separate 'canceled'
+ * value, and a canceled PaymentIntent needs the same thing a failed one
+ * does: the buyer retries. See 0053's own header comment on why this does
+ * NOT release the listing back to 'active' — that stays purely
+ * reservation_expires_at-driven (release_expired_offer_reservations(), 0048).
+ */
+async function handlePaymentIntentCanceled(
+  admin: SupabaseClient,
+  ledgerRowId: number,
+  paymentIntent: Stripe.PaymentIntent
+): Promise<void> {
+  const order = await findOrderByPaymentReference(admin, paymentIntent.id);
+  if (!order) {
+    await markWebhookEventTerminal(admin, {
+      eventRowId: ledgerRowId,
+      status: "failed",
+      error: `No order found with payment_reference ${paymentIntent.id}.`,
+      relatedOrderId: null,
+    });
+    return;
+  }
+
+  await applyOrderPaymentFailed(admin, {
+    eventRowId: ledgerRowId,
+    orderId: order.id,
+    paymentIntentId: paymentIntent.id,
+    error: paymentIntent.cancellation_reason
+      ? `Payment was canceled (${paymentIntent.cancellation_reason}).`
+      : "Payment was canceled.",
+  });
+}
+
 async function handleChargeRefunded(admin: SupabaseClient, ledgerRowId: number, charge: Stripe.Charge): Promise<void> {
   const paymentIntentId = typeof charge.payment_intent === "string" ? charge.payment_intent : charge.payment_intent?.id;
   if (!paymentIntentId) {
@@ -525,6 +562,10 @@ export async function processStripeEvent(
 
     case "payment_intent.payment_failed":
       await handlePaymentIntentFailed(admin, ledgerRow.id, event.data.object as Stripe.PaymentIntent);
+      return "processed";
+
+    case "payment_intent.canceled":
+      await handlePaymentIntentCanceled(admin, ledgerRow.id, event.data.object as Stripe.PaymentIntent);
       return "processed";
 
     case "charge.refunded":
