@@ -26,6 +26,12 @@ export const dynamic = "force-dynamic";
 // member doesn't see a live-looking link that 404s for them.
 const NAV_ITEMS: { href: string; label: string; enabled?: boolean; roles?: readonly StaffRole[] }[] = [
   { href: "/admin", label: "Overview", enabled: true },
+  // Consolidated marketplace console (checkpoint: marketplace-admin) — no
+  // `roles` restriction at the nav level, same reasoning as Reports/Support
+  // below: every tab inside it gates itself independently (see that page's
+  // own file-header comment), so any active staff member should at least
+  // see the link and land on the tabs their role can actually open.
+  { href: "/admin/marketplace", label: "Marketplace", enabled: true },
   { href: "/admin/users", label: "Users", enabled: true },
   { href: "/admin/listings", label: "Listings", enabled: true },
   { href: "/admin/tee-times", label: "Tee-times", enabled: true },

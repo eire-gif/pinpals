@@ -1,13 +1,18 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type {
+  Auction,
+  AuctionStatus,
+  Bid,
   Dispute,
   Listing,
   Offer,
+  OfferStatus,
   Order,
   Payout,
   Profile,
   Refund,
+  RefundStatus,
   StripeConnectedAccount,
   TeeTimeInterest,
   TeeTimeInvite,
@@ -2514,4 +2519,440 @@ export async function listStaffMembers(): Promise<AdminStaffMember[]> {
       const nameB = b.member ? `${b.member.first_name} ${b.member.last_name}` : "";
       return nameA.localeCompare(nameB);
     });
+}
+
+// ---------- Marketplace admin (checkpoint: marketplace-admin) ----------
+//
+// /admin/marketplace — a consolidated marketplace console over data that,
+// with two exceptions, already has its own dedicated admin section
+// (listings, orders, seller accounts, payouts ledger, reports, support
+// cases, audit log). Every function below either (a) re-presents an
+// existing list function's own result through a "needs attention" filter
+// that function already supports, or (b) is genuinely new — an offers/
+// auctions history view and a cross-order disputes queue, neither of which
+// had ANY admin surface before this phase (confirmed: no admin code
+// anywhere referenced the offers/auctions/bids tables beyond a listing's
+// own nested offer list, and disputes were only ever visible one order at a
+// time). Nothing here duplicates another file's query logic — see each
+// page under src/app/admin/marketplace/ for which existing list function it
+// calls directly instead of a re-implementation.
+//
+// Same conventions as the rest of this file throughout: service-role
+// client (admin reads bypass RLS by design — see this file's header
+// comment), `.range()` + stable `(created_at desc, id desc)` sort for real
+// pagination, and no admin_audit_log write from a read-only function.
+
+export type MarketplaceOverviewMetrics = {
+  /** reports, target_type='listing', status in (open, claimed). */
+  openListingReports: number;
+  /** reports, target_type in (message, conversation), status in (open,
+   * claimed) — the queue the "reported messages" tab exists to work. */
+  openMessageReports: number;
+  /** disputes not yet in a terminal Stripe status (won/lost/charge_refunded/
+   * warning_closed) — see DISPUTE_STATUS_LABELS (format.ts) for the full
+   * vocabulary this excludes. */
+  openDisputes: number;
+  /** stripe_connected_accounts, payouts_enabled = false — same "needs
+   * attention" definition listSellerAccounts()'s own filter already uses. */
+  sellersNeedingAttention: number;
+  webhookEventFailures: number;
+  /** orders still 'pending' whose payment hasn't succeeded (pending or
+   * failed) — the checkout/payment queue a finance admin would want to spot
+   * check, distinct from a normal in-progress checkout a buyer just hasn't
+   * finished yet (both look the same from here; this is a coarse signal,
+   * not a definitive "broken" list). */
+  ordersAwaitingPayment: number;
+  /** auctions still 'scheduled'/'live' whose ends_at has already passed —
+   * see auctionEligibleForForceClose() in src/lib/admin/marketplace.ts. This
+   * schema has no scheduled sweep that closes an auction on time alone (it
+   * only closes lazily, the moment someone tries to act on it — see
+   * apply_new_bid()/finalize the checkout path in
+   * supabase/migrations/0039_auctions_and_bids.sql and 0050), so this count
+   * is the genuine "needs a human" signal the offers/auctions tab's
+   * force-close action exists for. */
+  staleAuctions: number;
+  /** support_cases in an open state (open/claimed/waiting_on_member) whose
+   * category is marketplace-shaped (listing_marketplace or payments_orders)
+   * — a narrower slice than getOverviewMetrics()'s unresolvedSupportCases,
+   * which counts every open case regardless of what it's about. */
+  unresolvedMarketplaceSupportCases: number;
+};
+
+const OPEN_REPORT_STATUSES = ["open", "claimed"] as const;
+const OPEN_SUPPORT_CASE_STATUSES_MARKETPLACE = ["open", "claimed", "waiting_on_member"] as const;
+const MARKETPLACE_SUPPORT_CASE_CATEGORIES = ["listing_marketplace", "payments_orders"] as const;
+// Every Dispute.status this app has ever seen that means "Stripe considers
+// this closed" — see DISPUTE_STATUS_LABELS' own comment on why the column
+// stays a loose string rather than a closed union. Kept as an exclusion list
+// (NOT IN) rather than an inclusion list of "still open" statuses so a
+// future Stripe status this app hasn't seen yet defaults to counted, not
+// silently dropped from the queue.
+const CLOSED_DISPUTE_STATUSES = ["won", "lost", "charge_refunded", "warning_closed"] as const;
+
+export async function getMarketplaceOverviewMetrics(): Promise<MarketplaceOverviewMetrics> {
+  const admin = createAdminClient();
+  const nowIso = new Date().toISOString();
+
+  const [
+    { count: openListingReports, error: listingReportsError },
+    { count: openMessageReports, error: messageReportsError },
+    { count: openDisputes, error: disputesError },
+    { count: sellersNeedingAttention, error: sellersError },
+    { count: webhookEventFailures, error: webhookError },
+    { count: ordersAwaitingPayment, error: ordersError },
+    { count: staleAuctions, error: auctionsError },
+    { count: unresolvedMarketplaceSupportCases, error: supportError },
+  ] = await Promise.all([
+    admin
+      .from("reports")
+      .select("*", { count: "exact", head: true })
+      .eq("target_type", "listing")
+      .in("status", OPEN_REPORT_STATUSES),
+    admin
+      .from("reports")
+      .select("*", { count: "exact", head: true })
+      .in("target_type", ["message", "conversation"])
+      .in("status", OPEN_REPORT_STATUSES),
+    admin
+      .from("disputes")
+      .select("*", { count: "exact", head: true })
+      .not("status", "in", `(${CLOSED_DISPUTE_STATUSES.join(",")})`),
+    admin.from("stripe_connected_accounts").select("*", { count: "exact", head: true }).eq("payouts_enabled", false),
+    admin.from("webhook_events").select("*", { count: "exact", head: true }).eq("status", "failed"),
+    admin
+      .from("orders")
+      .select("*", { count: "exact", head: true })
+      .eq("status", "pending")
+      .in("payment_status", ["pending", "failed"]),
+    admin
+      .from("auctions")
+      .select("*", { count: "exact", head: true })
+      .in("status", ["scheduled", "live"])
+      .lte("ends_at", nowIso),
+    admin
+      .from("support_cases")
+      .select("*", { count: "exact", head: true })
+      .in("status", OPEN_SUPPORT_CASE_STATUSES_MARKETPLACE)
+      .in("category", MARKETPLACE_SUPPORT_CASE_CATEGORIES),
+  ]);
+
+  const error =
+    listingReportsError ??
+    messageReportsError ??
+    disputesError ??
+    sellersError ??
+    webhookError ??
+    ordersError ??
+    auctionsError ??
+    supportError;
+  if (error) throw new Error(`Failed to load marketplace overview metrics: ${error.message}`);
+
+  return {
+    openListingReports: openListingReports ?? 0,
+    openMessageReports: openMessageReports ?? 0,
+    openDisputes: openDisputes ?? 0,
+    sellersNeedingAttention: sellersNeedingAttention ?? 0,
+    webhookEventFailures: webhookEventFailures ?? 0,
+    ordersAwaitingPayment: ordersAwaitingPayment ?? 0,
+    staleAuctions: staleAuctions ?? 0,
+    unresolvedMarketplaceSupportCases: unresolvedMarketplaceSupportCases ?? 0,
+  };
+}
+
+// ---------- Refunds (cross-order) ----------
+//
+// /admin/marketplace's payments tab. Distinct from getOrderDetail()'s own
+// `refunds` field (one order's refund attempts) — this is every refund
+// attempt across every order, the view a finance admin scanning for
+// payment-processing trouble needs and that, until this phase, only existed
+// one order at a time. The refund ACTION itself (requestOrderRefund) stays
+// exactly where it is, on /admin/orders/[id] — this is a read-only summary
+// that links there, never a second place to issue one.
+
+export type AdminRefundListItem = Refund & {
+  order: Pick<Order, "id" | "listing_title" | "buyer_id" | "seller_id"> | null;
+  buyer: AdminProfile | null;
+  seller: AdminProfile | null;
+};
+
+export type AdminRefundPage = { rows: AdminRefundListItem[]; total: number; page: number; pageSize: number };
+
+export type AdminRefundFilters = { status?: RefundStatus; from?: string; to?: string };
+
+const REFUNDS_PAGE_SIZE = 20;
+
+export async function listRefunds(filters: AdminRefundFilters = {}, page = 1): Promise<AdminRefundPage> {
+  const admin = createAdminClient();
+  const safePage = Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
+  const rangeFrom = (safePage - 1) * REFUNDS_PAGE_SIZE;
+  const rangeTo = rangeFrom + REFUNDS_PAGE_SIZE - 1;
+
+  let query = admin
+    .from("refunds")
+    .select("*", { count: "exact" })
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
+    .range(rangeFrom, rangeTo);
+
+  if (filters.status) query = query.eq("status", filters.status);
+  if (filters.from) query = query.gte("created_at", filters.from);
+  if (filters.to) query = query.lte("created_at", filters.to);
+
+  const { data: refunds, error, count } = await query.returns<Refund[]>();
+  if (error) throw new Error(`Failed to list refunds: ${error.message}`);
+
+  const orderIds = [...new Set((refunds ?? []).map((r) => r.order_id))];
+  const { data: orders } = orderIds.length
+    ? await admin
+        .from("orders")
+        .select("id, listing_title, buyer_id, seller_id")
+        .in("id", orderIds)
+        .returns<Pick<Order, "id" | "listing_title" | "buyer_id" | "seller_id">[]>()
+    : { data: [] as Pick<Order, "id" | "listing_title" | "buyer_id" | "seller_id">[] };
+  const orderById = new Map((orders ?? []).map((o) => [o.id, o]));
+
+  const authUsers = await authUserMap();
+  const peopleIds = [...new Set((orders ?? []).flatMap((o) => [o.buyer_id, o.seller_id]))];
+  const { data: profiles } = peopleIds.length
+    ? await admin.from("profiles").select("*").in("id", peopleIds).returns<Profile[]>()
+    : { data: [] as Profile[] };
+  const profileById = new Map((profiles ?? []).map((p) => [p.id, p]));
+
+  const rows = (refunds ?? []).map((refund) => {
+    const order = orderById.get(refund.order_id) ?? null;
+    return {
+      ...refund,
+      order,
+      buyer: order ? (profileById.get(order.buyer_id) ? withEmail(profileById.get(order.buyer_id)!, authUsers) : null) : null,
+      seller: order ? (profileById.get(order.seller_id) ? withEmail(profileById.get(order.seller_id)!, authUsers) : null) : null,
+    };
+  });
+
+  return { rows, total: count ?? 0, page: safePage, pageSize: REFUNDS_PAGE_SIZE };
+}
+
+// ---------- Disputes (cross-order queue) ----------
+//
+// Explicitly deferred by Phase 11 (see claude/phase-11-refunds-disputes-
+// summary.md: "No admin-wide disputes list page — only per-order dispute
+// visibility.") — this closes that gap. Still read-only + a Stripe dashboard
+// link, per the task's "links to Stripe's dashboard/embedded tools for
+// sensitive financial operations rather than recreating them" — actually
+// responding to/submitting evidence for a dispute happens in Stripe, never
+// here.
+
+export type AdminDisputeListItem = Dispute & {
+  order: Pick<Order, "id" | "listing_title" | "buyer_id" | "seller_id"> | null;
+  buyer: AdminProfile | null;
+  seller: AdminProfile | null;
+};
+
+export type AdminDisputePage = { rows: AdminDisputeListItem[]; total: number; page: number; pageSize: number };
+
+export type AdminDisputeFilters = { status?: string; from?: string; to?: string };
+
+const DISPUTES_PAGE_SIZE = 20;
+
+export async function listDisputes(filters: AdminDisputeFilters = {}, page = 1): Promise<AdminDisputePage> {
+  const admin = createAdminClient();
+  const safePage = Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
+  const rangeFrom = (safePage - 1) * DISPUTES_PAGE_SIZE;
+  const rangeTo = rangeFrom + DISPUTES_PAGE_SIZE - 1;
+
+  let query = admin
+    .from("disputes")
+    .select("*", { count: "exact" })
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
+    .range(rangeFrom, rangeTo);
+
+  if (filters.status) query = query.eq("status", filters.status);
+  if (filters.from) query = query.gte("created_at", filters.from);
+  if (filters.to) query = query.lte("created_at", filters.to);
+
+  const { data: disputes, error, count } = await query.returns<Dispute[]>();
+  if (error) throw new Error(`Failed to list disputes: ${error.message}`);
+
+  const orderIds = [...new Set((disputes ?? []).map((d) => d.order_id).filter((id): id is number => id != null))];
+  const { data: orders } = orderIds.length
+    ? await admin
+        .from("orders")
+        .select("id, listing_title, buyer_id, seller_id")
+        .in("id", orderIds)
+        .returns<Pick<Order, "id" | "listing_title" | "buyer_id" | "seller_id">[]>()
+    : { data: [] as Pick<Order, "id" | "listing_title" | "buyer_id" | "seller_id">[] };
+  const orderById = new Map((orders ?? []).map((o) => [o.id, o]));
+
+  const authUsers = await authUserMap();
+  const peopleIds = [...new Set((orders ?? []).flatMap((o) => [o.buyer_id, o.seller_id]))];
+  const { data: profiles } = peopleIds.length
+    ? await admin.from("profiles").select("*").in("id", peopleIds).returns<Profile[]>()
+    : { data: [] as Profile[] };
+  const profileById = new Map((profiles ?? []).map((p) => [p.id, p]));
+
+  const rows = (disputes ?? []).map((dispute) => {
+    const order = dispute.order_id != null ? (orderById.get(dispute.order_id) ?? null) : null;
+    return {
+      ...dispute,
+      order,
+      buyer: order ? (profileById.get(order.buyer_id) ? withEmail(profileById.get(order.buyer_id)!, authUsers) : null) : null,
+      seller: order ? (profileById.get(order.seller_id) ? withEmail(profileById.get(order.seller_id)!, authUsers) : null) : null,
+    };
+  });
+
+  return { rows, total: count ?? 0, page: safePage, pageSize: DISPUTES_PAGE_SIZE };
+}
+
+// ---------- Offers & auctions history ----------
+//
+// The other genuine gap this phase closes: until now, no admin surface
+// anywhere referenced the offers/auctions/bids tables beyond a single
+// listing's own nested offer list (getListingDetail()). Deliberately
+// read-only for offers (offer_action() already enforces every valid state
+// transition server-side — see src/lib/orders.ts's own file-header comment
+// on why app code never re-implements that state machine, which applies
+// here too), but auctions get one narrow, audited exception — see
+// forceCloseAuction() in src/app/admin/marketplace/actions.ts and
+// staleAuctions above for why.
+
+export type AdminOfferListItem = Offer & {
+  listing: Pick<Listing, "id" | "title" | "seller_id"> | null;
+  buyer: AdminProfile | null;
+};
+
+export type AdminOfferPage = { rows: AdminOfferListItem[]; total: number; page: number; pageSize: number };
+
+export type AdminOfferFilters = { status?: OfferStatus; listingId?: number; buyer?: string };
+
+const OFFERS_PAGE_SIZE = 20;
+
+export async function listOffers(filters: AdminOfferFilters = {}, page = 1): Promise<AdminOfferPage> {
+  const admin = createAdminClient();
+  const safePage = Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
+  const rangeFrom = (safePage - 1) * OFFERS_PAGE_SIZE;
+  const rangeTo = rangeFrom + OFFERS_PAGE_SIZE - 1;
+
+  const { ids: buyerIds } = await resolvePersonFilter(admin, filters.buyer);
+  if (filters.buyer && buyerIds?.length === 0) {
+    return { rows: [], total: 0, page: safePage, pageSize: OFFERS_PAGE_SIZE };
+  }
+
+  let query = admin
+    .from("offers")
+    .select("*", { count: "exact" })
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
+    .range(rangeFrom, rangeTo);
+
+  if (filters.status) query = query.eq("status", filters.status);
+  if (filters.listingId) query = query.eq("listing_id", filters.listingId);
+  if (buyerIds) query = query.in("buyer_id", buyerIds);
+
+  const { data: offers, error, count } = await query.returns<Offer[]>();
+  if (error) throw new Error(`Failed to list offers: ${error.message}`);
+
+  const listingIds = [...new Set((offers ?? []).map((o) => o.listing_id))];
+  const { data: listings } = listingIds.length
+    ? await admin
+        .from("listings")
+        .select("id, title, seller_id")
+        .in("id", listingIds)
+        .returns<Pick<Listing, "id" | "title" | "seller_id">[]>()
+    : { data: [] as Pick<Listing, "id" | "title" | "seller_id">[] };
+  const listingById = new Map((listings ?? []).map((l) => [l.id, l]));
+
+  const authUsers = await authUserMap();
+  const buyerProfileIds = [...new Set((offers ?? []).map((o) => o.buyer_id))];
+  const { data: profiles } = buyerProfileIds.length
+    ? await admin.from("profiles").select("*").in("id", buyerProfileIds).returns<Profile[]>()
+    : { data: [] as Profile[] };
+  const profileById = new Map((profiles ?? []).map((p) => [p.id, p]));
+
+  const rows = (offers ?? []).map((offer) => ({
+    ...offer,
+    listing: listingById.get(offer.listing_id) ?? null,
+    buyer: profileById.get(offer.buyer_id) ? withEmail(profileById.get(offer.buyer_id)!, authUsers) : null,
+  }));
+
+  return { rows, total: count ?? 0, page: safePage, pageSize: OFFERS_PAGE_SIZE };
+}
+
+export type AdminAuctionListItem = Auction & {
+  listing: Pick<Listing, "id" | "title" | "seller_id"> | null;
+  winningBid: Bid | null;
+  bidCount: number;
+};
+
+export type AdminAuctionPage = { rows: AdminAuctionListItem[]; total: number; page: number; pageSize: number };
+
+export type AdminAuctionFilters = { status?: AuctionStatus };
+
+const AUCTIONS_PAGE_SIZE = 20;
+
+/**
+ * Paginated auction history — general list, most recent first. Deliberately
+ * doesn't take a "stale only" filter: the offers/auctions tab
+ * (src/app/admin/marketplace/offers-tab.tsx) shows every auction and flags
+ * force-close-eligible rows inline via auctionEligibleForForceClose(), the
+ * same pure predicate this list would otherwise duplicate as a query
+ * filter — one definition of "stale", used both places, rather than two
+ * that could drift apart.
+ */
+export async function listAuctions(filters: AdminAuctionFilters = {}, page = 1): Promise<AdminAuctionPage> {
+  const admin = createAdminClient();
+  const safePage = Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
+  const rangeFrom = (safePage - 1) * AUCTIONS_PAGE_SIZE;
+  const rangeTo = rangeFrom + AUCTIONS_PAGE_SIZE - 1;
+
+  let query = admin
+    .from("auctions")
+    .select("*", { count: "exact" })
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
+    .range(rangeFrom, rangeTo);
+
+  if (filters.status) query = query.eq("status", filters.status);
+
+  const { data: auctions, error, count } = await query.returns<Auction[]>();
+  if (error) throw new Error(`Failed to list auctions: ${error.message}`);
+
+  return buildAuctionPage(admin, auctions ?? [], safePage, count ?? 0);
+}
+
+async function buildAuctionPage(
+  admin: ReturnType<typeof createAdminClient>,
+  auctions: Auction[],
+  safePage: number,
+  total: number
+): Promise<AdminAuctionPage> {
+  const listingIds = [...new Set(auctions.map((a) => a.listing_id))];
+  const { data: listings } = listingIds.length
+    ? await admin
+        .from("listings")
+        .select("id, title, seller_id")
+        .in("id", listingIds)
+        .returns<Pick<Listing, "id" | "title" | "seller_id">[]>()
+    : { data: [] as Pick<Listing, "id" | "title" | "seller_id">[] };
+  const listingById = new Map((listings ?? []).map((l) => [l.id, l]));
+
+  const winningBidIds = [...new Set(auctions.map((a) => a.winning_bid_id).filter((id): id is number => id != null))];
+  const { data: winningBids } = winningBidIds.length
+    ? await admin.from("bids").select("*").in("id", winningBidIds).returns<Bid[]>()
+    : { data: [] as Bid[] };
+  const winningBidById = new Map((winningBids ?? []).map((b) => [b.id, b]));
+
+  const auctionIds = auctions.map((a) => a.id);
+  const { data: allBids } = auctionIds.length
+    ? await admin.from("bids").select("id, auction_id").in("auction_id", auctionIds).returns<Pick<Bid, "id" | "auction_id">[]>()
+    : { data: [] as Pick<Bid, "id" | "auction_id">[] };
+  const bidCountByAuction = countBy(allBids ?? [], "auction_id");
+
+  const rows = auctions.map((auction) => ({
+    ...auction,
+    listing: listingById.get(auction.listing_id) ?? null,
+    winningBid: auction.winning_bid_id ? (winningBidById.get(auction.winning_bid_id) ?? null) : null,
+    bidCount: bidCountByAuction.get(String(auction.id)) ?? 0,
+  }));
+
+  return { rows, total, page: safePage, pageSize: AUCTIONS_PAGE_SIZE };
 }

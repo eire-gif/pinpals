@@ -1,4 +1,4 @@
-import type { InterestStatus, InviteStatus, OrderStatus, Payout, PaymentStatus, PayoutStatus, RefundStatus, WebhookEventStatus } from "@/lib/types";
+import type { AuctionStatus, InterestStatus, InviteStatus, OrderStatus, Payout, PaymentStatus, PayoutStatus, RefundStatus, WebhookEventStatus } from "@/lib/types";
 import { INTEREST_STATUS_LABELS, INTEREST_STATUS_STYLES, STATUS_LABELS, STATUS_STYLES } from "@/lib/tee-times";
 
 // `Listing["status"]` and `Offer["status"]` aren't strict unions in
@@ -200,6 +200,24 @@ export const DISPUTE_STATUS_STYLES: Record<string, string> = {
   won: "bg-green-100 text-green-800",
   lost: "bg-red-100 text-red-600",
   charge_refunded: "bg-cream-100 text-ink-500",
+};
+
+// /admin/marketplace's offers/auctions tab — see
+// supabase/migrations/0039_auctions_and_bids.sql. Distinct from
+// OFFER_STATUS_LABELS above (a different table, a different negotiation
+// model entirely — an auction never has a "countered" state).
+export const AUCTION_STATUS_LABELS: Record<AuctionStatus, string> = {
+  scheduled: "Scheduled",
+  live: "Live",
+  ended: "Ended",
+  cancelled: "Cancelled",
+};
+
+export const AUCTION_STATUS_STYLES: Record<AuctionStatus, string> = {
+  scheduled: "bg-cream-100 text-ink-900",
+  live: "bg-green-100 text-green-800",
+  ended: "bg-cream-100 text-ink-500",
+  cancelled: "bg-red-100 text-red-600",
 };
 
 // Re-exported under admin-neutral names so admin pages have one place to
