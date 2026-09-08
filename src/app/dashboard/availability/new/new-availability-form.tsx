@@ -34,15 +34,15 @@ export default function NewAvailabilityForm() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="grid gap-1.5">
+        <div className="grid gap-1.5 min-w-0">
           <label htmlFor="playDate" className="text-[13.5px] font-bold">Date</label>
           <input id="playDate" name="playDate" type="date" required min={today}
             className="px-3.5 py-3 rounded-lg border-[1.5px] border-line focus:outline-none focus:border-green-600" />
         </div>
-        <div className="grid gap-1.5">
+        <div className="grid gap-1.5 min-w-0">
           <label htmlFor="spaces" className="text-[13.5px] font-bold">Spaces available</label>
           <select id="spaces" name="spaces" defaultValue="1" required
-            className="px-3.5 py-3 rounded-lg border-[1.5px] border-line focus:outline-none focus:border-green-600 bg-surface">
+            className="w-full px-3.5 py-3 rounded-lg border-[1.5px] border-line focus:outline-none focus:border-green-600 bg-surface">
             {SPACES_OPTIONS.map((n) => (
               <option key={n} value={n}>{n} {n === 1 ? "space" : "spaces"}</option>
             ))}
@@ -51,25 +51,26 @@ export default function NewAvailabilityForm() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="grid gap-1.5">
+        <div className="grid gap-1.5 min-w-0">
           <label htmlFor="timeFrom" className="text-[13.5px] font-bold">
             Preferred time range <span className="font-normal text-ink-500">(optional)</span>
           </label>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 min-w-0">
             <input id="timeFrom" name="timeFrom" type="time"
-              className="w-full px-3.5 py-3 rounded-lg border-[1.5px] border-line focus:outline-none focus:border-green-600" />
-            <span className="text-ink-500 text-sm">to</span>
+              className="min-w-0 flex-1 px-3 py-3 rounded-lg border-[1.5px] border-line focus:outline-none focus:border-green-600" />
+            <span className="shrink-0 text-ink-500 text-sm">to</span>
             <input id="timeTo" name="timeTo" type="time"
-              className="w-full px-3.5 py-3 rounded-lg border-[1.5px] border-line focus:outline-none focus:border-green-600" />
+              className="min-w-0 flex-1 px-3 py-3 rounded-lg border-[1.5px] border-line focus:outline-none focus:border-green-600" />
           </div>
         </div>
-        <div className="grid gap-1.5">
+        <div className="grid gap-1.5 min-w-0">
           <label htmlFor="handicapLimit" className="text-[13.5px] font-bold">
             Handicap preference <span className="font-normal text-ink-500">(optional)</span>
           </label>
           <input id="handicapLimit" name="handicapLimit" type="number" step="1" min="0" max="54"
-            placeholder="e.g. 24 — any welcome if left blank"
-            className="px-3.5 py-3 rounded-lg border-[1.5px] border-line focus:outline-none focus:border-green-600" />
+            placeholder="e.g. 24"
+            className="w-full min-w-0 px-3.5 py-3 rounded-lg border-[1.5px] border-line focus:outline-none focus:border-green-600" />
+          <span className="text-xs text-ink-500">Leave blank if any handicap is welcome.</span>
         </div>
       </div>
 
