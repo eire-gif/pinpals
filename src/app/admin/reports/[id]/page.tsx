@@ -18,10 +18,12 @@ import AdminAvatar from "@/components/admin/avatar";
 import StatusBadge from "@/components/admin/status-badge";
 import ModerationForm from "@/components/admin/moderation-form";
 import SimpleActionForm from "@/components/admin/simple-action-form";
+import RiskFlagsPanel from "@/components/admin/risk-flags-panel";
 import ConversationAccessPanel from "./conversation-access-panel";
 import ResolveReportForm from "./resolve-form";
 import PriorityForm from "./priority-form";
-import { claimReport, releaseReport, dismissReport, reopenReport, addReportNote } from "./actions";
+import EscalateForm from "./escalate-form";
+import { claimReport, releaseReport, dismissReport, reopenReport, addReportNote, clearEscalation, redactReport } from "./actions";
 
 export default async function AdminReportDetailPage({
   params,
@@ -36,8 +38,19 @@ export default async function AdminReportDetailPage({
   const detail = await getReportDetail(reportId);
   if (!detail) notFound();
 
-  const { report, reporter, assignedStaff, resolvedByStaff, target, notes, targetModerationHistory, linkedAction } =
-    detail;
+  const {
+    report,
+    reporter,
+    assignedStaff,
+    resolvedByStaff,
+    escalatedByStaff,
+    redactedByStaff,
+    target,
+    notes,
+    targetModerationHistory,
+    linkedAction,
+    targetFraudFlags,
+  } = detail;
 
   // A UX nicety only — every mutation below re-checks this server-side
   // inside its own Server Action, which is the real boundary (see the
@@ -47,6 +60,8 @@ export default async function AdminReportDetailPage({
   const canRelease = report.status === "claimed" && (report.assigned_admin === user.id || isSenior);
   const isOpenOrClaimed = report.status === "open" || report.status === "claimed";
   const isClosed = report.status === "resolved" || report.status === "dismissed";
+  const isSuperAdmin = staff.role === "super_admin";
+  const isFraudFlagTarget = report.target_type === "user" || report.target_type === "listing" || report.target_type === "order";
 
   const reporterName = reporter ? `${reporter.first_name} ${reporter.last_name}`.trim() : "Unknown member";
   const assignedName = assignedStaff ? `${assignedStaff.first_name} ${assignedStaff.last_name}`.trim() : null;
@@ -81,12 +96,30 @@ export default async function AdminReportDetailPage({
             </p>
           </div>
           <div className="flex gap-2 flex-wrap">
+            {report.wants_refund && (
+              <span className="inline-block text-xs font-bold px-2.5 py-1 rounded-full whitespace-nowrap bg-gold-500/20 text-gold-700">
+                Refund requested
+              </span>
+            )}
+            {report.escalated_to_role && (
+              <span className="inline-block text-xs font-bold px-2.5 py-1 rounded-full whitespace-nowrap bg-red-100 text-red-600">
+                Escalated to {ROLE_LABELS[report.escalated_to_role]}
+              </span>
+            )}
             <StatusBadge status={report.priority} labels={REPORT_PRIORITY_LABELS} styles={REPORT_PRIORITY_STYLES} />
             <StatusBadge status={report.status} labels={REPORT_STATUS_LABELS} styles={REPORT_STATUS_STYLES} />
           </div>
         </div>
 
-        {report.description && <p className="text-sm text-ink-900 mt-4 max-w-[70ch] whitespace-pre-wrap">{report.description}</p>}
+        {report.redacted_at ? (
+          <p className="text-sm text-ink-500 italic mt-4">
+            Description and evidence redacted
+            {redactedByStaff && <> by {redactedByStaff.first_name} {redactedByStaff.last_name}</>} on{" "}
+            {formatDateTime(report.redacted_at)}.
+          </p>
+        ) : (
+          report.description && <p className="text-sm text-ink-900 mt-4 max-w-[70ch] whitespace-pre-wrap">{report.description}</p>
+        )}
 
         <div className="text-xs text-ink-500 mt-4 flex gap-4 flex-wrap">
           <span>
@@ -104,6 +137,39 @@ export default async function AdminReportDetailPage({
           </span>
         </div>
       </div>
+
+      {/* Available to every active staff member, including support — see
+          escalateReport()'s own comment on why this isn't gated to
+          MODERATION_ROLES the way the rest of this page's actions are. */}
+      {isOpenOrClaimed && (
+        <Section title="Escalation">
+          <div className="p-5 flex flex-col gap-5">
+            {report.escalated_to_role ? (
+              <div>
+                <p className="text-sm text-ink-900 mb-2">
+                  Escalated to <span className="font-semibold">{ROLE_LABELS[report.escalated_to_role]}</span>
+                  {escalatedByStaff && (
+                    <>
+                      {" "}
+                      by <span className="font-semibold">{`${escalatedByStaff.first_name} ${escalatedByStaff.last_name}`.trim()}</span>
+                    </>
+                  )}
+                  {report.escalated_at && <> on {formatDateTime(report.escalated_at)}</>}.
+                </p>
+                <SimpleActionForm
+                  action={clearEscalation}
+                  idField="reportId"
+                  id={report.id}
+                  submitLabel="Clear escalation"
+                  pendingLabel="Clearing…"
+                />
+              </div>
+            ) : (
+              <EscalateForm reportId={report.id} />
+            )}
+          </div>
+        </Section>
+      )}
 
       {canModerate && (
         <Section title="Moderation">
@@ -208,7 +274,29 @@ export default async function AdminReportDetailPage({
             ))}
           </ul>
         )}
+        {isSuperAdmin && !report.redacted_at && (
+          <div className="p-5 border-t border-line">
+            <div className="text-sm text-ink-500 font-semibold mb-2">Redact this report</div>
+            <p className="text-xs text-ink-500 mb-2">
+              Clears the description and evidence references above — a retention/privacy hook, not a delete. The
+              category, status, and resolution stay part of the moderation history.
+            </p>
+            <ModerationForm
+              action={redactReport}
+              idField="reportId"
+              id={report.id}
+              submitLabel="Redact"
+              pendingLabel="Redacting…"
+              tone="danger"
+              placeholder="Reason for redacting (recorded in the audit log)"
+            />
+          </div>
+        )}
       </Section>
+
+      {isFraudFlagTarget && (
+        <RiskFlagsPanel targetType={report.target_type as "user" | "listing" | "order"} targetId={report.target_id} flags={targetFraudFlags} staff={staff} />
+      )}
 
       {isClosed && (
         <Section title={report.status === "resolved" ? "Resolution" : "Dismissal"}>

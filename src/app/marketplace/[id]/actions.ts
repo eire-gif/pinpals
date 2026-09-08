@@ -8,7 +8,7 @@ import { eurToCents, centsToEur, MIN_OFFER_AMOUNT_CENTS, DEFAULT_CHECKOUT_WINDOW
 import { checkRateLimit, rateLimitMessage } from "@/lib/rate-limit";
 import { linkConversationToOrder } from "@/lib/conversations-server";
 import { sellerOnboardingStatus, isSellerPaymentReady } from "@/lib/stripe/connect";
-import { REPORT_CATEGORIES, type ReportCategory } from "@/lib/admin/reports";
+import { REPORT_CATEGORIES, parseEvidenceRefs, type ReportCategory } from "@/lib/admin/reports";
 import type { Listing, Offer, Order, StripeConnectedAccount } from "@/lib/types";
 
 export type PublishListingState = { error?: string; success?: boolean };
@@ -109,6 +109,9 @@ const KNOWN_OFFER_CREATE_REJECTION_SNIPPETS = [
   "must be at least",
   "must be less than the asking price",
   "not found",
+  // is_blocked() check added by prepare_and_validate_offer() in
+  // 0055_marketplace_trust_safety.sql.
+  "blocked",
 ];
 
 /**
@@ -230,6 +233,10 @@ const KNOWN_OFFER_RESPONSE_REJECTION_SNIPPETS = [
   "Only a pending offer",
   "cannot be acted on",
   "needs an amount",
+  // is_blocked() check added by offer_action() in
+  // 0055_marketplace_trust_safety.sql — accept/counter only, decline/
+  // withdraw stay allowed even while blocked.
+  "blocked",
   "must be higher than the current offer",
   "cannot exceed the asking price",
   "Unknown offer action",
@@ -480,6 +487,7 @@ export async function reportListing(
 
   const category = String(formData.get("category") ?? "") as ReportCategory;
   const description = String(formData.get("description") ?? "").trim();
+  const evidenceRefs = parseEvidenceRefs(String(formData.get("evidence") ?? ""));
 
   if (!REPORT_CATEGORIES.includes(category)) return { error: "Please choose a reason." };
   if (description.length > 4000) return { error: "Please keep the description under 4000 characters." };
@@ -498,6 +506,7 @@ export async function reportListing(
     target_id: String(listingId),
     category,
     description: description || null,
+    evidence_refs: evidenceRefs.length ? evidenceRefs : null,
   });
 
   if (error) return { error: "Couldn't file that report — please try again." };

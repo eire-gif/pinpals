@@ -109,6 +109,29 @@ export const ADMIN_ACTIONS = [
   // close) — requires a reason, same as every other status-changing action
   // in this file.
   "auction.force_closed",
+  // marketplace-trust-safety (0055) — see src/app/admin/reports/[id]/actions.ts.
+  // escalateReport() hands an open report to a specific higher role
+  // (reports.escalated_to_role); redactReport() (super_admin only, always
+  // reason-required like every other manual state repair here) clears a
+  // report's description/evidence_refs while leaving the rest of the row —
+  // category, status, resolution, audit trail — intact. Neither is a new
+  // kind of mutation on a new kind of record: both act on the same
+  // `reports` row every other report.* action already covers.
+  "report.escalated",
+  "report.redacted",
+  // /admin/risk-flags — src/app/admin/risk-flags/actions.ts. Purely an
+  // internal signal for a human to review (see risk.ts's own header
+  // comment); raising or clearing one never itself suspends, removes, or
+  // restricts anything, but is still audited like every other admin write.
+  "fraud_flag.raised",
+  "fraud_flag.cleared",
+  // src/app/conversations/actions.ts — a member's own mute/unmute of
+  // another member. Not gated by requireStaff() (this is an ordinary member
+  // action, same tier as blockUser()/unblockUser(), which are NOT audited
+  // here either — admin_audit_log is for staff/service decisions, not
+  // routine member self-service). Included only for completeness in case a
+  // future admin-side "mute on someone's behalf" tool is ever added; nothing
+  // in this phase calls recordAdminAction() with either of these two.
 ] as const;
 export type AdminAction = (typeof ADMIN_ACTIONS)[number];
 
@@ -143,6 +166,11 @@ export const AUDIT_TARGET_TYPES = [
   // auctions history" section comment for why), so no offer-targeted
   // action exists to need this array entry for offers at all yet.
   "auction",
+  // /admin/risk-flags — the target of fraud_flag.raised/fraud_flag.cleared
+  // above. Distinct from "user"/"listing"/"order": those name the flag's
+  // OWN subject (fraud_flags.target_type/target_id), while this names the
+  // fraud_flags ROW itself that was raised or cleared.
+  "fraud_flag",
 ] as const;
 export type AuditTargetType = (typeof AUDIT_TARGET_TYPES)[number];
 

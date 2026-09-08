@@ -8,6 +8,7 @@ import { listLatestMessages, markConversationRead } from "../actions";
 import ThreadView from "./thread-view";
 import ReportForm from "./report-form";
 import BlockControl from "./block-control";
+import MuteControl from "./mute-control";
 import ListingContextCard from "./listing-context-card";
 
 type ConversationRow = Conversation & {
@@ -50,7 +51,7 @@ export default async function ConversationThreadPage({ params }: { params: Promi
   if (other) participants[other.id] = { id: other.id, name: otherName, avatar_color: other.avatar_color };
   if (me) participants[me.id] = { id: me.id, name: `${me.first_name} ${me.last_name}`.trim(), avatar_color: me.avatar_color };
 
-  const [messagesResult, blockedResult, myBlockResult] = await Promise.all([
+  const [messagesResult, blockedResult, myBlockResult, myMuteResult] = await Promise.all([
     listLatestMessages(conversationId),
     // Either direction — this is what actually disables the composer, since
     // messages' own insert policy (0049) rejects the send regardless of
@@ -60,6 +61,11 @@ export default async function ConversationThreadPage({ params }: { params: Promi
     // (a viewer can only ever unblock a block THEY made).
     otherId
       ? supabase.from("blocked_users").select("blocker_id").eq("blocker_id", user.id).eq("blocked_id", otherId).maybeSingle()
+      : Promise.resolve({ data: null }),
+    // Specifically "have I muted them" — MuteControl's own toggle state,
+    // scoped to the caller's own mute rows by muted_users' RLS.
+    otherId
+      ? supabase.from("muted_users").select("muter_id").eq("muter_id", user.id).eq("muted_id", otherId).maybeSingle()
       : Promise.resolve({ data: null }),
   ]);
 
@@ -87,7 +93,12 @@ export default async function ConversationThreadPage({ params }: { params: Promi
           </div>
           <h1 className="font-display font-bold text-2xl">{otherName}</h1>
         </div>
-        {otherId && <BlockControl otherUserId={otherId} initiallyBlocked={!!myBlockResult.data} />}
+        {otherId && (
+          <div className="flex items-center gap-3">
+            <MuteControl otherUserId={otherId} initiallyMuted={!!myMuteResult.data} />
+            <BlockControl otherUserId={otherId} initiallyBlocked={!!myBlockResult.data} />
+          </div>
+        )}
       </div>
 
       <ListingContextCard listing={conversation.listing} order={conversation.order} />
@@ -103,7 +114,10 @@ export default async function ConversationThreadPage({ params }: { params: Promi
         />
       </div>
 
-      <ReportForm target={{ type: "conversation", id: conversationId }} />
+      <div className="flex items-center gap-4">
+        <ReportForm target={{ type: "conversation", id: conversationId }} />
+        {otherId && <ReportForm target={{ type: "user", id: otherId }} label="Report this member" />}
+      </div>
     </div>
   );
 }

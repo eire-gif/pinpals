@@ -3,6 +3,7 @@ import { requireStaff } from "@/lib/admin/authorization";
 import { listReports } from "@/lib/admin/queries";
 import { formatDateTime } from "@/lib/admin/format";
 import {
+  ESCALATION_ROLES,
   REPORT_CATEGORIES,
   REPORT_CATEGORY_LABELS,
   REPORT_PRIORITIES,
@@ -13,11 +14,13 @@ import {
   REPORT_STATUS_STYLES,
   REPORT_TARGET_TYPES,
   REPORT_TARGET_TYPE_LABELS,
+  type EscalationRole,
   type ReportCategory,
   type ReportPriority,
   type ReportStatus,
   type ReportTargetType,
 } from "@/lib/admin/reports";
+import { ROLE_LABELS } from "@/lib/admin/roles";
 import AdminAvatar from "@/components/admin/avatar";
 import StatusBadge from "@/components/admin/status-badge";
 
@@ -32,6 +35,7 @@ export default async function AdminReportsPage({
     target?: string;
     targetId?: string; // paired with `target` — links from a listing/user detail page's "Reports" section
     assigned?: string; // a staff user id, "unassigned", or "mine"
+    escalated?: string; // an EscalationRole
     page?: string;
   }>;
 }) {
@@ -44,6 +48,7 @@ export default async function AdminReportsPage({
     target = "",
     targetId = "",
     assigned = "",
+    escalated = "",
     page: pageParam,
   } = await searchParams;
   const page = Math.max(1, Number.parseInt(pageParam ?? "1", 10) || 1);
@@ -61,11 +66,12 @@ export default async function AdminReportsPage({
       targetType: (target as ReportTargetType) || undefined,
       targetId: targetId || undefined,
       assignedAdmin: assignedFilter,
+      escalatedToRole: (escalated as EscalationRole) || undefined,
     },
     page
   );
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
-  const hasFilters = Boolean(q || status || priority || category || target || targetId || assigned);
+  const hasFilters = Boolean(q || status || priority || category || target || targetId || assigned || escalated);
 
   function pageHref(targetPage: number) {
     const params = new URLSearchParams();
@@ -76,6 +82,7 @@ export default async function AdminReportsPage({
     if (target) params.set("target", target);
     if (targetId) params.set("targetId", targetId);
     if (assigned) params.set("assigned", assigned);
+    if (escalated) params.set("escalated", escalated);
     if (targetPage > 1) params.set("page", String(targetPage));
     const qs = params.toString();
     return qs ? `/admin/reports?${qs}` : "/admin/reports";
@@ -172,6 +179,18 @@ export default async function AdminReportsPage({
           <option value="">Anyone</option>
           <option value="mine">Assigned to me</option>
           <option value="unassigned">Unassigned</option>
+        </select>
+        <select
+          name="escalated"
+          defaultValue={escalated}
+          className="px-4 py-2.5 rounded-full border-[1.5px] border-line bg-surface text-sm"
+        >
+          <option value="">Any escalation</option>
+          {ESCALATION_ROLES.map((r) => (
+            <option key={r} value={r}>
+              {ROLE_LABELS[r]}
+            </option>
+          ))}
         </select>
         <button
           type="submit"

@@ -19,13 +19,14 @@ import type {
   WebhookEvent,
 } from "@/lib/types";
 import type { StaffRole, StaffStatus } from "./roles";
-import type { ReportCategory, ReportPriority, ReportStatus, ReportTargetType } from "./reports";
+import type { EscalationRole, ReportCategory, ReportPriority, ReportStatus, ReportTargetType } from "./reports";
 import type {
   SupportCaseCategory,
   SupportCaseLinkedTargetType,
   SupportCasePriority,
   SupportCaseStatus,
 } from "./support-cases";
+import type { FraudFlagSeverity, FraudFlagStatus, FraudFlagTargetType, FraudFlagType } from "./risk";
 import { AUDIT_TARGET_TYPES } from "./audit";
 import { buildMessagesCursorFilter, nextMessagesCursor, type MessagesCursor } from "@/lib/messaging";
 
@@ -907,6 +908,18 @@ export type AdminReport = {
   resolved_at: string | null;
   resolved_by: string | null;
   linked_action_id: number | null;
+  /** Set alongside an 'order' report by reportOrderIssue() — never itself
+   * moves money; see reports.ts's own comment on the 'order' target type. */
+  wants_refund: boolean;
+  /** Escalation (0055) — both-or-neither-with-escalated_at/by by app
+   * convention, same as assigned_admin/claimed_at. */
+  escalated_to_role: EscalationRole | null;
+  escalated_at: string | null;
+  escalated_by: string | null;
+  /** Redaction (0055) — set by redactReport() (super_admin only), which
+   * clears description/evidence_refs and stamps these two. */
+  redacted_at: string | null;
+  redacted_by: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -947,6 +960,9 @@ export type AdminReportFilters = {
   /** A specific staff user id, or the literal "unassigned" for
    * assigned_admin IS NULL (the queue's default "needs a claim" view). */
   assignedAdmin?: string;
+  /** Reports escalated to a specific role (0055) — the "needs finance" /
+   * "needs a super_admin" queue view. */
+  escalatedToRole?: EscalationRole;
 };
 
 const REPORTS_PAGE_SIZE = 20;
@@ -997,8 +1013,12 @@ async function resolveTargetSummaries(
   const inviteIds = [...new Set(rows.filter((r) => r.target_type === "tee_time_invite").map((r) => r.target_id))]
     .map((id) => Number(id))
     .filter((id) => Number.isFinite(id));
+  // 'order' (0055) — same shape as listingIds above.
+  const orderIds = [...new Set(rows.filter((r) => r.target_type === "order").map((r) => r.target_id))]
+    .map((id) => Number(id))
+    .filter((id) => Number.isFinite(id));
 
-  const [{ data: users }, { data: listings }, { data: invites }] = await Promise.all([
+  const [{ data: users }, { data: listings }, { data: invites }, { data: orders }] = await Promise.all([
     userIds.length
       ? admin
           .from("profiles")
@@ -1016,11 +1036,15 @@ async function resolveTargetSummaries(
           .in("id", inviteIds)
           .returns<Pick<TeeTimeInvite, "id" | "club_name">[]>()
       : Promise.resolve({ data: [] as Pick<TeeTimeInvite, "id" | "club_name">[] }),
+    orderIds.length
+      ? admin.from("orders").select("id, listing_title").in("id", orderIds).returns<Pick<Order, "id" | "listing_title">[]>()
+      : Promise.resolve({ data: [] as Pick<Order, "id" | "listing_title">[] }),
   ]);
 
   const userById = new Map((users ?? []).map((u) => [u.id, u]));
   const listingById = new Map((listings ?? []).map((l) => [String(l.id), l]));
   const inviteById = new Map((invites ?? []).map((i) => [String(i.id), i]));
+  const orderById = new Map((orders ?? []).map((o) => [String(o.id), o]));
 
   for (const row of rows) {
     const k = key(row.target_type, row.target_id);
@@ -1049,6 +1073,14 @@ async function resolveTargetSummaries(
         i
           ? { type: "tee_time_invite", label: i.club_name, href: `/admin/tee-times/${row.target_id}` }
           : { type: "tee_time_invite", label: `Invite #${row.target_id} no longer exists`, href: null }
+      );
+    } else if (row.target_type === "order") {
+      const o = orderById.get(row.target_id);
+      summaries.set(
+        k,
+        o
+          ? { type: "order", label: `Order #${row.target_id} — ${o.listing_title}`, href: `/admin/orders/${row.target_id}` }
+          : { type: "order", label: `Order #${row.target_id} no longer exists`, href: null }
       );
     } else {
       // message / conversation — deliberately not resolved to a real row or
@@ -1117,6 +1149,7 @@ export async function listReports(
   } else if (filters.assignedAdmin) {
     reportsQuery = reportsQuery.eq("assigned_admin", filters.assignedAdmin);
   }
+  if (filters.escalatedToRole) reportsQuery = reportsQuery.eq("escalated_to_role", filters.escalatedToRole);
 
   if (trimmedQuery) {
     const filter = buildReportSearchOrFilter(trimmedQuery, reporterMatchedIds);
@@ -1220,6 +1253,16 @@ export type AdminReportDetail = {
    * with no moderation history yet. */
   targetModerationHistory: AdminAuditLogListItem[];
   linkedAction: AdminAuditLogListItem | null;
+  /** Who escalated this report, if it's currently escalated (0055) —
+   * distinct from assignedStaff/resolvedByStaff above. */
+  escalatedByStaff: AdminProfile | null;
+  redactedByStaff: AdminProfile | null;
+  /** Existing risk flags against this SAME target (user/listing/order) —
+   * empty for a message/conversation/tee_time_invite report, whose target
+   * type fraud_flags doesn't cover. A staff member reviewing a report often
+   * wants to know "has anyone already flagged this person/listing/order as
+   * risky", without leaving the page. */
+  targetFraudFlags: AdminFraudFlagListItem[];
 };
 
 export async function getReportDetail(id: number): Promise<AdminReportDetail | null> {
@@ -1229,28 +1272,38 @@ export async function getReportDetail(id: number): Promise<AdminReportDetail | n
   if (!report) return null;
 
   const isAuditableTarget = (AUDIT_TARGET_TYPES as readonly string[]).includes(report.target_type);
+  const isFraudFlagTarget = report.target_type === "user" || report.target_type === "listing" || report.target_type === "order";
 
-  const [authUsers, targetSummaries, notes, moderationHistoryResult, linkedActionRowResult] = await Promise.all([
-    authUserMap(),
-    resolveTargetSummaries(admin, [report]),
-    listReportNotes(report.id),
-    isAuditableTarget
-      ? listAuditLog({ targetType: report.target_type, targetId: report.target_id })
-      : Promise.resolve({ rows: [], approxTotal: 0, nextCursor: null, pageSize: AUDIT_LOG_PAGE_SIZE } as AuditLogPage),
-    report.linked_action_id
-      ? admin
-          .from("admin_audit_log")
-          .select("*")
-          .eq("id", report.linked_action_id)
-          .maybeSingle<AdminAuditLogEntry>()
-      : Promise.resolve({ data: null as AdminAuditLogEntry | null }),
-  ]);
+  const [authUsers, targetSummaries, notes, moderationHistoryResult, linkedActionRowResult, targetFraudFlags] =
+    await Promise.all([
+      authUserMap(),
+      resolveTargetSummaries(admin, [report]),
+      listReportNotes(report.id),
+      isAuditableTarget
+        ? listAuditLog({ targetType: report.target_type, targetId: report.target_id })
+        : Promise.resolve({ rows: [], approxTotal: 0, nextCursor: null, pageSize: AUDIT_LOG_PAGE_SIZE } as AuditLogPage),
+      report.linked_action_id
+        ? admin
+            .from("admin_audit_log")
+            .select("*")
+            .eq("id", report.linked_action_id)
+            .maybeSingle<AdminAuditLogEntry>()
+        : Promise.resolve({ data: null as AdminAuditLogEntry | null }),
+      isFraudFlagTarget
+        ? listFraudFlagsForTarget(report.target_type as FraudFlagTargetType, report.target_id)
+        : Promise.resolve([] as AdminFraudFlagListItem[]),
+    ]);
 
   const peopleIds = [
     ...new Set(
-      [report.reporter_id, report.assigned_admin, report.resolved_by, linkedActionRowResult.data?.actor_id].filter(
-        (id): id is string => !!id
-      )
+      [
+        report.reporter_id,
+        report.assigned_admin,
+        report.resolved_by,
+        report.escalated_by,
+        report.redacted_by,
+        linkedActionRowResult.data?.actor_id,
+      ].filter((id): id is string => !!id)
     ),
   ];
   const { data: peopleProfiles } = peopleIds.length
@@ -1267,12 +1320,16 @@ export async function getReportDetail(id: number): Promise<AdminReportDetail | n
   const reporterProfile = profileById.get(report.reporter_id) ?? null;
   const assignedProfile = report.assigned_admin ? profileById.get(report.assigned_admin) ?? null : null;
   const resolvedByProfile = report.resolved_by ? profileById.get(report.resolved_by) ?? null : null;
+  const escalatedByProfile = report.escalated_by ? profileById.get(report.escalated_by) ?? null : null;
+  const redactedByProfile = report.redacted_by ? profileById.get(report.redacted_by) ?? null : null;
 
   return {
     report,
     reporter: reporterProfile ? withEmail(reporterProfile, authUsers) : null,
     assignedStaff: assignedProfile ? withEmail(assignedProfile, authUsers) : null,
     resolvedByStaff: resolvedByProfile ? withEmail(resolvedByProfile, authUsers) : null,
+    escalatedByStaff: escalatedByProfile ? withEmail(escalatedByProfile, authUsers) : null,
+    redactedByStaff: redactedByProfile ? withEmail(redactedByProfile, authUsers) : null,
     target: targetSummaries.get(`${report.target_type}:${report.target_id}`) ?? {
       type: report.target_type,
       label: `${report.target_type} #${report.target_id}`,
@@ -1281,7 +1338,145 @@ export async function getReportDetail(id: number): Promise<AdminReportDetail | n
     notes,
     targetModerationHistory: moderationHistoryResult.rows,
     linkedAction,
+    targetFraudFlags,
   };
+}
+
+// ---------- Fraud / risk flags ----------
+//
+// /admin/risk-flags and every user/listing/order detail page's own risk
+// panel — see supabase/migrations/0055_marketplace_trust_safety.sql's
+// `fraud_flags` table and src/lib/admin/risk.ts's own header comment on why
+// this is a signal, never a verdict. Same real server-side `.range()`
+// pagination + stable sort shape as listReports()/listAuditLog() for the
+// open queue; listFraudFlagsForTarget() below is the small, unpaginated
+// "everything against this one target" query the detail-page panels use
+// (same shape as targetModerationHistory in getReportDetail()/
+// getListingDetail() etc.).
+
+export type AdminFraudFlag = {
+  id: number;
+  target_type: FraudFlagTargetType;
+  target_id: string;
+  flag_type: FraudFlagType;
+  severity: FraudFlagSeverity;
+  note: string;
+  status: FraudFlagStatus;
+  raised_by: string;
+  raised_at: string;
+  cleared_by: string | null;
+  cleared_at: string | null;
+  clear_reason: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AdminFraudFlagListItem = AdminFraudFlag & {
+  raisedByStaff: AdminProfile | null;
+  clearedByStaff: AdminProfile | null;
+  target: AdminReportTargetSummary;
+};
+
+export type AdminFraudFlagFilters = {
+  status?: FraudFlagStatus;
+  targetType?: FraudFlagTargetType;
+  severity?: FraudFlagSeverity;
+};
+
+export type AdminFraudFlagPage = {
+  rows: AdminFraudFlagListItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+};
+
+const FRAUD_FLAGS_PAGE_SIZE = 20;
+
+async function attachFraudFlagContext(
+  admin: ReturnType<typeof createAdminClient>,
+  rows: AdminFraudFlag[]
+): Promise<AdminFraudFlagListItem[]> {
+  if (rows.length === 0) return [];
+
+  const [authUsers, targetSummaries] = await Promise.all([
+    authUserMap(),
+    resolveTargetSummaries(
+      admin,
+      // resolveTargetSummaries() is typed against ReportTargetType, but its
+      // three branches for 'user'/'listing'/'order' are exactly the same
+      // lookups fraud_flags needs — reused rather than duplicated.
+      rows.map((r) => ({ target_type: r.target_type as ReportTargetType, target_id: r.target_id }))
+    ),
+  ]);
+
+  const staffIds = [...new Set(rows.flatMap((r) => [r.raised_by, r.cleared_by].filter((id): id is string => !!id)))];
+  const { data: staffProfiles } = staffIds.length
+    ? await admin.from("profiles").select("*").in("id", staffIds).returns<Profile[]>()
+    : { data: [] as Profile[] };
+  const profileById = new Map((staffProfiles ?? []).map((p) => [p.id, p]));
+
+  return rows.map((r) => {
+    const raisedByProfile = profileById.get(r.raised_by) ?? null;
+    const clearedByProfile = r.cleared_by ? profileById.get(r.cleared_by) ?? null : null;
+    return {
+      ...r,
+      raisedByStaff: raisedByProfile ? withEmail(raisedByProfile, authUsers) : null,
+      clearedByStaff: clearedByProfile ? withEmail(clearedByProfile, authUsers) : null,
+      target: targetSummaries.get(`${r.target_type}:${r.target_id}`) ?? {
+        type: r.target_type,
+        label: `${r.target_type} #${r.target_id}`,
+        href: null,
+      },
+    };
+  });
+}
+
+/** The global risk-flags queue (/admin/risk-flags), defaulting to nothing —
+ * every caller passes at least `status: "open"` in practice, same as
+ * listReports() defaulting to showing everything unless filtered. */
+export async function listFraudFlags(filters: AdminFraudFlagFilters = {}, page = 1): Promise<AdminFraudFlagPage> {
+  const admin = createAdminClient();
+  const safePage = Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
+  const rangeFrom = (safePage - 1) * FRAUD_FLAGS_PAGE_SIZE;
+  const rangeTo = rangeFrom + FRAUD_FLAGS_PAGE_SIZE - 1;
+
+  let query = admin
+    .from("fraud_flags")
+    .select("*", { count: "exact" })
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
+    .range(rangeFrom, rangeTo);
+
+  if (filters.status) query = query.eq("status", filters.status);
+  if (filters.targetType) query = query.eq("target_type", filters.targetType);
+  if (filters.severity) query = query.eq("severity", filters.severity);
+
+  const { data, error, count } = await query.returns<AdminFraudFlag[]>();
+  if (error) throw new Error(`Failed to list fraud flags: ${error.message}`);
+
+  const rows = await attachFraudFlagContext(admin, data ?? []);
+  return { rows, total: count ?? 0, page: safePage, pageSize: FRAUD_FLAGS_PAGE_SIZE };
+}
+
+/** Every flag (open or cleared) against one specific target, most recent
+ * first — the detail-page panel's own read, same shape as
+ * targetModerationHistory. Unpaginated: a single target accumulating enough
+ * flags to need pagination would itself be a signal worth noticing. */
+export async function listFraudFlagsForTarget(
+  targetType: FraudFlagTargetType,
+  targetId: string
+): Promise<AdminFraudFlagListItem[]> {
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from("fraud_flags")
+    .select("*")
+    .eq("target_type", targetType)
+    .eq("target_id", targetId)
+    .order("created_at", { ascending: false })
+    .returns<AdminFraudFlag[]>();
+  if (error) throw new Error(`Failed to list fraud flags for target: ${error.message}`);
+
+  return attachFraudFlagContext(admin, data ?? []);
 }
 
 // ---------- Support cases ----------

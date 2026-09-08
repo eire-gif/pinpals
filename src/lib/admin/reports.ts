@@ -29,6 +29,14 @@ export const REPORT_CATEGORIES = [
   "fake_listing",
   "no_show",
   "other",
+  // marketplace-trust-safety (0055) — order-shaped categories, added
+  // alongside the 'order' target type below. Shared across every target
+  // type the same way "other"/"scam_fraud" already are (the category enum
+  // has never been scoped per target type); a listing/message report simply
+  // never offers these three in its own form's dropdown.
+  "item_not_as_described",
+  "item_not_received",
+  "payment_issue",
 ] as const;
 export type ReportCategory = (typeof REPORT_CATEGORIES)[number];
 
@@ -39,8 +47,25 @@ export type ReportCategory = (typeof REPORT_CATEGORIES)[number];
 // conversation-browsing page (there isn't one) — content only ever appears
 // after a moderator submits a reason on this report's own page, and every
 // reveal is audited (see ADMIN_ACTIONS' conversation.access_viewed).
-export const REPORT_TARGET_TYPES = ["user", "listing", "tee_time_invite", "message", "conversation"] as const;
+//
+// 'order' was added by marketplace-trust-safety (0055_marketplace_trust_safety.sql)
+// — reportOrderIssue() (src/app/dashboard/orders/[id]/actions.ts) is the
+// member-facing write path. Deliberately reuses this exact same table/queue
+// rather than a parallel "order issues" system: an order report IS a
+// report, and it already gets everything a report gets for free — a
+// moderator/finance queue, assignment, internal notes, and (since "order"
+// was already in AUDIT_TARGET_TYPES — see audit.ts) its own moderation
+// history automatically includes every refund.requested/completed/failed
+// audit entry finance makes against the same order, with no extra code.
+export const REPORT_TARGET_TYPES = ["user", "listing", "tee_time_invite", "message", "conversation", "order"] as const;
 export type ReportTargetType = (typeof REPORT_TARGET_TYPES)[number];
+
+// Roles an open report can be escalated TO (reports.escalated_to_role,
+// 0055) — deliberately excludes 'support': every report is already visible
+// to support (the read-broad policy above), so "escalating to support"
+// isn't a real escalation, it's the starting tier every report begins at.
+export const ESCALATION_ROLES = ["moderator", "finance", "admin", "super_admin"] as const;
+export type EscalationRole = (typeof ESCALATION_ROLES)[number];
 
 export const REPORT_STATUS_LABELS: Record<ReportStatus, string> = {
   open: "Open",
@@ -78,6 +103,9 @@ export const REPORT_CATEGORY_LABELS: Record<ReportCategory, string> = {
   fake_listing: "Fake listing",
   no_show: "No-show",
   other: "Other",
+  item_not_as_described: "Item not as described",
+  item_not_received: "Item not received",
+  payment_issue: "Payment issue",
 };
 
 export const REPORT_TARGET_TYPE_LABELS: Record<ReportTargetType, string> = {
@@ -86,7 +114,61 @@ export const REPORT_TARGET_TYPE_LABELS: Record<ReportTargetType, string> = {
   tee_time_invite: "Tee-time invite",
   message: "Message",
   conversation: "Conversation",
+  order: "Order",
 };
+
+// Category subsets each member-facing report form actually offers — the
+// shared REPORT_CATEGORIES/REPORT_CATEGORY_LABELS stay one flat list (so the
+// admin queue's filter dropdown and every existing report always show every
+// value that could be on any report), but a report-a-listing form showing
+// "Payment issue" or an order-issue form showing "Fake listing" would just
+// confuse the reporter. Pure data, no DB/framework dependency, so it's
+// trivial to keep in sync with REPORT_CATEGORIES by hand and unit-test.
+export const LISTING_REPORT_CATEGORIES: readonly ReportCategory[] = [
+  "spam",
+  "fake_listing",
+  "scam_fraud",
+  "inappropriate_content",
+  "other",
+];
+export const USER_REPORT_CATEGORIES: readonly ReportCategory[] = [
+  "harassment",
+  "scam_fraud",
+  "spam",
+  "no_show",
+  "inappropriate_content",
+  "other",
+];
+export const ORDER_REPORT_CATEGORIES: readonly ReportCategory[] = [
+  "item_not_as_described",
+  "item_not_received",
+  "payment_issue",
+  "scam_fraud",
+  "other",
+];
+
+const EVIDENCE_REF_MAX_ITEMS = 10;
+const EVIDENCE_REF_MAX_LENGTH = 300;
+
+/**
+ * Turns a member-typed "one reference per line" textarea into the bounded
+ * string array `reports.evidence_refs` expects (see
+ * supabase/migrations/0016_admin_reports.sql's own comment on that column —
+ * "not a file upload system; just short strings staff can read and click
+ * through by hand"). Pure and framework-free so it's trivial to unit test:
+ * trims each line, drops blanks, caps the count and each line's length
+ * rather than rejecting an over-long submission outright — the same
+ * "truncate, don't fail the whole report over one long line" leniency
+ * everywhere else evidence_refs is described as forgiving.
+ */
+export function parseEvidenceRefs(raw: string): string[] {
+  return raw
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+    .slice(0, EVIDENCE_REF_MAX_ITEMS)
+    .map((line) => line.slice(0, EVIDENCE_REF_MAX_LENGTH));
+}
 
 // Reports reuse the exact same ModerationState shape and MODERATION_ROLES
 // gate every other admin mutation in this app uses (src/lib/admin/moderation.ts)

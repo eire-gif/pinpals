@@ -61,6 +61,12 @@ export default function ReportListingForm({ listingId }: { listingId: number }) 
         placeholder="Anything else our team should know? (optional)"
         className="text-sm rounded-lg border-[1.5px] border-line px-3 py-2 resize-none bg-surface"
       />
+      <textarea
+        name="evidence"
+        rows={2}
+        placeholder="Links or references for evidence — one per line (optional)"
+        className="text-sm rounded-lg border-[1.5px] border-line px-3 py-2 resize-none bg-surface"
+      />
       {state.error && <p className="text-xs text-red-600">{state.error}</p>}
       <div className="flex gap-2">
         <button

@@ -45,6 +45,12 @@ const NAV_ITEMS: { href: string; label: string; enabled?: boolean; roles?: reado
   { href: "/admin/webhook-events", label: "Webhook events", enabled: true, roles: FINANCE_ROLES },
   { href: "/admin/clubs", label: "Clubs" },
   { href: "/admin/reports", label: "Reports", enabled: true },
+  // marketplace-trust-safety — see src/lib/admin/risk.ts's own header
+  // comment on why this is a signal, never a verdict. No `roles`
+  // restriction: any active staff member may raise a flag (same reasoning
+  // as report notes), only clearing one is held to a higher bar (enforced
+  // in src/app/admin/risk-flags/actions.ts, not here).
+  { href: "/admin/risk-flags", label: "Risk flags", enabled: true },
   // No `roles` restriction — any active staff role may work a case (see
   // src/lib/admin/support-cases.ts's file-header comment).
   { href: "/admin/support", label: "Support cases", enabled: true },
