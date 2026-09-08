@@ -179,6 +179,31 @@ describe("report_notes: staff can read, write is service-role only", () => {
   });
 });
 
+describe("payouts: member can additionally read their own payout (0054, marketplace-workspaces)", () => {
+  it("the owning seller can read their own payout row", async () => {
+    await withRole("authenticated", USERS.seller1, async (c) => {
+      const r = await c.query("select id from public.payouts where id = $1", [ids.payoutId]);
+      expect(r.rowCount).toBe(1);
+    });
+  });
+
+  it("a different member still cannot read someone else's payout row — this policy is own-row-only, not all-authenticated", async () => {
+    await withRole("authenticated", USERS.buyer1, async (c) => {
+      const r = await c.query("select id from public.payouts where id = $1", [ids.payoutId]);
+      expect(r.rowCount).toBe(0);
+    });
+  });
+
+  it("the owning seller still cannot write to their own payout row — read-only, same as staff", async () => {
+    await withRole("authenticated", USERS.seller1, async (c) => {
+      await expectRejected(
+        c.query("update public.payouts set updated_at = now() where id = $1", [ids.payoutId]),
+        /permission denied/,
+      );
+    });
+  });
+});
+
 describe("stripe_connected_accounts: staff-read-all + member-read-own, service-role write only", () => {
   it("a member has no fixture row yet, but can query their own without error (no permission denial)", async () => {
     await withRole("authenticated", USERS.seller1, async (c) => {

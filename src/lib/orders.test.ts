@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { computeCheckoutTotal, formatAddress, ADDRESS_FIELD_LIMITS, DELIVERY_FEE_EUR, TAX_TREATMENT } from "./orders";
+import {
+  computeCheckoutTotal,
+  formatAddress,
+  ADDRESS_FIELD_LIMITS,
+  DELIVERY_FEE_EUR,
+  TAX_TREATMENT,
+  buyerOrderNextAction,
+  isSellerOrderAwaitingFulfilment,
+  sellerFulfilmentLabel,
+} from "./orders";
 
 describe("computeCheckoutTotal", () => {
   it("charges no delivery fee for collection", () => {
@@ -137,5 +146,87 @@ describe("ADDRESS_FIELD_LIMITS", () => {
       eircode: 20,
       phone: 30,
     });
+  });
+});
+
+// ============ marketplace-workspaces (this phase) ============
+
+describe("buyerOrderNextAction", () => {
+  const base = {
+    id: 42,
+    status: "pending" as const,
+    payment_status: "unpaid" as const,
+    checkout_completed_at: null as string | null,
+    reservation_expires_at: "2099-01-01T00:00:00.000Z" as string | null,
+  };
+
+  it("is null once paid — nothing left for the buyer to do", () => {
+    expect(buyerOrderNextAction({ ...base, payment_status: "paid" })).toBeNull();
+  });
+
+  it("is null once the order has left 'pending' (completed/cancelled/refunded)", () => {
+    expect(buyerOrderNextAction({ ...base, status: "completed", payment_status: "paid" })).toBeNull();
+    expect(buyerOrderNextAction({ ...base, status: "cancelled" })).toBeNull();
+  });
+
+  it("is null once the reservation deadline has passed — the sweep resolves it, not a buyer click", () => {
+    expect(buyerOrderNextAction({ ...base, reservation_expires_at: "2000-01-01T00:00:00.000Z" })).toBeNull();
+  });
+
+  it("points to /checkout when checkout_completed_at is still null", () => {
+    expect(buyerOrderNextAction(base)).toEqual({
+      label: "Finish checkout",
+      href: "/dashboard/orders/42/checkout",
+      deadlineIso: base.reservation_expires_at,
+    });
+  });
+
+  it("points to the order page to pay once checkout is finished", () => {
+    expect(buyerOrderNextAction({ ...base, checkout_completed_at: "2026-01-01T00:00:00.000Z" })).toEqual({
+      label: "Complete payment",
+      href: "/dashboard/orders/42",
+      deadlineIso: base.reservation_expires_at,
+    });
+  });
+
+  it("says 'Try payment again' once a payment attempt has already failed", () => {
+    expect(
+      buyerOrderNextAction({
+        ...base,
+        checkout_completed_at: "2026-01-01T00:00:00.000Z",
+        payment_status: "failed",
+      })
+    ).toEqual({
+      label: "Try payment again",
+      href: "/dashboard/orders/42",
+      deadlineIso: base.reservation_expires_at,
+    });
+  });
+
+  it("has no reservation deadline for an order that never had one — still actionable", () => {
+    expect(buyerOrderNextAction({ ...base, reservation_expires_at: null })).toEqual({
+      label: "Finish checkout",
+      href: "/dashboard/orders/42/checkout",
+      deadlineIso: null,
+    });
+  });
+});
+
+describe("isSellerOrderAwaitingFulfilment", () => {
+  it("is true only for a completed, paid order", () => {
+    expect(isSellerOrderAwaitingFulfilment({ status: "completed", payment_status: "paid" })).toBe(true);
+  });
+
+  it("is false for a pending, cancelled, or refunded order, or one that isn't actually paid", () => {
+    expect(isSellerOrderAwaitingFulfilment({ status: "pending", payment_status: "paid" })).toBe(false);
+    expect(isSellerOrderAwaitingFulfilment({ status: "completed", payment_status: "refunded" })).toBe(false);
+    expect(isSellerOrderAwaitingFulfilment({ status: "cancelled", payment_status: "unpaid" })).toBe(false);
+  });
+});
+
+describe("sellerFulfilmentLabel", () => {
+  it("describes posting for 'post' and collection for 'collection'", () => {
+    expect(sellerFulfilmentLabel({ delivery_method: "post" })).toBe("Post the item to the buyer");
+    expect(sellerFulfilmentLabel({ delivery_method: "collection" })).toBe("Arrange collection with the buyer");
   });
 });
