@@ -102,6 +102,28 @@ describe("listings: INSERT (rule 2 — sellers create only under their own selle
     });
   });
 
+  // Regression test for the production incident fixed by
+  // 0052_listing_visibility_returning_fix.sql: supabase-js's
+  // `.insert(...).select("id")` (src/app/marketplace/new/actions.ts) issues
+  // `INSERT ... RETURNING id`, which re-checks the table's SELECT policy
+  // against the just-inserted row — a case the plain INSERT test above
+  // (no RETURNING) never exercised, which is exactly how this shipped
+  // broken. Every real "save as draft" went through this path and failed
+  // with "new row violates row-level security policy for table listings"
+  // until this fix, regardless of whose seller_id it was.
+  it("a seller can insert AND get the new row back via RETURNING (the exact supabase-js .insert().select() path)", async () => {
+    await withRole("authenticated", USERS.seller1, async (c) => {
+      const r = await c.query(
+        `insert into public.listings (seller_id, title, price_eur, category, condition, status)
+         values ($1, 'New driver via RETURNING', 200, 'drivers', 'good', 'draft')
+         returning id`,
+        [USERS.seller1],
+      );
+      expect(r.rowCount).toBe(1);
+      expect(r.rows[0].id).toBeTruthy();
+    });
+  });
+
   it("a user cannot insert a listing under someone else's seller_id", async () => {
     await withRole("authenticated", USERS.buyer1, async (c) => {
       await expectRejected(
