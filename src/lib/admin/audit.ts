@@ -99,6 +99,16 @@ export const ADMIN_ACTIONS = [
   // never a new mutation of its own, just the pointer (see
   // support_case_linked_actions in 0026_support_cases.sql).
   "support_case.action_linked",
+  // /admin/marketplace's offers/auctions tab — forceCloseAuction() in
+  // src/app/admin/marketplace/actions.ts. The one mutation this checkpoint
+  // adds: this schema has no scheduled sweep that closes an auction on time
+  // (see auctionEligibleForForceClose()'s own comment in
+  // src/lib/admin/marketplace.ts), so a live auction can get stuck past its
+  // own end time with no way for its winning bidder to check out. Always a
+  // manual state repair on an already-expired auction (never an early
+  // close) — requires a reason, same as every other status-changing action
+  // in this file.
+  "auction.force_closed",
 ] as const;
 export type AdminAction = (typeof ADMIN_ACTIONS)[number];
 
@@ -127,6 +137,12 @@ export const AUDIT_TARGET_TYPES = [
   "conversation",
   "message",
   "support_case",
+  // /admin/marketplace's offers/auctions tab — the target of
+  // auction.force_closed above. Distinct from "offer": offers stay entirely
+  // read-only in this phase (see src/lib/admin/queries.ts's "Offers &
+  // auctions history" section comment for why), so no offer-targeted
+  // action exists to need this array entry for offers at all yet.
+  "auction",
 ] as const;
 export type AuditTargetType = (typeof AUDIT_TARGET_TYPES)[number];
 
