@@ -98,6 +98,15 @@ export function auctionWindowError(startsAt: Date, endsAt: Date): string | null 
 
 // The cut Pinpals takes on a completed sale, shown to the buyer as a
 // line-item on top of the agreed price (same pattern as Vinted's buyer fee).
+// Client-side display mirror only — never trusted for the actual charge. The
+// one server-side source of truth is public.platform_fee_rate() (migration
+// 0051_platform_fee_configuration.sql), which offer_action()/
+// create_purchase_order() call to snapshot orders.platform_fee_eur; that
+// snapshotted value (never this constant) is what
+// createOrderPaymentIntent() sends to Stripe as application_fee_amount.
+// Keep this literal in sync with platform_fee_rate()'s SQL body by hand —
+// same manual-mirror discipline used throughout this codebase (see e.g.
+// src/lib/orders.ts's own header comment).
 export const PLATFORM_FEE_RATE = 0.07;
 
 export function computeOfferTotal(amountEur: number) {
