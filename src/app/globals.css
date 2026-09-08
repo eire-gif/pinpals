@@ -9,6 +9,7 @@
   --green-700: #1f5c2e;
   --green-600: #2c7a3d;
   --green-100: #e2ede1;
+  --gold-400: #e8c46b;
   --gold-500: #d3a53f;
   --gold-600: #b6862a;
   --red-600: #a83a2b;
@@ -29,6 +30,7 @@
   --color-green-700: var(--green-700);
   --color-green-600: var(--green-600);
   --color-green-100: var(--green-100);
+  --color-gold-400: var(--gold-400);
   --color-gold-500: var(--gold-500);
   --color-gold-600: var(--gold-600);
   --color-red-600: var(--red-600);
