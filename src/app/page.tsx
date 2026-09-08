@@ -5,24 +5,28 @@ export default function HomePage() {
   return (
     <div>
       {/* HERO */}
-      <div className="relative text-white overflow-hidden">
+      <div className="relative isolate flex items-center text-white overflow-hidden min-h-[560px] md:min-h-[680px] lg:min-h-[calc(100vh-88px)]">
         <Image
-          src="/images/homepage-sunset.png"
-          alt="Sunset over a links golf course"
+          src="/images/homepage-hero.jpg"
+          alt="Sunset over an Irish links golf course"
           fill
           priority
-          className="object-cover -z-10"
+          sizes="100vw"
+          quality={90}
+          className="object-cover object-center -z-20"
         />
-        <div className="absolute inset-0 bg-gradient-to-b from-[rgba(9,22,40,0.42)] to-[rgba(9,22,40,0.62)] -z-10" />
-        <div className="max-w-6xl mx-auto px-6 pt-24 pb-28">
-          <div className="max-w-[680px]">
-            <span className="inline-flex items-center gap-2 text-xs font-bold tracking-widest uppercase text-gold-500">
-              <span className="w-5 h-0.5 bg-gold-500 inline-block" /> Ireland&rsquo;s golf community
+        {/* Legibility scrims: strong on the left where the copy sits, lighter over the sunset */}
+        <div className="absolute inset-0 -z-10 bg-gradient-to-r from-[rgba(6,16,30,0.80)] via-[rgba(6,16,30,0.48)] to-[rgba(6,16,30,0.12)]" />
+        <div className="absolute inset-0 -z-10 bg-gradient-to-b from-[rgba(6,16,30,0.38)] via-transparent to-[rgba(6,16,30,0.48)]" />
+        <div className="relative w-full max-w-6xl mx-auto px-6 pt-24 pb-28">
+          <div className="max-w-[680px] [text-shadow:0_1px_18px_rgba(6,16,30,0.55)]">
+            <span className="inline-flex items-center gap-2 text-xs font-bold tracking-widest uppercase text-gold-400">
+              <span className="w-5 h-0.5 bg-gold-400 inline-block" /> Ireland&rsquo;s golf community
             </span>
             <h1 className="font-display font-bold text-4xl md:text-6xl leading-[1.05] mt-3">
-              Find your <em className="text-gold-500 italic">next four ball</em>, anywhere in Ireland.
+              Find your <em className="text-gold-400 italic">next four ball</em>, anywhere in Ireland.
             </h1>
-            <p className="text-white/90 text-lg mt-5 max-w-[52ch]">
+            <p className="text-white/95 text-lg mt-5 max-w-[52ch]">
               Pinpals connects golfers across all 32 counties so you can meet playing partners,
               book rounds at each other&rsquo;s home clubs, and find your people in the game.
             </p>
@@ -30,11 +34,11 @@ export default function HomePage() {
               <Link href="/signup" className="px-6 py-3.5 rounded-full font-bold bg-[#fbf8ef] text-navy-900 hover:bg-white transition">
                 Join the community
               </Link>
-              <Link href="/courses" className="px-6 py-3.5 rounded-full font-bold border-[1.5px] border-white/35 hover:border-white/70 transition">
+              <Link href="/courses" className="px-6 py-3.5 rounded-full font-bold border-[1.5px] border-white/55 bg-white/5 backdrop-blur-[2px] hover:bg-white/15 hover:border-white/80 transition">
                 Browse 373 Irish courses
               </Link>
             </div>
-            <div className="flex flex-wrap gap-9 mt-6 pt-5 border-t border-white/20">
+            <div className="flex flex-wrap gap-9 mt-6 pt-5 border-t border-white/25">
               <Stat value="373" label="Courses listed" />
               <Stat value="32" label="Counties covered" />
               <Stat value="Free" label="To join" />
@@ -136,8 +140,8 @@ export default function HomePage() {
 function Stat({ value, label }: { value: string; label: string }) {
   return (
     <div>
-      <strong className="block font-display font-bold text-3xl text-gold-500">{value}</strong>
-      <span className="text-[13px] uppercase tracking-wider text-white/75">{label}</span>
+      <strong className="block font-display font-bold text-3xl text-gold-400">{value}</strong>
+      <span className="text-[13px] uppercase tracking-wider text-white/85">{label}</span>
     </div>
   );
 }
