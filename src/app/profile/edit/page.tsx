@@ -22,6 +22,14 @@ export default async function EditProfilePage({
     .eq("id", user.id)
     .single<Profile>();
 
+  // Own row only, by that table's RLS — a member can always read their own
+  // date of birth even though nobody else can (0059).
+  const { data: birthdate } = await supabase
+    .from("member_birthdates")
+    .select("date_of_birth, age_range_visible")
+    .eq("user_id", user.id)
+    .maybeSingle<{ date_of_birth: string; age_range_visible: boolean }>();
+
   return (
     <div className="max-w-xl mx-auto px-6 py-16">
       {welcome && (
@@ -44,6 +52,9 @@ export default async function EditProfilePage({
             handicapVisible: profile?.handicap_visible ?? false,
             bio: profile?.bio ?? "",
             guiNumber: profile?.gui_membership_number ?? "",
+            avatarUrl: profile?.avatar_url ?? null,
+            dob: birthdate?.date_of_birth ?? "",
+            ageRangeVisible: birthdate?.age_range_visible ?? false,
           }}
         />
       </div>

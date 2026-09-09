@@ -8,6 +8,9 @@ export type Profile = {
   handicap_visible: boolean;
   bio: string | null;
   avatar_color: string | null;
+  /** Uploaded profile photo (0059). Null means "draw the initials circle" —
+   * the permanent fallback, not a loading state. */
+  avatar_url: string | null;
   gui_membership_number: string | null;
   created_at: string;
 };

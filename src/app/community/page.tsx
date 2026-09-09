@@ -3,7 +3,8 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import type { Connection, Profile } from "@/lib/types";
 import { COUNTIES } from "@/lib/clubs";
-import { initials } from "@/lib/format";
+import MemberAvatar from "@/components/member-avatar";
+import { AGE_BAND_NOT_SHARED } from "@/lib/age";
 import ConnectButton from "./connect-button";
 
 export default async function CommunityPage({
@@ -81,6 +82,22 @@ export default async function CommunityPage({
     .or(`requester_id.eq.${user.id},recipient_id.eq.${user.id}`)
     .returns<Connection[]>();
 
+  // Age bands come from the dedicated view, never from `profiles` — the
+  // date of birth behind them is deliberately unreadable by anyone but its
+  // owner (see supabase/migrations/0059_member_photos_and_age_bands.sql).
+  // A member with no row here has either not set a date or not opted in;
+  // both read as "Not shared", which is the point.
+  const memberIds = (members ?? []).map((m) => m.id);
+  const { data: ageBands } = memberIds.length
+    ? await supabase
+        .from("member_age_bands")
+        .select("user_id, age_band")
+        .in("user_id", memberIds)
+        .returns<{ user_id: string; age_band: string }[]>()
+    : { data: [] as { user_id: string; age_band: string }[] };
+
+  const ageBandByMember = new Map((ageBands ?? []).map((r) => [r.user_id, r.age_band]));
+
   const connectionByMember = new Map(
     (connections ?? []).map((connection) => [
       connection.requester_id === user.id ? connection.recipient_id : connection.requester_id,
@@ -119,38 +136,63 @@ export default async function CommunityPage({
             No golfers match that search yet — widen your filters, or check back soon.
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             {members.map((m) => {
               const name = `${m.first_name} ${m.last_name}`;
               const isMe = m.id === user.id;
               const connection = connectionByMember.get(m.id);
+              // handicap_visible (0004) was previously ignored here, so a
+              // member who had switched their handicap to private still had
+              // it shown to the whole directory. The stat cell now reads
+              // "Not shared" for them, exactly as an unshared age band does
+              // — one consistent way of saying "they've chosen not to say".
+              const handicapLabel =
+                m.handicap != null && m.handicap_visible ? String(m.handicap) : AGE_BAND_NOT_SHARED;
               return (
-                <div key={m.id} className="bg-surface border border-line rounded-2xl p-6 text-center shadow-sm hover:shadow-md hover:-translate-y-0.5 transition">
-                  <div
-                    className="w-16 h-16 rounded-full mx-auto mb-3.5 flex items-center justify-center text-white font-display font-bold text-xl"
-                    style={{ background: m.avatar_color ?? "#1f5c2e" }}
-                  >
-                    {initials(name)}
+                <div
+                  key={m.id}
+                  className="bg-surface border border-line rounded-2xl p-6 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition"
+                >
+                  <div className="flex items-center gap-4 min-w-0">
+                    <MemberAvatar name={name} avatarUrl={m.avatar_url} color={m.avatar_color} size="xl" />
+                    <div className="min-w-0">
+                      <h3 className="font-display font-bold text-lg truncate">
+                        {name} {isMe && <span className="text-green-700 text-xs font-sans">(you)</span>}
+                      </h3>
+                      <p className="text-sm text-ink-500 truncate">{m.home_club}</p>
+                    </div>
                   </div>
-                  <h3 className="font-display font-bold">
-                    {name} {isMe && <span className="text-green-700 text-xs font-sans">(you)</span>}
-                  </h3>
-                  <div className="text-sm text-ink-500 mt-1">{m.home_club}</div>
-                  <div className="flex justify-center gap-2 my-3.5 flex-wrap">
-                    {m.county && <span className="bg-cream-100 text-xs font-bold px-2.5 py-1 rounded-full">{m.county}</span>}
-                    {m.handicap != null && <span className="bg-red-100 text-red-600 text-xs font-bold px-2.5 py-1 rounded-full">{m.handicap} hcp</span>}
+
+                  <dl className="grid grid-cols-3 gap-3 mt-5">
+                    <div className="min-w-0">
+                      <dt className="text-xs text-ink-500">County</dt>
+                      <dd className="text-sm font-semibold text-ink-900 mt-0.5 truncate">
+                        {m.county ?? AGE_BAND_NOT_SHARED}
+                      </dd>
+                    </div>
+                    <div className="min-w-0">
+                      <dt className="text-xs text-ink-500">Handicap</dt>
+                      <dd className="text-sm font-semibold text-red-600 mt-0.5 truncate">{handicapLabel}</dd>
+                    </div>
+                    <div className="min-w-0">
+                      <dt className="text-xs text-ink-500">Age range</dt>
+                      <dd className="text-sm font-semibold text-ink-900 mt-0.5 truncate">
+                        {ageBandByMember.get(m.id) ?? AGE_BAND_NOT_SHARED}
+                      </dd>
+                    </div>
+                  </dl>
+
+                  <div className="border-t border-line mt-5 pt-4">
+                    {isMe ? (
+                      <span className="text-sm text-ink-500">This is your profile</span>
+                    ) : (
+                      <ConnectButton
+                        memberId={m.id}
+                        initialStatus={connection?.status}
+                        incoming={connection?.recipient_id === user.id}
+                      />
+                    )}
                   </div>
-                  {isMe ? (
-                    <span className="block w-full py-2.5 rounded-full font-bold text-sm border-[1.5px] border-green-700 text-green-700 opacity-40">
-                      This is you
-                    </span>
-                  ) : (
-                    <ConnectButton
-                      memberId={m.id}
-                      initialStatus={connection?.status}
-                      incoming={connection?.recipient_id === user.id}
-                    />
-                  )}
                 </div>
               );
             })}
