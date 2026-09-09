@@ -87,9 +87,16 @@ export default async function HomePage() {
             </h2>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-            <CourseCard img="/images/dunes.jpg" tag="Links · Kerry" name="Ballybunion Golf Club" />
-            <CourseCard img="/images/heather.jpg" tag="Links · Down" name="Royal County Down Golf Club" />
-            <CourseCard img="/images/misty.jpg" tag="Parkland · Meath" name="Nearby classic courses" />
+            {/* Real photographs of real listed courses. The first two cards
+                used to be 231px stock images upscaled 3-5x into a 288px-tall
+                card, and the second one captioned a generic dune shot as
+                "Royal County Down" — naming a club over a picture of
+                somewhere else is worse than not naming one at all. The third
+                stays deliberately unnamed until there's a photograph of a
+                specific club to put behind it. */}
+            <CourseCard img="/images/ballybunion-10th.jpg" tag="Links · Kerry" name="Ballybunion Golf Club" />
+            <CourseCard img="/images/old-head-kinsale.jpg" tag="Links · Cork" name="Old Head Golf Links" />
+            <CourseCard img="/images/misty.jpg" tag="Parkland" name="Nearby classic courses" />
           </div>
           <Link href="/courses" className="inline-block mt-6 px-5 py-2.5 rounded-full font-bold text-sm border-[1.5px] border-green-700 text-green-700 hover:bg-green-100 transition">
             See the full course directory
@@ -170,7 +177,16 @@ function Step({ n, title, body }: { n: string; title: string; body: string }) {
 function CourseCard({ img, tag, name }: { img: string; tag: string; name: string }) {
   return (
     <div className="relative rounded-2xl overflow-hidden h-72 shadow-md">
-      <Image src={img} alt={name} fill className="object-cover" />
+      {/* Without `sizes`, a `fill` image makes Next serve its largest
+          generated width to every device. The card is a third of a 1152px
+          container on desktop and full width on a phone. */}
+      <Image
+        src={img}
+        alt={name}
+        fill
+        sizes="(max-width: 640px) 100vw, (max-width: 1152px) 33vw, 371px"
+        className="object-cover"
+      />
       <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/10 to-transparent" />
       <div className="absolute left-0 right-0 bottom-0 p-5 text-white">
         <span className="text-[11.5px] uppercase tracking-wider text-gold-500 font-bold">{tag}</span>
