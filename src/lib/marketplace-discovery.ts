@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Listing, Auction } from "./types";
 import { CATEGORIES, SUBCATEGORIES, CONDITIONS, SALE_TYPES, DELIVERY_OPTIONS } from "./marketplace";
+import { isBrandValidFor, isKnownBrandId } from "./marketplace-brands";
 import { COUNTIES } from "./clubs";
 
 // ============ sort ============
@@ -38,6 +39,12 @@ export type MarketplaceFilters = {
   q: string;
   category: string;
   subcategory: string;
+  /** Brand slug ids, OR-ed together and AND-ed with every other filter —
+   * "Mizuno or Srixon irons", never "Mizuno anything". Multi-select because
+   * brand is the one filter buyers genuinely shop several of at once.
+   * Always sorted, so two URLs selecting the same brands in a different
+   * order are the same URL (and the same cache key). */
+  brands: string[];
   county: string;
   condition: string;
   saleType: string;
@@ -51,6 +58,7 @@ export const EMPTY_MARKETPLACE_FILTERS: MarketplaceFilters = {
   q: "",
   category: "",
   subcategory: "",
+  brands: [],
   county: "",
   condition: "",
   saleType: "",
@@ -98,6 +106,26 @@ export function parseMarketplaceFilters(
       ? subcategory
       : "";
 
+  // Brands arrive either repeated (?brand=a&brand=b) or comma-joined
+  // (?brand=a,b) — both are accepted, since a hand-edited or truncated URL
+  // shouldn't behave differently from one this app produced. Unknown ids
+  // are dropped exactly like an unknown category is, and a brand that
+  // doesn't belong to the chosen category is dropped too, so a stale link
+  // ("?category=Putters&brand=motocaddy") degrades to a plain category
+  // browse rather than a guaranteed-empty result set.
+  const rawBrands = raw.brand;
+  const brandCandidates = (Array.isArray(rawBrands) ? rawBrands : rawBrands ? [rawBrands] : [])
+    .flatMap((value) => value.split(","))
+    .map((value) => value.trim())
+    .filter(Boolean);
+  const brands = Array.from(
+    new Set(
+      brandCandidates.filter((id) =>
+        validCategory ? isBrandValidFor(id, validCategory, validSubcategory || undefined) : isKnownBrandId(id)
+      )
+    )
+  ).sort();
+
   const county = firstValue(raw.county);
   const condition = firstValue(raw.condition);
   const saleType = firstValue(raw.saleType);
@@ -115,6 +143,7 @@ export function parseMarketplaceFilters(
     q: firstValue(raw.q).trim().slice(0, 100),
     category: validCategory,
     subcategory: validSubcategory,
+    brands,
     county: (COUNTIES as readonly string[]).includes(county) ? county : "",
     condition: (CONDITIONS as readonly string[]).includes(condition) ? condition : "",
     saleType: (SALE_TYPES as readonly string[]).includes(saleType) ? saleType : "",
@@ -134,6 +163,10 @@ export function marketplaceFiltersToSearchParams(filters: MarketplaceFilters): U
   if (filters.q) params.set("q", filters.q);
   if (filters.category) params.set("category", filters.category);
   if (filters.subcategory) params.set("subcategory", filters.subcategory);
+  // One repeated key rather than a comma-joined value: it's what a plain
+  // HTML form would produce, and it survives a brand id ever containing a
+  // comma without needing an escaping rule.
+  for (const brand of filters.brands) params.append("brand", brand);
   if (filters.county) params.set("county", filters.county);
   if (filters.condition) params.set("condition", filters.condition);
   if (filters.saleType) params.set("saleType", filters.saleType);
@@ -207,6 +240,53 @@ export function decodeMarketplaceCursor(raw: string | undefined, sort: Marketpla
   }
 }
 
+// ============ brand facets ============
+
+/** brand id -> how many currently-buyable listings carry it. */
+export type BrandFacets = Record<string, number>;
+
+/**
+ * The "(12)" beside each brand checkbox. Counts only `active` listings, and
+ * deliberately ignores the current brand selection — a facet list that
+ * applied its own filter would collapse to just the selected brands, which
+ * is precisely when a buyer needs to see what else is available. Every
+ * other filter IS applied, so the counts always describe the result set the
+ * buyer would actually land in.
+ *
+ * Never throws: a facet query that fails degrades to an un-counted brand
+ * list, which is a worse filter panel but a working page — unlike
+ * fetchMarketplaceListings(), whose failure genuinely is the page failing.
+ */
+export async function fetchBrandFacets(
+  supabase: SupabaseClient,
+  filters: MarketplaceFilters
+): Promise<BrandFacets> {
+  const term = filters.q ? sanitizeSearchTerm(filters.q) : "";
+
+  const { data, error } = await supabase.rpc("marketplace_brand_facets", {
+    p_query: term || null,
+    p_category: filters.category || null,
+    p_subcategory: filters.subcategory || null,
+    p_county: filters.county || null,
+    p_condition: filters.condition || null,
+    p_sale_type: filters.saleType || null,
+    p_delivery: filters.delivery || null,
+    p_min_price_cents: filters.minPriceCents,
+    p_max_price_cents: filters.maxPriceCents,
+  });
+
+  if (error) {
+    console.error("Couldn't load marketplace brand facets:", error.message);
+    return {};
+  }
+
+  const facets: BrandFacets = {};
+  for (const row of (data ?? []) as { brand: string; listing_count: number }[]) {
+    facets[row.brand] = Number(row.listing_count);
+  }
+  return facets;
+}
+
 // ============ fetching ============
 
 /** A listing plus everything its marketplace card needs beyond the bare
@@ -246,6 +326,7 @@ export async function fetchMarketplaceListings(
     p_query: term || null,
     p_category: filters.category || null,
     p_subcategory: filters.subcategory || null,
+    p_brands: filters.brands.length > 0 ? filters.brands : null,
     p_county: filters.county || null,
     p_condition: filters.condition || null,
     p_sale_type: filters.saleType || null,

@@ -248,3 +248,128 @@ describe("updateListingSchema", () => {
     expect(result.success).toBe(false);
   });
 });
+
+// ============ brand + item specification (0060) ============
+
+const fixedPriceBase = { ...baseFields, saleType: "fixed_price" as const, priceEur: "220" };
+
+function firstIssuePath(result: { success: boolean; error?: { issues: { path: PropertyKey[] }[] } }) {
+  return result.error?.issues[0]?.path[0];
+}
+
+describe("createListingSchema — brand", () => {
+  it("accepts a listing with no brand at all", () => {
+    // The whole field is optional by design — see the header comment on the
+    // brand block in ./listing.ts.
+    expect(createListingSchema.safeParse(fixedPriceBase).success).toBe(true);
+  });
+
+  it("accepts a brand that belongs to the category", () => {
+    const result = createListingSchema.safeParse({ ...fixedPriceBase, brand: "taylormade" });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects a brand from a different category", () => {
+    const result = createListingSchema.safeParse({ ...fixedPriceBase, brand: "motocaddy" });
+    expect(result.success).toBe(false);
+    expect(firstIssuePath(result)).toBe("brand");
+  });
+
+  it("rejects a brand excluded by the subcategory", () => {
+    const result = createListingSchema.safeParse({
+      ...fixedPriceBase,
+      category: "Balls & accessories",
+      subcategory: "Golf balls",
+      brand: "bushnell",
+    });
+    expect(result.success).toBe(false);
+    expect(firstIssuePath(result)).toBe("brand");
+  });
+
+  it("requires a name behind Other", () => {
+    const result = createListingSchema.safeParse({ ...fixedPriceBase, brand: "other" });
+    expect(result.success).toBe(false);
+    expect(firstIssuePath(result)).toBe("brandOther");
+  });
+
+  it("accepts Other with a name", () => {
+    const result = createListingSchema.safeParse({
+      ...fixedPriceBase,
+      brand: "other",
+      brandOther: "Geoff's Custom Clubs",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects a typed brand name alongside a real brand", () => {
+    // Mirrors listings_brand_other_requires_other_check — two contradictory
+    // answers to "what brand is this?" must never reach the database.
+    const result = createListingSchema.safeParse({
+      ...fixedPriceBase,
+      brand: "taylormade",
+      brandOther: "Actually a PING",
+    });
+    expect(result.success).toBe(false);
+    expect(firstIssuePath(result)).toBe("brandOther");
+  });
+
+  it("accepts Unknown / unbranded with no name", () => {
+    expect(createListingSchema.safeParse({ ...fixedPriceBase, brand: "unknown" }).success).toBe(true);
+  });
+
+  it("rejects Mixed brands outside the categories that allow it", () => {
+    expect(createListingSchema.safeParse({ ...fixedPriceBase, brand: "mixed" }).success).toBe(false);
+    expect(
+      createListingSchema.safeParse({
+        ...fixedPriceBase,
+        category: "Full sets",
+        subcategory: "Men's set",
+        brand: "mixed",
+      }).success
+    ).toBe(true);
+  });
+});
+
+describe("createListingSchema — item specification", () => {
+  it("accepts the full spec set", () => {
+    const result = createListingSchema.safeParse({
+      ...fixedPriceBase,
+      brand: "taylormade",
+      model: "Stealth 2 Plus",
+      dexterity: "Left-handed",
+      shaftFlex: "Stiff",
+      shaftMaterial: "Graphite",
+      loft: "10.5°",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects a value outside a closed spec vocabulary", () => {
+    const result = createListingSchema.safeParse({ ...fixedPriceBase, shaftFlex: "Very bendy" });
+    expect(result.success).toBe(false);
+    expect(firstIssuePath(result)).toBe("shaftFlex");
+  });
+
+  it("rejects an over-long model", () => {
+    const result = createListingSchema.safeParse({ ...fixedPriceBase, model: "x".repeat(200) });
+    expect(result.success).toBe(false);
+    expect(firstIssuePath(result)).toBe("model");
+  });
+});
+
+describe("updateListingSchema — brand", () => {
+  it("applies the same category rule as creation", () => {
+    expect(updateListingSchema.safeParse({ category: "Wedges", brand: "motocaddy" }).success).toBe(false);
+    expect(updateListingSchema.safeParse({ category: "Wedges", brand: "cleveland" }).success).toBe(true);
+  });
+
+  it("still catches a stray brand name with no category to check against", () => {
+    const result = updateListingSchema.safeParse({ brand: "taylormade", brandOther: "Something else" });
+    expect(result.success).toBe(false);
+    expect(firstIssuePath(result)).toBe("brandOther");
+  });
+
+  it("accepts an edit that touches nothing", () => {
+    expect(updateListingSchema.safeParse({}).success).toBe(true);
+  });
+});

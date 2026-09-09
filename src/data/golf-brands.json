@@ -1,0 +1,1577 @@
+{
+ "_comment": "Generated from the supplied seed taxonomy, reconciled onto CATEGORIES/SUBCATEGORIES in src/lib/marketplace.ts. See src/lib/marketplace-brands.ts.",
+ "brands": [
+  {
+   "id": "abacus",
+   "label": "Abacus",
+   "aliases": []
+  },
+  {
+   "id": "acer",
+   "label": "Acer",
+   "aliases": []
+  },
+  {
+   "id": "adams",
+   "label": "Adams",
+   "aliases": []
+  },
+  {
+   "id": "adidas",
+   "label": "adidas",
+   "aliases": []
+  },
+  {
+   "id": "arccos",
+   "label": "Arccos",
+   "aliases": [
+    "Arccos Golf"
+   ]
+  },
+  {
+   "id": "axglo",
+   "label": "Axglo",
+   "aliases": []
+  },
+  {
+   "id": "bag-boy",
+   "label": "Bag Boy",
+   "aliases": [
+    "BagBoy"
+   ]
+  },
+  {
+   "id": "ben-hogan",
+   "label": "Ben Hogan",
+   "aliases": []
+  },
+  {
+   "id": "ben-sayers",
+   "label": "Ben Sayers",
+   "aliases": []
+  },
+  {
+   "id": "benross",
+   "label": "Benross",
+   "aliases": [
+    "Ben Ross"
+   ]
+  },
+  {
+   "id": "bettinardi",
+   "label": "Bettinardi",
+   "aliases": []
+  },
+  {
+   "id": "big-max",
+   "label": "BIG MAX",
+   "aliases": [
+    "BigMax"
+   ]
+  },
+  {
+   "id": "blue-tees",
+   "label": "Blue Tees",
+   "aliases": [
+    "Blue Tees Golf"
+   ]
+  },
+  {
+   "id": "bridgestone",
+   "label": "Bridgestone",
+   "aliases": []
+  },
+  {
+   "id": "bushnell",
+   "label": "Bushnell",
+   "aliases": []
+  },
+  {
+   "id": "callaway",
+   "label": "Callaway",
+   "aliases": [
+    "Callaway Golf"
+   ]
+  },
+  {
+   "id": "calvin-klein",
+   "label": "Calvin Klein",
+   "aliases": []
+  },
+  {
+   "id": "cleveland",
+   "label": "Cleveland",
+   "aliases": [
+    "Cleveland Golf"
+   ]
+  },
+  {
+   "id": "clicgear",
+   "label": "Clicgear",
+   "aliases": []
+  },
+  {
+   "id": "cobra",
+   "label": "Cobra",
+   "aliases": [
+    "Cobra Golf"
+   ]
+  },
+  {
+   "id": "daily-sports",
+   "label": "Daily Sports",
+   "aliases": []
+  },
+  {
+   "id": "datrek",
+   "label": "Datrek",
+   "aliases": []
+  },
+  {
+   "id": "druids",
+   "label": "Druids",
+   "aliases": []
+  },
+  {
+   "id": "duca-del-cosma",
+   "label": "Duca del Cosma",
+   "aliases": []
+  },
+  {
+   "id": "dunlop",
+   "label": "Dunlop",
+   "aliases": []
+  },
+  {
+   "id": "ecco",
+   "label": "ECCO",
+   "aliases": []
+  },
+  {
+   "id": "edel",
+   "label": "Edel",
+   "aliases": []
+  },
+  {
+   "id": "edison",
+   "label": "Edison",
+   "aliases": []
+  },
+  {
+   "id": "evnroll",
+   "label": "Evnroll",
+   "aliases": [
+    "Evenroll"
+   ]
+  },
+  {
+   "id": "fastfold",
+   "label": "Fastfold",
+   "aliases": []
+  },
+  {
+   "id": "fazer",
+   "label": "Fazer",
+   "aliases": []
+  },
+  {
+   "id": "footjoy",
+   "label": "FootJoy",
+   "aliases": [
+    "Foot Joy",
+    "FJ"
+   ]
+  },
+  {
+   "id": "fourteen",
+   "label": "Fourteen",
+   "aliases": []
+  },
+  {
+   "id": "g-fore",
+   "label": "G/FORE",
+   "aliases": [
+    "G Fore",
+    "GFORE"
+   ]
+  },
+  {
+   "id": "galvin-green",
+   "label": "Galvin Green",
+   "aliases": []
+  },
+  {
+   "id": "garmin",
+   "label": "Garmin",
+   "aliases": []
+  },
+  {
+   "id": "glenmuir",
+   "label": "Glenmuir",
+   "aliases": []
+  },
+  {
+   "id": "golf-pride",
+   "label": "Golf Pride",
+   "aliases": []
+  },
+  {
+   "id": "golfbuddy",
+   "label": "GolfBuddy",
+   "aliases": []
+  },
+  {
+   "id": "golphin",
+   "label": "Golphin",
+   "aliases": []
+  },
+  {
+   "id": "honma",
+   "label": "Honma",
+   "aliases": []
+  },
+  {
+   "id": "inesis",
+   "label": "Inesis",
+   "aliases": []
+  },
+  {
+   "id": "j-lindeberg",
+   "label": "J.Lindeberg",
+   "aliases": [
+    "J Lindeberg"
+   ]
+  },
+  {
+   "id": "jones",
+   "label": "Jones",
+   "aliases": []
+  },
+  {
+   "id": "jucad",
+   "label": "JuCad",
+   "aliases": []
+  },
+  {
+   "id": "kirkland-signature",
+   "label": "Kirkland Signature",
+   "aliases": [
+    "Kirkland"
+   ]
+  },
+  {
+   "id": "krank",
+   "label": "Krank",
+   "aliases": []
+  },
+  {
+   "id": "l-a-b-golf",
+   "label": "L.A.B. Golf",
+   "aliases": [
+    "LAB",
+    "LAB Golf",
+    "L.A.B."
+   ]
+  },
+  {
+   "id": "lamkin",
+   "label": "Lamkin",
+   "aliases": []
+  },
+  {
+   "id": "longridge",
+   "label": "Longridge",
+   "aliases": []
+  },
+  {
+   "id": "lynx",
+   "label": "Lynx",
+   "aliases": []
+  },
+  {
+   "id": "macgregor",
+   "label": "MacGregor",
+   "aliases": [
+    "Mac Gregor"
+   ]
+  },
+  {
+   "id": "maltby",
+   "label": "Maltby",
+   "aliases": []
+  },
+  {
+   "id": "masters",
+   "label": "Masters",
+   "aliases": [
+    "Masters Golf"
+   ]
+  },
+  {
+   "id": "maxfli",
+   "label": "Maxfli",
+   "aliases": []
+  },
+  {
+   "id": "mgi",
+   "label": "MGI",
+   "aliases": []
+  },
+  {
+   "id": "miura",
+   "label": "Miura",
+   "aliases": []
+  },
+  {
+   "id": "mizuno",
+   "label": "Mizuno",
+   "aliases": [
+    "Mizuno Golf"
+   ]
+  },
+  {
+   "id": "mkids",
+   "label": "MKids",
+   "aliases": [
+    "M Kids",
+    "MKids Golf"
+   ]
+  },
+  {
+   "id": "motocaddy",
+   "label": "Motocaddy",
+   "aliases": []
+  },
+  {
+   "id": "never-compromise",
+   "label": "Never Compromise",
+   "aliases": []
+  },
+  {
+   "id": "new-balance",
+   "label": "New Balance",
+   "aliases": []
+  },
+  {
+   "id": "new-level",
+   "label": "New Level",
+   "aliases": []
+  },
+  {
+   "id": "nike",
+   "label": "Nike",
+   "aliases": [
+    "Nike Golf"
+   ]
+  },
+  {
+   "id": "nikon",
+   "label": "Nikon",
+   "aliases": []
+  },
+  {
+   "id": "oakley",
+   "label": "Oakley",
+   "aliases": []
+  },
+  {
+   "id": "odyssey",
+   "label": "Odyssey",
+   "aliases": [
+    "Odyssey Golf",
+    "Callaway Odyssey"
+   ]
+  },
+  {
+   "id": "ogio",
+   "label": "OGIO",
+   "aliases": []
+  },
+  {
+   "id": "onoff",
+   "label": "ONOFF",
+   "aliases": []
+  },
+  {
+   "id": "original-penguin",
+   "label": "Original Penguin",
+   "aliases": []
+  },
+  {
+   "id": "orlimar",
+   "label": "Orlimar",
+   "aliases": []
+  },
+  {
+   "id": "oscar-jacobson",
+   "label": "Oscar Jacobson",
+   "aliases": []
+  },
+  {
+   "id": "payntr-golf",
+   "label": "PAYNTR Golf",
+   "aliases": [
+    "Payntr"
+   ]
+  },
+  {
+   "id": "peter-millar",
+   "label": "Peter Millar",
+   "aliases": []
+  },
+  {
+   "id": "ping",
+   "label": "PING",
+   "aliases": [
+    "Ping Golf"
+   ]
+  },
+  {
+   "id": "pinnacle",
+   "label": "Pinnacle",
+   "aliases": []
+  },
+  {
+   "id": "piretti",
+   "label": "Piretti",
+   "aliases": []
+  },
+  {
+   "id": "powakaddy",
+   "label": "PowaKaddy",
+   "aliases": [
+    "Powakaddy",
+    "Powa Kaddy"
+   ]
+  },
+  {
+   "id": "powerbilt",
+   "label": "PowerBilt",
+   "aliases": [
+    "Power Bilt"
+   ]
+  },
+  {
+   "id": "prgr",
+   "label": "PRGR",
+   "aliases": []
+  },
+  {
+   "id": "pridesports",
+   "label": "PrideSports",
+   "aliases": []
+  },
+  {
+   "id": "proquip",
+   "label": "ProQuip",
+   "aliases": []
+  },
+  {
+   "id": "prosimmon",
+   "label": "Prosimmon",
+   "aliases": []
+  },
+  {
+   "id": "puma",
+   "label": "Puma",
+   "aliases": []
+  },
+  {
+   "id": "pxg",
+   "label": "PXG",
+   "aliases": []
+  },
+  {
+   "id": "ralph-lauren",
+   "label": "Ralph Lauren",
+   "aliases": []
+  },
+  {
+   "id": "ram",
+   "label": "Ram",
+   "aliases": []
+  },
+  {
+   "id": "ray-cook",
+   "label": "Ray Cook",
+   "aliases": []
+  },
+  {
+   "id": "rife",
+   "label": "Rife",
+   "aliases": []
+  },
+  {
+   "id": "rohnisch",
+   "label": "Rohnisch",
+   "aliases": [
+    "Röhnisch"
+   ]
+  },
+  {
+   "id": "scotty-cameron",
+   "label": "Scotty Cameron",
+   "aliases": [
+    "Scotty",
+    "Titleist Scotty Cameron"
+   ]
+  },
+  {
+   "id": "seed-golf",
+   "label": "Seed Golf",
+   "aliases": [
+    "Seed"
+   ]
+  },
+  {
+   "id": "seemore",
+   "label": "SeeMore",
+   "aliases": []
+  },
+  {
+   "id": "shot-scope",
+   "label": "Shot Scope",
+   "aliases": []
+  },
+  {
+   "id": "sik",
+   "label": "SIK",
+   "aliases": []
+  },
+  {
+   "id": "skechers",
+   "label": "Skechers",
+   "aliases": []
+  },
+  {
+   "id": "skycaddie",
+   "label": "SkyCaddie",
+   "aliases": []
+  },
+  {
+   "id": "slazenger",
+   "label": "Slazenger",
+   "aliases": []
+  },
+  {
+   "id": "snell-golf",
+   "label": "Snell Golf",
+   "aliases": [
+    "Snell"
+   ]
+  },
+  {
+   "id": "srixon",
+   "label": "Srixon",
+   "aliases": []
+  },
+  {
+   "id": "stewart-golf",
+   "label": "Stewart Golf",
+   "aliases": []
+  },
+  {
+   "id": "stitch",
+   "label": "Stitch",
+   "aliases": []
+  },
+  {
+   "id": "stix",
+   "label": "Stix",
+   "aliases": []
+  },
+  {
+   "id": "strata",
+   "label": "Strata",
+   "aliases": []
+  },
+  {
+   "id": "sub-70",
+   "label": "Sub 70",
+   "aliases": [
+    "Sub70"
+   ]
+  },
+  {
+   "id": "sun-mountain",
+   "label": "Sun Mountain",
+   "aliases": []
+  },
+  {
+   "id": "sunderland-of-scotland",
+   "label": "Sunderland of Scotland",
+   "aliases": []
+  },
+  {
+   "id": "superstroke",
+   "label": "SuperStroke",
+   "aliases": []
+  },
+  {
+   "id": "swag-golf",
+   "label": "Swag Golf",
+   "aliases": [
+    "Swag"
+   ]
+  },
+  {
+   "id": "takomo",
+   "label": "Takomo",
+   "aliases": []
+  },
+  {
+   "id": "taylormade",
+   "label": "TaylorMade",
+   "aliases": [
+    "Taylormade",
+    "Taylor Made",
+    "TaylorMade Golf"
+   ]
+  },
+  {
+   "id": "titleist",
+   "label": "Titleist",
+   "aliases": [
+    "Titlest",
+    "Titelist",
+    "Titleist Golf"
+   ]
+  },
+  {
+   "id": "top-flite",
+   "label": "Top-Flite",
+   "aliases": [
+    "Top Flite",
+    "TopFlite"
+   ]
+  },
+  {
+   "id": "toulon-golf",
+   "label": "Toulon Golf",
+   "aliases": [
+    "Toulon",
+    "Toulon Design"
+   ]
+  },
+  {
+   "id": "tour-edge",
+   "label": "Tour Edge",
+   "aliases": [
+    "Tour Edge Exotics"
+   ]
+  },
+  {
+   "id": "travismathew",
+   "label": "TravisMathew",
+   "aliases": []
+  },
+  {
+   "id": "true-linkswear",
+   "label": "TRUE linkswear",
+   "aliases": []
+  },
+  {
+   "id": "u-s-kids-golf",
+   "label": "U.S. Kids Golf",
+   "aliases": [
+    "US Kids",
+    "US Kids Golf",
+    "U.S. Kids"
+   ]
+  },
+  {
+   "id": "under-armour",
+   "label": "Under Armour",
+   "aliases": []
+  },
+  {
+   "id": "vega",
+   "label": "Vega",
+   "aliases": []
+  },
+  {
+   "id": "vessel",
+   "label": "Vessel",
+   "aliases": []
+  },
+  {
+   "id": "vice-golf",
+   "label": "Vice Golf",
+   "aliases": [
+    "Vice"
+   ]
+  },
+  {
+   "id": "voice-caddie",
+   "label": "Voice Caddie",
+   "aliases": [
+    "VoiceCaddie"
+   ]
+  },
+  {
+   "id": "volvik",
+   "label": "Volvik",
+   "aliases": []
+  },
+  {
+   "id": "wilson",
+   "label": "Wilson",
+   "aliases": [
+    "Wilson Staff",
+    "Wilson Golf"
+   ]
+  },
+  {
+   "id": "winn",
+   "label": "Winn",
+   "aliases": []
+  },
+  {
+   "id": "xxio",
+   "label": "XXIO",
+   "aliases": [
+    "XXiO"
+   ]
+  },
+  {
+   "id": "yes",
+   "label": "YES!",
+   "aliases": [
+    "Yes",
+    "Yes Golf",
+    "Yes! Golf"
+   ]
+  },
+  {
+   "id": "yonex",
+   "label": "Yonex",
+   "aliases": []
+  },
+  {
+   "id": "zebra",
+   "label": "Zebra",
+   "aliases": []
+  }
+ ],
+ "categories": {
+  "Drivers": {
+   "brands": [
+    "taylormade",
+    "titleist",
+    "callaway",
+    "ping",
+    "cobra",
+    "srixon",
+    "mizuno",
+    "pxg",
+    "wilson",
+    "cleveland",
+    "xxio",
+    "honma",
+    "tour-edge",
+    "bridgestone",
+    "benross",
+    "macgregor",
+    "lynx",
+    "ben-sayers",
+    "ram",
+    "yonex",
+    "prgr",
+    "onoff",
+    "fourteen",
+    "krank",
+    "maltby",
+    "acer",
+    "powerbilt",
+    "orlimar",
+    "nike",
+    "adams",
+    "dunlop",
+    "slazenger",
+    "prosimmon"
+   ],
+   "subcategoryBrands": {}
+  },
+  "Woods & hybrids": {
+   "brands": [
+    "taylormade",
+    "callaway",
+    "ping",
+    "titleist",
+    "cobra",
+    "srixon",
+    "mizuno",
+    "cleveland",
+    "pxg",
+    "wilson",
+    "xxio",
+    "honma",
+    "tour-edge",
+    "adams",
+    "nike",
+    "bridgestone",
+    "benross",
+    "macgregor",
+    "lynx",
+    "ben-sayers",
+    "ram",
+    "yonex",
+    "prgr",
+    "onoff",
+    "fourteen",
+    "maltby",
+    "acer",
+    "powerbilt",
+    "orlimar",
+    "u-s-kids-golf",
+    "dunlop",
+    "slazenger",
+    "prosimmon"
+   ],
+   "subcategoryBrands": {}
+  },
+  "Irons": {
+   "brands": [
+    "taylormade",
+    "titleist",
+    "callaway",
+    "ping",
+    "mizuno",
+    "srixon",
+    "cobra",
+    "wilson",
+    "pxg",
+    "cleveland",
+    "xxio",
+    "honma",
+    "miura",
+    "bridgestone",
+    "tour-edge",
+    "ben-hogan",
+    "benross",
+    "macgregor",
+    "lynx",
+    "ram",
+    "yonex",
+    "fourteen",
+    "prgr",
+    "onoff",
+    "maltby",
+    "takomo",
+    "sub-70",
+    "new-level",
+    "nike",
+    "adams",
+    "dunlop",
+    "slazenger",
+    "prosimmon"
+   ],
+   "subcategoryBrands": {
+    "Individual irons": [
+     "taylormade",
+     "titleist",
+     "callaway",
+     "ping",
+     "mizuno",
+     "srixon",
+     "cobra",
+     "wilson",
+     "pxg",
+     "cleveland",
+     "xxio",
+     "honma",
+     "miura",
+     "bridgestone",
+     "tour-edge",
+     "ben-hogan",
+     "benross",
+     "macgregor",
+     "lynx",
+     "ram",
+     "yonex",
+     "fourteen",
+     "prgr",
+     "onoff",
+     "maltby",
+     "takomo",
+     "sub-70",
+     "new-level",
+     "nike",
+     "adams",
+     "dunlop",
+     "slazenger"
+    ]
+   }
+  },
+  "Wedges": {
+   "brands": [
+    "titleist",
+    "cleveland",
+    "callaway",
+    "taylormade",
+    "ping",
+    "mizuno",
+    "wilson",
+    "cobra",
+    "pxg",
+    "srixon",
+    "honma",
+    "miura",
+    "bettinardi",
+    "edel",
+    "fourteen",
+    "vega",
+    "edison",
+    "sub-70",
+    "takomo",
+    "new-level",
+    "ben-hogan",
+    "tour-edge",
+    "macgregor",
+    "benross",
+    "lynx",
+    "ram",
+    "maltby",
+    "kirkland-signature",
+    "nike",
+    "bridgestone",
+    "dunlop"
+   ],
+   "subcategoryBrands": {}
+  },
+  "Putters": {
+   "brands": [
+    "scotty-cameron",
+    "odyssey",
+    "ping",
+    "taylormade",
+    "l-a-b-golf",
+    "bettinardi",
+    "evnroll",
+    "cleveland",
+    "pxg",
+    "wilson",
+    "mizuno",
+    "cobra",
+    "seemore",
+    "toulon-golf",
+    "piretti",
+    "edel",
+    "sik",
+    "rife",
+    "zebra",
+    "yes",
+    "never-compromise",
+    "ray-cook",
+    "honma",
+    "miura",
+    "macgregor",
+    "benross",
+    "nike",
+    "kirkland-signature",
+    "sub-70",
+    "tour-edge",
+    "swag-golf"
+   ],
+   "subcategoryBrands": {}
+  },
+  "Full sets": {
+   "brands": [
+    "callaway",
+    "taylormade",
+    "wilson",
+    "cobra",
+    "ping",
+    "cleveland",
+    "tour-edge",
+    "macgregor",
+    "ben-sayers",
+    "benross",
+    "ram",
+    "lynx",
+    "inesis",
+    "fazer",
+    "rife",
+    "powerbilt",
+    "orlimar",
+    "top-flite",
+    "strata",
+    "stix",
+    "u-s-kids-golf",
+    "golphin",
+    "mkids",
+    "mizuno",
+    "xxio",
+    "honma",
+    "pxg",
+    "titleist",
+    "srixon",
+    "nike",
+    "dunlop",
+    "slazenger",
+    "prosimmon"
+   ],
+   "subcategoryBrands": {
+    "Men's set": [
+     "callaway",
+     "taylormade",
+     "wilson",
+     "cobra",
+     "ping",
+     "cleveland",
+     "tour-edge",
+     "macgregor",
+     "ben-sayers",
+     "benross",
+     "ram",
+     "lynx",
+     "inesis",
+     "fazer",
+     "rife",
+     "powerbilt",
+     "orlimar",
+     "top-flite",
+     "strata",
+     "stix",
+     "mizuno",
+     "xxio",
+     "honma",
+     "pxg",
+     "titleist",
+     "srixon",
+     "nike",
+     "dunlop",
+     "slazenger",
+     "prosimmon"
+    ],
+    "Women's set": [
+     "callaway",
+     "taylormade",
+     "wilson",
+     "cobra",
+     "ping",
+     "cleveland",
+     "tour-edge",
+     "macgregor",
+     "ben-sayers",
+     "benross",
+     "ram",
+     "lynx",
+     "inesis",
+     "fazer",
+     "rife",
+     "powerbilt",
+     "orlimar",
+     "top-flite",
+     "strata",
+     "stix",
+     "mizuno",
+     "xxio",
+     "honma",
+     "pxg",
+     "titleist",
+     "srixon",
+     "nike",
+     "dunlop",
+     "slazenger",
+     "prosimmon"
+    ],
+    "Junior set": [
+     "callaway",
+     "taylormade",
+     "wilson",
+     "cobra",
+     "ping",
+     "cleveland",
+     "tour-edge",
+     "macgregor",
+     "ben-sayers",
+     "benross",
+     "ram",
+     "lynx",
+     "inesis",
+     "fazer",
+     "rife",
+     "powerbilt",
+     "orlimar",
+     "top-flite",
+     "strata",
+     "stix",
+     "u-s-kids-golf",
+     "golphin",
+     "mkids",
+     "mizuno",
+     "xxio",
+     "honma",
+     "pxg",
+     "dunlop",
+     "slazenger",
+     "prosimmon"
+    ]
+   }
+  },
+  "Bags & trolleys": {
+   "brands": [
+    "titleist",
+    "taylormade",
+    "callaway",
+    "ping",
+    "sun-mountain",
+    "ogio",
+    "motocaddy",
+    "powakaddy",
+    "big-max",
+    "clicgear",
+    "bag-boy",
+    "stewart-golf",
+    "mgi",
+    "cobra",
+    "mizuno",
+    "wilson",
+    "srixon",
+    "cleveland",
+    "pxg",
+    "vessel",
+    "jones",
+    "stitch",
+    "datrek",
+    "ben-sayers",
+    "macgregor",
+    "masters",
+    "longridge",
+    "jucad",
+    "axglo",
+    "fastfold",
+    "dunlop",
+    "slazenger",
+    "prosimmon"
+   ],
+   "subcategoryBrands": {
+    "Stand bags": [
+     "titleist",
+     "taylormade",
+     "callaway",
+     "ping",
+     "sun-mountain",
+     "ogio",
+     "motocaddy",
+     "powakaddy",
+     "big-max",
+     "bag-boy",
+     "stewart-golf",
+     "cobra",
+     "mizuno",
+     "wilson",
+     "srixon",
+     "cleveland",
+     "pxg",
+     "vessel",
+     "jones",
+     "stitch",
+     "datrek",
+     "ben-sayers",
+     "macgregor",
+     "masters",
+     "longridge",
+     "jucad",
+     "axglo",
+     "fastfold",
+     "dunlop",
+     "slazenger",
+     "prosimmon"
+    ],
+    "Cart bags": [
+     "titleist",
+     "taylormade",
+     "callaway",
+     "ping",
+     "sun-mountain",
+     "ogio",
+     "motocaddy",
+     "powakaddy",
+     "big-max",
+     "bag-boy",
+     "stewart-golf",
+     "cobra",
+     "mizuno",
+     "wilson",
+     "srixon",
+     "cleveland",
+     "pxg",
+     "vessel",
+     "jones",
+     "stitch",
+     "datrek",
+     "ben-sayers",
+     "macgregor",
+     "masters",
+     "longridge",
+     "jucad",
+     "axglo",
+     "fastfold",
+     "dunlop",
+     "slazenger",
+     "prosimmon"
+    ],
+    "Electric trolleys": [
+     "sun-mountain",
+     "motocaddy",
+     "powakaddy",
+     "big-max",
+     "clicgear",
+     "bag-boy",
+     "stewart-golf",
+     "mgi",
+     "ben-sayers",
+     "macgregor",
+     "masters",
+     "longridge",
+     "jucad",
+     "axglo",
+     "fastfold"
+    ],
+    "Push trolleys": [
+     "sun-mountain",
+     "motocaddy",
+     "powakaddy",
+     "big-max",
+     "clicgear",
+     "bag-boy",
+     "stewart-golf",
+     "mgi",
+     "ben-sayers",
+     "macgregor",
+     "masters",
+     "longridge",
+     "jucad",
+     "axglo",
+     "fastfold"
+    ],
+    "Travel bags": [
+     "titleist",
+     "taylormade",
+     "callaway",
+     "ping",
+     "sun-mountain",
+     "ogio",
+     "big-max",
+     "bag-boy",
+     "mizuno",
+     "wilson",
+     "pxg",
+     "vessel",
+     "stitch",
+     "macgregor",
+     "masters",
+     "longridge",
+     "fastfold"
+    ]
+   }
+  },
+  "Shoes & apparel": {
+   "brands": [
+    "footjoy",
+    "adidas",
+    "nike",
+    "puma",
+    "under-armour",
+    "ecco",
+    "skechers",
+    "new-balance",
+    "g-fore",
+    "payntr-golf",
+    "duca-del-cosma",
+    "true-linkswear",
+    "callaway",
+    "ping",
+    "galvin-green",
+    "glenmuir",
+    "sunderland-of-scotland",
+    "proquip",
+    "oscar-jacobson",
+    "j-lindeberg",
+    "travismathew",
+    "peter-millar",
+    "ralph-lauren",
+    "original-penguin",
+    "calvin-klein",
+    "oakley",
+    "abacus",
+    "daily-sports",
+    "rohnisch",
+    "druids",
+    "slazenger"
+   ],
+   "subcategoryBrands": {
+    "Shoes": [
+     "footjoy",
+     "adidas",
+     "nike",
+     "puma",
+     "under-armour",
+     "ecco",
+     "skechers",
+     "new-balance",
+     "g-fore",
+     "payntr-golf",
+     "duca-del-cosma",
+     "true-linkswear",
+     "callaway",
+     "travismathew",
+     "peter-millar"
+    ],
+    "Waterproofs": [
+     "footjoy",
+     "adidas",
+     "nike",
+     "puma",
+     "under-armour",
+     "skechers",
+     "g-fore",
+     "true-linkswear",
+     "callaway",
+     "ping",
+     "galvin-green",
+     "glenmuir",
+     "sunderland-of-scotland",
+     "proquip",
+     "oscar-jacobson",
+     "j-lindeberg",
+     "travismathew",
+     "peter-millar",
+     "ralph-lauren",
+     "original-penguin",
+     "calvin-klein",
+     "oakley",
+     "abacus",
+     "daily-sports",
+     "rohnisch",
+     "druids",
+     "slazenger"
+    ],
+    "Gloves": [
+     "footjoy",
+     "adidas",
+     "nike",
+     "puma",
+     "under-armour",
+     "skechers",
+     "g-fore",
+     "true-linkswear",
+     "callaway",
+     "ping",
+     "galvin-green",
+     "glenmuir",
+     "sunderland-of-scotland",
+     "proquip",
+     "oscar-jacobson",
+     "j-lindeberg",
+     "travismathew",
+     "peter-millar",
+     "ralph-lauren",
+     "original-penguin",
+     "calvin-klein",
+     "oakley",
+     "abacus",
+     "daily-sports",
+     "rohnisch",
+     "druids"
+    ],
+    "Headwear": [
+     "footjoy",
+     "adidas",
+     "nike",
+     "puma",
+     "under-armour",
+     "skechers",
+     "g-fore",
+     "true-linkswear",
+     "callaway",
+     "ping",
+     "galvin-green",
+     "glenmuir",
+     "sunderland-of-scotland",
+     "proquip",
+     "oscar-jacobson",
+     "j-lindeberg",
+     "travismathew",
+     "peter-millar",
+     "ralph-lauren",
+     "original-penguin",
+     "calvin-klein",
+     "oakley",
+     "abacus",
+     "daily-sports",
+     "rohnisch",
+     "druids",
+     "slazenger"
+    ],
+    "Other apparel": [
+     "footjoy",
+     "adidas",
+     "nike",
+     "puma",
+     "under-armour",
+     "skechers",
+     "g-fore",
+     "true-linkswear",
+     "callaway",
+     "ping",
+     "galvin-green",
+     "glenmuir",
+     "sunderland-of-scotland",
+     "proquip",
+     "oscar-jacobson",
+     "j-lindeberg",
+     "travismathew",
+     "peter-millar",
+     "ralph-lauren",
+     "original-penguin",
+     "calvin-klein",
+     "oakley",
+     "abacus",
+     "daily-sports",
+     "rohnisch",
+     "druids",
+     "slazenger"
+    ]
+   }
+  },
+  "Balls & accessories": {
+   "brands": [
+    "titleist",
+    "callaway",
+    "taylormade",
+    "srixon",
+    "bridgestone",
+    "wilson",
+    "mizuno",
+    "vice-golf",
+    "seed-golf",
+    "snell-golf",
+    "volvik",
+    "pinnacle",
+    "top-flite",
+    "kirkland-signature",
+    "xxio",
+    "honma",
+    "pxg",
+    "inesis",
+    "bushnell",
+    "garmin",
+    "shot-scope",
+    "skycaddie",
+    "golfbuddy",
+    "golf-pride",
+    "superstroke",
+    "lamkin",
+    "winn",
+    "footjoy",
+    "pridesports",
+    "masters",
+    "dunlop",
+    "maxfli",
+    "swag-golf",
+    "nikon",
+    "voice-caddie",
+    "blue-tees",
+    "arccos"
+   ],
+   "subcategoryBrands": {
+    "Golf balls": [
+     "titleist",
+     "callaway",
+     "taylormade",
+     "srixon",
+     "bridgestone",
+     "wilson",
+     "mizuno",
+     "vice-golf",
+     "seed-golf",
+     "snell-golf",
+     "volvik",
+     "pinnacle",
+     "top-flite",
+     "kirkland-signature",
+     "xxio",
+     "honma",
+     "pxg",
+     "inesis",
+     "dunlop",
+     "maxfli"
+    ],
+    "Tees": [
+     "seed-golf",
+     "inesis",
+     "pridesports",
+     "masters"
+    ],
+    "Head covers": [
+     "titleist",
+     "callaway",
+     "taylormade",
+     "pxg",
+     "masters",
+     "swag-golf"
+    ],
+    "Rangefinders / GPS": [
+     "bushnell",
+     "garmin",
+     "shot-scope",
+     "skycaddie",
+     "golfbuddy",
+     "nikon",
+     "voice-caddie",
+     "blue-tees"
+    ],
+    "Other accessories": [
+     "titleist",
+     "callaway",
+     "taylormade",
+     "srixon",
+     "bridgestone",
+     "wilson",
+     "mizuno",
+     "vice-golf",
+     "seed-golf",
+     "kirkland-signature",
+     "pxg",
+     "inesis",
+     "garmin",
+     "golf-pride",
+     "superstroke",
+     "lamkin",
+     "winn",
+     "footjoy",
+     "pridesports",
+     "masters",
+     "dunlop",
+     "maxfli",
+     "arccos"
+    ]
+   }
+  }
+ },
+ "legacyResale": {
+  "Drivers": [
+   "nike"
+  ],
+  "Woods & hybrids": [
+   "nike"
+  ],
+  "Irons": [
+   "nike"
+  ],
+  "Wedges": [
+   "nike"
+  ],
+  "Putters": [
+   "nike",
+   "sik",
+   "yes"
+  ],
+  "Full sets": [
+   "nike"
+  ]
+ }
+}

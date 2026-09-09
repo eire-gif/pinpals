@@ -9,8 +9,10 @@ import {
   MARKETPLACE_SORTS,
   MARKETPLACE_SORT_LABELS,
   marketplaceFiltersToSearchParams,
+  type BrandFacets,
   type MarketplaceFilters,
 } from "@/lib/marketplace-discovery";
+import { ALL_BRAND_IDS, brandIdsFor, brandLabel } from "@/lib/marketplace-brands";
 
 const SEARCH_DEBOUNCE_MS = 400;
 
@@ -31,7 +33,13 @@ const SEARCH_DEBOUNCE_MS = 400;
  * two price inputs are debounced; selects and category chips apply
  * immediately, since there's no risk of firing a query per keystroke there.
  */
-export default function MarketplaceControls({ filters }: { filters: MarketplaceFilters }) {
+export default function MarketplaceControls({
+  filters,
+  brandFacets = {},
+}: {
+  filters: MarketplaceFilters;
+  brandFacets?: BrandFacets;
+}) {
   const router = useRouter();
   const pathname = usePathname();
 
@@ -39,6 +47,7 @@ export default function MarketplaceControls({ filters }: { filters: MarketplaceF
   const [minInput, setMinInput] = useState(filters.minPriceCents !== null ? String(filters.minPriceCents / 100) : "");
   const [maxInput, setMaxInput] = useState(filters.maxPriceCents !== null ? String(filters.maxPriceCents / 100) : "");
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [brandQuery, setBrandQuery] = useState("");
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Keep the local echo of debounced fields in sync when the URL changes
@@ -84,6 +93,7 @@ export default function MarketplaceControls({ filters }: { filters: MarketplaceF
     !!filters.q ||
     !!filters.category ||
     !!filters.subcategory ||
+    filters.brands.length > 0 ||
     !!filters.county ||
     !!filters.condition ||
     !!filters.saleType ||
@@ -94,6 +104,32 @@ export default function MarketplaceControls({ filters }: { filters: MarketplaceF
   const subcategoryOptions = filters.category
     ? (SUBCATEGORIES[filters.category as keyof typeof SUBCATEGORIES] as readonly string[] | undefined) ?? []
     : [];
+
+  // Which brands this filter panel offers: the chosen category's own list
+  // (narrowed by subcategory where that means something — "Rangefinders /
+  // GPS" offers Bushnell, not Titleist), or the deduplicated union across
+  // every category on the "All" tab.
+  //
+  // Brands with no matching listings are still listed, just greyed and
+  // count-less, rather than hidden: a buyer looking for a Mizuno needs to
+  // be told there are none right now, not left wondering whether the filter
+  // is broken. A brand that IS selected always stays visible even at zero,
+  // so a selection can always be undone from the panel that made it.
+  const brandOptions = filters.category
+    ? brandIdsFor(filters.category, filters.subcategory || undefined)
+    : ALL_BRAND_IDS;
+
+  const brandSearch = brandQuery.trim().toLowerCase();
+  const visibleBrands = brandOptions.filter(
+    (id) => !brandSearch || brandLabel(id).toLowerCase().includes(brandSearch)
+  );
+
+  function toggleBrand(brandId: string) {
+    const next = filters.brands.includes(brandId)
+      ? filters.brands.filter((b) => b !== brandId)
+      : [...filters.brands, brandId].sort();
+    updateNow({ brands: next });
+  }
 
   return (
     <div className="mb-6">
@@ -159,7 +195,7 @@ export default function MarketplaceControls({ filters }: { filters: MarketplaceF
         {hasActiveFilters && (
           <button
             type="button"
-            onClick={() => navigate({ ...filters, q: "", category: "", subcategory: "", county: "", condition: "", saleType: "", delivery: "", minPriceCents: null, maxPriceCents: null })}
+            onClick={() => navigate({ ...filters, q: "", category: "", subcategory: "", brands: [], county: "", condition: "", saleType: "", delivery: "", minPriceCents: null, maxPriceCents: null })}
             className="text-sm font-bold text-ink-500 hover:text-ink-900 transition px-2"
           >
             Clear all
@@ -172,7 +208,7 @@ export default function MarketplaceControls({ filters }: { filters: MarketplaceF
       <div className="flex gap-2 mt-3 overflow-x-auto pb-1 -mx-1 px-1" role="group" aria-label="Category">
         <button
           type="button"
-          onClick={() => updateNow({ category: "", subcategory: "" })}
+          onClick={() => updateNow({ category: "", subcategory: "", brands: [] })}
           className={`shrink-0 px-3.5 py-1.5 rounded-full text-sm font-bold border-[1.5px] transition ${
             !filters.category ? "bg-navy-900 border-navy-900 text-white" : "border-line text-ink-900 bg-surface hover:bg-cream-100"
           }`}
@@ -183,7 +219,7 @@ export default function MarketplaceControls({ filters }: { filters: MarketplaceF
           <button
             key={c}
             type="button"
-            onClick={() => updateNow({ category: filters.category === c ? "" : c, subcategory: "" })}
+            onClick={() => updateNow({ category: filters.category === c ? "" : c, subcategory: "", brands: [] })}
             aria-pressed={filters.category === c}
             className={`shrink-0 px-3.5 py-1.5 rounded-full text-sm font-bold border-[1.5px] transition ${
               filters.category === c ? "bg-navy-900 border-navy-900 text-white" : "border-line text-ink-900 bg-surface hover:bg-cream-100"
@@ -194,11 +230,79 @@ export default function MarketplaceControls({ filters }: { filters: MarketplaceF
         ))}
       </div>
 
+      {filters.brands.length > 0 && (
+        <div className="flex gap-2 mt-2 flex-wrap items-center" aria-label="Selected brands">
+          {filters.brands.map((brandId) => (
+            <button
+              key={brandId}
+              type="button"
+              onClick={() => toggleBrand(brandId)}
+              className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border-[1.5px] border-green-700 text-green-800 bg-green-100"
+            >
+              {brandLabel(brandId)}
+              <span aria-hidden="true">×</span>
+              <span className="sr-only">Remove {brandLabel(brandId)} filter</span>
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={() => updateNow({ brands: [] })}
+            className="text-xs font-bold text-ink-500 hover:text-ink-900 transition px-1"
+          >
+            Clear brands
+          </button>
+        </div>
+      )}
+
       {filtersOpen && (
         <div
           id="marketplace-more-filters"
           className="mt-3 bg-surface border border-line rounded-2xl p-4 grid gap-3.5 sm:grid-cols-2 lg:grid-cols-4"
         >
+          <fieldset className="sm:col-span-2 lg:col-span-4">
+            <legend className="block text-xs font-bold text-ink-500 mb-1">
+              Brand{filters.brands.length > 0 ? ` (${filters.brands.length} selected)` : ""}
+            </legend>
+            <label htmlFor="mp-brand-search" className="sr-only">
+              Search brands
+            </label>
+            <input
+              id="mp-brand-search"
+              type="search"
+              value={brandQuery}
+              onChange={(e) => setBrandQuery(e.target.value)}
+              placeholder={filters.category ? `Search ${filters.category.toLowerCase()} brands…` : "Search brands…"}
+              className="w-full px-3 py-2 rounded-lg border-[1.5px] border-line bg-surface text-sm mb-2"
+            />
+            <div className="max-h-48 overflow-y-auto grid sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-1 pr-1">
+              {visibleBrands.length === 0 ? (
+                <p className="text-sm text-ink-500 py-2">No brand matches &ldquo;{brandQuery}&rdquo;.</p>
+              ) : (
+                visibleBrands.map((brandId) => {
+                  const count = brandFacets[brandId] ?? 0;
+                  const checked = filters.brands.includes(brandId);
+                  return (
+                    <label
+                      key={brandId}
+                      className={`flex items-center gap-2 text-sm py-1 cursor-pointer ${
+                        count === 0 && !checked ? "text-ink-500" : "text-ink-900"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleBrand(brandId)}
+                        className="shrink-0"
+                      />
+                      <span className="truncate">{brandLabel(brandId)}</span>
+                      {count > 0 && <span className="text-xs text-ink-500 tabular-nums">({count})</span>}
+                    </label>
+                  );
+                })
+              )}
+            </div>
+          </fieldset>
+
           {subcategoryOptions.length > 0 && (
             <div>
               <label htmlFor="mp-subcategory" className="block text-xs font-bold text-ink-500 mb-1">
@@ -207,7 +311,7 @@ export default function MarketplaceControls({ filters }: { filters: MarketplaceF
               <select
                 id="mp-subcategory"
                 value={filters.subcategory}
-                onChange={(e) => updateNow({ subcategory: e.target.value })}
+                onChange={(e) => updateNow({ subcategory: e.target.value, brands: [] })}
                 className="w-full px-3 py-2 rounded-lg border-[1.5px] border-line bg-surface text-sm"
               >
                 <option value="">Any</option>

@@ -8,6 +8,15 @@ import {
   MAX_LISTING_IMAGES,
   auctionWindowError,
 } from "@/lib/marketplace";
+import {
+  DEXTERITIES,
+  SHAFT_FLEXES,
+  SHAFT_MATERIALS,
+  MAX_BRAND_OTHER_LENGTH,
+  MAX_MODEL_LENGTH,
+  MAX_SPEC_LENGTH,
+  isBrandValidFor,
+} from "@/lib/marketplace-brands";
 import { COUNTIES } from "@/lib/clubs";
 
 /**
@@ -49,6 +58,42 @@ export const listingCategorySchema = z.enum(CATEGORIES, { message: "Please choos
 export const listingSubcategorySchema = z.string().trim().max(60, "Subcategory is too long.").optional();
 
 export const listingConditionSchema = z.enum(CONDITIONS, { message: "Please choose a condition." });
+
+// ============ brand + item specification (0060) ============
+// All optional, deliberately: the point of the brand field is to make
+// listings easier to FIND, and a required field that a seller can't answer
+// ("what brand are these second-hand range balls?") costs more listings
+// than it gains searchability. The category-membership rule below is the
+// only real constraint, and Other/Unknown/Mixed mean there's always a
+// truthful answer available — see marketplace-brands.ts's own comment on
+// never rejecting a legitimate listing over a missing brand.
+
+export const listingBrandSchema = z.string().trim().optional();
+
+export const listingBrandOtherSchema = z
+  .string()
+  .trim()
+  .max(MAX_BRAND_OTHER_LENGTH, `Brand name must be ${MAX_BRAND_OTHER_LENGTH} characters or fewer.`)
+  .optional();
+
+export const listingModelSchema = z
+  .string()
+  .trim()
+  .max(MAX_MODEL_LENGTH, `Model must be ${MAX_MODEL_LENGTH} characters or fewer.`)
+  .optional();
+
+export const listingDexteritySchema = z.enum(DEXTERITIES).optional();
+export const listingShaftFlexSchema = z.enum(SHAFT_FLEXES).optional();
+export const listingShaftMaterialSchema = z.enum(SHAFT_MATERIALS).optional();
+
+const specTextSchema = z
+  .string()
+  .trim()
+  .max(MAX_SPEC_LENGTH, `That value must be ${MAX_SPEC_LENGTH} characters or fewer.`)
+  .optional();
+
+export const listingLoftSchema = specTextSchema;
+export const listingItemSizeSchema = specTextSchema;
 
 // "Location" in the task spec maps onto the existing `county` field
 // (src/lib/clubs.ts's COUNTIES) rather than a new column — every other part
@@ -105,7 +150,56 @@ const listingBaseFields = {
   county: listingCountySchema,
   deliveryOptions: listingDeliveryOptionsSchema,
   collectionNotes: listingCollectionNotesSchema,
+  brand: listingBrandSchema,
+  brandOther: listingBrandOtherSchema,
+  model: listingModelSchema,
+  dexterity: listingDexteritySchema,
+  shaftFlex: listingShaftFlexSchema,
+  shaftMaterial: listingShaftMaterialSchema,
+  loft: listingLoftSchema,
+  itemSize: listingItemSizeSchema,
 };
+
+/**
+ * The brand rules that need to see more than one field at once, shared by
+ * the create and edit schemas so a listing can't be valid on one path and
+ * invalid on the other. Mirrors listings_brand_fkey plus the two
+ * brand_other check constraints in 0060 — a submission that would be
+ * rejected by the database gets a specific, field-level message here first.
+ */
+function checkBrandFields(
+  data: {
+    brand?: string;
+    brandOther?: string;
+    category?: string;
+    subcategory?: string;
+  },
+  ctx: z.RefinementCtx
+) {
+  if (data.brand && data.category && !isBrandValidFor(data.brand, data.category, data.subcategory)) {
+    ctx.addIssue({
+      code: "custom",
+      message: "That brand isn't one of the options for the chosen category.",
+      path: ["brand"],
+    });
+  }
+
+  if (data.brand === "other" && !data.brandOther) {
+    ctx.addIssue({
+      code: "custom",
+      message: "Tell buyers the brand name, or choose Unknown / unbranded.",
+      path: ["brandOther"],
+    });
+  }
+
+  if (data.brandOther && data.brand !== "other") {
+    ctx.addIssue({
+      code: "custom",
+      message: "A brand name can only be typed in when the brand is set to Other.",
+      path: ["brandOther"],
+    });
+  }
+}
 
 // ============ per-sale-type schemas ============
 // Four literal branches rather than one schema with optional
@@ -173,6 +267,8 @@ export const createListingSchema = z
       });
     }
 
+    checkBrandFields(data, ctx);
+
     if (data.saleType === "auction" || data.saleType === "auction_with_buy_now") {
       const windowError = auctionWindowError(data.startsAt, data.endsAt);
       if (windowError) {
@@ -213,16 +309,31 @@ export type CreateListingInput = z.infer<typeof createListingSchema>;
  * narrower: if a field is present in the edit payload, is its value valid on
  * its own terms.
  */
-export const updateListingSchema = z.object({
-  title: listingTitleSchema.optional(),
-  description: listingDescriptionSchema,
-  category: listingCategorySchema.optional(),
-  subcategory: listingSubcategorySchema,
-  condition: listingConditionSchema.optional(),
-  county: listingCountySchema,
-  deliveryOptions: listingDeliveryOptionsSchema.optional(),
-  collectionNotes: listingCollectionNotesSchema,
-  priceEur: listingPriceEurSchema.optional(),
-});
+export const updateListingSchema = z
+  .object({
+    title: listingTitleSchema.optional(),
+    description: listingDescriptionSchema,
+    category: listingCategorySchema.optional(),
+    subcategory: listingSubcategorySchema,
+    condition: listingConditionSchema.optional(),
+    county: listingCountySchema,
+    deliveryOptions: listingDeliveryOptionsSchema.optional(),
+    collectionNotes: listingCollectionNotesSchema,
+    priceEur: listingPriceEurSchema.optional(),
+    brand: listingBrandSchema,
+    brandOther: listingBrandOtherSchema,
+    model: listingModelSchema,
+    dexterity: listingDexteritySchema,
+    shaftFlex: listingShaftFlexSchema,
+    shaftMaterial: listingShaftMaterialSchema,
+    loft: listingLoftSchema,
+    itemSize: listingItemSizeSchema,
+  })
+  // The edit form always submits category alongside brand (it has to — the
+  // brand options depend on it), so the category-membership half of this
+  // check has the category it needs. On the theoretical partial patch that
+  // sends a brand with no category, checkBrandFields skips that half rather
+  // than guessing; listings_brand_fkey still backstops it at the database.
+  .superRefine(checkBrandFields);
 
 export type UpdateListingInput = z.infer<typeof updateListingSchema>;
