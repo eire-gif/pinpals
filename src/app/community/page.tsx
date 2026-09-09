@@ -27,14 +27,31 @@ export default async function CommunityPage({
         className="object-cover -z-10 opacity-40"
       />
       <div className="absolute inset-0 bg-gradient-to-b from-[rgba(9,22,40,0.55)] to-[rgba(9,22,40,0.92)] -z-10" />
-      <div className="max-w-6xl mx-auto px-6">
-        <span className="inline-flex items-center gap-2 text-xs font-bold tracking-widest uppercase text-gold-500">
-          <span className="w-5 h-0.5 bg-gold-500 inline-block" /> Community
-        </span>
-        <h1 className="font-display font-bold text-4xl mt-2.5">Find golfers near you.</h1>
-        <p className="text-white/80 mt-3 max-w-[52ch]">
-          Search by name, home club or county to find your next playing partner.
-        </p>
+      {/* Heading left, call to action right and vertically centred against
+          it on desktop; stacked on mobile, where a button sitting beside a
+          four-line heading would be squeezed to nothing. */}
+      <div className="max-w-6xl mx-auto px-6 flex flex-col md:flex-row md:items-center md:justify-between gap-7">
+        <div>
+          <span className="inline-flex items-center gap-2 text-xs font-bold tracking-widest uppercase text-gold-500">
+            <span className="w-5 h-0.5 bg-gold-500 inline-block" /> Community
+          </span>
+          <h1 className="font-display font-bold text-4xl mt-2.5">Find golfers near you.</h1>
+          <p className="text-white/80 mt-3 max-w-[52ch]">
+            Search by name, home club or county to find your next playing partner.
+          </p>
+        </div>
+        {/* Signed-in only, exactly as the same CTA on /tee-times is: a
+            logged-out visitor sees "Join to see the directory" below this
+            header, and offering them an action that bounces straight to
+            /login would undercut it. */}
+        {user && (
+          <Link
+            href="/dashboard/availability/new"
+            className="shrink-0 self-start md:self-auto inline-block px-6 py-3 rounded-full font-bold bg-green-700 text-cream-50 hover:bg-green-600 transition whitespace-nowrap"
+          >
+            Post your availability
+          </Link>
+        )}
       </div>
     </div>
   );
