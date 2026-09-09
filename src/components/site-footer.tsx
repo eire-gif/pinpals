@@ -36,7 +36,7 @@ export default function SiteFooter() {
           <div>
             <h4 className="text-xs uppercase tracking-wider text-white mb-3">Pinpals.ie</h4>
             <div className="flex flex-col gap-1.5 text-sm">
-              <a href="mailto:hello@pinpals.ie" className="hover:text-white">hello@pinpals.ie</a>
+              <a href="mailto:info@pinpals.ie" className="hover:text-white">info@pinpals.ie</a>
             </div>
           </div>
         </div>

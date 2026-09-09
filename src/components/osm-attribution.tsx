@@ -21,7 +21,7 @@ export default function OsmAttribution({ className = "" }: { className?: string 
         © OpenStreetMap contributors
       </a>
       . Spotted something wrong?{" "}
-      <a href="mailto:hello@pinpals.ie?subject=Course%20directory%20correction" className="underline hover:text-ink-900">
+      <a href="mailto:info@pinpals.ie?subject=Course%20directory%20correction" className="underline hover:text-ink-900">
         Tell us
       </a>{" "}
       and we&rsquo;ll fix it.
