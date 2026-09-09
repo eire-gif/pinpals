@@ -9,7 +9,7 @@ export default function MobileNav({
   unreadCount = 0,
 }: {
   isLoggedIn: boolean;
-  navLinks: { href: string; label: string }[];
+  navLinks: { href: string; label: string; children?: { href: string; label: string }[] }[];
   unreadCount?: number;
 }) {
   const [open, setOpen] = useState(false);
@@ -38,15 +38,37 @@ export default function MobileNav({
 
       {open && (
         <div className="fixed inset-x-0 top-[76px] bottom-0 bg-navy-900 p-4 flex flex-col gap-1 overflow-y-auto">
+          {/* A nav item with children renders its parent link and then its
+              children indented beneath it, rather than a nested disclosure.
+              The sheet is already a vertical list with room to spare, and a
+              second thing to tap open before you can reach Scotland is one
+              tap more than the country list is worth. */}
           {navLinks.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              onClick={() => setOpen(false)}
-              className="px-4 py-4 rounded-xl text-lg font-semibold text-white/90 hover:bg-white/10"
-            >
-              {link.label}
-            </Link>
+            <div key={link.href}>
+              <Link
+                href={link.href}
+                onClick={() => setOpen(false)}
+                className="block px-4 py-4 rounded-xl text-lg font-semibold text-white/90 hover:bg-white/10"
+              >
+                {link.label}
+              </Link>
+              {link.children && (
+                <div className="ml-4 border-l border-white/15 pl-2 mb-1">
+                  {link.children
+                    .filter((child) => child.href !== link.href)
+                    .map((child) => (
+                      <Link
+                        key={child.href}
+                        href={child.href}
+                        onClick={() => setOpen(false)}
+                        className="block px-4 py-3 rounded-xl text-base font-semibold text-white/70 hover:bg-white/10 hover:text-white"
+                      >
+                        {child.label}
+                      </Link>
+                    ))}
+                </div>
+              )}
+            </div>
           ))}
           <div className="h-px bg-white/10 my-2" />
           {isLoggedIn ? (

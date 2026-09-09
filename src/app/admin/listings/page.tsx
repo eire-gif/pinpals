@@ -4,7 +4,7 @@ import { listListings } from "@/lib/admin/queries";
 import { LISTING_STATUS_LABELS, LISTING_STATUS_STYLES, formatDateTime } from "@/lib/admin/format";
 import { formatPrice } from "@/lib/format";
 import { CATEGORIES } from "@/lib/marketplace";
-import { COUNTIES } from "@/lib/clubs";
+import RegionSelect from "@/components/region-select";
 import AdminAvatar from "@/components/admin/avatar";
 import StatusBadge from "@/components/admin/status-badge";
 import ExportCsvLink from "@/components/admin/export-csv-link";
@@ -156,18 +156,12 @@ export default async function AdminListingsPage({
             </option>
           ))}
         </select>
-        <select
+        <RegionSelect
           name="county"
           defaultValue={county}
+          ariaLabel="County"
           className="px-4 py-2.5 rounded-full border-[1.5px] border-line bg-surface text-sm"
-        >
-          <option value="">All counties</option>
-          {COUNTIES.map((c) => (
-            <option key={c} value={c}>
-              {c}
-            </option>
-          ))}
-        </select>
+        />
         <input
           type="date"
           name="from"

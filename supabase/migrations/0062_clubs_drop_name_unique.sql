@@ -1,0 +1,23 @@
+-- Drop the unique constraint on `clubs.name`.
+--
+-- 0001 declared the column as `name text not null unique`, which was correct
+-- for 373 hand-curated Irish club names and is wrong the moment the
+-- directory covers five countries. Golf club names are not unique: England
+-- alone has several "Manor Golf Club"s, more than one "Ashfield", and a
+-- "Woodbrook" that has nothing to do with the Irish one. The first import
+-- run proved it — it failed on `clubs_name_key` before writing a single row.
+--
+-- 0061 removed the only thing that depended on this constraint, the
+-- `profiles.home_club → clubs.name` foreign key, but left the constraint
+-- itself in place. This finishes that change.
+--
+-- Uniqueness now lives entirely on `slug` (0061), which is what URLs and
+-- lookups actually key on, and which the importer disambiguates by region
+-- and then by country when two courses really do share a name.
+--
+-- Consequence to keep in mind anywhere a club is *displayed*: a name on its
+-- own is no longer enough to identify one. Comboboxes, admin lists and
+-- search results should show the region beside the name, or two members at
+-- two different Manor Golf Clubs will look like they play together.
+
+alter table public.clubs drop constraint if exists clubs_name_key;

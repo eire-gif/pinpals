@@ -24,11 +24,13 @@
 // avoids implying this fixture is a preview of the real row shape.
 
 import { CATEGORIES, CONDITIONS } from "./marketplace";
-import { COUNTIES } from "./clubs";
+import { REGIONS_BY_COUNTRY } from "./regions";
 
 export type MockCategory = (typeof CATEGORIES)[number];
 export type MockCondition = (typeof CONDITIONS)[number];
-export type MockCounty = (typeof COUNTIES)[number];
+// Fixtures stay Irish: they exist to render a believable preview of the
+// marketplace, and every real listing on it today is in Ireland.
+export type MockCounty = (typeof REGIONS_BY_COUNTRY)["ireland"][number];
 
 export type MockSeller = {
   name: string;

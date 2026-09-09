@@ -146,6 +146,17 @@ export const ADMIN_ACTIONS = [
   // restricts anything, but is still audited like every other admin write.
   "fraud_flag.raised",
   "fraud_flag.cleared",
+  // /admin/clubs — the course directory (0061). `club.updated` covers a
+  // staff edit of a course's website, county, town or coordinates;
+  // `club.verified` marks a row as checked by hand, which is not cosmetic —
+  // the OpenStreetMap importer treats a verified row's fields as
+  // authoritative and stops overwriting them. `club.import_run` records a
+  // staff member starting an import for a country: it mutates up to ~1,900
+  // rows in one go, so who set it off and when is worth keeping even though
+  // the row-level changes themselves are not individually logged.
+  "club.updated",
+  "club.verified",
+  "club.import_run",
   // src/app/conversations/actions.ts — a member's own mute/unmute of
   // another member. Not gated by requireStaff() (this is an ordinary member
   // action, same tier as blockUser()/unblockUser(), which are NOT audited
@@ -194,6 +205,10 @@ export const AUDIT_TARGET_TYPES = [
   "fraud_flag",
   // The target of review.hide/review.restore above.
   "review",
+  // /admin/clubs — the target of club.updated/club.verified. A
+  // club.import_run entry names no single row (it touches a whole country),
+  // and carries the country in `metadata` instead.
+  "club",
 ] as const;
 export type AuditTargetType = (typeof AUDIT_TARGET_TYPES)[number];
 

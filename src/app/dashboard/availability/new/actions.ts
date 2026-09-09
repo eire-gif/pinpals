@@ -2,7 +2,8 @@
 
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { CLUBS, COUNTIES } from "@/lib/clubs";
+import { getClubById } from "@/lib/courses";
+import { isCountryCode, isRegionInCountry, countryName } from "@/lib/regions";
 import { SPACES_OPTIONS, computeExpiry } from "@/lib/tee-times";
 
 export type PostAvailabilityState = { error?: string };
@@ -22,7 +23,8 @@ export async function postAvailability(
     redirect("/login");
   }
 
-  const club = String(formData.get("club") || "").trim();
+  const clubIdRaw = String(formData.get("club") || "").trim();
+  const country = String(formData.get("country") || "").trim();
   const county = String(formData.get("county") || "").trim();
   const playDate = String(formData.get("playDate") || "").trim();
   const timeFrom = String(formData.get("timeFrom") || "").trim();
@@ -33,11 +35,29 @@ export async function postAvailability(
   const handicapRaw = String(formData.get("handicapLimit") || "").trim();
   const notes = String(formData.get("notes") || "").trim();
 
-  if (!club || !CLUBS.includes(club)) {
+  if (!isCountryCode(country)) {
+    return { error: "Please choose the country the course is in." };
+  }
+
+  // Same shape as the profile form: the id is what's submitted and the name
+  // and country are re-read from the club row rather than trusted. An empty
+  // id means the member typed something the picker never matched, which is
+  // the case to refuse — an invite at a club that isn't in the directory
+  // can't be found by anyone browsing that club's page.
+  const clubId = clubIdRaw ? Number.parseInt(clubIdRaw, 10) : NaN;
+  if (!Number.isFinite(clubId)) {
     return { error: "Please choose a golf club from the suggested list." };
   }
 
-  if (!county || !COUNTIES.includes(county as (typeof COUNTIES)[number])) {
+  const club = await getClubById(clubId);
+  if (!club) {
+    return { error: "Please choose a golf club from the suggested list." };
+  }
+  if (club.country !== country) {
+    return { error: `${club.name} isn't in ${countryName(country)} — check the country above.` };
+  }
+
+  if (!county || !isRegionInCountry(country, county)) {
     return { error: "Please select the county the course is in." };
   }
 
@@ -74,7 +94,9 @@ export async function postAvailability(
 
   const { error } = await supabase.from("tee_time_invites").insert({
     member_id: user.id,
-    club_name: club,
+    club_id: club.id,
+    club_name: club.name,
+    country,
     county,
     play_date: playDate,
     time_from: timeFrom || null,

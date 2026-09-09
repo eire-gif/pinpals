@@ -2,7 +2,7 @@
 
 import { useActionState, useState } from "react";
 import ClubCombobox from "@/components/club-combobox";
-import { COUNTIES } from "@/lib/clubs";
+import { COUNTRIES, regionsForCountry } from "@/lib/regions";
 import { SPACES_OPTIONS } from "@/lib/tee-times";
 import { postAvailability, type PostAvailabilityState } from "./actions";
 
@@ -11,22 +11,43 @@ const initialState: PostAvailabilityState = {};
 export default function NewAvailabilityForm() {
   const [state, formAction, pending] = useActionState(postAvailability, initialState);
   const [hasTeeTime, setHasTeeTime] = useState(false);
+  // Same country-then-club flow as the profile form, for the same reason:
+  // the club list is ~3,000 courses across five countries and is only
+  // skimmable once a country has narrowed it. Defaults to Ireland, where
+  // almost every tee time posted so far has been.
+  const [country, setCountry] = useState("ireland");
+  const regions = regionsForCountry(country);
 
   const today = new Date().toISOString().slice(0, 10);
 
   return (
     <form action={formAction} className="grid gap-4">
       <div className="grid gap-1.5">
+        <label htmlFor="country" className="text-[13.5px] font-bold">Country</label>
+        <select
+          id="country"
+          name="country"
+          value={country}
+          onChange={(e) => setCountry(e.target.value)}
+          className="px-3.5 py-3 rounded-lg border-[1.5px] border-line focus:outline-none focus:border-green-600 bg-surface"
+        >
+          {COUNTRIES.map((c) => (
+            <option key={c.code} value={c.code}>{c.name}</option>
+          ))}
+        </select>
+      </div>
+
+      <div className="grid gap-1.5">
         <label htmlFor="club" className="text-[13.5px] font-bold">Golf course / club</label>
-        <ClubCombobox name="club" />
+        <ClubCombobox name="club" country={country} required />
       </div>
 
       <div className="grid gap-1.5">
         <label htmlFor="county" className="text-[13.5px] font-bold">County</label>
-        <select id="county" name="county" defaultValue="" required
+        <select key={country} id="county" name="county" defaultValue="" required
           className="px-3.5 py-3 rounded-lg border-[1.5px] border-line focus:outline-none focus:border-green-600 bg-surface">
           <option value="" disabled>Select the county the course is in</option>
-          {COUNTIES.map((c) => (
+          {regions.map((c) => (
             <option key={c} value={c}>{c}</option>
           ))}
         </select>

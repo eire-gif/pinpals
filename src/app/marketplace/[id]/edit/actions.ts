@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { countryForRegion } from "@/lib/regions";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { listingImageStoragePath, deleteListingImage } from "@/lib/images/upload";
 import { updateListingSchema, listingImagesSchema } from "@/lib/validation/listing";
@@ -172,7 +173,12 @@ export async function updateListing(
   if (data.category !== undefined) listingPatch.category = data.category;
   if (data.subcategory !== undefined) listingPatch.subcategory = data.subcategory || null;
   if (data.condition !== undefined) listingPatch.condition = data.condition;
-  if (data.county !== undefined) listingPatch.county = data.county || null;
+  if (data.county !== undefined) {
+    listingPatch.county = data.county || null;
+    // Kept in step with the county, for the same reason it's derived on
+    // create: the region name is what identifies the country.
+    listingPatch.country = data.county ? countryForRegion(data.county) : null;
+  }
 
   // Brand + specs. brand and brand_other are written together, always: they
   // are one answer to one question, and writing brand without clearing a

@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { CLUBS } from "@/lib/clubs";
+import { getClubById } from "@/lib/courses";
+import { isCountryCode, isRegionInCountry, countryName } from "@/lib/regions";
 import { ageBandForDate } from "@/lib/age";
 import { ALLOWED_AVATAR_TYPES, MAX_AVATAR_BYTES, avatarExtensionFor } from "@/lib/avatar";
 
@@ -24,7 +25,8 @@ export async function updateProfile(
 
   const firstName = String(formData.get("first") || "").trim();
   const lastName = String(formData.get("last") || "").trim();
-  const homeClub = String(formData.get("club") || "").trim();
+  const clubIdRaw = String(formData.get("club") || "").trim();
+  const country = String(formData.get("country") || "").trim();
   const county = String(formData.get("county") || "").trim();
   const handicapRaw = String(formData.get("handicap") || "").trim();
   const handicapVisible = formData.get("handicapVisible") === "on";
@@ -37,8 +39,46 @@ export async function updateProfile(
   if (!firstName || !lastName) {
     return { error: "First and last name can't be empty." };
   }
-  if (homeClub && !CLUBS.includes(homeClub)) {
-    return { error: "Please choose a home club from the suggested list." };
+  if (!isCountryCode(country)) {
+    return { error: "Please choose the country you play in." };
+  }
+
+  // ============ Home club ============
+  // The form submits the club's id, and the name and country are re-read
+  // from the club row here rather than trusted from the request. The picker
+  // leaves the id empty when the member typed a name that matched nothing,
+  // which is exactly the case that has to be refused — `home_club_id` is a
+  // foreign key, and a member cannot be a member of a club that isn't in the
+  // directory. Clearing the field entirely is still allowed.
+  let homeClub: string | null = null;
+  let homeClubId: number | null = null;
+
+  if (clubIdRaw) {
+    const clubId = Number.parseInt(clubIdRaw, 10);
+    if (!Number.isFinite(clubId)) {
+      return { error: "Please pick your home club from the suggestions." };
+    }
+
+    const club = await getClubById(clubId);
+    if (!club) {
+      return { error: "Please pick your home club from the suggestions." };
+    }
+    if (club.country !== country) {
+      return {
+        error: `${club.name} isn't in ${countryName(country)} — pick a club in the country you selected, or change the country.`,
+      };
+    }
+
+    homeClub = club.name;
+    homeClubId = club.id;
+  }
+
+  // A county that doesn't belong to the chosen country is rejected rather
+  // than silently dropped: the two arrive as independent fields, and saving
+  // "Scotland / Kerry" would then show up in the directory as a real
+  // location nobody could search for.
+  if (county && !isRegionInCountry(country, county)) {
+    return { error: `That county isn't in ${countryName(country)}.` };
   }
 
   const handicap = handicapRaw ? Number(handicapRaw) : null;
@@ -90,7 +130,9 @@ export async function updateProfile(
     .update({
       first_name: firstName,
       last_name: lastName,
-      home_club: homeClub || null,
+      home_club: homeClub,
+      home_club_id: homeClubId,
+      country,
       county: county || null,
       handicap,
       handicap_visible: handicapVisible,
@@ -143,6 +185,7 @@ export async function updateProfile(
 
   revalidatePath("/profile");
   revalidatePath("/community");
+  revalidatePath("/courses");
   revalidatePath("/tee-times");
   revalidatePath("/dashboard");
   redirect("/profile?saved=1");

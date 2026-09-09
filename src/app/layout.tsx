@@ -17,9 +17,9 @@ const publicSans = Public_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "Pinpals | Ireland's golf community",
+  title: "Pinpals | The golf community for Ireland and the UK",
   description:
-    "Find golfers near you, discover new clubs, and connect with playing partners across all 32 counties.",
+    "Find golfers near you, browse every club in Ireland, Northern Ireland, England, Scotland and Wales, and connect with playing partners.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

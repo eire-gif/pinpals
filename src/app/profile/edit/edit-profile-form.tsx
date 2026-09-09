@@ -2,7 +2,7 @@
 
 import { useActionState, useState } from "react";
 import ClubCombobox from "@/components/club-combobox";
-import { COUNTIES } from "@/lib/clubs";
+import { COUNTRIES, regionsForCountry } from "@/lib/regions";
 import MemberAvatar from "@/components/member-avatar";
 import { ALLOWED_AVATAR_TYPES } from "@/lib/avatar";
 import { ageBandForDate, AGE_BAND_NOT_SHARED } from "@/lib/age";
@@ -17,6 +17,8 @@ export default function EditProfileForm({
     first: string;
     last: string;
     club: string;
+    clubId: number | null;
+    country: string;
     county: string;
     handicap: string;
     handicapVisible: boolean;
@@ -35,6 +37,13 @@ export default function EditProfileForm({
   // submit.
   const [dob, setDob] = useState(defaultValues.dob);
   const previewBand = ageBandForDate(dob);
+
+  // Country is the field the other two hang off: it scopes which clubs the
+  // picker offers and which counties the select lists. Holding it in state
+  // rather than reading it on submit is what lets both react as soon as it
+  // changes, instead of after a round trip.
+  const [country, setCountry] = useState(defaultValues.country);
+  const regions = regionsForCountry(country);
 
   return (
     <form action={formAction} className="grid gap-4">
@@ -78,10 +87,43 @@ export default function EditProfileForm({
         </div>
       </div>
 
+      {/* Country first, then club. With ~3,000 clubs across five countries a
+          single searchable list offers two "Woodbrook"s and no way to tell
+          them apart; narrowing by country first is what makes the picker
+          usable and what makes the saved club unambiguous. */}
+      <div className="grid gap-1.5">
+        <label htmlFor="country" className="text-[13.5px] font-bold">Country you play in</label>
+        <select
+          id="country"
+          name="country"
+          value={country}
+          onChange={(e) => setCountry(e.target.value)}
+          className="px-3.5 py-3 rounded-lg border-[1.5px] border-line bg-surface text-[15px] focus:outline-none focus:border-green-600"
+        >
+          {COUNTRIES.map((c) => (
+            <option key={c.code} value={c.code}>{c.name}</option>
+          ))}
+        </select>
+        <span className="text-xs text-ink-500">
+          Shown on your profile so golfers searching another country can tell you apart.
+        </span>
+      </div>
+
       <div className="grid gap-1.5">
         <label htmlFor="club" className="text-[13.5px] font-bold">Home golf club</label>
-        <ClubCombobox name="club" defaultValue={defaultValues.club} required={false} />
-        <span className="text-xs text-ink-500">Searchable list of 373 Irish clubs across all 32 counties.</span>
+        <ClubCombobox
+          name="club"
+          country={country}
+          defaultClubId={defaultValues.clubId}
+          defaultValue={defaultValues.club}
+        />
+        <span className="text-xs text-ink-500">
+          Can&rsquo;t find it?{" "}
+          <a href={`/courses/${country}`} className="text-green-700 font-semibold">
+            Browse every club there
+          </a>{" "}
+          — you can set your home club from a club&rsquo;s own page too.
+        </span>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -134,11 +176,28 @@ export default function EditProfileForm({
         </div>
 
         <div className="grid gap-1.5">
-          <label htmlFor="county" className="text-[13.5px] font-bold">County you play in most</label>
-          <select id="county" name="county" defaultValue={defaultValues.county}
-            className="px-3.5 py-3 rounded-lg border-[1.5px] border-line focus:outline-none focus:border-green-600 bg-surface">
-            <option value="">Select a county</option>
-            {COUNTIES.map((c) => (
+          <label htmlFor="county" className="text-[13.5px] font-bold">
+            {country === "scotland"
+              ? "Council area you play in most"
+              : country === "wales"
+                ? "Area you play in most"
+                : "County you play in most"}
+          </label>
+          {/* Keyed on country so React rebuilds the select when the country
+              changes — otherwise a defaultValue of "Kerry" would survive a
+              switch to Scotland as a stale selection in a list that no longer
+              contains it. */}
+          <select
+            key={country}
+            id="county"
+            name="county"
+            defaultValue={regions.includes(defaultValues.county) ? defaultValues.county : ""}
+            className="px-3.5 py-3 rounded-lg border-[1.5px] border-line focus:outline-none focus:border-green-600 bg-surface"
+          >
+            <option value="">
+              {country === "scotland" ? "Select a council area" : "Select a county"}
+            </option>
+            {regions.map((c) => (
               <option key={c} value={c}>{c}</option>
             ))}
           </select>

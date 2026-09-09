@@ -1,8 +1,51 @@
+// ============ CLUBS / COURSES ============
+// See supabase/migrations/0061_courses_uk_and_ireland.sql. Before that
+// migration this table was two columns nothing read; it is now the course
+// directory for Ireland, Northern Ireland, England, Scotland and Wales.
+//
+// Almost everything past `name` is nullable, and that is the honest shape of
+// the data rather than an oversight: the rows come from OpenStreetMap, where
+// a course reliably has a name and a position and may or may not have anyone
+// having filled in its website, town, county or hole count. `verified_at`
+// marks the rows a staff member has since checked by hand — the importer
+// leaves those alone.
+export type Club = {
+  id: number;
+  slug: string;
+  name: string;
+  country: string;
+  region: string | null;
+  town: string | null;
+  website: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  holes: number | null;
+  /** 'seed' | 'osm' | 'manual' — see the migration for what each means. */
+  source: string;
+  osm_id: string | null;
+  verified_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+/** What a directory listing or a picker needs — never the whole row. */
+export type ClubSummary = Pick<
+  Club,
+  "id" | "slug" | "name" | "country" | "region" | "town" | "website" | "latitude" | "longitude" | "holes"
+>;
+
 export type Profile = {
   id: string;
   first_name: string;
   last_name: string;
+  /** Display name of the home club. Denormalised from `clubs.name` — the
+   * real reference is `home_club_id`. Kept because a dozen screens read it
+   * straight off a `select("*")` with no join (0061). */
   home_club: string | null;
+  home_club_id: number | null;
+  /** Country code (see src/lib/regions.ts), added in 0061. */
+  country: string | null;
+  /** The member's county/region. Its vocabulary depends on `country`. */
   county: string | null;
   handicap: number | null;
   handicap_visible: boolean;
@@ -189,7 +232,12 @@ export type InviteStatus = "open" | "full" | "cancelled" | "completed";
 export type TeeTimeInvite = {
   id: number;
   member_id: string;
+  /** Display name of the club. The real reference is `club_id` (0061);
+   * this stays because every card that renders an invite reads it directly. */
   club_name: string;
+  club_id: number | null;
+  /** Country code (see src/lib/regions.ts), added in 0061. */
+  country: string | null;
   county: string | null;
   play_date: string;
   time_from: string | null;

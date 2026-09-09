@@ -43,7 +43,7 @@ const NAV_ITEMS: { href: string; label: string; enabled?: boolean; roles?: reado
   { href: "/admin/payouts", label: "Seller accounts", enabled: true, roles: FINANCE_ROLES },
   { href: "/admin/payouts/ledger", label: "Payout ledger", enabled: true, roles: FINANCE_ROLES },
   { href: "/admin/webhook-events", label: "Webhook events", enabled: true, roles: FINANCE_ROLES },
-  { href: "/admin/clubs", label: "Clubs" },
+  { href: "/admin/clubs", label: "Courses", enabled: true },
   { href: "/admin/reports", label: "Reports", enabled: true },
   // marketplace-notifications-reviews (0056) — no `roles` restriction, same
   // reasoning as Listings above: any active staff member may hide/restore a

@@ -7,7 +7,7 @@ import { CATEGORIES, SUBCATEGORIES } from "./marketplace";
  * lives in src/lib/marketplace.ts.
  *
  * Source of truth is src/data/golf-brands.json, exactly the same
- * arrangement as CLUBS/src/data/clubs.json (see src/lib/clubs.ts): the JSON
+ * arrangement the club list used before it moved into the database: the JSON
  * is the data, this module is the typed accessors over it, and
  * supabase/migrations/0060_listing_brand_and_specs.sql seeds
  * `public.marketplace_brands` from that same file so `listings.brand` can
