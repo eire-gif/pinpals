@@ -22,6 +22,13 @@ export const ADMIN_ACTIONS = [
   "user.note_added",
   "listing.hide",
   "listing.restore",
+  // The super_admin-only escalation of listing.hide: same destination
+  // (status = 'removed') but reachable from any status, including "reserved"
+  // and "sold" where a real order is attached. Its own string rather than
+  // reusing listing.hide so the audit log distinguishes a routine takedown of
+  // a live advert from an override of a listing mid-transaction — see
+  // forceRemoveListing() in src/app/admin/listings/[id]/actions.ts.
+  "listing.force_remove",
   "invite.cancel",
   "invite.restore",
   // CSV exports (src/app/admin/{listings,orders,users}/export/route.ts).

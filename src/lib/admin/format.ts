@@ -6,17 +6,30 @@ import { INTEREST_STATUS_LABELS, INTEREST_STATUS_STYLES, STATUS_LABELS, STATUS_S
 // `statusStyle` fall back gracefully for anything unexpected rather than
 // throwing — an admin table should never break because a status value it
 // doesn't recognise yet showed up.
+// All seven values of listings_status_check (migration 0035). draft,
+// pending_review and expired were missing here for a long time and fell
+// through to the raw database string — visible as a lowercase "draft" beside
+// a properly cased "Active" in the listings table. They matter more now that
+// a super-admin can act on a listing in any of those states.
 export const LISTING_STATUS_LABELS: Record<string, string> = {
+  draft: "Draft",
+  pending_review: "Pending review",
   active: "Active",
   reserved: "Sale agreed",
   sold: "Sold",
+  expired: "Expired",
   removed: "Removed by admin",
 };
 
 export const LISTING_STATUS_STYLES: Record<string, string> = {
+  // Draft and pending_review are the seller's own unfinished work rather than
+  // anything wrong, so they read as neutral, not as a warning.
+  draft: "bg-cream-100 text-ink-500",
+  pending_review: "bg-cream-100 text-ink-900",
   active: "bg-green-100 text-green-800",
   reserved: "bg-cream-100 text-ink-900",
   sold: "bg-cream-100 text-ink-500",
+  expired: "bg-cream-100 text-ink-500",
   removed: "bg-red-100 text-red-600",
 };
 

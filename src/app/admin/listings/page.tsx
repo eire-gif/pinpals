@@ -138,10 +138,17 @@ export default async function AdminListingsPage({
           defaultValue={status}
           className="px-4 py-2.5 rounded-full border-[1.5px] border-line bg-surface text-sm"
         >
+          {/* All seven statuses, in lifecycle order. draft/pending_review/
+              expired were missing, which made the listings that most often
+              need attention — abandoned drafts, stuck submissions — the only
+              ones that couldn't be filtered for. */}
           <option value="">All statuses</option>
+          <option value="draft">Draft</option>
+          <option value="pending_review">Pending review</option>
           <option value="active">Active</option>
           <option value="reserved">Sale agreed</option>
           <option value="sold">Sold</option>
+          <option value="expired">Expired</option>
           <option value="removed">Removed by admin</option>
         </select>
         <select
