@@ -2,18 +2,31 @@ import Link from "next/link";
 import { requireStaff } from "@/lib/admin/authorization";
 import { listUsers, isUserSuspended } from "@/lib/admin/queries";
 import AdminAvatar from "@/components/admin/avatar";
+import ExportCsvLink from "@/components/admin/export-csv-link";
+import { canAccess } from "@/lib/admin/roles";
+import { USER_EXPORT_ROLES } from "@/lib/admin/export";
 
 export default async function AdminUsersPage({
   searchParams,
 }: {
   searchParams: Promise<{ q?: string; suspended?: string; page?: string }>;
 }) {
-  await requireStaff();
+  const { staff } = await requireStaff();
   const { q = "", suspended, page: pageParam } = await searchParams;
   const suspendedOnly = suspended === "1";
   const page = Math.max(1, Number.parseInt(pageParam ?? "1", 10) || 1);
   const { rows: users, total, pageSize } = await listUsers(q, suspendedOnly, page);
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
+
+  // Tighter than this page's own gate on purpose — the file contains every
+  // member's email address. See src/lib/admin/export.ts. Staff without the
+  // role simply don't see the control; the route enforces it independently.
+  const canExport = canAccess(staff, USER_EXPORT_ROLES);
+  const exportParams = new URLSearchParams();
+  if (q) exportParams.set("q", q);
+  if (suspendedOnly) exportParams.set("suspended", "1");
+  const exportQs = exportParams.toString();
+  const exportHref = exportQs ? `/admin/users/export?${exportQs}` : "/admin/users/export";
 
   function pageHref(targetPage: number) {
     const params = new URLSearchParams();
@@ -26,7 +39,15 @@ export default async function AdminUsersPage({
 
   return (
     <div>
-      <h1 className="font-display font-bold text-2xl mb-1">Users</h1>
+      <div className="flex items-start justify-between gap-4 mb-1">
+        <h1 className="font-display font-bold text-2xl">Users</h1>
+        {canExport && (
+          <ExportCsvLink
+            href={exportHref}
+            title={`Downloads ${total} ${total === 1 ? "member" : "members"}, including email addresses`}
+          />
+        )}
+      </div>
       <p className="text-ink-500 mb-6">
         {total} {total === 1 ? "member" : "members"}
         {suspendedOnly && " · suspended"}

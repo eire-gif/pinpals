@@ -13,6 +13,7 @@ import {
 import { formatPrice } from "@/lib/format";
 import AdminAvatar from "@/components/admin/avatar";
 import StatusBadge from "@/components/admin/status-badge";
+import ExportCsvLink from "@/components/admin/export-csv-link";
 
 export default async function AdminOrdersPage({
   searchParams,
@@ -64,6 +65,19 @@ export default async function AdminOrdersPage({
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const hasFilters = Boolean(idParam || buyer || seller || status || payment || from || to);
 
+  // Same filters as the page, minus `page` — an export is every matching
+  // order, not the twenty currently on screen.
+  const exportParams = new URLSearchParams();
+  if (idParam) exportParams.set("id", idParam);
+  if (buyer) exportParams.set("buyer", buyer);
+  if (seller) exportParams.set("seller", seller);
+  if (status) exportParams.set("status", status);
+  if (payment) exportParams.set("payment", payment);
+  if (from) exportParams.set("from", from);
+  if (to) exportParams.set("to", to);
+  const exportQs = exportParams.toString();
+  const exportHref = exportQs ? `/admin/orders/export?${exportQs}` : "/admin/orders/export";
+
   function pageHref(targetPage: number) {
     const params = new URLSearchParams();
     if (idParam) params.set("id", idParam);
@@ -80,7 +94,13 @@ export default async function AdminOrdersPage({
 
   return (
     <div>
-      <h1 className="font-display font-bold text-2xl mb-1">Orders</h1>
+      <div className="flex items-start justify-between gap-4 mb-1">
+        <h1 className="font-display font-bold text-2xl">Orders</h1>
+        <ExportCsvLink
+          href={exportHref}
+          title={`Downloads ${total} ${total === 1 ? "order" : "orders"} matching the current filters`}
+        />
+      </div>
       <p className="text-ink-500 mb-6">
         {total} {total === 1 ? "order" : "orders"}
         {status && <> · {statusLabel(ORDER_STATUS_LABELS, status)}</>}
