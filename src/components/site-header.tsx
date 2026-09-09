@@ -25,8 +25,18 @@ export default async function SiteHeader() {
     unreadCount = count ?? 0;
   }
 
+  // One array, rendered twice: the desktop row below and MobileNav's own
+  // sheet (passed as a prop at the bottom of this file), so a link can
+  // never exist on one and not the other.
+  //
+  // "Tee Times" sits second, directly after Find Golfers: the two are the
+  // same job from opposite ends — find someone to play with, or say when
+  // you're free — and grouping them reads better than separating them with
+  // Courses. Until now /tee-times was reachable only from the footer, which
+  // is why almost nobody posts availability.
   const navLinks = [
     { href: "/community", label: "Find Golfers" },
+    { href: "/tee-times", label: "Tee Times" },
     { href: "/courses", label: "Courses" },
     { href: "/marketplace", label: "Marketplace" },
   ];
