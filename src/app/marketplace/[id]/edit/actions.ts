@@ -42,6 +42,42 @@ function readUpdateFields(formData: FormData) {
     deliveryOptions,
     collectionNotes: formData.has("collectionNotes") ? String(formData.get("collectionNotes") || "") : undefined,
     priceEur: formData.get("priceEur") || undefined,
+    // Same "was the field on the form at all?" test as the fields above:
+    // present-but-empty means "the seller cleared it" (a real edit), absent
+    // means "leave it alone". The brand/spec inputs are rendered by
+    // ItemDetailsFields whenever a category is chosen, so on this form they
+    // are always present — but the distinction still matters for any other
+    // caller, and getting it wrong would make a cleared brand un-clearable.
+    brand: formData.has("brand") ? String(formData.get("brand") || "") || undefined : undefined,
+    brandOther:
+      formData.get("brand") === "other"
+        ? String(formData.get("brandOther") || "").trim() || undefined
+        : undefined,
+    model: formData.has("model") ? String(formData.get("model") || "").trim() || undefined : undefined,
+    dexterity: formData.has("dexterity") ? String(formData.get("dexterity") || "") || undefined : undefined,
+    shaftFlex: formData.has("shaftFlex") ? String(formData.get("shaftFlex") || "") || undefined : undefined,
+    shaftMaterial: formData.has("shaftMaterial")
+      ? String(formData.get("shaftMaterial") || "") || undefined
+      : undefined,
+    loft: formData.has("loft") ? String(formData.get("loft") || "").trim() || undefined : undefined,
+    itemSize: formData.has("itemSize") ? String(formData.get("itemSize") || "").trim() || undefined : undefined,
+  };
+}
+
+/** Which of the brand/spec inputs this submission actually carried — the
+ * `has()` half of the read above, kept separately because the patch below
+ * needs "present but empty" (write null) to behave differently from
+ * "absent" (don't touch the column), and an `undefined` value alone can't
+ * tell those two apart. */
+function submittedItemDetailFields(formData: FormData) {
+  return {
+    brand: formData.has("brand"),
+    model: formData.has("model"),
+    dexterity: formData.has("dexterity"),
+    shaftFlex: formData.has("shaftFlex"),
+    shaftMaterial: formData.has("shaftMaterial"),
+    loft: formData.has("loft"),
+    itemSize: formData.has("itemSize"),
   };
 }
 
@@ -137,6 +173,22 @@ export async function updateListing(
   if (data.subcategory !== undefined) listingPatch.subcategory = data.subcategory || null;
   if (data.condition !== undefined) listingPatch.condition = data.condition;
   if (data.county !== undefined) listingPatch.county = data.county || null;
+
+  // Brand + specs. brand and brand_other are written together, always: they
+  // are one answer to one question, and writing brand without clearing a
+  // stale brand_other would trip listings_brand_other_requires_other_check
+  // (0060) on an otherwise valid edit.
+  const submitted = submittedItemDetailFields(formData);
+  if (submitted.brand) {
+    listingPatch.brand = data.brand || null;
+    listingPatch.brand_other = data.brand === "other" ? data.brandOther || null : null;
+  }
+  if (submitted.model) listingPatch.model = data.model || null;
+  if (submitted.dexterity) listingPatch.dexterity = data.dexterity || null;
+  if (submitted.shaftFlex) listingPatch.shaft_flex = data.shaftFlex || null;
+  if (submitted.shaftMaterial) listingPatch.shaft_material = data.shaftMaterial || null;
+  if (submitted.loft) listingPatch.loft = data.loft || null;
+  if (submitted.itemSize) listingPatch.item_size = data.itemSize || null;
   if (data.deliveryOptions !== undefined) listingPatch.delivery_options = data.deliveryOptions;
   if (data.collectionNotes !== undefined) listingPatch.collection_notes = data.collectionNotes || null;
   // price only applies to non-auction listings — sale_type itself isn't

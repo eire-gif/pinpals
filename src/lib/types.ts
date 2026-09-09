@@ -82,6 +82,26 @@ export type Listing = {
   currency: string;
   delivery_options: DeliveryOption[];
   collection_notes: string | null;
+  // ---- brand + item specification (0060) ----
+  /** A `marketplace_brands.id` slug ('taylormade'), not a display label —
+   * see 0060_listing_brand_and_specs.sql's header for why brand breaks the
+   * "the value IS the label" convention the fields above follow. Null on
+   * every listing created before 0060, and on any listing whose seller
+   * skipped the field. Render it with displayBrand()/brandLabel() from
+   * src/lib/marketplace-brands.ts, never raw. */
+  brand: string | null;
+  /** The seller's own words, only ever set alongside brand = 'other'
+   * (DB-enforced: listings_brand_other_requires_other_check). */
+  brand_other: string | null;
+  /** Free text: "Stealth 2 Plus", "Vokey SM9". Product lines live here, not
+   * in `brand` — a Titleist Vokey wedge is brand=titleist, model=Vokey. */
+  model: string | null;
+  dexterity: string | null;
+  shaft_flex: string | null;
+  shaft_material: string | null;
+  loft: string | null;
+  /** Shoe/apparel size, as the seller writes it ("UK 9", "Medium"). */
+  item_size: string | null;
   created_at: string;
   updated_at: string;
 };

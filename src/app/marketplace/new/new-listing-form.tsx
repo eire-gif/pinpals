@@ -13,6 +13,8 @@ import {
   MAX_AUCTION_DURATION_DAYS,
 } from "@/lib/marketplace";
 import { SALE_TYPE_LABELS, DELIVERY_OPTION_LABELS } from "@/lib/format";
+import ItemDetailsFields from "@/components/marketplace/item-details-fields";
+import DescriptionField from "@/components/marketplace/description-field";
 import { createListing, type ListingFormState } from "./actions";
 import ImageUploader from "./image-uploader";
 
@@ -31,6 +33,10 @@ export default function NewListingForm() {
 
   const [category, setCategory] = useState("");
   const [subcategory, setSubcategory] = useState("");
+  // Brand lives here rather than inside ItemDetailsFields because the
+  // category select below has to be able to clear it — see that component's
+  // own comment on why a stale brand is cleared rather than carried over.
+  const [brand, setBrand] = useState("");
   // Defaults to accepting offers rather than "fixed_price" — a seller who
   // wants a firm price still opts out in one click, but the common case
   // (a used club, a buyer who wants to haggle) no longer depends on the
@@ -123,6 +129,14 @@ export default function NewListingForm() {
         </div>
       </div>
 
+      <ItemDetailsFields
+        category={category}
+        subcategory={subcategory}
+        brand={brand}
+        onBrandChange={setBrand}
+        fieldErrors={fieldErrors}
+      />
+
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="grid gap-1.5">
           <label htmlFor="condition" className="text-[13.5px] font-bold">Condition</label>
@@ -142,17 +156,7 @@ export default function NewListingForm() {
         </div>
       </div>
 
-      <div className="grid gap-1.5">
-        <label htmlFor="description" className="text-[13.5px] font-bold">Description</label>
-        <textarea
-          id="description"
-          name="description"
-          rows={4}
-          placeholder="Condition details, why you're selling, any extras included…"
-          className={`${inputClass} resize-y`}
-        />
-        <FieldError message={fieldErrors.description} />
-      </div>
+      <DescriptionField error={fieldErrors.description} />
 
       <div className="border-t border-line pt-4 grid gap-1.5">
         <label htmlFor="saleType" className="text-[13.5px] font-bold">How are you selling it?</label>

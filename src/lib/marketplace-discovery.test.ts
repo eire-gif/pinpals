@@ -143,3 +143,55 @@ describe("marketplace cursor", () => {
     expect(decodeMarketplaceCursor("not-valid-base64url-json", "newest")).toBeNull();
   });
 });
+
+describe("brand filters", () => {
+  it("accepts repeated and comma-joined brand params alike", () => {
+    expect(parseMarketplaceFilters({ brand: ["taylormade", "ping"] }).brands).toEqual(["ping", "taylormade"]);
+    expect(parseMarketplaceFilters({ brand: "taylormade,ping" }).brands).toEqual(["ping", "taylormade"]);
+  });
+
+  it("sorts and deduplicates, so the same selection is always the same URL", () => {
+    expect(parseMarketplaceFilters({ brand: ["ping", "taylormade", "ping"] }).brands).toEqual([
+      "ping",
+      "taylormade",
+    ]);
+  });
+
+  it("drops brands that don't exist", () => {
+    expect(parseMarketplaceFilters({ brand: ["taylormade", "not-a-brand"] }).brands).toEqual(["taylormade"]);
+  });
+
+  it("drops a brand that doesn't belong to the chosen category", () => {
+    // A stale shared link should degrade to a plain category browse, not a
+    // guaranteed-empty result set.
+    const filters = parseMarketplaceFilters({ category: "Putters", brand: ["motocaddy", "odyssey"] });
+    expect(filters.brands).toEqual(["odyssey"]);
+  });
+
+  it("drops a brand that doesn't belong to the chosen subcategory", () => {
+    const filters = parseMarketplaceFilters({
+      category: "Balls & accessories",
+      subcategory: "Golf balls",
+      brand: ["bushnell", "titleist"],
+    });
+    expect(filters.brands).toEqual(["titleist"]);
+  });
+
+  it("keeps a category-less brand filter, since there's no category to contradict", () => {
+    expect(parseMarketplaceFilters({ brand: "motocaddy" }).brands).toEqual(["motocaddy"]);
+  });
+
+  it("round-trips through the query string as repeated keys", () => {
+    const filters = parseMarketplaceFilters({ category: "Irons", brand: ["mizuno", "srixon"] });
+    const params = marketplaceFiltersToSearchParams(filters);
+    expect(params.getAll("brand")).toEqual(["mizuno", "srixon"]);
+    expect(parseMarketplaceFilters(Object.fromEntries([["category", "Irons"], ["brand", params.getAll("brand")]]))).toEqual(
+      filters
+    );
+  });
+
+  it("leaves no brand key in the URL when nothing is selected", () => {
+    const params = marketplaceFiltersToSearchParams(EMPTY_MARKETPLACE_FILTERS);
+    expect(params.has("brand")).toBe(false);
+  });
+});

@@ -78,11 +78,31 @@ export type ListingFormState = { error?: string; fieldErrors?: Record<string, st
  * expects. Kept separate from the schema call itself so a malformed
  * `images` JSON blob can be reported as its own error rather than getting
  * mixed into the same zod issue list as an ordinary field. */
+/** Empty-string -> undefined, so an optional select the seller never
+ * touched reads as "not provided" rather than failing its enum. Every brand
+ * and spec field is optional (see the header comment on the brand block in
+ * src/lib/validation/listing.ts), so this is the shape they all want. */
+function optionalField(formData: FormData, name: string): string | undefined {
+  return String(formData.get(name) || "").trim() || undefined;
+}
+
 function readListingFields(formData: FormData) {
   const deliveryOptions = formData.getAll("deliveryOptions").map(String);
 
   return {
     title: String(formData.get("title") || ""),
+    brand: optionalField(formData, "brand"),
+    // Only meaningful behind brand='other' — dropped otherwise so a seller
+    // who typed a name, then changed the brand select back to a real brand,
+    // doesn't trip listings_brand_other_requires_other_check with a value
+    // the form no longer shows them.
+    brandOther: formData.get("brand") === "other" ? optionalField(formData, "brandOther") : undefined,
+    model: optionalField(formData, "model"),
+    dexterity: optionalField(formData, "dexterity"),
+    shaftFlex: optionalField(formData, "shaftFlex"),
+    shaftMaterial: optionalField(formData, "shaftMaterial"),
+    loft: optionalField(formData, "loft"),
+    itemSize: optionalField(formData, "itemSize"),
     description: String(formData.get("description") || ""),
     category: String(formData.get("category") || ""),
     subcategory: String(formData.get("subcategory") || ""),
@@ -233,6 +253,14 @@ export async function createListing(
       price_cents: priceEur !== null ? eurToCents(priceEur) : null,
       delivery_options: data.deliveryOptions,
       collection_notes: data.collectionNotes || null,
+      brand: data.brand || null,
+      brand_other: data.brand === "other" ? data.brandOther || null : null,
+      model: data.model || null,
+      dexterity: data.dexterity || null,
+      shaft_flex: data.shaftFlex || null,
+      shaft_material: data.shaftMaterial || null,
+      loft: data.loft || null,
+      item_size: data.itemSize || null,
     })
     .select("id")
     .single<{ id: number }>();

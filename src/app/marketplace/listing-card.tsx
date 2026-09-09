@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import type { MarketplaceListing } from "@/lib/marketplace-discovery";
 import { formatPrice, formatPriceCents, formatTimeRemaining, MARKETPLACE_BADGE_LABELS } from "@/lib/format";
+import { displayBrand } from "@/lib/marketplace-brands";
 import FavouriteButton from "./favourite-button";
 
 const BADGE_STYLES: Record<MarketplaceListing["sale_type"], string> = {
@@ -25,6 +26,7 @@ export default function ListingCard({
   // read inline in the component body itself.
   const timeRemaining = listing.auction ? formatTimeRemaining(listing.auction.ends_at) : null;
   const auctionEnded = timeRemaining === "Ended";
+  const brandName = displayBrand(listing);
 
   return (
     <Link
@@ -64,6 +66,10 @@ export default function ListingCard({
       <div className="p-4">
         <span className="text-[11.5px] uppercase tracking-wider text-green-700 font-bold">
           {listing.category}
+          {/* Brand beside the category, not on its own line: the card's
+           * vertical space is already spoken for, and "IRONS · MIZUNO" is
+           * how a buyer scanning a grid actually reads it. */}
+          {brandName && <span className="text-ink-500"> · {brandName}</span>}
         </span>
         <h3 className="font-display font-bold text-lg mt-1 truncate">{listing.title}</h3>
 

@@ -6,6 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import type { Listing, ListingImage, Auction, Offer, Order, Profile, Review, SellerRatingSummary, StripeConnectedAccount } from "@/lib/types";
 import { formatPrice, formatPriceCents, SELLER_LISTING_STATUS_LABELS } from "@/lib/format";
 import { isAuctionSaleType } from "@/lib/marketplace";
+import { displayBrand, SPEC_FIELD_LABELS } from "@/lib/marketplace-brands";
 import { sellerOnboardingStatus, isSellerPaymentReady } from "@/lib/stripe/connect";
 import { getSiteUrl } from "@/lib/site-url";
 import { fetchMarketplaceListings, EMPTY_MARKETPLACE_FILTERS } from "@/lib/marketplace-discovery";
@@ -274,6 +275,19 @@ export default async function ListingDetailPage({
     isSignedIn: !!user,
   });
 
+  // Brand shows the seller's own words for an "Other" listing and the
+  // canonical label otherwise; null for every listing created before the
+  // brand field existed, which is why the markup below guards on it.
+  const brandName = displayBrand(listing);
+
+  const specs = [
+    { label: SPEC_FIELD_LABELS.dexterity, value: listing.dexterity },
+    { label: SPEC_FIELD_LABELS.shaftFlex, value: listing.shaft_flex },
+    { label: SPEC_FIELD_LABELS.shaftMaterial, value: listing.shaft_material },
+    { label: SPEC_FIELD_LABELS.loft, value: listing.loft },
+    { label: SPEC_FIELD_LABELS.itemSize, value: listing.item_size },
+  ].filter((spec): spec is { label: string; value: string } => !!spec.value);
+
   return (
     <div className="max-w-6xl mx-auto px-6 py-14 pb-28 lg:pb-14">
       <Link href="/marketplace" className="text-sm text-green-700 font-bold">
@@ -290,6 +304,16 @@ export default async function ListingDetailPage({
               {listing.subcategory && <span className="text-ink-500 normal-case font-semibold"> · {listing.subcategory}</span>}
             </span>
             <h1 className="font-display font-bold text-3xl mt-1">{listing.title}</h1>
+            {/* Brand and model under the title rather than buried in the
+             * spec list: on a marketplace where buyers shop by brand, "PING
+             * · G430 Max" is the second thing they read after the photo. */}
+            {(brandName || listing.model) && (
+              <p className="text-[15px] font-semibold text-ink-900 mt-1">
+                {brandName}
+                {brandName && listing.model ? " · " : ""}
+                {listing.model}
+              </p>
+            )}
 
             <div className="flex items-center gap-2 mt-3 flex-wrap">
               <span className="bg-cream-100 text-xs font-bold px-2.5 py-1 rounded-full">{listing.condition}</span>
@@ -302,6 +326,20 @@ export default async function ListingDetailPage({
                 </span>
               )}
             </div>
+
+            {/* Only the specs this particular seller actually filled in —
+             * a row of "Not specified" tells a buyer nothing and makes a
+             * sparse listing look broken. */}
+            {specs.length > 0 && (
+              <dl className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-2 text-sm">
+                {specs.map(({ label, value }) => (
+                  <div key={label}>
+                    <dt className="text-xs font-bold text-ink-500 uppercase tracking-wide">{label}</dt>
+                    <dd className="font-semibold">{value}</dd>
+                  </div>
+                ))}
+              </dl>
+            )}
 
             {auction && (
               <div className="mt-3 text-xs text-ink-500 grid gap-1">

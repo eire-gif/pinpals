@@ -14,6 +14,8 @@ import {
   isAuctionSaleType,
 } from "@/lib/marketplace";
 import { SALE_TYPE_LABELS, DELIVERY_OPTION_LABELS } from "@/lib/format";
+import ItemDetailsFields from "@/components/marketplace/item-details-fields";
+import DescriptionField from "@/components/marketplace/description-field";
 import type { Listing, ListingImage, Auction, SaleType } from "@/lib/types";
 import { updateListing, type UpdateListingState } from "./actions";
 import EditImageManager from "./edit-image-manager";
@@ -52,6 +54,7 @@ export default function EditListingForm({
 
   const [category, setCategory] = useState<string>(listing.category);
   const [subcategory, setSubcategory] = useState<string>(listing.subcategory || "");
+  const [brand, setBrand] = useState<string>(listing.brand || "");
   const [dirty, setDirty] = useState(false);
 
   const subcategoryOptions = useMemo(
@@ -151,6 +154,16 @@ export default function EditListingForm({
         </div>
       </div>
 
+      <ItemDetailsFields
+        category={category}
+        subcategory={subcategory}
+        brand={brand}
+        onBrandChange={setBrand}
+        defaults={listing}
+        disabled={auctionLocked}
+        fieldErrors={fieldErrors}
+      />
+
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="grid gap-1.5">
           <label htmlFor="condition" className="text-[13.5px] font-bold">Condition</label>
@@ -176,18 +189,11 @@ export default function EditListingForm({
         </div>
       </div>
 
-      <div className="grid gap-1.5">
-        <label htmlFor="description" className="text-[13.5px] font-bold">Description</label>
-        <textarea
-          id="description"
-          name="description"
-          rows={4}
-          disabled={auctionLocked}
-          defaultValue={listing.description || ""}
-          className={`${inputClass} disabled:opacity-60 resize-y`}
-        />
-        <FieldError message={fieldErrors.description} />
-      </div>
+      <DescriptionField
+        defaultValue={listing.description || ""}
+        disabled={auctionLocked}
+        error={fieldErrors.description}
+      />
 
       <div className="border-t border-line pt-4 grid gap-1.5">
         <span className="text-[13.5px] font-bold">How it&apos;s being sold</span>

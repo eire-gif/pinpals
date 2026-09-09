@@ -1,6 +1,11 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { parseMarketplaceFilters, fetchMarketplaceListings, RESULTS_PAGE_SIZE } from "@/lib/marketplace-discovery";
+import {
+  parseMarketplaceFilters,
+  fetchMarketplaceListings,
+  fetchBrandFacets,
+  RESULTS_PAGE_SIZE,
+} from "@/lib/marketplace-discovery";
 import MarketplaceControls from "./marketplace-controls";
 import LoadMoreListings from "./load-more-listings";
 
@@ -26,13 +31,15 @@ export default async function MarketplacePage({
     data: { user },
   } = await supabase.auth.getUser();
 
-  const { listings, nextCursor } = await fetchMarketplaceListings(
-    supabase,
-    filters,
-    null,
-    user?.id ?? null,
-    RESULTS_PAGE_SIZE
-  );
+  // Facets in parallel with the results themselves: they're independent
+  // queries against the same filter set, and the brand panel shouldn't add
+  // a round-trip to time-to-first-listing. fetchBrandFacets never rejects
+  // (it degrades to un-counted brands), so this Promise.all can only fail
+  // for the reason the page should fail anyway — the listings query.
+  const [{ listings, nextCursor }, brandFacets] = await Promise.all([
+    fetchMarketplaceListings(supabase, filters, null, user?.id ?? null, RESULTS_PAGE_SIZE),
+    fetchBrandFacets(supabase, filters),
+  ]);
 
   return (
     <div className="max-w-6xl mx-auto px-6 py-8">
@@ -57,7 +64,7 @@ export default async function MarketplacePage({
         </div>
       )}
 
-      <MarketplaceControls filters={filters} />
+      <MarketplaceControls filters={filters} brandFacets={brandFacets} />
 
       {/* Keyed by the filters themselves so a search/filter/sort change
        * fully remounts the accumulated "Load more" state below, rather than
