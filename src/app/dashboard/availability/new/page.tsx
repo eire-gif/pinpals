@@ -19,7 +19,8 @@ export default async function NewAvailabilityPage() {
         <h1 className="font-display font-bold text-3xl mt-2.5">Post your availability.</h1>
         <p className="text-ink-500 mt-2">
           Let other Pinpals members know you&rsquo;ve got room for a game — it goes live
-          straight away and other members can see it in tee-time invites.
+          straight away. You choose whether it goes to everyone or only to the members
+          you&rsquo;ve connected with.
         </p>
       </div>
       <div className="bg-surface rounded-2xl shadow-lg p-8">

@@ -229,6 +229,12 @@ export type Offer = {
 
 export type InviteStatus = "open" | "full" | "cancelled" | "completed";
 
+/** Who a tee-time invite is addressed to — see
+ * supabase/migrations/0065_tee_time_invite_visibility.sql. Enforced by the
+ * table's read policy, not by callers, so a "connections" invite simply does
+ * not come back for anyone outside the host's accepted connections. */
+export type InviteVisibility = "everyone" | "connections";
+
 export type TeeTimeInvite = {
   id: number;
   member_id: string;
@@ -248,6 +254,8 @@ export type TeeTimeInvite = {
   handicap_limit: number | null;
   notes: string | null;
   status: InviteStatus;
+  /** Added in 0065. Every invite posted before it reads as "everyone". */
+  visibility: InviteVisibility;
   created_at: string;
   updated_at: string;
   expires_at: string;

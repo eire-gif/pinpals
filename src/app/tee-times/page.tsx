@@ -2,7 +2,13 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import type { MyInterest, TeeTimeInviteWithHost } from "@/lib/types";
 import RegionSelect from "@/components/region-select";
-import { SPACES_OPTIONS, formatInviteDate, formatTimeRange, formatClock } from "@/lib/tee-times";
+import {
+  SPACES_OPTIONS,
+  VISIBILITY_BADGES,
+  formatInviteDate,
+  formatTimeRange,
+  formatClock,
+} from "@/lib/tee-times";
 import { initials } from "@/lib/format";
 import InterestButton from "./interest-button";
 
@@ -186,6 +192,16 @@ export default async function TeeTimesPage({
                     {invite.handicap_limit != null && (
                       <span className="bg-cream-100 text-xs font-bold px-2.5 py-1 rounded-full">
                         Up to {invite.handicap_limit} hcp
+                      </span>
+                    )}
+                    {/* A card reaching this list is one the read policy
+                        already let through, so this badge never gates
+                        anything — it tells the viewer why a round they can
+                        see isn't on every other member's screen, and tells
+                        the host their own post went where they meant it. */}
+                    {VISIBILITY_BADGES[invite.visibility] && (
+                      <span className="bg-navy-900 text-cream-50 text-xs font-bold px-2.5 py-1 rounded-full">
+                        {VISIBILITY_BADGES[invite.visibility]}
                       </span>
                     )}
                   </div>

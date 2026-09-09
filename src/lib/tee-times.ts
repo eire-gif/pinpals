@@ -1,6 +1,41 @@
-import type { InterestStatus, InviteStatus } from "./types";
+import type { InterestStatus, InviteStatus, InviteVisibility } from "./types";
 
 export const SPACES_OPTIONS = [1, 2, 3] as const;
+
+// ---------- Who an invite is addressed to (0065) ----------
+
+/** The order the two choices are offered in, and the order they're listed
+ * anywhere else. "everyone" first because it is the default and the common
+ * case — a member posting a spare space usually wants it filled. */
+export const VISIBILITY_OPTIONS = ["everyone", "connections"] as const;
+
+export const DEFAULT_VISIBILITY: InviteVisibility = "everyone";
+
+export const VISIBILITY_LABELS: Record<InviteVisibility, string> = {
+  everyone: "All Pinpals members",
+  connections: "My connections only",
+};
+
+/** The one-line explanation shown under each choice on the form. Written as
+ * a consequence ("who will see this") rather than a restatement of the
+ * label, because the label alone doesn't tell a new member what a connection
+ * is or that they might have none yet. */
+export const VISIBILITY_DESCRIPTIONS: Record<InviteVisibility, string> = {
+  everyone: "Anyone browsing tee-time invites can see it and ask to join.",
+  connections: "Only members you've connected with will see it. Nobody else can find it or join.",
+};
+
+/** The short form for a card badge. Only rendered for "connections" — an
+ * "everyone" invite needs no badge, since that's what a member browsing the
+ * public list already assumes. */
+export const VISIBILITY_BADGES: Record<InviteVisibility, string | null> = {
+  everyone: null,
+  connections: "Connections only",
+};
+
+export function isInviteVisibility(value: string): value is InviteVisibility {
+  return (VISIBILITY_OPTIONS as readonly string[]).includes(value);
+}
 
 export const STATUS_LABELS: Record<InviteStatus, string> = {
   open: "Open",

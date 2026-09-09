@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getClubById } from "@/lib/courses";
 import { isCountryCode, isRegionInCountry, countryName } from "@/lib/regions";
-import { SPACES_OPTIONS, computeExpiry } from "@/lib/tee-times";
+import { DEFAULT_VISIBILITY, SPACES_OPTIONS, computeExpiry, isInviteVisibility } from "@/lib/tee-times";
 
 export type PostAvailabilityState = { error?: string };
 
@@ -34,6 +34,7 @@ export async function postAvailability(
   const exactTeeTime = String(formData.get("exactTeeTime") || "").trim();
   const handicapRaw = String(formData.get("handicapLimit") || "").trim();
   const notes = String(formData.get("notes") || "").trim();
+  const visibilityRaw = String(formData.get("visibility") || "").trim();
 
   if (!isCountryCode(country)) {
     return { error: "Please choose the country the course is in." };
@@ -92,6 +93,18 @@ export async function postAvailability(
     return { error: "That handicap limit doesn't look right." };
   }
 
+  // Falls back to the default rather than erroring on an empty value: the
+  // radio group always posts one of the two, so an absent value means an
+  // older cached copy of the form, and silently posting to everyone — the
+  // behaviour before this field existed — is the honest reading of that.
+  // A *present but unrecognised* value is different, and is rejected: it can
+  // only come from a hand-built request, and guessing an audience for
+  // someone is the one thing this field must never do.
+  const visibility = visibilityRaw ? visibilityRaw : DEFAULT_VISIBILITY;
+  if (!isInviteVisibility(visibility)) {
+    return { error: "Please choose who can see this tee time." };
+  }
+
   const { error } = await supabase.from("tee_time_invites").insert({
     member_id: user.id,
     club_id: club.id,
@@ -106,6 +119,7 @@ export async function postAvailability(
     has_tee_time_booked: hasTeeTime,
     handicap_limit: handicapLimit,
     notes: notes || null,
+    visibility,
     expires_at: computeExpiry(playDate),
   });
 

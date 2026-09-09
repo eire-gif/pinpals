@@ -11,7 +11,7 @@ import {
   INVITE_INTEREST_STATUS_STYLES,
 } from "@/lib/admin/format";
 import { MODERATION_ROLES } from "@/lib/admin/moderation";
-import { formatClock, formatInviteDate, formatTimeRange } from "@/lib/tee-times";
+import { VISIBILITY_LABELS, formatClock, formatInviteDate, formatTimeRange } from "@/lib/tee-times";
 import AdminAvatar from "@/components/admin/avatar";
 import StatusBadge from "@/components/admin/status-badge";
 import ModerationForm from "@/components/admin/moderation-form";
@@ -72,6 +72,13 @@ export default async function AdminTeeTimeDetailPage({
               Tee time booked
             </span>
           )}
+          {/* Always shown, both values, unlike the member-facing badge which
+              only marks the connections-only case. Staff are reading this to
+              judge a report or a complaint, and "the host chose everyone" is
+              as much a fact of the case as "the host chose connections". */}
+          <span className="bg-cream-100 text-xs font-bold px-2.5 py-1 rounded-full">
+            Visible to: {VISIBILITY_LABELS[invite.visibility]}
+          </span>
         </div>
 
         {invite.notes && <p className="text-sm text-ink-500 mt-4 max-w-[60ch]">{invite.notes}</p>}
