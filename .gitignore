@@ -40,3 +40,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# files delivered from Claude sessions — downloads land here, they are
+# not part of the app
+/Claude outputs/
