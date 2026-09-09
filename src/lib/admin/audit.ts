@@ -133,6 +133,13 @@ export const ADMIN_ACTIONS = [
   // `reports` row every other report.* action already covers.
   "report.escalated",
   "report.redacted",
+  // marketplace-notifications-reviews (0056) — /admin/reviews, the review
+  // moderation queue this phase adds. Same "hide/restore a status flag,
+  // never delete the row" shape as listing.hide/listing.restore and
+  // message.hidden/message.restored above — see hideReview()/restoreReview()
+  // in src/app/admin/reviews/actions.ts.
+  "review.hide",
+  "review.restore",
   // /admin/risk-flags — src/app/admin/risk-flags/actions.ts. Purely an
   // internal signal for a human to review (see risk.ts's own header
   // comment); raising or clearing one never itself suspends, removes, or
@@ -185,6 +192,8 @@ export const AUDIT_TARGET_TYPES = [
   // OWN subject (fraud_flags.target_type/target_id), while this names the
   // fraud_flags ROW itself that was raised or cleared.
   "fraud_flag",
+  // The target of review.hide/review.restore above.
+  "review",
 ] as const;
 export type AuditTargetType = (typeof AUDIT_TARGET_TYPES)[number];
 

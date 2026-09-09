@@ -5,6 +5,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { syncConnectedAccountFromStripe } from "./connect";
 import { mapStripeRefundStatus } from "./refunds";
 import { orderPayoutStatusForPayout, reconcilePayoutTransfers, upsertPayout } from "./payouts";
+import { notifyUser } from "@/lib/notifications-server";
+import { formatPrice } from "@/lib/format";
 import type { Order, Payout, Refund, StripeConnectedAccount, WebhookEventStatus } from "@/lib/types";
 
 // The one place that decides what a Stripe webhook event *means* for
@@ -202,12 +204,57 @@ async function handlePaymentIntentSucceeded(
     return;
   }
 
-  await applyOrderPaymentSucceeded(admin, {
+  const wasPending = order.status === "pending";
+  const updated = await applyOrderPaymentSucceeded(admin, {
     eventRowId: ledgerRowId,
     orderId: order.id,
     paymentIntentId: paymentIntent.id,
     currency: paymentIntent.currency,
   });
+
+  // updated is null only when the guard (`payment_status <> 'paid'`) found
+  // this order already paid — a webhook redelivery, or the checkout
+  // action's own self-heal retrieve landed first. Never notify twice for
+  // the same real transition (dedupe keys below are a second, belt-and-
+  // suspenders layer for the same reason — see 0056's own design decision 1
+  // on why an admin's manual webhook-events "Retry" makes this matter).
+  if (updated) {
+    await notifyUser(admin, {
+      userId: order.buyer_id,
+      type: "payment_succeeded",
+      title: "Payment received",
+      body: `Your payment of ${formatPrice(order.total_eur)} for "${order.listing_title}" was successful.`,
+      href: `/dashboard/orders/${order.id}`,
+      data: { orderId: order.id },
+      dedupeKey: `stripe:${paymentIntent.id}:payment_succeeded:buyer`,
+    });
+    await notifyUser(admin, {
+      userId: order.seller_id,
+      type: "seller_action_required",
+      title: "Action required: arrange handover",
+      body: `The buyer paid for "${order.listing_title}" — arrange collection or delivery with them.`,
+      href: `/dashboard/orders/${order.id}`,
+      data: { orderId: order.id },
+      dedupeKey: `stripe:${paymentIntent.id}:seller_action_required`,
+    });
+
+    if (wasPending && updated.status === "completed") {
+      for (const [userId, otherId] of [
+        [order.buyer_id, order.seller_id],
+        [order.seller_id, order.buyer_id],
+      ] as const) {
+        await notifyUser(admin, {
+          userId,
+          type: "review_available",
+          title: "Leave a review",
+          body: `Your order for "${order.listing_title}" is complete — you can now leave a review.`,
+          href: userId === order.buyer_id ? "/dashboard/buying?tab=delivery" : "/dashboard/selling?tab=sales",
+          data: { orderId: order.id, revieweeId: otherId },
+          dedupeKey: `order:${order.id}:review_available:${userId}`,
+        });
+      }
+    }
+  }
 }
 
 async function handlePaymentIntentFailed(
@@ -226,12 +273,31 @@ async function handlePaymentIntentFailed(
     return;
   }
 
-  await applyOrderPaymentFailed(admin, {
+  const failureMessage = truncateErrorMessage(paymentIntent.last_payment_error?.message);
+  const updated = await applyOrderPaymentFailed(admin, {
     eventRowId: ledgerRowId,
     orderId: order.id,
     paymentIntentId: paymentIntent.id,
-    error: truncateErrorMessage(paymentIntent.last_payment_error?.message),
+    error: failureMessage,
   });
+
+  if (updated) {
+    // Stripe's own decline message (already length-capped by
+    // truncateErrorMessage above) is safe to show — it's a short, generic
+    // reason code/phrase ("Your card was declined"), never a card number or
+    // other payment credential. Never the raw error object.
+    await notifyUser(admin, {
+      userId: order.buyer_id,
+      type: "payment_failed",
+      title: "Payment didn't go through",
+      body: failureMessage
+        ? `Your payment for "${order.listing_title}" failed: ${failureMessage}`
+        : `Your payment for "${order.listing_title}" didn't go through — please try again.`,
+      href: `/dashboard/orders/${order.id}`,
+      data: { orderId: order.id },
+      dedupeKey: `stripe:${paymentIntent.id}:payment_failed`,
+    });
+  }
 }
 
 /**
@@ -307,6 +373,25 @@ async function handleChargeRefunded(admin: SupabaseClient, ledgerRowId: number, 
     orderId: order.id,
     refundAmountEur: refundedAmountEur,
     reason,
+  });
+
+  // ledgerRowId is unique per claimed webhook_events row (see
+  // claim_webhook_event(), 0021) — including across an admin's manual
+  // "Retry" of this same row (src/app/admin/webhook-events/[id]/actions.ts
+  // re-runs processStripeEvent() against the SAME ledger row id), so
+  // keying on it here is exactly "once per delivery this app actually
+  // processes," matching create_refund_request()/mark_refund_outcome()'s
+  // own notifications in the synchronous admin-initiated path (see
+  // src/app/admin/orders/[id]/actions.ts) without double-notifying when
+  // BOTH the synchronous path and this webhook observe the same refund.
+  await notifyUser(admin, {
+    userId: order.buyer_id,
+    type: "refund_succeeded",
+    title: "Refund processed",
+    body: `A refund of ${formatPrice(refundedAmountEur)} for "${order.listing_title}" has been processed.`,
+    href: `/dashboard/orders/${order.id}`,
+    data: { orderId: order.id },
+    dedupeKey: `webhook:${ledgerRowId}:refund_succeeded:buyer`,
   });
 }
 
@@ -464,6 +549,39 @@ async function handleRefundReconciliation(admin: SupabaseClient, ledgerRowId: nu
   if (error) throw new Error(`Failed to reconcile refund ${refund.id}: ${error.message}`);
 
   const row = (data as Refund[] | null)?.[0] ?? null;
+
+  // Only a genuinely NEW terminal outcome is worth telling anyone about.
+  // mark_refund_outcome_by_stripe_id()'s own guard (`status not in
+  // ('succeeded','failed','canceled')`) means `row` comes back null when
+  // either nothing matched or the row was already terminal — so a non-null
+  // row with a terminal status here is always a real, fresh transition this
+  // app hadn't recorded yet (e.g. a non-card method that only settles
+  // asynchronously, after requestOrderRefund()'s own synchronous
+  // notification already fired for an initial 'pending'/'requires_action').
+  if (row && (row.status === "succeeded" || row.status === "failed")) {
+    const { data: order } = await admin
+      .from("orders")
+      .select("buyer_id, seller_id, listing_title")
+      .eq("id", row.order_id)
+      .maybeSingle<Pick<Order, "buyer_id" | "seller_id" | "listing_title">>();
+    if (order) {
+      const succeeded = row.status === "succeeded";
+      for (const userId of [order.buyer_id, order.seller_id]) {
+        await notifyUser(admin, {
+          userId,
+          type: succeeded ? "refund_succeeded" : "refund_failed",
+          title: succeeded ? "Refund processed" : "Refund could not be completed",
+          body: succeeded
+            ? `A refund of ${formatPrice(row.amount_eur)} for "${order.listing_title}" has been processed.`
+            : `A refund of ${formatPrice(row.amount_eur)} for "${order.listing_title}" could not be completed — our team has been notified.`,
+          href: `/dashboard/orders/${row.order_id}`,
+          data: { orderId: row.order_id },
+          dedupeKey: `webhook:${ledgerRowId}:${succeeded ? "refund_succeeded" : "refund_failed"}:${userId}`,
+        });
+      }
+    }
+  }
+
   await markWebhookEventTerminal(admin, {
     eventRowId: ledgerRowId,
     // No matching `refunds` row is not treated as a routing failure the way
@@ -491,6 +609,15 @@ async function handleDisputeEvent(admin: SupabaseClient, ledgerRowId: number, di
 
   const order = paymentIntentId ? await findOrderByPaymentReference(admin, paymentIntentId) : null;
 
+  // Read before the upsert purely to tell "just opened" from "an update to
+  // a dispute we already knew about" — the upsert itself doesn't report
+  // which branch it took.
+  const { data: existing } = await admin
+    .from("disputes")
+    .select("id")
+    .eq("stripe_dispute_id", dispute.id)
+    .maybeSingle<{ id: number }>();
+
   const { error } = await admin.from("disputes").upsert(
     {
       order_id: order?.id ?? null,
@@ -509,6 +636,29 @@ async function handleDisputeEvent(admin: SupabaseClient, ledgerRowId: number, di
     { onConflict: "stripe_dispute_id" }
   );
   if (error) throw new Error(`Failed to upsert dispute ${dispute.id}: ${error.message}`);
+
+  if (order) {
+    const type = existing ? "dispute_updated" : "dispute_opened";
+    const title = existing ? "Dispute update" : "A payment dispute was opened";
+    // Never Stripe's own dispute reason/evidence text verbatim (could carry
+    // whatever the cardholder's bank submitted) — a fixed, safe phrasing
+    // plus the order it concerns and a link to this app's own (RLS-scoped,
+    // narrow) dispute status view, same "never surface a raw external
+    // payload" discipline as truncateErrorMessage()'s callers elsewhere in
+    // this file.
+    const body = `A payment dispute is in progress for "${order.listing_title}" — our team is handling it.`;
+    for (const userId of [order.buyer_id, order.seller_id]) {
+      await notifyUser(admin, {
+        userId,
+        type,
+        title,
+        body,
+        href: `/dashboard/orders/${order.id}`,
+        data: { orderId: order.id },
+        dedupeKey: `dispute:${dispute.id}:${dispute.status}:${userId}`,
+      });
+    }
+  }
 
   await markWebhookEventTerminal(admin, {
     eventRowId: ledgerRowId,

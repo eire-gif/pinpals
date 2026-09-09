@@ -115,31 +115,40 @@ const KNOWN_OFFER_CREATE_REJECTION_SNIPPETS = [
 ];
 
 /**
- * Opportunistic sweep for the two lazily-corrected states migration 0048
- * introduced — a past-deadline offer still stored as 'pending'/'countered',
- * and a checkout reservation whose window has passed. Neither sweep is ever
- * load-bearing for correctness (offer_action()/prepare_and_validate_offer()
- * both re-check expiry against `now()` directly, regardless of whether a
- * sweep has run recently), so a failure here is logged and swallowed rather
- * than blocking whatever triggered the sweep — see that migration's own
- * "no pg_cron dependency" header comment for why this app calls these two
- * functions opportunistically instead of on a schedule. Called from
- * createOffer() below (so a stale chain never trips the one-active-offer
- * unique index, and a stale reservation never blocks a fresh offer on the
- * listing it was holding) and from the listing-detail page's own load (so
- * what's rendered doesn't lag behind reality by more than one page view).
+ * Opportunistic sweep for every lazily-corrected, time-based state this app
+ * has: a past-deadline offer still stored as 'pending'/'countered', a
+ * checkout reservation whose window has passed (both 0048), and — since
+ * 0056_marketplace_notifications_reviews.sql — an auction past its own
+ * `ends_at` that's never been closed (run_auction_sweeps(), which also
+ * fires "ending soon" notifications for a still-live auction inside its own
+ * threshold). None of these are ever load-bearing for correctness
+ * (offer_action()/prepare_and_validate_offer() re-check expiry against
+ * `now()` directly regardless of when a sweep last ran; an ended auction
+ * simply can't be bid on again once its own validate_bid() sees `now() >
+ * ends_at`), so a failure here is logged and swallowed rather than blocking
+ * whatever triggered the sweep — see 0048's own "no pg_cron dependency"
+ * header comment for why this app calls these opportunistically instead of
+ * on a schedule. Called from createOffer() below (so a stale chain never
+ * trips the one-active-offer unique index) and from every marketplace-
+ * relevant page's own load (listing detail, buying/selling workspaces, the
+ * checkout pages) so what's rendered — and what notifications have fired —
+ * doesn't lag behind reality by more than one page view.
  */
 export async function runOfferSweeps(): Promise<void> {
   const admin = createAdminClient();
-  const [reservations, offers] = await Promise.all([
+  const [reservations, offers, auctions] = await Promise.all([
     admin.rpc("release_expired_offer_reservations"),
     admin.rpc("expire_stale_offers"),
+    admin.rpc("run_auction_sweeps"),
   ]);
   if (reservations.error) {
     console.error("release_expired_offer_reservations failed:", reservations.error.message);
   }
   if (offers.error) {
     console.error("expire_stale_offers failed:", offers.error.message);
+  }
+  if (auctions.error) {
+    console.error("run_auction_sweeps failed:", auctions.error.message);
   }
 }
 

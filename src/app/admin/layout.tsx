@@ -45,6 +45,11 @@ const NAV_ITEMS: { href: string; label: string; enabled?: boolean; roles?: reado
   { href: "/admin/webhook-events", label: "Webhook events", enabled: true, roles: FINANCE_ROLES },
   { href: "/admin/clubs", label: "Clubs" },
   { href: "/admin/reports", label: "Reports", enabled: true },
+  // marketplace-notifications-reviews (0056) — no `roles` restriction, same
+  // reasoning as Listings above: any active staff member may hide/restore a
+  // review (MODERATION_ROLES gates the actual mutation in
+  // src/app/admin/reviews/actions.ts, not this nav entry).
+  { href: "/admin/reviews", label: "Reviews", enabled: true },
   // marketplace-trust-safety — see src/lib/admin/risk.ts's own header
   // comment on why this is a signal, never a verdict. No `roles`
   // restriction: any active staff member may raise a flag (same reasoning

@@ -13,6 +13,7 @@ import type {
   Profile,
   Refund,
   RefundStatus,
+  Review,
   StripeConnectedAccount,
   TeeTimeInterest,
   TeeTimeInvite,
@@ -1037,8 +1038,15 @@ async function resolveTargetSummaries(
   const orderIds = [...new Set(rows.filter((r) => r.target_type === "order").map((r) => r.target_id))]
     .map((id) => Number(id))
     .filter((id) => Number.isFinite(id));
+  // 'review' (0056) — same shape again; resolves to the /admin/reviews
+  // queue filtered to this one review, since there's no per-review detail
+  // page (the queue's own inline hide/restore forms are the whole
+  // moderation surface — see src/app/admin/reviews/page.tsx).
+  const reviewIds = [...new Set(rows.filter((r) => r.target_type === "review").map((r) => r.target_id))]
+    .map((id) => Number(id))
+    .filter((id) => Number.isFinite(id));
 
-  const [{ data: users }, { data: listings }, { data: invites }, { data: orders }] = await Promise.all([
+  const [{ data: users }, { data: listings }, { data: invites }, { data: orders }, { data: reviews }] = await Promise.all([
     userIds.length
       ? admin
           .from("profiles")
@@ -1059,12 +1067,16 @@ async function resolveTargetSummaries(
     orderIds.length
       ? admin.from("orders").select("id, listing_title").in("id", orderIds).returns<Pick<Order, "id" | "listing_title">[]>()
       : Promise.resolve({ data: [] as Pick<Order, "id" | "listing_title">[] }),
+    reviewIds.length
+      ? admin.from("reviews").select("id, rating").in("id", reviewIds).returns<Pick<Review, "id" | "rating">[]>()
+      : Promise.resolve({ data: [] as Pick<Review, "id" | "rating">[] }),
   ]);
 
   const userById = new Map((users ?? []).map((u) => [u.id, u]));
   const listingById = new Map((listings ?? []).map((l) => [String(l.id), l]));
   const inviteById = new Map((invites ?? []).map((i) => [String(i.id), i]));
   const orderById = new Map((orders ?? []).map((o) => [String(o.id), o]));
+  const reviewById = new Map((reviews ?? []).map((r) => [String(r.id), r]));
 
   for (const row of rows) {
     const k = key(row.target_type, row.target_id);
@@ -1101,6 +1113,14 @@ async function resolveTargetSummaries(
         o
           ? { type: "order", label: `Order #${row.target_id} — ${o.listing_title}`, href: `/admin/orders/${row.target_id}` }
           : { type: "order", label: `Order #${row.target_id} no longer exists`, href: null }
+      );
+    } else if (row.target_type === "review") {
+      const r = reviewById.get(row.target_id);
+      summaries.set(
+        k,
+        r
+          ? { type: "review", label: `Review #${row.target_id} (${r.rating}★)`, href: `/admin/reviews?reviewId=${row.target_id}` }
+          : { type: "review", label: `Review #${row.target_id} no longer exists`, href: null }
       );
     } else {
       // message / conversation — deliberately not resolved to a real row or
@@ -3175,4 +3195,69 @@ async function buildAuctionPage(
   }));
 
   return { rows, total, page: safePage, pageSize: AUCTIONS_PAGE_SIZE };
+}
+
+// ---------- Reviews (marketplace-notifications-reviews, 0056) ----------
+//
+// /admin/reviews — the moderation queue hideReview()/restoreReview()
+// (src/app/admin/reviews/actions.ts) act against. Same shape as
+// listRefunds() above: one paginated table query, then a single batched
+// profiles lookup for both reviewer and reviewee (never a per-row query).
+
+export type AdminReviewListItem = Review & {
+  reviewer: AdminProfile | null;
+  reviewee: AdminProfile | null;
+};
+
+export type AdminReviewPage = { rows: AdminReviewListItem[]; total: number; page: number; pageSize: number };
+
+export type AdminReviewFilters = {
+  /** "hidden" / "visible" — omit for both. There's no third "all reviews
+   * ever, including hidden" default the way listings' "active" default
+   * works, since a moderator's actual working queue is really "what got
+   * reported", which the target-filtered ?reviewId= link from /admin/reports
+   * already covers. */
+  status?: "hidden" | "visible";
+  /** A single review's id — how a reports-queue row for target_type
+   * 'review' links here (see resolveTargetSummaries()'s "review" branch
+   * above), since there's no /admin/reviews/[id] detail page. */
+  reviewId?: number;
+};
+
+const REVIEWS_PAGE_SIZE = 20;
+
+export async function listReviews(filters: AdminReviewFilters = {}, page = 1): Promise<AdminReviewPage> {
+  const admin = createAdminClient();
+  const safePage = Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
+  const rangeFrom = (safePage - 1) * REVIEWS_PAGE_SIZE;
+  const rangeTo = rangeFrom + REVIEWS_PAGE_SIZE - 1;
+
+  let query = admin
+    .from("reviews")
+    .select("*", { count: "exact" })
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
+    .range(rangeFrom, rangeTo);
+
+  if (filters.status === "hidden") query = query.not("hidden_at", "is", null);
+  if (filters.status === "visible") query = query.is("hidden_at", null);
+  if (filters.reviewId) query = query.eq("id", filters.reviewId);
+
+  const { data: reviews, error, count } = await query.returns<Review[]>();
+  if (error) throw new Error(`Failed to list reviews: ${error.message}`);
+
+  const authUsers = await authUserMap();
+  const peopleIds = [...new Set((reviews ?? []).flatMap((r) => [r.reviewer_id, r.reviewee_id]))];
+  const { data: profiles } = peopleIds.length
+    ? await admin.from("profiles").select("*").in("id", peopleIds).returns<Profile[]>()
+    : { data: [] as Profile[] };
+  const profileById = new Map((profiles ?? []).map((p) => [p.id, p]));
+
+  const rows = (reviews ?? []).map((review) => ({
+    ...review,
+    reviewer: profileById.get(review.reviewer_id) ? withEmail(profileById.get(review.reviewer_id)!, authUsers) : null,
+    reviewee: profileById.get(review.reviewee_id) ? withEmail(profileById.get(review.reviewee_id)!, authUsers) : null,
+  }));
+
+  return { rows, total: count ?? 0, page: safePage, pageSize: REVIEWS_PAGE_SIZE };
 }

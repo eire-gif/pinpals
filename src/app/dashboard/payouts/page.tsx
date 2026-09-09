@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import type { Profile, StripeConnectedAccount } from "@/lib/types";
+import type { Profile, SellerRatingSummary, StripeConnectedAccount } from "@/lib/types";
 import {
   initials,
   formatJoinedDate,
@@ -9,7 +9,7 @@ import {
   SELLER_ONBOARDING_STATUS_STYLES,
 } from "@/lib/format";
 import { sellerOnboardingStatus, isSellerPaymentReady } from "@/lib/stripe/connect";
-import { summarizeRatings, computeResponseRate } from "@/lib/marketplace";
+import { computeResponseRate } from "@/lib/marketplace";
 // formatDateTime is a pure Intl formatter with no admin-specific behavior —
 // reused here rather than duplicated. Everything else in that file is
 // admin-console vocabulary this page has no business importing.
@@ -37,12 +37,18 @@ export default async function PayoutsPage() {
       .maybeSingle<StripeConnectedAccount>(),
   ]);
 
-  const { data: reviewRows } = await supabase
-    .from("reviews")
-    .select("rating")
-    .eq("reviewee_id", user.id)
-    .returns<{ rating: number }[]>();
-  const ratingSummary = summarizeRatings((reviewRows ?? []).map((r) => r.rating));
+  // marketplace-notifications-reviews (0056) — the pre-aggregated view
+  // rather than pulling every rating row down to reduce in JS (see
+  // seller_rating_summaries' own comment in supabase/migrations/0056_
+  // marketplace_notifications_reviews.sql). summarizeRatings() in
+  // src/lib/marketplace.ts remains the pure/tested fallback shape but is no
+  // longer what computes this page's own summary.
+  const { data: ratingSummaryRow } = await supabase
+    .from("seller_rating_summaries")
+    .select("*")
+    .eq("user_id", user.id)
+    .maybeSingle<SellerRatingSummary>();
+  const ratingSummary = ratingSummaryRow ? { average: ratingSummaryRow.average_rating, count: ratingSummaryRow.review_count } : null;
 
   // Response rate is derived from offers on THIS seller's own listings — a
   // seller with no listings yet has never had a chance to respond to
