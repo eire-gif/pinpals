@@ -123,6 +123,21 @@ export type AdminUserPage = {
 
 const USERS_PAGE_SIZE = 20;
 
+/**
+ * Resolves the effective page size for a list query. Exists so the CSV
+ * export routes (src/lib/admin/export.ts) can reuse listUsers()/
+ * listListings()/listOrders() verbatim with a much larger page instead of
+ * re-implementing each one's filter logic — an export that filters
+ * differently from the page it was launched from is worse than no export.
+ *
+ * A caller passing nothing, or something nonsensical, gets the page's own
+ * default; there is no way to ask for an unbounded result set.
+ */
+function resolvePageSize(requested: number | undefined, fallback: number): number {
+  if (!Number.isFinite(requested) || (requested as number) < 1) return fallback;
+  return Math.floor(requested as number);
+}
+
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
@@ -190,12 +205,14 @@ export function buildUserSearchOrFilter(query: string, emailMatchedIds: string[]
 export async function listUsers(
   query = "",
   suspendedOnly = false,
-  page = 1
+  page = 1,
+  pageSize?: number
 ): Promise<AdminUserPage> {
   const admin = createAdminClient();
+  const size = resolvePageSize(pageSize, USERS_PAGE_SIZE);
   const safePage = Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
-  const rangeFrom = (safePage - 1) * USERS_PAGE_SIZE;
-  const rangeTo = rangeFrom + USERS_PAGE_SIZE - 1;
+  const rangeFrom = (safePage - 1) * size;
+  const rangeTo = rangeFrom + size - 1;
 
   // Needed up front (not just for attaching email/ban status to the result
   // page) because search-by-email and the suspended-only filter both have to
@@ -228,7 +245,7 @@ export async function listUsers(
     // invalid PostgREST syntax, so this guard is required, not just an
     // optimization).
     if (suspendedIds.length === 0) {
-      return { rows: [], total: 0, page: safePage, pageSize: USERS_PAGE_SIZE };
+      return { rows: [], total: 0, page: safePage, pageSize: size };
     }
     profilesQuery = profilesQuery.in("id", suspendedIds);
   }
@@ -243,7 +260,7 @@ export async function listUsers(
 
   const { data, error, count } = await profilesQuery.returns<Profile[]>();
   if (error) throw new Error(`Failed to list profiles: ${error.message}`);
-  return await attachCountsAndReturn(admin, data ?? [], count ?? 0, safePage, authUsers);
+  return await attachCountsAndReturn(admin, data ?? [], count ?? 0, safePage, size, authUsers);
 }
 
 /** Shared tail of listUsers()'s two query paths: attach email/ban status and
@@ -253,6 +270,7 @@ async function attachCountsAndReturn(
   profiles: Profile[],
   total: number,
   page: number,
+  pageSize: number,
   authUsers: Map<string, AuthUserInfo>
 ): Promise<AdminUserPage> {
   const pageIds = profiles.map((p) => p.id);
@@ -281,7 +299,7 @@ async function attachCountsAndReturn(
     invite_count: inviteCountByMember.get(profile.id) ?? 0,
   }));
 
-  return { rows, total, page, pageSize: USERS_PAGE_SIZE };
+  return { rows, total, page, pageSize };
 }
 
 export type AdminUserDetail = {
@@ -438,12 +456,14 @@ export function buildListingSearchOrFilter(query: string, sellerMatchedIds: stri
 export async function listListings(
   query = "",
   filters: AdminListingFilters = {},
-  page = 1
+  page = 1,
+  pageSize?: number
 ): Promise<AdminListingPage> {
   const admin = createAdminClient();
+  const size = resolvePageSize(pageSize, LISTINGS_PAGE_SIZE);
   const safePage = Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
-  const rangeFrom = (safePage - 1) * LISTINGS_PAGE_SIZE;
-  const rangeTo = rangeFrom + LISTINGS_PAGE_SIZE - 1;
+  const rangeFrom = (safePage - 1) * size;
+  const rangeTo = rangeFrom + size - 1;
 
   const trimmedQuery = query.trim();
   const term = trimmedQuery ? sanitizeSearchTerm(trimmedQuery) : "";
@@ -498,7 +518,7 @@ export async function listListings(
     return { ...listing, seller: sellerProfile ? withEmail(sellerProfile, authUsers) : null };
   });
 
-  return { rows, total: count ?? 0, page: safePage, pageSize: LISTINGS_PAGE_SIZE };
+  return { rows, total: count ?? 0, page: safePage, pageSize: size };
 }
 
 export type AdminListingDetail = {
@@ -2137,11 +2157,16 @@ async function resolvePersonFilter(
  * in this file — see listListings()'s file-header comment for why that
  * matters once a table grows past one page.
  */
-export async function listOrders(filters: AdminOrderFilters = {}, page = 1): Promise<AdminOrderPage> {
+export async function listOrders(
+  filters: AdminOrderFilters = {},
+  page = 1,
+  pageSize?: number
+): Promise<AdminOrderPage> {
   const admin = createAdminClient();
+  const size = resolvePageSize(pageSize, ORDERS_PAGE_SIZE);
   const safePage = Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
-  const rangeFrom = (safePage - 1) * ORDERS_PAGE_SIZE;
-  const rangeTo = rangeFrom + ORDERS_PAGE_SIZE - 1;
+  const rangeFrom = (safePage - 1) * size;
+  const rangeTo = rangeFrom + size - 1;
 
   const [{ ids: buyerIds }, { ids: sellerIds }] = await Promise.all([
     resolvePersonFilter(admin, filters.buyer),
@@ -2152,7 +2177,7 @@ export async function listOrders(filters: AdminOrderFilters = {}, page = 1): Pro
   // zero orders, not "no filter" — short-circuit rather than let an empty
   // `.in()` list silently match everything.
   if ((filters.buyer && buyerIds?.length === 0) || (filters.seller && sellerIds?.length === 0)) {
-    return { rows: [], total: 0, page: safePage, pageSize: ORDERS_PAGE_SIZE };
+    return { rows: [], total: 0, page: safePage, pageSize: size };
   }
 
   let query = admin
@@ -2190,7 +2215,7 @@ export async function listOrders(filters: AdminOrderFilters = {}, page = 1): Pro
     };
   });
 
-  return { rows, total: count ?? 0, page: safePage, pageSize: ORDERS_PAGE_SIZE };
+  return { rows, total: count ?? 0, page: safePage, pageSize: size };
 }
 
 export type AdminOrderDetail = {

@@ -31,7 +31,13 @@ export default function NewListingForm() {
 
   const [category, setCategory] = useState("");
   const [subcategory, setSubcategory] = useState("");
-  const [saleType, setSaleType] = useState<(typeof SALE_TYPES)[number]>("fixed_price");
+  // Defaults to accepting offers rather than "fixed_price" — a seller who
+  // wants a firm price still opts out in one click, but the common case
+  // (a used club, a buyer who wants to haggle) no longer depends on the
+  // seller noticing this select at all. Sale type is immutable after
+  // creation (see the edit form), so this default is the only chance a
+  // seller gets at it.
+  const [saleType, setSaleType] = useState<(typeof SALE_TYPES)[number]>("offers_allowed");
   const [dirty, setDirty] = useState(false);
 
   const subcategoryOptions = useMemo(
@@ -160,6 +166,13 @@ export default function NewListingForm() {
         >
           {SALE_TYPES.map((t) => <option key={t} value={t}>{SALE_TYPE_LABELS[t]}</option>)}
         </select>
+        <p className="text-xs text-ink-500">
+          {saleType === "offers_allowed"
+            ? "Buyers see both Buy Now and Make an offer. You can accept, decline or counter any offer — nothing is agreed until you do."
+            : saleType === "fixed_price"
+              ? "Buyers can only pay your asking price. No one will be able to make you an offer."
+              : "You can't change the sale type after the listing is created."}
+        </p>
         <FieldError message={fieldErrors.saleType} />
       </div>
 

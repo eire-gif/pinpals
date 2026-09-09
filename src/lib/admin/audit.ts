@@ -24,6 +24,20 @@ export const ADMIN_ACTIONS = [
   "listing.restore",
   "invite.cancel",
   "invite.restore",
+  // CSV exports (src/app/admin/{listings,orders,users}/export/route.ts).
+  // Deliberately audited even though they are reads, unlike every other
+  // read-only admin page in this app (see seller_account.synced's comment
+  // below on that rule): an export puts member data in a file that leaves
+  // the system entirely and cannot be recalled, so who took what, and with
+  // which filters applied, is the one read worth recording. The row count
+  // and the filters used travel in `metadata`; no exported row content ever
+  // does.
+  //
+  // Placed here rather than appended to the end of this list purely to keep
+  // the diff away from the tail, where other in-flight work also appends.
+  "export.listings",
+  "export.orders",
+  "export.users",
   "refund.requested",
   "refund.completed",
   // Distinct from "refund.completed" — a refund whose Stripe call (or later

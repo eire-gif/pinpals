@@ -7,6 +7,7 @@ import { CATEGORIES } from "@/lib/marketplace";
 import { COUNTIES } from "@/lib/clubs";
 import AdminAvatar from "@/components/admin/avatar";
 import StatusBadge from "@/components/admin/status-badge";
+import ExportCsvLink from "@/components/admin/export-csv-link";
 
 export default async function AdminListingsPage({
   searchParams,
@@ -51,6 +52,21 @@ export default async function AdminListingsPage({
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const hasFilters = Boolean(q || status || category || county || seller || from || to);
 
+  // The export route reads the same filter params this page just did, so
+  // the file always matches the rows on screen (minus pagination). `page`
+  // is deliberately not forwarded — an export is every matching row, not
+  // the twenty currently visible.
+  const exportParams = new URLSearchParams();
+  if (q) exportParams.set("q", q);
+  if (status) exportParams.set("status", status);
+  if (category) exportParams.set("category", category);
+  if (county) exportParams.set("county", county);
+  if (seller) exportParams.set("seller", seller);
+  if (from) exportParams.set("from", from);
+  if (to) exportParams.set("to", to);
+  const exportQs = exportParams.toString();
+  const exportHref = exportQs ? `/admin/listings/export?${exportQs}` : "/admin/listings/export";
+
   // The seller filter arrives as an id (from a link on /admin/users/[id]),
   // not a name — best-effort recover a name for the "filtered by" chip from
   // whichever row on this page happens to have it, rather than a separate
@@ -76,7 +92,13 @@ export default async function AdminListingsPage({
 
   return (
     <div>
-      <h1 className="font-display font-bold text-2xl mb-1">Listings</h1>
+      <div className="flex items-start justify-between gap-4 mb-1">
+        <h1 className="font-display font-bold text-2xl">Listings</h1>
+        <ExportCsvLink
+          href={exportHref}
+          title={`Downloads ${total} ${total === 1 ? "listing" : "listings"} matching the current filters`}
+        />
+      </div>
       <p className="text-ink-500 mb-6">
         {total} {total === 1 ? "listing" : "listings"}
         {status && <> · {LISTING_STATUS_LABELS[status] ?? status}</>}
