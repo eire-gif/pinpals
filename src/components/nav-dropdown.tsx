@@ -6,8 +6,9 @@ import Link from "next/link";
 export type NavChild = { href: string; label: string };
 
 /**
- * A top-level nav item that also opens a menu — today only "Courses", which
- * has to offer five countries.
+ * A top-level nav item that also opens a menu — "Courses", which has to offer
+ * five countries, and "Tee Times", whose two halves (browse what's posted,
+ * post your own) are otherwise a page apart.
  *
  * The parent is a real link, not just a menu trigger. Someone who clicks
  * "Courses" expecting the directory gets the directory; the menu is a
@@ -25,9 +26,15 @@ export default function NavDropdown({
   href,
   label,
   items,
+  menuLabel,
 }: {
   href: string;
   label: string;
+  /** What the chevron announces to a screen reader, e.g. "Courses by
+   * country". Defaults to "<label> menu". Its own prop because the useful
+   * wording depends on what the menu contains, and "Tee Times by country"
+   * would be nonsense. */
+  menuLabel?: string;
   /** Named `items`, not `children`: these are menu entries rendered inside
    * the dropdown, not React children of this component, and calling them
    * `children` would both mislead and trip react/no-children-prop at the
@@ -76,7 +83,7 @@ export default function NavDropdown({
         <button
           ref={toggleRef}
           type="button"
-          aria-label={`${label} by country`}
+          aria-label={menuLabel ?? `${label} menu`}
           aria-expanded={open}
           aria-controls={menuId}
           onClick={() => setOpen((v) => !v)}

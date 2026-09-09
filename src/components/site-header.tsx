@@ -37,17 +37,51 @@ export default async function SiteHeader() {
   // Courses. Until now /tee-times was reachable only from the footer, which
   // is why almost nobody posts availability.
   //
-  // "Courses" is the one item with children. The directory covers five
+  // Two items carry a menu.
+  //
+  // "Tee Times" is two jobs sharing one page: browsing what other members
+  // have posted, and posting your own. The second lives at
+  // /dashboard/availability/new — four levels from the top bar and reachable
+  // only by first landing on /tee-times and finding the button — which is
+  // part of why so little availability gets posted. The menu names both
+  // halves outright. "Post your availability" appears only when signed in:
+  // the page it goes to redirects to /login otherwise, and a menu entry that
+  // bounces you to a sign-in form is worse than no entry at all.
+  //
+  // "Courses" has children for a different reason. The directory covers five
   // countries and ~3,000 clubs now, so landing someone on an undifferentiated
   // list is worse than letting them say which country they're looking in
-  // before they arrive. The parent link still goes to /courses — the menu is
-  // a shortcut, not a gate (see NavDropdown).
-  const navLinks: { href: string; label: string; children?: { href: string; label: string }[] }[] = [
+  // before they arrive.
+  //
+  // In both cases the parent link still goes to its own page — the menu is a
+  // shortcut, not a gate (see NavDropdown).
+  const navLinks: {
+    href: string;
+    label: string;
+    menuLabel?: string;
+    children?: { href: string; label: string }[];
+  }[] = [
     { href: "/community", label: "Find Golfers" },
-    { href: "/tee-times", label: "Tee Times" },
+    {
+      href: "/tee-times",
+      label: "Tee Times",
+      menuLabel: "Tee time options",
+      // undefined, not an array of one, when signed out: the only remaining
+      // entry would be "Find a game this week", which is where the parent
+      // link already goes. A chevron that opens a menu repeating the thing
+      // you just clicked is worse than no chevron, so a signed-out visitor
+      // gets a plain "Tee Times" link.
+      children: user
+        ? [
+            { href: "/tee-times", label: "Find a game this week" },
+            { href: "/dashboard/availability/new", label: "Post your availability" },
+          ]
+        : undefined,
+    },
     {
       href: "/courses",
       label: "Courses",
+      menuLabel: "Courses by country",
       children: [
         { href: "/courses", label: "All courses" },
         ...COUNTRIES.map((country) => ({
@@ -72,7 +106,13 @@ export default async function SiteHeader() {
         <nav className="hidden md:flex items-center gap-1">
           {navLinks.map((link) =>
             link.children ? (
-              <NavDropdown key={link.href} href={link.href} label={link.label} items={link.children} />
+              <NavDropdown
+                key={link.href}
+                href={link.href}
+                label={link.label}
+                menuLabel={link.menuLabel}
+                items={link.children}
+              />
             ) : (
               <Link
                 key={link.href}
