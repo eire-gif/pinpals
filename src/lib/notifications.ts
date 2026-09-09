@@ -17,12 +17,20 @@
 // construction, never by an app-code check that could be forgotten or
 // bypassed.
 
-export const NOTIFICATION_CATEGORIES = ["messages", "offers", "auctions", "payments", "disputes_refunds", "reviews"] as const;
+export const NOTIFICATION_CATEGORIES = [
+  "messages",
+  "offers",
+  "auctions",
+  "payments",
+  "disputes_refunds",
+  "reviews",
+  "tee_times",
+] as const;
 export type NotificationCategory = (typeof NOTIFICATION_CATEGORIES)[number];
 
 // Exactly the set notification_preferences.category's check constraint
 // allows — see design decision 3 in the migration.
-export const OPTIONAL_NOTIFICATION_CATEGORIES = ["messages", "offers", "auctions", "reviews"] as const;
+export const OPTIONAL_NOTIFICATION_CATEGORIES = ["messages", "offers", "auctions", "reviews", "tee_times"] as const;
 export type OptionalNotificationCategory = (typeof OPTIONAL_NOTIFICATION_CATEGORIES)[number];
 
 export function isOptionalCategory(category: NotificationCategory): category is OptionalNotificationCategory {
@@ -36,6 +44,7 @@ export const NOTIFICATION_CATEGORY_LABELS: Record<NotificationCategory, string> 
   payments: "Payments",
   disputes_refunds: "Refunds & disputes",
   reviews: "Reviews",
+  tee_times: "Tee times",
 };
 
 export const NOTIFICATION_CATEGORY_DESCRIPTIONS: Record<OptionalNotificationCategory, string> = {
@@ -43,6 +52,7 @@ export const NOTIFICATION_CATEGORY_DESCRIPTIONS: Record<OptionalNotificationCate
   offers: "Offers you receive, and updates on offers you've made.",
   auctions: "Outbid alerts, auctions ending soon, and results.",
   reviews: "When you're able to leave a review after a completed order.",
+  tee_times: "When someone you've connected with posts a tee time.",
 };
 
 // Every `type` value any part of this app writes to `notifications.type` —
@@ -72,6 +82,11 @@ export const NOTIFICATION_TYPES = [
   "dispute_opened",
   "dispute_updated",
   "review_available",
+  // The first broadcast type: written once per connection when a member
+  // posts availability, rather than once for a single recipient about
+  // something that happened to them. See notifyConnectionsOfInvite() in
+  // src/lib/tee-times-server.ts.
+  "tee_time_posted",
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 
@@ -98,6 +113,7 @@ export const NOTIFICATION_TYPE_CATEGORY: Record<NotificationType, NotificationCa
   dispute_opened: "disputes_refunds",
   dispute_updated: "disputes_refunds",
   review_available: "reviews",
+  tee_time_posted: "tee_times",
 };
 
 /** Which preference category (if any) governs email for this notification

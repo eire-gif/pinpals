@@ -1,7 +1,11 @@
 "use server";
 
+import { after } from "next/server";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { checkRateLimit, rateLimitMessage } from "@/lib/rate-limit";
+import { notifyConnectionsOfInvite } from "@/lib/tee-times-server";
 import { getClubById } from "@/lib/courses";
 import { isCountryCode, isRegionInCountry, countryName } from "@/lib/regions";
 import { DEFAULT_VISIBILITY, SPACES_OPTIONS, computeExpiry, isInviteVisibility } from "@/lib/tee-times";
@@ -9,6 +13,14 @@ import { DEFAULT_VISIBILITY, SPACES_OPTIONS, computeExpiry, isInviteVisibility }
 export type PostAvailabilityState = { error?: string };
 
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+// Posting availability was never rate-limited: it writes one row a member
+// can delete, and the form is tedious enough to be its own limit. It is now,
+// because each post also emails every one of the host's connections. Ten an
+// hour is far more rounds than anyone plays and still caps what a scripted
+// loop could push into other people's inboxes.
+const POST_AVAILABILITY_MAX_ATTEMPTS = 10;
+const POST_AVAILABILITY_WINDOW_SECONDS = 60 * 60;
 
 export async function postAvailability(
   _prev: PostAvailabilityState,
@@ -21,6 +33,16 @@ export async function postAvailability(
 
   if (!user) {
     redirect("/login");
+  }
+
+  const rateLimit = await checkRateLimit({
+    action: "post-availability",
+    identifier: user.id,
+    maxHits: POST_AVAILABILITY_MAX_ATTEMPTS,
+    windowSeconds: POST_AVAILABILITY_WINDOW_SECONDS,
+  });
+  if (!rateLimit.allowed) {
+    return { error: rateLimitMessage(rateLimit.retryAfterSeconds) };
   }
 
   const clubIdRaw = String(formData.get("club") || "").trim();
@@ -105,7 +127,9 @@ export async function postAvailability(
     return { error: "Please choose who can see this tee time." };
   }
 
-  const { error } = await supabase.from("tee_time_invites").insert({
+  const { data: invite, error } = await supabase
+    .from("tee_time_invites")
+    .insert({
     member_id: user.id,
     club_id: club.id,
     club_name: club.name,
@@ -121,10 +145,39 @@ export async function postAvailability(
     notes: notes || null,
     visibility,
     expires_at: computeExpiry(playDate),
-  });
+    })
+    // The id is needed for the notification dedupe key. Reading it back is
+    // the RLS pattern that broke listing creation once (see migration 0052)
+    // — safe here because the invite read policy tests this row's own column
+    // values rather than re-querying the table.
+    .select("id")
+    .single<{ id: number }>();
 
   if (error) {
     return { error: error.message };
+  }
+
+  // Tell the host's connections. Deliberately after the response rather than
+  // before the redirect: this can be dozens of auth lookups and provider
+  // calls, and the member who just filled in a form should not sit watching
+  // a spinner while other people's email is dispatched. Their tee time is
+  // already saved by this point, so nothing here can cost them the post.
+  if (invite) {
+    after(async () => {
+      try {
+        await notifyConnectionsOfInvite(createAdminClient(), {
+          inviteId: invite.id,
+          hostId: user.id,
+          clubName: club.name,
+          playDate,
+          timeFrom: timeFrom || null,
+          timeTo: timeTo || null,
+          spaces,
+        });
+      } catch (err) {
+        console.error("[tee-times] Fan-out failed:", err instanceof Error ? err.message : err);
+      }
+    });
   }
 
   redirect("/dashboard?posted=1");

@@ -105,3 +105,24 @@ describe("notificationHref", () => {
     expect(notificationHref({ href: "relative/path" })).toBe("/dashboard");
   });
 });
+
+describe("tee_time_posted", () => {
+  it("is a known type routed to the tee_times category", () => {
+    expect(NOTIFICATION_TYPES).toContain("tee_time_posted");
+    expect(categoryForType("tee_time_posted")).toBe("tee_times");
+  });
+
+  it("is silenceable — tee_times is an optional category, not a transactional one", () => {
+    // The point of the whole category. This is the app's first broadcast
+    // notification: one member posting reaches every connection they have,
+    // so it must be possible to turn off. Payments and disputes are the
+    // opposite and deliberately cannot be.
+    expect(OPTIONAL_NOTIFICATION_CATEGORIES).toContain("tee_times");
+    expect(shouldSendEmail("tee_time_posted", false)).toBe(false);
+  });
+
+  it("defaults to on when a member has never touched the setting", () => {
+    expect(shouldSendEmail("tee_time_posted", null)).toBe(true);
+    expect(shouldSendEmail("tee_time_posted", true)).toBe(true);
+  });
+});
