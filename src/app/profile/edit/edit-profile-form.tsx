@@ -1,8 +1,11 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import ClubCombobox from "@/components/club-combobox";
 import { COUNTIES } from "@/lib/clubs";
+import MemberAvatar from "@/components/member-avatar";
+import { ALLOWED_AVATAR_TYPES } from "@/lib/avatar";
+import { ageBandForDate, AGE_BAND_NOT_SHARED } from "@/lib/age";
 import { updateProfile, type ProfileFormState } from "./actions";
 
 const initialState: ProfileFormState = {};
@@ -19,12 +22,49 @@ export default function EditProfileForm({
     handicapVisible: boolean;
     bio: string;
     guiNumber: string;
+    avatarUrl: string | null;
+    dob: string;
+    ageRangeVisible: boolean;
   };
 }) {
   const [state, formAction, pending] = useActionState(updateProfile, initialState);
 
+  const todayIso = new Date().toISOString().slice(0, 10);
+  // Local state purely so the band preview below updates as they type — the
+  // value that matters is still the input's own, read from FormData on
+  // submit.
+  const [dob, setDob] = useState(defaultValues.dob);
+  const previewBand = ageBandForDate(dob);
+
   return (
     <form action={formAction} className="grid gap-4">
+      {/* Photo first: it's the one field with a visible before/after, and
+          burying it under the text inputs made it easy to miss entirely. */}
+      <div className="grid gap-1.5">
+        <span className="text-[13.5px] font-bold">Profile photo</span>
+        <div className="flex items-center gap-4">
+          <MemberAvatar
+            name={`${defaultValues.first} ${defaultValues.last}`}
+            avatarUrl={defaultValues.avatarUrl}
+            size="xl"
+          />
+          <div className="grid gap-1.5 min-w-0">
+            <input
+              type="file"
+              name="avatar"
+              accept={ALLOWED_AVATAR_TYPES.join(",")}
+              className="text-sm file:mr-3 file:px-3.5 file:py-2 file:rounded-full file:border-[1.5px] file:border-line file:bg-surface file:text-sm file:font-bold file:text-ink-900 hover:file:bg-cream-100"
+            />
+            <p className="text-xs text-ink-500">JPEG, PNG or WebP, up to 2MB. Leave empty to keep your current photo.</p>
+            {defaultValues.avatarUrl && (
+              <label className="flex items-center gap-2 text-xs text-ink-500 font-semibold">
+                <input type="checkbox" name="removeAvatar" className="w-3.5 h-3.5 accent-green-700" />
+                Remove my photo and go back to my initials
+              </label>
+            )}
+          </div>
+        </div>
+      </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="grid gap-1.5">
           <label htmlFor="first" className="text-[13.5px] font-bold">First name</label>
@@ -60,6 +100,39 @@ export default function EditProfileForm({
             Show my handicap on my tee-time invites
           </label>
         </div>
+        <div className="grid gap-1.5">
+          <label htmlFor="dob" className="text-[13.5px] font-bold">Date of birth</label>
+          <input
+            id="dob"
+            name="dob"
+            type="date"
+            max={todayIso}
+            value={dob}
+            onChange={(e) => setDob(e.target.value)}
+            className="px-3.5 py-3 rounded-lg border-[1.5px] border-line focus:outline-none focus:border-green-600"
+          />
+          <p className="text-xs text-ink-500">
+            {/* Says plainly what is and isn't published — the whole reason
+                the date lives in its own private table. */}
+            Never shown to anyone. Other golfers only ever see an age range
+            {previewBand ? <>, and yours would show as <strong className="text-ink-900">{previewBand}</strong></> : null}.
+          </p>
+          <label className="flex items-center gap-2 text-xs text-ink-500 font-semibold mt-0.5">
+            <input
+              type="checkbox"
+              name="ageRangeVisible"
+              defaultChecked={defaultValues.ageRangeVisible}
+              className="w-3.5 h-3.5 accent-green-700"
+            />
+            Show my age range on my profile
+          </label>
+          {!defaultValues.ageRangeVisible && (
+            <p className="text-xs text-ink-500">
+              Currently shows as &ldquo;{AGE_BAND_NOT_SHARED}&rdquo; to other golfers.
+            </p>
+          )}
+        </div>
+
         <div className="grid gap-1.5">
           <label htmlFor="county" className="text-[13.5px] font-bold">County you play in most</label>
           <select id="county" name="county" defaultValue={defaultValues.county}
