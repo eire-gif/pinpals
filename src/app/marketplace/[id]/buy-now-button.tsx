@@ -21,10 +21,15 @@ export default function BuyNowButton({
   label?: string;
   variant?: "primary" | "secondary";
 }) {
+  // Orange, not the brand green every other primary button uses — see
+  // --buy-500's own comment in globals.css. Deliberately the ONLY control on
+  // a listing page in this colour, so "orange" reads as "this spends money
+  // now" rather than as a second brand accent. ink-900 text, never cream-50:
+  // white on #ffa41c is ~1.9:1 and fails WCAG AA outright.
   const styles =
     variant === "primary"
-      ? "bg-green-700 text-cream-50 hover:bg-green-600"
-      : "border-[1.5px] border-green-700 text-green-700 hover:bg-green-100";
+      ? "bg-buy-500 text-ink-900 border-[1.5px] border-buy-700 hover:bg-buy-600"
+      : "border-[1.5px] border-buy-700 text-ink-900 hover:bg-buy-500/20";
 
   return (
     <Link

@@ -33,9 +33,15 @@ export function formatPriceCents(cents: number): string {
 // small lookup map wherever it isn't (sale_type/status, mirroring
 // SELLER_ONBOARDING_STATUS_LABELS above).
 
+// The two fixed-price values differ ONLY in whether a buyer may negotiate,
+// and the old labels ("Fixed price" vs "Fixed price — offers welcome") left
+// a seller to infer that from a dash. Since offers_allowed is now the
+// create-form's default (new-listing-form.tsx), the label a seller has to
+// actively move AWAY from is the one that most needs to say what it costs
+// them — hence "no offers" stated outright rather than implied by absence.
 export const SALE_TYPE_LABELS: Record<SaleType, string> = {
-  fixed_price: "Fixed price",
-  offers_allowed: "Fixed price — offers welcome",
+  fixed_price: "Fixed price only — no offers",
+  offers_allowed: "Fixed price — buyers can make offers",
   auction: "Auction",
   auction_with_buy_now: "Auction with Buy It Now",
 };
