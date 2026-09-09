@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import type { MyInterest, TeeTimeInviteWithHost } from "@/lib/types";
-import { CLUBS, COUNTIES } from "@/lib/clubs";
+import RegionSelect from "@/components/region-select";
 import { SPACES_OPTIONS, formatInviteDate, formatTimeRange, formatClock } from "@/lib/tee-times";
 import { initials } from "@/lib/format";
 import InterestButton from "./interest-button";
@@ -102,19 +102,25 @@ export default async function TeeTimesPage({
             <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
             </svg>
+            {/* Plain text search, no autocomplete list. This used to render
+                a <datalist> of all 373 Irish club names; the directory is now
+                ~3,000 clubs across five countries, which is far too much to
+                ship on every page load to populate a filter that already
+                matches on a partial name. */}
             <input
               type="text"
               name="club"
-              list="club-options"
               defaultValue={club}
               placeholder="Search by golf club…"
               className="w-full pl-10 pr-3.5 py-2.5 rounded-full border-[1.5px] border-line bg-surface-tint text-sm"
             />
           </div>
-          <select name="county" defaultValue={county} className="px-3.5 py-2.5 rounded-full border-[1.5px] border-line bg-surface-tint text-sm font-semibold">
-            <option value="">All counties</option>
-            {COUNTIES.map((c) => <option key={c} value={c}>{c}</option>)}
-          </select>
+          <RegionSelect
+            name="county"
+            defaultValue={county}
+            ariaLabel="County"
+            className="px-3.5 py-2.5 rounded-full border-[1.5px] border-line bg-surface-tint text-sm font-semibold"
+          />
           <input
             type="date"
             name="date"
@@ -223,14 +229,6 @@ export default async function TeeTimesPage({
         )}
       </div>
 
-      {/* Native browser autocomplete for the club filter above — no client
-          JS needed, keeps this page a plain server-rendered form like the
-          rest of the site's search/filter bars. */}
-      <datalist id="club-options">
-        {CLUBS.map((c) => (
-          <option key={c} value={c} />
-        ))}
-      </datalist>
     </div>
   );
 }

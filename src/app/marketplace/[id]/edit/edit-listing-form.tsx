@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useMemo, useState } from "react";
-import { COUNTIES } from "@/lib/clubs";
+import RegionSelect from "@/components/region-select";
 import {
   CATEGORIES,
   CONDITIONS,
@@ -181,10 +181,13 @@ export default function EditListingForm({
         </div>
         <div className="grid gap-1.5">
           <label htmlFor="county" className="text-[13.5px] font-bold">County (location)</label>
-          <select id="county" name="county" defaultValue={listing.county || ""} className={inputClass}>
-            <option value="">Select a county</option>
-            {COUNTIES.map((c) => <option key={c} value={c}>{c}</option>)}
-          </select>
+          <RegionSelect
+            id="county"
+            name="county"
+            defaultValue={listing.county || ""}
+            placeholder="Select a county"
+            className={inputClass}
+          />
           <FieldError message={fieldErrors.county} />
         </div>
       </div>

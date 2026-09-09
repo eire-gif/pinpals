@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Listing, Auction } from "./types";
 import { CATEGORIES, SUBCATEGORIES, CONDITIONS, SALE_TYPES, DELIVERY_OPTIONS } from "./marketplace";
 import { isBrandValidFor, isKnownBrandId } from "./marketplace-brands";
-import { COUNTIES } from "./clubs";
+import { ALL_REGIONS } from "./regions";
 
 // ============ sort ============
 
@@ -26,14 +26,15 @@ export const RESULTS_PAGE_SIZE = 24;
 
 // ============ filters ============
 // Everything the /marketplace page can filter or sort on, already validated
-// against this app's closed vocabularies (CATEGORIES, COUNTIES, ...) — a
+// against this app's closed vocabularies (CATEGORIES, ALL_REGIONS, ...) — a
 // stray/tampered query string (?category=drop-table) just gets dropped back
 // to "no filter" rather than reaching the database. `location`/`radius`
 // (this phase's spec: "location/radius if supported") is deliberately just
-// `county` — there's no geocoded lat/lng anywhere in this schema (COUNTIES
-// in src/lib/clubs.ts is a flat name list), so a true radius search isn't
-// something this phase can honestly build; exact-match county is the
-// supported subset.
+// `county` — a listing carries no lat/lng of its own, so a true radius
+// search isn't something this can honestly build; exact-match county is the
+// supported subset. The vocabulary is now every region across Ireland and
+// the four UK countries (src/lib/regions.ts), not the 32 Irish counties it
+// was before the directory went UK-wide.
 
 export type MarketplaceFilters = {
   q: string;
@@ -144,7 +145,7 @@ export function parseMarketplaceFilters(
     category: validCategory,
     subcategory: validSubcategory,
     brands,
-    county: (COUNTIES as readonly string[]).includes(county) ? county : "",
+    county: ALL_REGIONS.includes(county) ? county : "",
     condition: (CONDITIONS as readonly string[]).includes(condition) ? condition : "",
     saleType: (SALE_TYPES as readonly string[]).includes(saleType) ? saleType : "",
     delivery: (DELIVERY_OPTIONS as readonly string[]).includes(delivery) ? delivery : "",

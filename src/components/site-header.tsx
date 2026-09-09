@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import MobileNav from "@/components/mobile-nav";
+import NavDropdown from "@/components/nav-dropdown";
+import { COUNTRIES } from "@/lib/regions";
 import LogoMark from "@/components/logo-mark";
 import SignOutButton from "@/components/sign-out-button";
 
@@ -34,10 +36,26 @@ export default async function SiteHeader() {
   // you're free — and grouping them reads better than separating them with
   // Courses. Until now /tee-times was reachable only from the footer, which
   // is why almost nobody posts availability.
-  const navLinks = [
+  //
+  // "Courses" is the one item with children. The directory covers five
+  // countries and ~3,000 clubs now, so landing someone on an undifferentiated
+  // list is worse than letting them say which country they're looking in
+  // before they arrive. The parent link still goes to /courses — the menu is
+  // a shortcut, not a gate (see NavDropdown).
+  const navLinks: { href: string; label: string; children?: { href: string; label: string }[] }[] = [
     { href: "/community", label: "Find Golfers" },
     { href: "/tee-times", label: "Tee Times" },
-    { href: "/courses", label: "Courses" },
+    {
+      href: "/courses",
+      label: "Courses",
+      children: [
+        { href: "/courses", label: "All courses" },
+        ...COUNTRIES.map((country) => ({
+          href: `/courses/${country.code}`,
+          label: country.name,
+        })),
+      ],
+    },
     { href: "/marketplace", label: "Marketplace" },
   ];
 
@@ -52,15 +70,19 @@ export default async function SiteHeader() {
         </Link>
 
         <nav className="hidden md:flex items-center gap-1">
-          {navLinks.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              className="px-4 py-2.5 rounded-full text-sm font-semibold text-white/80 hover:text-white hover:bg-white/10 transition"
-            >
-              {link.label}
-            </Link>
-          ))}
+          {navLinks.map((link) =>
+            link.children ? (
+              <NavDropdown key={link.href} href={link.href} label={link.label} items={link.children} />
+            ) : (
+              <Link
+                key={link.href}
+                href={link.href}
+                className="px-4 py-2.5 rounded-full text-sm font-semibold text-white/80 hover:text-white hover:bg-white/10 transition"
+              >
+                {link.label}
+              </Link>
+            )
+          )}
         </nav>
 
         <div className="hidden md:flex items-center gap-3">

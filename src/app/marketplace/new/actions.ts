@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { countryForRegion } from "@/lib/regions";
 import { uploadListingImage, deleteListingImage, ImageProcessingError } from "@/lib/images/upload";
 import { createListingSchema } from "@/lib/validation/listing";
 import { eurToCents, MAX_LISTING_IMAGES } from "@/lib/marketplace";
@@ -241,6 +242,10 @@ export async function createListing(
       subcategory: data.subcategory || null,
       condition: data.condition,
       county: data.county || null,
+      // Derived, never asked for: region names are unique across the five
+      // countries, so the county the seller picked already says which one
+      // they're in (see listingCountySchema).
+      country: data.county ? countryForRegion(data.county) : null,
       // image_url (0003) is the legacy single-cover-image column every
       // existing read site (listing-card.tsx, the marketplace grid, ...)
       // still relies on — kept in sync with the new gallery's cover photo

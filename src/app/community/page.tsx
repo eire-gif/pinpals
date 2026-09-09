@@ -2,7 +2,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import type { Connection, Profile } from "@/lib/types";
-import { COUNTIES } from "@/lib/clubs";
+import { COUNTRIES, countryName, isCountryCode } from "@/lib/regions";
+import RegionSelect from "@/components/region-select";
 import MemberAvatar from "@/components/member-avatar";
 import { AGE_BAND_NOT_SHARED } from "@/lib/age";
 import ConnectButton from "./connect-button";
@@ -10,9 +11,9 @@ import ConnectButton from "./connect-button";
 export default async function CommunityPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; county?: string; sort?: string }>;
+  searchParams: Promise<{ q?: string; country?: string; county?: string; sort?: string }>;
 }) {
-  const { q = "", county = "", sort = "recent" } = await searchParams;
+  const { q = "", country = "", county = "", sort = "recent" } = await searchParams;
   const supabase = await createClient();
   const {
     data: { user },
@@ -37,7 +38,7 @@ export default async function CommunityPage({
           </span>
           <h1 className="font-display font-bold text-4xl mt-2.5">Find golfers near you.</h1>
           <p className="text-white/80 mt-3 max-w-[52ch]">
-            Search by name, home club or county to find your next playing partner.
+            Search by name, home club, country or county to find your next playing partner.
           </p>
         </div>
         {/* Signed-in only, exactly as the same CTA on /tee-times is: a
@@ -79,6 +80,9 @@ export default async function CommunityPage({
 
   if (q) {
     query = query.or(`first_name.ilike.%${q}%,last_name.ilike.%${q}%,home_club.ilike.%${q}%`);
+  }
+  if (isCountryCode(country)) {
+    query = query.eq("country", country);
   }
   if (county) {
     query = query.eq("county", county);
@@ -134,10 +138,21 @@ export default async function CommunityPage({
             <input type="text" name="q" defaultValue={q} placeholder="Search by name or home club…"
               className="w-full pl-10 pr-3.5 py-2.5 rounded-full border-[1.5px] border-line bg-surface-tint text-sm" />
           </div>
-          <select name="county" defaultValue={county} className="px-3.5 py-2.5 rounded-full border-[1.5px] border-line bg-surface-tint text-sm font-semibold">
-            <option value="">All counties</option>
-            {COUNTIES.map((c) => <option key={c} value={c}>{c}</option>)}
+          {/* Two independent filters. Members can now be anywhere across five
+              countries, and a bare 32-county list would have no "Surrey" in
+              it at all. The county select carries every country's regions,
+              grouped under country headings, so it stays readable at 174
+              options. */}
+          <select name="country" defaultValue={country} className="px-3.5 py-2.5 rounded-full border-[1.5px] border-line bg-surface-tint text-sm font-semibold">
+            <option value="">All countries</option>
+            {COUNTRIES.map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}
           </select>
+          <RegionSelect
+            name="county"
+            defaultValue={county}
+            ariaLabel="County"
+            className="px-3.5 py-2.5 rounded-full border-[1.5px] border-line bg-surface-tint text-sm font-semibold"
+          />
           <select name="sort" defaultValue={sort} className="px-3.5 py-2.5 rounded-full border-[1.5px] border-line bg-surface-tint text-sm font-semibold">
             <option value="recent">Newest members</option>
             <option value="name">Name A–Z</option>
@@ -177,6 +192,15 @@ export default async function CommunityPage({
                         {name} {isMe && <span className="text-green-700 text-xs font-sans">(you)</span>}
                       </h3>
                       <p className="text-sm text-ink-500 truncate">{m.home_club}</p>
+                      {/* The country, small, under the club. Two members can
+                          hold the same club name in different countries now
+                          (0062), so this is what tells a searcher which
+                          Woodbrook they're looking at. */}
+                      {m.country && (
+                        <p className="text-xs text-ink-500 truncate mt-0.5">
+                          {countryName(m.country)}
+                        </p>
+                      )}
                     </div>
                   </div>
 

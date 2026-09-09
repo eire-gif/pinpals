@@ -17,7 +17,7 @@ import {
   MAX_SPEC_LENGTH,
   isBrandValidFor,
 } from "@/lib/marketplace-brands";
-import { COUNTIES } from "@/lib/clubs";
+import { ALL_REGIONS } from "@/lib/regions";
 
 /**
  * Zod schemas for the listing create/edit workflow (see
@@ -95,12 +95,24 @@ const specTextSchema = z
 export const listingLoftSchema = specTextSchema;
 export const listingItemSizeSchema = specTextSchema;
 
-// "Location" in the task spec maps onto the existing `county` field
-// (src/lib/clubs.ts's COUNTIES) rather than a new column — every other part
-// of this app already treats county as "where in Ireland", and a listing's
-// location has never meant anything more precise than that (see
-// src/app/marketplace/[id]/page.tsx's county badge).
-export const listingCountySchema = z.enum(COUNTIES, { message: "Please choose a county." }).optional();
+// "Location" in the task spec maps onto the existing `county` field rather
+// than a new column — a listing's location has never meant anything more
+// precise than that (see src/app/marketplace/[id]/page.tsx's county badge).
+//
+// What changed with the UK expansion (0061): the accepted vocabulary is no
+// longer the 32 Irish counties but every region across the five countries —
+// Irish counties, English ceremonial counties, Scottish council areas, Welsh
+// principal areas. A seller in Surrey has to be able to say so.
+//
+// Still one field, and still no country field beside it: region names are
+// unique across the five lists, so `listings.country` is derived from the
+// chosen county with countryForRegion() rather than asked for. A refine over
+// the flat list rather than z.enum because ALL_REGIONS is built at runtime
+// from the five country lists and isn't the literal tuple z.enum needs.
+export const listingCountySchema = z
+  .string()
+  .refine((value) => ALL_REGIONS.includes(value), { message: "Please choose a county." })
+  .optional();
 
 export const listingDeliveryOptionsSchema = z
   .array(z.enum(DELIVERY_OPTIONS))

@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { Profile } from "@/lib/types";
 import { initials } from "@/lib/format";
+import { countryName } from "@/lib/regions";
 
 export default async function ProfilePage({
   searchParams,
@@ -51,6 +52,15 @@ export default async function ProfilePage({
           {profile?.county && (
             <span className="bg-cream-100 text-ink-900 text-xs font-bold px-3 py-1.5 rounded-full">
               {profile.county}
+            </span>
+          )}
+          {/* Country sits after the county, not before: a member's county is
+              the more specific fact and the one they'd say first. It matters
+              now that the directory spans five countries — "Down" and
+              "Durham" are both real answers, in different places. */}
+          {profile?.country && (
+            <span className="bg-cream-100 text-ink-900 text-xs font-bold px-3 py-1.5 rounded-full">
+              {countryName(profile.country)}
             </span>
           )}
           {profile?.handicap != null && (

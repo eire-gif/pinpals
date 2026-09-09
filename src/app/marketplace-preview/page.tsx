@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { CATEGORIES } from "@/lib/marketplace";
-import { COUNTIES } from "@/lib/clubs";
+import { ALL_REGIONS } from "@/lib/regions";
 import { listMockListings } from "@/lib/marketplace-fixtures";
 import MarketplaceSearchBar from "@/components/marketplace/search-bar";
 import CategoryNav from "@/components/marketplace/category-nav";
@@ -90,7 +90,7 @@ export default async function MarketplacePage({
         </h2>
 
         <div className="grid gap-5 mb-8">
-          <MarketplaceSearchBar defaultQuery={q} defaultCounty={county} defaultSort={sort} counties={COUNTIES} />
+          <MarketplaceSearchBar defaultQuery={q} defaultCounty={county} defaultSort={sort} counties={ALL_REGIONS} />
           <CategoryNav
             categories={CATEGORIES}
             activeCategory={category || undefined}

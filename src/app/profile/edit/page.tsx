@@ -47,6 +47,12 @@ export default async function EditProfilePage({
             first: profile?.first_name ?? "",
             last: profile?.last_name ?? "",
             club: profile?.home_club ?? "",
+            clubId: profile?.home_club_id ?? null,
+            // Falls back to Ireland for a member who joined before countries
+            // existed and has no club to infer one from. Everyone on the site
+            // at that point was Irish, and a preselected country the member
+            // can change beats an empty select that blocks the club picker.
+            country: profile?.country ?? "ireland",
             county: profile?.county ?? "",
             handicap: profile?.handicap != null ? String(profile.handicap) : "",
             handicapVisible: profile?.handicap_visible ?? false,

@@ -30,5 +30,10 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
-  "exclude": ["node_modules"]
+  // supabase/functions/** is Deno, not Next: it imports from `jsr:` and uses
+  // the `Deno` global, neither of which this compiler knows about. Excluding
+  // it keeps `npm run typecheck` honest about the app instead of reporting a
+  // dozen errors for code that never runs in this runtime. The Edge Function
+  // is type-checked by Supabase at deploy time.
+  "exclude": ["node_modules", "supabase/functions"]
 }

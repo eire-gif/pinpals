@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { CATEGORIES, SUBCATEGORIES, CONDITIONS, SALE_TYPES, DELIVERY_OPTIONS } from "@/lib/marketplace";
-import { COUNTIES } from "@/lib/clubs";
+import { REGION_GROUPS } from "@/lib/regions";
 import { MARKETPLACE_BADGE_LABELS, DELIVERY_OPTION_LABELS } from "@/lib/format";
 import {
   MARKETPLACE_SORTS,
@@ -335,10 +335,19 @@ export default function MarketplaceControls({
               className="w-full px-3 py-2 rounded-lg border-[1.5px] border-line bg-surface text-sm"
             >
               <option value="">Any county</option>
-              {COUNTIES.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
+              {/* Grouped by country: sellers can be anywhere across Ireland
+                  and the UK now, and a flat 174-entry list with Antrim next
+                  to Aberdeenshire is unreadable. Controlled select, so this
+                  renders the groups inline rather than using the shared
+                  RegionSelect component (which is uncontrolled). */}
+              {REGION_GROUPS.map((group) => (
+                <optgroup key={group.country} label={group.label}>
+                  {group.regions.map((region) => (
+                    <option key={region} value={region}>
+                      {region}
+                    </option>
+                  ))}
+                </optgroup>
               ))}
             </select>
           </div>
