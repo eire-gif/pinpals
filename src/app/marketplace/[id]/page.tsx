@@ -3,9 +3,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import type { Listing, ListingImage, Auction, Offer, Order, Profile, StripeConnectedAccount } from "@/lib/types";
+import type { Listing, ListingImage, Auction, Offer, Order, Profile, Review, SellerRatingSummary, StripeConnectedAccount } from "@/lib/types";
 import { formatPrice, formatPriceCents, SELLER_LISTING_STATUS_LABELS } from "@/lib/format";
-import { isAuctionSaleType, summarizeRatings } from "@/lib/marketplace";
+import { isAuctionSaleType } from "@/lib/marketplace";
 import { sellerOnboardingStatus, isSellerPaymentReady } from "@/lib/stripe/connect";
 import { getSiteUrl } from "@/lib/site-url";
 import { fetchMarketplaceListings, EMPTY_MARKETPLACE_FILTERS } from "@/lib/marketplace-discovery";
@@ -19,6 +19,7 @@ import MobileActionBar from "./mobile-action-bar";
 import SellerCard from "./seller-card";
 import RelatedListings from "./related-listings";
 import SafetyGuidance from "./safety-guidance";
+import ReviewsSection from "./reviews-section";
 
 type SellerProfile = Pick<Profile, "id" | "first_name" | "last_name" | "home_club" | "county" | "avatar_color" | "created_at">;
 type SellerAccountFields = Pick<
@@ -129,7 +130,7 @@ export default async function ListingDetailPage({
   // createOrderPaymentIntent() already uses, collapsed to one `verified`
   // boolean before it ever reaches a component), and the seller's public
   // review ratings — four independent reads, never one per related item.
-  const [imagesResult, sellerProfileResult, sellerAccountResult, reviewRowsResult] = await Promise.all([
+  const [imagesResult, sellerProfileResult, sellerAccountResult, ratingSummaryResult, reviewsResult] = await Promise.all([
     supabase.from("listing_images").select("*").eq("listing_id", listingId).order("position", { ascending: true }).returns<ListingImage[]>(),
     supabase
       .from("profiles")
@@ -141,7 +142,23 @@ export default async function ListingDetailPage({
       .select("charges_enabled, payouts_enabled, details_submitted, requirements_currently_due, requirements_past_due, disabled_reason")
       .eq("user_id", listing.seller_id)
       .maybeSingle<SellerAccountFields>(),
-    supabase.from("reviews").select("rating").eq("reviewee_id", listing.seller_id).returns<{ rating: number }[]>(),
+    // marketplace-notifications-reviews (0056) — the seller_rating_summaries
+    // view pre-aggregates in SQL rather than pulling every rating row down
+    // just to reduce it in JS (summarizeRatings() below stays as a pure,
+    // tested fallback for the empty case — a seller with zero reviews has
+    // no row in the view at all, same as before).
+    supabase.from("seller_rating_summaries").select("*").eq("user_id", listing.seller_id).maybeSingle<SellerRatingSummary>(),
+    // Individual reviews to actually display (most recent first, capped) —
+    // RLS's own "hidden_at is null or participant or staff" policy already
+    // excludes a hidden review from this public read, so no extra filter
+    // is needed here.
+    supabase
+      .from("reviews")
+      .select("id, rating, body, created_at, reviewer_id")
+      .eq("reviewee_id", listing.seller_id)
+      .order("created_at", { ascending: false })
+      .limit(10)
+      .returns<Pick<Review, "id" | "rating" | "body" | "created_at" | "reviewer_id">[]>(),
   ]);
 
   const images = imagesResult.data;
@@ -216,7 +233,26 @@ export default async function ListingDetailPage({
   const sellerProfile = sellerProfileResult.data;
   const sellerName = sellerProfile ? `${sellerProfile.first_name} ${sellerProfile.last_name}` : "Pinpals member";
   const sellerVerified = isSellerPaymentReady(sellerOnboardingStatus(sellerAccountResult.data ?? null));
-  const ratingSummary = summarizeRatings((reviewRowsResult.data ?? []).map((r) => r.rating));
+  const ratingSummaryRow = ratingSummaryResult.data as SellerRatingSummary | null;
+  const ratingSummary = ratingSummaryRow ? { average: ratingSummaryRow.average_rating, count: ratingSummaryRow.review_count } : null;
+
+  const reviewRows = reviewsResult.data ?? [];
+  const reviewerIds = [...new Set(reviewRows.map((r) => r.reviewer_id))];
+  const { data: reviewerProfiles } = reviewerIds.length
+    ? await supabase
+        .from("profiles")
+        .select("id, first_name, last_name, avatar_color")
+        .in("id", reviewerIds)
+        .returns<Pick<Profile, "id" | "first_name" | "last_name" | "avatar_color">[]>()
+    : { data: [] as Pick<Profile, "id" | "first_name" | "last_name" | "avatar_color">[] };
+  const reviewerById = new Map((reviewerProfiles ?? []).map((p) => [p.id, p]));
+  const reviews = reviewRows.map((r) => ({
+    id: r.id,
+    rating: r.rating,
+    body: r.body,
+    createdAt: r.created_at,
+    reviewer: reviewerById.get(r.reviewer_id) ?? null,
+  }));
 
   // Related listings: the exact same batched fetch layer /marketplace
   // itself uses (see fetchMarketplaceListings' own header comment), scoped
@@ -339,6 +375,10 @@ export default async function ListingDetailPage({
               paymentReady={paymentReady}
               sellerOffers={sellerOffers}
             />
+          </div>
+
+          <div className="mt-8">
+            <ReviewsSection sellerName={sellerName} rating={ratingSummary} reviews={reviews} viewerIsSignedIn={!!user} />
           </div>
 
           <RelatedListings listings={relatedListings} signedIn={!!user} />

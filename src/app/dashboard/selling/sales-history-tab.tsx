@@ -5,7 +5,14 @@ import { ORDER_STATUS_LABELS, ORDER_STATUS_STYLES, PAYMENT_STATUS_LABELS, PAYMEN
 import StatusBadge from "@/components/admin/status-badge";
 import Pagination from "@/components/dashboard/pagination";
 import MarketplaceEmptyState from "@/components/marketplace/empty-state";
-import type { Order } from "@/lib/types";
+// Reused as-is from the buyer workspace — submitReview()/LeaveReviewForm are
+// generic over (orderId, revieweeId), not buyer-specific despite living
+// under dashboard/buying: validate_review() (0041) has always allowed
+// either direction (buyer reviews seller OR seller reviews buyer), but no
+// seller-facing UI ever called it until now. Reusing the exact same
+// write path/component rather than a parallel one.
+import LeaveReviewForm from "../buying/leave-review-form";
+import type { Order, Review } from "@/lib/types";
 
 const PAGE_SIZE = 10;
 
@@ -29,6 +36,16 @@ export default async function SalesHistoryTab({ userId, page }: { userId: string
     .returns<Order[]>();
 
   const rows = orders ?? [];
+  const completedOrderIds = rows.filter((o) => o.status === "completed").map((o) => o.id);
+  const { data: reviews } = completedOrderIds.length
+    ? await supabase
+        .from("reviews")
+        .select("order_id")
+        .eq("reviewer_id", userId)
+        .in("order_id", completedOrderIds)
+        .returns<Pick<Review, "order_id">[]>()
+    : { data: [] as Pick<Review, "order_id">[] };
+  const reviewedOrderIds = new Set((reviews ?? []).map((r) => r.order_id));
 
   if (rows.length === 0) {
     return (
@@ -70,6 +87,11 @@ export default async function SalesHistoryTab({ userId, page }: { userId: string
                   />
                 </div>
               </Link>
+              {order.status === "completed" && !reviewedOrderIds.has(order.id) && (
+                <div className="px-5 pb-4">
+                  <LeaveReviewForm orderId={order.id} revieweeId={order.buyer_id} />
+                </div>
+              )}
             </li>
           ))}
         </ul>

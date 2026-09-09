@@ -572,4 +572,59 @@ export type Review = {
   body: string | null;
   created_at: string;
   updated_at: string;
+  // marketplace-notifications-reviews (0056) — moderation without silent
+  // deletion, same hidden_at/hidden_by/hidden_reason shape as `messages`
+  // (see the ============ MESSAGING ============ block above). null/null/
+  // null means visible; a moderator setting these is the only way a review
+  // stops being publicly readable (reviews' SELECT policy still lets the
+  // reviewer/reviewee/staff see it while hidden).
+  hidden_at: string | null;
+  hidden_by: string | null;
+  hidden_reason: string | null;
+};
+
+// A plain SECURITY INVOKER view (0056) replacing a per-request JS reduction
+// over every one of a seller's review rows — see summarizeRatings() in
+// src/lib/marketplace.ts, which remains as a pure/tested fallback but is no
+// longer the only path. Excludes hidden reviews at the SQL level (the view's
+// own WHERE clause, not RLS — reviews.hidden_at is not itself filtered by
+// RLS since the reviewee/reviewer/staff can still see their own hidden row).
+export type SellerRatingSummary = {
+  user_id: string;
+  average_rating: number;
+  review_count: number;
+};
+
+// ============ NOTIFICATIONS ============
+// See supabase/migrations/0042_notifications.sql (base table) and
+// 0056_marketplace_notifications_reviews.sql (dedupe_key). System-populated
+// only — notify_user() (SECURITY DEFINER, service-role only) is the single
+// write path; no authenticated/anon INSERT policy exists. `data` carries at
+// minimum `{ href }` for every notification fired since 0056 — see
+// notificationHref() in src/lib/notifications.ts for the fallback when it's
+// missing (older rows, or a future caller that forgets it).
+export type Notification = {
+  id: number;
+  user_id: string;
+  type: string;
+  title: string;
+  body: string;
+  data: Record<string, unknown>;
+  read_at: string | null;
+  dedupe_key: string | null;
+  created_at: string;
+};
+
+// See supabase/migrations/0056_marketplace_notifications_reviews.sql.
+// One row per (user, optional category) — absence of a row means "on"
+// (maybeSingle() returning null is the default-enabled case, never written
+// implicitly). `category` is constrained to the 4 OPTIONAL categories only
+// (see OPTIONAL_NOTIFICATION_CATEGORIES in src/lib/notifications.ts) —
+// transactional categories (payments, disputes_refunds) structurally cannot
+// have a row here at all, guaranteeing they can never be silenced.
+export type NotificationPreference = {
+  user_id: string;
+  category: string;
+  email_enabled: boolean;
+  updated_at: string;
 };

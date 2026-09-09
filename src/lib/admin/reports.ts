@@ -57,7 +57,15 @@ export type ReportCategory = (typeof REPORT_CATEGORIES)[number];
 // was already in AUDIT_TARGET_TYPES — see audit.ts) its own moderation
 // history automatically includes every refund.requested/completed/failed
 // audit entry finance makes against the same order, with no extra code.
-export const REPORT_TARGET_TYPES = ["user", "listing", "tee_time_invite", "message", "conversation", "order"] as const;
+// 'review' — marketplace-notifications-reviews (0056_marketplace_notifications_
+// reviews.sql). Same reused-queue reasoning as 'order' above: a review
+// report is a report, so it gets a moderator queue, assignment and internal
+// notes for free. The member-facing write path is reportReview()
+// (src/app/dashboard/buying/actions.ts); the moderation action it can lead
+// to (hiding the review) goes through hideReview()/restoreReview()
+// (src/app/admin/reviews/actions.ts) rather than this queue directly, same
+// separation as report -> hideListing() for a listing report.
+export const REPORT_TARGET_TYPES = ["user", "listing", "tee_time_invite", "message", "conversation", "order", "review"] as const;
 export type ReportTargetType = (typeof REPORT_TARGET_TYPES)[number];
 
 // Roles an open report can be escalated TO (reports.escalated_to_role,
@@ -115,6 +123,7 @@ export const REPORT_TARGET_TYPE_LABELS: Record<ReportTargetType, string> = {
   message: "Message",
   conversation: "Conversation",
   order: "Order",
+  review: "Review",
 };
 
 // Category subsets each member-facing report form actually offers — the
@@ -144,6 +153,12 @@ export const ORDER_REPORT_CATEGORIES: readonly ReportCategory[] = [
   "item_not_received",
   "payment_issue",
   "scam_fraud",
+  "other",
+];
+export const REVIEW_REPORT_CATEGORIES: readonly ReportCategory[] = [
+  "harassment",
+  "inappropriate_content",
+  "spam",
   "other",
 ];
 

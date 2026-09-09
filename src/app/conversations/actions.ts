@@ -16,6 +16,7 @@ import {
 import { conversationChannelTopic, inboxChannelTopic, broadcast } from "@/lib/realtime";
 import { REPORT_CATEGORIES, parseEvidenceRefs, type ReportCategory } from "@/lib/admin/reports";
 import { checkRateLimit, rateLimitMessage } from "@/lib/rate-limit";
+import { notifyUser } from "@/lib/notifications-server";
 import type { Conversation, Message } from "@/lib/types";
 
 export type MessageActionState = { error?: string; success?: boolean };
@@ -232,6 +233,29 @@ export async function sendMessage(conversationId: number, _prev: MessageActionSt
       senderId: user.id,
       preview: body.slice(0, 140),
       createdAt: message.created_at,
+    });
+
+    // Best-effort, same as the broadcasts above — a notification failing to
+    // write must never fail the send itself. notify_user() is
+    // service-role-only (see 0056's own comment), so this goes through the
+    // admin client, same as reportMessage()/reportConversation() below.
+    const { data: sender } = await supabase
+      .from("profiles")
+      .select("first_name, last_name")
+      .eq("id", user.id)
+      .maybeSingle<{ first_name: string; last_name: string }>();
+    const senderName = sender ? `${sender.first_name} ${sender.last_name}`.trim() : "A member";
+    await notifyUser(createAdminClient(), {
+      userId: otherId,
+      type: "new_message",
+      title: "New message",
+      body: `${senderName} sent you a message: "${body.slice(0, 140)}${body.length > 140 ? "…" : ""}"`,
+      // Never put another member's free-text message content in an email —
+      // see notifyUser()'s own comment on emailBody.
+      emailBody: `${senderName} sent you a new message on Pinpals.`,
+      href: `/conversations/${conversationId}`,
+      data: { conversationId },
+      dedupeKey: `message:${message.id}:notify`,
     });
   }
 

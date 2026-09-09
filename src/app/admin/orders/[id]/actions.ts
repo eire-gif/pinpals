@@ -8,6 +8,8 @@ import { recordAdminAction } from "@/lib/admin/audit";
 import { getStripeClient } from "@/lib/stripe/client";
 import { centsFromEur, truncateErrorMessage } from "@/lib/stripe/payments";
 import { computeRefundableAmountEur, isOrderRefundable, mapStripeRefundStatus, refundFailureMessage } from "@/lib/stripe/refunds";
+import { notifyUser } from "@/lib/notifications-server";
+import { formatPrice } from "@/lib/format";
 import type { Order, Refund } from "@/lib/types";
 
 export type RefundActionState = { error?: string; success?: boolean };
@@ -131,6 +133,20 @@ export async function requestOrderRefund(_prev: RefundActionState, formData: For
     metadata: { refundId: refund.id, amountEur },
   });
 
+  // Never the admin's own reason text — that's an internal note, not
+  // something to surface to the two members involved.
+  for (const userId of [order.buyer_id, order.seller_id]) {
+    await notifyUser(admin, {
+      userId,
+      type: "refund_requested",
+      title: "Refund requested",
+      body: `A refund of ${formatPrice(amountEur)} for "${order.listing_title}" has been requested and is being processed.`,
+      href: `/dashboard/orders/${orderId}`,
+      data: { orderId },
+      dedupeKey: `refund:${refund.id}:refund_requested:${userId}`,
+    });
+  }
+
   const stripe = getStripeClient();
   let stripeRefund;
   try {
@@ -170,6 +186,17 @@ export async function requestOrderRefund(_prev: RefundActionState, formData: For
       outcome: "failure",
       metadata: { refundId: refund.id, amountEur, error: message },
     });
+    for (const userId of [order.buyer_id, order.seller_id]) {
+      await notifyUser(admin, {
+        userId,
+        type: "refund_failed",
+        title: "Refund could not be completed",
+        body: `A refund of ${formatPrice(amountEur)} for "${order.listing_title}" could not be completed — our team has been notified.`,
+        href: `/dashboard/orders/${orderId}`,
+        data: { orderId },
+        dedupeKey: `refund:${refund.id}:refund_failed:${userId}`,
+      });
+    }
     revalidateOrder(orderId);
     return { error: refundFailureMessage(err) };
   }
@@ -199,6 +226,20 @@ export async function requestOrderRefund(_prev: RefundActionState, formData: For
       outcome: finalStatus === "failed" ? "failure" : "success",
       metadata: { refundId: refund.id, amountEur, stripeRefundId: stripeRefund.id, status: finalStatus },
     });
+    const succeeded = finalStatus === "succeeded";
+    for (const userId of [order.buyer_id, order.seller_id]) {
+      await notifyUser(admin, {
+        userId,
+        type: succeeded ? "refund_succeeded" : "refund_failed",
+        title: succeeded ? "Refund processed" : "Refund could not be completed",
+        body: succeeded
+          ? `A refund of ${formatPrice(amountEur)} for "${order.listing_title}" has been processed.`
+          : `A refund of ${formatPrice(amountEur)} for "${order.listing_title}" could not be completed — our team has been notified.`,
+        href: `/dashboard/orders/${orderId}`,
+        data: { orderId },
+        dedupeKey: `refund:${refund.id}:${succeeded ? "refund_succeeded" : "refund_failed"}:${userId}`,
+      });
+    }
   }
 
   revalidateOrder(orderId);

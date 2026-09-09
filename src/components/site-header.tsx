@@ -10,6 +10,21 @@ export default async function SiteHeader() {
     data: { user },
   } = await supabase.auth.getUser();
 
+  // Unread notification count for the bell — a cheap head-only count
+  // (RLS's own "own rows" SELECT policy on `notifications` scopes this
+  // without a service-role client), fetched on every page load the same
+  // way the rest of this header re-derives `user` on every load rather than
+  // caching client-side state.
+  let unreadCount = 0;
+  if (user) {
+    const { count } = await supabase
+      .from("notifications")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", user.id)
+      .is("read_at", null);
+    unreadCount = count ?? 0;
+  }
+
   const navLinks = [
     { href: "/community", label: "Find Golfers" },
     { href: "/courses", label: "Courses" },
@@ -41,6 +56,18 @@ export default async function SiteHeader() {
         <div className="hidden md:flex items-center gap-3">
           {user ? (
             <>
+              <Link
+                href="/notifications"
+                aria-label={unreadCount > 0 ? `Notifications (${unreadCount} unread)` : "Notifications"}
+                className="relative p-2.5 rounded-full text-white/80 hover:text-white hover:bg-white/10 transition"
+              >
+                <BellIcon />
+                {unreadCount > 0 && (
+                  <span className="absolute top-1 right-1 min-w-[16px] h-4 px-1 rounded-full bg-gold-500 text-navy-900 text-[10px] font-bold flex items-center justify-center">
+                    {unreadCount > 9 ? "9+" : unreadCount}
+                  </span>
+                )}
+              </Link>
               <Link
                 href="/dashboard"
                 className="px-4 py-2.5 rounded-full text-sm font-semibold text-white/80 hover:text-white hover:bg-white/10 transition"
@@ -79,8 +106,17 @@ export default async function SiteHeader() {
           )}
         </div>
 
-        <MobileNav isLoggedIn={!!user} navLinks={navLinks} />
+        <MobileNav isLoggedIn={!!user} navLinks={navLinks} unreadCount={unreadCount} />
       </div>
     </header>
+  );
+}
+
+function BellIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <path d="M6 9a6 6 0 1112 0c0 4.5 1.5 6 2 6.5H4c.5-.5 2-2 2-6.5z" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M10 19a2 2 0 004 0" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   );
 }
