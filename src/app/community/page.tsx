@@ -136,7 +136,7 @@ export default async function CommunityPage({
             No golfers match that search yet — widen your filters, or check back soon.
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
             {members.map((m) => {
               const name = `${m.first_name} ${m.last_name}`;
               const isMe = m.id === user.id;
