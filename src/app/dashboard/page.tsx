@@ -85,7 +85,10 @@ const QUICK_LINKS: QuickLink[] = [
   {
     href: "/courses",
     label: "Browse courses",
-    description: "All 373 Irish clubs, ready to set as your home club.",
+    // No number here on purpose. This is a static array in a module, so any
+    // figure written into it goes stale the next time the directory grows —
+    // which is exactly what happened to the "373" this replaces.
+    description: "Every club across Ireland and the UK, ready to set as your home club.",
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-5 h-5">
         <line x1="6" y1="20" x2="6" y2="4" />

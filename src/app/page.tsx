@@ -1,7 +1,17 @@
 import Image from "next/image";
 import Link from "next/link";
+import { COUNTRIES } from "@/lib/regions";
+import { countCoursesByCountry } from "@/lib/courses";
 
-export default function HomePage() {
+export default async function HomePage() {
+  // Read live rather than hardcoded. The number on this page said 373 for
+  // months after the directory grew past 2,600 — a stale figure on the first
+  // thing a visitor reads is worse than no figure, and the only way it stays
+  // right is to not write it down. Same query the /courses page already runs.
+  const counts = await countCoursesByCountry();
+  const totalCourses = Object.values(counts).reduce((sum, n) => sum + n, 0);
+  const courseCount = totalCourses.toLocaleString("en-IE");
+
   return (
     <div>
       {/* HERO */}
@@ -21,26 +31,27 @@ export default function HomePage() {
         <div className="relative w-full max-w-6xl mx-auto px-6 pt-24 pb-28">
           <div className="max-w-[680px] [text-shadow:0_1px_18px_rgba(6,16,30,0.55)]">
             <span className="inline-flex items-center gap-2 text-xs font-bold tracking-widest uppercase text-gold-400">
-              <span className="w-5 h-0.5 bg-gold-400 inline-block" /> Ireland&rsquo;s golf community
+              <span className="w-5 h-0.5 bg-gold-400 inline-block" /> Golf community &mdash; Ireland &amp; the UK
             </span>
             <h1 className="font-display font-bold text-4xl md:text-6xl leading-[1.05] mt-3">
-              Find your <em className="text-gold-400 italic">next four ball</em>, anywhere in Ireland.
+              Find your <em className="text-gold-400 italic">next four ball</em>, across Ireland &amp; the UK.
             </h1>
             <p className="text-white/95 text-lg mt-5 max-w-[52ch]">
-              Pinpals connects golfers across all 32 counties so you can meet playing partners,
-              book rounds at each other&rsquo;s home clubs, and find your people in the game.
+              Pinpals connects golfers from Kerry to the Highlands so you can meet playing
+              partners, book rounds at each other&rsquo;s home clubs, and find your people in
+              the game.
             </p>
             <div className="flex flex-wrap gap-3.5 mt-7">
               <Link href="/signup" className="px-6 py-3.5 rounded-full font-bold bg-[#fbf8ef] text-navy-900 hover:bg-white transition">
                 Join the community
               </Link>
               <Link href="/courses" className="px-6 py-3.5 rounded-full font-bold border-[1.5px] border-white/55 bg-white/5 backdrop-blur-[2px] hover:bg-white/15 hover:border-white/80 transition">
-                Browse 373 Irish courses
+                Browse {courseCount} courses
               </Link>
             </div>
             <div className="flex flex-wrap gap-9 mt-6 pt-5 border-t border-white/25">
-              <Stat value="373" label="Courses listed" />
-              <Stat value="32" label="Counties covered" />
+              <Stat value={courseCount} label="Courses listed" />
+              <Stat value={String(COUNTRIES.length)} label="Countries covered" />
               <Stat value="Free" label="To join" />
             </div>
           </div>
@@ -59,7 +70,7 @@ export default function HomePage() {
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-7">
           <Step n="01" title="Build your profile" body="Tell us your home club, handicap and the county you play in most. It takes two minutes." />
-          <Step n="02" title="Find golfers nearby" body="Search the community by club, county or handicap band to find players near you." />
+          <Step n="02" title="Find golfers nearby" body="Search the community by club, county or handicap band to find players near you, wherever you are." />
           <Step n="03" title="Play together" body="Reach out, set up a round, and build a regular group of playing partners." />
         </div>
       </section>
@@ -72,7 +83,7 @@ export default function HomePage() {
               <span className="w-5 h-0.5 bg-gold-500 inline-block" /> Every county, every links
             </span>
             <h2 className="font-display font-bold text-3xl md:text-4xl mt-2.5">
-              373 clubs on the books, from Ballybunion to Warrenpoint.
+              {courseCount} clubs on the books, from Ballybunion to St Andrews.
             </h2>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
@@ -126,7 +137,7 @@ export default function HomePage() {
             Your next round starts with one profile.
           </h2>
           <p className="text-white/85 mt-3">
-            Join golfers from Donegal to Kerry building a community around the game.
+            Join golfers across Ireland and the UK building a community around the game.
           </p>
           <Link href="/signup" className="inline-block mt-6 px-6 py-3.5 rounded-full font-bold bg-[#fbf8ef] text-navy-900 hover:bg-white transition">
             Create your profile
