@@ -3,7 +3,13 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import type { TeeTimeInvite } from "@/lib/types";
-import { STATUS_LABELS, STATUS_STYLES, formatInviteDate, formatTimeRange } from "@/lib/tee-times";
+import {
+  STATUS_LABELS,
+  STATUS_STYLES,
+  VISIBILITY_BADGES,
+  formatInviteDate,
+  formatTimeRange,
+} from "@/lib/tee-times";
 import { updateInviteStatus, deleteInvite } from "./availability/actions";
 
 export default function MyAvailability({ invites }: { invites: TeeTimeInvite[] }) {
@@ -78,6 +84,15 @@ export default function MyAvailability({ invites }: { invites: TeeTimeInvite[] }
                   {invite.handicap_limit != null && (
                     <span className="bg-cream-100 text-xs font-bold px-2.5 py-1 rounded-full">
                       Up to {invite.handicap_limit} hcp
+                    </span>
+                  )}
+                  {/* Only ever renders for a connections-only invite. The
+                      host is the one person who has to be able to tell at a
+                      glance which audience a post went to, since it's the
+                      one choice they can't change after posting. */}
+                  {VISIBILITY_BADGES[invite.visibility] && (
+                    <span className="bg-navy-900 text-cream-50 text-xs font-bold px-2.5 py-1 rounded-full">
+                      {VISIBILITY_BADGES[invite.visibility]}
                     </span>
                   )}
                 </div>

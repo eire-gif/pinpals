@@ -3,7 +3,13 @@
 import { useActionState, useState } from "react";
 import ClubCombobox from "@/components/club-combobox";
 import { COUNTRIES, regionsForCountry } from "@/lib/regions";
-import { SPACES_OPTIONS } from "@/lib/tee-times";
+import {
+  DEFAULT_VISIBILITY,
+  SPACES_OPTIONS,
+  VISIBILITY_DESCRIPTIONS,
+  VISIBILITY_LABELS,
+  VISIBILITY_OPTIONS,
+} from "@/lib/tee-times";
 import { postAvailability, type PostAvailabilityState } from "./actions";
 
 const initialState: PostAvailabilityState = {};
@@ -11,6 +17,7 @@ const initialState: PostAvailabilityState = {};
 export default function NewAvailabilityForm() {
   const [state, formAction, pending] = useActionState(postAvailability, initialState);
   const [hasTeeTime, setHasTeeTime] = useState(false);
+  const [visibility, setVisibility] = useState<string>(DEFAULT_VISIBILITY);
   // Same country-then-club flow as the profile form, for the same reason:
   // the club list is ~3,000 courses across five countries and is only
   // skimmable once a country has narrowed it. Defaults to Ireland, where
@@ -125,6 +132,40 @@ export default function NewAvailabilityForm() {
           placeholder="e.g. Looking for another Pinpals member to join me — happy to play any pace."
           className="px-3.5 py-3 rounded-lg border-[1.5px] border-line focus:outline-none focus:border-green-600 resize-y" />
       </div>
+
+      {/* Last field before the button, deliberately: it is the one decision
+          here that can't be undone by editing the post afterwards — once a
+          round has gone out to everyone, it has been seen. Radios rather
+          than a select so both answers and their consequences are readable
+          without opening anything. */}
+      <fieldset className="bg-surface-tint border border-line rounded-xl px-4 py-3.5">
+        <legend className="text-[13.5px] font-bold px-1">Who can see this tee time?</legend>
+        <div className="grid gap-2 mt-1">
+          {VISIBILITY_OPTIONS.map((option) => (
+            <label
+              key={option}
+              className={`flex items-start gap-2.5 rounded-lg px-3 py-2.5 cursor-pointer border-[1.5px] transition ${
+                visibility === option ? "border-green-600 bg-surface" : "border-transparent"
+              }`}
+            >
+              <input
+                type="radio"
+                name="visibility"
+                value={option}
+                checked={visibility === option}
+                onChange={(e) => setVisibility(e.target.value)}
+                className="w-4 h-4 mt-0.5 accent-green-700 shrink-0"
+              />
+              <span>
+                <span className="block text-sm font-semibold">{VISIBILITY_LABELS[option]}</span>
+                <span className="block text-[13px] text-ink-500 mt-0.5">
+                  {VISIBILITY_DESCRIPTIONS[option]}
+                </span>
+              </span>
+            </label>
+          ))}
+        </div>
+      </fieldset>
 
       {state.error && (
         <p className="text-sm text-red-600 bg-red-100 rounded-lg px-3.5 py-2.5">{state.error}</p>
