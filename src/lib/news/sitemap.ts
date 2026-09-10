@@ -27,8 +27,16 @@
 
 import { decode, tagText, blocks } from "./feed";
 
-/** How many child sitemaps of an index to follow in one run. */
-export const MAX_CHILDREN_FOLLOWED = 2;
+/**
+ * How many child sitemaps of an index to follow in one run.
+ *
+ * One. The children are sorted newest first, and on the DP World Tour that
+ * puts `latest.xml` at the front — which is exactly and only what a news
+ * collector wants. Following a second costs ten seconds of the run's budget
+ * to read last month, and last month is outside the collection window
+ * anyway.
+ */
+export const MAX_CHILDREN_FOLLOWED = 1;
 
 export interface SitemapEntry {
   /** Canonical article URL. */
