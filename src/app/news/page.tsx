@@ -9,6 +9,11 @@ export const metadata: Metadata = {
   alternates: { canonical: "/news" },
 };
 
+// Articles arrive a few times a week and are published from the admin queue,
+// which calls revalidatePath("/news"). This is the backstop for anything that
+// changes without going through that path.
+export const revalidate = 300;
+
 function formatDate(iso: string) {
   return new Intl.DateTimeFormat("en-IE", {
     day: "numeric",

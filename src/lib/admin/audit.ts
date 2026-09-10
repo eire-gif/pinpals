@@ -171,6 +171,19 @@ export const ADMIN_ACTIONS = [
   // routine member self-service). Included only for completeness in case a
   // future admin-side "mute on someone's behalf" tool is ever added; nothing
   // in this phase calls recordAdminAction() with either of these two.
+  //
+  // /admin/news — the review queue for AI-drafted articles. Every one of
+  // these is audited because publishing is the moment a machine-written piece
+  // becomes something Pinpals said in public, and because the EU AI Act's
+  // Article 50(4) exemption rests on a person having exercised editorial
+  // control: an "article.published" row with a named actor is the record that
+  // one did. "article.edited" carries the changed field names in `metadata`;
+  // the before/after text goes to article_revisions, not here.
+  "article.published",
+  "article.rejected",
+  "article.edited",
+  "article.retracted",
+  "article.corrected",
 ] as const;
 export type AdminAction = (typeof ADMIN_ACTIONS)[number];
 
@@ -216,6 +229,8 @@ export const AUDIT_TARGET_TYPES = [
   // club.import_run entry names no single row (it touches a whole country),
   // and carries the country in `metadata` instead.
   "club",
+  // The target of the article.* actions above — a row in `articles`.
+  "article",
 ] as const;
 export type AuditTargetType = (typeof AUDIT_TARGET_TYPES)[number];
 
