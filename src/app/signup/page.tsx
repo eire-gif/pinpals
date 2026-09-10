@@ -13,8 +13,8 @@ export default function SignUpPage() {
             Tell us about your game.
           </h1>
           <p className="text-white/80 mt-3 max-w-[52ch]">
-            Your email and a password is all it takes to get started — add your home club and
-            handicap right after.
+            A name, an email and a password is all it takes to get started — your club, county and
+            handicap come next, and take about a minute.
           </p>
         </div>
       </div>

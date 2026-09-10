@@ -3,6 +3,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { MIN_PASSWORD_LENGTH, PASSWORD_HINT, passwordProblem, PASSWORD_MISMATCH_MESSAGE } from "@/lib/passwords";
 
 export default function ResetPasswordForm() {
   const router = useRouter();
@@ -46,12 +47,13 @@ export default function ResetPasswordForm() {
     const password = String(form.get("password") || "");
     const confirm = String(form.get("confirm") || "");
 
-    if (password.length < 6) {
-      setError("Your new password needs to be at least 6 characters.");
+    const passwordIssue = passwordProblem(password);
+    if (passwordIssue) {
+      setError(passwordIssue);
       return;
     }
     if (password !== confirm) {
-      setError("The two passwords don't match — please retype them.");
+      setError(PASSWORD_MISMATCH_MESSAGE);
       return;
     }
 
@@ -84,13 +86,13 @@ export default function ResetPasswordForm() {
     <form onSubmit={handleSubmit} className="grid gap-4">
       <div className="grid gap-1.5">
         <label htmlFor="password" className="text-[13.5px] font-bold">New password</label>
-        <input id="password" name="password" type="password" required minLength={6} autoComplete="new-password"
+        <input id="password" name="password" type="password" required minLength={MIN_PASSWORD_LENGTH} autoComplete="new-password"
           className="px-3.5 py-3 rounded-lg border-[1.5px] border-line focus:outline-none focus:border-green-600" />
-        <span className="text-xs text-ink-500">At least 6 characters.</span>
+        <span className="text-xs text-ink-500">{PASSWORD_HINT}</span>
       </div>
       <div className="grid gap-1.5">
         <label htmlFor="confirm" className="text-[13.5px] font-bold">Confirm new password</label>
-        <input id="confirm" name="confirm" type="password" required minLength={6} autoComplete="new-password"
+        <input id="confirm" name="confirm" type="password" required minLength={MIN_PASSWORD_LENGTH} autoComplete="new-password"
           className="px-3.5 py-3 rounded-lg border-[1.5px] border-line focus:outline-none focus:border-green-600" />
       </div>
 

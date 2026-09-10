@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 // Supabase sends confirmation + password-recovery email links here with a
 // `token_hash` + `type`. We exchange the token for a real session, then forward
 // the user on:
-//   - signup confirmations -> profile setup (the default when no `next` is given)
+//   - signup confirmations -> the onboarding steps (the default when no `next` is given)
 //   - password recovery     -> /reset-password (passed as `next` by the reset email)
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
@@ -22,8 +22,7 @@ export async function GET(request: NextRequest) {
     if (!error) {
       // Only allow same-site relative redirects from `next` (guards against an
       // open-redirect via a tampered link).
-      const destination =
-        next && next.startsWith("/") ? next : "/profile/edit?welcome=1";
+      const destination = next && next.startsWith("/") ? next : "/onboarding";
       return NextResponse.redirect(`${origin}${destination}`);
     }
   }
