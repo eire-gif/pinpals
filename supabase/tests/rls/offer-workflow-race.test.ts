@@ -47,7 +47,7 @@ async function freshListing(sellerId: string, priceEur = 200): Promise<string> {
   const { rows } = await pool.query<{ id: string }>(
     `insert into public.listings
        (seller_id, title, description, price_eur, price_cents, category, condition, county, status, sale_type)
-     values ($1, 'Race fixture listing', 'x', $2, $3, 'irons', 'good', 'Kerry', 'active', 'offers_allowed')
+     values ($1, 'Race fixture listing', 'x', $2, $3, 'Irons', 'good', 'Kerry', 'active', 'offers_allowed')
      returning id`,
     [sellerId, priceEur, Math.round(priceEur * 100)],
   );

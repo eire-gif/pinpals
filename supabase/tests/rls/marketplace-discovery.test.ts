@@ -55,11 +55,11 @@ describe("search_marketplace_listings()", () => {
 
   it("filters by category", async () => {
     await withRole("anon", null, async (c) => {
-      const match = await c.query<Row>("select id from public.search_marketplace_listings(p_category := 'irons')");
+      const match = await c.query<Row>("select id from public.search_marketplace_listings(p_category := 'Irons')");
       expect(match.rows.map((row) => row.id)).toContain(ids.listings.active);
 
       const noMatch = await c.query<Row>(
-        "select id from public.search_marketplace_listings(p_category := 'putters')"
+        "select id from public.search_marketplace_listings(p_category := 'Putters')"
       );
       expect(noMatch.rows.map((row) => row.id)).not.toContain(ids.listings.active);
     });

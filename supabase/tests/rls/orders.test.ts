@@ -69,7 +69,7 @@ describe("orders: INSERT/UPDATE/DELETE (no client-writable path — service-role
           `insert into public.orders (
              buyer_id, seller_id, listing_title, listing_category, listing_condition,
              amount_eur, platform_fee_eur, total_eur
-           ) values ($1, $2, 'x', 'irons', 'good', 10, 1, 11)`,
+           ) values ($1, $2, 'x', 'Irons', 'good', 10, 1, 11)`,
           [USERS.buyer1, USERS.seller1],
         ),
         /permission denied/,

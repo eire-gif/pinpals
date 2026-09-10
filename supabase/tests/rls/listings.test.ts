@@ -95,7 +95,7 @@ describe("listings: INSERT (rule 2 — sellers create only under their own selle
     await withRole("authenticated", USERS.seller1, async (c) => {
       const r = await c.query(
         `insert into public.listings (seller_id, title, price_eur, category, condition, status)
-         values ($1, 'New driver', 200, 'drivers', 'good', 'draft')`,
+         values ($1, 'New driver', 200, 'Drivers', 'good', 'draft')`,
         [USERS.seller1],
       );
       expect(r.rowCount).toBe(1);
@@ -115,7 +115,7 @@ describe("listings: INSERT (rule 2 — sellers create only under their own selle
     await withRole("authenticated", USERS.seller1, async (c) => {
       const r = await c.query(
         `insert into public.listings (seller_id, title, price_eur, category, condition, status)
-         values ($1, 'New driver via RETURNING', 200, 'drivers', 'good', 'draft')
+         values ($1, 'New driver via RETURNING', 200, 'Drivers', 'good', 'draft')
          returning id`,
         [USERS.seller1],
       );
@@ -129,7 +129,7 @@ describe("listings: INSERT (rule 2 — sellers create only under their own selle
       await expectRejected(
         c.query(
           `insert into public.listings (seller_id, title, price_eur, category, condition, status)
-           values ($1, 'Fraudulent listing', 200, 'drivers', 'good', 'draft')`,
+           values ($1, 'Fraudulent listing', 200, 'Drivers', 'good', 'draft')`,
           [USERS.seller1],
         ),
       );
@@ -141,7 +141,7 @@ describe("listings: INSERT (rule 2 — sellers create only under their own selle
       await expectRejected(
         c.query(
           `insert into public.listings (seller_id, title, price_eur, category, condition, status)
-           values ($1, 'Anon listing', 200, 'drivers', 'good', 'draft')`,
+           values ($1, 'Anon listing', 200, 'Drivers', 'good', 'draft')`,
           [USERS.seller1],
         ),
       );

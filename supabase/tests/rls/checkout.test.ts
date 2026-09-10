@@ -37,7 +37,7 @@ async function freshListing(
     `insert into public.listings
        (seller_id, title, description, price_eur, price_cents, category, condition, county, status, sale_type,
         delivery_options, collection_notes)
-     values ($1, 'Checkout fixture listing', 'x', $2, $3, 'irons', 'good', 'Kerry', $4, $5, $6, $7)
+     values ($1, 'Checkout fixture listing', 'x', $2, $3, 'Irons', 'good', 'Kerry', $4, $5, $6, $7)
      returning id`,
     [
       sellerId,
@@ -241,7 +241,7 @@ describe("orders: status transition guard (validate_order_status_transition())",
           `insert into public.orders (
              buyer_id, seller_id, listing_id, listing_title, listing_category, listing_condition,
              amount_eur, platform_fee_eur, total_eur, status
-           ) values ($1, $2, $3, 'x', 'irons', 'good', 100, 7, 107, 'pending')
+           ) values ($1, $2, $3, 'x', 'Irons', 'good', 100, 7, 107, 'pending')
            returning id`,
           [USERS.buyer1, USERS.seller1, listingId],
         );
@@ -270,7 +270,7 @@ describe("orders: status transition guard (validate_order_status_transition())",
         `insert into public.orders (
            buyer_id, seller_id, listing_id, listing_title, listing_category, listing_condition,
            amount_eur, platform_fee_eur, total_eur, status
-         ) values ($1, $2, $3, 'x', 'irons', 'good', 100, 7, 107, 'pending')
+         ) values ($1, $2, $3, 'x', 'Irons', 'good', 100, 7, 107, 'pending')
          returning id`,
         [USERS.buyer1, USERS.seller1, listingId],
       );
@@ -308,7 +308,7 @@ describe("orders: status transition guard (validate_order_status_transition())",
           `insert into public.orders (
              buyer_id, seller_id, listing_id, listing_title, listing_category, listing_condition,
              amount_eur, platform_fee_eur, total_eur, status
-           ) values ($1, $2, $3, 'x', 'irons', 'good', 100, 7, 107, 'pending')
+           ) values ($1, $2, $3, 'x', 'Irons', 'good', 100, 7, 107, 'pending')
            returning id`,
           [USERS.buyer1, USERS.seller1, listingId],
         );
@@ -338,7 +338,7 @@ describe("orders: status transition guard (validate_order_status_transition())",
         `insert into public.orders (
            buyer_id, seller_id, listing_id, listing_title, listing_category, listing_condition,
            amount_eur, platform_fee_eur, total_eur, status
-         ) values ($1, $2, $3, 'x', 'irons', 'good', 100, 7, 107, 'pending')
+         ) values ($1, $2, $3, 'x', 'Irons', 'good', 100, 7, 107, 'pending')
          returning id`,
         [USERS.buyer1, USERS.seller1, listingId],
       );
@@ -604,7 +604,7 @@ describe("finalize_offer_checkout(): delivery choice for an accepted offer", () 
          buyer_id, seller_id, listing_id, listing_title, listing_category, listing_condition,
          amount_eur, platform_fee_eur, total_eur, status, payment_status,
          delivery_method, reservation_expires_at
-       ) values ($1, $2, $3, 'x', 'irons', 'good', 110, 7.7, 117.7, $4, $5, $6, $7)
+       ) values ($1, $2, $3, 'x', 'Irons', 'good', 110, 7.7, 117.7, $4, $5, $6, $7)
        returning id`,
       [
         USERS.buyer1,

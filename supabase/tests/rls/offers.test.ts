@@ -353,7 +353,7 @@ describe("offer_action(): accepting a pending offer is transactional", () => {
     await withRole("service_role", null, async (c) => {
       const { rows: freshListing } = await c.query<{ id: string }>(
         `insert into public.listings (seller_id, title, description, price_eur, price_cents, category, condition, county, status, sale_type)
-         values ($1, 'Race fixture listing', 'x', 100, 10000, 'irons', 'good', 'Kerry', 'active', 'offers_allowed')
+         values ($1, 'Race fixture listing', 'x', 100, 10000, 'Irons', 'good', 'Kerry', 'active', 'offers_allowed')
          returning id`,
         [USERS.seller1],
       );
