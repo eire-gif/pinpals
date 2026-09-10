@@ -44,6 +44,11 @@ const NAV_ITEMS: { href: string; label: string; enabled?: boolean; roles?: reado
   { href: "/admin/payouts/ledger", label: "Payout ledger", enabled: true, roles: FINANCE_ROLES },
   { href: "/admin/webhook-events", label: "Webhook events", enabled: true, roles: FINANCE_ROLES },
   { href: "/admin/clubs", label: "Courses", enabled: true },
+  // Read-only source health for the news collector. No `roles` restriction:
+  // it exposes no member data, only which press offices we poll and whether
+  // the last poll worked. Enabling a source is a SQL statement, not a button
+  // here, because it asserts we have read that source's terms.
+  { href: "/admin/news/sources", label: "News sources", enabled: true },
   { href: "/admin/reports", label: "Reports", enabled: true },
   // marketplace-notifications-reviews (0056) — no `roles` restriction, same
   // reasoning as Listings above: any active staff member may hide/restore a
