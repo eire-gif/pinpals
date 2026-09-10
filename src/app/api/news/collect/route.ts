@@ -21,22 +21,44 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 function isAuthorised(request: Request): boolean {
-  const expected = process.env.NEWS_CRON_SECRET;
+  // Trimmed because this value is set by hand in a dashboard, and a secret
+  // pasted out of a table cell or a terminal very often carries a trailing
+  // newline or space. That is not a different secret, it is the same secret
+  // with invisible punctuation, and rejecting it produces a 401 with no way
+  // to tell the two cases apart — which is exactly what happened the first
+  // time this route was deployed.
+  const expected = process.env.NEWS_CRON_SECRET?.trim();
 
   // An unset secret disables the route rather than opening it. A misconfigured
   // deployment should collect nothing, never collect for anyone who asks.
   if (!expected) return false;
 
   const header = request.headers.get("authorization") ?? "";
-  const presented = header.startsWith("Bearer ") ? header.slice(7) : header;
+  const presented = (
+    header.startsWith("Bearer ") ? header.slice(7) : header
+  ).trim();
 
   const a = Buffer.from(presented);
   const b = Buffer.from(expected);
   // timingSafeEqual throws on length mismatch, so compare lengths first —
   // but still run the comparison on equal-length buffers so a wrong secret
   // of the right length takes the same time as a right one.
-  if (a.length !== b.length) return false;
-  return timingSafeEqual(a, b);
+  if (a.length !== b.length) {
+    // Lengths only, and only to the server log — never to the caller. This is
+    // the difference between "the variable is missing", "it has stray
+    // whitespace" and "it is genuinely a different string", none of which a
+    // bare 401 distinguishes.
+    console.warn(
+      `[news] collect auth rejected: presented ${a.length} chars, configured ${b.length} chars`,
+    );
+    return false;
+  }
+
+  const ok = timingSafeEqual(a, b);
+  if (!ok) {
+    console.warn("[news] collect auth rejected: same length, different value");
+  }
+  return ok;
 }
 
 export async function POST(request: Request) {
