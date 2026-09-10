@@ -62,6 +62,34 @@ const DEFAULT_MAX_ARTICLES_PER_RUN = 8;
  */
 const MIN_EXTRACTION_CONFIDENCE = 0.5;
 
+/**
+ * How long one collection run may take before it stops starting new work.
+ *
+ * The route this runs in is capped at 60 seconds, and the pg_cron job that
+ * calls it gives up at 55. Those numbers were comfortable when every source
+ * was a feed: one request each, a ten-second gap, done in twenty seconds.
+ *
+ * A sitemap source is not one request. It is a sitemap fetch plus an article
+ * page per item, each ten seconds apart — six articles is over a minute on
+ * its own. So a run with one sitemap source enabled would be killed
+ * mid-flight, and the source row would never be updated, which means
+ * last_fetched_at never moves and the next run repeats exactly the same work
+ * and dies in exactly the same place. The collector would look busy and
+ * collect nothing, forever.
+ *
+ * The fix is to treat time as the budget it is: stop starting new fetches
+ * near the ceiling, write down what was collected, and let the next run
+ * continue. Deduplication happens before fetching, so the next run picks up
+ * where this one stopped rather than starting over. Entries are ordered
+ * newest first, so a truncated run gets the freshest news, not a random half.
+ *
+ * 45 seconds leaves the response time to travel before pg_net's 55.
+ */
+const RUN_BUDGET_MS = 45_000;
+
+/** Enough headroom to finish a fetch and write the rows after it. */
+const RESERVED_MS = 8_000;
+
 export interface SourceRow {
   id: number;
   name: string;
@@ -116,6 +144,21 @@ export function externalIdFor(item: FeedItem): string {
   return raw.length <= 200 ? raw : sha256(raw);
 }
 
+/**
+ * Is there room in the run's budget for a piece of work costing `needMs`,
+ * plus the headroom to write down what it produced?
+ *
+ * Separated out and exported so the arithmetic is testable. Getting it
+ * backwards would either kill runs mid-flight or stop them doing anything.
+ */
+export function hasTimeFor(
+  deadline: number,
+  needMs: number,
+  now: number = Date.now(),
+): boolean {
+  return now + needMs + RESERVED_MS <= deadline;
+}
+
 /** Whether a source is due, given its poll interval. */
 export function isDue(source: Pick<SourceRow, "last_fetched_at" | "poll_interval_minutes">, now = new Date()): boolean {
   if (!source.last_fetched_at) return true;
@@ -130,7 +173,9 @@ export function isDue(source: Pick<SourceRow, "last_fetched_at" | "poll_interval
  * not stop the others being read. Failures are recorded on the row and
  * surfaced in /admin/news/sources.
  */
-export async function collectAll(): Promise<CollectResult> {
+export async function collectAll(
+  { deadline = Date.now() + RUN_BUDGET_MS }: { deadline?: number } = {},
+): Promise<CollectResult> {
   const supabase = createAdminClient();
   const ranAt = new Date().toISOString();
   const results: SourceResult[] = [];
@@ -144,14 +189,28 @@ export async function collectAll(): Promise<CollectResult> {
 
   if (error) throw new Error(`Could not load content sources: ${error.message}`);
 
-  for (const source of sources ?? []) {
-    if (!isDue(source)) {
+  const due = (sources ?? []).filter((source) => {
+    if (isDue(source)) return true;
+    results.push({
+      source: source.name,
+      fetched: false,
+      inserted: 0,
+      skipped: 0,
+      reason: "not due yet",
+    });
+    return false;
+  });
+
+  for (const [index, source] of due.entries()) {
+    // Out of time. Not an error: last_fetched_at is untouched, so this source
+    // is still due and goes first next run.
+    if (!hasTimeFor(deadline, 0)) {
       results.push({
         source: source.name,
         fetched: false,
         inserted: 0,
         skipped: 0,
-        reason: "not due yet",
+        reason: "run out of time; still due, will go first next run",
       });
       continue;
     }
@@ -176,10 +235,17 @@ export async function collectAll(): Promise<CollectResult> {
 
     results.push(
       source.fetch_kind === "sitemap"
-        ? await collectSitemapSource(supabase, source)
+        ? await collectSitemapSource(supabase, source, new Date(), deadline)
         : await collectSource(supabase, source),
     );
-    await sleep(REQUEST_SPACING_MS);
+
+    // The gap is between requests, so there is no reason to pay it after the
+    // last source — and paying it there is what would push a run past its
+    // ceiling for no benefit to anyone.
+    const isLast = index === due.length - 1;
+    if (!isLast && hasTimeFor(deadline, REQUEST_SPACING_MS)) {
+      await sleep(REQUEST_SPACING_MS);
+    }
   }
 
   return {
@@ -389,6 +455,7 @@ async function collectSitemapSource(
   supabase: AdminClient,
   source: SourceRow,
   now: Date = new Date(),
+  deadline: number = Date.now() + RUN_BUDGET_MS,
 ): Promise<SourceResult> {
   const fail = (reason: string) => recordFailure(supabase, source, reason);
 
@@ -477,11 +544,21 @@ async function collectSitemapSource(
     };
   }
 
-  // --- fetch and extract, politely ---
+  // --- fetch and extract, politely, and within the time we have ---
   const rows: ItemRow[] = [];
   let unreadable = 0;
+  let ranOutOfTime = false;
 
   for (const entry of toFetch) {
+    // Ten seconds of waiting plus a fetch plus the insert after it. If that
+    // does not fit, stop here and let the next run take the rest — the rows
+    // gathered so far are about to be written, and what was not fetched is
+    // not marked as seen, so nothing is lost.
+    if (!hasTimeFor(deadline, REQUEST_SPACING_MS)) {
+      ranOutOfTime = true;
+      break;
+    }
+
     await sleep(REQUEST_SPACING_MS);
     const row = await readArticle(source, entry);
     if (!row) {
@@ -507,9 +584,11 @@ async function collectSitemapSource(
     source: source.name,
     fetched: true,
     inserted,
-    skipped: eligible.length - toFetch.length,
-    reason: `${entries.length} URLs in sitemap, ${eligible.length} eligible, ${toFetch.length} fetched${
-      unreadable > 0 ? `, ${unreadable} unreadable` : ""
+    skipped: eligible.length - (rows.length + unreadable),
+    reason: `${entries.length} URLs in sitemap, ${eligible.length} eligible, ${
+      rows.length + unreadable
+    } fetched${unreadable > 0 ? ` (${unreadable} unreadable)` : ""}${
+      ranOutOfTime ? ", stopped on the run's time budget" : ""
     }`,
   };
 }

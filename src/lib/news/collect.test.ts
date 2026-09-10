@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isDue, externalIdFor, externalIdForUrl, sha256 } from "./collect";
+import { isDue, hasTimeFor, externalIdFor, externalIdForUrl, sha256 } from "./collect";
 
 describe("isDue", () => {
   const now = new Date("2026-09-10T12:00:00Z");
@@ -48,6 +48,37 @@ describe("externalIdFor", () => {
   it("is stable across calls, so a re-poll dedupes", () => {
     const item = { ...base, externalId: "" , link: "https://x.com/release/1" };
     expect(externalIdFor(item)).toBe(externalIdFor({ ...item }));
+  });
+});
+
+describe("hasTimeFor", () => {
+  // The route is capped at 60 seconds and pg_cron gives up at 55, so a run
+  // budgets 45 and keeps 8 in reserve to write down what it collected.
+  const now = 1_000_000;
+  const deadline = now + 45_000;
+
+  it("allows another ten-second gap early in the run", () => {
+    expect(hasTimeFor(deadline, 10_000, now)).toBe(true);
+  });
+
+  it("refuses one that would not leave room to save the results", () => {
+    // 30s gone, 15s left: a 10s wait plus 8s of reserve does not fit.
+    expect(hasTimeFor(deadline, 10_000, now + 30_000)).toBe(false);
+  });
+
+  it("still allows work that needs nothing but the reserve", () => {
+    expect(hasTimeFor(deadline, 0, now + 30_000)).toBe(true);
+  });
+
+  it("refuses everything once the deadline has passed", () => {
+    expect(hasTimeFor(deadline, 0, deadline + 1)).toBe(false);
+    expect(hasTimeFor(deadline, 10_000, deadline + 60_000)).toBe(false);
+  });
+
+  it("treats the exact boundary as usable rather than rounding it away", () => {
+    // Precisely enough for the work plus the reserve.
+    expect(hasTimeFor(deadline, 10_000, deadline - 18_000)).toBe(true);
+    expect(hasTimeFor(deadline, 10_000, deadline - 17_999)).toBe(false);
   });
 });
 
