@@ -193,6 +193,108 @@ describe("extractArticle", () => {
   });
 });
 
+/**
+ * Modelled on Ryder Cup Europe's real markup, captured from a live page after
+ * the first collection run returned nothing at all.
+ *
+ * Two traps, both of which the first version walked straight into:
+ *
+ *   1. The page's <article> elements are the related-story CARDS in the rail,
+ *      not the article. Each is a thumbnail and an <h3>, with no <p> in it.
+ *      The body sits outside all of them.
+ *   2. A sponsor carousel renders as one <p> of about nineteen thousand
+ *      characters. It contains no links, so link density does not catch it,
+ *      and by character weight it outweighs the real article many times over.
+ */
+const RYDERCUP_SHAPED = `<!DOCTYPE html><html lang="en"><head>
+  <title>Luke Donald leads praise for Great Britain and Ireland's comeback Walker Cup victory</title>
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"NewsArticle","headline":"Luke Donald leads praise","datePublished":"2026-09-07T11:42:00.000Z","author":{"@type":"Person","name":"Ryder Cup Digital"}}</script>
+</head><body>
+  <div class="PageLayout-module__root">
+    <div class="InfoBar-module__dateLocation"><span>September 13-19, 2027</span><span>Adare Manor, Limerick, Ireland</span></div>
+
+    <h1>Luke Donald leads praise for Great Britain and Ireland's comeback Walker Cup victory</h1>
+
+    <p class="NewsArticleContentSegment-module__paragraph">Three points behind, GB&amp;I faced a deficit no team had ever overturned to win the Walker Cup, against a United States side carrying seven of the top ten players in the World Amateur Golf Ranking.</p>
+    <p class="NewsArticleContentSegment-module__paragraph">But with six players who had returned from the team beaten at Cypress Point in 2025, experience paid off, in a comeback Paul McGinley likened to &#x201C;the Miracle at Medinah&quot;.</p>
+    <div data-ad-slot="" class="AdSlot-module__container"><div class="AdSlot-module__adSlot" id="_R_25b9_"></div></div>
+    <p class="NewsArticleContentSegment-module__paragraph">Fuelled by early momentum in the singles, England&#x27;s Jack Whaley set the tone, six under par through 11 holes to defeat World Number Five William Jennings 8&amp;7.</p>
+    <p class="NewsArticleContentSegment-module__paragraph">The victory was confirmed in the afternoon, and attention now turns to Adare Manor in County Limerick, where the Ryder Cup itself will be played in September 2027.</p>
+
+    <p class="PartnerCarousel-module__strip">${"Worldwide Partner 2027 Ryder Cup".repeat(600)}</p>
+
+    <ul>
+      <li><div data-card-type="article" class="NewsCard-module__card">
+        <article class="NewsCard-module__contentWrapper"><div class="NewsCard-module__content">
+          <span class="NewsCard-module__eyebrow">a day ago</span>
+          <a class="NewsCard-module__title" href="/news-media/united-states-announces-selection-criteria-for-2027-ryder-cup"><h3>United States Announces Selection Criteria for 2027 Ryder Cup</h3></a>
+        </div></article></div></li>
+      <li><div data-card-type="article" class="NewsCard-module__card">
+        <article class="NewsCard-module__contentWrapper"><div class="NewsCard-module__content">
+          <span class="NewsCard-module__eyebrow">2 days ago</span>
+          <a class="NewsCard-module__title" href="/news-media/qashio-named-official-supporter-of-the-2027-ryder-cup"><h3>Qashio named Official Supporter of the 2027 Ryder Cup</h3></a>
+        </div></article></div></li>
+    </ul>
+  </div>
+</body></html>`;
+
+describe("extractArticle on Ryder Cup Europe's real page shape", () => {
+  it("finds the body even though every <article> on the page is a teaser card", () => {
+    const result = extractArticle(RYDERCUP_SHAPED);
+    expect(result).not.toBeNull();
+    expect(result!.text).toContain("Three points behind");
+    expect(result!.text).toContain("Adare Manor");
+    expect(result!.paragraphs).toBe(4);
+  });
+
+  it("does not scope to a teaser card that holds no article text", () => {
+    // The regression. Preferring the largest <article> found a card with no
+    // paragraphs in it and returned null for every item collected.
+    expect(extractArticle(RYDERCUP_SHAPED)!.method).toBe("density");
+  });
+
+  it("leaves the sponsor carousel out, despite it being the longest block", () => {
+    const text = extractArticle(RYDERCUP_SHAPED)!.text;
+    expect(text).not.toMatch(/Worldwide Partner/);
+    expect(text.length).toBeLessThan(2_000);
+  });
+
+  it("keeps the related-story headlines out of the body", () => {
+    const text = extractArticle(RYDERCUP_SHAPED)!.text;
+    expect(text).not.toMatch(/Selection Criteria/);
+    expect(text).not.toMatch(/Qashio/);
+  });
+
+  it("decodes the entities the page uses, so quotes verify verbatim", () => {
+    const text = extractArticle(RYDERCUP_SHAPED)!.text;
+    expect(text).toContain("GB&I");
+    expect(text).toContain("England's Jack Whaley");
+    expect(text).toContain("8&7");
+
+    // The page really does open that quote with a curly mark and close it
+    // with a straight one. The extractor preserves the mixture rather than
+    // tidying it, which is the right call: validate.ts folds curly and
+    // straight quotes together before comparing, so verification still
+    // matches, and raw_body stays a faithful record of what was published.
+    expect(text).toContain('“the Miracle at Medinah"');
+  });
+
+  it("yields text the drafting gate accepts", () => {
+    const text = extractArticle(RYDERCUP_SHAPED)!.text;
+    const verdict = sourceIsDraftable(
+      text,
+      "Luke Donald leads praise for Great Britain and Ireland's comeback Walker Cup victory",
+    );
+    expect(verdict.ok).toBe(true);
+  });
+
+  it("takes its headline from the h1, not the tab title", () => {
+    expect(extractTitle(RYDERCUP_SHAPED)).toBe(
+      "Luke Donald leads praise for Great Britain and Ireland's comeback Walker Cup victory",
+    );
+  });
+});
+
 describe("extractTitle", () => {
   it("prefers the h1 over the tab title, which carries the site name", () => {
     const html = `<html><head><title>Harrington named Vice Captain | Ryder Cup Europe</title></head>
