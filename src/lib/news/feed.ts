@@ -23,7 +23,7 @@ export interface FeedItem {
 }
 
 /** Strip CDATA wrappers and decode the entities feeds actually use. */
-function decode(value: string): string {
+export function decode(value: string): string {
   let out = value.trim();
 
   const cdata = out.match(/^<!\[CDATA\[([\s\S]*?)\]\]>$/);
@@ -42,7 +42,7 @@ function decode(value: string): string {
 }
 
 /** Text content of the first `<tag>` inside a chunk of XML. */
-function tagText(xml: string, tag: string): string | null {
+export function tagText(xml: string, tag: string): string | null {
   const escaped = tag.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const match = xml.match(
     new RegExp(`<${escaped}(?:\\s[^>]*)?>([\\s\\S]*?)</${escaped}>`, "i"),
@@ -77,7 +77,7 @@ function parseDate(value: string | null): Date | null {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
-function blocks(xml: string, tag: string): string[] {
+export function blocks(xml: string, tag: string): string[] {
   const out: string[] = [];
   const re = new RegExp(`<${tag}(?:\\s[^>]*)?>([\\s\\S]*?)</${tag}>`, "gi");
   let m: RegExpExecArray | null;

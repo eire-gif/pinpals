@@ -157,6 +157,32 @@ export async function checkRobots(
   targetUrl: string,
   fetchImpl: typeof fetch = fetch,
 ): Promise<{ allowed: boolean; reason: string }> {
+  const { rules, reason } = await fetchRobotsRules(targetUrl, fetchImpl);
+  if (!rules) return { allowed: false, reason };
+
+  const path = robotsPath(targetUrl);
+  const allowed = isPathAllowed(rules, path);
+  return {
+    allowed,
+    reason: allowed ? `robots.txt allows ${path}` : `robots.txt disallows ${path}`,
+  };
+}
+
+/**
+ * Fetch a host's robots.txt once and return the parsed rules.
+ *
+ * A sitemap source tests many paths against the same file — the sitemap
+ * itself, then every article URL in it. Calling checkRobots per URL would
+ * re-download robots.txt a dozen times a run, which is both wasteful and, on
+ * a host counting requests, rude.
+ *
+ * `rules: null` means we could not read the file, which is NOT permission.
+ * An empty rule set, by contrast, means we read it and it permits everything.
+ */
+export async function fetchRobotsRules(
+  targetUrl: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<{ rules: RobotsRules | null; reason: string }> {
   const robotsUrl = new URL("/robots.txt", targetUrl).toString();
 
   let response: Response;
@@ -167,23 +193,20 @@ export async function checkRobots(
     });
   } catch (error) {
     return {
-      allowed: false,
+      rules: null,
       reason: `could not read robots.txt (${error instanceof Error ? error.message : "network error"})`,
     };
   }
 
   if (response.status >= 400 && response.status < 500) {
-    return { allowed: true, reason: `no robots.txt (HTTP ${response.status})` };
+    return {
+      rules: { rules: [], crawlDelay: null },
+      reason: `no robots.txt (HTTP ${response.status})`,
+    };
   }
   if (!response.ok) {
-    return { allowed: false, reason: `robots.txt unavailable (HTTP ${response.status})` };
+    return { rules: null, reason: `robots.txt unavailable (HTTP ${response.status})` };
   }
 
-  const rules = parseRobots(await response.text());
-  const path = robotsPath(targetUrl);
-  const allowed = isPathAllowed(rules, path);
-  return {
-    allowed,
-    reason: allowed ? `robots.txt allows ${path}` : `robots.txt disallows ${path}`,
-  };
+  return { rules: parseRobots(await response.text()), reason: "robots.txt read" };
 }

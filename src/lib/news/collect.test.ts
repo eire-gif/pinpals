@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isDue, externalIdFor, sha256 } from "./collect";
+import { isDue, externalIdFor, externalIdForUrl, sha256 } from "./collect";
 
 describe("isDue", () => {
   const now = new Date("2026-09-10T12:00:00Z");
@@ -48,6 +48,25 @@ describe("externalIdFor", () => {
   it("is stable across calls, so a re-poll dedupes", () => {
     const item = { ...base, externalId: "" , link: "https://x.com/release/1" };
     expect(externalIdFor(item)).toBe(externalIdFor({ ...item }));
+  });
+});
+
+describe("externalIdForUrl", () => {
+  it("uses the URL itself, so dedupe survives a re-read of the sitemap", () => {
+    const url = "https://www.rydercup.com/news-media/harrington-vice-captain";
+    expect(externalIdForUrl(url)).toBe(url);
+    expect(externalIdForUrl(url)).toBe(externalIdForUrl(url));
+  });
+
+  it("hashes a URL too long for the column", () => {
+    const long = `https://www.europeantour.com/dpworld-tour/news/articles/detail/${"x".repeat(220)}/`;
+    expect(externalIdForUrl(long)).toHaveLength(64);
+  });
+
+  it("distinguishes two articles that differ only in their slug", () => {
+    expect(externalIdForUrl("https://a.com/news/one")).not.toBe(
+      externalIdForUrl("https://a.com/news/two"),
+    );
   });
 });
 
