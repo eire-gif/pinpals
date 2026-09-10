@@ -91,6 +91,7 @@ export default async function SiteHeader() {
       ],
     },
     { href: "/marketplace", label: "Marketplace" },
+    { href: "/news", label: "News" },
   ];
 
   return (
