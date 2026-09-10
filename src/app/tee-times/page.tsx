@@ -10,14 +10,29 @@ import {
   formatClock,
 } from "@/lib/tee-times";
 import { initials } from "@/lib/format";
+import { formatDistance, parseCoords, parseRadiusKm } from "@/lib/geo";
 import InterestButton from "./interest-button";
+import NearbySearch from "./nearby-search";
 
 export default async function TeeTimesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ county?: string; club?: string; date?: string; spaces?: string }>;
+  searchParams: Promise<{
+    county?: string;
+    club?: string;
+    date?: string;
+    spaces?: string;
+    lat?: string;
+    lng?: string;
+    radius?: string;
+  }>;
 }) {
-  const { county = "", club = "", date = "", spaces = "" } = await searchParams;
+  const { county = "", club = "", date = "", spaces = "", lat, lng, radius } = await searchParams;
+  // Validated rather than trusted: these three come from a URL anyone can
+  // edit by hand. Anything that isn't a real coordinate reads as "no location
+  // search", which is the same as not having pressed the button.
+  const coords = parseCoords(lat, lng);
+  const radiusKm = parseRadiusKm(radius);
   const supabase = await createClient();
   const {
     data: { user },
@@ -64,22 +79,61 @@ export default async function TeeTimesPage({
     );
   }
 
+  // Proximity first, as a separate call, so the main query below keeps its
+  // shape (including the host join) instead of being duplicated inside a
+  // database function that would then have to be kept in step with it.
+  //
+  // invites_near() is SECURITY INVOKER, so a "connections only" invite stays
+  // invisible to anyone outside the host's connections here exactly as it is
+  // everywhere else — the proximity search cannot be used to discover one.
+  let nearbyDistanceById: Map<number, number> | null = null;
+  if (coords) {
+    const { data, error: nearbyError } = await supabase.rpc("invites_near", {
+      p_lat: coords.lat,
+      p_lng: coords.lng,
+      p_radius_km: radiusKm,
+    });
+
+    if (nearbyError) {
+      console.error("[tee-times] Nearby search failed:", nearbyError.message);
+    }
+    // Cast rather than .returns<T>(): the checked-in Supabase types were
+    // generated before this function existed, so the client can't infer its
+    // row shape. The shape is fixed by 0068's `returns table (...)`.
+    const nearby = (data ?? []) as { invite_id: number; distance_km: number }[];
+    // An empty result is a real answer ("nothing within 30 km"), not a
+    // missing filter — so this map is set even when it has no entries, and
+    // the query below correctly returns nothing.
+    nearbyDistanceById = new Map(nearby.map((row) => [row.invite_id, row.distance_km]));
+  }
+
   let query = supabase
     .from("tee_time_invites")
     .select("*, profiles(first_name, last_name, home_club, avatar_color, handicap, handicap_visible)")
     .eq("status", "open")
     .gt("expires_at", new Date().toISOString());
 
+  if (nearbyDistanceById) query = query.in("id", [...nearbyDistanceById.keys()]);
   if (county) query = query.eq("county", county);
   if (club) query = query.ilike("club_name", `%${club}%`);
   if (date) query = query.eq("play_date", date);
   if (spaces) query = query.gte("spaces_available", Number(spaces));
 
-  const { data: invites } = await query
+  const { data: rawInvites } = await query
     .order("play_date", { ascending: true })
     .order("created_at", { ascending: true })
     .limit(60)
     .returns<TeeTimeInviteWithHost[]>();
+
+  // Nearest first when a location search is on — "near me" that returned
+  // results in date order would bury the course down the road under one three
+  // counties away. Date order is restored the moment the location is cleared.
+  const invites = nearbyDistanceById
+    ? [...(rawInvites ?? [])].sort(
+        (a, b) =>
+          (nearbyDistanceById.get(a.id) ?? Infinity) - (nearbyDistanceById.get(b.id) ?? Infinity)
+      )
+    : rawInvites;
 
   // So each card can swap its "I'm interested" button for the outcome if the
   // current member has already sent (or heard back on) a request.
@@ -97,7 +151,7 @@ export default async function TeeTimesPage({
   const myInterestByInvite = new Map(myInterests.map((i) => [i.invite_id, i.status]));
 
   const today = new Date().toISOString().slice(0, 10);
-  const hasFilters = Boolean(county || club || date || spaces);
+  const hasFilters = Boolean(county || club || date || spaces || coords);
 
   return (
     <div>
@@ -148,13 +202,37 @@ export default async function TeeTimesPage({
               Clear filters
             </Link>
           )}
+
+          {/* Inside the same card as the other filters, on its own row: it
+              needs a permission prompt and can fail in ways a <select>
+              can't, so it gets space for a message rather than being
+              squeezed in beside them. It sits outside the form's submit
+              flow — it navigates by itself, carrying the other filters. */}
+          <div className="w-full border-t border-line pt-3.5 mt-0.5">
+            <NearbySearch activeRadiusKm={coords ? radiusKm : null} />
+          </div>
         </form>
+
+        {coords && (
+          <p className="text-sm text-ink-500 mb-6 -mt-4">
+            Showing open invites within{" "}
+            <span className="font-bold text-ink-900">{radiusKm} km</span> of you, nearest first.
+            {/* Said plainly rather than hidden: 109 of the ~2,655 clubs in the
+                directory have no coordinates from the OSM import, and an
+                invite at one of them cannot appear in a distance search at
+                all. A member who knows a round exists and can't see it here
+                deserves to know why. */}{" "}
+            Clubs without a location on file won&rsquo;t appear here — search by county to see those.
+          </p>
+        )}
 
         {!invites || invites.length === 0 ? (
           <div className="text-center py-16 text-ink-500">
-            {hasFilters
-              ? "No open invites match those filters — try widening your search."
-              : "No open invites right now — be the first to post your availability."}
+            {coords
+              ? `No open invites within ${radiusKm} km of you — try a wider radius, or post your own availability.`
+              : hasFilters
+                ? "No open invites match those filters — try widening your search."
+                : "No open invites right now — be the first to post your availability."}
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -173,6 +251,15 @@ export default async function TeeTimesPage({
                     {formatInviteDate(invite.play_date)}
                   </span>
                   <h3 className="font-display font-bold text-lg mt-1.5">{invite.club_name}</h3>
+                  {nearbyDistanceById?.has(invite.id) && (
+                    <p className="text-xs font-bold text-green-700 mt-1 inline-flex items-center gap-1">
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
+                        <path d="M12 21s7-6.2 7-11a7 7 0 10-14 0c0 4.8 7 11 7 11z" strokeLinecap="round" strokeLinejoin="round" />
+                        <circle cx="12" cy="10" r="2.6" />
+                      </svg>
+                      {formatDistance(nearbyDistanceById.get(invite.id) as number)}
+                    </p>
+                  )}
                   {invite.county && <p className="text-xs text-ink-500 mt-0.5">{invite.county}</p>}
 
                   <div className="flex flex-wrap gap-2 mt-3">
