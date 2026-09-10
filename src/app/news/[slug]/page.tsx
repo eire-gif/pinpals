@@ -3,18 +3,20 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
   getPublishedArticle,
-  listPublishedSlugs,
   displayableImage,
   type Article,
 } from "@/lib/news/articles";
 import { AiDisclosure, aiDisclosureText } from "@/components/news/ai-disclosure";
 
-type Params = { params: Promise<{ slug: string }> };
+// Rendered on demand and cached for five minutes, rather than pre-rendered at
+// build time. generateStaticParams() would need a database read without an
+// HTTP request, which means the service-role key, which would make every
+// build depend on a secret it otherwise does not need. Publishing from the
+// admin queue calls revalidatePath() anyway, so a new article appears at once
+// and this interval is only the backstop.
+export const revalidate = 300;
 
-export async function generateStaticParams() {
-  const slugs = await listPublishedSlugs();
-  return slugs.map((slug) => ({ slug }));
-}
+type Params = { params: Promise<{ slug: string }> };
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { slug } = await params;
