@@ -4,6 +4,7 @@ import {
   normalise,
   trimPunctuation,
   slugify,
+  sourceIsDraftable,
   type DraftShape,
 } from "./validate";
 
@@ -297,5 +298,41 @@ describe("slugify", () => {
     ]) {
       expect(slugify(h)).toMatch(pattern);
     }
+  });
+});
+
+describe("sourceIsDraftable", () => {
+  // These are the real body lengths the USGA Media Center RSS delivered on
+  // 10 September 2026. CPG's average over the same period was 3,319.
+  it.each([
+    ["Stout Awarded McCormack Medal for Being Top Male Amateur", 56],
+    ["Final Six Players Named to USA Walker Cup Team", 46],
+    ["Kiara Romero Wins the McCormack Medal", 93],
+  ])("refuses a headline-only feed item: %s", (title) => {
+    const result = sourceIsDraftable(title, title);
+    expect(result.ok).toBe(false);
+    expect(result.reason).toMatch(/too thin|little more than its own headline/);
+  });
+
+  it("refuses a body that is only the headline plus a one-line summary", () => {
+    const title = "Sankaty Head Golf Club to Host 2036 U.S. Women's Mid-Amateur";
+    const body = `${title}\n\nSecond USGA championship awarded to Massachusetts club`;
+    expect(sourceIsDraftable(body, title).ok).toBe(false);
+  });
+
+  it("accepts a real press release", () => {
+    expect(sourceIsDraftable(SOURCE, "Stephen Gallacher named captain").ok).toBe(true);
+  });
+
+  it("refuses an empty body", () => {
+    expect(sourceIsDraftable("", "A headline").ok).toBe(false);
+  });
+
+  it("catches padding that repeats the headline to reach the length floor", () => {
+    const title = "Some Golf Announcement";
+    const padded = Array(30).fill(title).join(" ");
+    // Long enough in raw characters, but almost nothing that is not the title.
+    expect(padded.length).toBeGreaterThan(600);
+    expect(sourceIsDraftable(padded, title).ok).toBe(false);
   });
 });
