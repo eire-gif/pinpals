@@ -8,7 +8,13 @@ import {
   triageUserMessage,
   draftUserMessage,
 } from "./prompts";
-import { validateDraft, slugify, type DraftShape } from "./validate";
+import {
+  validateDraft,
+  slugify,
+  sourceIsDraftable,
+  type DraftShape,
+} from "./validate";
+import { hasExpiredCallToAction } from "./freshness";
 
 /**
  * Triage and drafting — the only two model calls in the pipeline.
@@ -170,21 +176,53 @@ async function triageNewItems(
   supabase: AdminClient,
   threshold: number,
 ): Promise<{ scored: number; above: number }> {
-  const { data: items } = await supabase
+  const { data: allItems } = await supabase
     .from("content_items")
-    .select("id, title, raw_body")
+    .select("id, title, raw_body, published_at")
     .eq("status", "new")
     .order("published_at", { ascending: false, nullsFirst: false })
     .limit(TRIAGE_BATCH)
-    .returns<{ id: number; title: string; raw_body: string }[]>();
+    .returns<
+      { id: number; title: string; raw_body: string; published_at: string | null }[]
+    >();
 
-  if (!items || items.length === 0) return { scored: 0, above: 0 };
+  if (!allItems || allItems.length === 0) return { scored: 0, above: 0 };
+
+  // Deterministic first pass, before any model call. A release inviting the
+  // reader to apply, enter or register by a date that has passed is rejected
+  // outright — it is not a scoring question. Doing this here also means we do
+  // not pay to triage items that can never be published.
+  const items: typeof allItems = [];
+  for (const item of allItems) {
+    const expiry = hasExpiredCallToAction(item.raw_body);
+    if (expiry.expired) {
+      await supabase
+        .from("content_items")
+        .update({
+          triage_score: 0,
+          triage_reason: expiry.detail?.slice(0, 300) ?? "expired call to action",
+          triage_model: "rule:hasExpiredCallToAction",
+          triaged_at: new Date().toISOString(),
+          status: "rejected",
+        })
+        .eq("id", item.id);
+      continue;
+    }
+    items.push(item);
+  }
+
+  if (items.length === 0) return { scored: allItems.length, above: 0 };
 
   const result = await callClaude<TriageVerdict[]>({
     model: TRIAGE_MODEL,
     system: TRIAGE_SYSTEM,
     user: triageUserMessage(
-      items.map((i) => ({ id: i.id, title: i.title, body: i.raw_body })),
+      items.map((i) => ({
+        id: i.id,
+        title: i.title,
+        body: i.raw_body,
+        publishedAt: i.published_at,
+      })),
     ),
     maxTokens: 4_000,
   });
@@ -216,7 +254,7 @@ async function triageNewItems(
       .eq("id", item.id);
   }
 
-  return { scored: items.length, above };
+  return { scored: allItems.length, above };
 }
 
 async function draftOne(
@@ -225,6 +263,22 @@ async function draftOne(
   publishMode: "review" | "auto",
 ): Promise<"drafted" | "rejected" | "skipped"> {
   const organisation = item.content_sources?.organisation ?? "the source";
+
+  // Before spending anything: is there actually a press release here?
+  //
+  // Some feeds carry headlines and a one-line summary rather than the release
+  // itself. Drafting 200 words from 46 characters is not summarising, it is
+  // inventing — and it is the one failure the post-draft checks cannot see,
+  // because quote verification and the extract-length rule both pass
+  // trivially when the source contains nothing to quote or copy.
+  const draftable = sourceIsDraftable(item.raw_body, item.title);
+  if (!draftable.ok) {
+    await supabase
+      .from("content_items")
+      .update({ status: "rejected", error_detail: draftable.reason })
+      .eq("id", item.id);
+    return "skipped";
+  }
 
   let result;
   try {

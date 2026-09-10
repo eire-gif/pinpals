@@ -19,6 +19,26 @@
  * — true, not in the release, and invisible to every check below.
  */
 
+/**
+ * Shortest source we will draft from.
+ *
+ * Some feeds publish headlines and a one-line summary rather than the release
+ * itself — the USGA Media Center's RSS is one, with item bodies of 46 to 197
+ * characters against CPG's average of 3,319. A 200-word article written from
+ * a 46-character source is not a summary of anything; almost every sentence
+ * in it would have to be invented.
+ *
+ * That is also the case the rest of this file cannot catch. Quote
+ * verification passes trivially when there are no quotes, and the
+ * extract-length check passes trivially when there is nothing long enough to
+ * copy. Both look green while the output is fabricated. So the guard has to
+ * sit before drafting, on the source, not after it on the draft.
+ *
+ * 600 characters is roughly two short paragraphs — thin, but enough that an
+ * article written from it is reporting rather than invention.
+ */
+export const MIN_SOURCE_CHARS = 600;
+
 /** Longest verbatim run allowed from the source outside a marked quote. */
 export const MAX_EXTRACT_WORDS = 25;
 export const MIN_BODY_WORDS = 150;
@@ -250,6 +270,44 @@ const LETTER_SUBSTITUTIONS: [RegExp, string][] = [
   [/ı/g, "i"],
   [/&/g, " and "],
 ];
+
+/**
+ * Is this source substantial enough to write an article from?
+ *
+ * Checked before the drafting call, so a headline-only feed costs nothing and
+ * produces nothing rather than producing fiction. See MIN_SOURCE_CHARS.
+ */
+export function sourceIsDraftable(
+  rawBody: string,
+  title = "",
+): { ok: boolean; reason?: string } {
+  const body = (rawBody ?? "").trim();
+
+  if (body.length < MIN_SOURCE_CHARS) {
+    return {
+      ok: false,
+      reason: `source too thin to draft from: ${body.length} characters (minimum ${MIN_SOURCE_CHARS}). The feed appears to carry headlines rather than article text.`,
+    };
+  }
+
+  // A body that is just the headline repeated, with or without a one-line
+  // standfirst, is the same problem wearing a longer coat.
+  // split/join, not replace(): replace() with a string argument removes only
+  // the first occurrence, so a body padded by repeating its own headline
+  // would keep 29 of 30 copies and sail past the floor.
+  const normalisedTitle = normalise(title);
+  const withoutTitle = normalisedTitle
+    ? normalise(body).split(normalisedTitle).join(" ").trim()
+    : normalise(body);
+  if (withoutTitle.length < MIN_SOURCE_CHARS / 2) {
+    return {
+      ok: false,
+      reason: `source is little more than its own headline: ${withoutTitle.length} characters of distinct text.`,
+    };
+  }
+
+  return { ok: true };
+}
 
 /** URL-safe slug from a headline, with an optional suffix for uniqueness. */
 export function slugify(headline: string, suffix?: string): string {

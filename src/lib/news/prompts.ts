@@ -7,7 +7,7 @@
  * could alter output — not for a typo, always for a rule.
  */
 
-export const PROMPT_VERSION = "2026-09-10.1";
+export const PROMPT_VERSION = "2026-09-10.2";
 
 /**
  * Triage. Scores items for relevance to the actual reader.
@@ -84,16 +84,67 @@ Return JSON and nothing else:
 
 If the release does not contain enough to write 150 words of substance, return {"skip": true, "reason": "<why>"} instead of padding it.`;
 
+/**
+ * Build the triage message.
+ *
+ * Every item carries its publication date, and the message states today's
+ * date. Without both, the rule about expired deadlines is unenforceable — a
+ * model has no reliable idea what day it is, so it cannot tell a call to
+ * action that is open from one that closed months ago.
+ *
+ * This was not hypothetical. The first real backlog contained "Applications
+ * Open to Become a 2027 Ryder Cup Volunteer" — Adare Manor, 2,000 roles, the
+ * single most relevant item in the feed to an Irish club golfer, and its
+ * application window had closed five months earlier. Scored on relevance
+ * alone it would have gone straight to the top of the queue and sent members
+ * to a dead form.
+ *
+ * A backlog is the dangerous case. A feed polled every six hours mostly
+ * yields fresh items; the first run against a year of history does not.
+ */
 export function triageUserMessage(
-  items: { id: number; title: string; body: string }[],
+  items: { id: number; title: string; body: string; publishedAt?: string | null }[],
+  now: Date = new Date(),
 ): string {
+  const today = new Intl.DateTimeFormat("en-IE", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: "Europe/Dublin",
+  }).format(now);
+
   const rendered = items
-    .map(
-      (item) =>
-        `--- id: ${item.id}\nTitle: ${item.title}\n${item.body.slice(0, 1200)}`,
-    )
+    .map((item) => {
+      const published = item.publishedAt
+        ? new Intl.DateTimeFormat("en-IE", {
+            day: "numeric",
+            month: "long",
+            year: "numeric",
+            timeZone: "Europe/Dublin",
+          }).format(new Date(item.publishedAt))
+        : "date unknown";
+      const ageDays = item.publishedAt
+        ? Math.floor(
+            (now.getTime() - new Date(item.publishedAt).getTime()) / 86_400_000,
+          )
+        : null;
+      const age = ageDays === null ? "" : ` (${ageDays} days old)`;
+
+      return `--- id: ${item.id}\nPublished: ${published}${age}\nTitle: ${item.title}\n${item.body.slice(0, 1200)}`;
+    })
     .join("\n\n");
-  return `Score these ${items.length} items.\n\n${rendered}`;
+
+  return `Today's date is ${today}.
+
+Some of these items are old. Read every date carefully. If an item invites the
+reader to do something — apply, enter, register, book, attend, vote — and the
+deadline or event date has already passed, score it below 40 no matter how
+relevant the subject is. Publishing an expired call to action sends readers to
+something that no longer exists, which is worse than publishing nothing.
+
+Score these ${items.length} items.
+
+${rendered}`;
 }
 
 export function draftUserMessage(item: {
