@@ -32,6 +32,18 @@ import { decode } from "./feed";
 export const MIN_BLOCK_CHARS = 45;
 
 /**
+ * Longer than this and a <p> is not a paragraph.
+ *
+ * Ryder Cup Europe's pages carry a sponsor carousel that renders as a single
+ * block of about nineteen thousand characters — "Worldwide Partner 2027 Ryder
+ * Cup" over and over. It has no links in it, so link density does not catch
+ * it, and it would outweigh the entire real article four times over in a run
+ * scored by characters. Prose paragraphs do not reach three thousand
+ * characters; carousels, script blobs and mis-nested markup do.
+ */
+export const MAX_BLOCK_CHARS = 3_000;
+
+/**
  * Above this share of a block's characters sitting inside links, it is a
  * menu or a list of related stories rather than prose. Real article
  * paragraphs do link out, but rarely for half their length.
@@ -144,6 +156,7 @@ function readBlocks(html: string): Block[] {
 
     const kept =
       text.length >= MIN_BLOCK_CHARS &&
+      text.length <= MAX_BLOCK_CHARS &&
       density <= MAX_LINK_DENSITY &&
       !BOILERPLATE.some((pattern) => pattern.test(text));
 
@@ -297,23 +310,59 @@ export function extractArticle(html: string): Extraction | null {
 
   const cleaned = stripElements(html);
 
-  // Prefer the semantic container where the page offers one. The largest
-  // <article> rather than the first: a page listing related stories often
-  // wraps each teaser in its own <article>.
-  const articles = [...cleaned.matchAll(/<article\b[^>]*>([\s\S]*?)<\/article>/gi)]
-    .map((m) => m[1])
-    .sort((a, b) => b.length - a.length);
+  // Try every plausible scope and let the text decide, rather than trusting
+  // <article> to mean what it says.
+  //
+  // This is what the first live run got wrong. Ryder Cup Europe's article
+  // pages contain three <article> elements, and not one of them is the
+  // article: they are the related-story cards in the rail below it, each a
+  // thumbnail and an <h3>, containing no <p> at all. The body sits outside
+  // all of them. Scoping to the largest <article> therefore scoped to a
+  // teaser card, found no paragraphs, and returned null for every item
+  // collected — a clean, silent, total failure.
+  //
+  // So: score each candidate on how much article-shaped prose it actually
+  // yields, and prefer the most specific one that holds a real share of the
+  // best result. Specificity is still worth something — a scope that excludes
+  // the page furniture is safer than one that has to filter it out — but it
+  // is not worth an empty result.
+  const articleBlocks = [
+    ...cleaned.matchAll(/<article\b[^>]*>([\s\S]*?)<\/article>/gi),
+  ].map((m) => m[1]);
   const main = cleaned.match(/<main\b[^>]*>([\s\S]*?)<\/main>/i)?.[1] ?? null;
 
-  const scoped = articles[0] ?? main;
-  const method: Extraction["method"] = articles[0]
-    ? "article-element"
-    : main
-      ? "main-element"
-      : "density";
+  interface Scored {
+    method: Extraction["method"];
+    blocks: Block[];
+    run: Block[];
+    weight: number;
+  }
 
-  const blocks = readBlocks(scoped ?? cleaned);
-  const run = bestRun(blocks);
+  const score = (candidate: string, method: Extraction["method"]): Scored => {
+    const blocks = readBlocks(candidate);
+    const run = bestRun(blocks);
+    return { method, blocks, run, weight: run.reduce((n, b) => n + b.text.length, 0) };
+  };
+
+  // Ordered most specific first.
+  const candidates: Scored[] = [];
+  const scoredArticles = articleBlocks
+    .map((block) => score(block, "article-element"))
+    .sort((a, b) => b.weight - a.weight);
+  if (scoredArticles[0]) candidates.push(scoredArticles[0]);
+  if (main) candidates.push(score(main, "main-element"));
+  candidates.push(score(cleaned, "density"));
+
+  const bestWeight = Math.max(...candidates.map((c) => c.weight));
+  if (bestWeight === 0) return null;
+
+  // A narrower scope wins as long as it holds most of what the widest one
+  // found. Below that it is missing the article, not merely trimming it.
+  const chosen =
+    candidates.find((c) => c.weight >= bestWeight * 0.6) ??
+    candidates[candidates.length - 1];
+
+  const { method, blocks, run } = chosen;
   if (run.length === 0) return null;
 
   // Duplicate blocks are common — a pull quote repeats a sentence from the
