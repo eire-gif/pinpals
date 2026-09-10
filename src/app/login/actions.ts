@@ -28,6 +28,25 @@ export async function logIn(_prev: LoginState, formData: FormData): Promise<Logi
   const password = String(formData.get("password") || "");
 
   const supabase = await createClient();
+
+  // ============ Existing members must keep getting in ============
+  //
+  // There is deliberately NO password-length check here, and there must
+  // never be one. The minimum in src/lib/passwords.ts governs CHOOSING a
+  // password — sign-up and reset — not proving you already know one. It was
+  // raised from 6 to 10, and every member whose password predates that
+  // still has to be able to log in with it.
+  //
+  // Supabase Auth agrees: strengthened requirements apply at sign-up and
+  // password change, not at sign-in. When a member signs in successfully
+  // with a password that no longer meets the current rules, supabase-js
+  // returns `data.weakPassword` with `error` still null — the session is
+  // already issued and saved by that point. So the only thing this code
+  // checks is `error`, and a weak-password signal is not an error.
+  //
+  // If someone later wants to nudge those members, the place to do it is a
+  // banner after they land on the dashboard, never a refusal here.
+  // src/lib/passwords.test.ts asserts both of these against this file.
   const { error } = await supabase.auth.signInWithPassword({ email, password });
 
   if (error) {

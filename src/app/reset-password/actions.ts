@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { checkRateLimit, rateLimitMessage } from "@/lib/rate-limit";
+import { passwordProblem, PASSWORD_MISMATCH_MESSAGE } from "@/lib/passwords";
 
 export type ResetPasswordState = { error?: string };
 
@@ -19,11 +20,16 @@ export async function updatePassword(
   const password = String(formData.get("password") || "");
   const confirm = String(formData.get("confirm") || "");
 
-  if (password.length < 6) {
-    return { error: "Your new password needs to be at least 6 characters." };
+  // Shared with sign-up (src/lib/passwords.ts) rather than restated. This
+  // used to say 6 while sign-up said 10, which would have let a member set
+  // an 8-character password past our own check and then be refused by
+  // Supabase with an error message we don't control.
+  const passwordIssue = passwordProblem(password);
+  if (passwordIssue) {
+    return { error: passwordIssue };
   }
   if (password !== confirm) {
-    return { error: "The two passwords don't match — please retype them." };
+    return { error: PASSWORD_MISMATCH_MESSAGE };
   }
 
   const supabase = await createClient();

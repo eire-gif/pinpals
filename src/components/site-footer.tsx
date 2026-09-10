@@ -1,12 +1,13 @@
 import Link from "next/link";
 import LogoMark from "@/components/logo-mark";
+import { LEGAL_DOCUMENTS, OPERATOR, OPERATOR_DETAILS_COMPLETE } from "@/lib/legal";
 
 export default function SiteFooter() {
   return (
     <footer className="bg-navy-900 text-white/75 pt-14 pb-7">
       <div className="max-w-6xl mx-auto px-6">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-          <div>
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-8">
+          <div className="col-span-2 md:col-span-1">
             <div className="flex items-center gap-2 text-white mb-3">
               <LogoMark className="w-8 h-8" />
               <span className="font-display font-bold text-xl">
@@ -33,15 +34,38 @@ export default function SiteFooter() {
               <Link href="/dashboard" className="hover:text-white">My dashboard</Link>
             </div>
           </div>
+          {/* Terms and the privacy notice have to be permanently and easily
+              accessible, not only shown once at sign-up — S.I. 68/2003 for
+              the terms, Art. 12 GDPR for the notice. The footer is the one
+              place on every page that can carry them. */}
+          <div>
+            <h4 className="text-xs uppercase tracking-wider text-white mb-3">Legal</h4>
+            <div className="flex flex-col gap-1.5 text-sm">
+              {LEGAL_DOCUMENTS.map((doc) => (
+                <Link key={doc.slug} href={`/legal/${doc.slug}`} className="hover:text-white">
+                  {doc.shortTitle}
+                </Link>
+              ))}
+            </div>
+          </div>
           <div>
             <h4 className="text-xs uppercase tracking-wider text-white mb-3">Pinpals.ie</h4>
             <div className="flex flex-col gap-1.5 text-sm">
-              <a href="mailto:info@pinpals.ie" className="hover:text-white">info@pinpals.ie</a>
+              <a href={`mailto:${OPERATOR.generalEmail}`} className="hover:text-white">
+                {OPERATOR.generalEmail}
+              </a>
+              <a href={`mailto:${OPERATOR.dataProtectionContact}`} className="hover:text-white">
+                {OPERATOR.dataProtectionContact}
+              </a>
             </div>
           </div>
         </div>
         <div className="border-t border-white/15 mt-10 pt-5 flex flex-wrap justify-between gap-2 text-xs">
-          <span>&copy; {new Date().getFullYear()} Pinpals.ie &mdash; find golfers, play more.</span>
+          <span>
+            &copy; {new Date().getFullYear()}{" "}
+            {OPERATOR_DETAILS_COMPLETE ? OPERATOR.legalName : "Pinpals.ie"} &mdash; find golfers,
+            play more.
+          </span>
           <span>Made for golfers, by golfers.</span>
         </div>
       </div>
