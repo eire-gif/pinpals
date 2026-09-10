@@ -34,7 +34,7 @@ describe("offer_action() and create_purchase_order() still derive platform_fee_e
       `insert into public.listings
          (seller_id, title, description, price_eur, price_cents, category, condition, county, status, sale_type,
           delivery_options)
-       values ($1, 'Fee-rate fixture listing', 'x', $2, $3, 'irons', 'good', 'Kerry', 'active', $4, array['collection'])
+       values ($1, 'Fee-rate fixture listing', 'x', $2, $3, 'Irons', 'good', 'Kerry', 'active', $4, array['collection'])
        returning id`,
       [sellerId, priceEur, Math.round(priceEur * 100), saleType],
     );

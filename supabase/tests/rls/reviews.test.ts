@@ -81,7 +81,7 @@ describe("reviews: INSERT (only a participant of a completed order, about the ot
         `insert into public.orders (
            buyer_id, seller_id, listing_title, listing_category, listing_condition,
            amount_eur, platform_fee_eur, total_eur, status
-         ) values ($1, $2, 'Pending sale', 'irons', 'good', 50, 2.5, 52.5, 'pending')
+         ) values ($1, $2, 'Pending sale', 'Irons', 'good', 50, 2.5, 52.5, 'pending')
          returning id`,
         [USERS.buyer1, USERS.seller1],
       );

@@ -84,5 +84,19 @@ for f in 0019_orders.sql 0020_stripe_connected_accounts.sql 0021_payments.sql 00
   run "$f" "$MIGDIR/$f"
 done
 
+# 0057 onward apply in plain numeric order — no drift fixes or out-of-sequence
+# dependencies among them — so they are globbed rather than listed by hand,
+# and a new migration is picked up here without editing this script.
+#
+# They were previously missing from this script altogether, which meant the
+# RLS suite ran against the schema as it stood at 0056 while the real project
+# was eleven migrations ahead. That gap is what hid a fixture still using the
+# lower-case listing category vocabulary that 0060 replaced with the
+# capitalised one: the seed only starts failing once the later migrations are
+# actually applied here.
+for f in $(ls "$MIGDIR" | awk '$0 >= "0057"' | sort); do
+  run "$f" "$MIGDIR/$f"
+done
+
 rm -f "$LOGFILE"
 echo "REPLAY OK — $RLS_TEST_DB is ready."

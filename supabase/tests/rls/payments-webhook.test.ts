@@ -37,7 +37,7 @@ async function freshOrder(listingStatus = "reserved"): Promise<FreshOrder> {
   const { rows: listingRows } = await pool.query<{ id: string }>(
     `insert into public.listings
        (seller_id, title, description, price_eur, price_cents, category, condition, county, status, sale_type, delivery_options)
-     values ($1, 'Payment webhook fixture listing', 'x', 250, 25000, 'irons', 'good', 'Kerry', $2, 'fixed_price', array['collection'])
+     values ($1, 'Payment webhook fixture listing', 'x', 250, 25000, 'Irons', 'good', 'Kerry', $2, 'fixed_price', array['collection'])
      returning id`,
     [USERS.seller1, listingStatus],
   );
@@ -48,7 +48,7 @@ async function freshOrder(listingStatus = "reserved"): Promise<FreshOrder> {
     `insert into public.orders
        (listing_id, buyer_id, seller_id, listing_title, listing_category, listing_condition,
         amount_eur, platform_fee_eur, total_eur, status, payment_status, payment_reference)
-     values ($1, $2, $3, 'Payment webhook fixture listing', 'irons', 'good', 250, 17.50, 267.50, 'pending', 'pending', $4)
+     values ($1, $2, $3, 'Payment webhook fixture listing', 'Irons', 'good', 250, 17.50, 267.50, 'pending', 'pending', $4)
      returning id`,
     [listingId, USERS.buyer1, USERS.seller1, paymentIntentId],
   );

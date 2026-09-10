@@ -92,7 +92,7 @@ export async function seed(client: Client): Promise<FixtureIds> {
     const { rows } = await client.query<{ id: string }>(
       `insert into public.listings
          (seller_id, title, description, price_eur, price_cents, category, condition, county, status, sale_type)
-       values ($1, $2, 'Fixture listing', $5, $6, 'irons', 'good', 'Kerry', $3, $4)
+       values ($1, $2, 'Fixture listing', $5, $6, 'Irons', 'good', 'Kerry', $3, $4)
        returning id`,
       [seller, title, status, saleType, priceEur, priceCents],
     );
@@ -156,7 +156,7 @@ export async function seed(client: Client): Promise<FixtureIds> {
      )
      values (
        $1, $2, $3, $4,
-       'L3 reserved (sale in progress)', 'irons', 'good', null,
+       'L3 reserved (sale in progress)', 'Irons', 'good', null,
        110.00, 5.50, 115.50,
        'completed', 'paid', 'paid_out',
        'pi_fixture_1', 'tr_fixture_1',

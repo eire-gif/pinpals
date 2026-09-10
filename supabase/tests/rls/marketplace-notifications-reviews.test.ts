@@ -379,7 +379,7 @@ describe("seller_rating_summaries: correctness + public readability", () => {
           `insert into public.orders (
              buyer_id, seller_id, listing_title, listing_category, listing_condition,
              amount_eur, platform_fee_eur, total_eur, status, completed_at
-           ) values ($1, $2, 'Fixture order for rating summary', 'irons', 'good', 80, 4, 84, 'completed', now())
+           ) values ($1, $2, 'Fixture order for rating summary', 'Irons', 'good', 80, 4, 84, 'completed', now())
            returning id`,
           [buyerId, sellerId],
         );
