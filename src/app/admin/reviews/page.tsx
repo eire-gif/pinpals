@@ -4,6 +4,7 @@ import { listReviews } from "@/lib/admin/queries";
 import { formatDateTime, personName } from "@/lib/admin/format";
 import ModerationForm from "@/components/admin/moderation-form";
 import AdminPagination from "@/components/admin/pagination";
+import ExportCsvLink from "@/components/admin/export-csv-link";
 import { hideReview, restoreReview } from "./actions";
 
 /**
@@ -35,6 +36,13 @@ export default async function AdminReviewsPage({
     page
   );
 
+  // Same filters as the page, minus `page`.
+  const exportParams = new URLSearchParams();
+  if (status) exportParams.set("status", status);
+  if (reviewId) exportParams.set("reviewId", reviewId);
+  const exportQs = exportParams.toString();
+  const exportHref = exportQs ? `/admin/reviews/export?${exportQs}` : "/admin/reviews/export";
+
   function pageHref(targetPage: number) {
     const params = new URLSearchParams();
     if (status) params.set("status", status);
@@ -46,7 +54,13 @@ export default async function AdminReviewsPage({
 
   return (
     <div>
-      <h1 className="font-display font-bold text-2xl mb-1">Reviews</h1>
+      <div className="flex items-start justify-between gap-4 mb-1">
+        <h1 className="font-display font-bold text-2xl">Reviews</h1>
+        <ExportCsvLink
+          href={exportHref}
+          title={`Downloads ${total} ${total === 1 ? "review" : "reviews"} matching the current filters`}
+        />
+      </div>
       <p className="text-ink-500 mb-6">
         {total} {total === 1 ? "review" : "reviews"}
         {status && <> · {status === "hidden" ? "Hidden only" : "Visible only"}</>}.

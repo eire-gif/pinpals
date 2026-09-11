@@ -23,6 +23,7 @@ import {
 import { ROLE_LABELS } from "@/lib/admin/roles";
 import AdminAvatar from "@/components/admin/avatar";
 import StatusBadge from "@/components/admin/status-badge";
+import ExportCsvLink from "@/components/admin/export-csv-link";
 
 export default async function AdminReportsPage({
   searchParams,
@@ -73,6 +74,21 @@ export default async function AdminReportsPage({
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const hasFilters = Boolean(q || status || priority || category || target || targetId || assigned || escalated);
 
+  // Same filters as the page, minus `page`. `assigned` is passed through
+  // verbatim, including the literal "mine" — the route resolves that against
+  // the signed-in staff member itself, exactly as this page does.
+  const exportParams = new URLSearchParams();
+  if (q) exportParams.set("q", q);
+  if (status) exportParams.set("status", status);
+  if (priority) exportParams.set("priority", priority);
+  if (category) exportParams.set("category", category);
+  if (target) exportParams.set("target", target);
+  if (targetId) exportParams.set("targetId", targetId);
+  if (assigned) exportParams.set("assigned", assigned);
+  if (escalated) exportParams.set("escalated", escalated);
+  const exportQs = exportParams.toString();
+  const exportHref = exportQs ? `/admin/reports/export?${exportQs}` : "/admin/reports/export";
+
   function pageHref(targetPage: number) {
     const params = new URLSearchParams();
     if (q) params.set("q", q);
@@ -90,7 +106,13 @@ export default async function AdminReportsPage({
 
   return (
     <div>
-      <h1 className="font-display font-bold text-2xl mb-1">Reports</h1>
+      <div className="flex items-start justify-between gap-4 mb-1">
+        <h1 className="font-display font-bold text-2xl">Reports</h1>
+        <ExportCsvLink
+          href={exportHref}
+          title={`Downloads ${total} ${total === 1 ? "report" : "reports"} matching the current filters — without the reporters' descriptions`}
+        />
+      </div>
       <p className="text-ink-500 mb-6">
         {total} {total === 1 ? "report" : "reports"}
         {status && <> · {REPORT_STATUS_LABELS[status as ReportStatus] ?? status}</>}

@@ -2,18 +2,22 @@ import "server-only";
 import type { StaffRole } from "./roles";
 
 /**
- * Shared plumbing for the three /admin CSV export routes
- * (src/app/admin/{listings,orders,users}/export/route.ts).
+ * Shared plumbing for the /admin CSV export routes:
+ * src/app/admin/{listings,orders,users,reports,reviews,tee-times}/export and
+ * src/app/admin/payouts/{export,ledger/export}.
  *
  * Design notes:
  *
  *   * Each route reuses the SAME list query its page uses
- *     (listListings/listOrders/listUsers), passing EXPORT_MAX_ROWS as the
- *     page size instead of the page's own 20. That's the whole reason those
- *     three functions grew an optional `pageSize` parameter — an export must
- *     never re-implement filter logic, or it will drift from what the admin
- *     sees on screen and quietly export a different set of rows than the one
- *     they were looking at.
+ *     (listListings/listOrders/listUsers/listReports/listReviews/
+ *     listSellerAccounts/listPayouts/listTeeTimeInvites), passing
+ *     EXPORT_MAX_ROWS as the page size instead of the page's own 20. That's
+ *     the whole reason those functions grew an optional `pageSize` parameter
+ *     — an export must never re-implement filter logic, or it will drift from
+ *     what the admin sees on screen and quietly export a different set of
+ *     rows than the one they were looking at. listTeeTimeInvites() is the one
+ *     exception: it has never been paginated (it filters in memory), so that
+ *     route clips the result with clipToExportLimit() instead.
  *
  *   * An export is therefore "everything matching the filters currently in
  *     the URL", not "everything in the table". An admin who filtered to
@@ -44,8 +48,42 @@ export const EXPORT_MAX_ROWS = 5000;
  * harder than /admin/users itself (which any active staff member can view).
  * Listings and orders exports match their own pages' existing gates: any
  * staff, and FINANCE_ROLES respectively.
+ *
+ * ============ The rule the other exports follow ============
+ *
+ * An export is gated exactly as its page is, and carries no column the page
+ * doesn't already show — with one deliberate exception: the finance exports
+ * (orders, seller accounts, payout ledger) include the counterparty's email,
+ * because chasing a specific payment is what they are for and FINANCE_ROLES
+ * is already a narrow gate. The reports, reviews and tee-times exports
+ * therefore carry member ids and names but **no email addresses**, which is
+ * what lets them stay open to any active staff member, like their pages are.
+ * If an email column is ever wanted on one of those, the gate has to move
+ * with it.
  */
 export const USER_EXPORT_ROLES = ["super_admin"] as const satisfies readonly StaffRole[];
+
+/**
+ * Flattens a Postgres text[] column (Stripe requirement codes, say) into one
+ * CSV cell. Semicolon-separated rather than comma, so the cell doesn't have
+ * to be quoted and doesn't read as extra columns to a human skimming the raw
+ * file. An empty or missing array becomes an empty cell rather than "[]" —
+ * the spreadsheet equivalent of "nothing due".
+ */
+export function csvList(values: readonly string[] | null | undefined): string | null {
+  if (!values || values.length === 0) return null;
+  return values.join("; ");
+}
+
+/**
+ * Clips a non-paginated result set to EXPORT_MAX_ROWS, returning the clipped
+ * rows alongside the true total so the route can still report both to the
+ * audit log. Only listTeeTimeInvites() needs this — every other list query
+ * takes a pageSize and does the clipping in the database.
+ */
+export function clipToExportLimit<T>(rows: readonly T[]): { rows: T[]; total: number } {
+  return { rows: rows.slice(0, EXPORT_MAX_ROWS), total: rows.length };
+}
 
 /** `pinpals-listings-2026-09-09.csv` — dated so an admin with several
  * exports in their Downloads folder can tell them apart without opening

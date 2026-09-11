@@ -6,6 +6,7 @@ import { PAYOUT_ROW_STATUS_LABELS, PAYOUT_ROW_STATUS_STYLES, formatDateTime } fr
 import { formatPrice } from "@/lib/format";
 import AdminAvatar from "@/components/admin/avatar";
 import StatusBadge from "@/components/admin/status-badge";
+import ExportCsvLink from "@/components/admin/export-csv-link";
 import type { Payout } from "@/lib/types";
 
 export default async function AdminPayoutLedgerPage({
@@ -32,6 +33,14 @@ export default async function AdminPayoutLedgerPage({
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const hasFilters = Boolean(seller || status || blockedOnly);
 
+  // Same filters as the page, minus `page`.
+  const exportParams = new URLSearchParams();
+  if (seller) exportParams.set("seller", seller);
+  if (status) exportParams.set("status", status);
+  if (blockedOnly) exportParams.set("blocked", "1");
+  const exportQs = exportParams.toString();
+  const exportHref = exportQs ? `/admin/payouts/ledger/export?${exportQs}` : "/admin/payouts/ledger/export";
+
   function pageHref(targetPage: number) {
     const params = new URLSearchParams();
     if (seller) params.set("seller", seller);
@@ -44,7 +53,13 @@ export default async function AdminPayoutLedgerPage({
 
   return (
     <div>
-      <h1 className="font-display font-bold text-2xl mb-1">Payout ledger</h1>
+      <div className="flex items-start justify-between gap-4 mb-1">
+        <h1 className="font-display font-bold text-2xl">Payout ledger</h1>
+        <ExportCsvLink
+          href={exportHref}
+          title={`Downloads ${total} ${total === 1 ? "payout" : "payouts"} matching the current filters`}
+        />
+      </div>
       <p className="text-ink-500 mb-6">
         {total} {total === 1 ? "payout" : "payouts"} — Stripe is the source of truth for every figure here;
         this is Pinpals&apos; own timestamped record of it, traced through to the orders each payout swept

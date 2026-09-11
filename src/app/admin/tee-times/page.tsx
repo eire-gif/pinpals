@@ -5,6 +5,7 @@ import { INVITE_STATUS_LABELS, INVITE_STATUS_STYLES, statusLabel } from "@/lib/a
 import { formatClock, formatInviteDate, formatTimeRange } from "@/lib/tee-times";
 import AdminAvatar from "@/components/admin/avatar";
 import StatusBadge from "@/components/admin/status-badge";
+import ExportCsvLink from "@/components/admin/export-csv-link";
 
 export default async function AdminTeeTimesPage({
   searchParams,
@@ -15,9 +16,23 @@ export default async function AdminTeeTimesPage({
   const { q = "", status = "" } = await searchParams;
   const invites = await listTeeTimeInvites(q, status);
 
+  // Same filters as the page. This list isn't paginated, so there's no
+  // `page` param to drop — the export is simply the same set of rows.
+  const exportParams = new URLSearchParams();
+  if (q) exportParams.set("q", q);
+  if (status) exportParams.set("status", status);
+  const exportQs = exportParams.toString();
+  const exportHref = exportQs ? `/admin/tee-times/export?${exportQs}` : "/admin/tee-times/export";
+
   return (
     <div>
-      <h1 className="font-display font-bold text-2xl mb-1">Tee-times</h1>
+      <div className="flex items-start justify-between gap-4 mb-1">
+        <h1 className="font-display font-bold text-2xl">Tee-times</h1>
+        <ExportCsvLink
+          href={exportHref}
+          title={`Downloads ${invites.length} ${invites.length === 1 ? "invite" : "invites"} matching the current filters`}
+        />
+      </div>
       <p className="text-ink-500 mb-6">
         {invites.length} {invites.length === 1 ? "invite" : "invites"}
         {status && <> · {statusLabel(INVITE_STATUS_LABELS, status)}</>}.

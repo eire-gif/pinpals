@@ -54,6 +54,18 @@ export const ADMIN_ACTIONS = [
   "export.listings",
   "export.orders",
   "export.users",
+  // The same treatment for the rest of the admin console's list pages. Each
+  // one is audited for exactly the reason the three above are: the file
+  // leaves the system and cannot be recalled. `export.seller_accounts` and
+  // `export.payouts` are FINANCE_ROLES and carry the seller's email;
+  // `export.reports`, `export.reviews` and `export.tee_times` are open to any
+  // active staff member and deliberately carry no email column at all — see
+  // the gating rule in src/lib/admin/export.ts.
+  "export.seller_accounts",
+  "export.payouts",
+  "export.reports",
+  "export.reviews",
+  "export.tee_times",
   "refund.requested",
   "refund.completed",
   // Distinct from "refund.completed" — a refund whose Stripe call (or later

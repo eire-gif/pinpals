@@ -5,6 +5,7 @@ import { listSellerAccounts } from "@/lib/admin/queries";
 import { formatDateTime } from "@/lib/admin/format";
 import { sellerAccountStatusLabel, SELLER_ACCOUNT_STATUS_STYLES } from "@/lib/format";
 import AdminAvatar from "@/components/admin/avatar";
+import ExportCsvLink from "@/components/admin/export-csv-link";
 
 export default async function AdminPayoutsPage({
   searchParams,
@@ -27,6 +28,14 @@ export default async function AdminPayoutsPage({
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const hasFilters = Boolean(seller || needsAttention);
 
+  // Same filters as the page, minus `page` — an export is every matching
+  // row, not the twenty currently on screen.
+  const exportParams = new URLSearchParams();
+  if (seller) exportParams.set("seller", seller);
+  if (needsAttention) exportParams.set("attention", "1");
+  const exportQs = exportParams.toString();
+  const exportHref = exportQs ? `/admin/payouts/export?${exportQs}` : "/admin/payouts/export";
+
   function pageHref(targetPage: number) {
     const params = new URLSearchParams();
     if (seller) params.set("seller", seller);
@@ -38,7 +47,13 @@ export default async function AdminPayoutsPage({
 
   return (
     <div>
-      <h1 className="font-display font-bold text-2xl mb-1">Seller accounts</h1>
+      <div className="flex items-start justify-between gap-4 mb-1">
+        <h1 className="font-display font-bold text-2xl">Seller accounts</h1>
+        <ExportCsvLink
+          href={exportHref}
+          title={`Downloads ${total} seller ${total === 1 ? "account" : "accounts"} matching the current filters`}
+        />
+      </div>
       <p className="text-ink-500 mb-6">
         {total} seller {total === 1 ? "account" : "accounts"} — Stripe Connect onboarding and payout
         readiness. Every status here is a cached copy of what Stripe last reported, not a live balance
