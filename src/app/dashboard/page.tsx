@@ -366,52 +366,75 @@ export default async function DashboardPage({
         </div>
       </div>
 
-      <div className="mt-12 pt-10 border-t border-line">
-        <div className="flex items-center gap-2.5 mb-4 flex-wrap">
-          <h2 className="font-display font-bold text-xl">Connection requests</h2>
-          {incomingConnections.length > 0 && (
-            <span className="bg-gold-500 text-navy-900 text-xs font-bold px-2.5 py-1 rounded-full">
-              {incomingConnections.length} waiting on you
-            </span>
-          )}
-        </div>
-        <ConnectionRequests requests={incomingConnections} />
-      </div>
+      {/* Everything below the fold used to be five full-width sections in a
+          row, each separated by its own heavy rule. On a new account all five
+          render an empty-state card, so the first thing a member ever saw was
+          a column of boxes telling them they had nothing — which is what made
+          the page feel untidy.
 
-      <div className="mt-12 pt-10 border-t border-line">
-        <div className="flex items-center justify-between gap-4 mb-4">
-          <div>
-            <h2 className="font-display font-bold text-xl">Your connections</h2>
-            <p className="text-sm text-ink-500 mt-1">Golfers you have connected with.</p>
+          They're now grouped into the two jobs they actually serve — your
+          rounds, and your people — side by side on a wide screen. Two rules
+          instead of five, half the scroll, and related things sitting
+          together. */}
+      <div className="mt-12 grid xl:grid-cols-2 gap-x-10 gap-y-12 items-start">
+        <section className="pt-10 border-t border-line">
+          <h2 className="font-display font-bold text-2xl mb-6">Your tee times</h2>
+
+          <div className="grid gap-10">
+            <MyAvailability invites={myInvites ?? []} />
+
+            <div>
+              <div className="flex items-center gap-2.5 mb-4 flex-wrap">
+                <h3 className="font-display font-bold text-lg">Interested golfers</h3>
+                {pendingInterestCount > 0 && (
+                  <span className="bg-gold-500 text-navy-900 text-xs font-bold px-2.5 py-1 rounded-full">
+                    {pendingInterestCount} waiting on you
+                  </span>
+                )}
+              </div>
+              <InterestedGolfers interests={interests ?? []} />
+            </div>
+
+            <div>
+              <h3 className="font-display font-bold text-lg mb-4">Your tee-time requests</h3>
+              <MyTeeTimeRequests requests={myTeeTimeRequests ?? []} />
+            </div>
           </div>
-          <Link href="/dashboard/connections" className="shrink-0 text-sm font-bold text-green-700 hover:text-green-600">
-            View all &rarr;
-          </Link>
-        </div>
-        <ConnectionList people={connectedPeople.slice(0, 6)} compact />
-      </div>
+        </section>
 
-      <div className="mt-12 pt-10 border-t border-line">
-        <h2 className="font-display font-bold text-xl mb-4">Your tee-time requests</h2>
-        <MyTeeTimeRequests requests={myTeeTimeRequests ?? []} />
-      </div>
+        <section className="pt-10 border-t border-line">
+          <h2 className="font-display font-bold text-2xl mb-6">Your network</h2>
 
-      <div className="mt-12 pt-10 border-t border-line">
-        <MyAvailability invites={myInvites ?? []} />
-      </div>
+          <div className="grid gap-10">
+            <div>
+              <div className="flex items-center gap-2.5 mb-4 flex-wrap">
+                <h3 className="font-display font-bold text-lg">Connection requests</h3>
+                {incomingConnections.length > 0 && (
+                  <span className="bg-gold-500 text-navy-900 text-xs font-bold px-2.5 py-1 rounded-full">
+                    {incomingConnections.length} waiting on you
+                  </span>
+                )}
+              </div>
+              <ConnectionRequests requests={incomingConnections} />
+            </div>
 
-      <div className="mt-12 pt-10 border-t border-line">
-        <div className="flex items-center gap-2.5 mb-4 flex-wrap">
-          <h2 className="font-display font-bold text-xl">Interested golfers</h2>
-          {pendingInterestCount > 0 && (
-            <span className="bg-gold-500 text-navy-900 text-xs font-bold px-2.5 py-1 rounded-full">
-              {pendingInterestCount} waiting on you
-            </span>
-          )}
-        </div>
-        <InterestedGolfers interests={interests ?? []} />
+            <div>
+              <div className="flex items-center justify-between gap-4 mb-4">
+                <h3 className="font-display font-bold text-lg">Your connections</h3>
+                <Link
+                  href="/dashboard/connections"
+                  className="shrink-0 text-sm font-bold text-green-700 hover:text-green-600"
+                >
+                  View all &rarr;
+                </Link>
+              </div>
+              {/* Four across would be too many in a half-width column, so
+                  this shows a shorter strip here than the full page does. */}
+              <ConnectionList people={connectedPeople.slice(0, 4)} compact />
+            </div>
+          </div>
+        </section>
       </div>
     </div>
   );
 }
-

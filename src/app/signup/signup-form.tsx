@@ -30,26 +30,26 @@ export default function SignUpForm() {
   return (
     <form action={formAction} className="grid gap-4">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="grid gap-1.5">
+        <div className="grid gap-1.5 min-w-0">
           <label htmlFor="first" className="text-[13.5px] font-bold">First name</label>
           <input id="first" name="first" required autoComplete="given-name"
-            className="px-3.5 py-3 rounded-lg border-[1.5px] border-line focus:outline-none focus:border-green-600" />
+            className="w-full px-3.5 py-3 rounded-lg border-[1.5px] border-line focus:outline-none focus:border-green-600" />
         </div>
-        <div className="grid gap-1.5">
+        <div className="grid gap-1.5 min-w-0">
           <label htmlFor="last" className="text-[13.5px] font-bold">Last name</label>
           <input id="last" name="last" required autoComplete="family-name"
-            className="px-3.5 py-3 rounded-lg border-[1.5px] border-line focus:outline-none focus:border-green-600" />
+            className="w-full px-3.5 py-3 rounded-lg border-[1.5px] border-line focus:outline-none focus:border-green-600" />
         </div>
       </div>
-      <div className="grid gap-1.5">
+      <div className="grid gap-1.5 min-w-0">
         <label htmlFor="email" className="text-[13.5px] font-bold">Email</label>
         <input id="email" name="email" type="email" required autoComplete="email"
-          className="px-3.5 py-3 rounded-lg border-[1.5px] border-line focus:outline-none focus:border-green-600" />
+          className="w-full px-3.5 py-3 rounded-lg border-[1.5px] border-line focus:outline-none focus:border-green-600" />
       </div>
-      <div className="grid gap-1.5">
+      <div className="grid gap-1.5 min-w-0">
         <label htmlFor="password" className="text-[13.5px] font-bold">Password</label>
         <input id="password" name="password" type="password" required minLength={6} autoComplete="new-password"
-          className="px-3.5 py-3 rounded-lg border-[1.5px] border-line focus:outline-none focus:border-green-600" />
+          className="w-full px-3.5 py-3 rounded-lg border-[1.5px] border-line focus:outline-none focus:border-green-600" />
         <span className="text-xs text-ink-500">At least 6 characters.</span>
       </div>
 
