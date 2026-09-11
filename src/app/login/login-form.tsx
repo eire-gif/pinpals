@@ -6,11 +6,16 @@ import { logIn, type LoginState } from "./actions";
 
 const initialState: LoginState = {};
 
-export default function LoginForm() {
+export default function LoginForm({ next }: { next?: string }) {
   const [state, formAction, pending] = useActionState(logIn, initialState);
 
   return (
     <form action={formAction} className="grid gap-4">
+      {/* Carried through the form rather than read from the URL in the
+          action: a Server Action has no access to the page's query string.
+          Still validated server-side — this field is as forgeable as the
+          URL it came from. */}
+      {next && <input type="hidden" name="next" value={next} />}
       <div className="grid gap-1.5">
         <label htmlFor="email" className="text-[13.5px] font-bold">Email</label>
         <input id="email" name="email" type="email" required autoComplete="email"

@@ -2,8 +2,17 @@ import Image from "next/image";
 import Link from "next/link";
 import { COUNTRIES } from "@/lib/regions";
 import { countCoursesByCountry } from "@/lib/courses";
+import { createClient } from "@/lib/supabase/server";
 
 export default async function HomePage() {
+  // The hero's buttons depend on whether whoever is reading has an account
+  // yet. Costs nothing extra to know: this page already reads cookies (the
+  // course count below goes through the same client), so it was never
+  // statically cached to begin with.
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   // Read live rather than hardcoded. The number on this page said 373 for
   // months after the directory grew past 2,600 — a stale figure on the first
   // thing a visitor reads is worse than no figure, and the only way it stays
@@ -11,6 +20,19 @@ export default async function HomePage() {
   const counts = await countCoursesByCountry();
   const totalCourses = Object.values(counts).reduce((sum, n) => sum + n, 0);
   const courseCount = totalCourses.toLocaleString("en-IE");
+
+  // Defined once and placed differently depending on who's reading — see the
+  // two comments in the hero below. Solid green against a navy-scrimmed
+  // photograph: the only saturated colour on the hero, which is what makes
+  // it the button the eye goes to.
+  const postAvailability = (
+    <Link
+      href="/dashboard/availability/new"
+      className="px-6 py-3.5 rounded-full font-bold bg-green-600 text-white hover:bg-green-500 transition shadow-lg shadow-green-900/25"
+    >
+      Post your availability
+    </Link>
+  );
 
   return (
     <div>
@@ -42,12 +64,27 @@ export default async function HomePage() {
               the game.
             </p>
             <div className="flex flex-wrap gap-3.5 mt-7">
-              <Link href="/signup" className="px-6 py-3.5 rounded-full font-bold bg-[#fbf8ef] text-navy-900 hover:bg-white transition">
-                Join the community
-              </Link>
+              {/* "Join the community" is only shown to someone who hasn't —
+                  a signed-in member being invited to sign up is the kind of
+                  small wrongness that makes a site feel unattended. For them
+                  the green button takes its place as the primary action,
+                  which is also the one thing a member comes back here to do. */}
+              {user ? (
+                postAvailability
+              ) : (
+                <Link href="/signup" className="px-6 py-3.5 rounded-full font-bold bg-[#fbf8ef] text-navy-900 hover:bg-white transition">
+                  Join the community
+                </Link>
+              )}
               <Link href="/courses" className="px-6 py-3.5 rounded-full font-bold border-[1.5px] border-white/55 bg-white/5 backdrop-blur-[2px] hover:bg-white/15 hover:border-white/80 transition">
                 Browse {courseCount} courses
               </Link>
+              {/* For a visitor this sits third, after the two that need no
+                  account: it is the clearest single line about what Pinpals
+                  is for, and it survives the login page — /dashboard/
+                  availability/new sends them back here afterwards rather
+                  than dropping them on the dashboard. */}
+              {!user && postAvailability}
             </div>
             <div className="flex flex-wrap gap-9 mt-6 pt-5 border-t border-white/25">
               <Stat value={courseCount} label="Courses listed" />
