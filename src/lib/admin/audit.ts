@@ -20,6 +20,15 @@ export const ADMIN_ACTIONS = [
   "user.suspend",
   "user.reinstate",
   "user.note_added",
+  // A super admin editing a member's own profile facts — name, home club,
+  // country/county, handicap and its visibility, bio, membership number. See
+  // updateMemberProfile() in src/app/admin/users/[id]/actions.ts and
+  // src/lib/admin/member-profile.ts for why this sits with super_admin rather
+  // than MODERATION_ROLES. Unlike every other action in this list it changes
+  // facts rather than a status, and the previous values survive nowhere else,
+  // so `metadata.changed` carries a before/after for each field that moved —
+  // bio excepted, which records only that it changed and by how much.
+  "user.profile_edited",
   "listing.hide",
   "listing.restore",
   // The super_admin-only escalation of listing.hide: same destination

@@ -15,6 +15,7 @@ import {
   sellerStatusLabel,
 } from "@/lib/admin/format";
 import { MODERATION_ROLES } from "@/lib/admin/moderation";
+import { MEMBER_EDIT_ROLES } from "@/lib/admin/member-profile";
 import { ROLE_LABELS } from "@/lib/admin/roles";
 import { formatPrice, sellerAccountStatusLabel } from "@/lib/format";
 import { formatInviteDate } from "@/lib/tee-times";
@@ -25,7 +26,8 @@ import UnavailableCard from "@/components/admin/unavailable-card";
 import { REPORT_CATEGORY_LABELS, REPORT_STATUS_LABELS, REPORT_STATUS_STYLES } from "@/lib/admin/reports";
 import { listFraudFlagsForTarget } from "@/lib/admin/queries";
 import RiskFlagsPanel from "@/components/admin/risk-flags-panel";
-import { suspendUser, reinstateUser, addUserNote } from "./actions";
+import MemberProfileForm from "@/components/admin/member-profile-form";
+import { suspendUser, reinstateUser, addUserNote, updateMemberProfile } from "./actions";
 
 export default async function AdminUserDetailPage({
   params,
@@ -60,6 +62,10 @@ export default async function AdminUserDetailPage({
   // src/lib/admin/finance.ts), so a moderator/support staff member shouldn't
   // see a live-looking link into a page requireStaff() would 404 them out of.
   const canViewPayouts = canAccess(staff, FINANCE_ROLES);
+  // Same UX-only check: updateMemberProfile() calls requireStaff({ roles:
+  // MEMBER_EDIT_ROLES }) itself, so hiding the form here only keeps a
+  // moderator from being shown a form that would refuse them.
+  const canEditProfile = canAccess(staff, MEMBER_EDIT_ROLES);
   // Deliberately a separate lookup from sellerStatus above — that's about
   // listings (has this member ever sold anything on Pinpals), this is about
   // Stripe Connect payout readiness (can they actually be paid out). See
@@ -141,6 +147,29 @@ export default async function AdminUserDetailPage({
           )}
         </div>
       </div>
+
+      {canEditProfile && (
+        <Section title="Member details">
+          <MemberProfileForm
+            action={updateMemberProfile}
+            userId={profile.id}
+            defaultValues={{
+              first: profile.first_name,
+              last: profile.last_name,
+              club: profile.home_club ?? "",
+              clubId: profile.home_club_id,
+              country: profile.country ?? "",
+              county: profile.county ?? "",
+              // A string because the input is uncontrolled and "" is the only
+              // way to render "not set" — 0 is a real handicap.
+              handicap: profile.handicap == null ? "" : String(profile.handicap),
+              handicapVisible: profile.handicap_visible,
+              bio: profile.bio ?? "",
+              guiNumber: profile.gui_membership_number ?? "",
+            }}
+          />
+        </Section>
+      )}
 
       {canModerate && (
         <Section title="Moderation">
