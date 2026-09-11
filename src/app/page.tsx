@@ -34,6 +34,19 @@ export default async function HomePage() {
     </Link>
   );
 
+  // The marketplace's own accent (see --sell-500 in globals.css), not the
+  // brand green and not the danger red. Used in exactly two places on this
+  // page: here in the hero for a signed-in member, and on the marketplace
+  // band further down where everyone sees it.
+  const listAnItem = (
+    <Link
+      href="/marketplace/new"
+      className="px-6 py-3.5 rounded-full font-bold bg-sell-500 text-white hover:bg-sell-600 transition shadow-lg shadow-[rgba(88,28,18,0.35)]"
+    >
+      List an item
+    </Link>
+  );
+
   return (
     <div>
       {/* HERO */}
@@ -70,7 +83,16 @@ export default async function HomePage() {
                   the green button takes its place as the primary action,
                   which is also the one thing a member comes back here to do. */}
               {user ? (
-                postAvailability
+                <>
+                  {postAvailability}
+                  {/* Only for a signed-in member. A visitor with no account
+                      can't list anything (the page bounces to login, and
+                      selling needs Stripe onboarding after that), and a
+                      fourth button would crowd out the one that matters most
+                      to them — joining. They meet "List an item" on the
+                      marketplace band below instead. */}
+                  {listAnItem}
+                </>
               ) : (
                 <Link href="/signup" className="px-6 py-3.5 rounded-full font-bold bg-[#fbf8ef] text-navy-900 hover:bg-white transition">
                   Join the community
@@ -169,11 +191,15 @@ export default async function HomePage() {
               members are selling near you — no fees to list, just golfers dealing with golfers.
             </p>
             <div className="flex flex-wrap gap-3.5 mt-6">
-              <Link href="/marketplace" className="px-6 py-3.5 rounded-full font-bold bg-[#fbf8ef] text-navy-900 hover:bg-white transition">
+              {/* "List an item" leads now, in the marketplace's own colour.
+                  It used to be a faint outlined "Sell your gear" sitting
+                  second — the wrong way round for a section whose whole
+                  subject is selling, and the wrong words: "List an item" is
+                  what the button says everywhere else in the app and what
+                  the page it opens is called. */}
+              {listAnItem}
+              <Link href="/marketplace" className="px-6 py-3.5 rounded-full font-bold border-[1.5px] border-white/35 hover:border-white/70 transition">
                 Browse the marketplace
-              </Link>
-              <Link href="/marketplace/new" className="px-6 py-3.5 rounded-full font-bold border-[1.5px] border-white/35 hover:border-white/70 transition">
-                Sell your gear
               </Link>
             </div>
           </div>
