@@ -46,6 +46,7 @@ const HEADERS = [
   "Tee time booked",
   "Handicap limit",
   "Audience",
+  "Ladies only",
   "Interested golfers",
   "Host ID",
   "Host name",
@@ -80,6 +81,7 @@ export async function GET(request: NextRequest) {
     // "Everyone" / "Connections only" rather than the raw enum — the file is
     // read by people, and the raw value reads as a database detail.
     i.visibility === "connections" ? "Connections only" : "Everyone",
+    i.ladies_only,
     i.interest_count,
     i.member_id,
     i.host ? personName(i.host) : null,

@@ -15,6 +15,7 @@ const base: InviteAnnouncement = {
   timeFrom: null,
   timeTo: null,
   spaces: 2,
+  ladiesOnly: false,
 };
 
 describe("announcementBody", () => {
@@ -40,6 +41,26 @@ describe("announcementBody", () => {
     const body = announcementBody(base, "Conor Murphy");
     expect(body).not.toContain(", .");
     expect(body.endsWith(".")).toBe(true);
+  });
+
+  it("says so when the host asked for a ladies' round", () => {
+    const body = announcementBody({ ...base, ladiesOnly: true }, "Aoife Byrne");
+    expect(body).toContain("Ladies only");
+    // In the email itself, not left for the recipient to discover after
+    // they've already asked to join.
+    expect(body.endsWith("Ladies only.")).toBe(true);
+  });
+
+  it("says nothing about it on an ordinary round", () => {
+    expect(announcementBody(base, "Conor Murphy")).not.toContain("Ladies");
+  });
+
+  it("keeps the times and the ladies-only line in one readable sentence", () => {
+    const body = announcementBody(
+      { ...base, timeFrom: "09:00", timeTo: "11:30", ladiesOnly: true },
+      "Aoife Byrne"
+    );
+    expect(body).toBe("Aoife Byrne has 2 spaces at Portmarnock on Saturday, 19 September, 9am–11:30am. Ladies only.");
   });
 
   it("never carries the host's free-text notes", () => {

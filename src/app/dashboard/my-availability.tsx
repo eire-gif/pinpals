@@ -6,6 +6,7 @@ import type { TeeTimeInvite } from "@/lib/types";
 import {
   STATUS_LABELS,
   STATUS_STYLES,
+  LADIES_ONLY_BADGE,
   VISIBILITY_BADGES,
   formatInviteDate,
   formatTimeRange,
@@ -93,6 +94,11 @@ export default function MyAvailability({ invites }: { invites: TeeTimeInvite[] }
                   {VISIBILITY_BADGES[invite.visibility] && (
                     <span className="bg-navy-900 text-cream-50 text-xs font-bold px-2.5 py-1 rounded-full">
                       {VISIBILITY_BADGES[invite.visibility]}
+                    </span>
+                  )}
+                  {invite.ladies_only && (
+                    <span className="bg-green-700 text-cream-50 text-xs font-bold px-2.5 py-1 rounded-full">
+                      {LADIES_ONLY_BADGE}
                     </span>
                   )}
                 </div>

@@ -11,7 +11,7 @@ import {
   INVITE_INTEREST_STATUS_STYLES,
 } from "@/lib/admin/format";
 import { MODERATION_ROLES } from "@/lib/admin/moderation";
-import { VISIBILITY_LABELS, formatClock, formatInviteDate, formatTimeRange } from "@/lib/tee-times";
+import { LADIES_ONLY_BADGE, VISIBILITY_LABELS, formatClock, formatInviteDate, formatTimeRange } from "@/lib/tee-times";
 import AdminAvatar from "@/components/admin/avatar";
 import StatusBadge from "@/components/admin/status-badge";
 import ModerationForm from "@/components/admin/moderation-form";
@@ -70,6 +70,15 @@ export default async function AdminTeeTimeDetailPage({
           {invite.has_tee_time_booked && (
             <span className="bg-green-100 text-green-800 text-xs font-bold px-2.5 py-1 rounded-full">
               Tee time booked
+            </span>
+          )}
+          {/* Only shown when set, unlike the visibility badge below: "not a
+              ladies' round" is the ordinary case and says nothing about a
+              complaint, where "the host asked for a ladies' round" may be
+              the whole of one. */}
+          {invite.ladies_only && (
+            <span className="bg-green-700 text-cream-50 text-xs font-bold px-2.5 py-1 rounded-full">
+              {LADIES_ONLY_BADGE}
             </span>
           )}
           {/* Always shown, both values, unlike the member-facing badge which

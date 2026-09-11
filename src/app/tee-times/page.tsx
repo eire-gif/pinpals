@@ -3,11 +3,13 @@ import { createClient } from "@/lib/supabase/server";
 import type { MyInterest, TeeTimeInviteWithHost } from "@/lib/types";
 import RegionSelect from "@/components/region-select";
 import {
+  LADIES_ONLY_BADGE,
   SPACES_OPTIONS,
   VISIBILITY_BADGES,
   formatInviteDate,
   formatTimeRange,
   formatClock,
+  parseLadiesOnlyFilter,
 } from "@/lib/tee-times";
 import { initials } from "@/lib/format";
 import { formatDistance, parseCoords, parseRadiusKm } from "@/lib/geo";
@@ -25,9 +27,11 @@ export default async function TeeTimesPage({
     lat?: string;
     lng?: string;
     radius?: string;
+    ladies?: string;
   }>;
 }) {
-  const { county = "", club = "", date = "", spaces = "", lat, lng, radius } = await searchParams;
+  const { county = "", club = "", date = "", spaces = "", lat, lng, radius, ladies } = await searchParams;
+  const ladiesOnly = parseLadiesOnlyFilter(ladies);
   // Validated rather than trusted: these three come from a URL anyone can
   // edit by hand. Anything that isn't a real coordinate reads as "no location
   // search", which is the same as not having pressed the button.
@@ -118,6 +122,11 @@ export default async function TeeTimesPage({
   if (club) query = query.ilike("club_name", `%${club}%`);
   if (date) query = query.eq("play_date", date);
   if (spaces) query = query.gte("spaces_available", Number(spaces));
+  // One-way filter on purpose: ticked narrows the list to ladies' rounds,
+  // unticked shows everything including them. There is no "hide ladies-only
+  // rounds" — nobody asked for one, and a filter that let members quietly
+  // exclude them is not a filter this page should offer.
+  if (ladiesOnly) query = query.eq("ladies_only", true);
 
   const { data: rawInvites } = await query
     .order("play_date", { ascending: true })
@@ -151,7 +160,7 @@ export default async function TeeTimesPage({
   const myInterestByInvite = new Map(myInterests.map((i) => [i.invite_id, i.status]));
 
   const today = new Date().toISOString().slice(0, 10);
-  const hasFilters = Boolean(county || club || date || spaces || coords);
+  const hasFilters = Boolean(county || club || date || spaces || coords || ladiesOnly);
 
   return (
     <div>
@@ -194,6 +203,20 @@ export default async function TeeTimesPage({
               <option key={n} value={n}>{n}+ {n === 1 ? "space" : "spaces"}</option>
             ))}
           </select>
+          <label
+            className={`inline-flex items-center gap-2 px-3.5 py-2.5 rounded-full border-[1.5px] text-sm font-semibold cursor-pointer transition ${
+              ladiesOnly ? "border-green-600 bg-green-100 text-green-800" : "border-line bg-surface-tint"
+            }`}
+          >
+            <input
+              type="checkbox"
+              name="ladies"
+              value="1"
+              defaultChecked={ladiesOnly}
+              className="w-3.5 h-3.5 accent-green-700"
+            />
+            {LADIES_ONLY_BADGE}
+          </label>
           <button type="submit" className="px-5 py-2.5 rounded-full font-bold bg-green-700 text-cream-50 text-sm">
             Filter
           </button>
@@ -289,6 +312,15 @@ export default async function TeeTimesPage({
                     {VISIBILITY_BADGES[invite.visibility] && (
                       <span className="bg-navy-900 text-cream-50 text-xs font-bold px-2.5 py-1 rounded-full">
                         {VISIBILITY_BADGES[invite.visibility]}
+                      </span>
+                    )}
+                    {/* Its own colour rather than the neutral cream of the
+                        spaces/time badges: this one is a condition on who
+                        the round is for, and somebody skimming twenty cards
+                        should not have to read it to notice it. */}
+                    {invite.ladies_only && (
+                      <span className="bg-green-700 text-cream-50 text-xs font-bold px-2.5 py-1 rounded-full">
+                        {LADIES_ONLY_BADGE}
                       </span>
                     )}
                   </div>

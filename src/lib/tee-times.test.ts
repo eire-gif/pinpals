@@ -1,11 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_VISIBILITY,
+  LADIES_ONLY_BADGE,
+  LADIES_ONLY_DESCRIPTION,
+  LADIES_ONLY_LABEL,
   VISIBILITY_BADGES,
   VISIBILITY_DESCRIPTIONS,
   VISIBILITY_LABELS,
   VISIBILITY_OPTIONS,
   isInviteVisibility,
+  parseLadiesOnlyFilter,
 } from "./tee-times";
 
 describe("invite visibility", () => {
@@ -45,5 +49,33 @@ describe("isInviteVisibility", () => {
     for (const value of ["", "Everyone", "connection", "public", "private", "all", "everyone "]) {
       expect(isInviteVisibility(value)).toBe(false);
     }
+  });
+});
+
+describe("parseLadiesOnlyFilter", () => {
+  it("is on only for the literal '1'", () => {
+    expect(parseLadiesOnlyFilter("1")).toBe(true);
+  });
+
+  it("is off for anything else a hand-edited URL might carry", () => {
+    for (const value of ["0", "true", "yes", "on", "", " 1", undefined]) {
+      expect(parseLadiesOnlyFilter(value), String(value)).toBe(false);
+    }
+  });
+});
+
+describe("ladies-only wording", () => {
+  it("uses one constant everywhere, so the badge and the email can't drift", () => {
+    expect(LADIES_ONLY_BADGE).toBe("Ladies only");
+    expect(LADIES_ONLY_LABEL).toBe(LADIES_ONLY_BADGE);
+  });
+
+  it("describes what the flag does without promising enforcement", () => {
+    // Nothing in RLS reads ladies_only (migration 0074), so the form must
+    // not tell a host that men are prevented from joining. If this
+    // description is ever reworded to claim they are, either the wording is
+    // wrong or the enforcement needs building first.
+    expect(LADIES_ONLY_DESCRIPTION).not.toMatch(/only wom(a|e)n can|can'?t join|prevent|block/i);
+    expect(LADIES_ONLY_DESCRIPTION.toLowerCase()).toContain("shown");
   });
 });

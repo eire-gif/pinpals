@@ -37,6 +37,33 @@ export function isInviteVisibility(value: string): value is InviteVisibility {
   return (VISIBILITY_OPTIONS as readonly string[]).includes(value);
 }
 
+// ---------- Ladies-only invites (0074) ----------
+
+/** The badge, the filter label and the line in the notification email all
+ * say the same three words. One constant so they can't drift into "Women
+ * only" in one place and "Ladies only" in another. */
+export const LADIES_ONLY_BADGE = "Ladies only";
+
+/** What the tick box says on the post-availability form, and the line under
+ * it. The description is deliberately honest about what the flag does —
+ * nothing stops a man asking to join (see migration 0074 for why), and a
+ * host who believed otherwise would be misled at the moment they decide
+ * whether to post. */
+export const LADIES_ONLY_LABEL = "Ladies only";
+export const LADIES_ONLY_DESCRIPTION =
+  "Shown clearly on your invite and in the email members get, so everyone knows it's a ladies' game.";
+
+/**
+ * Whether the tee-times list is filtered to ladies-only rounds.
+ *
+ * Only the literal "1" turns it on — the same shape the other checkbox
+ * filters on that page use, and it means a hand-edited `?ladies=maybe`
+ * quietly shows everything rather than filtering on a value nobody chose.
+ */
+export function parseLadiesOnlyFilter(value: string | undefined): boolean {
+  return value === "1";
+}
+
 export const STATUS_LABELS: Record<InviteStatus, string> = {
   open: "Open",
   full: "Full",
