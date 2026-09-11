@@ -34,14 +34,20 @@ export default async function HomePage() {
     </Link>
   );
 
-  // The marketplace's own accent (see --sell-500 in globals.css), not the
-  // brand green and not the danger red. Used in exactly two places on this
-  // page: here in the hero for a signed-in member, and on the marketplace
-  // band further down where everyone sees it.
+  // The marketplace accent (--buy-500, globals.css) — the same orange as
+  // "Buy Now" on a listing, at the owner's request, so everything to do
+  // with buying and selling wears one colour. Used in exactly two places on
+  // this page: here in the hero for a signed-in member, and on the
+  // marketplace band further down where everyone sees it.
+  //
+  // ink-900 text and the buy-700 edge are not stylistic choices copied from
+  // BuyNowButton — they are what makes this orange legible. White on it is
+  // 1.99:1, far below WCAG AA; ink-900 is 9.22:1. The border is what keeps
+  // the button's shape from dissolving into a bright photograph behind it.
   const listAnItem = (
     <Link
       href="/marketplace/new"
-      className="px-6 py-3.5 rounded-full font-bold bg-sell-500 text-white hover:bg-sell-600 transition shadow-lg shadow-[rgba(88,28,18,0.35)]"
+      className="px-6 py-3.5 rounded-full font-bold bg-buy-500 text-ink-900 border-[1.5px] border-buy-700 hover:bg-buy-600 transition shadow-lg shadow-[rgba(80,44,0,0.35)]"
     >
       List an item
     </Link>

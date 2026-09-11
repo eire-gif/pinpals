@@ -12,27 +12,25 @@
   --gold-400: #e8c46b;
   --gold-500: #d3a53f;
   --gold-600: #b6862a;
-  /* Buy Now only. A deliberately loud, non-brand accent reserved for the
-     single "spend money now" action on a listing (BuyNowButton), so it
+  /* The marketplace accent. A deliberately loud, non-brand orange, so it
      never competes with green-700 (the brand's own primary action colour)
      or gold-400/500/600 (price display, decorative rules). Matches
-     Amazon's Buy Now swatch at the owner's request. Always paired with
-     ink-900 text, never cream-50: white on this orange fails WCAG AA. */
+     Amazon's Buy Now swatch at the owner's request.
+
+     Two buttons wear it: "Buy Now" on a listing (BuyNowButton) and "List
+     an item" on the homepage. It was Buy Now's alone until the owner asked
+     for the second — which holds up, because the two never appear on the
+     same page, and one colour for "the marketplace" reads as deliberate
+     rather than as two accents competing.
+
+     ALWAYS paired with ink-900 text, never white or cream-50: white on
+     this orange is 1.99:1, nowhere near WCAG AA. ink-900 is 9.22:1 on
+     buy-500 and 7.54:1 on buy-600. */
   --buy-500: #ffa41c;
   --buy-600: #fa8900;
   --buy-700: #e07d00;
   --red-600: #a83a2b;
   --red-100: #f6e3de;
-  /* "List an item" only. A soft terracotta red for the one action that
-     starts a sale, kept as its own token rather than reusing red-600 —
-     that one is the *danger* colour (destructive admin actions, form
-     errors on red-100 chips), and a friendly "sell your clubs" button
-     wearing it would read as a warning. Warmer and lighter in hue than
-     red-600 so the two are told apart at a glance. Paired with white
-     text: 4.79:1 on sell-500 and 5.64:1 on sell-600, both clear of
-     WCAG AA's 4.5:1 for body-size bold text. */
-  --sell-500: #b85440;
-  --sell-600: #a94a38;
   --ink-900: #0e1520;
   --ink-500: #647082;
   --line: #ddd2b8;
@@ -57,8 +55,6 @@
   --color-buy-700: var(--buy-700);
   --color-red-600: var(--red-600);
   --color-red-100: var(--red-100);
-  --color-sell-500: var(--sell-500);
-  --color-sell-600: var(--sell-600);
   --color-ink-900: var(--ink-900);
   --color-ink-500: var(--ink-500);
   --color-line: var(--line);
