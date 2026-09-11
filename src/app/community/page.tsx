@@ -6,14 +6,27 @@ import { COUNTRIES, countryName, isCountryCode } from "@/lib/regions";
 import RegionSelect from "@/components/region-select";
 import MemberAvatar from "@/components/member-avatar";
 import { AGE_BAND_NOT_SHARED } from "@/lib/age";
+import {
+  DIRECTORY_SCOPES,
+  SCOPE_DESCRIPTIONS,
+  SCOPE_LABELS,
+  parseScope,
+} from "@/lib/community";
 import ConnectButton from "./connect-button";
 
 export default async function CommunityPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; country?: string; county?: string; sort?: string }>;
+  searchParams: Promise<{
+    q?: string;
+    country?: string;
+    county?: string;
+    sort?: string;
+    scope?: string;
+  }>;
 }) {
-  const { q = "", country = "", county = "", sort = "recent" } = await searchParams;
+  const { q = "", country = "", county = "", sort = "recent", scope: scopeParam } = await searchParams;
+  const scope = parseScope(scopeParam);
   const supabase = await createClient();
   const {
     data: { user },
@@ -76,7 +89,50 @@ export default async function CommunityPage({
     );
   }
 
+  // Both reads happen before the directory query because the two scopes
+  // below narrow it: "my club" needs this member's own club, "my
+  // connections" needs the ids. Neither depends on the other, so they go in
+  // parallel.
+  const [{ data: me }, { data: connections }] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select("home_club, home_club_id")
+      .eq("id", user.id)
+      .maybeSingle<Pick<Profile, "home_club" | "home_club_id">>(),
+    supabase
+      .from("connections")
+      .select("*")
+      .or(`requester_id.eq.${user.id},recipient_id.eq.${user.id}`)
+      .returns<Connection[]>(),
+  ]);
+
+  const connectedMemberIds = (connections ?? [])
+    .filter((c) => c.status === "accepted")
+    .map((c) => (c.requester_id === user.id ? c.recipient_id : c.requester_id));
+
+  // Why each scope can come up empty for a reason that isn't "no matches":
+  // a member who has never set a home club can't have club-mates, and a new
+  // member has no connections. Both are worth saying out loud rather than
+  // showing the generic "no golfers match that search".
+  const hasHomeClub = Boolean(me?.home_club_id || me?.home_club);
+  const scopeUnavailable =
+    (scope === "club" && !hasHomeClub) || (scope === "connections" && connectedMemberIds.length === 0);
+
   let query = supabase.from("profiles").select("*").not("home_club", "is", null);
+
+  if (scope === "club" && hasHomeClub) {
+    // Prefer the real reference over the display name: since 0062 two clubs
+    // in different countries can share a name, and matching on the string
+    // would put a Woodbrook member in a different country's Woodbrook.
+    query = me?.home_club_id
+      ? query.eq("home_club_id", me.home_club_id)
+      : query.eq("home_club", me?.home_club ?? "");
+  } else if (scope === "connections") {
+    // An empty list would make .in() match nothing, which is the right
+    // answer — but scopeUnavailable already catches that case and explains
+    // it, so this only runs with real ids.
+    query = query.in("id", connectedMemberIds);
+  }
 
   if (q) {
     query = query.or(`first_name.ilike.%${q}%,last_name.ilike.%${q}%,home_club.ilike.%${q}%`);
@@ -95,13 +151,11 @@ export default async function CommunityPage({
     query = query.order("created_at", { ascending: false });
   }
 
-  const { data: members } = await query.limit(60).returns<Profile[]>();
-
-  const { data: connections } = await supabase
-    .from("connections")
-    .select("*")
-    .or(`requester_id.eq.${user.id},recipient_id.eq.${user.id}`)
-    .returns<Connection[]>();
+  // Skipped entirely when the scope can't return anything — no point asking
+  // the database for club-mates of a member with no club.
+  const { data: members } = scopeUnavailable
+    ? { data: [] as Profile[] }
+    : await query.limit(60).returns<Profile[]>();
 
   // Age bands come from the dedicated view, never from `profiles` — the
   // date of birth behind them is deliberately unreadable by anyone but its
@@ -161,11 +215,74 @@ export default async function CommunityPage({
           <button type="submit" className="px-5 py-2.5 rounded-full font-bold bg-green-700 text-cream-50 text-sm">
             Search
           </button>
+
+          {/* Its own full-width row under the search controls, in the same
+              card. Radios rather than another pill select: this doesn't
+              narrow the same list the way country and county do, it changes
+              which list you're looking at, and that's worth spelling out
+              instead of hiding behind a dropdown label. Modelled on the
+              tee-time audience selector.
+
+              Inside the form, so it submits with Search along with whatever
+              else is set — which also means it keeps working with
+              JavaScript off, like every other filter on this page. */}
+          <fieldset className="w-full border-t border-line pt-4 mt-0.5">
+            <legend className="sr-only">Who to show</legend>
+            <div className="grid gap-2 sm:grid-cols-3">
+              {DIRECTORY_SCOPES.map((option) => (
+                <label
+                  key={option}
+                  className={`flex items-start gap-2.5 rounded-xl px-3.5 py-3 cursor-pointer border-[1.5px] transition ${
+                    scope === option
+                      ? "border-green-600 bg-surface"
+                      : "border-line bg-surface-tint hover:border-line"
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="scope"
+                    value={option}
+                    defaultChecked={scope === option}
+                    className="w-4 h-4 mt-0.5 accent-green-700 shrink-0"
+                  />
+                  <span className="min-w-0">
+                    <span className="block text-sm font-semibold">{SCOPE_LABELS[option]}</span>
+                    <span className="block text-[12.5px] text-ink-500 mt-0.5 leading-snug">
+                      {SCOPE_DESCRIPTIONS[option]}
+                    </span>
+                  </span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
         </form>
 
         {!members || members.length === 0 ? (
           <div className="text-center py-16 text-ink-500">
-            No golfers match that search yet — widen your filters, or check back soon.
+            {/* Three different silences, three different answers. "No
+                golfers match" would be misleading for the first two: nothing
+                is wrong with the search, the member just hasn't set up the
+                thing the scope depends on yet — so each says what to do
+                about it. */}
+            {scope === "club" && !hasHomeClub ? (
+              <>
+                Set your home club on{" "}
+                <Link href="/profile/edit" className="font-bold text-green-700 hover:underline">
+                  your profile
+                </Link>{" "}
+                to see other members who play there.
+              </>
+            ) : scope === "connections" && connectedMemberIds.length === 0 ? (
+              <>
+                You haven&rsquo;t connected with anyone yet — switch to{" "}
+                <span className="font-bold text-ink-900">All members</span> above and send a
+                request to a golfer you&rsquo;d like a game with.
+              </>
+            ) : scope === "club" ? (
+              <>No other members have {me?.home_club} set as their home club yet.</>
+            ) : (
+              <>No golfers match that search yet — widen your filters, or check back soon.</>
+            )}
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
