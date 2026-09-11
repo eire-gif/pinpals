@@ -8,7 +8,9 @@ export default async function NewAvailabilityPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) redirect("/login");
+  // Carries the destination through the login page, so posting a tee time
+  // from the homepage button doesn't dead-end on the dashboard.
+  if (!user) redirect("/login?next=/dashboard/availability/new");
 
   return (
     <div className="max-w-xl mx-auto px-6 py-16">

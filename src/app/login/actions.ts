@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { checkRateLimit, rateLimitMessage } from "@/lib/rate-limit";
+import { postLoginPath } from "@/lib/safe-redirect";
 
 export type LoginState = { error?: string };
 
@@ -26,6 +27,10 @@ export async function logIn(_prev: LoginState, formData: FormData): Promise<Logi
 
   const email = String(formData.get("email") || "").trim();
   const password = String(formData.get("password") || "");
+  // Where they were headed before being bounced here. Validated rather than
+  // trusted — see safeRedirectPath() for why an unchecked `next` is an open
+  // redirect and what that buys an attacker.
+  const next = postLoginPath(formData.get("next"));
 
   const supabase = await createClient();
   const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -34,5 +39,5 @@ export async function logIn(_prev: LoginState, formData: FormData): Promise<Logi
     return { error: "Email or password didn't match — check for typos and try again." };
   }
 
-  redirect("/dashboard");
+  redirect(next);
 }
