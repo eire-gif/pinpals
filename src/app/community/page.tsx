@@ -2,17 +2,11 @@ import Image from "next/image";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import type { Connection, Profile } from "@/lib/types";
-import { COUNTRIES, countryName, isCountryCode } from "@/lib/regions";
+import { COUNTRIES, isCountryCode } from "@/lib/regions";
 import RegionSelect from "@/components/region-select";
-import MemberAvatar from "@/components/member-avatar";
-import { AGE_BAND_NOT_SHARED } from "@/lib/age";
-import {
-  DIRECTORY_SCOPES,
-  SCOPE_DESCRIPTIONS,
-  SCOPE_LABELS,
-  parseScope,
-} from "@/lib/community";
-import ConnectButton from "./connect-button";
+import MemberCard from "@/components/member-card";
+import { parseScope } from "@/lib/community";
+import ScopeSelector from "./scope-selector";
 
 export default async function CommunityPage({
   searchParams,
@@ -223,38 +217,10 @@ export default async function CommunityPage({
               instead of hiding behind a dropdown label. Modelled on the
               tee-time audience selector.
 
-              Inside the form, so it submits with Search along with whatever
-              else is set — which also means it keeps working with
-              JavaScript off, like every other filter on this page. */}
-          <fieldset className="w-full border-t border-line pt-4 mt-0.5">
-            <legend className="sr-only">Who to show</legend>
-            <div className="grid gap-2 sm:grid-cols-3">
-              {DIRECTORY_SCOPES.map((option) => (
-                <label
-                  key={option}
-                  className={`flex items-start gap-2.5 rounded-xl px-3.5 py-3 cursor-pointer border-[1.5px] transition ${
-                    scope === option
-                      ? "border-green-600 bg-surface"
-                      : "border-line bg-surface-tint hover:border-line"
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="scope"
-                    value={option}
-                    defaultChecked={scope === option}
-                    className="w-4 h-4 mt-0.5 accent-green-700 shrink-0"
-                  />
-                  <span className="min-w-0">
-                    <span className="block text-sm font-semibold">{SCOPE_LABELS[option]}</span>
-                    <span className="block text-[12.5px] text-ink-500 mt-0.5 leading-snug">
-                      {SCOPE_DESCRIPTIONS[option]}
-                    </span>
-                  </span>
-                </label>
-              ))}
-            </div>
-          </fieldset>
+              Inside the form, so it carries the search box and the three
+              selects along with it, and so it still works with JavaScript
+              off — see ScopeSelector for why it submits on change. */}
+          <ScopeSelector value={scope} />
         </form>
 
         {!members || members.length === 0 ? (
@@ -286,74 +252,15 @@ export default async function CommunityPage({
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-            {members.map((m) => {
-              const name = `${m.first_name} ${m.last_name}`;
-              const isMe = m.id === user.id;
-              const connection = connectionByMember.get(m.id);
-              // handicap_visible (0004) was previously ignored here, so a
-              // member who had switched their handicap to private still had
-              // it shown to the whole directory. The stat cell now reads
-              // "Not shared" for them, exactly as an unshared age band does
-              // — one consistent way of saying "they've chosen not to say".
-              const handicapLabel =
-                m.handicap != null && m.handicap_visible ? String(m.handicap) : AGE_BAND_NOT_SHARED;
-              return (
-                <div
-                  key={m.id}
-                  className="bg-surface border border-line rounded-2xl p-6 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition"
-                >
-                  <div className="flex items-center gap-4 min-w-0">
-                    <MemberAvatar name={name} avatarUrl={m.avatar_url} color={m.avatar_color} size="xl" />
-                    <div className="min-w-0">
-                      <h3 className="font-display font-bold text-lg truncate">
-                        {name} {isMe && <span className="text-green-700 text-xs font-sans">(you)</span>}
-                      </h3>
-                      <p className="text-sm text-ink-500 truncate">{m.home_club}</p>
-                      {/* The country, small, under the club. Two members can
-                          hold the same club name in different countries now
-                          (0062), so this is what tells a searcher which
-                          Woodbrook they're looking at. */}
-                      {m.country && (
-                        <p className="text-xs text-ink-500 truncate mt-0.5">
-                          {countryName(m.country)}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-
-                  <dl className="grid grid-cols-3 gap-3 mt-5">
-                    <div className="min-w-0">
-                      <dt className="text-xs text-ink-500">County</dt>
-                      <dd className="text-sm font-semibold text-ink-900 mt-0.5 truncate">
-                        {m.county ?? AGE_BAND_NOT_SHARED}
-                      </dd>
-                    </div>
-                    <div className="min-w-0">
-                      <dt className="text-xs text-ink-500">Handicap</dt>
-                      <dd className="text-sm font-semibold text-red-600 mt-0.5 truncate">{handicapLabel}</dd>
-                    </div>
-                    <div className="min-w-0">
-                      <dt className="text-xs text-ink-500">Age range</dt>
-                      <dd className="text-sm font-semibold text-ink-900 mt-0.5 truncate">
-                        {ageBandByMember.get(m.id) ?? AGE_BAND_NOT_SHARED}
-                      </dd>
-                    </div>
-                  </dl>
-
-                  <div className="border-t border-line mt-5 pt-4">
-                    {isMe ? (
-                      <span className="text-sm text-ink-500">This is your profile</span>
-                    ) : (
-                      <ConnectButton
-                        memberId={m.id}
-                        initialStatus={connection?.status}
-                        incoming={connection?.recipient_id === user.id}
-                      />
-                    )}
-                  </div>
-                </div>
-              );
-            })}
+            {members.map((m) => (
+              <MemberCard
+                key={m.id}
+                member={m}
+                currentUserId={user.id}
+                ageBand={ageBandByMember.get(m.id)}
+                connection={connectionByMember.get(m.id)}
+              />
+            ))}
           </div>
         )}
       </div>
