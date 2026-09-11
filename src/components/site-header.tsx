@@ -37,7 +37,12 @@ export default async function SiteHeader() {
   // Courses. Until now /tee-times was reachable only from the footer, which
   // is why almost nobody posts availability.
   //
-  // Two items carry a menu.
+  // Three items carry a menu.
+  //
+  // "Find Golfers" is the directory plus the one page that answers "who have
+  // I already connected with" — /dashboard/connections, which was otherwise
+  // buried two levels inside the dashboard despite being the thing a member
+  // checks most often once they've started connecting.
   //
   // "Tee Times" is two jobs sharing one page: browsing what other members
   // have posted, and posting your own. The second lives at
@@ -53,15 +58,28 @@ export default async function SiteHeader() {
   // list is worse than letting them say which country they're looking in
   // before they arrive.
   //
-  // In both cases the parent link still goes to its own page — the menu is a
-  // shortcut, not a gate (see NavDropdown).
+  // In all three cases the parent link still goes to its own page — the menu
+  // is a shortcut, not a gate (see NavDropdown).
   const navLinks: {
     href: string;
     label: string;
     menuLabel?: string;
     children?: { href: string; label: string }[];
   }[] = [
-    { href: "/community", label: "Find Golfers" },
+    {
+      href: "/community",
+      label: "Find Golfers",
+      menuLabel: "Find Golfers options",
+      // Signed-out visitors get a plain link for the same reason Tee Times
+      // does: /dashboard/connections redirects to /login, and the remaining
+      // entry would just repeat the parent.
+      children: user
+        ? [
+            { href: "/community", label: "Browse all golfers" },
+            { href: "/dashboard/connections", label: "My connections" },
+          ]
+        : undefined,
+    },
     {
       href: "/tee-times",
       label: "Tee Times",
