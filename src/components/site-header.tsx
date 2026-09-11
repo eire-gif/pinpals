@@ -108,7 +108,23 @@ export default async function SiteHeader() {
         })),
       ],
     },
-    { href: "/marketplace", label: "Marketplace" },
+    {
+      href: "/marketplace",
+      label: "Marketplace",
+      menuLabel: "Marketplace options",
+      // Same signed-out reasoning as Tee Times above: /marketplace/new and
+      // /dashboard/listings both bounce to /login, leaving a menu whose only
+      // usable entry repeats the parent link. A signed-out visitor gets a
+      // plain "Marketplace" link and meets "List an item" on the homepage
+      // instead.
+      children: user
+        ? [
+            { href: "/marketplace", label: "Browse the marketplace" },
+            { href: "/marketplace/new", label: "List an item" },
+            { href: "/dashboard/listings", label: "My listings" },
+          ]
+        : undefined,
+    },
     { href: "/news", label: "News" },
   ];
 

@@ -11,7 +11,9 @@ export default async function NewListingPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) redirect("/login");
+  // Carries the destination through login, so "List an item" from the
+  // homepage or the nav doesn't dead-end on the dashboard.
+  if (!user) redirect("/login?next=/marketplace/new");
 
   // Display-only, same as before — createListing() (./actions.ts) always
   // saves as a draft now regardless of payment readiness (publishing is
