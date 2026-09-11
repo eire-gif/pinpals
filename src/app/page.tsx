@@ -106,7 +106,18 @@ export default async function HomePage() {
 
       {/* MARKETPLACE TEASER */}
       <section className="relative py-24 text-white overflow-hidden">
-        <Image src="/images/sell-cta.jpg" alt="Golf clubs ready to be sold" fill className="object-cover -z-10" />
+        {/* alt describes what the picture actually is. It used to say "Golf
+            clubs ready to be sold", which described neither the old image nor
+            this one — a screen reader shouldn't be told about clubs that
+            aren't there. `sizes` because a `fill` image without it makes Next
+            serve its largest generated width to a phone. */}
+        <Image
+          src="/images/sell-cta.jpg"
+          alt="A golf green beside a lake at sunset"
+          fill
+          sizes="100vw"
+          className="object-cover -z-10"
+        />
         <div className="absolute inset-0 bg-gradient-to-r from-[rgba(9,22,40,0.94)] via-[rgba(9,22,40,0.82)] to-[rgba(9,22,40,0.5)] -z-10" />
         <div className="max-w-6xl mx-auto px-6">
           <div className="max-w-lg">
@@ -134,7 +145,9 @@ export default async function HomePage() {
 
       {/* CTA */}
       <section className="relative py-24 text-white text-center overflow-hidden">
-        <Image src="/images/hero.jpg" alt="" fill className="object-cover -z-10" />
+        {/* Decorative, so alt stays empty: the heading beside it already says
+            everything this image contributes. */}
+        <Image src="/images/hero.jpg" alt="" fill sizes="100vw" className="object-cover -z-10" />
         <div className="absolute inset-0 bg-gradient-to-br from-[rgba(9,22,40,0.92)] to-[rgba(9,22,40,0.55)] -z-10" />
         <div className="max-w-xl mx-auto px-6">
           <span className="inline-flex items-center gap-2 text-xs font-bold tracking-widest uppercase text-gold-500">
