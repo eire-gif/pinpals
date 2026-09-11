@@ -1147,12 +1147,14 @@ async function resolveTargetSummaries(
 export async function listReports(
   query = "",
   filters: AdminReportFilters = {},
-  page = 1
+  page = 1,
+  pageSize?: number
 ): Promise<AdminReportPage> {
   const admin = createAdminClient();
+  const size = resolvePageSize(pageSize, REPORTS_PAGE_SIZE);
   const safePage = Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
-  const rangeFrom = (safePage - 1) * REPORTS_PAGE_SIZE;
-  const rangeTo = rangeFrom + REPORTS_PAGE_SIZE - 1;
+  const rangeFrom = (safePage - 1) * size;
+  const rangeTo = rangeFrom + size - 1;
 
   const trimmedQuery = query.trim();
   const term = trimmedQuery ? sanitizeSearchTerm(trimmedQuery) : "";
@@ -1225,7 +1227,7 @@ export async function listReports(
     };
   });
 
-  return { rows: resultRows, total: count ?? 0, page: safePage, pageSize: REPORTS_PAGE_SIZE };
+  return { rows: resultRows, total: count ?? 0, page: safePage, pageSize: size };
 }
 
 // ---------- Report notes ----------
@@ -2355,16 +2357,18 @@ const SELLER_ACCOUNTS_PAGE_SIZE = 20;
  */
 export async function listSellerAccounts(
   filters: AdminSellerAccountFilters = {},
-  page = 1
+  page = 1,
+  pageSize?: number
 ): Promise<AdminSellerAccountPage> {
   const admin = createAdminClient();
+  const size = resolvePageSize(pageSize, SELLER_ACCOUNTS_PAGE_SIZE);
   const safePage = Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
-  const rangeFrom = (safePage - 1) * SELLER_ACCOUNTS_PAGE_SIZE;
-  const rangeTo = rangeFrom + SELLER_ACCOUNTS_PAGE_SIZE - 1;
+  const rangeFrom = (safePage - 1) * size;
+  const rangeTo = rangeFrom + size - 1;
 
   const { ids: sellerIds } = await resolvePersonFilter(admin, filters.seller);
   if (filters.seller && sellerIds?.length === 0) {
-    return { rows: [], total: 0, page: safePage, pageSize: SELLER_ACCOUNTS_PAGE_SIZE };
+    return { rows: [], total: 0, page: safePage, pageSize: size };
   }
 
   let query = admin
@@ -2392,7 +2396,7 @@ export async function listSellerAccounts(
     return { ...account, seller: sellerProfile ? withEmail(sellerProfile, authUsers) : null };
   });
 
-  return { rows, total: count ?? 0, page: safePage, pageSize: SELLER_ACCOUNTS_PAGE_SIZE };
+  return { rows, total: count ?? 0, page: safePage, pageSize: size };
 }
 
 export type AdminSellerAccountDetail = {
@@ -2594,15 +2598,20 @@ const PAYOUTS_PAGE_SIZE = 20;
  * business-meaningful ordering — see the migration) rather than this app's
  * own created_at, which can lag behind on a backfilled sync.
  */
-export async function listPayouts(filters: AdminPayoutFilters = {}, page = 1): Promise<AdminPayoutPage> {
+export async function listPayouts(
+  filters: AdminPayoutFilters = {},
+  page = 1,
+  pageSize?: number
+): Promise<AdminPayoutPage> {
   const admin = createAdminClient();
+  const size = resolvePageSize(pageSize, PAYOUTS_PAGE_SIZE);
   const safePage = Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
-  const rangeFrom = (safePage - 1) * PAYOUTS_PAGE_SIZE;
-  const rangeTo = rangeFrom + PAYOUTS_PAGE_SIZE - 1;
+  const rangeFrom = (safePage - 1) * size;
+  const rangeTo = rangeFrom + size - 1;
 
   const { ids: sellerIds } = await resolvePersonFilter(admin, filters.seller);
   if (filters.seller && sellerIds?.length === 0) {
-    return { rows: [], total: 0, page: safePage, pageSize: PAYOUTS_PAGE_SIZE };
+    return { rows: [], total: 0, page: safePage, pageSize: size };
   }
 
   let query = admin
@@ -2634,7 +2643,7 @@ export async function listPayouts(filters: AdminPayoutFilters = {}, page = 1): P
     return { ...payout, seller: sellerProfile ? withEmail(sellerProfile, authUsers) : null };
   });
 
-  return { rows, total: count ?? 0, page: safePage, pageSize: PAYOUTS_PAGE_SIZE };
+  return { rows, total: count ?? 0, page: safePage, pageSize: size };
 }
 
 export type AdminPayoutDetail = {
@@ -3226,11 +3235,16 @@ export type AdminReviewFilters = {
 
 const REVIEWS_PAGE_SIZE = 20;
 
-export async function listReviews(filters: AdminReviewFilters = {}, page = 1): Promise<AdminReviewPage> {
+export async function listReviews(
+  filters: AdminReviewFilters = {},
+  page = 1,
+  pageSize?: number
+): Promise<AdminReviewPage> {
   const admin = createAdminClient();
+  const size = resolvePageSize(pageSize, REVIEWS_PAGE_SIZE);
   const safePage = Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
-  const rangeFrom = (safePage - 1) * REVIEWS_PAGE_SIZE;
-  const rangeTo = rangeFrom + REVIEWS_PAGE_SIZE - 1;
+  const rangeFrom = (safePage - 1) * size;
+  const rangeTo = rangeFrom + size - 1;
 
   let query = admin
     .from("reviews")
@@ -3259,5 +3273,5 @@ export async function listReviews(filters: AdminReviewFilters = {}, page = 1): P
     reviewee: profileById.get(review.reviewee_id) ? withEmail(profileById.get(review.reviewee_id)!, authUsers) : null,
   }));
 
-  return { rows, total: count ?? 0, page: safePage, pageSize: REVIEWS_PAGE_SIZE };
+  return { rows, total: count ?? 0, page: safePage, pageSize: size };
 }
