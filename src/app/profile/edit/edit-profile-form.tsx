@@ -49,7 +49,7 @@ export default function EditProfileForm({
     <form action={formAction} className="grid gap-4">
       {/* Photo first: it's the one field with a visible before/after, and
           burying it under the text inputs made it easy to miss entirely. */}
-      <div className="grid gap-1.5">
+      <div className="grid gap-1.5 min-w-0">
         <span className="text-[13.5px] font-bold">Profile photo</span>
         <div className="flex items-center gap-4">
           <MemberAvatar
@@ -75,15 +75,15 @@ export default function EditProfileForm({
         </div>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="grid gap-1.5">
+        <div className="grid gap-1.5 min-w-0">
           <label htmlFor="first" className="text-[13.5px] font-bold">First name</label>
           <input id="first" name="first" required defaultValue={defaultValues.first}
-            className="px-3.5 py-3 rounded-lg border-[1.5px] border-line focus:outline-none focus:border-green-600" />
+            className="w-full px-3.5 py-3 rounded-lg border-[1.5px] border-line focus:outline-none focus:border-green-600" />
         </div>
-        <div className="grid gap-1.5">
+        <div className="grid gap-1.5 min-w-0">
           <label htmlFor="last" className="text-[13.5px] font-bold">Last name</label>
           <input id="last" name="last" required defaultValue={defaultValues.last}
-            className="px-3.5 py-3 rounded-lg border-[1.5px] border-line focus:outline-none focus:border-green-600" />
+            className="w-full px-3.5 py-3 rounded-lg border-[1.5px] border-line focus:outline-none focus:border-green-600" />
         </div>
       </div>
 
@@ -91,14 +91,14 @@ export default function EditProfileForm({
           single searchable list offers two "Woodbrook"s and no way to tell
           them apart; narrowing by country first is what makes the picker
           usable and what makes the saved club unambiguous. */}
-      <div className="grid gap-1.5">
+      <div className="grid gap-1.5 min-w-0">
         <label htmlFor="country" className="text-[13.5px] font-bold">Country you play in</label>
         <select
           id="country"
           name="country"
           value={country}
           onChange={(e) => setCountry(e.target.value)}
-          className="px-3.5 py-3 rounded-lg border-[1.5px] border-line bg-surface text-[15px] focus:outline-none focus:border-green-600"
+          className="w-full px-3.5 py-3 rounded-lg border-[1.5px] border-line bg-surface text-[15px] focus:outline-none focus:border-green-600"
         >
           {COUNTRIES.map((c) => (
             <option key={c.code} value={c.code}>{c.name}</option>
@@ -109,7 +109,7 @@ export default function EditProfileForm({
         </span>
       </div>
 
-      <div className="grid gap-1.5">
+      <div className="grid gap-1.5 min-w-0">
         <label htmlFor="club" className="text-[13.5px] font-bold">Home golf club</label>
         <ClubCombobox
           name="club"
@@ -127,11 +127,11 @@ export default function EditProfileForm({
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="grid gap-1.5">
+        <div className="grid gap-1.5 min-w-0">
           <label htmlFor="handicap" className="text-[13.5px] font-bold">Handicap index</label>
           <input id="handicap" name="handicap" type="number" step="0.1" min="-10" max="54"
             defaultValue={defaultValues.handicap} placeholder="e.g. 14.2"
-            className="px-3.5 py-3 rounded-lg border-[1.5px] border-line focus:outline-none focus:border-green-600" />
+            className="w-full px-3.5 py-3 rounded-lg border-[1.5px] border-line focus:outline-none focus:border-green-600" />
           <label className="flex items-center gap-2 text-xs text-ink-500 font-semibold mt-0.5">
             <input
               type="checkbox"
@@ -142,7 +142,7 @@ export default function EditProfileForm({
             Show my handicap on my tee-time invites
           </label>
         </div>
-        <div className="grid gap-1.5">
+        <div className="grid gap-1.5 min-w-0">
           <label htmlFor="dob" className="text-[13.5px] font-bold">Date of birth</label>
           <input
             id="dob"
@@ -151,7 +151,7 @@ export default function EditProfileForm({
             max={todayIso}
             value={dob}
             onChange={(e) => setDob(e.target.value)}
-            className="px-3.5 py-3 rounded-lg border-[1.5px] border-line focus:outline-none focus:border-green-600"
+            className="w-full px-3.5 py-3 rounded-lg border-[1.5px] border-line focus:outline-none focus:border-green-600"
           />
           <p className="text-xs text-ink-500">
             {/* Says plainly what is and isn't published — the whole reason
@@ -175,7 +175,7 @@ export default function EditProfileForm({
           )}
         </div>
 
-        <div className="grid gap-1.5">
+        <div className="grid gap-1.5 min-w-0">
           <label htmlFor="county" className="text-[13.5px] font-bold">
             {country === "scotland"
               ? "Council area you play in most"
@@ -192,7 +192,7 @@ export default function EditProfileForm({
             id="county"
             name="county"
             defaultValue={regions.includes(defaultValues.county) ? defaultValues.county : ""}
-            className="px-3.5 py-3 rounded-lg border-[1.5px] border-line focus:outline-none focus:border-green-600 bg-surface"
+            className="w-full px-3.5 py-3 rounded-lg border-[1.5px] border-line focus:outline-none focus:border-green-600 bg-surface"
           >
             <option value="">
               {country === "scotland" ? "Select a council area" : "Select a county"}
@@ -204,20 +204,20 @@ export default function EditProfileForm({
         </div>
       </div>
 
-      <div className="grid gap-1.5">
+      <div className="grid gap-1.5 min-w-0">
         <label htmlFor="bio" className="text-[13.5px] font-bold">A line about yourself</label>
         <textarea id="bio" name="bio" rows={3} defaultValue={defaultValues.bio}
           placeholder="e.g. Weekend golfer, happy to play any course within an hour of Dublin."
-          className="px-3.5 py-3 rounded-lg border-[1.5px] border-line focus:outline-none focus:border-green-600 resize-y" />
+          className="w-full px-3.5 py-3 rounded-lg border-[1.5px] border-line focus:outline-none focus:border-green-600 resize-y" />
       </div>
 
-      <div className="grid gap-1.5">
+      <div className="grid gap-1.5 min-w-0">
         <label htmlFor="guiNumber" className="text-[13.5px] font-bold">
           GUI / Golf Ireland membership number <span className="font-normal text-ink-500">(optional)</span>
         </label>
         <input id="guiNumber" name="guiNumber" defaultValue={defaultValues.guiNumber}
           placeholder="e.g. 1234567"
-          className="px-3.5 py-3 rounded-lg border-[1.5px] border-line focus:outline-none focus:border-green-600" />
+          className="w-full px-3.5 py-3 rounded-lg border-[1.5px] border-line focus:outline-none focus:border-green-600" />
         <span className="text-xs text-ink-500">
           Only if you have one — it&rsquo;s never required to join or use Pinpals.
         </span>
