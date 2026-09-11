@@ -1,7 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { notifyUser } from "./notifications-server";
-import { formatInviteDate, formatTimeRange } from "./tee-times";
+import { LADIES_ONLY_BADGE, formatInviteDate, formatTimeRange } from "./tee-times";
 
 /**
  * Telling a member's connections that they've posted a tee time.
@@ -83,6 +83,7 @@ export type InviteAnnouncement = {
   timeFrom: string | null;
   timeTo: string | null;
   spaces: number;
+  ladiesOnly: boolean;
 };
 
 /**
@@ -98,9 +99,13 @@ export function announcementBody(invite: InviteAnnouncement, hostName: string): 
   const when = formatInviteDate(invite.playDate);
   const timeRange = formatTimeRange(invite.timeFrom, invite.timeTo);
   const spaces = invite.spaces === 1 ? "1 space" : `${invite.spaces} spaces`;
+  // Appended rather than woven in, so it reads as the qualifier it is and
+  // survives any later change to the sentence in front of it. A member who
+  // shouldn't be asking to join deserves to know that from the email, not
+  // after they've already asked.
   return `${hostName} has ${spaces} at ${invite.clubName} on ${when}${
     timeRange ? `, ${timeRange}` : ""
-  }.`;
+  }.${invite.ladiesOnly ? ` ${LADIES_ONLY_BADGE}.` : ""}`;
 }
 
 /**

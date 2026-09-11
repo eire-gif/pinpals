@@ -5,6 +5,8 @@ import ClubCombobox from "@/components/club-combobox";
 import { COUNTRIES, regionsForCountry } from "@/lib/regions";
 import {
   DEFAULT_VISIBILITY,
+  LADIES_ONLY_DESCRIPTION,
+  LADIES_ONLY_LABEL,
   SPACES_OPTIONS,
   VISIBILITY_DESCRIPTIONS,
   VISIBILITY_LABELS,
@@ -165,6 +167,22 @@ export default function NewAvailabilityForm() {
             </label>
           ))}
         </div>
+
+        {/* Inside the same fieldset as the audience radios, because it
+            answers the same question — who is this round for — and a member
+            deciding one is already thinking about the other. One tick box,
+            unticked by default: the overwhelming majority of rounds are open
+            to anyone, and a default that assumed otherwise would be wrong
+            far more often than it was right. */}
+        <label className="flex items-start gap-2.5 text-sm font-semibold border-t border-line mt-3.5 pt-3.5 px-1 cursor-pointer">
+          <input type="checkbox" name="ladiesOnly" className="w-4 h-4 mt-0.5 accent-green-700 shrink-0" />
+          <span>
+            <span className="block">{LADIES_ONLY_LABEL}</span>
+            <span className="block text-[13px] font-normal text-ink-500 mt-0.5">
+              {LADIES_ONLY_DESCRIPTION}
+            </span>
+          </span>
+        </label>
       </fieldset>
 
       {state.error && (

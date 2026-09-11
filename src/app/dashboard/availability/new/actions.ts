@@ -57,6 +57,10 @@ export async function postAvailability(
   const handicapRaw = String(formData.get("handicapLimit") || "").trim();
   const notes = String(formData.get("notes") || "").trim();
   const visibilityRaw = String(formData.get("visibility") || "").trim();
+  // An unticked checkbox posts nothing at all, so absent means false — the
+  // same reading hasTeeTime above already relies on, and the safe one: the
+  // failure mode is an invite open to everyone, never one wrongly marked.
+  const ladiesOnly = formData.get("ladiesOnly") === "on";
 
   if (!isCountryCode(country)) {
     return { error: "Please choose the country the course is in." };
@@ -144,6 +148,7 @@ export async function postAvailability(
     handicap_limit: handicapLimit,
     notes: notes || null,
     visibility,
+    ladies_only: ladiesOnly,
     expires_at: computeExpiry(playDate),
     })
     // The id is needed for the notification dedupe key. Reading it back is
@@ -173,6 +178,7 @@ export async function postAvailability(
           timeFrom: timeFrom || null,
           timeTo: timeTo || null,
           spaces,
+          ladiesOnly,
         });
       } catch (err) {
         console.error("[tee-times] Fan-out failed:", err instanceof Error ? err.message : err);

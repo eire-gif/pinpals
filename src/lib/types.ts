@@ -256,6 +256,10 @@ export type TeeTimeInvite = {
   status: InviteStatus;
   /** Added in 0065. Every invite posted before it reads as "everyone". */
   visibility: InviteVisibility;
+  /** The host has asked that only women join this round (0074). A displayed
+   * preference, not an access rule — nothing in RLS reads it, for the
+   * reasons set out in that migration. */
+  ladies_only: boolean;
   created_at: string;
   updated_at: string;
   expires_at: string;
