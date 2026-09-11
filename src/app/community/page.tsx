@@ -112,7 +112,14 @@ export default async function CommunityPage({
   const scopeUnavailable =
     (scope === "club" && !hasHomeClub) || (scope === "connections" && connectedMemberIds.length === 0);
 
-  let query = supabase.from("profiles").select("*").not("home_club", "is", null);
+  // Everyone, including members who haven't set a home club yet. This used
+  // to filter them out — which meant a real member who skipped that step was
+  // invisible to the whole directory, couldn't be found or connected with,
+  // and had no way of knowing. For a site whose point is getting golfers
+  // talking to each other, silently hiding one is the more expensive of the
+  // two mistakes. Their card says "No club set yet" instead (MemberCard),
+  // which is honest and still leaves them reachable.
+  let query = supabase.from("profiles").select("*");
 
   if (scope === "club" && hasHomeClub) {
     // Prefer the real reference over the display name: since 0062 two clubs
