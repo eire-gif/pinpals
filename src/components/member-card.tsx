@@ -54,7 +54,14 @@ export default function MemberCard({
           <h3 className="font-display font-bold text-lg truncate">
             {name} {isMe && <span className="text-green-700 text-xs font-sans">(you)</span>}
           </h3>
-          <p className="text-sm text-ink-500 truncate">{member.home_club}</p>
+          {/* A member who hasn't set a club still belongs in the directory,
+              so the line says so rather than sitting empty. Italic and
+              lighter: it's the absence of a fact, not a fact. */}
+          {member.home_club ? (
+            <p className="text-sm text-ink-500 truncate">{member.home_club}</p>
+          ) : (
+            <p className="text-sm text-ink-500/70 italic truncate">No club set yet</p>
+          )}
           {/* The country, small, under the club. Two members can hold the
               same club name in different countries now (0062), so this is
               what tells a searcher which Woodbrook they're looking at. */}
