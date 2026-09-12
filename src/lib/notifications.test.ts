@@ -5,9 +5,11 @@ import {
   OPTIONAL_NOTIFICATION_CATEGORIES,
   categoryForType,
   shouldSendEmail,
+  shouldSendPush,
   buildDedupeKey,
   notificationHref,
   isOptionalCategory,
+  NOTIFICATION_CHANNELS,
 } from "./notifications";
 
 describe("categoryForType", () => {
@@ -124,5 +126,50 @@ describe("tee_time_posted", () => {
   it("defaults to on when a member has never touched the setting", () => {
     expect(shouldSendEmail("tee_time_posted", null)).toBe(true);
     expect(shouldSendEmail("tee_time_posted", true)).toBe(true);
+  });
+});
+
+describe("shouldSendPush", () => {
+  // 0075 added push as a second channel. Its rule is identical to email's by
+  // design — the tests below are the guard against the two drifting apart,
+  // because the failure mode of divergence is a member who can silence
+  // payment push but not payment email (or worse, the reverse).
+
+  it("is always true for a transactional type, regardless of any passed-in preference", () => {
+    expect(shouldSendPush("payment_succeeded", false)).toBe(true);
+    expect(shouldSendPush("payment_failed", null)).toBe(true);
+    expect(shouldSendPush("refund_requested", false)).toBe(true);
+    expect(shouldSendPush("dispute_opened", false)).toBe(true);
+  });
+
+  it("defaults to true for an optional type with no stored preference row", () => {
+    expect(shouldSendPush("new_message", null)).toBe(true);
+    expect(shouldSendPush("tee_time_posted", null)).toBe(true);
+  });
+
+  it("respects an explicit false preference for an optional type", () => {
+    expect(shouldSendPush("new_message", false)).toBe(false);
+    expect(shouldSendPush("tee_time_posted", false)).toBe(false);
+  });
+
+  it("is false for a type this app has never declared", () => {
+    expect(shouldSendPush("not_a_real_type", true)).toBe(false);
+  });
+
+  it("agrees with shouldSendEmail for every declared type and every preference value", () => {
+    for (const type of NOTIFICATION_TYPES) {
+      for (const enabled of [true, false, null]) {
+        expect(shouldSendPush(type, enabled)).toBe(shouldSendEmail(type, enabled));
+      }
+    }
+  });
+});
+
+describe("NOTIFICATION_CHANNELS", () => {
+  it("names exactly the two columns notification_preferences carries", () => {
+    // If a third channel is ever added, this list, the migration, the
+    // settings form's field names and notifyUser()'s dispatch all have to
+    // move together.
+    expect([...NOTIFICATION_CHANNELS]).toEqual(["email", "push"]);
   });
 });
