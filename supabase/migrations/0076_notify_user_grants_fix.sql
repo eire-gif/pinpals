@@ -1,0 +1,56 @@
+-- Pinpals: restore notify_user()'s grants after 0075 recreated it
+--
+-- 0075 dropped and recreated notify_user() (to change its return type from
+-- void to bigint) and tried to restore its original {postgres, service_role}
+-- ACL with:
+--
+--   revoke all on function public.notify_user(...) from public;
+--   grant execute on function public.notify_user(...) to service_role;
+--
+-- That revoke was aimed at the wrong target, and the mistake is worth
+-- understanding because it will recur in every future migration that creates
+-- a function in the public schema.
+--
+-- Supabase configures ALTER DEFAULT PRIVILEGES so that any new function in
+-- `public` is granted EXECUTE to anon, authenticated and service_role
+-- EXPLICITLY, as per-role grants. `REVOKE ... FROM PUBLIC` only removes the
+-- PUBLIC pseudo-role's grant. It does not touch a named-role grant, so all
+-- three survived it.
+--
+-- The resulting production ACL was:
+--   {postgres=X, anon=X, authenticated=X, service_role=X}
+--
+-- notify_user() is SECURITY DEFINER and takes p_user_id as a parameter. With
+-- EXECUTE granted to anon and authenticated it is reachable at
+-- /rest/v1/rpc/notify_user, which means any signed-in member — and any
+-- anonymous visitor holding nothing but the publishable anon key — could
+-- write an arbitrary notification row, with arbitrary title and body, to any
+-- other member's account. Every notification row carries a `data.href` the
+-- in-app list renders as a link, so this was a route to putting attacker-
+-- chosen text and links in front of any member, in a surface they have every
+-- reason to trust.
+--
+-- Caught by the post-migration ACL check, minutes after 0075 was applied.
+-- There is no evidence it was exploited: the window was short, the function
+-- is not referenced anywhere client-side, and notifications.dedupe_key /
+-- created_at show no rows in that window that the app itself did not write.
+--
+-- THE RULE, for every future migration: when you create or recreate a
+-- function in `public`, revoke from anon and authenticated BY NAME. Do not
+-- rely on REVOKE FROM PUBLIC. Then verify with:
+--
+--   select proname, proacl from pg_proc p
+--   join pg_namespace n on n.oid = p.pronamespace
+--   where n.nspname = 'public' and p.proname = '<the function>';
+--
+-- register_push_subscription() keeps `authenticated` — being callable by a
+-- signed-in member is its entire purpose, and it is safe by construction
+-- because it always writes auth.uid() rather than a caller-supplied id. It
+-- loses `anon`, which could only ever have hit its "requires an
+-- authenticated member" exception.
+--
+-- Rollback: none wanted. Restoring the broken grants is not a rollback.
+
+revoke all on function public.notify_user(uuid, text, text, text, jsonb, text) from anon, authenticated;
+
+revoke all on function public.register_push_subscription(text, text, text, text) from anon;
