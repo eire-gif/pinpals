@@ -165,6 +165,43 @@ describe("shouldSendPush", () => {
   });
 });
 
+describe("the tee-time interest loop (0077)", () => {
+  // Before 0077 the only tee-time notification was the broadcast. Every
+  // one-to-one step — someone asks to join, the host offers a place, the
+  // golfer confirms — happened in silence.
+  const LOOP_TYPES = [
+    "tee_time_interest_received",
+    "tee_time_place_offered",
+    "tee_time_interest_declined",
+    "tee_time_place_confirmed",
+    "tee_time_place_withdrawn",
+    "tee_time_cancelled",
+  ] as const;
+
+  it("declares every step of the loop", () => {
+    for (const type of LOOP_TYPES) {
+      expect(NOTIFICATION_TYPES).toContain(type);
+    }
+  });
+
+  it("routes them all to the tee_times category", () => {
+    for (const type of LOOP_TYPES) {
+      expect(categoryForType(type)).toBe("tee_times");
+    }
+  });
+
+  it("makes them silenceable on both channels, and on by default", () => {
+    // tee_times is optional, not transactional — a member who finds tee-time
+    // traffic noisy must be able to turn it off without losing payment mail.
+    for (const type of LOOP_TYPES) {
+      expect(shouldSendEmail(type, false)).toBe(false);
+      expect(shouldSendPush(type, false)).toBe(false);
+      expect(shouldSendEmail(type, null)).toBe(true);
+      expect(shouldSendPush(type, null)).toBe(true);
+    }
+  });
+});
+
 describe("NOTIFICATION_CHANNELS", () => {
   it("names exactly the two columns notification_preferences carries", () => {
     // If a third channel is ever added, this list, the migration, the

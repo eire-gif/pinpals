@@ -99,6 +99,20 @@ export const NOTIFICATION_TYPES = [
   // something that happened to them. See notifyConnectionsOfInvite() in
   // src/lib/tee-times-server.ts.
   "tee_time_posted",
+  // The rest of the tee-time loop (0077). Until these existed, the whole
+  // interest flow was silent: a member could ask to join your round, you
+  // could offer them a place, and they could confirm it, with nobody told
+  // anything at any point — each side found out only by opening their
+  // dashboard and noticing a badge had changed. Unlike tee_time_posted
+  // these are all one-to-one and reactive, which is why they matter more:
+  // a broadcast that goes unread costs nothing, an unanswered request
+  // costs somebody a round of golf.
+  "tee_time_interest_received",
+  "tee_time_place_offered",
+  "tee_time_interest_declined",
+  "tee_time_place_confirmed",
+  "tee_time_place_withdrawn",
+  "tee_time_cancelled",
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 
@@ -126,6 +140,12 @@ export const NOTIFICATION_TYPE_CATEGORY: Record<NotificationType, NotificationCa
   dispute_updated: "disputes_refunds",
   review_available: "reviews",
   tee_time_posted: "tee_times",
+  tee_time_interest_received: "tee_times",
+  tee_time_place_offered: "tee_times",
+  tee_time_interest_declined: "tee_times",
+  tee_time_place_confirmed: "tee_times",
+  tee_time_place_withdrawn: "tee_times",
+  tee_time_cancelled: "tee_times",
 };
 
 /** Which preference category (if any) governs delivery for this notification

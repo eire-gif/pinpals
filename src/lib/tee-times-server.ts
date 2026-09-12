@@ -1,6 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { notifyUser } from "./notifications-server";
+import { buildDedupeKey } from "./notifications";
 import { LADIES_ONLY_BADGE, formatInviteDate, formatTimeRange } from "./tee-times";
 
 /**
@@ -109,20 +110,21 @@ export function announcementBody(invite: InviteAnnouncement, hostName: string): 
 }
 
 /**
- * The host's display name, resolved here rather than passed in by the
- * Server Action: the action doesn't have it (the form posts a club and a
- * date, not the poster's name), and this runs after the response anyway, so
- * one extra read costs the member nothing.
+ * A member's display name, resolved here rather than passed in by the
+ * Server Action: the action doesn't have it (the availability form posts a
+ * club and a date, not the poster's name; the accept button posts an id),
+ * and these all run after the response anyway, so one extra read costs the
+ * member nothing.
  *
  * Falls back to a generic name rather than aborting. A tee time worth
  * telling people about is still worth telling them about if the profile
  * read hiccups.
  */
-async function hostNameFor(admin: SupabaseClient, hostId: string): Promise<string> {
+export async function memberNameFor(admin: SupabaseClient, memberId: string): Promise<string> {
   const { data } = await admin
     .from("profiles")
     .select("first_name, last_name")
-    .eq("id", hostId)
+    .eq("id", memberId)
     .maybeSingle<{ first_name: string | null; last_name: string | null }>();
 
   const name = [data?.first_name, data?.last_name].filter(Boolean).join(" ").trim();
@@ -148,7 +150,7 @@ export async function notifyConnectionsOfInvite(
   // connections yet costs one query, not two.
   if (recipients.length === 0) return 0;
 
-  const hostName = await hostNameFor(admin, invite.hostId);
+  const hostName = await memberNameFor(admin, invite.hostId);
   const body = announcementBody(invite, hostName);
   let sent = 0;
 
@@ -181,4 +183,190 @@ export async function notifyConnectionsOfInvite(
   }
 
   return sent;
+}
+
+// ---------------------------------------------------------------------------
+// The rest of the tee-time loop (0077)
+// ---------------------------------------------------------------------------
+//
+// Until these existed, everything after "someone posted a tee time" was
+// silent. A member could ask to join your round, you could offer them a
+// place, and they could confirm it, and at no point was anybody told
+// anything — each side found out by opening their dashboard and noticing a
+// badge had changed.
+//
+// These are one-to-one and reactive, which makes them more important than
+// the broadcast above, not less: a fan-out that goes unread costs nothing,
+// an unanswered request costs somebody a round of golf.
+//
+// House rules for every function below:
+//   - Never throw. A notification failing must not fail the accept, the
+//     decline or the cancellation that caused it. Each is called inside
+//     after(), so a throw here would also be unhandled.
+//   - Build the body from the invite's own typed columns. Never the host's
+//     free-text notes — same reasoning as announcementBody() above.
+//   - Link to the tab where the recipient can actually DO the next thing,
+//     which is why these arrived at the same time as /tee-times/interested
+//     and /tee-times/requests.
+
+/** The subset of an invite these notifications quote. Passed in by the
+ * caller, which already has it from the RPC's returning row, rather than
+ * re-read here — one fewer query on a path that runs after the response but
+ * still costs the platform something. */
+export type InviteRef = {
+  inviteId: number;
+  clubName: string;
+  playDate: string;
+};
+
+/** Where a member goes to answer requests on their own tee times. */
+const HOST_HREF = "/tee-times/interested";
+/** Where a member goes to see requests they've made on other people's. */
+const APPLICANT_HREF = "/tee-times/requests";
+
+function whenAt(invite: InviteRef): string {
+  return `${invite.clubName} on ${formatInviteDate(invite.playDate)}`;
+}
+
+/** Wraps a notify call so a failure is logged and swallowed. Every function
+ * below goes through it, so the "never throw" rule is one piece of code
+ * rather than six copies of a try/catch. */
+async function safeNotify(label: string, fn: () => Promise<void>): Promise<void> {
+  try {
+    await fn();
+  } catch (err) {
+    console.error(`[tee-times] ${label} notification failed:`, err instanceof Error ? err.message : err);
+  }
+}
+
+/** Someone asked to join a round you're hosting. */
+export async function notifyInterestReceived(
+  admin: SupabaseClient,
+  input: { hostId: string; applicantId: string; interestId: number; invite: InviteRef }
+): Promise<void> {
+  await safeNotify("interest-received", async () => {
+    const applicantName = await memberNameFor(admin, input.applicantId);
+    await notifyUser(admin, {
+      userId: input.hostId,
+      type: "tee_time_interest_received",
+      title: `${applicantName} wants to join your round`,
+      body: `${applicantName} has asked for a place at ${whenAt(input.invite)}.`,
+      href: HOST_HREF,
+      data: { inviteId: input.invite.inviteId, interestId: input.interestId },
+      dedupeKey: buildDedupeKey(["tee_time", input.invite.inviteId, "interest", input.interestId, "received"]),
+    });
+  });
+}
+
+/** The host offered you a place — the "you're in" moment, and the single
+ * most valuable notification in this file. */
+export async function notifyPlaceOffered(
+  admin: SupabaseClient,
+  input: { applicantId: string; hostId: string; interestId: number; invite: InviteRef }
+): Promise<void> {
+  await safeNotify("place-offered", async () => {
+    const hostName = await memberNameFor(admin, input.hostId);
+    await notifyUser(admin, {
+      userId: input.applicantId,
+      type: "tee_time_place_offered",
+      title: `${hostName} offered you a place`,
+      body: `You're in at ${whenAt(input.invite)} — confirm your place so ${hostName} knows the round is set.`,
+      href: APPLICANT_HREF,
+      data: { inviteId: input.invite.inviteId, interestId: input.interestId },
+      dedupeKey: buildDedupeKey(["tee_time", input.interestId, "offered"]),
+    });
+  });
+}
+
+/** The host said no. Worth sending: silence leaves someone waiting on a
+ * round that was never going to happen, and they may want to ask elsewhere
+ * while there's still time. Deliberately plain — no reason is given, because
+ * the host was never asked for one. */
+export async function notifyInterestDeclined(
+  admin: SupabaseClient,
+  input: { applicantId: string; hostId: string; interestId: number; invite: InviteRef }
+): Promise<void> {
+  await safeNotify("interest-declined", async () => {
+    await notifyUser(admin, {
+      userId: input.applicantId,
+      type: "tee_time_interest_declined",
+      title: "Your tee-time request wasn't successful",
+      body: `The round at ${whenAt(input.invite)} has been filled. Plenty of others are looking for a fourball.`,
+      href: "/tee-times",
+      data: { inviteId: input.invite.inviteId, interestId: input.interestId },
+      dedupeKey: buildDedupeKey(["tee_time", input.interestId, "declined"]),
+    });
+  });
+}
+
+/** They confirmed. The host now knows the round is actually happening. */
+export async function notifyPlaceConfirmed(
+  admin: SupabaseClient,
+  input: { hostId: string; applicantId: string; interestId: number; invite: InviteRef }
+): Promise<void> {
+  await safeNotify("place-confirmed", async () => {
+    const applicantName = await memberNameFor(admin, input.applicantId);
+    await notifyUser(admin, {
+      userId: input.hostId,
+      type: "tee_time_place_confirmed",
+      title: `${applicantName} confirmed their place`,
+      body: `${applicantName} is playing with you at ${whenAt(input.invite)}.`,
+      href: HOST_HREF,
+      data: { inviteId: input.invite.inviteId, interestId: input.interestId },
+      dedupeKey: buildDedupeKey(["tee_time", input.interestId, "confirmed"]),
+    });
+  });
+}
+
+/** They dropped out, and the space has gone back on the board. The host
+ * needs this one quickly — a space that reopens two days before the round
+ * is fillable, one that reopens on the morning is not. */
+export async function notifyPlaceWithdrawn(
+  admin: SupabaseClient,
+  input: { hostId: string; applicantId: string; interestId: number; invite: InviteRef }
+): Promise<void> {
+  await safeNotify("place-withdrawn", async () => {
+    const applicantName = await memberNameFor(admin, input.applicantId);
+    await notifyUser(admin, {
+      userId: input.hostId,
+      type: "tee_time_place_withdrawn",
+      title: `${applicantName} can't make it`,
+      body: `${applicantName} has pulled out of ${whenAt(input.invite)}. The space is open again.`,
+      href: HOST_HREF,
+      data: { inviteId: input.invite.inviteId, interestId: input.interestId },
+      dedupeKey: buildDedupeKey(["tee_time", input.interestId, "withdrawn"]),
+    });
+  });
+}
+
+/**
+ * The host called the round off. Everyone who asked to join is told,
+ * whatever state their request was in — someone with a confirmed place
+ * obviously needs to know, but so does someone still waiting on an answer
+ * they are now never going to get.
+ *
+ * Sequential rather than batched: a tee time has at most three other
+ * golfers on it, so the concurrency machinery the connection fan-out needs
+ * would be ceremony here.
+ */
+export async function notifyInviteCancelled(
+  admin: SupabaseClient,
+  input: { hostId: string; recipientIds: string[]; invite: InviteRef }
+): Promise<void> {
+  if (input.recipientIds.length === 0) return;
+
+  await safeNotify("invite-cancelled", async () => {
+    const hostName = await memberNameFor(admin, input.hostId);
+    for (const userId of input.recipientIds) {
+      await notifyUser(admin, {
+        userId,
+        type: "tee_time_cancelled",
+        title: "A tee time you joined was cancelled",
+        body: `${hostName} has cancelled the round at ${whenAt(input.invite)}.`,
+        href: APPLICANT_HREF,
+        data: { inviteId: input.invite.inviteId },
+        dedupeKey: buildDedupeKey(["tee_time", input.invite.inviteId, "cancelled", userId]),
+      });
+    }
+  });
 }

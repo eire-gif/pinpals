@@ -15,6 +15,7 @@ import { initials } from "@/lib/format";
 import { formatDistance, parseCoords, parseRadiusKm } from "@/lib/geo";
 import InterestButton from "./interest-button";
 import NearbySearch from "./nearby-search";
+import TeeTimesTabs from "./tee-times-tabs";
 
 export default async function TeeTimesPage({
   searchParams,
@@ -165,6 +166,7 @@ export default async function TeeTimesPage({
   return (
     <div>
       {header}
+      <TeeTimesTabs active="browse" />
       <div className="max-w-6xl mx-auto px-6 py-14">
         <form className="flex flex-wrap gap-3.5 items-center justify-between bg-surface border border-line rounded-2xl px-5 py-4 shadow-sm mb-8">
           <div className="relative flex-1 min-w-[200px]">
