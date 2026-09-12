@@ -95,9 +95,13 @@ describe("buildPushPayload", () => {
 });
 
 describe("pushPayloadBytes", () => {
-  it("counts bytes, not characters — a euro sign is three", () => {
-    const ascii = buildPushPayload({ type: "offer_received", title: "Offer", body: "180", href: "/x" });
+  it("counts bytes, not characters — a euro sign is three where an ASCII letter is one", () => {
+    // Same character count in both bodies, so the only difference measured
+    // is the encoding width: € is 3 bytes, E is 1. If this counted
+    // characters the two would be equal.
+    const ascii = buildPushPayload({ type: "offer_received", title: "Offer", body: "E180", href: "/x" });
     const euro = buildPushPayload({ type: "offer_received", title: "Offer", body: "€180", href: "/x" });
+    expect(euro.body.length).toBe(ascii.body.length);
     expect(pushPayloadBytes(euro)).toBe(pushPayloadBytes(ascii) + 2);
   });
 
