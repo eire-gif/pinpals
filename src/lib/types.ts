@@ -698,16 +698,51 @@ export type Notification = {
   created_at: string;
 };
 
-// See supabase/migrations/0056_marketplace_notifications_reviews.sql.
-// One row per (user, optional category) — absence of a row means "on"
-// (maybeSingle() returning null is the default-enabled case, never written
-// implicitly). `category` is constrained to the 4 OPTIONAL categories only
-// (see OPTIONAL_NOTIFICATION_CATEGORIES in src/lib/notifications.ts) —
-// transactional categories (payments, disputes_refunds) structurally cannot
-// have a row here at all, guaranteeing they can never be silenced.
+// See supabase/migrations/0056_marketplace_notifications_reviews.sql, and
+// 0075_push_notifications.sql for push_enabled.
+// One row per (user, optional category) — absence of a row means "on" for
+// BOTH channels (maybeSingle() returning null is the default-enabled case,
+// never written implicitly). `category` is constrained to the OPTIONAL
+// categories only (see OPTIONAL_NOTIFICATION_CATEGORIES in
+// src/lib/notifications.ts) — transactional categories (payments,
+// disputes_refunds) structurally cannot have a row here at all,
+// guaranteeing they can never be silenced on either channel.
+//
+// One column per channel rather than one row per channel: the CHECK
+// constraint on `category` is what makes the guarantee above true, and a
+// column leaves it untouched while keeping the settings page's single
+// all-rows upsert. See 0075's header for the full reasoning.
 export type NotificationPreference = {
   user_id: string;
   category: string;
   email_enabled: boolean;
+  push_enabled: boolean;
   updated_at: string;
+};
+
+// See supabase/migrations/0075_push_notifications.sql.
+// One row per BROWSER INSTALLATION, not per member — a member legitimately
+// has several (phone, iPad, laptop). `endpoint` is unique globally rather
+// than per user, because an endpoint identifies the installation: when a
+// second member signs in on a shared device the browser returns the same
+// endpoint, and register_push_subscription() moves the row to them rather
+// than creating a duplicate that would deliver one member's notifications
+// to the other.
+//
+// Written only by register_push_subscription() (SECURITY DEFINER) and by
+// the service-role sender; there is no authenticated INSERT or UPDATE
+// policy. Members can SELECT and DELETE their own rows, which is what backs
+// the device list on /dashboard/notifications.
+//
+// `p256dh`/`auth` are a send-capability — anyone holding them plus the
+// endpoint can push to that device — so they are never selected into any
+// client-facing query. PushSubscriptionRecord below is deliberately the
+// SAFE subset the settings page reads; the sender selects the keys
+// separately, server-side.
+export type PushSubscriptionRecord = {
+  id: number;
+  endpoint: string;
+  user_agent: string | null;
+  created_at: string;
+  last_success_at: string | null;
 };

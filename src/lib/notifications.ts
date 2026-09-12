@@ -2,20 +2,26 @@
 // src/lib/admin/reports.ts's own header comment ("no Supabase, no Next.js,
 // trivial to unit test") for the same reason: this vocabulary is shared
 // between the server-only dispatch helper (notifications-server.ts, which
-// decides whether to also send an email) and the in-app notification list
-// UI, and needs to stay in lockstep with what supabase/migrations/
-// 0056_marketplace_notifications_reviews.sql's notification-writing
-// functions actually produce.
+// decides whether to also send an email or a push) and the in-app
+// notification list UI, and needs to stay in lockstep with what
+// supabase/migrations/0056_marketplace_notifications_reviews.sql's
+// notification-writing functions actually produce.
 //
 // See that migration's own header comment for the full "why" — in short:
 // every notification is ALWAYS recorded in-app (notify_user() has no
-// preference gate of its own); email is preference-aware, and only for the
-// four OPTIONAL categories below. 'payments'/'disputes_refunds' are
-// deliberately not representable in notification_preferences at all (its
-// own check constraint only allows the four optional values) — there is no
-// row to look up for those two, so email for them is unconditional by
-// construction, never by an app-code check that could be forgotten or
-// bypassed.
+// preference gate of its own); the outbound channels are preference-aware,
+// and only for the five OPTIONAL categories below. 'payments'/
+// 'disputes_refunds' are deliberately not representable in
+// notification_preferences at all (its own check constraint only allows the
+// optional values) — there is no row to look up for those two, so delivery
+// for them is unconditional by construction, never by an app-code check
+// that could be forgotten or bypassed.
+//
+// Since 0075 there are TWO channels, email and push, and
+// notification_preferences carries one boolean per channel per category.
+// Both obey the identical rule — see channelEnabled() below — so that a
+// transactional category is exactly as unsilenceable on a lock screen as it
+// is in an inbox.
 
 export const NOTIFICATION_CATEGORIES = [
   "messages",
@@ -32,6 +38,12 @@ export type NotificationCategory = (typeof NOTIFICATION_CATEGORIES)[number];
 // allows — see design decision 3 in the migration.
 export const OPTIONAL_NOTIFICATION_CATEGORIES = ["messages", "offers", "auctions", "reviews", "tee_times"] as const;
 export type OptionalNotificationCategory = (typeof OPTIONAL_NOTIFICATION_CATEGORIES)[number];
+
+/** The delivery channels notification_preferences models, one boolean
+ * column each. Named here so the settings form, the upsert and the dispatch
+ * helper cannot drift apart. */
+export const NOTIFICATION_CHANNELS = ["email", "push"] as const;
+export type NotificationChannel = (typeof NOTIFICATION_CHANNELS)[number];
 
 export function isOptionalCategory(category: NotificationCategory): category is OptionalNotificationCategory {
   return (OPTIONAL_NOTIFICATION_CATEGORIES as readonly string[]).includes(category);
@@ -116,7 +128,7 @@ export const NOTIFICATION_TYPE_CATEGORY: Record<NotificationType, NotificationCa
   tee_time_posted: "tee_times",
 };
 
-/** Which preference category (if any) governs email for this notification
+/** Which preference category (if any) governs delivery for this notification
  * type — `null` for a type this app has never seen (defensive; every real
  * call site uses a NotificationType literal, so this only matters for a
  * malformed/legacy row). */
@@ -124,16 +136,33 @@ export function categoryForType(type: string): NotificationCategory | null {
   return (NOTIFICATION_TYPE_CATEGORY as Record<string, NotificationCategory>)[type] ?? null;
 }
 
-/** Pure predicate: should an email actually be sent for this (type,
- * preference-row) pair? Transactional categories (payments,
- * disputes_refunds) are always true, matching the DB's own inability to
- * store a disabled row for them. An optional category with no stored
- * preference row defaults to enabled — silence isn't opt-out. */
-export function shouldSendEmail(type: string, emailEnabled: boolean | null): boolean {
+/** The one rule both channels obey, factored out so they cannot diverge.
+ * Transactional categories are always true, matching the DB's own inability
+ * to store a disabled row for them. An optional category with no stored
+ * preference defaults to enabled — silence isn't opt-out. An unknown type
+ * sends nothing at all. */
+function channelEnabled(type: string, enabled: boolean | null): boolean {
   const category = categoryForType(type);
   if (category === null) return false;
   if (!isOptionalCategory(category)) return true;
-  return emailEnabled ?? true;
+  return enabled ?? true;
+}
+
+/** Pure predicate: should an email actually be sent for this (type,
+ * preference-row) pair? */
+export function shouldSendEmail(type: string, emailEnabled: boolean | null): boolean {
+  return channelEnabled(type, emailEnabled);
+}
+
+/** Pure predicate: should a push actually be sent for this (type,
+ * preference-row) pair? Identical rule to email by design (0075) — a member
+ * who cannot switch off payment email cannot switch off payment push
+ * either. Note this says nothing about whether the member HAS any
+ * registered device: that is a separate question, answered by
+ * push_subscriptions, and "enabled but no devices" is the normal state for
+ * most members. */
+export function shouldSendPush(type: string, pushEnabled: boolean | null): boolean {
+  return channelEnabled(type, pushEnabled);
 }
 
 /** Builds a stable '::'-joined dedupe key from parts — used at every
