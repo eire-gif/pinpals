@@ -46,6 +46,18 @@ export type FixtureIds = {
   payoutId: string;
   reportId: string;
   fraudFlagId: string;
+  /** One settled round and the four interests on it, for
+   * tee-times-confirmed-visibility.test.ts. Deliberately covers every status
+   * a reader could be in: two confirmed players, one still pending, one
+   * declined — so a test that only proves "confirmed players see each other"
+   * can also prove the other three stay hidden. */
+  teeTime: {
+    inviteId: string;
+    confirmedBuyer1: string;
+    confirmedBuyer2: string;
+    pendingModerator: string;
+    declinedAdmin: string;
+  };
 };
 
 async function insertUser(client: Client, id: string, firstName: string, lastName: string) {
@@ -308,6 +320,36 @@ export async function seed(client: Client): Promise<FixtureIds> {
   );
   const fraudFlagId = fraudFlagRows[0].id;
 
+  // ---- Tee times (0004/0005, widened by 0078) ----
+  // Hosted by seller1, in the future so it reads as a live round rather than
+  // history. `expires_at` is set the way computeExpiry() does it in the app.
+  const { rows: inviteRows } = await client.query<{ id: string }>(
+    `insert into public.tee_time_invites
+       (member_id, club_name, county, play_date, spaces_available, status, expires_at)
+     values ($1, 'Portmarnock Golf Club', 'Dublin', current_date + 14, 3, 'open',
+             (current_date + 14 + time '23:59:59') at time zone 'UTC')
+     returning id`,
+    [USERS.seller1],
+  );
+  const inviteId = inviteRows[0].id;
+
+  async function seedInterest(memberId: string, status: string) {
+    const { rows } = await client.query<{ id: string }>(
+      `insert into public.tee_time_interests (invite_id, member_id, status)
+       values ($1, $2, $3) returning id`,
+      [inviteId, memberId, status],
+    );
+    return rows[0].id;
+  }
+
+  const teeTime = {
+    inviteId,
+    confirmedBuyer1: await seedInterest(USERS.buyer1, "confirmed"),
+    confirmedBuyer2: await seedInterest(USERS.buyer2, "confirmed"),
+    pendingModerator: await seedInterest(USERS.moderator, "pending"),
+    declinedAdmin: await seedInterest(USERS.admin, "declined"),
+  };
+
   return {
     listings,
     listingImageId,
@@ -325,6 +367,7 @@ export async function seed(client: Client): Promise<FixtureIds> {
     payoutId,
     reportId,
     fraudFlagId,
+    teeTime,
   };
 }
 

@@ -97,6 +97,13 @@ const EXPECTED: Record<string, Expectation> = {
   // DEFINER functions so the space count can be changed under a row lock.
   "respond_to_tee_time_interest(p_interest_id bigint, p_accept boolean)": { anon: false, authenticated: true },
   "confirm_tee_time_place(p_interest_id bigint, p_attending boolean)": { anon: false, authenticated: true },
+  // 0078. Takes an invite id but derives the member from auth.uid(), so it
+  // answers only about the caller's own confirmed status — walking every
+  // invite id tells an attacker nothing they did not already know about
+  // themselves. SECURITY DEFINER because the tee_time_interests SELECT policy
+  // calls it while reading tee_time_interests, and an inline subquery there
+  // would recurse.
+  "has_confirmed_place(target_invite_id bigint)": { anon: false, authenticated: true },
 
   // --- Service role / internal only. Everything below is either a trigger
   // --- function, a sweep, or a privileged write path that must never be

@@ -149,13 +149,13 @@ export type ConfirmedRound = {
   county: string | null;
   ladiesOnly: boolean;
   /**
-   * The other golfers, as far as this member is permitted to see them.
+   * The other golfers in the round, excluding the member looking at it.
    *
-   * For a host, everyone who confirmed. For a player, empty — RLS on
-   * tee_time_interests (0004) lets a member read their own interest and the
-   * interests on invites they host, and nothing else, so a guest genuinely
-   * cannot see who else is in the fourball. The card says so rather than
-   * rendering an empty list that reads as "nobody else is coming".
+   * Everyone who has CONFIRMED — not everyone who asked. For a host that is
+   * their guest list; for a player it is the rest of the fourball, which
+   * migration 0078 made visible to them (before it, a guest could see only
+   * the host). Empty means nobody else has confirmed yet, which the card
+   * says in words rather than leaving as a blank line.
    */
   playing: { name: string; homeClub: string | null }[];
   /** Who posted the round. Null when this member posted it themselves. */

@@ -15,7 +15,7 @@ import TeeTimesTabs from "../tee-times-tabs";
 import TeeTimesPageHeader from "../tee-times-page-header";
 
 /**
- * Rounds that are actually happening.
+ * Rounds that are actually happening, and who is in them.
  *
  * The two management tabs either side of this one are about rounds still
  * being negotiated — someone waiting on your answer, you waiting on theirs.
@@ -43,32 +43,24 @@ export default async function ConfirmedTeeTimesPage() {
 
   if (!user) redirect("/login?next=/tee-times/confirmed");
 
-  type HostedRow = TeeTimeInvite & {
-    tee_time_interests: {
-      id: number;
-      status: string;
-      profiles: { first_name: string; last_name: string; home_club: string | null } | null;
-    }[];
-  };
+  type Person = { first_name: string; last_name: string; home_club: string | null };
+
+  type HostedRow = TeeTimeInvite & { tee_time_interests: { id: number }[] };
 
   type JoinedRow = {
     id: number;
-    tee_time_invites:
-      | (TeeTimeInvite & {
-          profiles: { first_name: string; last_name: string; home_club: string | null } | null;
-        })
-      | null;
+    tee_time_invites: (TeeTimeInvite & { profiles: Person | null }) | null;
   };
 
   const [{ data: hosted }, { data: joined }] = await Promise.all([
-    // Rounds this member posted, with the golfers who confirmed. The !inner
-    // join plus the status filter means an invite nobody has confirmed on
-    // never reaches this page at all — an empty round is not a fixture.
+    // Rounds this member posted that somebody has confirmed on. The !inner
+    // join plus the status filter is a filter, not a fetch — the players
+    // themselves come from the third query below, which covers both halves of
+    // this page in one go. An invite nobody has confirmed on never reaches
+    // this page at all: an empty round is not a fixture.
     supabase
       .from("tee_time_invites")
-      .select(
-        "*, tee_time_interests!inner(id, status, profiles(first_name, last_name, home_club))"
-      )
+      .select("*, tee_time_interests!inner(id)")
       .eq("member_id", user.id)
       .eq("tee_time_interests.status", "confirmed")
       .returns<HostedRow[]>(),
@@ -81,8 +73,42 @@ export default async function ConfirmedTeeTimesPage() {
       .returns<JoinedRow[]>(),
   ]);
 
+  // ============ Who else is playing ============
+  //
+  // One query for both kinds of round, which is possible because migration
+  // 0078 widened the tee_time_interests SELECT policy: a member may now read
+  // the confirmed interests on any round they have themselves confirmed a
+  // place on, as well as every interest on a round they host. So the same
+  // `.in(invite_id, ...)` covers a host's guest list and a guest's fourball,
+  // and RLS — not a filter written here — is what decides which rows come
+  // back. Nothing on this page has to reason about who is allowed to see what.
+  const inviteIds = [
+    ...(hosted ?? []).map((invite) => invite.id),
+    ...(joined ?? []).flatMap((interest) => (interest.tee_time_invites ? [interest.tee_time_invites.id] : [])),
+  ];
+
+  type PlayerRow = { invite_id: number; member_id: string; profiles: Person | null };
+  const { data: players } = inviteIds.length
+    ? await supabase
+        .from("tee_time_interests")
+        .select("invite_id, member_id, profiles(first_name, last_name, home_club)")
+        .in("invite_id", inviteIds)
+        .eq("status", "confirmed")
+        .returns<PlayerRow[]>()
+    : { data: [] as PlayerRow[] };
+
   const name = (p: { first_name: string; last_name: string } | null) =>
     p ? `${p.first_name} ${p.last_name}`.trim() : "A Pinpals member";
+
+  // Grouped by round, with the viewer removed — they know they're playing,
+  // and "Playing with: you, Brian" reads as a mistake.
+  const playersByInvite = new Map<number, { name: string; homeClub: string | null }[]>();
+  for (const row of players ?? []) {
+    if (row.member_id === user.id) continue;
+    const list = playersByInvite.get(row.invite_id) ?? [];
+    list.push({ name: name(row.profiles), homeClub: row.profiles?.home_club ?? null });
+    playersByInvite.set(row.invite_id, list);
+  }
 
   const rounds: ConfirmedRound[] = [
     ...(hosted ?? []).map((invite) => ({
@@ -96,10 +122,7 @@ export default async function ConfirmedTeeTimesPage() {
       hasTeeTimeBooked: invite.has_tee_time_booked,
       county: invite.county,
       ladiesOnly: invite.ladies_only,
-      playing: invite.tee_time_interests.map((interest) => ({
-        name: name(interest.profiles),
-        homeClub: interest.profiles?.home_club ?? null,
-      })),
+      playing: playersByInvite.get(invite.id) ?? [],
       hostName: null,
     })),
     ...(joined ?? []).flatMap((interest) => {
@@ -120,9 +143,7 @@ export default async function ConfirmedTeeTimesPage() {
           hasTeeTimeBooked: invite.has_tee_time_booked,
           county: invite.county,
           ladiesOnly: invite.ladies_only,
-          // Deliberately empty — see ConfirmedRound.playing. A guest cannot
-          // read the other guests' interest rows.
-          playing: [],
+          playing: playersByInvite.get(invite.id) ?? [],
           hostName: name(invite.profiles),
         },
       ];
@@ -252,10 +273,23 @@ function RoundCard({ round, past = false }: { round: ConfirmedRound; past?: bool
         )}
       </div>
 
+      {/* The fourball. Both roles show the same list now — 0078 let a
+          confirmed golfer read the other confirmed golfers on their own
+          round — with the host named separately for a guest, since "hosted
+          by" and "playing with" are different facts and a guest wants both. */}
       <div className="border-t border-line mt-5 pt-4 text-sm">
-        {round.role === "host" ? (
+        {round.role === "player" && (
+          <p className="mb-1.5">
+            <span className="text-ink-500">Hosted by </span>
+            <span className="font-semibold text-ink-900">{round.hostName}</span>
+          </p>
+        )}
+
+        {round.playing.length > 0 ? (
           <>
-            <span className="text-ink-500">Playing with </span>
+            <span className="text-ink-500">
+              {round.role === "host" ? "Playing with " : "Also playing: "}
+            </span>
             <span className="font-semibold text-ink-900">
               {round.playing.map((p) => p.name).join(", ")}
             </span>
@@ -269,16 +303,11 @@ function RoundCard({ round, past = false }: { round: ConfirmedRound; past?: bool
             )}
           </>
         ) : (
-          <>
-            <span className="text-ink-500">Hosted by </span>
-            <span className="font-semibold text-ink-900">{round.hostName}</span>
-            {/* Said plainly rather than left as an absence. Only the host can
-                read who else confirmed (RLS, 0004), so a guest seeing no
-                other names should not conclude there are none. */}
-            <p className="text-xs text-ink-500 mt-1">
-              Only the host can see the full list of who else is playing.
-            </p>
-          </>
+          // Only reachable for a guest — a hosted round with nobody confirmed
+          // never appears on this page at all.
+          <p className="text-ink-500">
+            Nobody else has confirmed a place yet — for now it&rsquo;s just the two of you.
+          </p>
         )}
       </div>
     </div>
