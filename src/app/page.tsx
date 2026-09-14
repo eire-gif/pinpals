@@ -44,6 +44,20 @@ export default async function HomePage() {
   // BuyNowButton — they are what makes this orange legible. White on it is
   // 1.99:1, far below WCAG AA; ink-900 is 9.22:1. The border is what keeps
   // the button's shape from dissolving into a bright photograph behind it.
+  // White, and second in the members' row. The two green/orange buttons
+  // beside it start something new; this one answers "what have I already
+  // got on?", which is the question a member with a round booked opens the
+  // site to ask. Cream rather than a fourth saturated colour: three
+  // competing accents in one row is one too many, and this is the calm one.
+  const confirmedTeeTimes = (
+    <Link
+      href="/tee-times/confirmed"
+      className="px-6 py-3.5 rounded-full font-bold bg-[#fbf8ef] text-navy-900 hover:bg-white transition"
+    >
+      Confirmed tee times
+    </Link>
+  );
+
   const listAnItem = (
     <Link
       href="/marketplace/new"
@@ -91,6 +105,7 @@ export default async function HomePage() {
               {user ? (
                 <>
                   {postAvailability}
+                  {confirmedTeeTimes}
                   {/* Only for a signed-in member. A visitor with no account
                       can't list anything (the page bounces to login, and
                       selling needs Stripe onboarding after that), and a

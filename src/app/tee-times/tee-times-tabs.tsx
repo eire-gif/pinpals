@@ -22,7 +22,7 @@ import { createClient } from "@/lib/supabase/server";
 export default async function TeeTimesTabs({
   active,
 }: {
-  active: "browse" | "interested" | "requests";
+  active: "browse" | "interested" | "requests" | "confirmed";
 }) {
   const supabase = await createClient();
   const {
@@ -52,6 +52,11 @@ export default async function TeeTimesTabs({
     { key: "browse" as const, href: "/tee-times", label: "Browse invites", count: 0 },
     { key: "interested" as const, href: "/tee-times/interested", label: "Interested golfers", count: waitingOnYou ?? 0 },
     { key: "requests" as const, href: "/tee-times/requests", label: "My requests", count: waitingOnThem ?? 0 },
+    // No badge, and no third count query to produce one. The other two
+    // numbers mean "somebody is waiting on you"; a count of settled rounds
+    // would mean "everything is fine", which is not worth a query on every
+    // tee-time page to say.
+    { key: "confirmed" as const, href: "/tee-times/confirmed", label: "Confirmed", count: 0 },
   ];
 
   return (
