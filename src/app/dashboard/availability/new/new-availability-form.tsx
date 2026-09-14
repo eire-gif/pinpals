@@ -12,6 +12,7 @@ import {
   VISIBILITY_LABELS,
   VISIBILITY_OPTIONS,
 } from "@/lib/tee-times";
+import { FIELD_CLASS, SELECT_CLASS } from "@/lib/ui";
 import { postAvailability, type PostAvailabilityState } from "./actions";
 
 const initialState: PostAvailabilityState = {};
@@ -38,7 +39,7 @@ export default function NewAvailabilityForm() {
           name="country"
           value={country}
           onChange={(e) => setCountry(e.target.value)}
-          className="px-3.5 py-3 rounded-lg border-[1.5px] border-line focus:outline-none focus:border-green-600 bg-surface"
+          className={SELECT_CLASS}
         >
           {COUNTRIES.map((c) => (
             <option key={c.code} value={c.code}>{c.name}</option>
@@ -54,7 +55,7 @@ export default function NewAvailabilityForm() {
       <div className="grid gap-1.5">
         <label htmlFor="county" className="text-[13.5px] font-bold">County</label>
         <select key={country} id="county" name="county" defaultValue="" required
-          className="px-3.5 py-3 rounded-lg border-[1.5px] border-line focus:outline-none focus:border-green-600 bg-surface">
+          className={SELECT_CLASS}>
           <option value="" disabled>Select the county the course is in</option>
           {regions.map((c) => (
             <option key={c} value={c}>{c}</option>
@@ -67,12 +68,12 @@ export default function NewAvailabilityForm() {
         <div className="grid gap-1.5 min-w-0">
           <label htmlFor="playDate" className="text-[13.5px] font-bold">Date</label>
           <input id="playDate" name="playDate" type="date" required min={today}
-            className="px-3.5 py-3 rounded-lg border-[1.5px] border-line focus:outline-none focus:border-green-600" />
+            className={FIELD_CLASS} />
         </div>
         <div className="grid gap-1.5 min-w-0">
           <label htmlFor="spaces" className="text-[13.5px] font-bold">Spaces available</label>
           <select id="spaces" name="spaces" defaultValue="1" required
-            className="w-full px-3.5 py-3 rounded-lg border-[1.5px] border-line focus:outline-none focus:border-green-600 bg-surface">
+            className={SELECT_CLASS}>
             {SPACES_OPTIONS.map((n) => (
               <option key={n} value={n}>{n} {n === 1 ? "space" : "spaces"}</option>
             ))}
@@ -87,10 +88,10 @@ export default function NewAvailabilityForm() {
           </label>
           <div className="flex items-center gap-2 min-w-0">
             <input id="timeFrom" name="timeFrom" type="time"
-              className="min-w-0 flex-1 px-3 py-3 rounded-lg border-[1.5px] border-line focus:outline-none focus:border-green-600" />
+              className={`${FIELD_CLASS} min-w-0 flex-1`} />
             <span className="shrink-0 text-ink-500 text-sm">to</span>
             <input id="timeTo" name="timeTo" type="time"
-              className="min-w-0 flex-1 px-3 py-3 rounded-lg border-[1.5px] border-line focus:outline-none focus:border-green-600" />
+              className={`${FIELD_CLASS} min-w-0 flex-1`} />
           </div>
         </div>
         <div className="grid gap-1.5 min-w-0">
@@ -99,7 +100,7 @@ export default function NewAvailabilityForm() {
           </label>
           <input id="handicapLimit" name="handicapLimit" type="number" step="1" min="0" max="54"
             placeholder="e.g. 24"
-            className="w-full min-w-0 px-3.5 py-3 rounded-lg border-[1.5px] border-line focus:outline-none focus:border-green-600" />
+            className={`${FIELD_CLASS} min-w-0`} />
           <span className="text-xs text-ink-500">Leave blank if any handicap is welcome.</span>
         </div>
       </div>
@@ -121,7 +122,7 @@ export default function NewAvailabilityForm() {
               Exact tee time <span className="font-normal text-ink-500">(optional)</span>
             </label>
             <input id="exactTeeTime" name="exactTeeTime" type="time"
-              className="px-3.5 py-3 rounded-lg border-[1.5px] border-line focus:outline-none focus:border-green-600 bg-surface" />
+              className={FIELD_CLASS} />
           </div>
         )}
       </div>
@@ -132,7 +133,7 @@ export default function NewAvailabilityForm() {
         </label>
         <textarea id="notes" name="notes" rows={3}
           placeholder="e.g. Looking for another Pinpals member to join me — happy to play any pace."
-          className="px-3.5 py-3 rounded-lg border-[1.5px] border-line focus:outline-none focus:border-green-600 resize-y" />
+          className={`${FIELD_CLASS} resize-y`} />
       </div>
 
       {/* Last field before the button, deliberately: it is the one decision

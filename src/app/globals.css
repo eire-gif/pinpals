@@ -73,3 +73,31 @@ body {
   background: var(--gold-500);
   color: var(--navy-900);
 }
+
+/* Makes a <select> render as the box we drew rather than as whatever the
+   platform draws.
+
+   Tailwind's preflight resets a select's font, colour and background but
+   leaves `appearance` alone, so iOS Safari keeps `menulist-button`: it
+   discards most of the padding, sets its own height, and only partly
+   honours the border radius. The result is a select visibly shorter than
+   the text input above it, with its text on a different baseline — barely
+   perceptible in desktop Chrome, and the single biggest reason a form
+   looks crooked on an iPhone.
+
+   `appearance: none` fixes that and takes the native arrow with it, so the
+   arrow is painted back here as a background image. Inlined as a data URI
+   rather than kept in /public because it is a 200-byte part of a style
+   rule, not an asset: no extra request, and nothing to keep in sync.
+   Stroke is ink-500 (#647082), hard-coded because a url() can't read a
+   custom property. The right padding that clears it lives in SELECT_CLASS
+   (src/lib/ui.ts) next to the left padding, so the two are never fighting
+   over the cascade. */
+@utility select-chevron {
+  -webkit-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5 6 6.5 11 1.5' fill='none' stroke='%23647082' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.875rem center;
+  background-size: 12px 8px;
+}

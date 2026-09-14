@@ -2,6 +2,7 @@
 
 import { useId, useMemo, useState } from "react";
 import { brandLabel, isLegacyResale, sellableBrandsFor } from "@/lib/marketplace-brands";
+import { FIELD_CLASS } from "@/lib/ui";
 
 /**
  * The seller-side brand picker: type to search, click to choose, and a
@@ -67,7 +68,7 @@ export default function BrandCombobox({
       <input
         disabled
         placeholder="Choose a category first"
-        className="w-full px-3.5 py-3 rounded-lg border-[1.5px] border-line bg-surface opacity-50"
+        className={`${FIELD_CLASS} opacity-60`}
       />
     );
   }
@@ -110,7 +111,7 @@ export default function BrandCombobox({
             setOpen(false);
           }
         }}
-        className="w-full px-3.5 py-3 rounded-lg border-[1.5px] border-line bg-surface focus:outline-none focus:border-green-600 disabled:opacity-60"
+        className={`${FIELD_CLASS} disabled:opacity-60`}
       />
 
       {value && !open && !disabled && (

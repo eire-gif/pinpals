@@ -15,10 +15,8 @@ import {
   specFieldsFor,
   type SpecField,
 } from "@/lib/marketplace-brands";
+import { FIELD_CLASS as inputClass, SELECT_CLASS } from "@/lib/ui";
 import type { Listing } from "@/lib/types";
-
-const inputClass =
-  "px-3.5 py-3 rounded-lg border-[1.5px] border-line focus:outline-none focus:border-green-600 bg-surface";
 
 function FieldError({ message }: { message?: string }) {
   if (!message) return null;
@@ -166,7 +164,7 @@ export default function ItemDetailsFields({
                 name="dexterity"
                 disabled={disabled}
                 defaultValue={defaults?.dexterity ?? ""}
-                className={`${inputClass} disabled:opacity-60`}
+                className={`${SELECT_CLASS} disabled:opacity-60`}
               >
                 <option value="">Not specified</option>
                 {DEXTERITIES.map((d) => (
@@ -188,7 +186,7 @@ export default function ItemDetailsFields({
                 name="shaftFlex"
                 disabled={disabled}
                 defaultValue={defaults?.shaft_flex ?? ""}
-                className={`${inputClass} disabled:opacity-60`}
+                className={`${SELECT_CLASS} disabled:opacity-60`}
               >
                 <option value="">Not specified</option>
                 {SHAFT_FLEXES.map((f) => (
@@ -210,7 +208,7 @@ export default function ItemDetailsFields({
                 name="shaftMaterial"
                 disabled={disabled}
                 defaultValue={defaults?.shaft_material ?? ""}
-                className={`${inputClass} disabled:opacity-60`}
+                className={`${SELECT_CLASS} disabled:opacity-60`}
               >
                 <option value="">Not specified</option>
                 {SHAFT_MATERIALS.map((m) => (

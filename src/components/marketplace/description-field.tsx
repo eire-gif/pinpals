@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { FIELD_CLASS } from "@/lib/ui";
 
 /** Mirrors listingDescriptionSchema's max in src/lib/validation/listing.ts. */
 export const MAX_DESCRIPTION_LENGTH = 2000;
@@ -57,7 +58,7 @@ export default function DescriptionField({
         value={value}
         onChange={(e) => setValue(e.target.value)}
         placeholder="Bought new in 2023, played about a dozen rounds. Small sky mark on the crown, otherwise mint. Comes with the original headcover and adjustment tool."
-        className="px-3.5 py-3 rounded-lg border-[1.5px] border-line focus:outline-none focus:border-green-600 bg-surface disabled:opacity-60 resize-y"
+        className={`${FIELD_CLASS} disabled:opacity-60 resize-y`}
       />
       <div className="flex items-start justify-between gap-3">
         <p className="text-xs text-ink-500">
