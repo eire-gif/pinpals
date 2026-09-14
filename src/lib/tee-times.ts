@@ -120,3 +120,78 @@ export function formatTimeRange(from: string | null, to: string | null): string 
   return formatClock(from ?? to);
 }
 
+
+// ---------- Confirmed rounds ----------
+
+/**
+ * One settled round, from the point of view of the member looking at it.
+ *
+ * Both halves of /tee-times/confirmed reduce to this shape — a round the
+ * member is hosting with someone confirmed on it, and a round they have
+ * confirmed a place on — so the page can sort and render one timeline
+ * rather than two lists that happen to sit near each other.
+ */
+export type ConfirmedRound = {
+  inviteId: number;
+  /** Who this member is in this round. Changes what the card can show: a
+   * host sees everyone who confirmed, a player sees only the host — see
+   * `playing` below. */
+  role: "host" | "player";
+  clubName: string;
+  /** yyyy-mm-dd. Compared as a string throughout: ISO dates sort correctly
+   * lexically, and parsing to a Date only to compare days introduces a
+   * timezone question nothing here needs to answer. */
+  playDate: string;
+  timeFrom: string | null;
+  timeTo: string | null;
+  exactTeeTime: string | null;
+  hasTeeTimeBooked: boolean;
+  county: string | null;
+  ladiesOnly: boolean;
+  /**
+   * The other golfers, as far as this member is permitted to see them.
+   *
+   * For a host, everyone who confirmed. For a player, empty — RLS on
+   * tee_time_interests (0004) lets a member read their own interest and the
+   * interests on invites they host, and nothing else, so a guest genuinely
+   * cannot see who else is in the fourball. The card says so rather than
+   * rendering an empty list that reads as "nobody else is coming".
+   */
+  playing: { name: string; homeClub: string | null }[];
+  /** Who posted the round. Null when this member posted it themselves. */
+  hostName: string | null;
+};
+
+/**
+ * Splits settled rounds into what's still to play and what's been played.
+ *
+ * A round played *today* counts as upcoming: it may not have teed off yet,
+ * and dropping it out of the list at midnight would take it away from the
+ * member on the one morning they most want to look at it.
+ *
+ * Upcoming is soonest-first — the next round is the thing the page exists to
+ * answer. Past is most-recent-first, which is how any history reads.
+ */
+export function partitionConfirmedRounds<T extends { playDate: string }>(
+  rounds: readonly T[],
+  today: string
+): { upcoming: T[]; past: T[] } {
+  const upcoming: T[] = [];
+  const past: T[] = [];
+
+  for (const round of rounds) {
+    (round.playDate >= today ? upcoming : past).push(round);
+  }
+
+  upcoming.sort((a, b) => a.playDate.localeCompare(b.playDate));
+  past.sort((a, b) => b.playDate.localeCompare(a.playDate));
+
+  return { upcoming, past };
+}
+
+/** Today as yyyy-mm-dd, to compare against a `play_date`. Its own function so
+ * the page has no date arithmetic in it and the comparison above stays
+ * testable against a fixed day. */
+export function todayIsoDate(now: Date = new Date()): string {
+  return now.toISOString().slice(0, 10);
+}

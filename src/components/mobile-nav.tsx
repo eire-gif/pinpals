@@ -6,10 +6,14 @@ import Link from "next/link";
 export default function MobileNav({
   isLoggedIn,
   navLinks,
+  dashboardMenu = [],
   unreadCount = 0,
 }: {
   isLoggedIn: boolean;
   navLinks: { href: string; label: string; children?: { href: string; label: string }[] }[];
+  /** The same list the desktop Dashboard dropdown renders. Passed in rather
+   * than duplicated here so the two menus can never disagree. */
+  dashboardMenu?: { href: string; label: string }[];
   unreadCount?: number;
 }) {
   const [open, setOpen] = useState(false);
@@ -85,13 +89,31 @@ export default function MobileNav({
                   </span>
                 )}
               </Link>
-              <Link
-                href="/dashboard"
-                onClick={() => setOpen(false)}
-                className="px-4 py-4 rounded-xl text-lg font-semibold text-white/90 hover:bg-white/10"
-              >
-                Dashboard
-              </Link>
+              <div>
+                <Link
+                  href="/dashboard"
+                  onClick={() => setOpen(false)}
+                  className="block px-4 py-4 rounded-xl text-lg font-semibold text-white/90 hover:bg-white/10"
+                >
+                  Dashboard
+                </Link>
+                {dashboardMenu.length > 0 && (
+                  <div className="ml-4 border-l border-white/15 pl-2 mb-1">
+                    {dashboardMenu
+                      .filter((child) => child.href !== "/dashboard")
+                      .map((child) => (
+                        <Link
+                          key={child.href}
+                          href={child.href}
+                          onClick={() => setOpen(false)}
+                          className="block px-4 py-3 rounded-xl text-base font-semibold text-white/70 hover:bg-white/10 hover:text-white"
+                        >
+                          {child.label}
+                        </Link>
+                      ))}
+                  </div>
+                )}
+              </div>
               <Link
                 href="/conversations"
                 onClick={() => setOpen(false)}

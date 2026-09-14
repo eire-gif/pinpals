@@ -60,6 +60,17 @@ export default async function SiteHeader() {
   //
   // In all three cases the parent link still goes to its own page — the menu
   // is a shortcut, not a gate (see NavDropdown).
+  // Rendered twice — the desktop dropdown below and MobileNav's own
+  // indented list — so the two can't drift apart.
+  const DASHBOARD_MENU = [
+    { href: "/dashboard", label: "Dashboard home" },
+    { href: "/tee-times/confirmed", label: "Confirmed tee times" },
+    { href: "/tee-times/interested", label: "Interested golfers" },
+    { href: "/tee-times/requests", label: "My tee-time requests" },
+    { href: "/dashboard/listings", label: "My listings" },
+    { href: "/dashboard/connections", label: "My connections" },
+  ];
+
   const navLinks: {
     href: string;
     label: string;
@@ -93,6 +104,9 @@ export default async function SiteHeader() {
         ? [
             { href: "/tee-times", label: "Find a game this week" },
             { href: "/dashboard/availability/new", label: "Post your availability" },
+            { href: "/tee-times/confirmed", label: "Confirmed tee times" },
+            { href: "/tee-times/interested", label: "Interested golfers" },
+            { href: "/tee-times/requests", label: "My requests" },
           ]
         : undefined,
     },
@@ -175,12 +189,17 @@ export default async function SiteHeader() {
                   </span>
                 )}
               </Link>
-              <Link
+              {/* A menu, not just a link, for the same reason Tee Times has
+                  one: the pages a member opens most often were reachable
+                  only by landing on the dashboard first and scrolling to
+                  find them. The parent still goes to the dashboard itself —
+                  the menu is a shortcut past it, not a toll gate. */}
+              <NavDropdown
                 href="/dashboard"
-                className="px-4 py-2.5 rounded-full text-sm font-semibold text-white/80 hover:text-white hover:bg-white/10 transition"
-              >
-                Dashboard
-              </Link>
+                label="Dashboard"
+                menuLabel="Dashboard sections"
+                items={DASHBOARD_MENU}
+              />
               <Link
                 href="/conversations"
                 className="px-4 py-2.5 rounded-full text-sm font-semibold text-white/80 hover:text-white hover:bg-white/10 transition"
@@ -213,7 +232,12 @@ export default async function SiteHeader() {
           )}
         </div>
 
-        <MobileNav isLoggedIn={!!user} navLinks={navLinks} unreadCount={unreadCount} />
+        <MobileNav
+          isLoggedIn={!!user}
+          navLinks={navLinks}
+          dashboardMenu={DASHBOARD_MENU}
+          unreadCount={unreadCount}
+        />
       </div>
     </header>
   );
