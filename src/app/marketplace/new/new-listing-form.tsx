@@ -13,15 +13,13 @@ import {
   MAX_AUCTION_DURATION_DAYS,
 } from "@/lib/marketplace";
 import { SALE_TYPE_LABELS, DELIVERY_OPTION_LABELS } from "@/lib/format";
+import { FIELD_CLASS as inputClass, SELECT_CLASS } from "@/lib/ui";
 import ItemDetailsFields from "@/components/marketplace/item-details-fields";
 import DescriptionField from "@/components/marketplace/description-field";
 import { createListing, type ListingFormState } from "./actions";
 import ImageUploader from "./image-uploader";
 
 const initialState: ListingFormState = {};
-
-const inputClass =
-  "px-3.5 py-3 rounded-lg border-[1.5px] border-line focus:outline-none focus:border-green-600 bg-surface";
 
 function FieldError({ message }: { message?: string }) {
   if (!message) return null;
@@ -103,7 +101,7 @@ export default function NewListingForm() {
               setCategory(e.target.value);
               setSubcategory("");
             }}
-            className={inputClass}
+            className={SELECT_CLASS}
           >
             <option value="" disabled>Select a category</option>
             {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
@@ -120,7 +118,7 @@ export default function NewListingForm() {
             value={subcategory}
             onChange={(e) => setSubcategory(e.target.value)}
             disabled={!subcategoryOptions}
-            className={`${inputClass} disabled:opacity-50`}
+            className={`${SELECT_CLASS} disabled:opacity-60`}
           >
             <option value="">{subcategoryOptions ? "Select a subcategory" : "Choose a category first"}</option>
             {subcategoryOptions?.map((s) => <option key={s} value={s}>{s}</option>)}
@@ -140,7 +138,7 @@ export default function NewListingForm() {
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="grid gap-1.5">
           <label htmlFor="condition" className="text-[13.5px] font-bold">Condition</label>
-          <select id="condition" name="condition" required defaultValue="" className={inputClass}>
+          <select id="condition" name="condition" required defaultValue="" className={SELECT_CLASS}>
             <option value="" disabled>Select a condition</option>
             {CONDITIONS.map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
@@ -148,7 +146,7 @@ export default function NewListingForm() {
         </div>
         <div className="grid gap-1.5">
           <label htmlFor="county" className="text-[13.5px] font-bold">County (location)</label>
-          <RegionSelect id="county" name="county" placeholder="Select a county" className={inputClass} />
+          <RegionSelect id="county" name="county" placeholder="Select a county" className={SELECT_CLASS} />
           <FieldError message={fieldErrors.county} />
         </div>
       </div>
@@ -163,7 +161,7 @@ export default function NewListingForm() {
           required
           value={saleType}
           onChange={(e) => setSaleType(e.target.value as (typeof SALE_TYPES)[number])}
-          className={inputClass}
+          className={SELECT_CLASS}
         >
           {SALE_TYPES.map((t) => <option key={t} value={t}>{SALE_TYPE_LABELS[t]}</option>)}
         </select>

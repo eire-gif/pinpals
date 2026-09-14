@@ -52,7 +52,7 @@ export default async function EditListingPage({
   }
 
   return (
-    <div className="max-w-xl mx-auto px-6 py-16">
+    <div className="max-w-xl mx-auto px-4 sm:px-6 py-10 sm:py-16">
       <Link href={`/marketplace/${listingId}`} className="text-sm text-green-700 font-bold">
         &larr; Back to listing
       </Link>
@@ -65,7 +65,7 @@ export default async function EditListingPage({
         <p className="text-ink-500 mt-2">Changes save immediately — buyers only see them once this listing is live.</p>
       </div>
 
-      <div className="bg-surface rounded-2xl shadow-lg p-8">
+      <div className="bg-surface rounded-2xl shadow-lg p-5 sm:p-8">
         <EditListingForm listing={listing} images={images ?? []} auction={auction} />
       </div>
     </div>

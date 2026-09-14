@@ -19,11 +19,9 @@ import DescriptionField from "@/components/marketplace/description-field";
 import type { Listing, ListingImage, Auction, SaleType } from "@/lib/types";
 import { updateListing, type UpdateListingState } from "./actions";
 import EditImageManager from "./edit-image-manager";
+import { FIELD_CLASS as inputClass, SELECT_CLASS } from "@/lib/ui";
 
 const initialState: UpdateListingState = {};
-
-const inputClass =
-  "px-3.5 py-3 rounded-lg border-[1.5px] border-line focus:outline-none focus:border-green-600 bg-surface";
 
 function FieldError({ message }: { message?: string }) {
   if (!message) return null;
@@ -129,7 +127,7 @@ export default function EditListingForm({
               setCategory(e.target.value);
               setSubcategory("");
             }}
-            className={`${inputClass} disabled:opacity-60`}
+            className={`${SELECT_CLASS} disabled:opacity-60`}
           >
             {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
@@ -145,7 +143,7 @@ export default function EditListingForm({
             value={subcategory}
             onChange={(e) => setSubcategory(e.target.value)}
             disabled={!subcategoryOptions || auctionLocked}
-            className={`${inputClass} disabled:opacity-50`}
+            className={`${SELECT_CLASS} disabled:opacity-60`}
           >
             <option value="">{subcategoryOptions ? "Select a subcategory" : "Choose a category first"}</option>
             {subcategoryOptions?.map((s) => <option key={s} value={s}>{s}</option>)}
@@ -173,7 +171,7 @@ export default function EditListingForm({
             required
             disabled={auctionLocked}
             defaultValue={listing.condition}
-            className={`${inputClass} disabled:opacity-60`}
+            className={`${SELECT_CLASS} disabled:opacity-60`}
           >
             {CONDITIONS.map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
@@ -186,7 +184,7 @@ export default function EditListingForm({
             name="county"
             defaultValue={listing.county || ""}
             placeholder="Select a county"
-            className={inputClass}
+            className={SELECT_CLASS}
           />
           <FieldError message={fieldErrors.county} />
         </div>

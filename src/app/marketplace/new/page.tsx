@@ -39,7 +39,7 @@ export default async function NewListingPage() {
   const paymentReady = isSellerPaymentReady(sellerOnboardingStatus(account));
 
   return (
-    <div className="max-w-xl mx-auto px-6 py-16">
+    <div className="max-w-xl mx-auto px-4 sm:px-6 py-10 sm:py-16">
       <div className="mb-8">
         <span className="inline-flex items-center gap-2 text-xs font-bold tracking-widest uppercase text-green-700">
           <span className="w-5 h-0.5 bg-gold-500 inline-block" /> Marketplace
@@ -58,7 +58,7 @@ export default async function NewListingPage() {
           </p>
         )}
       </div>
-      <div className="bg-surface rounded-2xl shadow-lg p-8">
+      <div className="bg-surface rounded-2xl shadow-lg p-5 sm:p-8">
         <NewListingForm />
       </div>
     </div>
