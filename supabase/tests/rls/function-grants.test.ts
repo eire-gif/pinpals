@@ -87,7 +87,7 @@ const EXPECTED: Record<string, Expectation> = {
   "get_order_dispute_status(p_order_id bigint)": { anon: false, authenticated: true },
   "is_blocked(a uuid, b uuid)": { anon: false, authenticated: true },
   "is_staff(required_roles text[])": { anon: false, authenticated: true },
-  "register_push_subscription(p_endpoint text, p_p256dh text, p_auth text, p_user_agent text)": {
+  "register_push_subscription(p_endpoint text, p_p256dh text, p_auth text, p_user_agent text, p_platform text)": {
     anon: false,
     authenticated: true,
   },

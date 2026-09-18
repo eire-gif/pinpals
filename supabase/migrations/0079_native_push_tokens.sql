@@ -167,6 +167,15 @@ begin
 end;
 $function$;
 
-revoke all on function public.register_push_subscription(text, text, text, text, text) from public;
+-- `revoke ... from public` is NOT enough here. The project (and
+-- setup-local-db-part1.sql, which mirrors it) runs `alter default privileges
+-- in schema public grant execute on functions to anon, authenticated`, so a
+-- newly created function carries an EXPLICIT per-role grant that a revoke
+-- aimed at the PUBLIC pseudo-role does not touch. That is precisely the
+-- notify_user() hole of 12 September 2026 — and this function is SECURITY
+-- DEFINER too. Revoke by name, then grant back only what needs it.
+-- See claude/incident-notify-user-grants-after-recreate.md.
+revoke all on function public.register_push_subscription(text, text, text, text, text)
+  from public, anon, authenticated;
 grant execute on function public.register_push_subscription(text, text, text, text, text)
   to authenticated, service_role;
