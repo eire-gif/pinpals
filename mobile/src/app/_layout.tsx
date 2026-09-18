@@ -27,11 +27,15 @@ function RootNavigator() {
 
     void SplashScreen.hideAsync();
 
-    const inApp = segments[0] === "(tabs)";
+    // Keyed on "is this the login screen", NOT "is this inside (tabs)". The
+    // latter looks equivalent until a signed-in route lives outside the tab
+    // group — invite/[id] does — and then every push to it is immediately
+    // bounced back to the tabs.
+    const onLogin = segments[0] === "login";
 
-    if (!session && inApp) {
+    if (!session && !onLogin) {
       router.replace("/login");
-    } else if (session && !inApp) {
+    } else if (session && onLogin) {
       router.replace("/(tabs)");
     }
   }, [session, loading, segments, router]);
@@ -47,6 +51,10 @@ function RootNavigator() {
     >
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="login" options={{ headerShown: false }} />
+      <Stack.Screen
+        name="invite/[id]"
+        options={{ title: "Tee time", headerBackTitle: "Back" }}
+      />
     </Stack>
   );
 }

@@ -8,270 +8,303 @@ import {
   Text,
   View,
 } from "react-native";
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import * as Linking from "expo-linking";
 
-import { supabase } from "@/lib/supabase";
+import { InviteCard } from "@/components/invite-card";
 import { SITE_URL } from "@/lib/config";
+import { useCurrentLocation } from "@/lib/location";
+import { listInvites, listInvitesNear, type Invite } from "@/lib/tee-times";
 import { colors, radii, spacing, type } from "@/lib/theme";
 
-type Invite = {
-  id: number;
-  club_name: string | null;
-  play_date: string;
-  time_from: string | null;
-  time_to: string | null;
-  exact_tee_time: string | null;
-  spaces_available: number;
-  has_tee_time_booked: boolean;
-  handicap_limit: number | null;
-  notes: string | null;
-  county: string | null;
-  ladies_only: boolean;
-  host: { first_name: string | null; last_name: string | null } | null;
-};
+type Scope = "all" | "near";
 
-/** "14:30:00" → "2:30pm". Times are stored without a zone, as wall-clock. */
-const clockTime = (value: string | null): string | null => {
-  if (!value) return null;
-  const [h, m] = value.split(":");
-  const hour = Number.parseInt(h, 10);
-  if (!Number.isFinite(hour)) return null;
-  const suffix = hour >= 12 ? "pm" : "am";
-  const twelve = hour % 12 === 0 ? 12 : hour % 12;
-  return m === "00" ? `${twelve}${suffix}` : `${twelve}:${m}${suffix}`;
-};
-
-const whenLabel = (invite: Invite): string => {
-  const exact = clockTime(invite.exact_tee_time);
-  if (exact) return exact;
-  const from = clockTime(invite.time_from);
-  const to = clockTime(invite.time_to);
-  if (from && to) return `${from} – ${to}`;
-  return from ?? "Time flexible";
-};
-
-const dateLabel = (iso: string): string => {
-  // Parsed as local midnight rather than UTC: `new Date("2026-09-20")` is UTC
-  // midnight, which in Ireland during BST renders as the 19th.
-  const [y, m, d] = iso.split("-").map((n) => Number.parseInt(n, 10));
-  const date = new Date(y, m - 1, d);
-  return date.toLocaleDateString("en-IE", {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-  });
-};
+const RADIUS_KM = 50;
 
 export default function TeeTimesScreen() {
+  const router = useRouter();
+  const location = useCurrentLocation();
+
+  const [scope, setScope] = useState<Scope>("all");
   const [invites, setInvites] = useState<Invite[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    const today = new Date();
-    const iso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
-
-    // RLS does the visibility work. `invite_is_visible_row` (migrations 0065,
-    // 0066, 0078) already decides whether a connections-only or ladies-only
-    // invite may be seen by this member, so this query deliberately does NOT
-    // re-implement any of those rules — it would only ever drift from them.
-    const { data, error: queryError } = await supabase
-      .from("tee_time_invites")
-      .select(
-        `id, club_name, play_date, time_from, time_to, exact_tee_time,
-         spaces_available, has_tee_time_booked, handicap_limit, notes,
-         county, ladies_only,
-         host:profiles!tee_time_invites_member_id_fkey (first_name, last_name)`
-      )
-      .eq("status", "open")
-      .gte("play_date", iso)
-      .gt("spaces_available", 0)
-      .order("play_date", { ascending: true })
-      .order("time_from", { ascending: true, nullsFirst: false })
-      .limit(50)
-      .overrideTypes<Invite[]>();
-
-    if (queryError) {
-      setError("Couldn't load tee times.");
-    } else {
+  const load = useCallback(
+    async (next: Scope) => {
       setError(null);
-      setInvites(data ?? []);
-    }
-    setLoading(false);
-    setRefreshing(false);
-  }, []);
+      try {
+        if (next === "near") {
+          // Reuse a fix we already have rather than waking the GPS on every
+          // tab focus.
+          const coords =
+            location.state.status === "ready"
+              ? location.state.coords
+              : await location.request();
 
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  // Re-fetch whenever the tab comes back into view. This is the whole of the
-  // freshness story for v1 — see §4.1 of the build spec. A tee time filled on
-  // the website is gone from this list the next time the member looks at it,
-  // without a websocket per screen.
-  useFocusEffect(
-    useCallback(() => {
-      void load();
-    }, [load])
+          if (!coords) {
+            setInvites([]);
+            return;
+          }
+          setInvites(await listInvitesNear(coords.lat, coords.lng, RADIUS_KM));
+        } else {
+          setInvites(await listInvites());
+        }
+      } catch {
+        setError("Couldn't load tee times.");
+        setInvites([]);
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [location]
   );
 
-  if (loading) {
-    return (
-      <View style={styles.centre}>
-        <ActivityIndicator size="large" color={colors.green700} />
+  useEffect(() => {
+    void load(scope);
+    // Intentionally keyed on scope alone: `load` changes identity whenever the
+    // location hook's state does, which would re-fetch on every permission
+    // transition.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scope]);
+
+  // Re-fetch when the tab comes back into view. This is the whole freshness
+  // story — a tee time filled on the website is gone from this list next time
+  // the member looks, with no websocket per screen. See §4.1 of the spec.
+  useFocusEffect(
+    useCallback(() => {
+      void load(scope);
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [scope])
+  );
+
+  const switchTo = (next: Scope) => {
+    if (next === scope) return;
+    setLoading(true);
+    setScope(next);
+  };
+
+  return (
+    <View style={styles.fill}>
+      <View style={styles.segments}>
+        <Segment
+          label="All tee times"
+          active={scope === "all"}
+          onPress={() => switchTo("all")}
+        />
+        <Segment
+          label={`Near me`}
+          icon="navigate-outline"
+          active={scope === "near"}
+          onPress={() => switchTo("near")}
+        />
       </View>
+
+      {loading ? (
+        <View style={styles.centre}>
+          <ActivityIndicator size="large" color={colors.green700} />
+        </View>
+      ) : (
+        <FlatList
+          contentContainerStyle={styles.list}
+          data={invites}
+          keyExtractor={(item) => String(item.id)}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={() => {
+                setRefreshing(true);
+                void load(scope);
+              }}
+              tintColor={colors.green700}
+            />
+          }
+          ListHeaderComponent={
+            scope === "near" && location.state.status === "ready" ? (
+              <Text style={styles.radiusNote}>
+                Within {RADIUS_KM} km of you
+              </Text>
+            ) : null
+          }
+          ListEmptyComponent={
+            <EmptyState
+              scope={scope}
+              error={error}
+              locationStatus={location.state.status}
+              onRetryLocation={() => void load("near")}
+            />
+          }
+          renderItem={({ item }) => (
+            <InviteCard
+              invite={item}
+              onPress={() => router.push(`/invite/${item.id}`)}
+            />
+          )}
+        />
+      )}
+    </View>
+  );
+}
+
+function Segment({
+  label,
+  icon,
+  active,
+  onPress,
+}: {
+  label: string;
+  icon?: keyof typeof Ionicons.glyphMap;
+  active: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      style={[styles.segment, active && styles.segmentActive]}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityState={{ selected: active }}
+    >
+      {icon && (
+        <Ionicons
+          name={icon}
+          size={15}
+          color={active ? colors.cream50 : colors.ink500}
+        />
+      )}
+      <Text style={[styles.segmentText, active && styles.segmentTextActive]}>
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
+function EmptyState({
+  scope,
+  error,
+  locationStatus,
+  onRetryLocation,
+}: {
+  scope: Scope;
+  error: string | null;
+  locationStatus: string;
+  onRetryLocation: () => void;
+}) {
+  if (error) {
+    return (
+      <Empty icon="cloud-offline-outline" title={error} body="Pull down to try again." />
+    );
+  }
+
+  if (scope === "near" && locationStatus === "denied") {
+    return (
+      <Empty
+        icon="location-outline"
+        title="Location is off"
+        body="PinPals needs location to find tee times near you. Turn it on in Settings → PinPals → Location."
+        action={{ label: "Open Settings", onPress: () => void Linking.openSettings() }}
+      />
+    );
+  }
+
+  if (scope === "near" && locationStatus === "failed") {
+    return (
+      <Empty
+        icon="navigate-circle-outline"
+        title="Couldn't find you"
+        body="Sometimes it just needs another go, especially indoors."
+        action={{ label: "Try again", onPress: onRetryLocation }}
+      />
     );
   }
 
   return (
-    <FlatList
-      style={styles.fill}
-      contentContainerStyle={styles.list}
-      data={invites}
-      keyExtractor={(item) => String(item.id)}
-      refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          onRefresh={() => {
-            setRefreshing(true);
-            void load();
-          }}
-          tintColor={colors.green700}
-        />
+    <Empty
+      icon="golf-outline"
+      title={
+        scope === "near"
+          ? `Nothing within ${RADIUS_KM} km`
+          : "No tee times going just now"
       }
-      ListEmptyComponent={
-        <View style={styles.empty}>
-          <Ionicons name="golf-outline" size={44} color={colors.ink500} />
-          <Text style={styles.emptyTitle}>
-            {error ?? "No tee times going just now"}
-          </Text>
-          <Text style={styles.emptyBody}>
-            {error
-              ? "Pull down to try again."
-              : "Post one of your own and your connections will hear about it."}
-          </Text>
-          <Pressable
-            style={styles.primary}
-            onPress={() =>
-              void Linking.openURL(`${SITE_URL}/dashboard/availability/new`)
-            }
-          >
-            <Text style={styles.primaryLabel}>Post a tee time</Text>
-          </Pressable>
-        </View>
+      body={
+        scope === "near"
+          ? "Try All tee times — someone might be playing further afield."
+          : "Post one of your own and your connections will hear about it."
       }
-      renderItem={({ item }) => {
-        const host = [item.host?.first_name, item.host?.last_name]
-          .filter(Boolean)
-          .join(" ");
-
-        return (
-          <Pressable
-            style={styles.card}
-            onPress={() => void Linking.openURL(`${SITE_URL}/tee-times`)}
-          >
-            <View style={styles.cardTop}>
-              <Text style={styles.club} numberOfLines={1}>
-                {item.club_name ?? "Course to be confirmed"}
-              </Text>
-              <View style={styles.spaces}>
-                <Text style={styles.spacesText}>
-                  {item.spaces_available}{" "}
-                  {item.spaces_available === 1 ? "space" : "spaces"}
-                </Text>
-              </View>
-            </View>
-
-            <Text style={styles.when}>
-              {dateLabel(item.play_date)} · {whenLabel(item)}
-            </Text>
-
-            <View style={styles.tags}>
-              {item.has_tee_time_booked && (
-                <Tag icon="checkmark-circle-outline" label="Tee time booked" />
-              )}
-              {item.ladies_only && <Tag icon="female-outline" label="Ladies only" />}
-              {item.handicap_limit !== null && (
-                <Tag
-                  icon="stats-chart-outline"
-                  label={`Handicap ${item.handicap_limit} or better`}
-                />
-              )}
-              {item.county && <Tag icon="location-outline" label={item.county} />}
-            </View>
-
-            {host.length > 0 && <Text style={styles.host}>Posted by {host}</Text>}
-          </Pressable>
-        );
+      action={{
+        label: "Post a tee time",
+        onPress: () =>
+          void Linking.openURL(`${SITE_URL}/dashboard/availability/new`),
       }}
     />
   );
 }
 
-function Tag({
+function Empty({
   icon,
-  label,
+  title,
+  body,
+  action,
 }: {
   icon: keyof typeof Ionicons.glyphMap;
-  label: string;
+  title: string;
+  body: string;
+  action?: { label: string; onPress: () => void };
 }) {
   return (
-    <View style={styles.tag}>
-      <Ionicons name={icon} size={13} color={colors.green800} />
-      <Text style={styles.tagText}>{label}</Text>
+    <View style={styles.empty}>
+      <Ionicons name={icon} size={44} color={colors.ink500} />
+      <Text style={styles.emptyTitle}>{title}</Text>
+      <Text style={styles.emptyBody}>{body}</Text>
+      {action && (
+        <Pressable style={styles.primary} onPress={action.onPress}>
+          <Text style={styles.primaryLabel}>{action.label}</Text>
+        </Pressable>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   fill: { flex: 1, backgroundColor: colors.cream50 },
+  segments: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.sm,
+    paddingBottom: 4,
+  },
+  segment: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.surface,
+    minHeight: 36,
+  },
+  segmentActive: {
+    backgroundColor: colors.green700,
+    borderColor: colors.green700,
+  },
+  segmentText: { fontSize: type.small, fontWeight: "700", color: colors.ink500 },
+  segmentTextActive: { color: colors.cream50 },
   list: { padding: spacing.md, gap: spacing.md, flexGrow: 1 },
+  radiusNote: {
+    fontSize: type.small,
+    color: colors.ink500,
+    marginBottom: 2,
+  },
   centre: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: colors.cream50,
   },
-  card: {
-    backgroundColor: colors.surface,
-    borderRadius: radii.md,
-    borderWidth: 1,
-    borderColor: colors.line,
-    padding: spacing.md,
-    gap: 6,
-  },
-  cardTop: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: spacing.sm,
-  },
-  club: { flex: 1, fontSize: type.heading, fontWeight: "700", color: colors.ink900 },
-  spaces: {
-    backgroundColor: colors.green100,
-    borderRadius: radii.pill,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  spacesText: { fontSize: 12.5, fontWeight: "700", color: colors.green800 },
-  when: { fontSize: type.body, color: colors.ink900 },
-  tags: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 2 },
-  tag: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    backgroundColor: colors.surfaceTint,
-    borderWidth: 1,
-    borderColor: colors.line,
-    borderRadius: radii.pill,
-    paddingHorizontal: 9,
-    paddingVertical: 3,
-  },
-  tagText: { fontSize: 12, color: colors.green800, fontWeight: "600" },
-  host: { fontSize: type.small, color: colors.ink500, marginTop: 2 },
   empty: {
     flex: 1,
     alignItems: "center",
@@ -279,7 +312,12 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     padding: spacing.lg,
   },
-  emptyTitle: { fontSize: type.heading, fontWeight: "700", color: colors.ink900 },
+  emptyTitle: {
+    fontSize: type.heading,
+    fontWeight: "700",
+    color: colors.ink900,
+    textAlign: "center",
+  },
   emptyBody: { fontSize: type.body, color: colors.ink500, textAlign: "center" },
   primary: {
     marginTop: spacing.md,
