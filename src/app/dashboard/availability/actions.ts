@@ -6,14 +6,11 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { InviteStatus } from "@/lib/types";
+import { notifyInviteCancelled } from "@/lib/tee-times-server";
 import {
-  notifyInterestDeclined,
-  notifyInviteCancelled,
-  notifyPlaceConfirmed,
-  notifyPlaceOffered,
-  notifyPlaceWithdrawn,
-  type InviteRef,
-} from "@/lib/tee-times-server";
+  confirmPlace,
+  respondToInterest as respondToInterestFor,
+} from "@/lib/tee-times-operations";
 
 /** Every page that shows an interest or a space count. Revalidating all of
  * them from one place keeps the three tee-time tabs and the dashboard from
@@ -143,27 +140,15 @@ export async function deleteInvite(inviteId: number) {
   return {};
 }
 
-type RespondRow = {
-  interest_id: number;
-  applicant_id: string;
-  invite_id: number;
-  club_name: string;
-  play_date: string;
-  new_status: string;
-  spaces_remaining: number;
-};
-
 /**
  * The host offers a place, or declines.
  *
- * Everything that used to live here in TypeScript — the ownership check, the
- * pending check, the space decrement, closing the invite when it fills — is
- * now inside respond_to_tee_time_interest() (0077), which takes a row lock
- * on the invite first. The old version read the count, subtracted one in
- * JavaScript and wrote it back, so a double-click could offer the same seat
- * twice; and because it wrote `Math.max(0, n - 1)` against a column
- * constrained `>= 1`, filling the last space failed outright while leaving
- * the interest marked accepted.
+ * The work — respond_to_tee_time_interest() (0077) behind its row lock, then
+ * telling the applicant — moved to src/lib/tee-times-operations.ts so the iOS
+ * app can perform the identical sequence through an API route. Crucially the
+ * notification is scheduled inside that function, not here: a caller that had
+ * to remember to notify would eventually forget, and a fourball that fills
+ * without telling anyone is the failure this is guarding against.
  */
 export async function respondToInterest(interestId: number, accept: boolean) {
   const supabase = await createClient();
@@ -175,67 +160,21 @@ export async function respondToInterest(interestId: number, accept: boolean) {
     redirect("/login");
   }
 
-  const { data, error } = await supabase.rpc("respond_to_tee_time_interest", {
-    p_interest_id: interestId,
-    p_accept: accept,
-  });
+  const result = await respondToInterestFor(supabase, user.id, interestId, accept);
 
-  if (error) {
-    // The function raises with member-facing sentences ("That request has
-    // already been answered."), so the message is shown as-is rather than
-    // replaced with something vaguer.
-    return { error: error.message };
+  if (!result.ok) {
+    // The RPC raises member-facing sentences, passed through unchanged.
+    return { error: result.message };
   }
 
-  const result = (data as RespondRow[] | null)?.[0];
   revalidateTeeTimeViews();
-
-  if (result) {
-    const invite: InviteRef = {
-      inviteId: result.invite_id,
-      clubName: result.club_name,
-      playDate: result.play_date,
-    };
-
-    after(async () => {
-      const admin = createAdminClient();
-      if (accept) {
-        await notifyPlaceOffered(admin, {
-          applicantId: result.applicant_id,
-          hostId: user.id,
-          interestId: result.interest_id,
-          invite,
-        });
-      } else {
-        await notifyInterestDeclined(admin, {
-          applicantId: result.applicant_id,
-          hostId: user.id,
-          interestId: result.interest_id,
-          invite,
-        });
-      }
-    });
-  }
-
   return {};
 }
-
-type ConfirmRow = {
-  interest_id: number;
-  host_id: string;
-  invite_id: number;
-  club_name: string;
-  play_date: string;
-  new_status: string;
-};
 
 /**
  * The golfer confirms their place, or drops out.
  *
- * Same move as respondToInterest above: the status check and the
- * hand-the-space-back arithmetic are now in confirm_tee_time_place() (0077)
- * behind the same row lock, so a member dropping out while the host is
- * accepting somebody else can't lose or duplicate a space.
+ * Same move as respondToInterest above.
  */
 export async function confirmTeeTimePlace(interestId: number, attending: boolean) {
   const supabase = await createClient();
@@ -245,44 +184,12 @@ export async function confirmTeeTimePlace(interestId: number, attending: boolean
 
   if (!user) redirect("/login");
 
-  const { data, error } = await supabase.rpc("confirm_tee_time_place", {
-    p_interest_id: interestId,
-    p_attending: attending,
-  });
+  const result = await confirmPlace(supabase, user.id, interestId, attending);
 
-  if (error) {
-    return { error: error.message };
+  if (!result.ok) {
+    return { error: result.message };
   }
 
-  const result = (data as ConfirmRow[] | null)?.[0];
   revalidateTeeTimeViews();
-
-  if (result) {
-    const invite: InviteRef = {
-      inviteId: result.invite_id,
-      clubName: result.club_name,
-      playDate: result.play_date,
-    };
-
-    after(async () => {
-      const admin = createAdminClient();
-      if (attending) {
-        await notifyPlaceConfirmed(admin, {
-          hostId: result.host_id,
-          applicantId: user.id,
-          interestId: result.interest_id,
-          invite,
-        });
-      } else {
-        await notifyPlaceWithdrawn(admin, {
-          hostId: result.host_id,
-          applicantId: user.id,
-          interestId: result.interest_id,
-          invite,
-        });
-      }
-    });
-  }
-
   return {};
 }
