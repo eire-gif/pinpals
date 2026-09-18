@@ -21,15 +21,26 @@ import {
   whenLabel,
   type Invite,
 } from "@/lib/tee-times";
+import {
+  confirmPlace,
+  expressInterest,
+  getMyInterest,
+  type MyInterest,
+} from "@/lib/tee-time-interest";
 import { colors, radii, spacing, type } from "@/lib/theme";
 
 export default function InviteScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { session } = useAuth();
+  const memberId = session?.user.id ?? null;
 
   const [invite, setInvite] = useState<Invite | null>(null);
+  const [interest, setInterest] = useState<MyInterest | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+
+  const [busy, setBusy] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const numeric = Number.parseInt(String(id), 10);
@@ -45,16 +56,40 @@ export default function InviteScreen() {
       // leaks the existence of private fourballs.
       if (!row) setNotFound(true);
       setInvite(row);
+
+      // Only worth asking for somebody else's invite: a host has no interest
+      // row of their own, and the query would match other members' rows.
+      if (row && memberId && row.member_id !== memberId) {
+        setInterest(await getMyInterest(numeric, memberId));
+      }
     } catch {
       setNotFound(true);
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [id, memberId]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  /** One wrapper for both writes: nothing is optimistic, the screen only ever
+   *  shows a status the server has actually returned. */
+  const run = useCallback(async (work: () => Promise<MyInterest>) => {
+    setBusy(true);
+    setActionError(null);
+    try {
+      setInterest(await work());
+    } catch (error) {
+      setActionError(
+        error instanceof Error
+          ? error.message
+          : "Something went wrong. Please try again."
+      );
+    } finally {
+      setBusy(false);
+    }
+  }, []);
 
   if (loading) {
     return (
@@ -76,8 +111,10 @@ export default function InviteScreen() {
     );
   }
 
+  const inviteId = invite.id;
   const host = hostName(invite);
-  const isMine = session?.user.id === invite.member_id;
+  const hostFirst = invite.host?.first_name?.trim() || "the host";
+  const isMine = memberId === invite.member_id;
   const place = [invite.club?.town, invite.club?.region]
     .filter(Boolean)
     .join(", ");
@@ -134,28 +171,135 @@ export default function InviteScreen() {
           </View>
         )}
 
+        {/* Answering interest is the host's job and it needs the list of who
+            has asked, which the app doesn't have a screen for yet. Until it
+            does, a host is sent to the website rather than shown a button that
+            can't do the work. */}
         {isMine ? (
-          <Text style={styles.ownNote}>
-            This is your tee time. Manage who&apos;s coming on the website.
-          </Text>
-        ) : null}
+          <>
+            <Text style={styles.ownNote}>
+              This is your tee time. Manage who&apos;s coming on the website.
+            </Text>
+            <Pressable
+              style={styles.primary}
+              onPress={() =>
+                void Linking.openURL(`${SITE_URL}/dashboard/availability`)
+              }
+            >
+              <Text style={styles.primaryLabel}>Manage on pinpals.ie</Text>
+            </Pressable>
+          </>
+        ) : (
+          <>
+            {interest === null && (
+              <Action
+                label="I'm interested"
+                busy={busy}
+                onPress={() => void run(() => expressInterest(inviteId))}
+              />
+            )}
 
-        {/* Phase B: this becomes a native "I'm interested" calling a thin API
-            route on the site. It cannot call respond/confirm RPCs directly —
-            those manage spaces_available atomically but do NOT send the
-            notification, which lives in notifyUser() on the server. Calling
-            them from here would update the fourball and tell nobody. */}
-        <Pressable
-          style={styles.primary}
-          onPress={() => void Linking.openURL(`${SITE_URL}/tee-times`)}
-        >
-          <Text style={styles.primaryLabel}>
-            {isMine ? "Manage on pinpals.ie" : "Express interest on pinpals.ie"}
-          </Text>
-        </Pressable>
-        <Text style={styles.footnote}>Opens the website for now.</Text>
+            {interest?.status === "pending" && (
+              <Status
+                icon="hourglass-outline"
+                title="Interest sent"
+                body={`${hostFirst} will be told you'd like to play. You'll hear back here.`}
+              />
+            )}
+
+            {interest?.status === "accepted" && (
+              <>
+                <Status
+                  icon="checkmark-circle-outline"
+                  title="You've been offered a place"
+                  body="Confirm and the space is yours. If you can't make it, say so now and it goes back to someone else."
+                />
+                <Action
+                  label="Confirm my place"
+                  busy={busy}
+                  onPress={() =>
+                    void run(() => confirmPlace(interest.id, true))
+                  }
+                />
+                <Pressable
+                  style={[styles.secondary, busy && styles.disabled]}
+                  disabled={busy}
+                  onPress={() =>
+                    void run(() => confirmPlace(interest.id, false))
+                  }
+                >
+                  <Text style={styles.secondaryLabel}>I can&apos;t make it</Text>
+                </Pressable>
+              </>
+            )}
+
+            {interest?.status === "confirmed" && (
+              <Status
+                icon="golf-outline"
+                title="You're playing"
+                body={`Your place is confirmed. ${hostFirst} has your details.`}
+              />
+            )}
+
+            {interest?.status === "declined" && (
+              <Status
+                icon="close-circle-outline"
+                title="Not this time"
+                body="This place has gone. There are other tee times on the way."
+              />
+            )}
+
+            {actionError ? (
+              <Text style={styles.error}>{actionError}</Text>
+            ) : null}
+          </>
+        )}
       </ScrollView>
     </>
+  );
+}
+
+function Action({
+  label,
+  busy,
+  onPress,
+}: {
+  label: string;
+  busy: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      style={[styles.primary, busy && styles.disabled]}
+      disabled={busy}
+      onPress={onPress}
+    >
+      {busy ? (
+        <ActivityIndicator color={colors.cream50} />
+      ) : (
+        <Text style={styles.primaryLabel}>{label}</Text>
+      )}
+    </Pressable>
+  );
+}
+
+function Status({
+  icon,
+  title,
+  body,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  title: string;
+  body: string;
+}) {
+  return (
+    <View style={styles.status}>
+      <Ionicons name={icon} size={22} color={colors.green700} />
+      <View style={styles.statusText}>
+        <Text style={styles.statusTitle}>{title}</Text>
+        <Text style={styles.statusBody}>{body}</Text>
+      </View>
+    </View>
   );
 }
 
@@ -217,11 +361,29 @@ const styles = StyleSheet.create({
   notesLabel: { fontSize: type.label, fontWeight: "700", color: colors.ink500 },
   notesBody: { fontSize: type.body, color: colors.ink900, lineHeight: 22 },
   ownNote: { fontSize: type.small, color: colors.ink500, textAlign: "center" },
+  status: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    backgroundColor: colors.surfaceTint,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.line,
+    padding: spacing.md,
+  },
+  statusText: { flex: 1, gap: 3 },
+  statusTitle: {
+    fontSize: type.body,
+    fontWeight: "700",
+    color: colors.ink900,
+  },
+  statusBody: { fontSize: type.small, color: colors.ink500, lineHeight: 20 },
   primary: {
     backgroundColor: colors.green700,
     borderRadius: radii.pill,
     paddingVertical: 15,
     alignItems: "center",
+    justifyContent: "center",
+    minHeight: 52,
     marginTop: spacing.sm,
   },
   primaryLabel: {
@@ -229,11 +391,24 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     fontSize: type.body,
   },
-  footnote: {
-    fontSize: 12.5,
+  secondary: {
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.line,
+    paddingVertical: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  secondaryLabel: {
     color: colors.ink500,
+    fontWeight: "600",
+    fontSize: type.body,
+  },
+  disabled: { opacity: 0.6 },
+  error: {
+    fontSize: type.small,
+    color: colors.red600,
     textAlign: "center",
-    marginTop: -4,
   },
   emptyTitle: { fontSize: type.heading, fontWeight: "700", color: colors.ink900 },
   emptyBody: { fontSize: type.body, color: colors.ink500, textAlign: "center" },
