@@ -12,6 +12,12 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+
+    // The Expo app. It is React Native rather than Next, its dependencies
+    // live in mobile/node_modules, and eslint-config-next's rules (Core Web
+    // Vitals, next/no-img-element and friends) are meaningless there. It has
+    // its own lint via `expo lint`.
+    "mobile/**",
   ]),
 ]);
 
