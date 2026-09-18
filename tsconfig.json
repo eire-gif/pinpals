@@ -35,5 +35,13 @@
   // it keeps `npm run typecheck` honest about the app instead of reporting a
   // dozen errors for code that never runs in this runtime. The Edge Function
   // is type-checked by Supabase at deploy time.
-  "exclude": ["node_modules", "supabase/functions"]
+  //
+  // mobile/** is the Expo app, and the same reasoning applies twice over. It
+  // is React Native, not the DOM; it resolves `@/*` to `mobile/src/*` rather
+  // than `src/*`; and its dependencies (react-native, expo-router,
+  // expo-secure-store) are installed in mobile/node_modules, not here. Left
+  // in, `next build` reports a wall of "cannot find module 'react-native'"
+  // for code that is never part of the website's bundle. The app has its own
+  // tsconfig.json and is type-checked by `npm run typecheck` inside mobile/.
+  "exclude": ["node_modules", "supabase/functions", "mobile"]
 }
