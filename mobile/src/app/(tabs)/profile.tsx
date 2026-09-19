@@ -15,6 +15,12 @@ import Constants from "expo-constants";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { SITE_URL } from "@/lib/config";
+import {
+  deletionDateLabel,
+  getDeletionState,
+  requestDeletion,
+  type DeletionState,
+} from "@/lib/account";
 import { colors, radii, spacing, type } from "@/lib/theme";
 
 type Profile = {
@@ -28,7 +34,9 @@ type Profile = {
 export default function ProfileScreen() {
   const { session, signOut } = useAuth();
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [deletion, setDeletion] = useState<DeletionState | null>(null);
   const [loading, setLoading] = useState(true);
+  const [deleting, setDeleting] = useState(false);
 
   const load = useCallback(async () => {
     if (!session?.user.id) return;
@@ -39,8 +47,69 @@ export default function ProfileScreen() {
       .maybeSingle()
       .overrideTypes<Profile>();
     setProfile(data);
+
+    // Failure here must not stop the profile rendering: the deletion row is
+    // the least important thing on this screen right up until it is the only
+    // thing that matters.
+    try {
+      setDeletion(await getDeletionState());
+    } catch {
+      setDeletion(null);
+    }
+
     setLoading(false);
   }, [session?.user.id]);
+
+  const confirmDelete = useCallback(() => {
+    if (deletion?.blockedReason) {
+      Alert.alert("You can't delete your account yet", deletion.blockedReason);
+      return;
+    }
+
+    const days = deletion?.graceDays ?? 30;
+
+    Alert.alert(
+      "Delete your account?",
+      `You'll be signed out straight away and won't be able to sign back in. ` +
+        `Any tee times you're hosting are cancelled and anything you have for ` +
+        `sale is taken down.\n\n` +
+        `After ${days} days your profile, messages, connections and settings ` +
+        `are deleted. If you've bought or sold, Irish tax law means we have to ` +
+        `keep those transaction records for six years, with your name removed.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete account",
+          style: "destructive",
+          onPress: () => {
+            setDeleting(true);
+            void requestDeletion()
+              .then((scheduledFor) => {
+                Alert.alert(
+                  "Your account is being deleted",
+                  `Everything we don't have to keep will be removed on ${deletionDateLabel(
+                    scheduledFor
+                  )}. Contact us before then if you change your mind.`,
+                  // Signed out on dismissal rather than immediately, so the
+                  // member actually reads the date before the app returns to
+                  // the login screen. The session is already dead server-side.
+                  [{ text: "OK", onPress: () => void signOut() }]
+                );
+              })
+              .catch((error: unknown) => {
+                Alert.alert(
+                  "Couldn't delete your account",
+                  error instanceof Error
+                    ? error.message
+                    : "Something went wrong. Please try again."
+                );
+              })
+              .finally(() => setDeleting(false));
+          },
+        },
+      ]
+    );
+  }, [deletion, signOut]);
 
   useEffect(() => {
     void load();
@@ -118,11 +187,33 @@ export default function ProfileScreen() {
         <Text style={styles.signOutLabel}>Log out</Text>
       </Pressable>
 
-      {/* TODO — App Store Guideline 5.1.1(v): an app with accounts must offer
-          account deletion from inside the app. The website has no deletion flow
-          at all today, so this cannot just be linked; it has to be built first,
-          on the site, where it can reconcile with orders, payments and Stripe
-          Connect. Submission is blocked on it. */}
+      {/* App Store Guideline 5.1.1(v): deletion happens here, in the app, not
+          behind a link to the website — Guideline 4 rules that out. It posts
+          to /api/app/account/delete, which runs the same operation the site's
+          own settings page runs. */}
+      {deletion?.scheduledFor ? (
+        <View style={styles.pending}>
+          <Text style={styles.pendingTitle}>
+            Your account is being deleted
+          </Text>
+          <Text style={styles.pendingBody}>
+            Everything we don&apos;t have to keep will be removed on{" "}
+            {deletionDateLabel(deletion.scheduledFor)}.
+          </Text>
+        </View>
+      ) : (
+        <Pressable
+          style={[styles.delete, deleting && styles.deleting]}
+          disabled={deleting}
+          onPress={confirmDelete}
+        >
+          {deleting ? (
+            <ActivityIndicator color={colors.red600} />
+          ) : (
+            <Text style={styles.deleteLabel}>Delete account</Text>
+          )}
+        </Pressable>
+      )}
 
       <Text style={styles.version}>
         PinPals {Constants.expoConfig?.version ?? "0.1.0"}
@@ -189,6 +280,32 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   signOutLabel: { fontSize: type.body, fontWeight: "700", color: colors.red600 },
+  delete: {
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 44,
+    marginTop: -spacing.sm,
+  },
+  deleting: { opacity: 0.6 },
+  deleteLabel: {
+    fontSize: type.small,
+    fontWeight: "600",
+    color: colors.ink500,
+    textDecorationLine: "underline",
+  },
+  pending: {
+    backgroundColor: colors.red100,
+    borderRadius: radii.md,
+    padding: spacing.md,
+    gap: 4,
+    marginTop: -spacing.sm,
+  },
+  pendingTitle: {
+    fontSize: type.body,
+    fontWeight: "700",
+    color: colors.red600,
+  },
+  pendingBody: { fontSize: type.small, color: colors.red600, lineHeight: 20 },
   version: {
     textAlign: "center",
     fontSize: 12.5,
