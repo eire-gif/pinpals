@@ -83,6 +83,11 @@ const EXPECTED: Record<string, Expectation> = {
   // --- Signed-in members only. Each is safe to expose because it either takes
   // --- no caller-controlled identity, or derives identity from auth.uid().
   "are_connected(a uuid, b uuid)": { anon: false, authenticated: true },
+  // 0080. Takes no parameters and derives the member from auth.uid(), so it
+  // can only ever answer about the caller. SECURITY DEFINER because the
+  // honest answer depends on payouts, refunds and disputes, none of which a
+  // member may read under their own RLS.
+  "can_delete_account()": { anon: false, authenticated: true },
   "can_message(a uuid, b uuid)": { anon: false, authenticated: true },
   "get_order_dispute_status(p_order_id bigint)": { anon: false, authenticated: true },
   "is_blocked(a uuid, b uuid)": { anon: false, authenticated: true },
