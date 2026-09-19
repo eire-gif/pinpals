@@ -85,6 +85,19 @@ export default async function ProfilePage({
           Edit profile
         </Link>
       </div>
+
+      {/* Outside the card and quiet, but present and reachable in two taps.
+          Apple asks that account deletion be easy to find — typically in
+          account settings, which for PinPals is this page — without it
+          competing with the things a member actually came here to do. */}
+      <p className="text-center mt-8">
+        <Link
+          href="/profile/delete"
+          className="text-sm text-ink-500 underline underline-offset-4 hover:text-red-600 transition"
+        >
+          Delete your account
+        </Link>
+      </p>
     </div>
   );
 }

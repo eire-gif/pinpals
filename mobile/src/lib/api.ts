@@ -69,7 +69,11 @@ function messageFor(status: number, serverMessage: string | null): string {
   }
 }
 
-export async function postToSite<T>(path: string, body: unknown): Promise<T> {
+async function requestSite<T>(
+  path: string,
+  method: "GET" | "POST",
+  body?: unknown
+): Promise<T> {
   const token = await accessToken();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
@@ -77,12 +81,12 @@ export async function postToSite<T>(path: string, body: unknown): Promise<T> {
   let response: Response;
   try {
     response = await fetch(`${SITE_URL}${path}`, {
-      method: "POST",
+      method,
       headers: {
-        "content-type": "application/json",
+        ...(body === undefined ? {} : { "content-type": "application/json" }),
         authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify(body),
+      body: body === undefined ? undefined : JSON.stringify(body),
       signal: controller.signal,
     });
   } catch {
@@ -113,3 +117,9 @@ export async function postToSite<T>(path: string, body: unknown): Promise<T> {
 
   return payload as T;
 }
+
+export const postToSite = <T>(path: string, body: unknown): Promise<T> =>
+  requestSite<T>(path, "POST", body);
+
+export const getFromSite = <T>(path: string): Promise<T> =>
+  requestSite<T>(path, "GET");
