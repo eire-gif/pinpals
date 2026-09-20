@@ -14,6 +14,11 @@ export const colors = {
   green100: "#e2ede1",
   gold400: "#e8c46b",
   gold500: "#d3a53f",
+  // The marketplace accent. ALWAYS paired with ink900 text, never white:
+  // white on buy500 is 1.99:1, nowhere near WCAG AA. ink900 is 9.22:1.
+  buy500: "#ffa41c",
+  buy600: "#fa8900",
+  buy700: "#e07d00",
   red600: "#a83a2b",
   red100: "#f6e3de",
   ink900: "#0e1520",

@@ -1,330 +1,421 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import {
   ActivityIndicator,
-  FlatList,
+  ImageBackground,
   Pressable,
   RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import * as Linking from "expo-linking";
 
-import { InviteCard } from "@/components/invite-card";
+import { useAuth } from "@/lib/auth";
 import { SITE_URL } from "@/lib/config";
-import { useCurrentLocation } from "@/lib/location";
-import { listInvites, listInvitesNear, type Invite } from "@/lib/tee-times";
+import { loadHome, type HomeSummary } from "@/lib/home";
+import { dateLabel } from "@/lib/tee-times";
 import { colors, radii, spacing, type } from "@/lib/theme";
+import { useUnreadCount } from "@/lib/unread";
 
-type Scope = "all" | "near";
-
-const RADIUS_KM = 50;
-
-export default function TeeTimesScreen() {
+/**
+ * Home.
+ *
+ * It carries the website's hero — the same photograph, the gold rule, the
+ * Playfair headline, the same three buttons in the same three colours — so the
+ * app and the site are visibly one product. What it does NOT carry is the
+ * half of that page written for someone who hasn't joined: "How it works",
+ * "Free to join", "Create your profile". Everyone here is signed in, and a
+ * member being invited to sign up is the kind of small wrongness that makes
+ * software feel unattended.
+ *
+ * In its place: the member's next round, and anything waiting on them. That is
+ * what someone opens this app to find out.
+ */
+export default function HomeScreen() {
   const router = useRouter();
-  const location = useCurrentLocation();
+  const { session } = useAuth();
+  const unread = useUnreadCount();
 
-  const [scope, setScope] = useState<Scope>("all");
-  const [invites, setInvites] = useState<Invite[]>([]);
+  const userId = session?.user?.id ?? null;
+  const [summary, setSummary] = useState<HomeSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(
-    async (next: Scope) => {
-      setError(null);
-      try {
-        if (next === "near") {
-          // Reuse a fix we already have rather than waking the GPS on every
-          // tab focus.
-          const coords =
-            location.state.status === "ready"
-              ? location.state.coords
-              : await location.request();
+  const load = useCallback(async () => {
+    if (!userId) return;
+    try {
+      setSummary(await loadHome(userId));
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [userId]);
 
-          if (!coords) {
-            setInvites([]);
-            return;
-          }
-          setInvites(await listInvitesNear(coords.lat, coords.lng, RADIUS_KM));
-        } else {
-          setInvites(await listInvites());
-        }
-      } catch {
-        setError("Couldn't load tee times.");
-        setInvites([]);
-      } finally {
-        setLoading(false);
-        setRefreshing(false);
-      }
-    },
-    [location]
-  );
-
-  useEffect(() => {
-    void load(scope);
-    // Intentionally keyed on scope alone: `load` changes identity whenever the
-    // location hook's state does, which would re-fetch on every permission
-    // transition.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scope]);
-
-  // Re-fetch when the tab comes back into view. This is the whole freshness
-  // story — a tee time filled on the website is gone from this list next time
-  // the member looks, with no websocket per screen. See §4.1 of the spec.
+  // Re-read on focus. Same freshness story as the tee-times list: a round
+  // confirmed on the website is reflected here next time the tab is looked
+  // at, with no websocket per screen.
   useFocusEffect(
     useCallback(() => {
-      void load(scope);
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [scope])
+      void load();
+    }, [load])
   );
 
-  const switchTo = (next: Scope) => {
-    if (next === scope) return;
-    setLoading(true);
-    setScope(next);
-  };
+  const courses = summary?.courseCount;
 
   return (
-    <View style={styles.fill}>
-      <View style={styles.segments}>
-        <Segment
-          label="All tee times"
-          active={scope === "all"}
-          onPress={() => switchTo("all")}
+    <ScrollView
+      style={styles.fill}
+      contentContainerStyle={styles.content}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={() => {
+            setRefreshing(true);
+            void load();
+          }}
+          tintColor={colors.green700}
         />
-        <Segment
-          label={`Near me`}
-          icon="navigate-outline"
-          active={scope === "near"}
-          onPress={() => switchTo("near")}
-        />
-      </View>
+      }
+    >
+      {/* HERO — the site's own photograph, loaded from the site rather than
+          bundled. It is a large image that changes when the homepage changes,
+          and a copy in the binary would need an App Store release to keep in
+          step with one on Vercel. */}
+      <ImageBackground
+        source={{ uri: `${SITE_URL}/images/homepage-hero.jpg` }}
+        style={styles.hero}
+        imageStyle={styles.heroImage}
+      >
+        {/* A flat scrim rather than the site's gradient: a gradient would mean
+            expo-linear-gradient, which is a native module and therefore a new
+            build of the app for every member. Not worth it for a fade. */}
+        <View style={styles.scrim} />
+
+        <View style={styles.heroBody}>
+          <View style={styles.eyebrowRow}>
+            <View style={styles.rule} />
+            <Text style={styles.eyebrow}>Golf community — Ireland &amp; the UK</Text>
+          </View>
+
+          <Text style={styles.heroTitle}>
+            Find your <Text style={styles.heroTitleAccent}>next four ball</Text>.
+          </Text>
+
+          {courses ? (
+            <Text style={styles.heroSub}>
+              {courses.toLocaleString("en-IE")} clubs on the books, from
+              Ballybunion to St Andrews.
+            </Text>
+          ) : null}
+
+          <View style={styles.heroButtons}>
+            <Pressable
+              style={[styles.cta, styles.ctaGreen]}
+              onPress={() => router.push("/post-tee-time")}
+            >
+              <Text style={styles.ctaGreenLabel}>Post a tee time</Text>
+            </Pressable>
+
+            <Pressable
+              style={[styles.cta, styles.ctaCream]}
+              onPress={() => router.push("/tee-times")}
+            >
+              <Text style={styles.ctaCreamLabel}>Find a game</Text>
+            </Pressable>
+
+            {/* The marketplace accent from globals.css, and ink-900 on it is
+                not a style choice: white on this orange is 1.99:1, nowhere
+                near WCAG AA. */}
+            <Pressable
+              style={[styles.cta, styles.ctaBuy]}
+              onPress={() =>
+                router.push("/web?path=/marketplace/new&title=List an item")
+              }
+            >
+              <Text style={styles.ctaBuyLabel}>List an item</Text>
+            </Pressable>
+          </View>
+        </View>
+      </ImageBackground>
 
       {loading ? (
-        <View style={styles.centre}>
-          <ActivityIndicator size="large" color={colors.green700} />
-        </View>
+        <ActivityIndicator color={colors.green700} style={styles.spinner} />
       ) : (
-        <FlatList
-          contentContainerStyle={styles.list}
-          data={invites}
-          keyExtractor={(item) => String(item.id)}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={() => {
-                setRefreshing(true);
-                void load(scope);
-              }}
-              tintColor={colors.green700}
+        <View style={styles.body}>
+          <NextRound summary={summary} onOpen={(id) => router.push(`/invite/${id}`)} />
+
+          {/* Only rendered when there IS something waiting. A permanent row
+              reading "0 requests" trains a member to stop looking at this part
+              of the screen, which is the one part that ever needs them. */}
+          {summary && summary.requestsWaiting > 0 ? (
+            <WaitingRow
+              icon="people-outline"
+              text={
+                summary.requestsWaiting === 1
+                  ? "1 golfer is waiting on your answer"
+                  : `${summary.requestsWaiting} golfers are waiting on your answer`
+              }
+              onPress={() => router.push("/tee-time-requests")}
             />
-          }
-          ListHeaderComponent={
-            scope === "near" && location.state.status === "ready" ? (
-              <Text style={styles.radiusNote}>
-                Within {RADIUS_KM} km of you
-              </Text>
-            ) : null
-          }
-          ListEmptyComponent={
-            <EmptyState
-              scope={scope}
-              error={error}
-              locationStatus={location.state.status}
-              onRetryLocation={() => void load("near")}
+          ) : null}
+
+          {summary && summary.offersWaiting > 0 ? (
+            <WaitingRow
+              icon="golf-outline"
+              text={
+                summary.offersWaiting === 1
+                  ? "You've been offered a place — confirm it"
+                  : `You've been offered ${summary.offersWaiting} places — confirm them`
+              }
+              onPress={() => router.push("/tee-times")}
             />
-          }
-          renderItem={({ item }) => (
-            <InviteCard
-              invite={item}
-              onPress={() => router.push(`/invite/${item.id}`)}
+          ) : null}
+
+          {unread > 0 ? (
+            <WaitingRow
+              icon="notifications-outline"
+              text={unread === 1 ? "1 unread alert" : `${unread} unread alerts`}
+              onPress={() => router.push("/notifications")}
             />
-          )}
-        />
+          ) : null}
+
+          <Band
+            eyebrow="Every county, every links"
+            title={
+              courses
+                ? `Browse ${courses.toLocaleString("en-IE")} courses`
+                : "Browse the course directory"
+            }
+            body="From Kerry to the Highlands — find a club, see who plays there, and put yourself on its map."
+            action="See the directory"
+            onPress={() =>
+              router.push("/web?path=/courses&title=Courses")
+            }
+          />
+
+          <Band
+            eyebrow="Marketplace"
+            title="Clearing out the garage?"
+            body="Sell your old clubs to a fellow golfer, or see what other members have listed near you. No fees to list."
+            action="Browse the marketplace"
+            onPress={() => router.push("/marketplace")}
+          />
+        </View>
       )}
-    </View>
+    </ScrollView>
   );
 }
 
-function Segment({
-  label,
-  icon,
-  active,
-  onPress,
+function NextRound({
+  summary,
+  onOpen,
 }: {
-  label: string;
-  icon?: keyof typeof Ionicons.glyphMap;
-  active: boolean;
-  onPress: () => void;
+  summary: HomeSummary | null;
+  onOpen: (inviteId: number) => void;
 }) {
+  const round = summary?.nextRound;
+
+  if (!round) {
+    return (
+      <View style={styles.card}>
+        <Text style={styles.cardEyebrow}>Your next round</Text>
+        <Text style={styles.cardTitle}>Nothing booked yet</Text>
+        <Text style={styles.cardBody}>
+          Post a tee time and your connections hear about it, or find a game
+          someone else has going.
+        </Text>
+      </View>
+    );
+  }
+
   return (
-    <Pressable
-      style={[styles.segment, active && styles.segmentActive]}
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityState={{ selected: active }}
-    >
-      {icon && (
-        <Ionicons
-          name={icon}
-          size={15}
-          color={active ? colors.cream50 : colors.ink500}
-        />
-      )}
-      <Text style={[styles.segmentText, active && styles.segmentTextActive]}>
-        {label}
+    <Pressable style={styles.card} onPress={() => onOpen(round.inviteId)}>
+      <Text style={styles.cardEyebrow}>
+        {round.role === "hosting" ? "You're hosting" : "You're playing"}
       </Text>
+      <Text style={styles.cardTitle}>{round.club}</Text>
+      <View style={styles.cardMetaRow}>
+        <Ionicons name="calendar-outline" size={16} color={colors.ink500} />
+        <Text style={styles.cardMeta}>
+          {dateLabel(round.playDate, true)} · {round.when}
+        </Text>
+      </View>
     </Pressable>
   );
 }
 
-function EmptyState({
-  scope,
-  error,
-  locationStatus,
-  onRetryLocation,
+function WaitingRow({
+  icon,
+  text,
+  onPress,
 }: {
-  scope: Scope;
-  error: string | null;
-  locationStatus: string;
-  onRetryLocation: () => void;
+  icon: keyof typeof Ionicons.glyphMap;
+  text: string;
+  onPress: () => void;
 }) {
-  if (error) {
-    return (
-      <Empty icon="cloud-offline-outline" title={error} body="Pull down to try again." />
-    );
-  }
-
-  if (scope === "near" && locationStatus === "denied") {
-    return (
-      <Empty
-        icon="location-outline"
-        title="Location is off"
-        body="PinPals needs location to find tee times near you. Turn it on in Settings → PinPals → Location."
-        action={{ label: "Open Settings", onPress: () => void Linking.openSettings() }}
-      />
-    );
-  }
-
-  if (scope === "near" && locationStatus === "failed") {
-    return (
-      <Empty
-        icon="navigate-circle-outline"
-        title="Couldn't find you"
-        body="Sometimes it just needs another go, especially indoors."
-        action={{ label: "Try again", onPress: onRetryLocation }}
-      />
-    );
-  }
-
   return (
-    <Empty
-      icon="golf-outline"
-      title={
-        scope === "near"
-          ? `Nothing within ${RADIUS_KM} km`
-          : "No tee times going just now"
-      }
-      body={
-        scope === "near"
-          ? "Try All tee times — someone might be playing further afield."
-          : "Post one of your own and your connections will hear about it."
-      }
-      action={{
-        label: "Post a tee time",
-        onPress: () =>
-          void Linking.openURL(`${SITE_URL}/dashboard/availability/new`),
-      }}
-    />
+    <Pressable style={styles.waiting} onPress={onPress}>
+      <Ionicons name={icon} size={20} color={colors.green700} />
+      <Text style={styles.waitingText}>{text}</Text>
+      <Ionicons name="chevron-forward" size={18} color={colors.ink500} />
+    </Pressable>
   );
 }
 
-function Empty({
-  icon,
+function Band({
+  eyebrow,
   title,
   body,
   action,
+  onPress,
 }: {
-  icon: keyof typeof Ionicons.glyphMap;
+  eyebrow: string;
   title: string;
   body: string;
-  action?: { label: string; onPress: () => void };
+  action: string;
+  onPress: () => void;
 }) {
   return (
-    <View style={styles.empty}>
-      <Ionicons name={icon} size={44} color={colors.ink500} />
-      <Text style={styles.emptyTitle}>{title}</Text>
-      <Text style={styles.emptyBody}>{body}</Text>
-      {action && (
-        <Pressable style={styles.primary} onPress={action.onPress}>
-          <Text style={styles.primaryLabel}>{action.label}</Text>
-        </Pressable>
-      )}
+    <View style={styles.band}>
+      <View style={styles.eyebrowRow}>
+        <View style={styles.ruleGold} />
+        <Text style={styles.bandEyebrow}>{eyebrow}</Text>
+      </View>
+      <Text style={styles.bandTitle}>{title}</Text>
+      <Text style={styles.bandBody}>{body}</Text>
+      <Pressable style={styles.bandAction} onPress={onPress}>
+        <Text style={styles.bandActionLabel}>{action}</Text>
+        <Ionicons name="arrow-forward" size={16} color={colors.green700} />
+      </Pressable>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   fill: { flex: 1, backgroundColor: colors.cream50 },
-  segments: {
-    flexDirection: "row",
-    gap: spacing.sm,
-    paddingHorizontal: spacing.md,
-    paddingTop: spacing.sm,
-    paddingBottom: 4,
+  content: { paddingBottom: spacing.xl },
+
+  hero: { minHeight: 380, justifyContent: "flex-end" },
+  heroImage: { resizeMode: "cover" },
+  scrim: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    backgroundColor: "rgba(6,16,30,0.62)",
   },
-  segment: {
+  heroBody: { padding: spacing.lg, gap: spacing.sm },
+
+  eyebrowRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  rule: { width: 20, height: 2, backgroundColor: colors.gold400 },
+  ruleGold: { width: 20, height: 2, backgroundColor: colors.gold500 },
+  eyebrow: {
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 1.2,
+    textTransform: "uppercase",
+    color: colors.gold400,
+  },
+  heroTitle: {
+    fontSize: 34,
+    lineHeight: 38,
+    fontWeight: "800",
+    color: "#ffffff",
+  },
+  heroTitleAccent: { color: colors.gold400, fontStyle: "italic" },
+  heroSub: { fontSize: type.body, color: "rgba(255,255,255,0.92)" },
+  heroButtons: {
     flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
+    flexWrap: "wrap",
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+  },
+
+  cta: {
+    minHeight: 46,
+    justifyContent: "center",
+    paddingHorizontal: spacing.lg,
     borderRadius: radii.pill,
+  },
+  ctaGreen: { backgroundColor: colors.green600 },
+  ctaGreenLabel: { color: "#ffffff", fontWeight: "700", fontSize: type.body },
+  ctaCream: { backgroundColor: "#fbf8ef" },
+  ctaCreamLabel: { color: colors.navy900, fontWeight: "700", fontSize: type.body },
+  ctaBuy: {
+    backgroundColor: colors.buy500,
+    borderWidth: 1.5,
+    borderColor: colors.buy700,
+  },
+  ctaBuyLabel: { color: colors.ink900, fontWeight: "700", fontSize: type.body },
+
+  spinner: { marginTop: spacing.xl },
+  body: { padding: spacing.md, gap: spacing.md },
+
+  card: {
+    backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.line,
-    backgroundColor: colors.surface,
-    minHeight: 36,
+    borderRadius: radii.lg,
+    padding: spacing.md,
+    gap: 6,
   },
-  segmentActive: {
-    backgroundColor: colors.green700,
-    borderColor: colors.green700,
-  },
-  segmentText: { fontSize: type.small, fontWeight: "700", color: colors.ink500 },
-  segmentTextActive: { color: colors.cream50 },
-  list: { padding: spacing.md, gap: spacing.md, flexGrow: 1 },
-  radiusNote: {
-    fontSize: type.small,
-    color: colors.ink500,
-    marginBottom: 2,
-  },
-  centre: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  empty: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: spacing.sm,
-    padding: spacing.lg,
-  },
-  emptyTitle: {
-    fontSize: type.heading,
+  cardEyebrow: {
+    fontSize: 11,
     fontWeight: "700",
-    color: colors.ink900,
-    textAlign: "center",
+    letterSpacing: 1,
+    textTransform: "uppercase",
+    color: colors.green700,
   },
-  emptyBody: { fontSize: type.body, color: colors.ink500, textAlign: "center" },
-  primary: {
-    marginTop: spacing.md,
-    backgroundColor: colors.green700,
-    borderRadius: radii.pill,
-    paddingVertical: 14,
-    paddingHorizontal: spacing.xl,
+  cardTitle: { fontSize: type.title, fontWeight: "700", color: colors.ink900 },
+  cardBody: { fontSize: type.small, color: colors.ink500 },
+  cardMetaRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  cardMeta: { fontSize: type.small, color: colors.ink500 },
+
+  waiting: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    minHeight: 52,
+    paddingHorizontal: spacing.md,
+    borderRadius: radii.md,
+    backgroundColor: colors.green100,
   },
-  primaryLabel: { color: colors.cream50, fontWeight: "700", fontSize: type.body },
+  waitingText: {
+    flex: 1,
+    fontSize: type.body,
+    fontWeight: "600",
+    color: colors.green800,
+  },
+
+  band: {
+    backgroundColor: colors.surfaceTint,
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: radii.lg,
+    padding: spacing.md,
+    gap: 6,
+  },
+  bandEyebrow: {
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 1,
+    textTransform: "uppercase",
+    color: colors.green700,
+  },
+  bandTitle: { fontSize: type.heading, fontWeight: "700", color: colors.ink900 },
+  bandBody: { fontSize: type.small, color: colors.ink500 },
+  bandAction: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    minHeight: 44,
+  },
+  bandActionLabel: {
+    fontSize: type.small,
+    fontWeight: "700",
+    color: colors.green700,
+  },
 });

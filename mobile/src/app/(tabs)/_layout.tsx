@@ -6,8 +6,10 @@ import { colors, spacing } from "@/lib/theme";
 import { useUnreadCount } from "@/lib/unread";
 
 /**
- * Four tabs, chosen so the two things a member actually opens the app for —
- * "who can I play with" and "what's for sale" — are one tap from launch.
+ * Five tabs. Home is the landing screen and carries the website's hero, so
+ * the app and the site read as one product — but where that page pitches
+ * signing up, this one answers "what have I got on, and who is waiting on
+ * me", which is the only question a signed-in member opens an app to ask.
  *
  * Tee Times, Notifications and Profile are native screens reading Supabase
  * directly. Marketplace is a web view (see §4 of the build spec): it is the
@@ -34,6 +36,15 @@ export default function TabsLayout() {
     >
       <Tabs.Screen
         name="index"
+        options={{
+          title: "Home",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="home-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="tee-times"
         options={{
           title: "Tee Times",
           tabBarIcon: ({ color, size }) => (
