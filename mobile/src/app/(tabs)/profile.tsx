@@ -146,6 +146,19 @@ export default function ProfileScreen() {
       </View>
 
       <View style={styles.group}>
+        {/* Native first. These two are the host's whole job, and sending them
+            through a web view for something the app can do itself would be
+            slower and would lose the back gesture. */}
+        <NativeLink
+          icon="add-circle-outline"
+          label="Post a tee time"
+          to="/post-tee-time"
+        />
+        <NativeLink
+          icon="people-outline"
+          label="Requests to join"
+          to="/tee-time-requests"
+        />
         <Link
           icon="person-circle-outline"
           label="Edit profile"
@@ -218,6 +231,25 @@ export default function ProfileScreen() {
         PinPals {Constants.expoConfig?.version ?? "0.1.0"}
       </Text>
     </ScrollView>
+  );
+}
+
+/** A row that opens a screen in the app rather than a page on the site. */
+function NativeLink({
+  icon,
+  label,
+  to,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  to: "/post-tee-time" | "/tee-time-requests";
+}) {
+  return (
+    <Pressable style={styles.link} onPress={() => router.push(to)}>
+      <Ionicons name={icon} size={20} color={colors.green700} />
+      <Text style={styles.linkLabel}>{label}</Text>
+      <Ionicons name="chevron-forward" size={18} color={colors.ink500} />
+    </Pressable>
   );
 }
 
