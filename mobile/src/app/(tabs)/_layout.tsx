@@ -1,7 +1,8 @@
-import { Tabs } from "expo-router";
+import { Pressable } from "react-native";
+import { Tabs, router } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
-import { colors } from "@/lib/theme";
+import { colors, spacing } from "@/lib/theme";
 import { useUnreadCount } from "@/lib/unread";
 
 /**
@@ -37,6 +38,19 @@ export default function TabsLayout() {
           title: "Tee Times",
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="golf-outline" size={size} color={color} />
+          ),
+          // Offering a round is the thing the app most wants members to do,
+          // and burying it two taps down in the Profile tab would say the
+          // opposite. In the header it is visible from launch.
+          headerRight: () => (
+            <Pressable
+              onPress={() => router.push("/post-tee-time")}
+              hitSlop={12}
+              style={{ paddingHorizontal: spacing.md }}
+              accessibilityLabel="Post a tee time"
+            >
+              <Ionicons name="add-circle" size={27} color={colors.green700} />
+            </Pressable>
           ),
         }}
       />
