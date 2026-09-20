@@ -87,6 +87,12 @@
     "experiments": {
       "typedRoutes": true
     },
+    "updates": {
+      "url": "https://u.expo.dev/545241c8-de3f-4d9f-9371-bd8a9e09a2d3"
+    },
+    "runtimeVersion": {
+      "policy": "fingerprint"
+    },
     "extra": {
       "supabaseUrl": "https://cicluiabimxklgmpmxmn.supabase.co",
       "supabasePublishableKey": "sb_publishable_giwug07R44boQ2DZwJ5cMg_h3j4xZs-",
