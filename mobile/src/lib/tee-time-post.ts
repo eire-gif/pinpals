@@ -162,3 +162,70 @@ export const clockLabel = (value: string): string => {
   const twelve = hour % 12 === 0 ? 12 : hour % 12;
   return m === "00" ? `${twelve}${suffix}` : `${twelve}:${m}${suffix}`;
 };
+
+// ---------------------------------------------------------------------------
+// Bands
+// ---------------------------------------------------------------------------
+//
+// Twenty-nine slots is too many to lay out at once, but it is also more
+// precision than the question deserves: "when would you like to play" is
+// answered in parts of the day long before it is answered in half hours.
+// Asking for the band first turns one wall of 29 into three chips plus at
+// most a dozen — and the band is the answer a golfer already has in mind.
+//
+// Boundaries are by hour, inclusive at both ends, so 11:30 is still morning
+// and 16:30 is still afternoon. The bands cover 6..20 exactly, with no gap
+// and no overlap; `bandFor` depends on that.
+
+export type TimeBand = {
+  key: string;
+  label: string;
+  /** First hour in the band, inclusive. */
+  from: number;
+  /** Last hour in the band, inclusive — so `to: 11` includes 11:30. */
+  to: number;
+};
+
+export const TIME_BANDS: readonly TimeBand[] = [
+  { key: "morning", label: "Morning", from: 6, to: 11 },
+  { key: "afternoon", label: "Afternoon", from: 12, to: 16 },
+  { key: "evening", label: "Evening", from: 17, to: 20 },
+] as const;
+
+const hourOf = (slot: string): number => Number.parseInt(slot.slice(0, 2), 10);
+
+/** Which band a slot belongs to — used to open a picker showing the band the
+ *  member already chose, rather than always starting at Morning. Falls back
+ *  to the first band for null, which is what an unanswered picker should
+ *  show. */
+export function bandFor(slot: string | null): string {
+  if (!slot) return TIME_BANDS[0].key;
+  const hour = hourOf(slot);
+  return (
+    TIME_BANDS.find((band) => hour >= band.from && hour <= band.to)?.key ??
+    TIME_BANDS[0].key
+  );
+}
+
+export function bandLabel(key: string): string {
+  return TIME_BANDS.find((band) => band.key === key)?.label ?? "";
+}
+
+/**
+ * The slots in one band, optionally only those strictly later than `after`.
+ *
+ * `after` is what stops a range reading "from 6pm until 7am". The comparison
+ * is a plain string one, which is exact rather than lucky: every slot is
+ * zero-padded 24-hour "HH:MM", so lexical order and chronological order are
+ * the same order.
+ */
+export function slotsInBand(key: string, after: string | null = null): string[] {
+  const band = TIME_BANDS.find((b) => b.key === key);
+  if (!band) return [];
+
+  return TIME_SLOTS.filter((slot) => {
+    const hour = hourOf(slot);
+    if (hour < band.from || hour > band.to) return false;
+    return after === null || slot > after;
+  });
+}
