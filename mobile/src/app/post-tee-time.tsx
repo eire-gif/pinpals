@@ -16,10 +16,9 @@ import { Stack, router } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { Chip, ChipGroup, Section } from "@/components/form-bits";
+import { TimeChoice } from "@/components/time-choice";
 import {
   COUNTRY_NAMES,
-  TIME_SLOTS,
-  clockLabel,
   nextDays,
   postTeeTime,
   regionsFor,
@@ -27,6 +26,10 @@ import {
   type ClubHit,
 } from "@/lib/tee-time-post";
 import { colors, radii, spacing, type } from "@/lib/theme";
+
+/** Which time picker is open, if any. One at a time, by construction: two
+ *  open pickers is the wall of chips this replaced. */
+type OpenPicker = "exact" | "from" | "to" | null;
 
 /**
  * Posting a tee time, natively.
@@ -56,6 +59,7 @@ export default function PostTeeTimeScreen() {
   const [exactTeeTime, setExactTeeTime] = useState<string | null>(null);
   const [timeFrom, setTimeFrom] = useState<string | null>(null);
   const [timeTo, setTimeTo] = useState<string | null>(null);
+  const [openPicker, setOpenPicker] = useState<OpenPicker>(null);
 
   const [spaces, setSpaces] = useState<number | null>(null);
   const [visibility, setVisibility] = useState<"everyone" | "connections">(
@@ -111,6 +115,22 @@ export default function PostTeeTimeScreen() {
     regionsFor(hit.country)
       .then(setCounties)
       .catch(() => setCounties([]));
+  }, []);
+
+  const toggle = useCallback((which: Exclude<OpenPicker, null>) => {
+    setOpenPicker((current) => (current === which ? null : which));
+  }, []);
+
+  /** Moving the start past the end has to take the end with it, or the form
+   *  holds a range that reads backwards. Clearing the start clears the end
+   *  too: "until 5pm" with no start is not a range, and the Until row would
+   *  sit greyed out holding a value the member can no longer see or change. */
+  const chooseFrom = useCallback((slot: string | null) => {
+    setTimeFrom(slot);
+    setTimeTo((to) => {
+      if (to === null) return null;
+      return slot === null || to <= slot ? null : to;
+    });
   }, []);
 
   const ready =
@@ -275,48 +295,47 @@ export default function PostTeeTimeScreen() {
               </View>
               <Switch
                 value={hasTeeTime}
-                onValueChange={setHasTeeTime}
+                onValueChange={(next) => {
+                  setHasTeeTime(next);
+                  // Whatever was open belongs to the other mode.
+                  setOpenPicker(null);
+                }}
                 trackColor={{ true: colors.green600, false: colors.line }}
               />
             </View>
 
             {hasTeeTime ? (
-              <ChipGroup>
-                {TIME_SLOTS.map((slot) => (
-                  <Chip
-                    key={slot}
-                    label={clockLabel(slot)}
-                    selected={exactTeeTime === slot}
-                    onPress={() => setExactTeeTime(slot)}
-                  />
-                ))}
-              </ChipGroup>
+              <TimeChoice
+                label="Tee time"
+                value={exactTeeTime}
+                onChange={setExactTeeTime}
+                placeholder="Choose a time"
+                open={openPicker === "exact"}
+                onToggle={() => toggle("exact")}
+              />
             ) : (
               <>
-                <Text style={styles.subLabel}>From</Text>
-                <ChipGroup>
-                  {TIME_SLOTS.map((slot) => (
-                    <Chip
-                      key={`from-${slot}`}
-                      label={clockLabel(slot)}
-                      selected={timeFrom === slot}
-                      onPress={() => setTimeFrom(slot)}
-                    />
-                  ))}
-                </ChipGroup>
-                <Text style={styles.subLabel}>Until (optional)</Text>
-                <ChipGroup>
-                  {TIME_SLOTS.map((slot) => (
-                    <Chip
-                      key={`to-${slot}`}
-                      label={clockLabel(slot)}
-                      selected={timeTo === slot}
-                      onPress={() =>
-                        setTimeTo(timeTo === slot ? null : slot)
-                      }
-                    />
-                  ))}
-                </ChipGroup>
+                <TimeChoice
+                  label="From"
+                  value={timeFrom}
+                  onChange={chooseFrom}
+                  placeholder="Any time"
+                  open={openPicker === "from"}
+                  onToggle={() => toggle("from")}
+                  clearable
+                />
+                <TimeChoice
+                  label="Until"
+                  value={timeTo}
+                  onChange={setTimeTo}
+                  placeholder="Optional"
+                  disabled={timeFrom === null}
+                  disabledHint="Pick a start first"
+                  after={timeFrom}
+                  open={openPicker === "to"}
+                  onToggle={() => toggle("to")}
+                  clearable
+                />
               </>
             )}
           </Section>
