@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { cookies } from "next/headers";
 import { Playfair_Display, Public_Sans } from "next/font/google";
 import "./globals.css";
 import SiteHeader from "@/components/site-header";
@@ -49,13 +50,28 @@ export const viewport: Viewport = {
   themeColor: "#0c2038",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+/**
+ * `pp_shell` is set by proxy.ts when a request carries `?shell=1` — that is,
+ * when this page is being rendered inside the native app's web view. The app
+ * already draws a tab bar and a title, so the site's own header and footer are
+ * not just redundant there, they are the thing that makes a wrapper app look
+ * like a wrapper app.
+ *
+ * Reading a cookie here makes the root layout dynamic, which it may not have
+ * been before. In practice almost every page already reads cookies to know who
+ * is signed in, so little changes — but `npm run build` prints the route table,
+ * and if something that used to be static has flipped, that is the place it
+ * will show.
+ */
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  const inAppShell = (await cookies()).get("pp_shell")?.value === "1";
+
   return (
     <html lang="en" className={`${playfair.variable} ${publicSans.variable} h-full`}>
       <body className="min-h-full flex flex-col font-sans antialiased">
-        <SiteHeader />
+        {!inAppShell && <SiteHeader />}
         <main className="flex-1">{children}</main>
-        <SiteFooter />
+        {!inAppShell && <SiteFooter />}
       </body>
     </html>
   );

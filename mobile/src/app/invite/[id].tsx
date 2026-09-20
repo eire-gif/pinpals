@@ -7,12 +7,10 @@ import {
   Text,
   View,
 } from "react-native";
-import { Stack, useLocalSearchParams } from "expo-router";
+import { Stack, router, useLocalSearchParams } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import * as Linking from "expo-linking";
 
 import { InviteTags } from "@/components/invite-card";
-import { SITE_URL } from "@/lib/config";
 import { useAuth } from "@/lib/auth";
 import {
   dateLabel,
@@ -178,15 +176,21 @@ export default function InviteScreen() {
         {isMine ? (
           <>
             <Text style={styles.ownNote}>
-              This is your tee time. Manage who&apos;s coming on the website.
+              This is your tee time.
             </Text>
             <Pressable
               style={styles.primary}
               onPress={() =>
-                void Linking.openURL(`${SITE_URL}/dashboard/availability`)
+                router.push({
+                  pathname: "/web",
+                  params: {
+                    path: "/dashboard/availability",
+                    title: "My tee times",
+                  },
+                })
               }
             >
-              <Text style={styles.primaryLabel}>Manage on pinpals.ie</Text>
+              <Text style={styles.primaryLabel}>Manage who&apos;s coming</Text>
             </Pressable>
           </>
         ) : (

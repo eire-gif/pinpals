@@ -70,7 +70,16 @@ export const SITE_URL =
  */
 export const SHELL_PARAM = "shell=1";
 
-export const webUrl = (path: string): string => {
-  const base = `${SITE_URL}${path.startsWith("/") ? path : `/${path}`}`;
-  return base.includes("?") ? `${base}&${SHELL_PARAM}` : `${base}?${SHELL_PARAM}`;
+/**
+ * A site path carrying the shell flag, without the origin.
+ *
+ * Kept separate from webUrl() because the session handoff needs to send the
+ * destination to the site as a path — an absolute URL there would be an open
+ * redirect waiting to happen, and the route rejects one.
+ */
+export const shellPath = (path: string): string => {
+  const p = path.startsWith("/") ? path : `/${path}`;
+  return p.includes("?") ? `${p}&${SHELL_PARAM}` : `${p}?${SHELL_PARAM}`;
 };
+
+export const webUrl = (path: string): string => `${SITE_URL}${shellPath(path)}`;

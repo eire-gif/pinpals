@@ -1,4 +1,11 @@
-import { useRef, useState, type ForwardRefExoticComponent, type RefAttributes } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ForwardRefExoticComponent,
+  type RefAttributes,
+} from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -13,6 +20,7 @@ import RNWebView, {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { SITE_URL } from "@/lib/config";
+import { signedInUrl } from "@/lib/web-session";
 import { colors, radii, spacing, type } from "@/lib/theme";
 
 /**
@@ -49,10 +57,25 @@ const WebView = RNWebView as unknown as ForwardRefExoticComponent<
  *  3. Renders its own spinner over a cream background, so the first paint is
  *     the brand's colour rather than a white flash.
  */
-export function WebShell({ uri }: { uri: string }) {
+export function WebShell({ path }: { path: string }) {
   const ref = useRef<WebViewHandle>(null);
+  const [uri, setUri] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
+
+  // Resolved rather than computed, because signing the member in is a round
+  // trip to the site. Until it comes back there is nothing to load — showing
+  // the public page first and swapping it would flash "Join to buy or bid" at
+  // somebody who is already a member.
+  const resolve = useCallback(async () => {
+    setLoading(true);
+    setFailed(false);
+    setUri(await signedInUrl(path));
+  }, [path]);
+
+  useEffect(() => {
+    void resolve();
+  }, [resolve]);
 
   const allowed = (request: WebViewNavigation): boolean => {
     try {
@@ -73,11 +96,10 @@ export function WebShell({ uri }: { uri: string }) {
           </Text>
           <Pressable
             style={styles.retry}
-            onPress={() => {
-              setFailed(false);
-              setLoading(true);
-              ref.current?.reload();
-            }}
+            // Re-resolves rather than reloading: if the failure was the
+            // handoff itself, reloading a URL we never got would retry
+            // nothing.
+            onPress={() => void resolve()}
           >
             <Text style={styles.retryLabel}>Try again</Text>
           </Pressable>
@@ -88,6 +110,7 @@ export function WebShell({ uri }: { uri: string }) {
 
   return (
     <SafeAreaView style={styles.fill} edges={["top"]}>
+      {uri && (
       <WebView
         ref={ref}
         source={{ uri }}
@@ -110,6 +133,7 @@ export function WebShell({ uri }: { uri: string }) {
           return false;
         }}
       />
+      )}
       {loading && (
         <View style={styles.overlay} pointerEvents="none">
           <ActivityIndicator size="large" color={colors.green700} />
