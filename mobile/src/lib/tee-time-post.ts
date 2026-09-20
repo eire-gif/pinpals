@@ -114,7 +114,16 @@ export async function postTeeTime(invite: NewInvite): Promise<number> {
 // before they could post a round. Lists of real options cost nothing, and on a
 // phone "Sat 27 Sep" in a list is quicker to hit than three spinning columns.
 
-export type DayOption = { iso: string; label: string };
+export type DayOption = {
+  iso: string;
+  /** "Today", "Tomorrow", "Sat 27 Sep" — for the summary row, where there is
+   *  room and no month heading above it to give the date context. */
+  label: string;
+  /** "Today", "Tomorrow", "Sat 27" — for a grid column, which is about seven
+   *  characters wide and always sits under a month band that supplies the
+   *  rest. */
+  short: string;
+};
 
 /** Local calendar dates, not UTC: `toISOString()` rolls over at midnight UTC,
  *  which is 1am in Ireland during BST and would offer yesterday as today. */
@@ -137,6 +146,15 @@ export function nextDays(count = 42, from = new Date()): DayOption[] {
                 weekday: "short",
                 day: "numeric",
                 month: "short",
+              }),
+      short:
+        i === 0
+          ? "Today"
+          : i === 1
+            ? "Tomorrow"
+            : d.toLocaleDateString("en-IE", {
+                weekday: "short",
+                day: "numeric",
               }),
     });
   }
@@ -228,4 +246,94 @@ export function slotsInBand(key: string, after: string | null = null): string[] 
     if (hour < band.from || hour > band.to) return false;
     return after === null || slot > after;
   });
+}
+
+// ---------------------------------------------------------------------------
+// Months
+// ---------------------------------------------------------------------------
+//
+// Six weeks of dates is 42 chips, which was worse laid out flat than either
+// time grid: you scrolled past the whole of October to reach "how many
+// spaces". Grouping by calendar month is the obvious cut — it is how the
+// question is asked out loud ("anything the last weekend of September?") and
+// it never produces more than about thirty-one options at once.
+//
+// Derived from the day list rather than computed alongside it, so the bands
+// and the chips they contain cannot disagree about what dates exist.
+
+export type DayBand = { key: string; label: string; days: DayOption[] };
+
+export function monthBands(days: DayOption[]): DayBand[] {
+  const bands: DayBand[] = [];
+
+  for (const day of days) {
+    const key = day.iso.slice(0, 7); // "2026-09"
+    let band = bands.find((b) => b.key === key);
+
+    if (!band) {
+      // Midday rather than midnight, so a DST change can't shunt the date
+      // back into the previous month when it is read back out.
+      const d = new Date(`${day.iso}T12:00:00`);
+      band = {
+        key,
+        label: d.toLocaleDateString("en-IE", { month: "long" }),
+        days: [],
+      };
+      bands.push(band);
+    }
+
+    band.days.push(day);
+  }
+
+  // A window that crosses into January needs the year said out loud, or
+  // "January" sits next to "December" looking like it comes first.
+  const firstYear = bands[0]?.key.slice(0, 4);
+  for (const band of bands) {
+    const year = band.key.slice(0, 4);
+    if (year !== firstYear) band.label = `${band.label} ${year}`;
+  }
+
+  return bands;
+}
+
+/** The band a chosen date sits in, falling back to the first — which is the
+ *  month containing today, and the right thing to show an unanswered picker. */
+export function monthBandFor(iso: string | null, bands: DayBand[]): string {
+  if (!iso) return bands[0]?.key ?? "";
+  const key = iso.slice(0, 7);
+  return bands.some((b) => b.key === key) ? key : (bands[0]?.key ?? "");
+}
+
+// ---------------------------------------------------------------------------
+// Exact times
+// ---------------------------------------------------------------------------
+//
+// A booked tee time is 8:10, or 9:42 — clubs go off at seven-to-ten minute
+// intervals, so a half-hourly list cannot hold one. The slot grid is right for
+// "sometime that morning" and wrong for "we're off at 8:10", which is why the
+// exact field uses a real clock and the range does not.
+//
+// The picker deals in Date objects; the column and the API deal in "HH:MM".
+// These two are the only place that conversion happens.
+
+/** "HH:MM" -> a Date today at that time. Falls back to a civilised morning
+ *  tee time so an untouched wheel is not sitting at whatever o'clock it
+ *  happens to be right now. */
+export function timeToDate(value: string | null, fallbackHour = 9): Date {
+  const d = new Date();
+  if (value) {
+    const [h, m] = value.split(":");
+    d.setHours(Number.parseInt(h, 10), Number.parseInt(m, 10), 0, 0);
+  } else {
+    d.setHours(fallbackHour, 0, 0, 0);
+  }
+  return d;
+}
+
+/** A Date -> "HH:MM", local and zero-padded, matching TIME_SLOTS' shape so
+ *  clockLabel() and the string ordering comparisons keep working. */
+export function dateToTime(d: Date): string {
+  const h = String(d.getHours()).padStart(2, "0");
+  const m = String(d.getMinutes()).padStart(2, "0");
+  return `${h}:${m}`;
 }

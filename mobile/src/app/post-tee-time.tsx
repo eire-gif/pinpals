@@ -16,6 +16,8 @@ import { Stack, router } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { Chip, ChipGroup, Section } from "@/components/form-bits";
+import { DayChoice } from "@/components/day-choice";
+import { ExactTimeChoice } from "@/components/exact-time-choice";
 import { TimeChoice } from "@/components/time-choice";
 import {
   COUNTRY_NAMES,
@@ -27,9 +29,9 @@ import {
 } from "@/lib/tee-time-post";
 import { colors, radii, spacing, type } from "@/lib/theme";
 
-/** Which time picker is open, if any. One at a time, by construction: two
- *  open pickers is the wall of chips this replaced. */
-type OpenPicker = "exact" | "from" | "to" | null;
+/** Which picker is open, if any. One at a time, by construction: two open
+ *  pickers is the wall of chips this replaced. */
+type OpenPicker = "day" | "exact" | "from" | "to" | null;
 
 /**
  * Posting a tee time, natively.
@@ -271,16 +273,13 @@ export default function PostTeeTimeScreen() {
           )}
 
           <Section title="What day?">
-            <ChipGroup>
-              {days.map((day) => (
-                <Chip
-                  key={day.iso}
-                  label={day.label}
-                  selected={playDate === day.iso}
-                  onPress={() => setPlayDate(day.iso)}
-                />
-              ))}
-            </ChipGroup>
+            <DayChoice
+              days={days}
+              value={playDate}
+              onChange={setPlayDate}
+              open={openPicker === "day"}
+              onToggle={() => toggle("day")}
+            />
           </Section>
 
           <Section title="Time">
@@ -305,11 +304,9 @@ export default function PostTeeTimeScreen() {
             </View>
 
             {hasTeeTime ? (
-              <TimeChoice
-                label="Tee time"
+              <ExactTimeChoice
                 value={exactTeeTime}
                 onChange={setExactTeeTime}
-                placeholder="Choose a time"
                 open={openPicker === "exact"}
                 onToggle={() => toggle("exact")}
               />
