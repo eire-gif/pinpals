@@ -2,7 +2,7 @@ import { Pressable } from "react-native";
 import { Tabs, router } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
-import { colors, spacing } from "@/lib/theme";
+import { colors, fonts, spacing } from "@/lib/theme";
 import { useUnreadCount } from "@/lib/unread";
 
 /**
@@ -24,8 +24,9 @@ export default function TabsLayout() {
       screenOptions={{
         headerStyle: { backgroundColor: colors.cream50 },
         headerTintColor: colors.ink900,
-        headerTitleStyle: { fontWeight: "700" },
+        headerTitleStyle: { fontFamily: fonts.display, fontSize: 19 },
         tabBarActiveTintColor: colors.green700,
+        tabBarLabelStyle: { fontFamily: fonts.bodySemi, fontSize: 11 },
         tabBarInactiveTintColor: colors.ink500,
         tabBarStyle: {
           backgroundColor: colors.cream50,
