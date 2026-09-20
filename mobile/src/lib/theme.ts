@@ -55,3 +55,24 @@ export const type = {
   title: 22,
   heading: 18,
 } as const;
+
+/**
+ * The website's two faces, from src/app/globals.css: Playfair Display for
+ * display type, Public Sans for everything else. Until now the app used the
+ * iOS system font at heavy weights, which looks fine and looks like nothing
+ * in particular — this pairing is most of what makes pinpals.ie recognisable.
+ *
+ * THE ONE THING TO REMEMBER: `fontWeight` is ignored once `fontFamily` is
+ * set. @expo-google-fonts registers every weight as its OWN family, so a
+ * style saying `fontFamily: fonts.body, fontWeight: "700"` renders regular
+ * and looks like a bug in the layout rather than in the style. Pick the
+ * family, never the weight. Same for italic — displayItalic is a separate
+ * family, not `fontStyle` on display.
+ */
+export const fonts = {
+  display: "PlayfairDisplay_700Bold",
+  displayItalic: "PlayfairDisplay_700Bold_Italic",
+  body: "PublicSans_400Regular",
+  bodySemi: "PublicSans_600SemiBold",
+  bodyBold: "PublicSans_700Bold",
+} as const;

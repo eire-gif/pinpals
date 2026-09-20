@@ -31,6 +31,11 @@ export type Invite = {
     home_club: string | null;
     handicap: number | null;
     handicap_visible: boolean | null;
+    /** A full public Storage URL, or null. `avatar_color` is the fallback
+     *  and every member has one, so the initials treatment is the normal
+     *  case rather than the empty one. */
+    avatar_url: string | null;
+    avatar_color: string | null;
   } | null;
   club: {
     name: string;
@@ -47,7 +52,8 @@ const SELECT = `
   exact_tee_time, spaces_available, has_tee_time_booked, handicap_limit,
   notes, county, ladies_only,
   host:profiles!tee_time_invites_member_id_fkey (
-    first_name, last_name, home_club, handicap, handicap_visible
+    first_name, last_name, home_club, handicap, handicap_visible,
+    avatar_url, avatar_color
   ),
   club:clubs!tee_time_invites_club_id_fkey (name, town, region, holes)
 `;

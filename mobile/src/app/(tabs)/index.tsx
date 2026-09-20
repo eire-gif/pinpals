@@ -16,7 +16,7 @@ import { useAuth } from "@/lib/auth";
 import { SITE_URL } from "@/lib/config";
 import { loadHome, type HomeSummary } from "@/lib/home";
 import { dateLabel } from "@/lib/tee-times";
-import { colors, radii, spacing, type } from "@/lib/theme";
+import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 import { useUnreadCount } from "@/lib/unread";
 
 /**
@@ -190,9 +190,7 @@ export default function HomeScreen() {
             }
             body="From Kerry to the Highlands — find a club, see who plays there, and put yourself on its map."
             action="See the directory"
-            onPress={() =>
-              router.push("/web?path=/courses&title=Courses")
-            }
+            onPress={() => router.push("/courses")}
           />
 
           <Band
@@ -313,20 +311,26 @@ const styles = StyleSheet.create({
   rule: { width: 20, height: 2, backgroundColor: colors.gold400 },
   ruleGold: { width: 20, height: 2, backgroundColor: colors.gold500 },
   eyebrow: {
+    fontFamily: fonts.bodyBold,
     fontSize: 11,
-    fontWeight: "700",
     letterSpacing: 1.2,
     textTransform: "uppercase",
     color: colors.gold400,
   },
   heroTitle: {
+    fontFamily: fonts.display,
     fontSize: 34,
-    lineHeight: 38,
-    fontWeight: "800",
+    lineHeight: 40,
     color: "#ffffff",
   },
-  heroTitleAccent: { color: colors.gold400, fontStyle: "italic" },
-  heroSub: { fontSize: type.body, color: "rgba(255,255,255,0.92)" },
+  // fontStyle: "italic" does nothing once fontFamily is set — the italic is
+  // a separate registered family, not a style on this one.
+  heroTitleAccent: { color: colors.gold400, fontFamily: fonts.displayItalic },
+  heroSub: {
+    fontFamily: fonts.body,
+    fontSize: type.body,
+    color: "rgba(255,255,255,0.92)",
+  },
   heroButtons: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -341,15 +345,15 @@ const styles = StyleSheet.create({
     borderRadius: radii.pill,
   },
   ctaGreen: { backgroundColor: colors.green600 },
-  ctaGreenLabel: { color: "#ffffff", fontWeight: "700", fontSize: type.body },
+  ctaGreenLabel: { color: "#ffffff", fontFamily: fonts.bodyBold, fontSize: type.body },
   ctaCream: { backgroundColor: "#fbf8ef" },
-  ctaCreamLabel: { color: colors.navy900, fontWeight: "700", fontSize: type.body },
+  ctaCreamLabel: { color: colors.navy900, fontFamily: fonts.bodyBold, fontSize: type.body },
   ctaBuy: {
     backgroundColor: colors.buy500,
     borderWidth: 1.5,
     borderColor: colors.buy700,
   },
-  ctaBuyLabel: { color: colors.ink900, fontWeight: "700", fontSize: type.body },
+  ctaBuyLabel: { color: colors.ink900, fontFamily: fonts.bodyBold, fontSize: type.body },
 
   spinner: { marginTop: spacing.xl },
   body: { padding: spacing.md, gap: spacing.md },
@@ -363,16 +367,21 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   cardEyebrow: {
+    fontFamily: fonts.bodyBold,
     fontSize: 11,
-    fontWeight: "700",
     letterSpacing: 1,
     textTransform: "uppercase",
     color: colors.green700,
   },
-  cardTitle: { fontSize: type.title, fontWeight: "700", color: colors.ink900 },
-  cardBody: { fontSize: type.small, color: colors.ink500 },
+  cardTitle: {
+    fontFamily: fonts.display,
+    fontSize: 23,
+    lineHeight: 28,
+    color: colors.ink900,
+  },
+  cardBody: { fontFamily: fonts.body, fontSize: type.small, color: colors.ink500 },
   cardMetaRow: { flexDirection: "row", alignItems: "center", gap: 6 },
-  cardMeta: { fontSize: type.small, color: colors.ink500 },
+  cardMeta: { fontFamily: fonts.body, fontSize: type.small, color: colors.ink500 },
 
   waiting: {
     flexDirection: "row",
@@ -385,8 +394,8 @@ const styles = StyleSheet.create({
   },
   waitingText: {
     flex: 1,
+    fontFamily: fonts.bodySemi,
     fontSize: type.body,
-    fontWeight: "600",
     color: colors.green800,
   },
 
@@ -399,14 +408,19 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   bandEyebrow: {
+    fontFamily: fonts.bodyBold,
     fontSize: 11,
-    fontWeight: "700",
     letterSpacing: 1,
     textTransform: "uppercase",
     color: colors.green700,
   },
-  bandTitle: { fontSize: type.heading, fontWeight: "700", color: colors.ink900 },
-  bandBody: { fontSize: type.small, color: colors.ink500 },
+  bandTitle: {
+    fontFamily: fonts.display,
+    fontSize: 20,
+    lineHeight: 25,
+    color: colors.ink900,
+  },
+  bandBody: { fontFamily: fonts.body, fontSize: type.small, color: colors.ink500 },
   bandAction: {
     flexDirection: "row",
     alignItems: "center",
@@ -414,8 +428,8 @@ const styles = StyleSheet.create({
     minHeight: 44,
   },
   bandActionLabel: {
+    fontFamily: fonts.bodyBold,
     fontSize: type.small,
-    fontWeight: "700",
     color: colors.green700,
   },
 });

@@ -1,4 +1,14 @@
 import { useEffect, useRef } from "react";
+import { useFonts } from "expo-font";
+import {
+  PlayfairDisplay_700Bold,
+  PlayfairDisplay_700Bold_Italic,
+} from "@expo-google-fonts/playfair-display";
+import {
+  PublicSans_400Regular,
+  PublicSans_600SemiBold,
+  PublicSans_700Bold,
+} from "@expo-google-fonts/public-sans";
 import { Stack, useRouter, useSegments, type Href } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import * as Notifications from "expo-notifications";
@@ -7,7 +17,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { hrefFromNotification, registerForPush } from "@/lib/push";
-import { colors } from "@/lib/theme";
+import { colors, fonts } from "@/lib/theme";
 
 void SplashScreen.preventAutoHideAsync();
 
@@ -24,8 +34,19 @@ function RootNavigator() {
   const segments = useSegments();
   const router = useRouter();
 
+  // Held behind the splash alongside the session read. Rendering a screen in
+  // the system font and then swapping it for Playfair a beat later is worse
+  // than waiting — the whole layout shifts under the member.
+  const [fontsLoaded] = useFonts({
+    PlayfairDisplay_700Bold,
+    PlayfairDisplay_700Bold_Italic,
+    PublicSans_400Regular,
+    PublicSans_600SemiBold,
+    PublicSans_700Bold,
+  });
+
   useEffect(() => {
-    if (loading) return;
+    if (loading || !fontsLoaded) return;
 
     void SplashScreen.hideAsync();
 
@@ -40,7 +61,7 @@ function RootNavigator() {
     } else if (session && onLogin) {
       router.replace("/(tabs)");
     }
-  }, [session, loading, segments, router]);
+  }, [session, loading, fontsLoaded, segments, router]);
 
   // ---------------------------------------------------------------------
   // Push registration
@@ -108,7 +129,7 @@ function RootNavigator() {
       screenOptions={{
         headerStyle: { backgroundColor: colors.cream50 },
         headerTintColor: colors.ink900,
-        headerTitleStyle: { fontWeight: "700" },
+        headerTitleStyle: { fontFamily: fonts.display, fontSize: 19 },
         contentStyle: { backgroundColor: colors.cream50 },
       }}
     >
