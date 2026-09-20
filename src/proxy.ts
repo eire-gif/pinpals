@@ -1,4 +1,4 @@
-import { type NextRequest } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
 
 export async function proxy(request: NextRequest) {
@@ -19,7 +19,42 @@ export async function proxy(request: NextRequest) {
     response.headers.set("Cache-Control", "private, no-store");
   }
 
+  applyShellFlag(request, response);
+
   return response;
+}
+
+/**
+ * `?shell=1` says "you are being rendered inside the native app, drop the
+ * site's own header and footer".
+ *
+ * IT HAS TO BE A COOKIE, NOT JUST A QUERY PARAMETER. The app opens one URL and
+ * the member then taps links — to a listing, to a seller, to checkout. A
+ * parameter is gone by the second page, and the site's navigation reappears
+ * underneath the native tab bar. That doubled-up chrome is the clearest tell
+ * that an app is a wrapper, and App Store Guideline 4.2 is written for exactly
+ * that. A session cookie survives the whole visit.
+ *
+ * `?shell=0` clears it, so a browser that picked the flag up from a shared or
+ * pasted link has a way out that is not "clear your cookies".
+ */
+function applyShellFlag(request: NextRequest, response: NextResponse): void {
+  const shell = request.nextUrl.searchParams.get("shell");
+  if (shell === null) return;
+
+  if (shell === "0") {
+    response.cookies.delete("pp_shell");
+    return;
+  }
+
+  response.cookies.set("pp_shell", "1", {
+    path: "/",
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    // Deliberately no maxAge: a session cookie lasts as long as the web view,
+    // and does not follow somebody into their own browser a week later.
+  });
 }
 
 export const config = {

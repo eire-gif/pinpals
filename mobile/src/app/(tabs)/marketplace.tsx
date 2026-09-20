@@ -1,16 +1,18 @@
 import { WebShell } from "@/components/web-shell";
-import { webUrl } from "@/lib/config";
 
 /**
- * The marketplace, as a web view.
+ * The marketplace, as a web view — but now as the signed-in member.
  *
- * v1 shows the marketplace as an anonymous visitor sees it — browse, filters,
- * listing detail — which is why there is no session handoff yet (§4.2 of the
- * build spec). Buying, offering and listing all still happen on the site, and
- * the member signs in there once.
+ * It stays web rather than native because it is the largest surface, it
+ * changes most often, and buying runs through Stripe Checkout, which has to be
+ * a browser. Keeping it web means a marketplace change ships through Vercel
+ * without an App Store review.
  *
- * When the handoff lands, only the URL here changes.
+ * WebShell hands the app's session over before loading, so favourites, offers,
+ * messages and checkout all work here the way they do on the site. Before that
+ * landed this tab showed every member the visitor's view — "Join to buy or
+ * bid" — which was the single biggest way the app failed to be the website.
  */
 export default function MarketplaceScreen() {
-  return <WebShell uri={webUrl("/marketplace")} />;
+  return <WebShell path="/marketplace" />;
 }

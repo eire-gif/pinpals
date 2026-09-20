@@ -9,12 +9,11 @@ import {
   View,
 } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import * as Linking from "expo-linking";
+import { router } from "expo-router";
 import Constants from "expo-constants";
 
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
-import { SITE_URL } from "@/lib/config";
 import {
   deletionDateLabel,
   getDeletionState,
@@ -234,7 +233,11 @@ function Link({
   return (
     <Pressable
       style={styles.link}
-      onPress={() => void Linking.openURL(`${SITE_URL}${href}`)}
+      // Pushed as a screen rather than opened in Safari, so the member stays
+      // in the app and stays signed in — WebShell hands the session over.
+      onPress={() =>
+        router.push({ pathname: "/web", params: { path: href, title: label } })
+      }
     >
       <Ionicons name={icon} size={20} color={colors.green700} />
       <Text style={styles.linkLabel}>{label}</Text>
