@@ -5,18 +5,14 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
-  MESSAGE_MAX_LENGTH,
   MESSAGES_PAGE_SIZE,
   buildMessagesCursorFilter,
   nextMessagesCursor,
-  otherParticipantId,
-  containsSensitiveData,
   type MessagesCursor,
 } from "@/lib/messaging";
-import { conversationChannelTopic, inboxChannelTopic, broadcast } from "@/lib/realtime";
+import { sendMessageTo } from "@/lib/messaging-server";
 import { REPORT_CATEGORIES, parseEvidenceRefs, type ReportCategory } from "@/lib/admin/reports";
 import { checkRateLimit, rateLimitMessage } from "@/lib/rate-limit";
-import { notifyUser } from "@/lib/notifications-server";
 import type { Conversation, Message } from "@/lib/types";
 
 export type MessageActionState = { error?: string; success?: boolean };
@@ -32,8 +28,6 @@ export type MessageActionState = { error?: string; success?: boolean };
 // state a member can toggle while just browsing their own inbox, bounded
 // anyway by how many conversations they actually have, and RLS (not this)
 // is what actually protects it.
-const SEND_MESSAGE_MAX_ATTEMPTS = 30;
-const SEND_MESSAGE_WINDOW_SECONDS = 5 * 60;
 const REPORT_MAX_ATTEMPTS = 10;
 const REPORT_WINDOW_SECONDS = 60 * 60;
 const START_CONVERSATION_MAX_ATTEMPTS = 20;
@@ -172,92 +166,18 @@ export async function sendMessage(conversationId: number, _prev: MessageActionSt
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const rateLimit = await checkRateLimit({
-    action: "send-message",
-    identifier: user.id,
-    maxHits: SEND_MESSAGE_MAX_ATTEMPTS,
-    windowSeconds: SEND_MESSAGE_WINDOW_SECONDS,
+  // The send itself lives in src/lib/messaging-server.ts so that this form
+  // and the app's /api/app/messages route run exactly the same rate limit,
+  // card-number check, block check and notification fan-out — see that
+  // file's own header on why a second copy would be the wrong shape.
+  const result = await sendMessageTo({
+    supabase,
+    userId: user.id,
+    conversationId,
+    body: String(formData.get("body") ?? ""),
   });
-  if (!rateLimit.allowed) {
-    return { error: rateLimitMessage(rateLimit.retryAfterSeconds) };
-  }
 
-  const body = String(formData.get("body") ?? "").trim();
-  if (!body) return { error: "Message can't be empty." };
-  if (body.length > MESSAGE_MAX_LENGTH) return { error: `Messages are limited to ${MESSAGE_MAX_LENGTH} characters.` };
-
-  const sensitive = containsSensitiveData(body);
-  if (sensitive.blocked) return { error: sensitive.reason };
-
-  const { data: conversation } = await supabase
-    .from("conversations")
-    .select("id, user_a_id, user_b_id")
-    .eq("id", conversationId)
-    .maybeSingle<Pick<Conversation, "id" | "user_a_id" | "user_b_id">>();
-  if (!conversation) return { error: "Conversation not found." };
-
-  const otherId = otherParticipantId(conversation, user.id);
-  if (otherId) {
-    // is_blocked() returns a plain scalar boolean (not a row/table), so this
-    // is a direct RPC call with no .single()/.returns() postprocessing.
-    const { data: blocked } = await supabase.rpc("is_blocked", { a: user.id, b: otherId });
-    if (blocked) {
-      return { error: "You can't send messages in this conversation." };
-    }
-  }
-
-  const { data: message, error } = await supabase
-    .from("messages")
-    .insert({ conversation_id: conversationId, sender_id: user.id, body })
-    .select("*")
-    .single<Message>();
-
-  if (error || !message) {
-    // validate_message_content() (0049) raises its own specific message for
-    // the sensitive-content case — surfaced directly on the off chance the
-    // client-side containsSensitiveData() check above missed something the
-    // DB's copy of the rule still catches, same "the DB's own exception text
-    // is already written for a human" discipline as placeBid()/offerAction()'s
-    // known-rejection-snippet matching elsewhere in this app.
-    const dbMessage = error?.message ?? "";
-    if (dbMessage.includes("card number") || dbMessage.includes("IBAN") || dbMessage.includes("verification")) {
-      return { error: dbMessage };
-    }
-    return { error: "Couldn't send that message — please try again." };
-  }
-
-  if (otherId) {
-    await broadcast(conversationChannelTopic(conversationId), "new_message", { message });
-    await broadcast(inboxChannelTopic(otherId), "new_message", {
-      conversationId,
-      senderId: user.id,
-      preview: body.slice(0, 140),
-      createdAt: message.created_at,
-    });
-
-    // Best-effort, same as the broadcasts above — a notification failing to
-    // write must never fail the send itself. notify_user() is
-    // service-role-only (see 0056's own comment), so this goes through the
-    // admin client, same as reportMessage()/reportConversation() below.
-    const { data: sender } = await supabase
-      .from("profiles")
-      .select("first_name, last_name")
-      .eq("id", user.id)
-      .maybeSingle<{ first_name: string; last_name: string }>();
-    const senderName = sender ? `${sender.first_name} ${sender.last_name}`.trim() : "A member";
-    await notifyUser(createAdminClient(), {
-      userId: otherId,
-      type: "new_message",
-      title: "New message",
-      body: `${senderName} sent you a message: "${body.slice(0, 140)}${body.length > 140 ? "…" : ""}"`,
-      // Never put another member's free-text message content in an email —
-      // see notifyUser()'s own comment on emailBody.
-      emailBody: `${senderName} sent you a new message on Pinpals.`,
-      href: `/conversations/${conversationId}`,
-      data: { conversationId },
-      dedupeKey: `message:${message.id}:notify`,
-    });
-  }
+  if (!result.ok) return { error: result.message };
 
   refreshThread(conversationId);
   return { success: true };
