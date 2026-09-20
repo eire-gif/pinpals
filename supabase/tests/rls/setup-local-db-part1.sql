@@ -84,9 +84,39 @@ begin
 end;
 $$;
 
+-- ============ realtime schema (broadcast policies from 0082_realtime_authorization.sql) ============
+-- Realtime Authorization is, underneath, an ordinary SELECT check: a client
+-- asking to join a PRIVATE broadcast topic is admitted only if a policy on
+-- realtime.messages would let it read a row for that topic. Supabase's own
+-- Realtime service owns this table on the real project — the stub below is
+-- the three columns those policies actually read, for the same reason
+-- storage.objects is stubbed above: so the migration replays and its policies
+-- can be tested.
+--
+-- No rows are ever inserted here by the tests. The policies are evaluated
+-- against a candidate row the test supplies itself, which is exactly what
+-- Realtime does when deciding whether to admit a subscriber.
+create schema if not exists realtime;
+
+create table if not exists realtime.messages (
+  id uuid primary key default gen_random_uuid(),
+  topic text not null,
+  extension text not null,
+  payload jsonb,
+  event text,
+  private boolean not null default false,
+  inserted_at timestamptz not null default now()
+);
+
+alter table realtime.messages enable row level security;
+
 grant usage on schema public to anon, authenticated, service_role;
 grant usage on schema auth to anon, authenticated, service_role;
 grant usage on schema storage to anon, authenticated, service_role;
+grant usage on schema realtime to anon, authenticated, service_role;
+-- Matches the real project, where Supabase grants these itself. RLS, not the
+-- grant, is what decides which topics a member may actually receive on.
+grant select, insert, update on realtime.messages to anon, authenticated, service_role;
 -- On the real project, `auth.users` is managed by Supabase's own GoTrue
 -- service (via its own admin API, not a direct SQL grant), so service_role's
 -- access to it there is a platform detail this stub can't fully replicate.
