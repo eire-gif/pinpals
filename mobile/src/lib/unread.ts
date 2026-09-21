@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { AppState } from "react-native";
 
+import { unreadMessageCount } from "./messages";
+import { subscribeToInbox } from "./realtime";
 import { supabase } from "./supabase";
 
 /**
@@ -38,6 +40,46 @@ export function useUnreadCount(): number {
 
     return () => sub.remove();
   }, [refresh]);
+
+  return count;
+}
+
+/**
+ * Unread MESSAGES, for the envelope on Home.
+ *
+ * Separate from useUnreadCount() above, which counts notifications — a member
+ * with four alerts and no messages should not see a badge on the envelope.
+ *
+ * Refreshed on foreground like its neighbour, and additionally on the inbox
+ * broadcast, so a message arriving while the app is open moves the badge
+ * without a poll. The subscription is one per member for the whole inbox,
+ * never one per conversation.
+ */
+export function useUnreadMessages(userId: string | null): number {
+  const [count, setCount] = useState(0);
+
+  const refresh = useCallback(async () => {
+    setCount(await unreadMessageCount());
+  }, []);
+
+  useEffect(() => {
+    if (!userId) {
+      setCount(0);
+      return;
+    }
+
+    void refresh();
+
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "active") void refresh();
+    });
+    const unsubscribe = subscribeToInbox(userId, () => void refresh());
+
+    return () => {
+      sub.remove();
+      unsubscribe();
+    };
+  }, [userId, refresh]);
 
   return count;
 }
