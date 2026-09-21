@@ -146,9 +146,9 @@ export default function ProfileScreen() {
       </View>
 
       <View style={styles.group}>
-        {/* Native first. These two are the host's whole job, and sending them
-            through a web view for something the app can do itself would be
-            slower and would lose the back gesture. */}
+        {/* Native first. Sending these through a web view for something the
+            app can do itself would be slower and would lose the back
+            gesture. */}
         <NativeLink
           icon="add-circle-outline"
           label="Post a tee time"
@@ -158,6 +158,11 @@ export default function ProfileScreen() {
           icon="people-outline"
           label="Requests to join"
           to="/tee-time-requests"
+        />
+        <NativeLink
+          icon="chatbubbles-outline"
+          label="Messages"
+          to="/messages"
         />
         <Link
           icon="person-circle-outline"
@@ -171,11 +176,6 @@ export default function ProfileScreen() {
         />
         <Link icon="cart-outline" label="Buying" href="/dashboard/buying" />
         <Link icon="pricetags-outline" label="Selling" href="/dashboard/selling" />
-        <Link
-          icon="chatbubbles-outline"
-          label="Messages"
-          href="/conversations"
-        />
         <Link
           icon="options-outline"
           label="Notification settings"
@@ -242,7 +242,7 @@ function NativeLink({
 }: {
   icon: keyof typeof Ionicons.glyphMap;
   label: string;
-  to: "/post-tee-time" | "/tee-time-requests";
+  to: "/post-tee-time" | "/tee-time-requests" | "/messages";
 }) {
   return (
     <Pressable style={styles.link} onPress={() => router.push(to)}>

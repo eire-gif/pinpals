@@ -1,9 +1,10 @@
-import { Pressable } from "react-native";
+import { Pressable, View } from "react-native";
 import { Tabs, router } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
+import { useAuth } from "@/lib/auth";
 import { colors, fonts, spacing } from "@/lib/theme";
-import { useUnreadCount } from "@/lib/unread";
+import { useUnreadCount, useUnreadMessages } from "@/lib/unread";
 
 /**
  * Five tabs. Home is the landing screen and carries the website's hero, so
@@ -16,8 +17,25 @@ import { useUnreadCount } from "@/lib/unread";
  * largest surface, it changes most often, and keeping it as web means shipping
  * changes to it through Vercel without an App Store review.
  */
+/** A dot, not a number. The count is on the screen the envelope opens; out
+ *  here the only question is "is anyone waiting", and a 2 is no more useful
+ *  than a dot at 24pt. */
+const dot = {
+  position: "absolute" as const,
+  top: -1,
+  right: spacing.md - 3,
+  width: 10,
+  height: 10,
+  borderRadius: 5,
+  backgroundColor: colors.red600,
+  borderWidth: 1.5,
+  borderColor: colors.cream50,
+};
+
 export default function TabsLayout() {
   const unread = useUnreadCount();
+  const { session } = useAuth();
+  const unreadMessages = useUnreadMessages(session?.user?.id ?? null);
 
   return (
     <Tabs
@@ -41,6 +59,29 @@ export default function TabsLayout() {
           title: "Home",
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="home-outline" size={size} color={color} />
+          ),
+          // The tab bar is full at five, and messages are not a sixth
+          // destination anyone would go hunting for — they are something you
+          // notice. An envelope that only wears a dot when someone is
+          // actually waiting says that better than a tab would.
+          headerRight: () => (
+            <Pressable
+              onPress={() => router.push("/messages")}
+              hitSlop={12}
+              style={{ paddingHorizontal: spacing.md }}
+              accessibilityLabel={
+                unreadMessages > 0
+                  ? `Messages, ${unreadMessages} unread`
+                  : "Messages"
+              }
+            >
+              <Ionicons
+                name={unreadMessages > 0 ? "mail" : "mail-outline"}
+                size={24}
+                color={colors.green700}
+              />
+              {unreadMessages > 0 ? <View style={dot} /> : null}
+            </Pressable>
           ),
         }}
       />
