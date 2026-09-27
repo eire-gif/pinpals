@@ -1,85 +1,68 @@
 import { useCallback, useEffect, useState } from "react";
 import { AppState } from "react-native";
 
-import { unreadMessageCount } from "./messages";
+import { inboxCounts, inboxTotal, type InboxCounts } from "./inbox";
 import { subscribeToInbox } from "./realtime";
-import { supabase } from "./supabase";
 
 /**
- * The unread badge.
+ * The badge.
  *
- * Counted with `head: true`, so Postgres returns the count and no rows. The
- * partial index `notifications_user_id_read_at_idx on (user_id, read_at)
- * where read_at is null` already exists (migration 0042), which makes this an
- * index-only scan rather than a table scan — worth knowing before anyone is
- * tempted to cache it.
+ * One hook, one number, one source. It used to be two hooks reading two
+ * different things — useUnreadCount() head-counted `notifications` for the
+ * Alerts tab, useUnreadMessages() summed conversation_unread_counts() for a
+ * dot on Home — and between them a member could have four replies waiting
+ * with nothing on screen that said how many. Both now come from
+ * inbox_unread_counts() (0083_unified_inbox.sql), so the tab badge, the
+ * envelope and the list all agree by construction.
  *
- * Refreshed on foreground rather than on a timer. A tab badge that is a few
+ * Refreshed on foreground rather than on a timer. A badge that is a few
  * minutes stale while the phone is in a pocket costs nothing; a poll every
  * thirty seconds costs battery and a request per member per interval forever.
- * Push is what makes a genuinely new notification visible immediately.
+ * Push is what makes a genuinely new alert visible immediately, and the inbox
+ * broadcast — one subscription per member, never one per conversation — moves
+ * the number the moment a message arrives with the app open.
  */
-export function useUnreadCount(): number {
-  const [count, setCount] = useState(0);
+export type InboxUnread = InboxCounts & {
+  total: number;
+  /** Re-reads both numbers now. Handed to screens that have just changed
+   *  them, so the badge moves in the same gesture rather than on the next
+   *  foreground. */
+  refresh: () => void;
+};
+
+export function useInboxUnread(userId: string | null): InboxUnread {
+  const [counts, setCounts] = useState<InboxCounts>({ messages: 0, alerts: 0 });
 
   const refresh = useCallback(async () => {
-    const { count: next, error } = await supabase
-      .from("notifications")
-      .select("id", { count: "exact", head: true })
-      .is("read_at", null);
-
-    if (!error && typeof next === "number") setCount(next);
-  }, []);
-
-  useEffect(() => {
-    void refresh();
-
-    const sub = AppState.addEventListener("change", (state) => {
-      if (state === "active") void refresh();
-    });
-
-    return () => sub.remove();
-  }, [refresh]);
-
-  return count;
-}
-
-/**
- * Unread MESSAGES, for the envelope on Home.
- *
- * Separate from useUnreadCount() above, which counts notifications — a member
- * with four alerts and no messages should not see a badge on the envelope.
- *
- * Refreshed on foreground like its neighbour, and additionally on the inbox
- * broadcast, so a message arriving while the app is open moves the badge
- * without a poll. The subscription is one per member for the whole inbox,
- * never one per conversation.
- */
-export function useUnreadMessages(userId: string | null): number {
-  const [count, setCount] = useState(0);
-
-  const refresh = useCallback(async () => {
-    setCount(await unreadMessageCount());
-  }, []);
+    if (!userId) {
+      setCounts({ messages: 0, alerts: 0 });
+      return;
+    }
+    setCounts(await inboxCounts());
+  }, [userId]);
 
   useEffect(() => {
     if (!userId) {
-      setCount(0);
+      setCounts({ messages: 0, alerts: 0 });
       return;
     }
 
     void refresh();
 
-    const sub = AppState.addEventListener("change", (state) => {
+    const appState = AppState.addEventListener("change", (state) => {
       if (state === "active") void refresh();
     });
     const unsubscribe = subscribeToInbox(userId, () => void refresh());
 
     return () => {
-      sub.remove();
+      appState.remove();
       unsubscribe();
     };
   }, [userId, refresh]);
 
-  return count;
+  return {
+    ...counts,
+    total: inboxTotal(counts),
+    refresh: () => void refresh(),
+  };
 }

@@ -48,7 +48,7 @@ export default async function NotificationSettingsPage() {
 
   return (
     <div className="max-w-xl mx-auto px-6 py-12">
-      <Link href="/notifications" className="text-sm text-green-700 font-bold">
+      <Link href="/inbox" className="text-sm text-green-700 font-bold">
         &larr; Back to notifications
       </Link>
       <h1 className="font-display font-bold text-2xl mt-3 mb-1">Notification settings</h1>

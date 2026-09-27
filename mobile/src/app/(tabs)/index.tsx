@@ -17,7 +17,8 @@ import { SITE_URL } from "@/lib/config";
 import { loadHome, type HomeSummary } from "@/lib/home";
 import { dateLabel } from "@/lib/tee-times";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
-import { useUnreadCount } from "@/lib/unread";
+import { describeUnread } from "@/lib/inbox";
+import { useInboxUnread } from "@/lib/unread";
 
 /**
  * Home.
@@ -36,7 +37,7 @@ import { useUnreadCount } from "@/lib/unread";
 export default function HomeScreen() {
   const router = useRouter();
   const { session } = useAuth();
-  const unread = useUnreadCount();
+  const unread = useInboxUnread(session?.user?.id ?? null);
 
   const userId = session?.user?.id ?? null;
   const [summary, setSummary] = useState<HomeSummary | null>(null);
@@ -171,11 +172,14 @@ export default function HomeScreen() {
             />
           ) : null}
 
-          {unread > 0 ? (
+          {/* One row for both, because they are one destination now. The
+              wording splits them anyway — somebody waiting on a reply is a
+              different call on your afternoon from an auction ending. */}
+          {unread.total > 0 ? (
             <WaitingRow
-              icon="notifications-outline"
-              text={unread === 1 ? "1 unread alert" : `${unread} unread alerts`}
-              onPress={() => router.push("/notifications")}
+              icon="mail-outline"
+              text={describeUnread(unread.messages, unread.alerts)}
+              onPress={() => router.push("/inbox")}
             />
           ) : null}
 

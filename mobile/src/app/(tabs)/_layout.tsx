@@ -1,10 +1,10 @@
-import { Pressable, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 import { Tabs, router } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { useAuth } from "@/lib/auth";
 import { colors, fonts, spacing } from "@/lib/theme";
-import { useUnreadCount, useUnreadMessages } from "@/lib/unread";
+import { useInboxUnread } from "@/lib/unread";
 
 /**
  * Five tabs. Home is the landing screen and carries the website's hero, so
@@ -12,30 +12,42 @@ import { useUnreadCount, useUnreadMessages } from "@/lib/unread";
  * signing up, this one answers "what have I got on, and who is waiting on
  * me", which is the only question a signed-in member opens an app to ask.
  *
- * Tee Times, Notifications and Profile are native screens reading Supabase
+ * Tee Times, Inbox and Profile are native screens reading Supabase
  * directly. Marketplace is a web view (see §4 of the build spec): it is the
  * largest surface, it changes most often, and keeping it as web means shipping
  * changes to it through Vercel without an App Store review.
  */
-/** A dot, not a number. The count is on the screen the envelope opens; out
- *  here the only question is "is anyone waiting", and a 2 is no more useful
- *  than a dot at 24pt. */
-const dot = {
+/** A number, not a dot.
+ *
+ *  It was a dot because nothing in the app could say what the total was:
+ *  messages were counted one way and alerts another, and neither knew about
+ *  the other. inbox_unread_counts() (0083) answers that in one call, and
+ *  "how many" is the question people actually ask of an envelope. */
+const badge = {
   position: "absolute" as const,
-  top: -1,
-  right: spacing.md - 3,
-  width: 10,
-  height: 10,
-  borderRadius: 5,
+  top: -4,
+  right: spacing.md - 9,
+  minWidth: 17,
+  height: 17,
+  paddingHorizontal: 4,
+  borderRadius: 8.5,
   backgroundColor: colors.red600,
   borderWidth: 1.5,
   borderColor: colors.cream50,
+  alignItems: "center" as const,
+  justifyContent: "center" as const,
+};
+
+const badgeLabel = {
+  fontFamily: fonts.bodyBold,
+  fontSize: 10,
+  lineHeight: 13,
+  color: colors.cream50,
 };
 
 export default function TabsLayout() {
-  const unread = useUnreadCount();
   const { session } = useAuth();
-  const unreadMessages = useUnreadMessages(session?.user?.id ?? null);
+  const unread = useInboxUnread(session?.user?.id ?? null);
 
   return (
     <Tabs
@@ -60,27 +72,33 @@ export default function TabsLayout() {
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="home-outline" size={size} color={color} />
           ),
-          // The tab bar is full at five, and messages are not a sixth
-          // destination anyone would go hunting for — they are something you
-          // notice. An envelope that only wears a dot when someone is
-          // actually waiting says that better than a tab would.
+          // The envelope on Home and the Inbox tab are the same destination
+          // reached two ways, and they now carry the same number. Someone
+          // who opens the app to "has anything happened" gets the answer on
+          // the first screen, without learning where the tab is.
           headerRight: () => (
             <Pressable
-              onPress={() => router.push("/messages")}
+              onPress={() => router.push("/inbox")}
               hitSlop={12}
               style={{ paddingHorizontal: spacing.md }}
               accessibilityLabel={
-                unreadMessages > 0
-                  ? `Messages, ${unreadMessages} unread`
-                  : "Messages"
+                unread.total > 0
+                  ? `Messages and alerts, ${unread.total} unread`
+                  : "Messages and alerts"
               }
             >
               <Ionicons
-                name={unreadMessages > 0 ? "mail" : "mail-outline"}
+                name={unread.total > 0 ? "mail" : "mail-outline"}
                 size={24}
                 color={colors.green700}
               />
-              {unreadMessages > 0 ? <View style={dot} /> : null}
+              {unread.total > 0 ? (
+                <View style={badge}>
+                  <Text style={badgeLabel}>
+                    {unread.total > 99 ? "99+" : unread.total}
+                  </Text>
+                </View>
+              ) : null}
             </Pressable>
           ),
         }}
@@ -118,13 +136,14 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="notifications"
+        name="inbox"
         options={{
-          title: "Alerts",
-          tabBarBadge: unread > 0 ? (unread > 99 ? "99+" : unread) : undefined,
+          title: "Inbox",
+          tabBarBadge:
+            unread.total > 0 ? (unread.total > 99 ? "99+" : unread.total) : undefined,
           tabBarBadgeStyle: { backgroundColor: colors.red600 },
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="notifications-outline" size={size} color={color} />
+            <Ionicons name="mail-outline" size={size} color={color} />
           ),
         }}
       />
