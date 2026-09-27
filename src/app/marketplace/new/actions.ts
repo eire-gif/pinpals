@@ -3,10 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { countryForRegion } from "@/lib/regions";
 import { uploadListingImage, deleteListingImage, ImageProcessingError } from "@/lib/images/upload";
 import { createListingSchema } from "@/lib/validation/listing";
-import { eurToCents, MAX_LISTING_IMAGES } from "@/lib/marketplace";
+import { createListingRecord } from "@/lib/listings-server";
+import { MAX_LISTING_IMAGES } from "@/lib/marketplace";
 
 // ============ per-image actions ============
 // Photos are uploaded (and can be individually removed/retried) BEFORE the
@@ -185,137 +185,29 @@ export async function createListing(
     };
   }
 
-  const data = parsed.data;
+  // The inserts live in src/lib/listings-server.ts so this form and the
+  // app's /api/app/listings route write a listing exactly the same way —
+  // see that file's header on why the split is at validation.
+  const result = await createListingRecord({
+    supabase,
+    userId: user.id,
+    data: parsed.data,
+    images,
+  });
 
-  // Switching on the literal discriminant (rather than calling
-  // isAuctionSaleType(data.saleType), which returns a plain boolean
-  // TypeScript can't use to narrow a discriminated union) is what lets
-  // `data.priceEur` / `data.startingPriceEur` etc. below resolve to the
-  // right branch's fields without a cast.
-  let priceEur: number | null;
-  let auctionDetails: {
-    startingPriceEur: number;
-    reservePriceEur: number | undefined;
-    buyNowPriceEur: number | null;
-    minIncrementEur: number;
-    startsAt: Date;
-    endsAt: Date;
-  } | null;
-
-  switch (data.saleType) {
-    case "fixed_price":
-    case "offers_allowed":
-      priceEur = data.priceEur;
-      auctionDetails = null;
-      break;
-    case "auction":
-      priceEur = null;
-      auctionDetails = {
-        startingPriceEur: data.startingPriceEur,
-        reservePriceEur: data.reservePriceEur,
-        buyNowPriceEur: null,
-        minIncrementEur: data.minIncrementEur,
-        startsAt: data.startsAt,
-        endsAt: data.endsAt,
-      };
-      break;
-    case "auction_with_buy_now":
-      priceEur = null;
-      auctionDetails = {
-        startingPriceEur: data.startingPriceEur,
-        reservePriceEur: data.reservePriceEur,
-        buyNowPriceEur: data.buyNowPriceEur,
-        minIncrementEur: data.minIncrementEur,
-        startsAt: data.startsAt,
-        endsAt: data.endsAt,
-      };
-      break;
-  }
-
-  const { data: inserted, error: insertError } = await supabase
-    .from("listings")
-    .insert({
-      seller_id: user.id,
-      title: data.title,
-      description: data.description || null,
-      category: data.category,
-      subcategory: data.subcategory || null,
-      condition: data.condition,
-      county: data.county || null,
-      // Derived, never asked for: region names are unique across the five
-      // countries, so the county the seller picked already says which one
-      // they're in (see listingCountySchema).
-      country: data.county ? countryForRegion(data.county) : null,
-      // image_url (0003) is the legacy single-cover-image column every
-      // existing read site (listing-card.tsx, the marketplace grid, ...)
-      // still relies on — kept in sync with the new gallery's cover photo
-      // (position 0) rather than left null, so nothing downstream needs to
-      // change to keep working for a listing created by this new flow.
-      image_url: images.find((img) => img.position === 0)?.url ?? images[0]?.url ?? null,
-      status: "draft",
-      sale_type: data.saleType,
-      price_eur: priceEur,
-      price_cents: priceEur !== null ? eurToCents(priceEur) : null,
-      delivery_options: data.deliveryOptions,
-      collection_notes: data.collectionNotes || null,
-      brand: data.brand || null,
-      brand_other: data.brand === "other" ? data.brandOther || null : null,
-      model: data.model || null,
-      dexterity: data.dexterity || null,
-      shaft_flex: data.shaftFlex || null,
-      shaft_material: data.shaftMaterial || null,
-      loft: data.loft || null,
-      item_size: data.itemSize || null,
-    })
-    .select("id")
-    .single<{ id: number }>();
-
-  if (insertError || !inserted) {
-    return { error: insertError?.message || "Couldn't save that listing — please try again." };
-  }
-
-  if (auctionDetails) {
-    const { error: auctionError } = await supabase.from("auctions").insert({
-      listing_id: inserted.id,
-      starting_price_cents: eurToCents(auctionDetails.startingPriceEur),
-      reserve_price_cents:
-        auctionDetails.reservePriceEur !== undefined ? eurToCents(auctionDetails.reservePriceEur) : null,
-      buy_now_price_cents:
-        auctionDetails.buyNowPriceEur !== null ? eurToCents(auctionDetails.buyNowPriceEur) : null,
-      min_increment_cents: eurToCents(auctionDetails.minIncrementEur),
-      starts_at: auctionDetails.startsAt.toISOString(),
-      ends_at: auctionDetails.endsAt.toISOString(),
-    });
-
-    if (auctionError) {
-      // The listing row itself saved fine — a seller can fix the auction
-      // details from the edit page rather than losing the whole draft, same
-      // "don't throw away otherwise-good work over one failed sub-step"
-      // principle as respondToOffer()'s non-blocking order-insert
-      // (../[id]/actions.ts). Reported honestly, not swallowed.
-      revalidatePath("/marketplace");
-      redirect(`/marketplace/${inserted.id}?draft=1&auctionError=1`);
-    }
-  }
-
-  if (images.length > 0) {
-    const { error: imagesError } = await supabase.from("listing_images").insert(
-      images.map((img) => ({
-        listing_id: inserted.id,
-        image_url: img.url,
-        position: img.position,
-      }))
-    );
-    // Same reasoning as the auction-insert failure above: the listing
-    // itself is saved, photos can be re-added from the edit page.
-    if (imagesError) {
-      console.error(`Failed to attach images to listing ${inserted.id}:`, imagesError.message);
-    }
+  if (!result.ok) {
+    return { error: result.message };
   }
 
   revalidatePath("/marketplace");
 
   // Saved, not published — the listing's own page shows it as a draft with
   // a "Publish" action (see ../[id]/page.tsx / publish-listing-button.tsx).
-  redirect(`/marketplace/${inserted.id}?draft=1`);
+  // An auction row that failed to save is carried through to that page
+  // rather than hidden; the seller fixes the dates there.
+  redirect(
+    result.auctionFailed
+      ? `/marketplace/${result.listingId}?draft=1&auctionError=1`
+      : `/marketplace/${result.listingId}?draft=1`
+  );
 }
