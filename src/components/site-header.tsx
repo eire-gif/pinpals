@@ -5,6 +5,8 @@ import NavDropdown from "@/components/nav-dropdown";
 import { COUNTRIES } from "@/lib/regions";
 import LogoMark from "@/components/logo-mark";
 import SignOutButton from "@/components/sign-out-button";
+import { loadInboxCounts } from "@/lib/inbox-server";
+import { inboxTotal } from "@/lib/inbox";
 
 export default async function SiteHeader() {
   const supabase = await createClient();
@@ -12,19 +14,21 @@ export default async function SiteHeader() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Unread notification count for the bell — a cheap head-only count
-  // (RLS's own "own rows" SELECT policy on `notifications` scopes this
-  // without a service-role client), fetched on every page load the same
-  // way the rest of this header re-derives `user` on every load rather than
-  // caching client-side state.
+  // One number for the envelope: unread messages plus unread alerts.
+  //
+  // This used to be a head-count of `notifications` alone, sitting on a bell,
+  // while the Messages link beside it carried nothing at all — so a member
+  // with four replies waiting saw a completely blank header. Both now come
+  // from inbox_unread_counts() (0083_unified_inbox.sql), which is the single
+  // place that decides what unread means, so the badge and the list under it
+  // cannot drift apart.
+  //
+  // Fetched on every page load, the same way this header re-derives `user`
+  // on every load rather than caching client state.
   let unreadCount = 0;
   if (user) {
-    const { count } = await supabase
-      .from("notifications")
-      .select("id", { count: "exact", head: true })
-      .eq("user_id", user.id)
-      .is("read_at", null);
-    unreadCount = count ?? 0;
+    const counts = await loadInboxCounts(supabase);
+    unreadCount = inboxTotal(counts);
   }
 
   // One array, rendered twice: the desktop row below and MobileNav's own
@@ -178,11 +182,11 @@ export default async function SiteHeader() {
           {user ? (
             <>
               <Link
-                href="/notifications"
-                aria-label={unreadCount > 0 ? `Notifications (${unreadCount} unread)` : "Notifications"}
+                href="/inbox"
+                aria-label={unreadCount > 0 ? `Inbox (${unreadCount} unread)` : "Inbox"}
                 className="relative p-2.5 rounded-full text-white/80 hover:text-white hover:bg-white/10 transition"
               >
-                <BellIcon />
+                <MailIcon />
                 {unreadCount > 0 && (
                   <span className="absolute top-1 right-1 min-w-[16px] h-4 px-1 rounded-full bg-gold-500 text-navy-900 text-[10px] font-bold flex items-center justify-center">
                     {unreadCount > 9 ? "9+" : unreadCount}
@@ -200,12 +204,10 @@ export default async function SiteHeader() {
                 menuLabel="Dashboard sections"
                 items={DASHBOARD_MENU}
               />
-              <Link
-                href="/conversations"
-                className="px-4 py-2.5 rounded-full text-sm font-semibold text-white/80 hover:text-white hover:bg-white/10 transition"
-              >
-                Messages
-              </Link>
+              {/* No separate Messages link any more. It went to one list and
+                  the bell went to another, which is precisely how a member
+                  ended up having to check two places to find out whether
+                  anything had happened. The envelope above is both. */}
               <Link
                 href="/profile"
                 className="px-4 py-2.5 rounded-full text-sm font-semibold text-white/80 hover:text-white hover:bg-white/10 transition"
@@ -243,11 +245,13 @@ export default async function SiteHeader() {
   );
 }
 
-function BellIcon() {
+/** An envelope, not a bell. The one destination now holds conversations as
+ *  well as alerts, and a bell promises only the second. */
+function MailIcon() {
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-      <path d="M6 9a6 6 0 1112 0c0 4.5 1.5 6 2 6.5H4c.5-.5 2-2 2-6.5z" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M10 19a2 2 0 004 0" strokeLinecap="round" strokeLinejoin="round" />
+      <rect x="3" y="5" width="18" height="14" rx="2.5" />
+      <path d="m3.8 7 7.1 5.4a1.8 1.8 0 0 0 2.2 0L20.2 7" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }

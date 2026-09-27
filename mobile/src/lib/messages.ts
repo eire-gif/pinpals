@@ -283,22 +283,13 @@ export async function markRead(
     .eq("id", conversationId);
 }
 
-/**
- * How many unread messages a member has across every thread — the envelope
- * badge on Home.
- *
- * conversation_unread_counts() is one indexed aggregate for the whole inbox,
- * so this stays a single round trip however many conversations someone has.
- */
-export async function unreadMessageCount(): Promise<number> {
-  const { data, error } = await supabase.rpc("conversation_unread_counts");
-  if (error || !data) return 0;
-
-  return (data as { unread_count: number }[]).reduce(
-    (total, row) => total + Number(row.unread_count),
-    0
-  );
-}
+// unreadMessageCount() used to live here — it summed
+// conversation_unread_counts() for the envelope on Home while a separate head
+// count of `notifications` fed the Alerts badge, and neither knew about the
+// other. Both now come from inbox_unread_counts() (0083_unified_inbox.sql)
+// via lib/inbox.ts. Deliberately not left behind as a second way to count the
+// same thing: two counters is exactly how the badges drifted apart in the
+// first place.
 
 // ---------------------------------------------------------------------------
 // Display

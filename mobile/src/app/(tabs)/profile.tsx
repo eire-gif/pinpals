@@ -162,7 +162,7 @@ export default function ProfileScreen() {
         <NativeLink
           icon="chatbubbles-outline"
           label="Messages"
-          to="/messages"
+          to="/inbox"
         />
         <Link
           icon="person-circle-outline"
@@ -242,7 +242,7 @@ function NativeLink({
 }: {
   icon: keyof typeof Ionicons.glyphMap;
   label: string;
-  to: "/post-tee-time" | "/tee-time-requests" | "/messages";
+  to: "/post-tee-time" | "/tee-time-requests" | "/inbox";
 }) {
   return (
     <Pressable style={styles.link} onPress={() => router.push(to)}>

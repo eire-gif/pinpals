@@ -78,11 +78,11 @@ export default function MobileNav({
           {isLoggedIn ? (
             <>
               <Link
-                href="/notifications"
+                href="/inbox"
                 onClick={() => setOpen(false)}
                 className="px-4 py-4 rounded-xl text-lg font-semibold text-white/90 hover:bg-white/10 flex items-center justify-between"
               >
-                Notifications
+                Messages &amp; alerts
                 {unreadCount > 0 && (
                   <span className="min-w-[22px] h-[22px] px-1.5 rounded-full bg-gold-500 text-navy-900 text-xs font-bold flex items-center justify-center">
                     {unreadCount > 9 ? "9+" : unreadCount}
@@ -114,13 +114,8 @@ export default function MobileNav({
                   </div>
                 )}
               </div>
-              <Link
-                href="/conversations"
-                onClick={() => setOpen(false)}
-                className="px-4 py-4 rounded-xl text-lg font-semibold text-white/90 hover:bg-white/10"
-              >
-                Messages
-              </Link>
+              {/* Messages folded into the entry above — one destination, one
+                  number. */}
               <Link
                 href="/profile"
                 onClick={() => setOpen(false)}
