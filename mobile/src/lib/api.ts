@@ -36,6 +36,10 @@ export class ApiError extends Error {
  */
 const TIMEOUT_MS = 10_000;
 
+/** Photos are megabytes, not kilobytes, and are often sent from a course
+ *  rather than from a desk. */
+const UPLOAD_TIMEOUT_MS = 60_000;
+
 async function accessToken(): Promise<string> {
   // getSession() refreshes an expired token if the refresh token is still
   // good, so this is also what keeps a member who last opened the app a week
@@ -72,21 +76,35 @@ function messageFor(status: number, serverMessage: string | null): string {
 async function requestSite<T>(
   path: string,
   method: "GET" | "POST",
-  body?: unknown
+  body?: unknown,
+  timeoutMs: number = TIMEOUT_MS
 ): Promise<T> {
   const token = await accessToken();
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  // FormData carries its own multipart boundary, which React Native
+  // generates when it serialises the body. Setting content-type by hand
+  // here would overwrite it with one that has no boundary at all, and the
+  // server would parse zero fields out of a perfectly good request.
+  const isForm = typeof FormData !== "undefined" && body instanceof FormData;
 
   let response: Response;
   try {
     response = await fetch(`${SITE_URL}${path}`, {
       method,
       headers: {
-        ...(body === undefined ? {} : { "content-type": "application/json" }),
+        ...(body === undefined || isForm
+          ? {}
+          : { "content-type": "application/json" }),
         authorization: `Bearer ${token}`,
       },
-      body: body === undefined ? undefined : JSON.stringify(body),
+      body:
+        body === undefined
+          ? undefined
+          : isForm
+            ? (body as FormData)
+            : JSON.stringify(body),
       signal: controller.signal,
     });
   } catch {
@@ -123,3 +141,83 @@ export const postToSite = <T>(path: string, body: unknown): Promise<T> =>
 
 export const getFromSite = <T>(path: string): Promise<T> =>
   requestSite<T>(path, "GET");
+
+/** A photo, as multipart. `file` is what React Native's FormData wants for a
+ *  local file: the asset's uri, a filename and a mime type. */
+export type UploadFile = { uri: string; name: string; type: string };
+
+/**
+ /**
+ * Uploads one file.
+ *
+ * XMLHttpRequest rather than fetch, deliberately. React Native 0.86's fetch
+ * is the spec-compliant one, and a spec FormData part must be a Blob — the
+ * `{ uri, name, type }` shape React Native has always used for a local file
+ * is rejected with "Unsupported FormDataPart implementation". XHR still goes
+ * through RCTNetworking, which understands that shape and streams the file
+ * off disk rather than pulling megabytes of photo into JavaScript first.
+ *
+ * The long timeout is the other reason this isn't postToSite(). Ten seconds
+ * is generous for a JSON round trip and nowhere near enough for a
+ * four-megabyte photo leaving a phone on one bar at the back of a golf club
+ * — and a photo that fails on a timeout looks to the member exactly like a
+ * photo the server refused.
+ */
+export const postFileToSite = <T>(
+  path: string,
+  file: UploadFile,
+  field = "file"
+): Promise<T> =>
+  accessToken().then(
+    (token) =>
+      new Promise<T>((resolve, reject) => {
+        const form = new FormData();
+        // The cast is unavoidable: React Native accepts this shape for a
+        // local file, and the DOM lib's type for append() does not describe
+        // it.
+        form.append(field, file as unknown as Blob);
+
+        const xhr = new XMLHttpRequest();
+        xhr.open("POST", `${SITE_URL}${path}`);
+        xhr.timeout = UPLOAD_TIMEOUT_MS;
+        xhr.setRequestHeader("authorization", `Bearer ${token}`);
+        // content-type is left alone on purpose: React Native fills in
+        // multipart/form-data with the boundary it generated, and setting it
+        // by hand would overwrite that with one that has no boundary at all.
+
+        const payload = (): { error?: string; reason?: string } | null => {
+          try {
+            return JSON.parse(xhr.responseText);
+          } catch {
+            return null;
+          }
+        };
+
+        xhr.onload = () => {
+          const body = payload();
+          if (xhr.status >= 200 && xhr.status < 300) {
+            resolve(body as T);
+            return;
+          }
+          reject(
+            new ApiError(
+              xhr.status,
+              messageFor(xhr.status, body?.error ?? null),
+              body?.reason ?? null
+            )
+          );
+        };
+
+        xhr.onerror = () => {
+          reject(new ApiError(0, "No connection. Check your signal and try again."));
+        };
+
+        xhr.ontimeout = () => {
+          reject(
+            new ApiError(0, "That photo took too long to send. Try again on a better signal.")
+          );
+        };
+
+        xhr.send(form);
+      })
+  );
