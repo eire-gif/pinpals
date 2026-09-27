@@ -130,9 +130,7 @@ export default function HomeScreen() {
                 near WCAG AA. */}
             <Pressable
               style={[styles.cta, styles.ctaBuy]}
-              onPress={() =>
-                router.push("/web?path=/marketplace/new&title=List an item")
-              }
+              onPress={() => router.push("/new-listing")}
             >
               <Text style={styles.ctaBuyLabel}>List an item</Text>
             </Pressable>
