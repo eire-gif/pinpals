@@ -1,7 +1,9 @@
+import { useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { Tabs, router } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
+import { AppMenu, MenuButton } from "@/components/app-menu";
 import { useAuth } from "@/lib/auth";
 import { colors, fonts, spacing } from "@/lib/theme";
 import { useInboxUnread } from "@/lib/unread";
@@ -48,8 +50,10 @@ const badgeLabel = {
 export default function TabsLayout() {
   const { session } = useAuth();
   const unread = useInboxUnread(session?.user?.id ?? null);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   return (
+    <>
     <Tabs
       screenOptions={{
         headerStyle: { backgroundColor: colors.cream50 },
@@ -63,6 +67,10 @@ export default function TabsLayout() {
           borderTopColor: colors.line,
         },
         sceneStyle: { backgroundColor: colors.cream50 },
+        // On every tab, not just Home. A menu that is only on one screen is
+        // a menu people have to navigate to in order to navigate, which is
+        // the problem it exists to solve.
+        headerLeft: () => <MenuButton onPress={() => setMenuOpen(true)} />,
       }}
     >
       <Tabs.Screen
@@ -129,7 +137,9 @@ export default function TabsLayout() {
         name="marketplace"
         options={{
           title: "Marketplace",
-          headerShown: false,
+          // Was headerShown: false — the web view brought its own top edge and
+          // nothing native needed to sit above it. The menu does, and one tab
+          // without the three bars is the tab where somebody gets stuck.
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="pricetags-outline" size={size} color={color} />
           ),
@@ -157,5 +167,8 @@ export default function TabsLayout() {
         }}
       />
     </Tabs>
+
+    <AppMenu open={menuOpen} onClose={() => setMenuOpen(false)} />
+    </>
   );
 }
