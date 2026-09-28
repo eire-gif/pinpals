@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import SignOutButton from "@/components/sign-out-button";
 
 export default function MobileNav({
   isLoggedIn,
@@ -123,6 +124,18 @@ export default function MobileNav({
               >
                 My profile
               </Link>
+
+              {/* Until this existed there was no way to log out on a phone at
+                  all — the only sign-out button lived in the desktop header
+                  row, which is hidden below md. Last in the sheet and set
+                  apart, because it is the one entry here you do not want
+                  anyone hitting on the way past. */}
+              <div className="mt-2 pt-2 border-t border-white/10">
+                <SignOutButton
+                  onSignedOut={() => setOpen(false)}
+                  className="w-full text-left px-4 py-4 rounded-xl text-lg font-semibold text-white/90 hover:bg-white/10"
+                />
+              </div>
             </>
           ) : (
             <>
