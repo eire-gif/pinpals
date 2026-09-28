@@ -231,3 +231,41 @@ export const REQUEST_STATUS_LABELS: Record<RequestStatus, string> = {
   confirmed: "You're playing",
   declined: "Not this time",
 };
+
+// ---------------------------------------------------------------------------
+// Who is already playing
+// ---------------------------------------------------------------------------
+
+/**
+ * The confirmed players on one round, for the invite screen.
+ *
+ * Whether this returns anything is RLS's decision, not this function's. Until
+ * 0084 only the host and the other confirmed players could read these rows;
+ * now anyone who can see a round that is still open with a space left can see
+ * who is in it, because "who would I be playing with" is the question that
+ * decides whether somebody asks to join at all.
+ *
+ * Once the round fills, this quietly returns nothing again, and the screen
+ * says nothing rather than something wrong. That is the right shape for a
+ * permission boundary: ask, render what comes back.
+ */
+export async function listConfirmedPlayers(
+  inviteId: number,
+  excludeUserId: string | null
+): Promise<Player[]> {
+  const { data } = await supabase
+    .from("tee_time_interests")
+    .select("member_id, profiles (first_name, last_name, home_club)")
+    .eq("invite_id", inviteId)
+    .eq("status", "confirmed")
+    .overrideTypes<Omit<PlayerRow, "invite_id">[]>();
+
+  return (data ?? [])
+    .filter((row) => row.member_id !== excludeUserId)
+    .map((row) => ({
+      name:
+        [row.profiles?.first_name, row.profiles?.last_name].filter(Boolean).join(" ") ||
+        "A member",
+      homeClub: row.profiles?.home_club ?? null,
+    }));
+}

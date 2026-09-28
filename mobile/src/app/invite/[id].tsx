@@ -12,6 +12,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { InviteTags } from "@/components/invite-card";
 import { useAuth } from "@/lib/auth";
+import { listConfirmedPlayers, type Player } from "@/lib/rounds";
 import {
   dateLabel,
   getInvite,
@@ -37,6 +38,8 @@ export default function InviteScreen() {
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
 
+  const [players, setPlayers] = useState<Player[]>([]);
+
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -54,6 +57,18 @@ export default function InviteScreen() {
       // leaks the existence of private fourballs.
       if (!row) setNotFound(true);
       setInvite(row);
+
+      // Who is already in it. RLS decides whether anything comes back — 0084
+      // opens this up on a round still looking for players and closes it
+      // again the moment it fills. A failure here is a missing panel, never a
+      // broken screen.
+      if (row) {
+        try {
+          setPlayers(await listConfirmedPlayers(numeric, memberId));
+        } catch {
+          setPlayers([]);
+        }
+      }
 
       // Only worth asking for somebody else's invite: a host has no interest
       // row of their own, and the query would match other members' rows.
@@ -153,6 +168,31 @@ export default function InviteScreen() {
             <Text style={styles.notesBody}>{invite.notes}</Text>
           </View>
         ) : null}
+
+        {/* Asking to join a group of strangers is a bigger step than asking
+            to join a group with somebody from your own club in it, and until
+            0084 the answer was unavailable at exactly the moment it
+            mattered. Hidden entirely when nobody has confirmed yet: "no
+            players" and "not allowed to see the players" are the same empty
+            list here, and neither is worth a line of text. */}
+        {players.length > 0 && (
+          <View style={styles.panel}>
+            <Text style={styles.sectionLabel}>
+              {players.length === 1 ? "Already playing" : `Already playing (${players.length})`}
+            </Text>
+            {players.map((player, index) => (
+              <View key={`${player.name}-${index}`} style={styles.row}>
+                <Ionicons name="person-circle-outline" size={19} color={colors.green700} />
+                <Text style={styles.rowLabel} numberOfLines={1}>
+                  {player.name}
+                  {player.homeClub ? (
+                    <Text style={styles.place}> · {player.homeClub}</Text>
+                  ) : null}
+                </Text>
+              </View>
+            ))}
+          </View>
+        )}
 
         {host.length > 0 && (
           <View style={styles.panel}>

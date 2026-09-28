@@ -1,8 +1,12 @@
 // Migration 0078 widened the tee_time_interests SELECT policy so that golfers
-// who have confirmed a place on the same round can see each other. A widening
-// is exactly the kind of change that needs a test proving what it did NOT
-// widen, so most of what follows is the negative half: pending and declined
-// requests stay private, and a stranger still sees nothing at all.
+// who have confirmed a place on the same round can see each other. 0084
+// widened it again: on a round still looking for players, anyone who can see
+// the round can see who is already in it.
+//
+// A widening is exactly the kind of change that needs a test proving what it
+// did NOT widen, so most of what follows is the negative half: pending and
+// declined requests stay private to the host and the member who made them,
+// a full round goes back to players-only, and anon sees nothing at all.
 //
 // The fixture round (fixtures.ts) is hosted by seller1 with four interests on
 // it — buyer1 and buyer2 confirmed, moderator pending, admin declined — which
@@ -63,18 +67,75 @@ describe("tee_time_interests SELECT: a confirmed golfer", () => {
 });
 
 describe("tee_time_interests SELECT: everyone else", () => {
-  it("a member with a PENDING request sees only their own row", async () => {
-    // Asking is not joining. Someone still waiting on the host must not learn
-    // the round is already half full, or who is in it.
-    expect(await visibleMembers(USERS.moderator)).toEqual([USERS.moderator]);
+  // 0084 changed the rule for a round that is STILL LOOKING FOR PLAYERS.
+  //
+  // 0078's stance was that only the players see the players, and these three
+  // tests asserted it. That is right for a four-ball that has filled up and
+  // wrong for one that hasn't: asking to join a group of strangers is a
+  // bigger step than asking to join a group with somebody from your own club
+  // in it, and the answer was unavailable at exactly the moment it mattered.
+  //
+  // So on an open round with a space left, anyone who can see the round can
+  // see who is already confirmed for it. Everything else holds: pending and
+  // declined requests stay private, and the moment the round fills it
+  // reverts to 0078's rule. The fixture round is open with three spaces.
+
+  it("a member with a PENDING request sees the confirmed players, and their own row", async () => {
+    expect(await visibleMembers(USERS.moderator)).toEqual(
+      [USERS.moderator, USERS.buyer1, USERS.buyer2].sort(),
+    );
   });
 
-  it("a member whose request was DECLINED sees only their own row", async () => {
-    expect(await visibleMembers(USERS.admin)).toEqual([USERS.admin]);
+  it("a member whose request was DECLINED sees the same", async () => {
+    expect(await visibleMembers(USERS.admin)).toEqual(
+      [USERS.admin, USERS.buyer1, USERS.buyer2].sort(),
+    );
   });
 
-  it("an unrelated member sees nothing on the round", async () => {
-    expect(await visibleMembers(USERS.seller2)).toEqual([]);
+  it("an unrelated member sees who is playing, and nothing else", async () => {
+    // The negative half of the widening, and the one that matters: a
+    // stranger learns who is in the round. They do NOT learn who asked and
+    // was turned down.
+    const visible = await visibleMembers(USERS.seller2);
+    expect(visible).toEqual([USERS.buyer1, USERS.buyer2].sort());
+    expect(visible).not.toContain(USERS.moderator); // pending
+    expect(visible).not.toContain(USERS.admin); // declined
+  });
+
+  it("sees nothing once the round is full", async () => {
+    // Seed and read in one transaction: the harness always rolls back, so a
+    // beforeAll would be gone by the time this ran.
+    await withRole("authenticated", USERS.seller2, async (c) => {
+      await c.query("set local role service_role");
+      await c.query(
+        "update public.tee_time_invites set status = 'full', spaces_available = 0 where id = $1",
+        [ids.teeTime.inviteId],
+      );
+      await c.query("set local role authenticated");
+
+      const r = await c.query("select member_id from public.tee_time_interests where invite_id = $1", [
+        ids.teeTime.inviteId,
+      ]);
+      expect(r.rowCount).toBe(0);
+    });
+  });
+
+  it("sees nothing once the last space is taken, even if the status lags", async () => {
+    // 0077 documents a real drift between `status` and `spaces_available`.
+    // The policy checks both, so the stricter one wins.
+    await withRole("authenticated", USERS.seller2, async (c) => {
+      await c.query("set local role service_role");
+      await c.query(
+        "update public.tee_time_invites set spaces_available = 0 where id = $1",
+        [ids.teeTime.inviteId],
+      );
+      await c.query("set local role authenticated");
+
+      const r = await c.query("select member_id from public.tee_time_interests where invite_id = $1", [
+        ids.teeTime.inviteId,
+      ]);
+      expect(r.rowCount).toBe(0);
+    });
   });
 
   it("anon sees nothing", async () => {

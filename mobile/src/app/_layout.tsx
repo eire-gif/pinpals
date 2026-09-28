@@ -13,6 +13,7 @@ import { Stack, useRouter, useSegments, type Href } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import * as Notifications from "expo-notifications";
 import * as SplashScreen from "expo-splash-screen";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { AuthProvider, useAuth } from "@/lib/auth";
@@ -145,11 +146,18 @@ function RootNavigator() {
 
 export default function RootLayout() {
   return (
-    <SafeAreaProvider>
-      <AuthProvider>
-        <StatusBar style="dark" />
-        <RootNavigator />
-      </AuthProvider>
-    </SafeAreaProvider>
+    // GestureHandlerRootView explicitly, rather than relying on expo-router
+    // providing one. Swipe-to-delete in the inbox is the first thing in the
+    // app to use a gesture handler directly, and a missing root is the
+    // failure where the gesture silently does nothing on a device while
+    // everything still compiles.
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <AuthProvider>
+          <StatusBar style="dark" />
+          <RootNavigator />
+        </AuthProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }

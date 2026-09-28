@@ -239,6 +239,28 @@ export async function markAlertRead(notificationId: number): Promise<void> {
  * about: they pressed a button expecting a number to go to zero, and a
  * silently failed clear leaves them pressing it again.
  */
+/**
+ * Deletes one alert, for good.
+ *
+ * A real delete, not a hidden flag — 0084 added the DELETE policy that makes
+ * it possible, own rows only. There is no undo, which is why this is one row
+ * on a deliberate two-step gesture and "Mark all read" stays the bulk
+ * action.
+ *
+ * No `.eq("user_id")`: the policy is the filter, and adding a second one here
+ * would only create somewhere for the two to disagree.
+ *
+ * Conversations have no equivalent and must not — see hideConversation() in
+ * messages.ts.
+ */
+export async function deleteAlert(notificationId: number): Promise<boolean> {
+  const { error } = await supabase
+    .from("notifications")
+    .delete()
+    .eq("id", notificationId);
+  return !error;
+}
+
 export async function markInboxRead(): Promise<boolean> {
   const { error } = await supabase.rpc("mark_inbox_read");
   return !error;

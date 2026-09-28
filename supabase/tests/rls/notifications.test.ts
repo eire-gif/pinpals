@@ -43,8 +43,30 @@ describe("notifications: INSERT/DELETE (system-populated only)", () => {
     });
   });
 
-  it("the owner cannot delete their own notification", async () => {
+  // 0084 changed this. A member may now delete their own alerts — the app's
+  // swipe-to-delete — while INSERT stays revoked, because a row a member
+  // could write is a row a member could forge. Deleting one of their own
+  // destroys nothing anybody else can see.
+  it("the owner CAN delete their own notification", async () => {
     await withRole("authenticated", USERS.seller1, async (c) => {
+      const r = await c.query("delete from public.notifications where id = $1", [ids.notificationId]);
+      expect(r.rowCount).toBe(1);
+    });
+  });
+
+  it("nobody else can delete it, staff included", async () => {
+    // A USING-only refusal matches zero rows rather than raising, so this is
+    // expectZeroRows' shape and not expectRejected's.
+    for (const userId of [USERS.buyer1, USERS.admin]) {
+      await withRole("authenticated", userId, async (c) => {
+        const r = await c.query("delete from public.notifications where id = $1", [ids.notificationId]);
+        expect(r.rowCount).toBe(0);
+      });
+    }
+  });
+
+  it("anon cannot delete anything", async () => {
+    await withRole("anon", null, async (c) => {
       await expectRejected(
         c.query("delete from public.notifications where id = $1", [ids.notificationId]),
         /permission denied/,

@@ -10,6 +10,7 @@ import {
 } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
+import ReanimatedSwipeable from "react-native-gesture-handler/ReanimatedSwipeable";
 
 import { Avatar } from "@/components/avatar";
 import { useAuth } from "@/lib/auth";
@@ -17,6 +18,7 @@ import {
   INBOX_FILTERS,
   INBOX_FILTER_LABELS,
   alertIcon,
+  deleteAlert,
   inboxTotal,
   loadInbox,
   markAlertRead,
@@ -28,7 +30,7 @@ import {
   type InboxFilter,
   type InboxItem,
 } from "@/lib/inbox";
-import { inboxTime } from "@/lib/messages";
+import { hideConversation, inboxTime } from "@/lib/messages";
 import { subscribeToInbox } from "@/lib/realtime";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 
@@ -107,6 +109,42 @@ export default function InboxScreen() {
     setClearing(false);
   }
 
+  /**
+   * Swiping a row away.
+   *
+   * The two kinds are not the same operation and the button says so. An
+   * alert is yours alone, so Delete destroys it — 0084's DELETE policy, own
+   * rows only, no undo. A conversation belongs to two people, so Hide sets
+   * your own archived_at and touches nothing the other member can see; if
+   * they write again it comes back.
+   *
+   * The row leaves the list first and the write follows. A swipe that sits
+   * there for a round trip feels broken, and neither of these can fail in a
+   * way that matters: a failed hide reappears on the next refresh, and a
+   * failed delete is an alert that is still there.
+   */
+  async function removeItem(item: InboxItem) {
+    setItems((prev) =>
+      prev.filter((entry) => !(entry.kind === item.kind && entry.id === item.id))
+    );
+
+    if (item.kind === "alert") {
+      if (item.unread) setCounts((prev) => ({ ...prev, alerts: Math.max(0, prev.alerts - 1) }));
+      await deleteAlert(item.id);
+      return;
+    }
+
+    if (userId) {
+      if (item.unreadCount > 0) {
+        setCounts((prev) => ({
+          ...prev,
+          messages: Math.max(0, prev.messages - item.unreadCount),
+        }));
+      }
+      await hideConversation(item.id, userId);
+    }
+  }
+
   if (loading) {
     return (
       <View style={[styles.fill, styles.centre]}>
@@ -169,8 +207,9 @@ export default function InboxScreen() {
           />
         }
         ListEmptyComponent={<Empty filter={filter} />}
-        renderItem={({ item }) =>
-          item.kind === "conversation" ? (
+        renderItem={({ item }) => (
+          <SwipeRow item={item} onRemove={() => void removeItem(item)}>
+          {item.kind === "conversation" ? (
             <ConversationRow
               row={item}
               onPress={() => router.push(`/conversation/${item.id}`)}
@@ -199,10 +238,55 @@ export default function InboxScreen() {
                 });
               }}
             />
-          )
-        }
+          )}
+          </SwipeRow>
+        )}
       />
     </View>
+  );
+}
+
+/**
+ * The row, with an action behind it.
+ *
+ * Right-side only: left-to-right is the back gesture on iOS, and stealing it
+ * inside a list is how a screen stops feeling native. `rightThreshold` is
+ * generous enough that a brush past a row while scrolling does not open it.
+ */
+function SwipeRow({
+  item,
+  onRemove,
+  children,
+}: {
+  item: InboxItem;
+  onRemove: () => void;
+  children: React.ReactNode;
+}) {
+  const destructive = item.kind === "alert";
+
+  return (
+    <ReanimatedSwipeable
+      friction={2}
+      rightThreshold={44}
+      overshootRight={false}
+      renderRightActions={() => (
+        <Pressable
+          style={[styles.swipe, destructive && styles.swipeDelete]}
+          onPress={onRemove}
+          accessibilityRole="button"
+          accessibilityLabel={destructive ? "Delete this alert" : "Hide this conversation"}
+        >
+          <Ionicons
+            name={destructive ? "trash-outline" : "eye-off-outline"}
+            size={19}
+            color={colors.cream50}
+          />
+          <Text style={styles.swipeLabel}>{destructive ? "Delete" : "Hide"}</Text>
+        </Pressable>
+      )}
+    >
+      {children}
+    </ReanimatedSwipeable>
   );
 }
 
@@ -408,6 +492,18 @@ const styles = StyleSheet.create({
     borderRadius: 4.5,
     backgroundColor: colors.green600,
   },
+
+  swipe: {
+    width: 86,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 3,
+    marginLeft: spacing.sm,
+    borderRadius: radii.md,
+    backgroundColor: colors.ink500,
+  },
+  swipeDelete: { backgroundColor: colors.red600 },
+  swipeLabel: { fontFamily: fonts.bodyBold, fontSize: 11.5, color: colors.cream50 },
 
   empty: {
     flex: 1,
