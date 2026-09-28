@@ -283,6 +283,40 @@ export async function markRead(
     .eq("id", conversationId);
 }
 
+/**
+ * Takes a conversation out of MY inbox, and only mine.
+ *
+ * Not a delete, and it must never become one. A conversation is one row with
+ * two members in it: deleting it would erase the other member's copy of a
+ * deal, a dispute or an arrangement they never agreed to lose. `archived_at`
+ * is per-side (0049) and listInbox() already filters on it, so this hides the
+ * thread here and changes nothing they can see.
+ *
+ * If they write again the conversation comes back, which is the behaviour
+ * every messaging app has and the reason this is survivable as a swipe.
+ */
+export async function hideConversation(
+  conversationId: number,
+  userId: string
+): Promise<void> {
+  const { data } = await supabase
+    .from("conversations")
+    .select("id, user_a_id")
+    .eq("id", conversationId)
+    .maybeSingle()
+    .overrideTypes<{ id: number; user_a_id: string }>();
+
+  if (!data) return;
+
+  const column =
+    data.user_a_id === userId ? "user_a_archived_at" : "user_b_archived_at";
+
+  await supabase
+    .from("conversations")
+    .update({ [column]: new Date().toISOString() })
+    .eq("id", conversationId);
+}
+
 // unreadMessageCount() used to live here — it summed
 // conversation_unread_counts() for the envelope on Home while a separate head
 // count of `notifications` fed the Alerts badge, and neither knew about the

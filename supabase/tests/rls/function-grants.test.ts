@@ -115,6 +115,11 @@ const EXPECTED: Record<string, Expectation> = {
   // --- reachable from a browser.
   "admin_distinct_webhook_event_types()": { anon: false, authenticated: false },
   "apply_new_bid()": { anon: false, authenticated: false },
+  // 0084. The nightly sweep that closes rounds a clear day past their
+  // play_date. SECURITY DEFINER so cron can run it without a session;
+  // unreachable from a browser because a member closing other people's
+  // rounds is not a thing that should be expressible.
+  "complete_past_tee_times()": { anon: false, authenticated: false },
   "create_purchase_order(p_caller_id uuid, p_listing_id bigint, p_delivery_method text, p_address_id bigint, p_reservation_minutes integer)":
     { anon: false, authenticated: false },
   "enforce_listing_image_limit()": { anon: false, authenticated: false },
