@@ -14,10 +14,10 @@ import { useInboxUnread } from "@/lib/unread";
  * signing up, this one answers "what have I got on, and who is waiting on
  * me", which is the only question a signed-in member opens an app to ask.
  *
- * Tee Times, Inbox and Profile are native screens reading Supabase
- * directly. Marketplace is a web view (see §4 of the build spec): it is the
- * largest surface, it changes most often, and keeping it as web means shipping
- * changes to it through Vercel without an App Store review.
+ * Every tab is native now. Marketplace was the last web view: browsing and
+ * the listing page are native, and buying, offers and bids open the site
+ * inside the app because Stripe Checkout needs a real browser and the offer
+ * and auction state machines have no business being implemented twice.
  */
 /** A number, not a dot.
  *
@@ -137,9 +137,10 @@ export default function TabsLayout() {
         name="marketplace"
         options={{
           title: "Marketplace",
-          // Was headerShown: false — the web view brought its own top edge and
-          // nothing native needed to sit above it. The menu does, and one tab
-          // without the three bars is the tab where somebody gets stuck.
+          // Native since the marketplace stopped being a web view. The
+          // header carries the menu button; browsing, filtering and the
+          // listing page are all native, and only the money actions open the
+          // site.
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="pricetags-outline" size={size} color={color} />
           ),

@@ -140,12 +140,10 @@ export default function MyListingsScreen() {
               <Pressable
                 style={styles.card}
                 accessibilityRole="button"
-                onPress={() =>
-                  router.push({
-                    pathname: "/web",
-                    params: { path: `/marketplace/${item.id}`, title: item.title },
-                  })
-                }
+                // The native listing screen, which carries a "Manage this
+                // listing" button through to the website for the seller —
+                // publishing and editing still live there.
+                onPress={() => router.push(`/listing/${item.id}`)}
               >
                 {item.imageUrl ? (
                   <Image source={{ uri: item.imageUrl }} style={styles.thumb} />
