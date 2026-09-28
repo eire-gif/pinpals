@@ -268,3 +268,104 @@ export function parsePrice(input: string): number | null {
   if (!Number.isFinite(value) || value <= 0) return null;
   return Math.round(value * 100) / 100;
 }
+
+// ---------------------------------------------------------------------------
+// The seller's own listings
+// ---------------------------------------------------------------------------
+
+/**
+ * A read, straight from Supabase. `listing_is_visible()` (0045) lets a seller
+ * read their own rows at any status, which is what makes one unfiltered query
+ * enough for every tab below.
+ *
+ * Nothing here writes. Publishing needs the service-role client and a Stripe
+ * readiness check (RLS forbids a seller moving draft → active themselves), and
+ * editing touches auctions and Storage — both stay on the website, and a row
+ * opens there. The app's job on this screen is to answer "where are my
+ * listings up to", which is the question that had no answer at all before.
+ */
+
+export type ListingStatus =
+  | "draft"
+  | "pending_review"
+  | "active"
+  | "reserved"
+  | "sold"
+  | "removed"
+  | "expired";
+
+export type MyListing = {
+  id: number;
+  title: string;
+  status: ListingStatus;
+  priceEur: number | null;
+  imageUrl: string | null;
+  category: string;
+  createdAt: string;
+};
+
+/** The same five groups the website's tabs use, in the same order. Draft is
+ *  first because a draft is the only one of them waiting on the seller. */
+export const LISTING_TABS = [
+  { key: "draft", label: "Draft", statuses: ["draft", "pending_review"] },
+  { key: "active", label: "Active", statuses: ["active"] },
+  { key: "reserved", label: "Reserved", statuses: ["reserved"] },
+  { key: "sold", label: "Sold", statuses: ["sold"] },
+  { key: "removed", label: "Removed", statuses: ["removed", "expired"] },
+] as const;
+
+export type ListingTab = (typeof LISTING_TABS)[number]["key"];
+
+export const LISTING_STATUS_LABELS: Record<ListingStatus, string> = {
+  draft: "Draft",
+  pending_review: "In review",
+  active: "Active",
+  reserved: "Reserved",
+  sold: "Sold",
+  removed: "Removed",
+  expired: "Expired",
+};
+
+export function listingsInTab(listings: MyListing[], tab: ListingTab): MyListing[] {
+  const group = LISTING_TABS.find((entry) => entry.key === tab);
+  if (!group) return listings;
+  return listings.filter((listing) =>
+    (group.statuses as readonly string[]).includes(listing.status)
+  );
+}
+
+export async function listMyListings(userId: string): Promise<MyListing[]> {
+  const { data } = await supabase
+    .from("listings")
+    .select("id, title, status, price_eur, image_url, category, created_at")
+    .eq("seller_id", userId)
+    .order("created_at", { ascending: false })
+    .overrideTypes<
+      {
+        id: number;
+        title: string;
+        status: ListingStatus;
+        price_eur: number | null;
+        image_url: string | null;
+        category: string;
+        created_at: string;
+      }[]
+    >();
+
+  return (data ?? []).map((row) => ({
+    id: row.id,
+    title: row.title,
+    status: row.status,
+    priceEur: row.price_eur,
+    imageUrl: row.image_url,
+    category: row.category,
+    createdAt: row.created_at,
+  }));
+}
+
+/** "€1,250" — or nothing at all for an auction, whose price lives on its
+ *  own row and is a current bid rather than a price (0046). */
+export function priceLabel(priceEur: number | null): string {
+  if (priceEur === null) return "";
+  return `€${priceEur.toLocaleString("en-IE", { maximumFractionDigits: 0 })}`;
+}
