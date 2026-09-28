@@ -338,7 +338,21 @@ export async function fetchMarketplaceListings(
     p_cursor_created_at: cursor?.createdAt ?? null,
     p_cursor_price_cents: cursor?.priceCents ?? null,
     p_cursor_id: cursor?.id ?? null,
-    p_limit: limit,
+    // One more than we intend to show. `hasMore` below is "did a row exist
+    // beyond this page", and the only way to know is to ask for it — the SQL
+    // applies `limit v_limit` exactly, so asking for `limit` can never return
+    // `limit + 1`.
+    //
+    // This was `limit`, which made `rows.length > limit` unsatisfiable:
+    // hasMore was always false, nextCursor always null, the Load more button
+    // never rendered, and the marketplace ended at the first 24 listings
+    // however many were for sale. Found while building the app's native
+    // browse, which needs the same cursor for infinite scroll.
+    //
+    // v_limit is capped at 60 server-side, so a caller asking for the cap
+    // gets 60 and no more — hasMore is then false and the last page ends
+    // cleanly rather than looping.
+    p_limit: limit + 1,
   });
 
   if (error) {

@@ -1,11 +1,15 @@
 import { describe, expect, it } from "vitest";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   parseMarketplaceFilters,
   marketplaceFiltersToSearchParams,
   sanitizeSearchTerm,
   encodeMarketplaceCursor,
   decodeMarketplaceCursor,
+  fetchMarketplaceListings,
+  decodeMarketplaceCursor as decodeCursor,
   EMPTY_MARKETPLACE_FILTERS,
+  RESULTS_PAGE_SIZE,
 } from "./marketplace-discovery";
 
 describe("parseMarketplaceFilters", () => {
@@ -193,5 +197,84 @@ describe("brand filters", () => {
   it("leaves no brand key in the URL when nothing is selected", () => {
     const params = marketplaceFiltersToSearchParams(EMPTY_MARKETPLACE_FILTERS);
     expect(params.has("brand")).toBe(false);
+  });
+});
+
+
+/**
+ * Paging.
+ *
+ * These exist because it was broken and nothing noticed. `p_limit` was passed
+ * unincremented while `hasMore` tested `rows.length > limit` — which the SQL's
+ * own `limit v_limit` makes unsatisfiable. nextCursor was always null, the
+ * Load more button never rendered, and the marketplace stopped at the first
+ * 24 listings however many were for sale.
+ *
+ * The stub is the thinnest thing that can answer the question: how many rows
+ * did we ask for, and what did we do with what came back.
+ */
+describe("fetchMarketplaceListings paging", () => {
+  function stub(rowCount: number) {
+    const calls: Record<string, unknown>[] = [];
+    const rows = Array.from({ length: rowCount }, (_, i) => ({
+      id: 1000 - i,
+      sale_type: "fixed_price",
+      created_at: `2026-09-${String(28 - i).padStart(2, "0")}T10:00:00Z`,
+      price_cents: 10_000 + i,
+    }));
+
+    const client = {
+      rpc: (_name: string, args: Record<string, unknown>) => {
+        calls.push(args);
+        return Promise.resolve({ data: rows, error: null });
+      },
+      from: () => ({
+        select: () => ({
+          in: () => Promise.resolve({ data: [] }),
+          eq: () => ({ in: () => Promise.resolve({ data: [] }) }),
+        }),
+      }),
+    } as unknown as SupabaseClient;
+
+    return { client, calls };
+  }
+
+  it("asks the database for one row more than it intends to show", async () => {
+    const { client, calls } = stub(3);
+    await fetchMarketplaceListings(client, EMPTY_MARKETPLACE_FILTERS, null, null, 10);
+    expect(calls[0].p_limit).toBe(11);
+  });
+
+  it("returns a cursor when there is another page, and trims the extra row", async () => {
+    // 11 rows back for a page of 10: one page plus the probe.
+    const { client } = stub(11);
+    const result = await fetchMarketplaceListings(client, EMPTY_MARKETPLACE_FILTERS, null, null, 10);
+
+    expect(result.listings).toHaveLength(10);
+    expect(result.nextCursor).not.toBeNull();
+
+    // The cursor points at the last row SHOWN, not the probe row.
+    const cursor = decodeCursor(result.nextCursor!, "newest");
+    expect(cursor?.id).toBe(result.listings[9].id);
+  });
+
+  it("returns no cursor on the last page", async () => {
+    const { client } = stub(4);
+    const result = await fetchMarketplaceListings(client, EMPTY_MARKETPLACE_FILTERS, null, null, 10);
+    expect(result.listings).toHaveLength(4);
+    expect(result.nextCursor).toBeNull();
+  });
+
+  it("returns no cursor when the page is exactly full and nothing follows", async () => {
+    const { client } = stub(10);
+    const result = await fetchMarketplaceListings(client, EMPTY_MARKETPLACE_FILTERS, null, null, 10);
+    expect(result.listings).toHaveLength(10);
+    expect(result.nextCursor).toBeNull();
+  });
+
+  it("defaults to the page size the marketplace actually uses", async () => {
+    const { client, calls } = stub(1);
+    await fetchMarketplaceListings(client, EMPTY_MARKETPLACE_FILTERS, null, null);
+    expect(calls[0].p_limit).toBe(RESULTS_PAGE_SIZE + 1);
   });
 });
