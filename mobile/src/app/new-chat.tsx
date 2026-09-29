@@ -138,6 +138,22 @@ export default function NewChatScreen() {
         />
       </View>
 
+      {/* Above the list, not behind a second button in the navigation bar: a
+          group is a different kind of thing from a conversation with one
+          person, and this is the screen where somebody has already decided
+          they want to talk to someone. */}
+      <Pressable
+        style={styles.groupCta}
+        onPress={() => router.push("/new-group")}
+        accessibilityRole="button"
+      >
+        <View style={styles.groupGlyph}>
+          <Ionicons name="people" size={20} color={colors.green700} />
+        </View>
+        <Text style={styles.groupLabel}>New group</Text>
+        <Ionicons name="chevron-forward" size={18} color={colors.ink500} />
+      </Pressable>
+
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
       {loading ? (
@@ -247,6 +263,33 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 44,
     fontFamily: fonts.body,
+    fontSize: type.body,
+    color: colors.ink900,
+  },
+
+  groupCta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    marginHorizontal: spacing.md,
+    marginTop: spacing.sm,
+    padding: 12,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.green600,
+    backgroundColor: colors.green100,
+  },
+  groupGlyph: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.surface,
+  },
+  groupLabel: {
+    flex: 1,
+    fontFamily: fonts.bodyBold,
     fontSize: type.body,
     color: colors.ink900,
   },

@@ -6,16 +6,22 @@
 // 0049_marketplace_messaging.sql for the marketplace-context additions
 // (listing/order link, read receipts, archiving, blocking) this file's own
 // helpers below are for.
-import type { Conversation } from "./types";
+import type { Conversation, ConversationParticipant } from "./types";
 
 export const MESSAGE_MAX_LENGTH = 4000; // matches messages.body's own check constraint
 export const MESSAGES_PAGE_SIZE = 30;
 
-/** The other person in a two-party conversation, from the current user's
- * point of view. Returns null if `userId` isn't actually a participant
- * (shouldn't happen given RLS already scoped the row to them, but this is
- * cheap to check rather than assume). */
-export function otherParticipantId(conversation: Pick<Conversation, "user_a_id" | "user_b_id">, userId: string): string | null {
+/** The other person in a DIRECT conversation, from the current user's point
+ * of view. Null if `userId` isn't a participant, and null for a group, which
+ * has no "the other person" — use otherMemberIds() below for that.
+ *
+ * Reads the pair columns rather than the members list because every caller
+ * that still wants a single other person already has the conversation row and
+ * is, by definition, looking at a two-party thread. */
+export function otherParticipantId(
+  conversation: Pick<Conversation, "user_a_id" | "user_b_id">,
+  userId: string
+): string | null {
   if (conversation.user_a_id === userId) return conversation.user_b_id;
   if (conversation.user_b_id === userId) return conversation.user_a_id;
   return null;
@@ -46,21 +52,66 @@ export function nextMessagesCursor(pageMessages: { created_at: string; id: numbe
   return { createdAt: last.created_at, id: last.id };
 }
 
-// ============ Read state / archiving (0049) ============
-// Same "which side is the caller on" shape as otherParticipantId() above —
-// these are the read cursor/archive-state equivalents.
+// ============ Read state / archiving (0049, moved by 0087) ============
+//
+// These used to pick between four columns on the conversation depending on
+// which side the caller was. Read state now lives on `conversation_members`,
+// one row per member carrying their own cursor, so the question changed from
+// "which of two columns is mine" to "which of these rows is mine" — and that
+// one generalises to a group of nine without changing shape.
 
-type ReadableConversation = Pick<
-  Conversation,
-  "user_a_id" | "user_b_id" | "user_a_last_read_at" | "user_b_last_read_at"
->;
+/** The subset of a member row these need. Written structurally rather than as
+ *  Pick<ConversationMember> so a query that selected only these two columns
+ *  still satisfies it. */
+export type MemberState = {
+  member_id: string;
+  last_read_at?: string | null;
+  archived_at?: string | null;
+};
+
+/**
+ * The PostgREST embed for a conversation's members, written once.
+ *
+ * Three pages and the inbox loader all want the same thing — who is in this
+ * conversation, their own read/archive state, and enough of their profile to
+ * put a name and a colour on a row — and three copies of an embed string is
+ * three places for one of them to quietly select a column the others don't.
+ */
+export const CONVERSATION_MEMBERS_EMBED =
+  "members:conversation_members(member_id, role, last_read_at, archived_at, profile:profiles(id, first_name, last_name, avatar_color))";
+
+export type ConversationMemberRow = {
+  member_id: string;
+  role: "owner" | "member";
+  last_read_at: string | null;
+  archived_at: string | null;
+  profile: ConversationParticipant | null;
+};
+
+/** What a conversation is called, from one member's point of view: a group by
+ *  the name its owner gave it, a direct thread by whoever is on the other
+ *  end. One function so an inbox row, a thread header and a notification
+ *  cannot disagree about it. */
+export function conversationName(
+  conversation: Pick<Conversation, "kind" | "title">,
+  members: ConversationMemberRow[],
+  userId: string
+): string {
+  if (conversation.kind === "group") return conversation.title ?? "Group";
+  const other = members.find((m) => m.member_id !== userId);
+  if (!other?.profile) return "Unknown member";
+  return `${other.profile.first_name} ${other.profile.last_name}`.trim() || "Unknown member";
+}
+
+/** The caller's own membership row, out of a conversation's members. */
+export function myMembership<T extends MemberState>(members: T[], userId: string): T | null {
+  return members.find((m) => m.member_id === userId) ?? null;
+}
 
 /** The current user's own read cursor for this conversation — null if
  * they've never read it (or aren't actually a participant). */
-export function myLastReadAt(conversation: ReadableConversation, userId: string): string | null {
-  if (conversation.user_a_id === userId) return conversation.user_a_last_read_at;
-  if (conversation.user_b_id === userId) return conversation.user_b_last_read_at;
-  return null;
+export function myLastReadAt(members: MemberState[], userId: string): string | null {
+  return myMembership(members, userId)?.last_read_at ?? null;
 }
 
 /** A conversation is unread for `userId` when it has ever had a message and
@@ -68,26 +119,29 @@ export function myLastReadAt(conversation: ReadableConversation, userId: string)
  * read it at all). Used for the inbox's unread badge/sort — the actual
  * per-message unread COUNT (for a "3 new" style badge) is computed in one
  * aggregated query server-side, not by iterating messages in JS; see
- * listConversationsForInbox() in src/lib/conversations-server.ts. */
+ * conversation_unread_counts(). */
 export function isConversationUnread(
   conversation: Pick<Conversation, "last_message_at">,
-  readable: ReadableConversation,
+  members: MemberState[],
   userId: string
 ): boolean {
   if (!conversation.last_message_at) return false;
-  const lastRead = myLastReadAt(readable, userId);
+  const lastRead = myLastReadAt(members, userId);
   if (!lastRead) return true;
   return new Date(conversation.last_message_at).getTime() > new Date(lastRead).getTime();
 }
 
-type ArchivableConversation = Pick<Conversation, "user_a_id" | "user_b_id" | "user_a_archived_at" | "user_b_archived_at">;
+/** Whether `userId`'s own copy of this conversation is archived — every other
+ * member's view is entirely unaffected. */
+export function isConversationArchived(members: MemberState[], userId: string): boolean {
+  return myMembership(members, userId)?.archived_at != null;
+}
 
-/** Whether `userId`'s own side of this conversation is archived — the other
- * participant's view is entirely unaffected (0049's per-side columns). */
-export function isConversationArchived(conversation: ArchivableConversation, userId: string): boolean {
-  if (conversation.user_a_id === userId) return conversation.user_a_archived_at !== null;
-  if (conversation.user_b_id === userId) return conversation.user_b_archived_at !== null;
-  return false;
+/** Everyone in the conversation except the caller. The recipients of a
+ *  notification, the faces on an inbox row, and — when there is exactly one —
+ *  the person a direct thread is named after. */
+export function otherMemberIds(members: MemberState[], userId: string): string[] {
+  return members.filter((m) => m.member_id !== userId).map((m) => m.member_id);
 }
 
 // ============ Inbox filters: Buying / Selling / Archived ============

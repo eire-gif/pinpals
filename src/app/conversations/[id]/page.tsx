@@ -2,8 +2,13 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { initials } from "@/lib/format";
-import { otherParticipantId } from "@/lib/messaging";
-import type { Conversation, ConversationParticipant } from "@/lib/types";
+import {
+  CONVERSATION_MEMBERS_EMBED,
+  conversationName,
+  otherParticipantId,
+  type ConversationMemberRow,
+} from "@/lib/messaging";
+import type { Conversation } from "@/lib/types";
 import { listLatestMessages, markConversationRead } from "../actions";
 import ThreadView from "./thread-view";
 import ReportForm from "./report-form";
@@ -12,8 +17,7 @@ import MuteControl from "./mute-control";
 import ListingContextCard from "./listing-context-card";
 
 type ConversationRow = Conversation & {
-  user_a: ConversationParticipant | null;
-  user_b: ConversationParticipant | null;
+  members: ConversationMemberRow[];
   listing: { id: number; title: string; status: string; price_eur: number | null; image_url: string | null } | null;
   order: { id: number; status: string } | null;
 };
@@ -36,20 +40,30 @@ export default async function ConversationThreadPage({ params }: { params: Promi
   const { data: conversation } = await supabase
     .from("conversations")
     .select(
-      "*, user_a:profiles!conversations_user_a_id_fkey(id, first_name, last_name, avatar_color), user_b:profiles!conversations_user_b_id_fkey(id, first_name, last_name, avatar_color), listing:listings(id, title, status, price_eur, image_url), order:orders(id, status)"
+      `*, ${CONVERSATION_MEMBERS_EMBED}, listing:listings(id, title, status, price_eur, image_url), order:orders(id, status)`
     )
     .eq("id", conversationId)
     .maybeSingle<ConversationRow>();
   if (!conversation) notFound();
 
+  const members = conversation.members ?? [];
+  // Null for a group: block/mute/report are all about one other person, and a
+  // group has no such person. The controls below are hidden for one.
   const otherId = otherParticipantId(conversation, user.id);
-  const other = conversation.user_a_id === otherId ? conversation.user_a : conversation.user_b;
-  const me = conversation.user_a_id === user.id ? conversation.user_a : conversation.user_b;
-  const otherName = other ? `${other.first_name} ${other.last_name}`.trim() : "Unknown member";
+  const otherName = conversationName(conversation, members, user.id);
 
+  // Every member, so a group's bubbles carry the right name and colour rather
+  // than falling back to "Unknown member" for everyone but the two the old
+  // query happened to join.
   const participants: Record<string, { id: string; name: string; avatar_color: string | null }> = {};
-  if (other) participants[other.id] = { id: other.id, name: otherName, avatar_color: other.avatar_color };
-  if (me) participants[me.id] = { id: me.id, name: `${me.first_name} ${me.last_name}`.trim(), avatar_color: me.avatar_color };
+  for (const member of members) {
+    if (!member.profile) continue;
+    participants[member.profile.id] = {
+      id: member.profile.id,
+      name: `${member.profile.first_name} ${member.profile.last_name}`.trim() || "Unknown member",
+      avatar_color: member.profile.avatar_color,
+    };
+  }
 
   const [messagesResult, blockedResult, myBlockResult, myMuteResult] = await Promise.all([
     listLatestMessages(conversationId),
@@ -87,11 +101,27 @@ export default async function ConversationThreadPage({ params }: { params: Promi
         <div className="flex items-center gap-3">
           <div
             className="w-11 h-11 rounded-full flex items-center justify-center text-white font-display font-bold text-sm shrink-0"
-            style={{ background: other?.avatar_color ?? "#1f5c2e" }}
+            style={{
+              background:
+                conversation.kind === "group"
+                  ? "#0c2038"
+                  : (participants[otherId ?? ""]?.avatar_color ?? "#1f5c2e"),
+            }}
           >
             {initials(otherName)}
           </div>
-          <h1 className="font-display font-bold text-2xl">{otherName}</h1>
+          <div>
+            <h1 className="font-display font-bold text-2xl">{otherName}</h1>
+            {conversation.kind === "group" && (
+              // Who is actually in here. A group with no member list is a
+              // thread you are talking into without knowing who is listening.
+              <p className="text-sm text-ink-500">
+                {members
+                  .map((m) => participants[m.member_id]?.name ?? "Unknown member")
+                  .join(", ")}
+              </p>
+            )}
+          </div>
         </div>
         {otherId && (
           <div className="flex items-center gap-3">

@@ -100,6 +100,34 @@ const EXPECTED: Record<string, Expectation> = {
   "can_message(a uuid, b uuid)": { anon: false, authenticated: true },
   "get_order_dispute_status(p_order_id bigint)": { anon: false, authenticated: true },
   "is_blocked(a uuid, b uuid)": { anon: false, authenticated: true },
+
+  // ---- Group conversations (0087) ----
+  // is_conversation_member() and conversation_has_block() are the two
+  // functions every messaging policy now calls, so a signed-in member must be
+  // able to execute them. Both take ids as parameters and both return a bare
+  // boolean, never row data — the same reasoning as can_message()/is_blocked()
+  // directly above, and the reason "authenticated can call this about any
+  // conversation id" is not a leak: the answer is one bit that tells them
+  // nothing they could not learn by trying to open the thread.
+  "is_conversation_member(p_conversation_id bigint, p_user_id uuid)": {
+    anon: false,
+    authenticated: true,
+  },
+  "conversation_has_block(p_conversation_id bigint, p_user_id uuid)": {
+    anon: false,
+    authenticated: true,
+  },
+  // These two DO act on the caller's behalf, and each one checks eligibility
+  // itself before writing (can_message for every person added, is_blocked
+  // across every pair). anon must never reach them: they create rows.
+  "create_group_conversation(p_title text, p_member_ids uuid[])": {
+    anon: false,
+    authenticated: true,
+  },
+  "add_conversation_member(p_conversation_id bigint, p_member_id uuid)": {
+    anon: false,
+    authenticated: true,
+  },
   "is_staff(required_roles text[])": { anon: false, authenticated: true },
   "register_push_subscription(p_endpoint text, p_p256dh text, p_auth text, p_user_agent text, p_platform text)": {
     anon: false,
@@ -149,6 +177,8 @@ const EXPECTED: Record<string, Expectation> = {
     { anon: false, authenticated: false },
   "prepare_and_validate_offer()": { anon: false, authenticated: false },
   "prevent_auction_edit_after_first_bid()": { anon: false, authenticated: false },
+  "add_direct_conversation_members()": { anon: false, authenticated: false },
+  "prevent_conversation_member_tampering()": { anon: false, authenticated: false },
   "prevent_conversation_tampering()": { anon: false, authenticated: false },
   "prevent_listing_edit_during_live_auction()": { anon: false, authenticated: false },
   "prevent_notification_tampering()": { anon: false, authenticated: false },

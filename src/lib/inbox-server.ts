@@ -9,7 +9,7 @@ import {
   type InboxCounts,
   type InboxItem,
 } from "@/lib/inbox";
-import { isConversationArchived, otherParticipantId } from "@/lib/messaging";
+import { isConversationArchived, otherMemberIds } from "@/lib/messaging";
 import { notificationHref } from "@/lib/notifications";
 import type { Conversation, ConversationParticipant, Notification } from "@/lib/types";
 
@@ -36,11 +36,47 @@ import type { Conversation, ConversationParticipant, Notification } from "@/lib/
 export const INBOX_CONVERSATIONS_LIMIT = 50;
 export const INBOX_ALERTS_LIMIT = 50;
 
+/**
+ * A conversation's members, embedded.
+ *
+ * `conversation_members` is the participant list now (0087), so an inbox row's
+ * name — "Brian Kelly", or a group's title and how many are in it — comes from
+ * here rather than from two columns. The caller's own archive state is on
+ * their row in the same embed, which is why one query still answers the whole
+ * list.
+ */
+const MEMBER_EMBED =
+  "members:conversation_members(member_id, role, last_read_at, archived_at, profile:profiles(id, first_name, last_name, avatar_color))";
+
+type MemberRow = {
+  member_id: string;
+  role: "owner" | "member";
+  last_read_at: string | null;
+  archived_at: string | null;
+  profile: ConversationParticipant | null;
+};
+
 type ConversationRow = Conversation & {
-  user_a: ConversationParticipant | null;
-  user_b: ConversationParticipant | null;
+  members: MemberRow[];
   listing: { id: number; title: string; image_url: string | null } | null;
 };
+
+const nameOf = (p: ConversationParticipant | null): string =>
+  p ? `${p.first_name} ${p.last_name}`.trim() || "Unknown member" : "Unknown member";
+
+/**
+ * What an inbox row is called.
+ *
+ * A group is called what its owner named it. A direct thread is called after
+ * whoever you are talking to — and if that member row is somehow missing, it
+ * says so rather than silently naming the thread after yourself.
+ */
+function conversationName(row: ConversationRow, userId: string): string {
+  if (row.kind === "group") return row.title ?? "Group";
+  const others = otherMemberIds(row.members, userId);
+  const other = row.members.find((m) => m.member_id === others[0]);
+  return nameOf(other?.profile ?? null);
+}
 
 export type LoadedInbox = {
   items: InboxItem[];
@@ -58,10 +94,11 @@ export async function loadInbox(
     await Promise.all([
       supabase
         .from("conversations")
-        .select(
-          "*, user_a:profiles!conversations_user_a_id_fkey(id, first_name, last_name, avatar_color), user_b:profiles!conversations_user_b_id_fkey(id, first_name, last_name, avatar_color), listing:listings(id, title, image_url)"
-        )
-        .or(`user_a_id.eq.${userId},user_b_id.eq.${userId}`)
+        .select(`*, ${MEMBER_EMBED}, listing:listings(id, title, image_url)`)
+        // No user filter: `conversations` carries an own-rows-only SELECT
+        // policy keyed on membership, so RLS already decides what comes back.
+        // The `.or()` on the pair columns that used to be here would now miss
+        // every group, whose pair columns are null.
         .order("last_message_at", { ascending: false, nullsFirst: false })
         .order("created_at", { ascending: false })
         .limit(INBOX_CONVERSATIONS_LIMIT)
@@ -88,18 +125,20 @@ export async function loadInbox(
 
   const conversationRows = conversationsResult.data ?? [];
   const conversations: InboxConversation[] = conversationRows.map((c) => {
-    const otherId = otherParticipantId(c, userId);
-    const other = c.user_a_id === otherId ? c.user_a : c.user_b;
+    const others = otherMemberIds(c.members ?? [], userId);
+    const other = (c.members ?? []).find((m) => m.member_id === others[0]);
     return {
       kind: "conversation",
       id: c.id,
       at: c.last_message_at ?? c.created_at,
-      otherName: other ? `${other.first_name} ${other.last_name}`.trim() : "Unknown member",
-      otherAvatarColor: other?.avatar_color ?? null,
+      otherName: conversationName(c, userId),
+      // A group has no single face. The row shows its glyph instead, which is
+      // why this is null rather than an arbitrary member's colour.
+      otherAvatarColor: c.kind === "group" ? null : (other?.profile?.avatar_color ?? null),
       listingTitle: c.listing?.title ?? null,
       listingImageUrl: c.listing?.image_url ?? null,
       unreadCount: unreadByConversation.get(c.id) ?? 0,
-      archived: isConversationArchived(c, userId),
+      archived: isConversationArchived(c.members ?? [], userId),
       href: `/conversations/${c.id}`,
     };
   });

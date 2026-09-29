@@ -5,7 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import {
   MESSAGE_MAX_LENGTH,
   containsSensitiveData,
-  otherParticipantId,
+  otherMemberIds,
 } from "@/lib/messaging";
 import {
   broadcast,
@@ -98,9 +98,9 @@ export async function sendMessageTo(params: {
 
   const { data: conversation } = await supabase
     .from("conversations")
-    .select("id, user_a_id, user_b_id")
+    .select("id, kind, title")
     .eq("id", conversationId)
-    .maybeSingle<Pick<Conversation, "id" | "user_a_id" | "user_b_id">>();
+    .maybeSingle<Pick<Conversation, "id" | "kind" | "title">>();
 
   if (!conversation) {
     return {
@@ -110,21 +110,36 @@ export async function sendMessageTo(params: {
     };
   }
 
-  const otherId = otherParticipantId(conversation, userId);
-  if (otherId) {
-    // is_blocked() returns a plain scalar boolean (not a row/table), so this
-    // is a direct RPC call with no .single()/.returns() postprocessing.
-    const { data: blocked } = await supabase.rpc("is_blocked", {
-      a: userId,
-      b: otherId,
-    });
-    if (blocked) {
-      return {
-        ok: false,
-        reason: "forbidden",
-        message: "You can't send messages in this conversation.",
-      };
-    }
+  // Everyone else in it. One query instead of reading two columns, because a
+  // group has as many recipients as it has members and the broadcast and the
+  // notification both need all of them. RLS scopes this to conversations the
+  // sender is in, so an empty list means they are not a participant.
+  const { data: memberRows } = await supabase
+    .from("conversation_members")
+    .select("member_id")
+    .eq("conversation_id", conversationId)
+    .returns<{ member_id: string }[]>();
+
+  const members = memberRows ?? [];
+  if (!members.some((m) => m.member_id === userId)) {
+    return { ok: false, reason: "not_found", message: "Conversation not found." };
+  }
+  const recipientIds = otherMemberIds(members, userId);
+
+  // conversation_has_block() answers "is anybody in here blocked with me", in
+  // either direction, in one call rather than one per member. The insert
+  // policy enforces the same rule — this is here so the refusal arrives as a
+  // sentence rather than as a raw RLS violation.
+  const { data: blocked } = await supabase.rpc("conversation_has_block", {
+    p_conversation_id: conversationId,
+    p_user_id: userId,
+  });
+  if (blocked) {
+    return {
+      ok: false,
+      reason: "forbidden",
+      message: "You can't send messages in this conversation.",
+    };
   }
 
   const { data: message, error } = await supabase
@@ -159,7 +174,7 @@ export async function sendMessageTo(params: {
     };
   }
 
-  if (otherId) {
+  if (recipientIds.length > 0) {
     // What the recipient sees before opening the thread. A photo with no
     // caption has no text to preview, and "" would render as a thread that
     // apparently just went quiet.
@@ -168,12 +183,17 @@ export async function sendMessageTo(params: {
     await broadcast(conversationChannelTopic(conversationId), "new_message", {
       message,
     });
-    await broadcast(inboxChannelTopic(otherId), "new_message", {
-      conversationId,
-      senderId: userId,
-      preview,
-      createdAt: message.created_at,
-    });
+    // One per recipient. A group of six is six inbox broadcasts, which is the
+    // honest cost of six people needing to be told — the conversation channel
+    // above is still one broadcast for the thread itself.
+    for (const recipientId of recipientIds) {
+      await broadcast(inboxChannelTopic(recipientId), "new_message", {
+        conversationId,
+        senderId: userId,
+        preview,
+        createdAt: message.created_at,
+      });
+    }
 
     // Best-effort, same as the broadcasts above — a notification failing to
     // write must never fail the send itself. notify_user() is
@@ -188,20 +208,32 @@ export async function sendMessageTo(params: {
       ? `${sender.first_name} ${sender.last_name}`.trim()
       : "A member";
 
-    await notifyUser(createAdminClient(), {
-      userId: otherId,
-      type: "new_message",
-      title: "New message",
-      body: body
-        ? `${senderName} sent you a message: "${body.slice(0, 140)}${body.length > 140 ? "…" : ""}"`
-        : `${senderName} sent you a photo.`,
-      // Never put another member's free-text message content in an email —
-      // see notifyUser()'s own comment on emailBody.
-      emailBody: `${senderName} sent you a new message on Pinpals.`,
-      href: `/conversations/${conversationId}`,
-      data: { conversationId },
-      dedupeKey: `message:${message.id}:notify`,
-    });
+    // A group says where the message landed; a direct thread does not need
+    // to, because the sender's name already says it.
+    const where = conversation.kind === "group" && conversation.title
+      ? ` in ${conversation.title}`
+      : "";
+
+    const admin = createAdminClient();
+    for (const recipientId of recipientIds) {
+      await notifyUser(admin, {
+        userId: recipientId,
+        type: "new_message",
+        title: conversation.kind === "group" ? "New group message" : "New message",
+        body: body
+          ? `${senderName} sent a message${where}: "${body.slice(0, 140)}${body.length > 140 ? "…" : ""}"`
+          : `${senderName} sent a photo${where}.`,
+        // Never put another member's free-text message content in an email —
+        // see notifyUser()'s own comment on emailBody.
+        emailBody: `${senderName} sent a new message on Pinpals.`,
+        href: `/conversations/${conversationId}`,
+        data: { conversationId },
+        // Per recipient, not per message: a group's six notifications are six
+        // different rows for six different people, and one shared key would
+        // let notify_user()'s own dedupe drop five of them.
+        dedupeKey: `message:${message.id}:notify:${recipientId}`,
+      });
+    }
   }
 
   return { ok: true, value: message };

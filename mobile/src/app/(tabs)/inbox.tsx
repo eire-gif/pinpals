@@ -473,14 +473,25 @@ function ConversationRow({
 }) {
   const unread = row.unreadCount > 0;
 
+  const group = row.conversationKind === "group";
+
   return (
     <Pressable style={styles.row} onPress={onPress} accessibilityRole="button">
-      <Avatar
-        url={row.otherAvatarUrl}
-        color={row.otherAvatarColor}
-        name={row.otherName}
-        size={44}
-      />
+      {/* A group has no single face, so it gets a glyph rather than one
+          member's avatar picked arbitrarily — which would look like a
+          conversation with that person. */}
+      {group ? (
+        <View style={styles.glyph}>
+          <Ionicons name="people" size={21} color={colors.green700} />
+        </View>
+      ) : (
+        <Avatar
+          url={row.otherAvatarUrl}
+          color={row.otherAvatarColor}
+          name={row.otherName}
+          size={44}
+        />
+      )}
 
       <View style={styles.rowBody}>
         <View style={styles.rowTop}>
@@ -491,9 +502,12 @@ function ConversationRow({
         </View>
 
         {/* The listing, not the last message — it says which of two threads
-            with the same person this is, and costs no extra query. */}
+            with the same person this is, and costs no extra query. A group
+            says how many are in it instead, which is the equivalent fact. */}
         <Text style={styles.context} numberOfLines={1}>
-          {row.listingTitle ?? "Direct message"}
+          {group
+            ? `${row.memberCount ?? 0} people`
+            : (row.listingTitle ?? "Direct message")}
         </Text>
       </View>
 

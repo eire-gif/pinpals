@@ -1,7 +1,14 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { otherParticipantId, isConversationArchived, conversationRole } from "@/lib/messaging";
-import type { Conversation, ConversationParticipant } from "@/lib/types";
+import {
+  CONVERSATION_MEMBERS_EMBED,
+  conversationName,
+  conversationRole,
+  isConversationArchived,
+  otherMemberIds,
+  type ConversationMemberRow,
+} from "@/lib/messaging";
+import type { Conversation } from "@/lib/types";
 import InboxClient, { type InboxRow } from "./inbox-client";
 
 // Bounded — a member could in principle have started a conversation with
@@ -15,8 +22,7 @@ import InboxClient, { type InboxRow } from "./inbox-client";
 const CONVERSATIONS_LIST_LIMIT = 50;
 
 type ConversationRow = Conversation & {
-  user_a: ConversationParticipant | null;
-  user_b: ConversationParticipant | null;
+  members: ConversationMemberRow[];
   listing: { id: number; title: string; status: string; seller_id: string; image_url: string | null } | null;
   order: { id: number; status: string; payment_status: string } | null;
 };
@@ -37,9 +43,14 @@ export default async function ConversationsPage() {
     supabase
       .from("conversations")
       .select(
-        "*, user_a:profiles!conversations_user_a_id_fkey(id, first_name, last_name, avatar_color), user_b:profiles!conversations_user_b_id_fkey(id, first_name, last_name, avatar_color), listing:listings(id, title, status, seller_id, image_url), order:orders(id, status, payment_status)"
+        // Membership is the participant list now (0087) — a group has no
+        // user_a/user_b to join to, and a direct thread's two member rows say
+        // the same thing its pair columns did.
+        `*, ${CONVERSATION_MEMBERS_EMBED}, listing:listings(id, title, status, seller_id, image_url), order:orders(id, status, payment_status)`
       )
-      .or(`user_a_id.eq.${user.id},user_b_id.eq.${user.id}`)
+      // No user filter: conversations' SELECT policy is keyed on membership,
+      // and the pair-column `.or()` that used to be here would miss every
+      // group (whose pair columns are null).
       .order("last_message_at", { ascending: false, nullsFirst: false })
       .order("created_at", { ascending: false })
       .limit(CONVERSATIONS_LIST_LIMIT)
@@ -55,17 +66,18 @@ export default async function ConversationsPage() {
   );
 
   const inboxRows: InboxRow[] = (rows ?? []).map((c) => {
-    const otherId = otherParticipantId(c, user.id);
-    const other = c.user_a_id === otherId ? c.user_a : c.user_b;
+    const others = otherMemberIds(c.members ?? [], user.id);
+    const other = (c.members ?? []).find((m) => m.member_id === others[0]);
     return {
       id: c.id,
-      otherName: other ? `${other.first_name} ${other.last_name}`.trim() : "Unknown member",
-      otherAvatarColor: other?.avatar_color ?? null,
+      otherName: conversationName(c, c.members ?? [], user.id),
+      // A group has no single face; the row falls back to its glyph.
+      otherAvatarColor: c.kind === "group" ? null : (other?.profile?.avatar_color ?? null),
       lastMessageAt: c.last_message_at,
       listing: c.listing,
       orderStatus: c.order?.status ?? null,
       role: conversationRole({ listingId: c.listing_id, listingSellerId: c.listing?.seller_id ?? null, userId: user.id }),
-      archived: isConversationArchived(c, user.id),
+      archived: isConversationArchived(c.members ?? [], user.id),
       unreadCount: unreadByConversation.get(c.id) ?? 0,
     };
   });

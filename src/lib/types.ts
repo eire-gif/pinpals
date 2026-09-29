@@ -571,16 +571,32 @@ export type Payout = {
 };
 
 // ============ MESSAGING ============
-// See supabase/migrations/0025_messaging.sql for the full privacy model
-// (who may start a conversation, RLS, the admin access model). A
-// conversation always has exactly two participants — user_a_id/user_b_id
-// carry no "who initiated" meaning the way connections.requester_id/
-// recipient_id do, they're just an unordered pair.
+// See supabase/migrations/0025_messaging.sql for the full privacy model (who
+// may start a conversation, RLS, the admin access model) and 0087 for what
+// changed when a conversation stopped being limited to two people.
+//
+// `conversation_members` is now the one authoritative answer to "is this
+// person in this conversation", for groups AND direct threads, and every
+// policy asks it and nothing else. The pair columns below survive on direct
+// threads only, where their one remaining job is the uniqueness rule — "one
+// direct thread per pair, per listing" — which a members table cannot express
+// without a synthesised key.
+
+export type ConversationKind = "direct" | "group";
 
 export type Conversation = {
   id: number;
-  user_a_id: string;
-  user_b_id: string;
+  kind: ConversationKind;
+  /** A group's name. Null on a direct thread, which is named after whoever
+   *  you are talking to. */
+  title: string | null;
+  /** Who started a group. Null on a direct thread — 0025's note still holds
+   *  there: the pair carries no "who initiated" meaning. */
+  created_by: string | null;
+  /** Null on a group, where membership is `conversation_members` and these
+   *  would only be a second, staler copy of it. */
+  user_a_id: string | null;
+  user_b_id: string | null;
   /** Which listing this thread is about — null for a non-marketplace
    * conversation (started via a connection or tee-time interest, 0025/0043).
    * A pair may now have at most one listing-less conversation plus at most
@@ -591,18 +607,35 @@ export type Conversation = {
    * set by a client; `on delete set null` (0049), same drill-through-link
    * convention as orders.listing_id. */
   order_id: number | null;
-  /** Per-participant read cursor — "messages with created_at after this are
-   * unread for that side." Writable only by that side, and only this column
-   * plus its own archived_at (0049's prevent_conversation_tampering()). */
-  user_a_last_read_at: string | null;
-  user_b_last_read_at: string | null;
-  /** Per-participant archive state — hides the conversation from that
-   * side's default inbox view without affecting the other participant at
-   * all. Same column-per-side/self-service-only rule as the read cursors. */
-  user_a_archived_at: string | null;
-  user_b_archived_at: string | null;
+  // The four per-side cursor columns that used to live here —
+  // user_{a,b}_{last_read_at,archived_at} — moved onto conversation_members
+  // in 0087, one row per member carrying that member's own state. Had they
+  // stayed, a direct thread would have kept its read state in two places and
+  // a group in one, and there is no version of that which does not eventually
+  // disagree with itself.
   last_message_at: string | null;
   created_at: string;
+};
+
+/**
+ * One person's membership of one conversation.
+ *
+ * Also where their read cursor and their archive state live: "messages after
+ * last_read_at are unread for me", "archived_at hides this from my inbox and
+ * nobody else's". A member may move those two columns on their own row and
+ * nothing else — prevent_conversation_member_tampering() (0087) is what
+ * enforces that, since RLS cannot express "only these columns".
+ */
+export type ConversationMember = {
+  conversation_id: number;
+  member_id: string;
+  /** Only a group has an owner, and only the owner may add people or rename
+   *  it. Both sides of a direct thread are plain members: there is nothing
+   *  for an owner of a two-person conversation to decide. */
+  role: "owner" | "member";
+  joined_at: string;
+  last_read_at: string | null;
+  archived_at: string | null;
 };
 
 // See supabase/migrations/0049_marketplace_messaging.sql. Directional (a
