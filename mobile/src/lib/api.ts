@@ -75,7 +75,7 @@ function messageFor(status: number, serverMessage: string | null): string {
 
 async function requestSite<T>(
   path: string,
-  method: "GET" | "POST",
+  method: "GET" | "POST" | "PATCH" | "DELETE",
   body?: unknown,
   timeoutMs: number = TIMEOUT_MS
 ): Promise<T> {
@@ -142,6 +142,13 @@ export const postToSite = <T>(path: string, body: unknown): Promise<T> =>
 export const getFromSite = <T>(path: string): Promise<T> =>
   requestSite<T>(path, "GET");
 
+export const patchSite = <T>(path: string, body: unknown): Promise<T> =>
+  requestSite<T>(path, "PATCH", body);
+
+/** No body — the resource named in the path is the whole request. */
+export const deleteFromSite = <T>(path: string): Promise<T> =>
+  requestSite<T>(path, "DELETE");
+
 /** A photo, as multipart. `file` is what React Native's FormData wants for a
  *  local file: the asset's uri, a filename and a mime type. */
 export type UploadFile = { uri: string; name: string; type: string };
@@ -167,16 +174,39 @@ export const postFileToSite = <T>(
   path: string,
   file: UploadFile,
   field = "file"
-): Promise<T> =>
+): Promise<T> => {
+  const form = new FormData();
+  // The cast is unavoidable: React Native accepts this shape for a local
+  // file, and the DOM lib's type for append() does not describe it.
+  form.append(field, file as unknown as Blob);
+  return sendForm<T>(path, form);
+};
+
+/**
+ * A multipart POST of ordinary form fields, with an optional file among
+ * them — the shape the website's own <form action> submits, which is why
+ * /api/app/profile can share its validator with the Server Action rather
+ * than growing a JSON dialect of its own.
+ *
+ * Goes through the same XHR path as postFileToSite for the same reason:
+ * the moment a file is in the form, RN 0.86's spec-compliant fetch refuses
+ * the { uri, name, type } shape.
+ */
+export const postFormToSite = <T>(
+  path: string,
+  fields: Record<string, string>,
+  file?: { field: string; file: UploadFile }
+): Promise<T> => {
+  const form = new FormData();
+  for (const [key, value] of Object.entries(fields)) form.append(key, value);
+  if (file) form.append(file.field, file.file as unknown as Blob);
+  return sendForm<T>(path, form);
+};
+
+const sendForm = <T>(path: string, form: FormData): Promise<T> =>
   accessToken().then(
     (token) =>
       new Promise<T>((resolve, reject) => {
-        const form = new FormData();
-        // The cast is unavoidable: React Native accepts this shape for a
-        // local file, and the DOM lib's type for append() does not describe
-        // it.
-        form.append(field, file as unknown as Blob);
-
         const xhr = new XMLHttpRequest();
         xhr.open("POST", `${SITE_URL}${path}`);
         xhr.timeout = UPLOAD_TIMEOUT_MS;
@@ -214,7 +244,9 @@ export const postFileToSite = <T>(
 
         xhr.ontimeout = () => {
           reject(
-            new ApiError(0, "That photo took too long to send. Try again on a better signal.")
+            // Not "that photo": this path now carries profile saves too, and
+            // a member who uploaded no photo would rightly be baffled.
+            new ApiError(0, "That took too long to send. Try again on a better signal.")
           );
         };
 

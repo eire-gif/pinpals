@@ -2,6 +2,7 @@ import "server-only";
 import sharp from "sharp";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ALLOWED_IMAGE_TYPES, MAX_IMAGE_SIZE_BYTES } from "@/lib/marketplace";
+import { MAX_AVATAR_BYTES } from "@/lib/avatar";
 
 /**
  * Server-only listing-photo pipeline: validate -> re-encode (strip
@@ -175,4 +176,106 @@ export async function deleteListingImage(supabase: SupabaseClient, path: string)
   // something worth failing the caller's own (usually more important)
   // action over.
   await supabase.storage.from("listing-images").remove([path]);
+}
+
+// ---------------------------------------------------------------------------
+// Profile photos
+// ---------------------------------------------------------------------------
+
+/** An avatar renders at 64px in the directory and a few hundred on a profile
+ * page. 512 is generous for both on a 3x screen, and it means a 12MP phone
+ * photo doesn't sit in a PUBLIC bucket at full size. */
+export const AVATAR_MAX_DIMENSION = 512;
+
+/**
+ * The same validate-and-re-encode pass as processListingImage, for a member's
+ * profile photo.
+ *
+ * THIS EXISTS BECAUSE AVATARS WERE NOT GOING THROUGH IT. Until now
+ * updateProfile() uploaded the raw File straight to the `member-avatars`
+ * bucket, which is public and served by URL. A photo taken on a phone
+ * carries EXIF, EXIF carries GPS, and so a member who set a profile picture
+ * taken at home published their home's coordinates to anyone who opened the
+ * image. Listing photos have been routed through sharp for exactly this
+ * reason since the pipeline above was written; avatars simply never were.
+ *
+ * As above, stripping is by construction rather than by a step: sharp emits
+ * no EXIF/IPTC/XMP unless `.withMetadata()` is called, and nothing here
+ * calls it. `.rotate()` bakes the orientation tag into the pixels first, so
+ * dropping the tag doesn't leave the photo on its side.
+ */
+export async function processAvatarImage(file: File): Promise<ProcessedImage> {
+  if (file.size === 0) {
+    throw new ImageProcessingError("That file is empty.");
+  }
+  if (file.size > MAX_AVATAR_BYTES) {
+    throw new ImageProcessingError(
+      `Profile photos must be under ${Math.round(MAX_AVATAR_BYTES / (1024 * 1024))}MB.`
+    );
+  }
+  if (!isAllowedImageType(file.type)) {
+    throw new ImageProcessingError("Profile photos need to be a JPEG, PNG or WebP image.");
+  }
+
+  const input = Buffer.from(await file.arrayBuffer());
+
+  try {
+    // Decode the header inside the try: the declared Content-Type is
+    // client-supplied and is not proof the bytes are really an image.
+    await sharp(input, { failOn: "truncated" }).metadata();
+  } catch {
+    throw new ImageProcessingError("That file doesn't look like a valid image.");
+  }
+
+  let pipeline = sharp(input, { failOn: "truncated" }).rotate().resize({
+    width: AVATAR_MAX_DIMENSION,
+    height: AVATAR_MAX_DIMENSION,
+    fit: "inside",
+    withoutEnlargement: true,
+  });
+
+  const contentType = file.type as (typeof ALLOWED_IMAGE_TYPES)[number];
+  if (contentType === "image/png") {
+    pipeline = pipeline.png({ quality: 85, compressionLevel: 8 });
+  } else if (contentType === "image/webp") {
+    pipeline = pipeline.webp({ quality: 85 });
+  } else {
+    pipeline = pipeline.jpeg({ quality: 85, mozjpeg: true });
+  }
+
+  let buffer: Buffer;
+  try {
+    buffer = await pipeline.toBuffer();
+  } catch {
+    throw new ImageProcessingError("Couldn't process that photo — try a different file.");
+  }
+
+  return { buffer, contentType, extension: EXTENSION_BY_TYPE[contentType] };
+}
+
+/**
+ * Processes and uploads a profile photo, returning its public URL.
+ *
+ * Timestamped rather than a fixed name, for the reason updateProfile()
+ * already documented: a stable path is served stale from the CDN and from
+ * every cached <Image> for as long as they hold it, so a member who changed
+ * their photo would keep seeing the old one.
+ */
+export async function uploadAvatarImage(
+  supabase: SupabaseClient,
+  userId: string,
+  file: File
+): Promise<string> {
+  const { buffer, contentType, extension } = await processAvatarImage(file);
+  const path = `${userId}/avatar-${Date.now()}.${extension}`;
+
+  const { error } = await supabase.storage
+    .from("member-avatars")
+    .upload(path, buffer, { contentType, upsert: false });
+
+  if (error) {
+    throw new ImageProcessingError(`Couldn't upload that photo: ${error.message}`);
+  }
+
+  return supabase.storage.from("member-avatars").getPublicUrl(path).data.publicUrl;
 }

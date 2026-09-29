@@ -66,6 +66,12 @@ export const MENU: MenuSection[] = [
         icon: "hand-right-outline",
         to: "/my-requests",
       },
+      {
+        kind: "native",
+        label: "Rounds I've posted",
+        icon: "megaphone-outline",
+        to: "/my-rounds",
+      },
     ],
   },
   {
@@ -96,10 +102,9 @@ export const MENU: MenuSection[] = [
         icon: "list-outline",
         to: "/my-listings",
       },
-      { kind: "web", label: "Selling", icon: "cash-outline", path: "/dashboard/selling", title: "Selling" },
-      { kind: "web", label: "Buying", icon: "cart-outline", path: "/dashboard/buying", title: "Buying" },
-      { kind: "web", label: "Orders", icon: "receipt-outline", path: "/dashboard/orders", title: "Orders" },
-      { kind: "web", label: "Payouts", icon: "card-outline", path: "/dashboard/payouts", title: "Payouts" },
+      { kind: "native", label: "Selling", icon: "cash-outline", to: "/selling" },
+      { kind: "native", label: "Buying & orders", icon: "cart-outline", to: "/buying" },
+      { kind: "native", label: "Payouts", icon: "card-outline", to: "/payouts" },
     ],
   },
   {
@@ -117,13 +122,7 @@ export const MENU: MenuSection[] = [
     items: [
       { kind: "native", label: "Messages & alerts", icon: "mail-outline", to: "/inbox" },
       { kind: "native", label: "Your profile", icon: "person-outline", to: "/profile" },
-      {
-        kind: "web",
-        label: "Edit your profile",
-        icon: "create-outline",
-        path: "/profile/edit",
-        title: "Edit profile",
-      },
+      { kind: "native", label: "Edit your profile", icon: "create-outline", to: "/edit-profile" },
       {
         kind: "web",
         label: "Notification settings",
@@ -131,7 +130,6 @@ export const MENU: MenuSection[] = [
         path: "/dashboard/notifications",
         title: "Notification settings",
       },
-      { kind: "web", label: "Dashboard", icon: "grid-outline", path: "/dashboard", title: "Dashboard" },
     ],
   },
   {
