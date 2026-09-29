@@ -14,6 +14,7 @@ import { Stack, router } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { Avatar } from "@/components/avatar";
+import { ScreenHeader } from "@/components/screen-header";
 import { useAuth } from "@/lib/auth";
 import {
   MEMBER_SCOPES,
@@ -119,9 +120,17 @@ export default function MembersScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ title: "Members", headerBackTitle: "Back" }} />
+      {/* The band carries the screen's name, so the bar above it does
+          not need to carry it too. */}
+      <Stack.Screen options={{ headerTitle: "", headerBackTitle: "Back" }} />
 
       <View style={styles.fill}>
+        <ScreenHeader
+          scene="linksDusk"
+          title="Members"
+          subtitle="Golfers across Ireland and the UK"
+        />
+
         <View style={styles.controls}>
           <View style={styles.search}>
             <Ionicons name="search" size={17} color={colors.ink500} />

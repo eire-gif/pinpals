@@ -13,6 +13,7 @@ import {
 import { Stack, router, useFocusEffect } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
+import { ScreenHeader } from "@/components/screen-header";
 import { useAuth } from "@/lib/auth";
 import {
   LISTING_STATUS_LABELS,
@@ -71,11 +72,25 @@ export default function MyListingsScreen() {
 
   const visible = listingsInTab(listings, tab);
 
+  // What is earning, rather than what exists. Drafts and sold items both sit
+  // in this list and neither is a thing a seller is waiting on.
+  const onSale = listings.filter((entry) => entry.status === "active").length;
+  const subtitle =
+    listings.length === 0
+      ? "Nothing listed yet"
+      : onSale === 0
+        ? "None on sale right now"
+        : onSale === 1
+          ? "1 on sale"
+          : `${onSale} on sale`;
+
   return (
-    <>
+    <View style={styles.fill}>
       <Stack.Screen
         options={{
-          title: "My listings",
+          // The band below carries the name; printing it here too just
+          // says it twice.
+          headerTitle: "",
           headerBackTitle: "Back",
           headerRight: () => (
             <Pressable
@@ -89,6 +104,11 @@ export default function MyListingsScreen() {
           ),
         }}
       />
+
+      {/* Outside the loading branch on purpose: the screen's name is known
+          before the query comes back, and a screen that shows its own title
+          while it loads reads as working rather than as stuck. */}
+      <ScreenHeader scene="lakeSunset" title="My listings" subtitle={subtitle} />
 
       {loading ? (
         <View style={[styles.fill, styles.centre]}>
@@ -173,7 +193,7 @@ export default function MyListingsScreen() {
           />
         </View>
       )}
-    </>
+    </View>
   );
 }
 

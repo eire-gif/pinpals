@@ -13,6 +13,7 @@ import { Stack, router, useFocusEffect } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { Avatar } from "@/components/avatar";
+import { ScreenHeader } from "@/components/screen-header";
 import { useAuth } from "@/lib/auth";
 import {
   conversationWith,
@@ -116,9 +117,24 @@ export default function ConnectionsScreen() {
     },
   ].filter((section) => section.data.length > 0);
 
+  // The header says how many golfers you are actually connected to, which is
+  // the number the screen is about — requests waiting and invitations you
+  // have sent get their own section headings below.
+  const connected = data.accepted.length;
+  const subtitle =
+    connected === 0
+      ? "Nobody yet"
+      : connected === 1
+        ? "1 golfer"
+        : `${connected} golfers`;
+
   return (
     <>
-      <Stack.Screen options={{ title: "My connections", headerBackTitle: "Back" }} />
+      {/* The band carries the screen's name, so the bar above it
+          does not need to carry it too. */}
+      <Stack.Screen options={{ headerTitle: "", headerBackTitle: "Back" }} />
+
+      <ScreenHeader scene="dunesGold" title="My connections" subtitle={subtitle} />
 
       {loading ? (
         <View style={[styles.fill, styles.centre]}>

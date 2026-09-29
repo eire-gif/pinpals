@@ -13,6 +13,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import * as Linking from "expo-linking";
 
 import { InviteCard } from "@/components/invite-card";
+import { ScreenHeader } from "@/components/screen-header";
 import { SITE_URL } from "@/lib/config";
 import { useCurrentLocation } from "@/lib/location";
 import { listInvites, listInvitesNear, type Invite } from "@/lib/tee-times";
@@ -87,8 +88,26 @@ export default function TeeTimesScreen() {
     setScope(next);
   };
 
+  // Counts what is on screen under the current scope, so switching to Near
+  // me and seeing the number fall is the answer to "is anything near me",
+  // not a bug.
+  const subtitle = loading
+    ? "Looking for rounds"
+    : invites.length === 0
+      ? scope === "near"
+        ? "Nothing within reach today"
+        : "No rounds posted yet"
+      : invites.length === 1
+        ? "1 round looking for players"
+        : `${invites.length} rounds looking for players`;
+
   return (
     <View style={styles.fill}>
+      {/* Above the scope buttons, pinned. It cannot go inside the list: the
+          segments have to stay put while you scroll, and a photograph
+          underneath them would read as an advert rather than as a header. */}
+      <ScreenHeader scene="ballybunion" title="Tee times" subtitle={subtitle} />
+
       <View style={styles.segments}>
         <Segment
           label="All tee times"

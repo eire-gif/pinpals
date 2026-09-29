@@ -11,6 +11,7 @@ import {
 import { Stack, router, useFocusEffect } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
+import { ScreenHeader } from "@/components/screen-header";
 import { useAuth } from "@/lib/auth";
 import { listConfirmedRounds, type ConfirmedRound } from "@/lib/rounds";
 import { dateLabel } from "@/lib/tee-times";
@@ -67,9 +68,22 @@ export default function ConfirmedRoundsScreen() {
     { title: "Played", data: past },
   ].filter((section) => section.data.length > 0);
 
+  // Only what is still to come. A header reading "14 rounds" to someone with
+  // nothing booked for the next month would be counting the wrong thing.
+  const subtitle =
+    upcoming.length === 0
+      ? "Nothing booked"
+      : upcoming.length === 1
+        ? "1 round coming up"
+        : `${upcoming.length} rounds coming up`;
+
   return (
     <>
-      <Stack.Screen options={{ title: "Confirmed rounds", headerBackTitle: "Back" }} />
+      {/* The band carries the screen's name, so the bar above it
+          does not need to carry it too. */}
+      <Stack.Screen options={{ headerTitle: "", headerBackTitle: "Back" }} />
+
+      <ScreenHeader scene="coastAerial" title="Confirmed rounds" subtitle={subtitle} />
 
       {loading ? (
         <View style={[styles.fill, styles.centre]}>
