@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -7,6 +7,7 @@ import {
   SectionList,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import { Stack, router, useFocusEffect } from "expo-router";
@@ -50,6 +51,7 @@ export default function ConnectionsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
 
   const load = useCallback(async () => {
     if (!userId) {
@@ -98,10 +100,28 @@ export default function ConnectionsScreen() {
     }
   }
 
+  /**
+   * Filtered here rather than re-queried.
+   *
+   * The whole list is already in memory — connections are people you know,
+   * not a directory — so a round trip per keystroke would be slower and would
+   * fail outright on a bad signal. Club and county are matched as well as
+   * name, because "who do I know at Portmarnock" is the question this screen
+   * actually gets asked.
+   */
+  const term = query.trim().toLowerCase();
+  const matches = useMemo(() => {
+    if (term === "") return () => true;
+    return (member: Member) =>
+      member.name.toLowerCase().includes(term) ||
+      (member.homeClub ?? "").toLowerCase().includes(term) ||
+      (member.county ?? "").toLowerCase().includes(term);
+  }, [term]);
+
   const sections: { title: string; data: Row[] }[] = [
     {
       title: data.incoming.length === 1 ? "1 request waiting" : `${data.incoming.length} requests waiting`,
-      data: data.incoming.map((entry) => ({
+      data: data.incoming.filter((entry) => matches(entry.member)).map((entry) => ({
         kind: "incoming" as const,
         connectionId: entry.connectionId,
         member: entry.member,
@@ -109,11 +129,11 @@ export default function ConnectionsScreen() {
     },
     {
       title: "Connected",
-      data: data.accepted.map((member) => ({ kind: "accepted" as const, member })),
+      data: data.accepted.filter(matches).map((member) => ({ kind: "accepted" as const, member })),
     },
     {
       title: "Sent, not answered yet",
-      data: data.outgoing.map((member) => ({ kind: "outgoing" as const, member })),
+      data: data.outgoing.filter(matches).map((member) => ({ kind: "outgoing" as const, member })),
     },
   ].filter((section) => section.data.length > 0);
 
@@ -121,6 +141,7 @@ export default function ConnectionsScreen() {
   // the number the screen is about — requests waiting and invitations you
   // have sent get their own section headings below.
   const connected = data.accepted.length;
+  const total = connected + data.incoming.length + data.outgoing.length;
   const subtitle =
     connected === 0
       ? "Nobody yet"
@@ -135,6 +156,27 @@ export default function ConnectionsScreen() {
       <Stack.Screen options={{ headerTitle: "", headerBackTitle: "Back" }} />
 
       <ScreenHeader scene="dunesGold" title="My connections" subtitle={subtitle} />
+
+      {/* Hidden below a handful of people: a search box over four names is
+          furniture, not a feature. The threshold counts everyone on the
+          screen, since requests and sent invitations are searchable too. */}
+      {!loading && total >= 6 ? (
+        <View style={styles.search}>
+          <Ionicons name="search" size={17} color={colors.ink500} />
+          <TextInput
+            style={styles.searchInput}
+            value={query}
+            onChangeText={setQuery}
+            placeholder="Name, club or county"
+            placeholderTextColor={colors.ink500}
+            autoCorrect={false}
+            autoCapitalize="words"
+            returnKeyType="search"
+            clearButtonMode="while-editing"
+            accessibilityLabel="Search your connections"
+          />
+        </View>
+      ) : null}
 
       {loading ? (
         <View style={[styles.fill, styles.centre]}>
@@ -161,21 +203,41 @@ export default function ConnectionsScreen() {
             <Text style={styles.sectionTitle}>{section.title}</Text>
           )}
           ListEmptyComponent={
-            <View style={styles.empty}>
-              <Ionicons name="person-add-outline" size={44} color={colors.ink500} />
-              <Text style={styles.emptyTitle}>No connections yet</Text>
-              <Text style={styles.emptyBody}>
-                Connecting is what lets you message another golfer and see them
-                in your own directory. Find a few from your club to start.
-              </Text>
-              <Pressable
-                style={styles.cta}
-                onPress={() => router.push("/members")}
-                accessibilityRole="button"
-              >
-                <Text style={styles.ctaLabel}>Browse members</Text>
-              </Pressable>
-            </View>
+            // A search that matched nothing is not the same as having nobody,
+            // and telling someone with forty connections to "find a few from
+            // your club to start" because they mistyped a name would be daft.
+            term !== "" ? (
+              <View style={styles.empty}>
+                <Ionicons name="search-outline" size={40} color={colors.ink500} />
+                <Text style={styles.emptyTitle}>Nobody matched that</Text>
+                <Text style={styles.emptyBody}>
+                  Try a shorter search, or a club name.
+                </Text>
+                <Pressable
+                  style={styles.cta}
+                  onPress={() => setQuery("")}
+                  accessibilityRole="button"
+                >
+                  <Text style={styles.ctaLabel}>Clear search</Text>
+                </Pressable>
+              </View>
+            ) : (
+              <View style={styles.empty}>
+                <Ionicons name="person-add-outline" size={44} color={colors.ink500} />
+                <Text style={styles.emptyTitle}>No connections yet</Text>
+                <Text style={styles.emptyBody}>
+                  Connecting is what lets you message another golfer and see them
+                  in your own directory. Find a few from your club to start.
+                </Text>
+                <Pressable
+                  style={styles.cta}
+                  onPress={() => router.push("/members")}
+                  accessibilityRole="button"
+                >
+                  <Text style={styles.ctaLabel}>Browse members</Text>
+                </Pressable>
+              </View>
+            )
           }
           renderItem={({ item }) => (
             <View style={[styles.card, item.kind === "outgoing" && styles.cardQuiet]}>
@@ -252,6 +314,26 @@ export default function ConnectionsScreen() {
 const styles = StyleSheet.create({
   fill: { flex: 1, backgroundColor: colors.cream50 },
   centre: { alignItems: "center", justifyContent: "center" },
+  search: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    marginHorizontal: spacing.md,
+    marginTop: spacing.sm,
+    paddingHorizontal: 14,
+    height: 46,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.surface,
+  },
+  searchInput: {
+    flex: 1,
+    fontFamily: fonts.body,
+    fontSize: type.body,
+    color: colors.ink900,
+  },
+
   list: { padding: spacing.md, gap: spacing.sm, flexGrow: 1 },
 
   sectionTitle: {

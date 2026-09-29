@@ -3,13 +3,13 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { publishListingFor } from "@/lib/listing-operations";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { eurToCents, centsToEur, MIN_OFFER_AMOUNT_CENTS, DEFAULT_CHECKOUT_WINDOW_MINUTES } from "@/lib/marketplace";
 import { checkRateLimit, rateLimitMessage } from "@/lib/rate-limit";
 import { linkConversationToOrder } from "@/lib/conversations-server";
-import { sellerOnboardingStatus, isSellerPaymentReady } from "@/lib/stripe/connect";
 import { REPORT_CATEGORIES, parseEvidenceRefs, type ReportCategory } from "@/lib/admin/reports";
-import type { Listing, Offer, Order, StripeConnectedAccount } from "@/lib/types";
+import type { Listing, Offer, Order } from "@/lib/types";
 
 export type PublishListingState = { error?: string; success?: boolean };
 
@@ -38,49 +38,13 @@ export async function publishListing(listingId: number): Promise<PublishListingS
     redirect("/login");
   }
 
-  const { data: listing } = await supabase
-    .from("listings")
-    .select("id, seller_id, status")
-    .eq("id", listingId)
-    .maybeSingle<Pick<Listing, "id" | "seller_id" | "status">>();
-
-  if (!listing || listing.seller_id !== user.id) {
-    return { error: "That listing couldn't be found." };
-  }
-  if (listing.status !== "draft") {
-    return { error: "Only a draft listing can be published." };
-  }
-
-  const { data: account } = await supabase
-    .from("stripe_connected_accounts")
-    .select("charges_enabled, payouts_enabled, details_submitted, requirements_currently_due, requirements_past_due, disabled_reason")
-    .eq("user_id", user.id)
-    .maybeSingle<
-      Pick<
-        StripeConnectedAccount,
-        | "charges_enabled"
-        | "payouts_enabled"
-        | "details_submitted"
-        | "requirements_currently_due"
-        | "requirements_past_due"
-        | "disabled_reason"
-      >
-    >();
-
-  if (!isSellerPaymentReady(sellerOnboardingStatus(account))) {
-    return { error: "Finish seller setup with Stripe before publishing — see Seller readiness in your dashboard." };
-  }
-
-  const admin = createAdminClient();
-  const { error } = await admin
-    .from("listings")
-    .update({ status: "active" })
-    .eq("id", listingId)
-    .eq("seller_id", user.id)
-    .eq("status", "draft");
-
-  if (error) {
-    return { error: "Couldn't publish that listing — please try again." };
+  // The work — the payment-readiness gate and the privileged draft -> active
+  // write — lives in src/lib/listing-operations.ts so the app's own route
+  // performs the identical sequence. See that module for why neither half can
+  // be left to a policy.
+  const result = await publishListingFor(supabase, user.id, listingId);
+  if (!result.ok) {
+    return { error: result.message };
   }
 
   revalidatePath(`/marketplace/${listingId}`);

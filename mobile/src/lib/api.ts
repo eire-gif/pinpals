@@ -40,28 +40,70 @@ const TIMEOUT_MS = 10_000;
  *  rather than from a desk. */
 const UPLOAD_TIMEOUT_MS = 60_000;
 
-async function accessToken(): Promise<string> {
-  // getSession() refreshes an expired token if the refresh token is still
-  // good, so this is also what keeps a member who last opened the app a week
-  // ago from being bounced to the login screen.
+/** The one thing a member can act on when their session is the problem. */
+const SIGN_IN_AGAIN = "Your session has expired. Please sign in again.";
+
+/**
+ * A token for the site.
+ *
+ * `getSession()` hands back the cached access token and only refreshes it
+ * once it has actually expired. That is right nearly always and wrong in the
+ * case that matters here: a token can be unexpired and still be refused by
+ * the site, because /auth/v1/user checks that the session behind the token is
+ * still live while Postgres only checks the signature. So reads from the
+ * database keep working while every write through the site answers 401, which
+ * is precisely the shape of the bug this exists to survive.
+ *
+ * `force` skips the cache and spends the refresh token for a new one. Callers
+ * use it for exactly one retry — see sendWithRetry below.
+ */
+async function accessToken(force = false): Promise<string> {
+  if (force) {
+    const { data, error } = await supabase.auth.refreshSession();
+    const refreshed = data.session?.access_token;
+    if (error || !refreshed) throw new ApiError(401, SIGN_IN_AGAIN);
+    return refreshed;
+  }
+
   const { data, error } = await supabase.auth.getSession();
   const token = data.session?.access_token;
   if (error || !token) {
-    throw new ApiError(401, "Please sign in again.");
+    throw new ApiError(401, SIGN_IN_AGAIN);
   }
   return token;
 }
 
+/**
+ * Runs a request, and if the site says 401, gets a genuinely new token and
+ * runs it once more.
+ *
+ * Once, never in a loop: if a fresh token is also refused then the session is
+ * gone and retrying is just a slower way to fail. The member is told to sign
+ * in, which is the only thing that will help.
+ */
+async function sendWithRetry<T>(send: (token: string) => Promise<T>): Promise<T> {
+  try {
+    return await send(await accessToken());
+  } catch (err) {
+    if (!(err instanceof ApiError) || err.status !== 401) throw err;
+    return await send(await accessToken(true));
+  }
+}
+
 /** What a member should read for each way the server can say no. */
 function messageFor(status: number, serverMessage: string | null): string {
-  // The server's own wording wins where it has some: the operations return
+  // 401 is the one status whose server text is never shown. The routes answer
+  // with the internal token "unauthenticated", which is meaningless to a
+  // member and was being printed at them verbatim. Whatever the server called
+  // it, a 401 that survived a token refresh is a dead session.
+  if (status === 401) return SIGN_IN_AGAIN;
+
+  // Everywhere else the server's own wording wins: the operations return
   // things like "That tee time is no longer open", which is more use than
   // anything generic.
   if (serverMessage) return serverMessage;
 
   switch (status) {
-    case 401:
-      return "Please sign in again.";
     case 403:
       return "That isn't yours to change.";
     case 404:
@@ -73,13 +115,22 @@ function messageFor(status: number, serverMessage: string | null): string {
   }
 }
 
-async function requestSite<T>(
+function requestSite<T>(
   path: string,
   method: "GET" | "POST" | "PATCH" | "DELETE",
   body?: unknown,
   timeoutMs: number = TIMEOUT_MS
 ): Promise<T> {
-  const token = await accessToken();
+  return sendWithRetry((token) => attemptRequest<T>(path, method, token, body, timeoutMs));
+}
+
+async function attemptRequest<T>(
+  path: string,
+  method: "GET" | "POST" | "PATCH" | "DELETE",
+  token: string,
+  body?: unknown,
+  timeoutMs: number = TIMEOUT_MS
+): Promise<T> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -204,7 +255,7 @@ export const postFormToSite = <T>(
 };
 
 const sendForm = <T>(path: string, form: FormData): Promise<T> =>
-  accessToken().then(
+  sendWithRetry(
     (token) =>
       new Promise<T>((resolve, reject) => {
         const xhr = new XMLHttpRequest();

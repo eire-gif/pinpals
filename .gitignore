@@ -44,3 +44,9 @@ next-env.d.ts
 # files delivered from Claude sessions — downloads land here, they are
 # not part of the app
 /Claude outputs/
+
+# One-off apply scripts Claude delivers into the Codespace. They are base64
+# payloads of changes that end up in the commit anyway, so committing the
+# script too puts the same diff in the repo twice — and at several hundred
+# kilobytes a time. Two of them reached main this way before this line existed.
+apply-*.sh

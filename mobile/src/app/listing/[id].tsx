@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Dimensions,
   Image,
   Pressable,
@@ -23,6 +24,15 @@ import {
   type ListingDetail,
 } from "@/lib/marketplace";
 import { conversationWith } from "@/lib/members";
+import {
+  ACTION_LABELS,
+  actionsFor,
+  publishListing,
+  setListingStatus,
+  type ListingAction,
+  type ListingStatus,
+} from "@/lib/listings";
+import { ApiError } from "@/lib/api";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 
 /**
@@ -288,31 +298,160 @@ export default function ListingScreen() {
             </View>
           )}
 
-          {/* The money. Deliberately one button to one place: the listing's
-              own page on the site, opened signed in. Buy needs Stripe
-              Checkout in a real browser, and offers and bids carry state the
-              app has no business keeping a second copy of. */}
-          <Pressable style={styles.primary} onPress={openOnSite} accessibilityRole="button">
-            <Text style={styles.primaryLabel}>
-              {listing.isMine
-                ? "Manage this listing"
-                : auction
-                  ? "Place a bid"
-                  : listing.saleType === "offers_allowed"
-                    ? "Buy or make an offer"
-                    : "Buy now"}
-            </Text>
-            <Ionicons name="arrow-forward" size={18} color={colors.cream50} />
-          </Pressable>
+          {listing.isMine ? (
+            <SellerControls
+              listingId={listing.id}
+              status={listing.status}
+              userId={userId}
+              onChanged={load}
+              onEdit={openOnSite}
+            />
+          ) : (
+            <>
+              {/* The money. Deliberately one button to one place: the
+                  listing's own page on the site, opened signed in. Buy needs
+                  Stripe Checkout in a real browser, and offers and bids carry
+                  state the app has no business keeping a second copy of. */}
+              <Pressable style={styles.primary} onPress={openOnSite} accessibilityRole="button">
+                <Text style={styles.primaryLabel}>
+                  {auction
+                    ? "Place a bid"
+                    : listing.saleType === "offers_allowed"
+                      ? "Buy or make an offer"
+                      : "Buy now"}
+                </Text>
+                <Ionicons name="arrow-forward" size={18} color={colors.cream50} />
+              </Pressable>
 
-          <Text style={styles.footnote}>
-            {listing.isMine
-              ? "Editing and publishing happen on the website."
-              : "Payment is handled securely on pinpals.ie — you stay signed in."}
-          </Text>
+              <Text style={styles.footnote}>
+                Payment is handled securely on pinpals.ie — you stay signed in.
+              </Text>
+            </>
+          )}
         </View>
       </ScrollView>
     </>
+  );
+}
+
+/**
+ * What the seller can do with their own listing, now that most of it happens
+ * in the app rather than on the website.
+ *
+ * The buttons offered come from actionsFor(), which mirrors
+ * validate_listing_status_transition() (0045) — the trigger is what actually
+ * decides, so offering anything else would be offering a button that fails.
+ *
+ * Putting a draft on sale is the one that goes through the site's API rather
+ * than the table: the trigger forbids a member moving draft -> active, and
+ * Stripe has to say the seller can be paid first. Everything else is a plain
+ * update the policy already allows.
+ *
+ * Editing the listing itself still opens the website. Photos, auctions and
+ * price changes reach into Storage and into live offer state, and that is a
+ * bigger thing than a status change.
+ */
+function SellerControls({
+  listingId,
+  status,
+  userId,
+  onChanged,
+  onEdit,
+}: {
+  listingId: number;
+  status: string;
+  userId: string | null;
+  onChanged: () => void | Promise<void>;
+  onEdit: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const actions = actionsFor(status as ListingStatus);
+
+  async function run(action: ListingAction) {
+    if (!userId) return;
+    setError(null);
+    setBusy(true);
+    try {
+      if (action === "publish") {
+        await publishListing(listingId);
+      } else {
+        const next = action === "sold" ? "sold" : action === "remove" ? "removed" : "active";
+        const message = await setListingStatus(listingId, userId, next);
+        if (message) {
+          setError(message);
+          return;
+        }
+      }
+      await onChanged();
+    } catch (err) {
+      // The publish route's 422 carries a sentence worth showing — "finish
+      // setting up payouts" is the whole answer to why the button didn't work.
+      setError(
+        err instanceof ApiError ? err.message : "Couldn't do that just now. Please try again."
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function confirm(action: ListingAction) {
+    if (action === "publish") {
+      void run(action);
+      return;
+    }
+    const destructive = action === "remove";
+    Alert.alert(
+      action === "sold" ? "Mark as sold?" : action === "remove" ? "Remove this listing?" : "Put it back on sale?",
+      action === "sold"
+        ? "It stops being for sale and any open offers are closed."
+        : action === "remove"
+          ? "It disappears from the marketplace. This can't be undone from the app."
+          : undefined,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: ACTION_LABELS[action],
+          style: destructive ? "destructive" : "default",
+          onPress: () => void run(action),
+        },
+      ]
+    );
+  }
+
+  return (
+    <View style={styles.sellerBox}>
+      {error ? <Text style={styles.sellerError}>{error}</Text> : null}
+
+      {actions.map((action, index) => (
+        <Pressable
+          key={action}
+          style={[
+            index === 0 ? styles.primary : styles.secondary,
+            busy && styles.sellerBusy,
+          ]}
+          onPress={() => confirm(action)}
+          disabled={busy}
+          accessibilityRole="button"
+        >
+          <Text style={index === 0 ? styles.primaryLabel : styles.secondaryLabel}>
+            {ACTION_LABELS[action]}
+          </Text>
+        </Pressable>
+      ))}
+
+      <Pressable style={styles.secondary} onPress={onEdit} accessibilityRole="button">
+        <Ionicons name="create-outline" size={17} color={colors.green700} />
+        <Text style={styles.secondaryLabel}>Edit details and photos</Text>
+      </Pressable>
+
+      <Text style={styles.footnote}>
+        {actions.includes("publish")
+          ? "Putting it on sale needs your Stripe payouts set up, so a buyer can actually pay you."
+          : "Editing photos, price and auctions still opens the website."}
+      </Text>
+    </View>
   );
 }
 
@@ -443,6 +582,15 @@ const styles = StyleSheet.create({
     backgroundColor: colors.green700,
   },
   primaryLabel: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.cream50 },
+
+  sellerBox: { gap: spacing.sm },
+  sellerBusy: { opacity: 0.45 },
+  sellerError: {
+    fontFamily: fonts.body,
+    fontSize: type.small,
+    color: colors.red600,
+    paddingBottom: 2,
+  },
 
   footnote: {
     fontFamily: fonts.body,
