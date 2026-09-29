@@ -9,6 +9,7 @@ import {
   notifyPlaceConfirmed,
   notifyPlaceOffered,
   notifyPlaceWithdrawn,
+  notifyInviteCancelled,
   type InviteRef,
 } from "@/lib/tee-times-server";
 
@@ -303,4 +304,137 @@ export async function confirmPlace(
       newStatus: row.new_status,
     },
   };
+}
+
+// ===========================================================================
+// The host changes or withdraws their own round
+// ===========================================================================
+
+/**
+ * Who is waiting on this round. Anyone still in play — asked, offered a
+ * place, or confirmed — needs telling when it stops happening.
+ */
+async function interestedMemberIds(
+  supabase: SupabaseClient,
+  inviteId: number
+): Promise<string[]> {
+  const { data } = await supabase
+    .from("tee_time_interests")
+    .select("member_id")
+    .eq("invite_id", inviteId)
+    .in("status", ["pending", "accepted", "confirmed"])
+    .returns<{ member_id: string }[]>();
+
+  return [...new Set((data ?? []).map((row) => row.member_id))];
+}
+
+export type InviteStatusValue = "open" | "full" | "cancelled" | "completed";
+
+/**
+ * The host marks their own round full, re-opens it, or calls it off.
+ *
+ * Here for the same reason the three above are: cancelling has to tell the
+ * people who were counting on it, that notification is built in TypeScript
+ * with the admin client, and an app writing the status column directly would
+ * update the row and tell nobody. A member who had a place confirmed would
+ * simply turn up.
+ *
+ * `.eq("member_id", userId)` is belt and braces — the "Update own invites"
+ * policy (0028) already scopes this — but it turns a silent no-op update on
+ * somebody else's round into a not_found we can report honestly.
+ */
+export async function changeInviteStatus(
+  supabase: SupabaseClient,
+  userId: string,
+  inviteId: number,
+  status: InviteStatusValue
+): Promise<Result<{ inviteId: number; status: InviteStatusValue }>> {
+  // Read before writing: a cancellation still has to name the round and find
+  // its recipients, and after the update the status no longer says who to ask.
+  const { data: invite } = await supabase
+    .from("tee_time_invites")
+    .select("club_name, play_date")
+    .eq("id", inviteId)
+    .eq("member_id", userId)
+    .maybeSingle<{ club_name: string; play_date: string }>();
+
+  if (!invite) {
+    return fail("not_found", "That round isn't yours, or no longer exists.");
+  }
+
+  const recipientIds =
+    status === "cancelled" ? await interestedMemberIds(supabase, inviteId) : [];
+
+  const { error } = await supabase
+    .from("tee_time_invites")
+    .update({ status })
+    .eq("id", inviteId)
+    .eq("member_id", userId);
+
+  if (error) {
+    return fail("failed", "Couldn't update that round. Please try again.");
+  }
+
+  if (status === "cancelled" && recipientIds.length > 0) {
+    after(async () => {
+      await notifyInviteCancelled(createAdminClient(), {
+        hostId: userId,
+        recipientIds,
+        invite: { inviteId, clubName: invite.club_name, playDate: invite.play_date },
+      });
+    });
+  }
+
+  return { ok: true, value: { inviteId, status } };
+}
+
+/**
+ * The host deletes their own round.
+ *
+ * Sends the same notification cancelling does. To everyone else the two are
+ * indistinguishable, and the alternative — a round somebody was confirmed for
+ * vanishing with no explanation — is plainly the worse one.
+ *
+ * Everything is read first because the delete cascades the interests away
+ * (0007's ON DELETE CASCADE); afterwards there is nothing left to ask.
+ */
+export async function removeInvite(
+  supabase: SupabaseClient,
+  userId: string,
+  inviteId: number
+): Promise<Result<{ inviteId: number }>> {
+  const { data: invite } = await supabase
+    .from("tee_time_invites")
+    .select("club_name, play_date")
+    .eq("id", inviteId)
+    .eq("member_id", userId)
+    .maybeSingle<{ club_name: string; play_date: string }>();
+
+  if (!invite) {
+    return fail("not_found", "That round isn't yours, or no longer exists.");
+  }
+
+  const recipientIds = await interestedMemberIds(supabase, inviteId);
+
+  const { error } = await supabase
+    .from("tee_time_invites")
+    .delete()
+    .eq("id", inviteId)
+    .eq("member_id", userId);
+
+  if (error) {
+    return fail("failed", "Couldn't delete that round. Please try again.");
+  }
+
+  if (recipientIds.length > 0) {
+    after(async () => {
+      await notifyInviteCancelled(createAdminClient(), {
+        hostId: userId,
+        recipientIds,
+        invite: { inviteId, clubName: invite.club_name, playDate: invite.play_date },
+      });
+    });
+  }
+
+  return { ok: true, value: { inviteId } };
 }

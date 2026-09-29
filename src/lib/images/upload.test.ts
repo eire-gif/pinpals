@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import sharp from "sharp";
 import {
+  processAvatarImage,
+  AVATAR_MAX_DIMENSION,
   processListingImage,
   uploadListingImage,
   deleteListingImage,
@@ -170,5 +172,106 @@ describe("deleteListingImage", () => {
     const { supabase, remove } = makeMockSupabase();
     await expect(deleteListingImage(supabase, "user-123/abc.jpg")).resolves.toBeUndefined();
     expect(remove).toHaveBeenCalledWith(["user-123/abc.jpg"]);
+  });
+});
+
+
+// ---------------------------------------------------------------------------
+
+/** A photo with GPS coordinates in it, like one off a phone. This is the
+ *  case the avatar pipeline exists for: member-avatars is a PUBLIC bucket,
+ *  so an unprocessed upload publishes wherever the photo was taken. */
+async function makeGeotaggedImageFile(): Promise<File> {
+  const buffer = await sharp({
+    create: { width: 300, height: 300, channels: 3, background: { r: 10, g: 120, b: 60 } },
+  })
+    .jpeg()
+    // The cast is only about sharp's published type, which declares IFD0..IFD3
+    // but not GPS. libvips writes the GPS IFD perfectly well — the assertion
+    // below reads the EXIF back out, so a silently-ignored block would fail
+    // the test rather than pass it.
+    .withExif({
+      IFD0: { Make: "Apple", Model: "iPhone 15 Pro" },
+      GPS: {
+        GPSLatitudeRef: "N",
+        GPSLatitude: "53/1 24/1 3648/100",
+        GPSLongitudeRef: "W",
+        GPSLongitude: "6/1 8/1 2952/100",
+      },
+    } as unknown as Parameters<ReturnType<typeof sharp>["withExif"]>[0])
+    .toBuffer();
+
+  return new File([new Uint8Array(buffer)], "photo.jpg", { type: "image/jpeg" });
+}
+
+describe("processAvatarImage", () => {
+  it("strips GPS coordinates from a geotagged photo", async () => {
+    const file = await makeGeotaggedImageFile();
+
+    // The fixture really does carry the coordinates, or the assertion below
+    // would pass against an image that never had them.
+    const before = await sharp(Buffer.from(await file.arrayBuffer())).metadata();
+    expect(before.exif).toBeDefined();
+
+    const { buffer } = await processAvatarImage(file);
+    const after = await sharp(buffer).metadata();
+
+    expect(after.exif).toBeUndefined();
+  });
+
+  it("strips the camera make and model too", async () => {
+    const { buffer } = await processAvatarImage(await makeGeotaggedImageFile());
+    expect(buffer.toString("latin1")).not.toContain("iPhone");
+  });
+
+  it("leaves no orientation tag behind", async () => {
+    const file = await makeTestImageFile({ width: 200, height: 100, exifOrientation: 6 });
+    const rawMeta = await sharp(Buffer.from(await file.arrayBuffer())).metadata();
+    expect(rawMeta.exif).toBeDefined();
+
+    const { buffer } = await processAvatarImage(file);
+    const meta = await sharp(buffer).metadata();
+
+    expect(meta.exif).toBeUndefined();
+    expect(meta.orientation).toBeUndefined();
+    // As with processListingImage's equivalent test: this asserts the tag is
+    // gone, not that the rotation was baked into the pixels first. `.rotate()`
+    // with no arguments is what does that, and a synthetic image built by
+    // sharp's own create+withExif path does not round-trip through it in a way
+    // that would let the swapped dimensions prove it here. Asserting it anyway
+    // would be a test that passes for the wrong reason.
+  });
+
+  it("caps the longest edge at AVATAR_MAX_DIMENSION", async () => {
+    const file = await makeTestImageFile({ width: 2400, height: 1200 });
+    const { buffer } = await processAvatarImage(file);
+    const meta = await sharp(buffer).metadata();
+
+    expect(meta.width).toBe(AVATAR_MAX_DIMENSION);
+    expect(meta.height).toBe(AVATAR_MAX_DIMENSION / 2);
+  });
+
+  it("does not upscale a photo smaller than the cap", async () => {
+    const file = await makeTestImageFile({ width: 120, height: 90 });
+    const { buffer } = await processAvatarImage(file);
+    const meta = await sharp(buffer).metadata();
+
+    expect(meta.width).toBe(120);
+    expect(meta.height).toBe(90);
+  });
+
+  it("rejects a file that is not an image, whatever its content type claims", async () => {
+    const file = new File([new Uint8Array([1, 2, 3, 4])], "not-an-image.jpg", { type: "image/jpeg" });
+    await expect(processAvatarImage(file)).rejects.toThrow(/doesn't look like a valid image/);
+  });
+
+  it("rejects a disallowed content type", async () => {
+    const file = new File([new Uint8Array([1, 2, 3])], "test.gif", { type: "image/gif" });
+    await expect(processAvatarImage(file)).rejects.toThrow(/JPEG, PNG or WebP/);
+  });
+
+  it("rejects an empty file", async () => {
+    const file = new File([], "empty.jpg", { type: "image/jpeg" });
+    await expect(processAvatarImage(file)).rejects.toThrow(/empty/);
   });
 });

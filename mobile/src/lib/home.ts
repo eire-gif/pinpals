@@ -42,7 +42,48 @@ export type HomeSummary = {
   /** Null when the count couldn't be read — the hero says nothing rather than
    *  "0 clubs", which would be a lie about the best asset the site has. */
   courseCount: number | null;
+  /**
+   * How much of the optional half of the profile is filled in, 0-100.
+   *
+   * The same five fields the website's own meter counts, so a member does
+   * not see two different percentages for the same profile. Null when it
+   * could not be read, and the nudge simply does not appear.
+   */
+  profileCompletion: number | null;
 };
+
+/** Home club, county, handicap, bio, GUI number. First and last name are
+ *  required at signup and so are not part of the score — everyone would
+ *  start above zero for having done nothing. Kept in step with
+ *  src/lib/profile.ts on the website. */
+const COMPLETION_FIELDS = [
+  "home_club",
+  "county",
+  "handicap",
+  "bio",
+  "gui_membership_number",
+] as const;
+
+async function profileCompletion(userId: string): Promise<number | null> {
+  // The columns are listed rather than joined from COMPLETION_FIELDS so the
+  // generated types can resolve them; the array below is still the single
+  // list that decides the score.
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("home_club, county, handicap, bio, gui_membership_number")
+    .eq("id", userId)
+    .maybeSingle<Record<string, unknown>>();
+
+  if (error || !data) return null;
+
+  const row = data;
+  const filled = COMPLETION_FIELDS.filter((field) => {
+    const value = row[field];
+    return value !== null && value !== undefined && value !== "";
+  }).length;
+
+  return Math.round((filled / COMPLETION_FIELDS.length) * 100);
+}
 
 const INVITE_SELECT =
   "id, club_name, play_date, time_from, time_to, exact_tee_time, club:clubs!tee_time_invites_club_id_fkey (name)";
@@ -162,11 +203,12 @@ async function courseCount(): Promise<number | null> {
  * worse outcome than a home screen missing a count.
  */
 export async function loadHome(userId: string): Promise<HomeSummary> {
-  const [round, requests, offers, courses] = await Promise.all([
+  const [round, requests, offers, courses, completion] = await Promise.all([
     nextRound(userId).catch(() => null),
     requestsWaiting(userId).catch(() => 0),
     offersWaiting(userId).catch(() => 0),
     courseCount().catch(() => null),
+    profileCompletion(userId).catch(() => null),
   ]);
 
   return {
@@ -174,5 +216,6 @@ export async function loadHome(userId: string): Promise<HomeSummary> {
     requestsWaiting: requests,
     offersWaiting: offers,
     courseCount: courses,
+    profileCompletion: completion,
   };
 }

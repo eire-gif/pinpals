@@ -4,7 +4,11 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     environment: "node",
-    include: ["src/**/*.test.ts"],
+    // tools/ is in here so tools/backfill-avatar-exif.test.ts runs in CI with
+    // everything else. That script deletes Storage objects for a living, and
+    // the helper deciding which ones is worth a regression test even though
+    // the script itself is a one-off.
+    include: ["src/**/*.test.ts", "tools/**/*.test.ts"],
   },
   resolve: {
     alias: {

@@ -116,9 +116,16 @@ export default function MyListingsScreen() {
         </View>
       ) : (
         <View style={styles.fill}>
+          {/* styles.tabStrip is load-bearing. A horizontal ScrollView is a
+              flex child like any other, so next to the list it was splitting
+              the screen with it and growing to about a third of the height —
+              and because a content container defaults to alignItems:
+              "stretch", every pill stretched to fill that, which is how five
+              status filters came to be rendered as enormous ovals. */}
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
+            style={styles.tabStrip}
             contentContainerStyle={styles.tabs}
           >
             {LISTING_TABS.map((entry) => {
@@ -142,6 +149,7 @@ export default function MyListingsScreen() {
           </ScrollView>
 
           <FlatList
+            style={styles.fill}
             contentContainerStyle={styles.list}
             data={visible}
             keyExtractor={(item) => String(item.id)}
@@ -250,7 +258,15 @@ const styles = StyleSheet.create({
   fill: { flex: 1, backgroundColor: colors.cream50 },
   centre: { alignItems: "center", justifyContent: "center" },
 
-  tabs: { paddingHorizontal: spacing.md, paddingTop: spacing.sm, gap: 6 },
+  // flexGrow 0 so the strip is only as tall as a pill, and alignItems so the
+  // pills size to their own text rather than to the strip.
+  tabStrip: { flexGrow: 0, flexShrink: 0 },
+  tabs: {
+    alignItems: "center",
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.sm,
+    gap: 6,
+  },
   tab: {
     paddingHorizontal: 13,
     paddingVertical: 7,

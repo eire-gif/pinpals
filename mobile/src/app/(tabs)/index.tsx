@@ -183,6 +183,35 @@ export default function HomeScreen() {
             />
           ) : null}
 
+          {/* Only while there is something left to fill in, and never as a
+              bare percentage — "60% complete" is a scold. What a member
+              actually wants to know is why they'd bother, so the row says
+              that instead and the meter is just the evidence. */}
+          {summary?.profileCompletion !== null &&
+          summary !== null &&
+          summary.profileCompletion < 100 ? (
+            <ProfileNudge
+              percent={summary.profileCompletion}
+              onPress={() => router.push("/edit-profile")}
+            />
+          ) : null}
+
+          {/* Always here, unlike the rows above — these are shortcuts, not
+              alerts. Two screens a member goes to on purpose and which were
+              otherwise three taps away through the menu. */}
+          <View style={styles.quickLinks}>
+            <QuickLink
+              icon="people-circle-outline"
+              label="My connections"
+              onPress={() => router.push("/connections")}
+            />
+            <QuickLink
+              icon="pricetags-outline"
+              label="My listings"
+              onPress={() => router.push("/my-listings")}
+            />
+          </View>
+
           <Band
             eyebrow="Every county, every links"
             title={
@@ -205,6 +234,60 @@ export default function HomeScreen() {
         </View>
       )}
     </ScrollView>
+  );
+}
+
+/**
+ * The one piece of the website's dashboard worth carrying over to Home.
+ *
+ * A fuller profile is the difference between being invited into a fourball
+ * and being scrolled past, so this is framed as what it gets you rather than
+ * as a task list. It disappears at 100% and never comes back.
+ */
+function ProfileNudge({ percent, onPress }: { percent: number; onPress: () => void }) {
+  return (
+    <Pressable
+      style={({ pressed }) => [styles.nudge, pressed && styles.nudgeOn]}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`Finish your profile, ${percent}% complete`}
+    >
+      <View style={styles.nudgeBody}>
+        <Text style={styles.nudgeTitle}>Finish your profile</Text>
+        <Text style={styles.nudgeText}>
+          Members with a club, a handicap and a line about themselves get asked to play more often.
+        </Text>
+        <View style={styles.meter}>
+          <View style={[styles.meterFill, { width: `${Math.max(percent, 4)}%` }]} />
+        </View>
+      </View>
+      <Ionicons name="chevron-forward" size={18} color={colors.ink500} />
+    </Pressable>
+  );
+}
+
+/** A shortcut tile. Deliberately plain: it competes with the waiting rows
+ *  above it, and those are the ones that should win the eye. */
+function QuickLink({
+  icon,
+  label,
+  onPress,
+}: {
+  icon: React.ComponentProps<typeof Ionicons>["name"];
+  label: string;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      style={({ pressed }) => [styles.quickLink, pressed && styles.quickLinkOn]}
+      onPress={onPress}
+      accessibilityRole="button"
+    >
+      <Ionicons name={icon} size={21} color={colors.green700} />
+      <Text style={styles.quickLinkLabel} numberOfLines={1}>
+        {label}
+      </Text>
+    </Pressable>
   );
 }
 
@@ -399,6 +482,50 @@ const styles = StyleSheet.create({
     fontFamily: fonts.bodySemi,
     fontSize: type.body,
     color: colors.green800,
+  },
+
+  nudge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    padding: 14,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.gold400,
+    backgroundColor: colors.surface,
+  },
+  nudgeOn: { backgroundColor: colors.surfaceTint },
+  nudgeBody: { flex: 1, gap: 6 },
+  nudgeTitle: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.ink900 },
+  nudgeText: { fontFamily: fonts.body, fontSize: type.small, lineHeight: 19, color: colors.ink500 },
+  meter: {
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: colors.cream100,
+    overflow: "hidden",
+    marginTop: 2,
+  },
+  meterFill: { height: 5, borderRadius: 3, backgroundColor: colors.green600 },
+
+  quickLinks: { flexDirection: "row", gap: spacing.sm },
+  quickLink: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    paddingVertical: 13,
+    paddingHorizontal: 14,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.surface,
+  },
+  quickLinkOn: { backgroundColor: colors.surfaceTint },
+  quickLinkLabel: {
+    flex: 1,
+    fontFamily: fonts.bodySemi,
+    fontSize: type.small,
+    color: colors.ink900,
   },
 
   band: {

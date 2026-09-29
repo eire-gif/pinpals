@@ -66,6 +66,15 @@ const EXPECTED: Record<string, Expectation> = {
   // --- hitting `permission denied for function is_staff` (0045/0056).
   "invite_is_visible_row(target_visibility text, target_member_id uuid)": { anon: true, authenticated: true },
   "listing_is_visible(target_listing_id bigint)": { anon: true, authenticated: true },
+
+  // --- Signed-in members only. listing_favourite_counts() (0085) is
+  // --- SECURITY DEFINER because listing_favourites is readable only by the
+  // --- member who saved — so the grant is half the boundary and
+  // --- `l.seller_id = auth.uid()` inside the body is the other half. anon
+  // --- must never reach it: an anonymous caller has no auth.uid(), so the
+  // --- body would scope to nothing, but a function that takes an array of
+  // --- listing ids has no business being reachable with the publishable key.
+  "listing_favourite_counts(p_listing_ids bigint[])": { anon: false, authenticated: true },
   "listing_is_visible_row(target_status text, target_seller_id uuid, target_listing_id bigint)": {
     anon: true,
     authenticated: true,
