@@ -622,6 +622,10 @@ export type Message = {
   sender_id: string;
   body: string;
   created_at: string;
+  /** A `message-images` storage PATH, not a URL — that bucket is private and
+   *  its URLs expire, so readers sign on demand (0086). Null on a message
+   *  that is only text; `body` may be empty when this is set. */
+  image_path: string | null;
   /** Moderation flag only — see hideMessage()/restoreMessage() in
    * src/app/admin/reports/[id]/actions.ts. `body` above is never rewritten
    * or cleared when a message is hidden; the UI decides whether to render

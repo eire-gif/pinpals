@@ -5,6 +5,7 @@ import { initials } from "@/lib/format";
 import type { Message } from "@/lib/types";
 import type { MessagesCursor } from "@/lib/messaging";
 import { conversationChannelTopic, useBroadcastChannel } from "@/lib/realtime-client";
+import { useMessageImageUrls } from "@/lib/message-images-client";
 import { loadOlderMessages, sendMessage } from "../actions";
 import MessageForm from "./message-form";
 import ReportForm from "./report-form";
@@ -79,6 +80,10 @@ export default function ThreadView({
       return diff !== 0 ? diff : a.id - b.id;
     });
   }, [older, initialMessages, live]);
+
+  // Covers the first page, "load older" and a live arrival alike — see the
+  // hook's own comment for why this is signed in the browser.
+  const imageUrls = useMessageImageUrls(allMessages);
 
   async function handleLoadOlder() {
     if (!cursor) return;
@@ -159,11 +164,47 @@ export default function ThreadView({
                   {initials(name)}
                 </div>
                 <div className="flex flex-col gap-1 max-w-[75%]">
-                  <div className={`rounded-2xl px-4 py-2.5 text-sm ${mine ? "bg-green-700 text-cream-50" : "bg-cream-100 text-ink-900"}`}>
+                  <div
+                    className={`rounded-2xl text-sm overflow-hidden ${
+                      // A photo fills the bubble edge to edge; padding
+                      // around it frames the picture in green, which reads
+                      // as a mistake rather than a choice.
+                      m.image_path && !m.hidden_at ? "" : "px-4 py-2.5"
+                    } ${mine ? "bg-green-700 text-cream-50" : "bg-cream-100 text-ink-900"}`}
+                  >
                     {m.hidden_at ? (
+                      // Covers the photo too: a hidden message is hidden
+                      // whichever part of it was the problem.
                       <span className="italic opacity-75">This message was removed by a moderator.</span>
                     ) : (
-                      <span className="whitespace-pre-wrap break-words">{m.body}</span>
+                      <>
+                        {m.image_path ? (
+                          imageUrls.get(m.image_path) ? (
+                            // Plain <img>, not next/image: the URL is signed
+                            // and short-lived, so next/image's optimiser
+                            // would cache a link that expires — and caching
+                            // a private photo on a shared CDN is not
+                            // something to do by accident.
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={imageUrls.get(m.image_path)}
+                              alt="Photo"
+                              className="block w-full max-w-[280px] object-contain bg-cream-100"
+                            />
+                          ) : (
+                            <div className="w-[280px] aspect-[4/3] bg-cream-100" />
+                          )
+                        ) : null}
+                        {m.body ? (
+                          <span
+                            className={`whitespace-pre-wrap break-words ${
+                              m.image_path ? "block px-4 py-2.5" : ""
+                            }`}
+                          >
+                            {m.body}
+                          </span>
+                        ) : null}
+                      </>
                     )}
                   </div>
                   {!mine && !m.hidden_at && (

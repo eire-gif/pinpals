@@ -279,3 +279,120 @@ export async function uploadAvatarImage(
 
   return supabase.storage.from("member-avatars").getPublicUrl(path).data.publicUrl;
 }
+
+// ---------------------------------------------------------------------------
+// Photos sent in a conversation
+// ---------------------------------------------------------------------------
+
+/** A message photo is shown in a bubble and, at most, full-screen on a phone.
+ *  1600 is generous for both and keeps a 12MP original out of Storage. */
+export const MESSAGE_IMAGE_MAX_DIMENSION = 1600;
+
+/**
+ * The same validate-and-re-encode pass as the two above, for a photo sent
+ * inside a conversation.
+ *
+ * Stripping is by construction, not by a step: sharp emits no EXIF/IPTC/XMP
+ * unless `.withMetadata()` is called, and nothing here calls it. `.rotate()`
+ * bakes the orientation tag into the pixels first, so dropping the tag
+ * doesn't leave the photo on its side.
+ *
+ * This matters at least as much here as it did for avatars. A photo sent in
+ * a chat is very often taken on the spot — a club in a hallway, a scorecard
+ * on a kitchen table — and the coordinates it carries are a home address.
+ */
+export async function processMessageImage(file: File): Promise<ProcessedImage> {
+  if (file.size === 0) {
+    throw new ImageProcessingError("That file is empty.");
+  }
+  if (file.size > MAX_IMAGE_SIZE_BYTES) {
+    throw new ImageProcessingError(
+      `Photos must be under ${Math.round(MAX_IMAGE_SIZE_BYTES / (1024 * 1024))}MB.`
+    );
+  }
+  if (!isAllowedImageType(file.type)) {
+    throw new ImageProcessingError("Photos need to be a JPEG, PNG or WebP image.");
+  }
+
+  const input = Buffer.from(await file.arrayBuffer());
+
+  try {
+    // Decode the header inside the try: the declared Content-Type is
+    // client-supplied and is not proof the bytes are really an image.
+    await sharp(input, { failOn: "truncated" }).metadata();
+  } catch {
+    throw new ImageProcessingError("That file doesn't look like a valid image.");
+  }
+
+  let pipeline = sharp(input, { failOn: "truncated" }).rotate().resize({
+    width: MESSAGE_IMAGE_MAX_DIMENSION,
+    height: MESSAGE_IMAGE_MAX_DIMENSION,
+    fit: "inside",
+    withoutEnlargement: true,
+  });
+
+  const contentType = file.type as (typeof ALLOWED_IMAGE_TYPES)[number];
+  if (contentType === "image/png") {
+    pipeline = pipeline.png({ quality: 85, compressionLevel: 8 });
+  } else if (contentType === "image/webp") {
+    pipeline = pipeline.webp({ quality: 85 });
+  } else {
+    pipeline = pipeline.jpeg({ quality: 85, mozjpeg: true });
+  }
+
+  let buffer: Buffer;
+  try {
+    buffer = await pipeline.toBuffer();
+  } catch {
+    throw new ImageProcessingError("Couldn't process that photo — try a different file.");
+  }
+
+  return { buffer, contentType, extension: EXTENSION_BY_TYPE[contentType] };
+}
+
+/**
+ * Processes and uploads a photo into a conversation's folder, returning the
+ * STORAGE PATH — not a URL.
+ *
+ * `message-images` is a private bucket (0086), so there is no public URL to
+ * return. Readers ask for a signed one, and the bucket's SELECT policy is
+ * what decides whether they get it. A signed URL also expires, which is why
+ * `messages.image_path` stores this rather than a link: a column full of
+ * expired links is a thread whose photos all stop loading on a timer.
+ *
+ * `supabase` here must be the ADMIN client. 0086 gives `authenticated` no
+ * insert policy on this bucket at all, so this is the only door, and that is
+ * the point — there is no second path that could skip the re-encode above.
+ * The caller is responsible for having established that `conversationId` is
+ * one the sender is actually in; see the route.
+ */
+export async function uploadMessageImage(
+  supabase: SupabaseClient,
+  conversationId: number,
+  file: File
+): Promise<string> {
+  const { buffer, contentType, extension } = await processMessageImage(file);
+  // The conversation id is the first segment because the SELECT policy reads
+  // it back out of the object name to decide who may see this.
+  const path = `${conversationId}/${crypto.randomUUID()}.${extension}`;
+
+  const { error } = await supabase.storage
+    .from("message-images")
+    .upload(path, buffer, { contentType, upsert: false });
+
+  if (error) {
+    throw new ImageProcessingError(`Couldn't upload that photo: ${error.message}`);
+  }
+
+  return path;
+}
+
+/** Removes a message photo that was uploaded but never made it onto a
+ *  message — a send that failed after the upload succeeded. Best-effort:
+ *  an orphaned object is tidiness, never worth failing the caller over. */
+export async function deleteMessageImage(
+  supabase: SupabaseClient,
+  path: string
+): Promise<void> {
+  await supabase.storage.from("message-images").remove([path]);
+}
