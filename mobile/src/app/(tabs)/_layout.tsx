@@ -115,6 +115,9 @@ export default function TabsLayout() {
         name="tee-times"
         options={{
           title: "Tee Times",
+          // Names the tab, not the bar: the screen's own photo header
+          // carries the title now.
+          headerTitle: "",
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="golf-outline" size={size} color={color} />
           ),
@@ -137,6 +140,9 @@ export default function TabsLayout() {
         name="marketplace"
         options={{
           title: "Marketplace",
+          // Names the tab, not the bar: the screen's own photo header
+          // carries the title now.
+          headerTitle: "",
           // Native since the marketplace stopped being a web view. The
           // header carries the menu button; browsing, filtering and the
           // listing page are all native, and only the money actions open the

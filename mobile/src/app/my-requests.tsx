@@ -12,6 +12,7 @@ import {
 import { Stack, router, useFocusEffect } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
+import { ScreenHeader } from "@/components/screen-header";
 import { useAuth } from "@/lib/auth";
 import {
   REQUEST_STATUS_LABELS,
@@ -102,9 +103,25 @@ export default function MyRequestsScreen() {
     );
   }
 
+  // Waiting is the only state the member can do nothing about, so it is the
+  // one worth surfacing before they read a single row.
+  const waiting = requests.filter((entry) => entry.status === "pending").length;
+  const subtitle =
+    requests.length === 0
+      ? "Nothing asked for yet"
+      : waiting === 0
+        ? "All answered"
+        : waiting === 1
+          ? "1 waiting on a host"
+          : `${waiting} waiting on a host`;
+
   return (
     <>
-      <Stack.Screen options={{ title: "Rounds I've asked to join", headerBackTitle: "Back" }} />
+      {/* The band carries the screen's name, so the bar above it
+          does not need to carry it too. */}
+      <Stack.Screen options={{ headerTitle: "", headerBackTitle: "Back" }} />
+
+      <ScreenHeader scene="linksSunset" title="My requests" subtitle={subtitle} />
 
       {loading ? (
         <View style={[styles.fill, styles.centre]}>

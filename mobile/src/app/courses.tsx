@@ -26,6 +26,7 @@ import {
   searchCourses,
   type Club,
 } from "@/lib/courses";
+import { ScreenHeader } from "@/components/screen-header";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 
 /**
@@ -204,7 +205,19 @@ export default function CoursesScreen() {
 
   return (
     <View style={styles.fill}>
-      <Stack.Screen options={{ title: "Courses", headerBackTitle: "Back" }} />
+      {/* The band carries the screen's name, so the bar above it does
+          not need to carry it too. */}
+      <Stack.Screen options={{ headerTitle: "", headerBackTitle: "Back" }} />
+
+      {/* Pinned above the search box rather than scrolled with the list: the
+          controls have to stay put, and a photograph under a search field
+          reads as an advert. Old Head because this is the screen the whole
+          product is pitched on — every course in Ireland and the UK. */}
+      <ScreenHeader
+        scene="oldHead"
+        title="Courses"
+        subtitle="Every club in Ireland and the UK"
+      />
 
       <View style={styles.controls}>
         <View style={styles.searchBox}>

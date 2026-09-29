@@ -4,6 +4,7 @@ import {
   Animated,
   Dimensions,
   Easing,
+  ImageBackground,
   Linking,
   Modal,
   Platform,
@@ -21,6 +22,14 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "@/lib/auth";
 import { MENU, contactMailto, type MenuItem } from "@/lib/menu";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
+
+/**
+ * Ballybunion rather than one of the sunsets: the panel slides over whatever
+ * screen you were on, so it wants a photograph that reads instantly at 320pt
+ * wide and in a fifth of a second, not one with a sun in it to squint at.
+ * Same file the Tee times header uses — they are never on screen together.
+ */
+const DRAWER_SCENE = require("../../assets/images/scenes/ballybunion.jpg");
 
 /**
  * The whole app, one tap from anywhere.
@@ -126,12 +135,24 @@ export function AppMenu({ open, onClose }: { open: boolean; onClose: () => void 
           ]}
         >
           <SafeAreaView style={styles.fill} edges={["top", "bottom"]}>
-            <View style={styles.head}>
-              <Text style={styles.brand}>PinPals</Text>
-              <Pressable onPress={onClose} hitSlop={12} accessibilityLabel="Close menu">
-                <Ionicons name="close" size={24} color={colors.cream50} />
-              </Pressable>
-            </View>
+            {/* The drawer was navy from top to bottom, which was correct and
+                joyless. The photograph behind the wordmark costs nothing —
+                the bottom of every scene fades to exactly this navy, so the
+                image reads as the top of the panel rather than as a picture
+                stuck on it. */}
+            <ImageBackground
+              source={DRAWER_SCENE}
+              style={styles.head}
+              accessible={false}
+              importantForAccessibility="no-hide-descendants"
+            >
+              <View style={styles.headRow}>
+                <Text style={styles.brand}>PinPals</Text>
+                <Pressable onPress={onClose} hitSlop={12} accessibilityLabel="Close menu">
+                  <Ionicons name="close" size={24} color={colors.cream50} />
+                </Pressable>
+              </View>
+            </ImageBackground>
 
             <ScrollView
               contentContainerStyle={styles.list}
@@ -228,13 +249,15 @@ const styles = StyleSheet.create({
     backgroundColor: colors.navy900,
   },
 
-  head: {
+  // The wordmark sits on the fade at the bottom of the photograph, which is
+  // where that fade is at full strength — see tools/check-scene-contrast.py.
+  head: { justifyContent: "flex-end", height: 132 },
+  headRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: spacing.md,
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.md,
+    paddingBottom: 12,
   },
   brand: {
     fontFamily: fonts.display,

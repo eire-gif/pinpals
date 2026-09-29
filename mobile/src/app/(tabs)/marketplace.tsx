@@ -14,6 +14,7 @@ import { router, useFocusEffect } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { MarketplaceFilters } from "@/components/marketplace-filters";
+import { ScreenHeader } from "@/components/screen-header";
 import { useAuth } from "@/lib/auth";
 import {
   EMPTY_FILTERS,
@@ -130,6 +131,15 @@ export default function MarketplaceScreen() {
 
   return (
     <View style={styles.fill}>
+      {/* Parkland rather than another links photograph: this tab is the one
+          part of the app that is not about a round, and it should not look
+          like the tee times tab at a glance. */}
+      <ScreenHeader
+        scene="parkland"
+        title="Marketplace"
+        subtitle="Clubs and kit from other members"
+      />
+
       <View style={styles.controls}>
         <View style={styles.search}>
           <Ionicons name="search" size={17} color={colors.ink500} />
