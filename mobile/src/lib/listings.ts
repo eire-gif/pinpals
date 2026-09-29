@@ -369,3 +369,86 @@ export function priceLabel(priceEur: number | null): string {
   if (priceEur === null) return "";
   return `€${priceEur.toLocaleString("en-IE", { maximumFractionDigits: 0 })}`;
 }
+
+// ---------------------------------------------------------------------------
+// Managing a listing you already have
+// ---------------------------------------------------------------------------
+
+/**
+ * What a seller can do to a listing from here, given its current status.
+ *
+ * Taken from validate_listing_status_transition() (0045), which is the thing
+ * that actually decides. Anything not listed there is refused by Postgres, so
+ * offering it would be offering a button that fails.
+ *
+ * `draft -> active` is absent on purpose and is not an oversight: the trigger
+ * allows that one only for staff and the service role, because going on sale
+ * is the moment a listing can take somebody's money. Publishing therefore
+ * goes through the site — see publishListing() below.
+ */
+export type ListingAction = "publish" | "sold" | "remove" | "relist";
+
+export function actionsFor(status: ListingStatus): ListingAction[] {
+  switch (status) {
+    case "draft":
+      return ["publish", "remove"];
+    case "pending_review":
+      return ["remove"];
+    case "active":
+      return ["sold", "remove"];
+    case "reserved":
+      return ["sold", "remove"];
+    case "expired":
+      return ["relist", "remove"];
+    default:
+      // sold and removed are terminal for a seller.
+      return [];
+  }
+}
+
+export const ACTION_LABELS: Record<ListingAction, string> = {
+  publish: "Put on sale",
+  sold: "Mark as sold",
+  remove: "Remove",
+  relist: "Put back on sale",
+};
+
+/**
+ * Put a draft on sale.
+ *
+ * Through the site because the app cannot do it: the status trigger forbids
+ * a member moving draft -> active, and the seller has to be payment-ready
+ * with Stripe first, which is a TypeScript check rather than a policy. The
+ * route answers 422 with a sentence worth showing when either fails.
+ */
+export async function publishListing(listingId: number): Promise<void> {
+  await postToSite<{ ok: true }>(`/api/app/listings/${listingId}/publish`, {});
+}
+
+/**
+ * Every other status change, straight to the table.
+ *
+ * No route needed: the trigger already allows these for the owner and the
+ * RLS policy already refuses everyone else, so a route in front would be a
+ * second opinion. `.eq("seller_id", …)` is belt and braces so a refusal comes
+ * back as "no rows" rather than as a silent success against nothing.
+ */
+export async function setListingStatus(
+  listingId: number,
+  userId: string,
+  status: Extract<ListingStatus, "sold" | "removed" | "active">
+): Promise<string | null> {
+  const { error } = await supabase
+    .from("listings")
+    .update({ status })
+    .eq("id", listingId)
+    .eq("seller_id", userId);
+
+  if (!error) return null;
+
+  // The trigger raises its own message for an impossible transition; anything
+  // else is not worth showing raw.
+  return /Invalid listing status transition/i.test(error.message)
+    ? "That isn't something this listing can do from where it is now."
+    : "Couldn't update that listing. Please try again.";
+}
