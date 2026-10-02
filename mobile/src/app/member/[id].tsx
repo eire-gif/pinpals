@@ -1,0 +1,325 @@
+import { useCallback, useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Pressable,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+} from "react-native";
+import { Stack, router, useLocalSearchParams } from "expo-router";
+import Ionicons from "@expo/vector-icons/Ionicons";
+
+import { Avatar } from "@/components/avatar";
+import { PostCard } from "@/components/post-card";
+import { useAuth } from "@/lib/auth";
+import { loadMemberPosts, loadMemberProfile, type FeedPost, type MemberProfile } from "@/lib/feed";
+import { conversationWith, requestConnection, respondToConnection } from "@/lib/members";
+import { supabase } from "@/lib/supabase";
+import { colors, fonts, radii, spacing, type } from "@/lib/theme";
+import { usePostActions } from "@/lib/use-post-actions";
+
+type Link = { id: number; status: "pending" | "accepted" | "declined"; theirsToAnswer: boolean } | null;
+
+/**
+ * A member's own page — the app's version of /members/<id> on the website.
+ *
+ * Who they are, then everything they have posted that this viewer may see.
+ * Which posts appear is decided by RLS (0088), not here: a stranger sees
+ * only what was shared with all members; a connection sees the rest.
+ */
+export default function MemberScreen() {
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const { session } = useAuth();
+  const userId = session?.user?.id ?? null;
+  const isMe = userId === id;
+  const { width } = useWindowDimensions();
+
+  const [profile, setProfile] = useState<MemberProfile | null>(null);
+  const [posts, setPosts] = useState<FeedPost[]>([]);
+  const [cursor, setCursor] = useState<string | null>(null);
+  const [link, setLink] = useState<Link>(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(async () => {
+    if (!userId || !id) return;
+    try {
+      const [p, page, connection] = await Promise.all([
+        loadMemberProfile(id),
+        loadMemberPosts(userId, id, null),
+        isMe
+          ? Promise.resolve(null)
+          : supabase
+              .from("connections")
+              .select("id, requester_id, recipient_id, status")
+              .or(`and(requester_id.eq.${userId},recipient_id.eq.${id}),and(requester_id.eq.${id},recipient_id.eq.${userId})`)
+              .maybeSingle<{ id: number; requester_id: string; recipient_id: string; status: "pending" | "accepted" | "declined" }>()
+              .then(({ data }) => data),
+      ]);
+      setProfile(p);
+      setPosts(page.posts);
+      setCursor(page.cursor);
+      setLink(
+        connection
+          ? {
+              id: connection.id,
+              status: connection.status,
+              theirsToAnswer: connection.recipient_id === userId && connection.status === "pending",
+            }
+          : null
+      );
+    } catch (err) {
+      Alert.alert("Couldn't load this page", err instanceof Error ? err.message : "Please try again.");
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [userId, id, isMe]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  async function more() {
+    if (!userId || !id || !cursor) return;
+    try {
+      const page = await loadMemberPosts(userId, id, cursor);
+      setPosts((prev) => [...prev, ...page.posts]);
+      setCursor(page.cursor);
+    } catch {
+      // Keep what is on screen.
+    }
+  }
+
+  const actions = usePostActions({
+    update: (postId, change) => setPosts((prev) => prev.map((p) => (p.id === postId ? change(p) : p))),
+    remove: (postId) => setPosts((prev) => prev.filter((p) => p.id !== postId)),
+    reload: load,
+  });
+
+  async function connect() {
+    if (!userId || !id) return;
+    setBusy(true);
+    try {
+      if (link?.theirsToAnswer) {
+        await respondToConnection(link.id, userId, true);
+      } else {
+        await requestConnection(userId, id);
+      }
+      await load();
+    } catch (err) {
+      Alert.alert("Couldn't do that", err instanceof Error ? err.message : "Please try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function message() {
+    if (!id) return;
+    setBusy(true);
+    try {
+      const conversation = await conversationWith(id);
+      router.push({ pathname: "/conversation/[id]", params: { id: String(conversation) } });
+    } catch (err) {
+      Alert.alert("Couldn't open a conversation", err instanceof Error ? err.message : "Please try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (loading) {
+    return (
+      <>
+        <Stack.Screen options={{ title: "", headerBackTitle: "Back" }} />
+        <ActivityIndicator style={{ marginTop: spacing.xl }} color={colors.green700} />
+      </>
+    );
+  }
+
+  if (!profile) {
+    return (
+      <>
+        <Stack.Screen options={{ title: "", headerBackTitle: "Back" }} />
+        <Text style={styles.missing}>This member couldn&apos;t be found.</Text>
+      </>
+    );
+  }
+
+  const header = (
+    <View style={styles.profile}>
+      <View style={styles.identity}>
+        <Avatar url={profile.avatarUrl} color={profile.avatarColor} name={profile.name} size={76} />
+        <View style={styles.identityText}>
+          <Text style={styles.name}>{profile.name}</Text>
+          <Text style={styles.club}>{profile.homeClub ?? "No home club set"}</Text>
+          {profile.place ? <Text style={styles.meta}>{profile.place}</Text> : null}
+          <Text style={styles.meta}>{profile.joined}</Text>
+        </View>
+      </View>
+
+      <View style={styles.stats}>
+        <Stat label="Handicap" value={profile.handicap === null ? "—" : String(profile.handicap)} />
+        <Stat label="Posts" value={String(profile.postCount)} />
+        <Stat
+          label="For sale"
+          value={String(profile.forSale)}
+          onPress={
+            profile.forSale > 0
+              ? () =>
+                  router.push({
+                    pathname: "/web",
+                    params: { path: `/members/${profile.id}?tab=selling`, title: `${profile.firstName}'s listings` },
+                  })
+              : undefined
+          }
+        />
+        <Stat label="Age range" value={profile.ageBand ?? "—"} />
+      </View>
+
+      {profile.bio ? <Text style={styles.bio}>{profile.bio}</Text> : null}
+
+      <View style={styles.buttons}>
+        {isMe ? (
+          <Pressable style={[styles.button, styles.buttonOutline]} onPress={() => router.push("/edit-profile")}>
+            <Text style={styles.buttonOutlineLabel}>Edit profile</Text>
+          </Pressable>
+        ) : link?.status === "accepted" ? (
+          <>
+            <View style={[styles.button, styles.buttonQuiet]}>
+              <Ionicons name="checkmark" size={16} color={colors.green700} />
+              <Text style={styles.buttonQuietLabel}>Connected</Text>
+            </View>
+            <Pressable style={[styles.button, styles.buttonSolid]} onPress={message} disabled={busy}>
+              <Text style={styles.buttonSolidLabel}>Message</Text>
+            </Pressable>
+          </>
+        ) : link?.status === "pending" && !link.theirsToAnswer ? (
+          <View style={[styles.button, styles.buttonQuiet]}>
+            <Text style={styles.buttonQuietLabel}>Request sent</Text>
+          </View>
+        ) : (
+          <Pressable style={[styles.button, styles.buttonSolid]} onPress={connect} disabled={busy}>
+            {busy ? (
+              <ActivityIndicator color={colors.cream50} />
+            ) : (
+              <Text style={styles.buttonSolidLabel}>
+                {link?.theirsToAnswer ? "Accept request" : link?.status === "declined" ? "Connect again" : "Connect"}
+              </Text>
+            )}
+          </Pressable>
+        )}
+      </View>
+
+      <Text style={styles.section}>Posts</Text>
+    </View>
+  );
+
+  return (
+    <>
+      <Stack.Screen options={{ title: profile.firstName, headerBackTitle: "Back" }} />
+      <FlatList
+        style={styles.fill}
+        data={posts}
+        keyExtractor={(p) => String(p.id)}
+        ListHeaderComponent={header}
+        contentContainerStyle={styles.list}
+        ItemSeparatorComponent={() => <View style={{ height: spacing.md }} />}
+        onEndReached={more}
+        onEndReachedThreshold={0.6}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => {
+              setRefreshing(true);
+              void load();
+            }}
+            tintColor={colors.green700}
+          />
+        }
+        ListEmptyComponent={
+          <Text style={styles.empty}>
+            {isMe ? "You haven't posted yet. Share your last round from the Feed tab." : `${profile.firstName} hasn't shared anything you can see yet.`}
+          </Text>
+        }
+        renderItem={({ item }) => (
+          <PostCard
+            post={item}
+            width={width - spacing.md * 2 - 2}
+            onLike={actions.like}
+            onMenu={actions.menu}
+            onComment={(p) => router.push({ pathname: "/post/[id]", params: { id: String(p.id), focus: "comment" } })}
+            onDeleteComment={actions.removeComment}
+            onReportComment={actions.reportComment}
+          />
+        )}
+      />
+    </>
+  );
+}
+
+function Stat({ label, value, onPress }: { label: string; value: string; onPress?: () => void }) {
+  const content = (
+    <>
+      <Text style={styles.statValue} numberOfLines={1}>
+        {value}
+      </Text>
+      <Text style={[styles.statLabel, onPress && { color: colors.green700 }]}>{label}</Text>
+    </>
+  );
+  return onPress ? (
+    <Pressable style={styles.stat} onPress={onPress} accessibilityRole="link">
+      {content}
+    </Pressable>
+  ) : (
+    <View style={styles.stat}>{content}</View>
+  );
+}
+
+const styles = StyleSheet.create({
+  fill: { flex: 1, backgroundColor: colors.cream50 },
+  list: { padding: spacing.md, paddingBottom: spacing.xl * 2 },
+  missing: { fontFamily: fonts.body, fontSize: type.body, color: colors.ink500, textAlign: "center", marginTop: spacing.xl },
+  profile: { marginBottom: spacing.sm },
+  identity: { flexDirection: "row", alignItems: "center", gap: spacing.md },
+  identityText: { flex: 1, minWidth: 0 },
+  name: { fontFamily: fonts.display, fontSize: 24, color: colors.ink900 },
+  club: { fontFamily: fonts.bodySemi, fontSize: type.small, color: colors.green700, marginTop: 2 },
+  meta: { fontFamily: fonts.body, fontSize: 13, color: colors.ink500, marginTop: 1 },
+  stats: {
+    flexDirection: "row",
+    marginTop: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.line,
+    paddingVertical: spacing.sm + 4,
+  },
+  stat: { flex: 1, alignItems: "center", paddingHorizontal: 2 },
+  statValue: { fontFamily: fonts.display, fontSize: 18, color: colors.ink900 },
+  statLabel: { fontFamily: fonts.body, fontSize: 11.5, color: colors.ink500, marginTop: 2 },
+  bio: { fontFamily: fonts.body, fontSize: 15, lineHeight: 21, color: colors.ink900, marginTop: spacing.md },
+  buttons: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.md },
+  button: {
+    flex: 1,
+    flexDirection: "row",
+    gap: 6,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: radii.pill,
+    paddingVertical: spacing.sm + 4,
+    minHeight: 44,
+  },
+  buttonSolid: { backgroundColor: colors.green700 },
+  buttonSolidLabel: { fontFamily: fonts.bodyBold, fontSize: type.small, color: colors.cream50 },
+  buttonOutline: { borderWidth: 1.5, borderColor: colors.green700 },
+  buttonOutlineLabel: { fontFamily: fonts.bodyBold, fontSize: type.small, color: colors.green700 },
+  buttonQuiet: { backgroundColor: colors.green100 },
+  buttonQuietLabel: { fontFamily: fonts.bodyBold, fontSize: type.small, color: colors.green700 },
+  section: { fontFamily: fonts.display, fontSize: type.heading, color: colors.ink900, marginTop: spacing.lg },
+  empty: { fontFamily: fonts.body, fontSize: type.small, color: colors.ink500, textAlign: "center", marginTop: spacing.lg },
+});

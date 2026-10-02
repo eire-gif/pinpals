@@ -200,6 +200,11 @@ export const patchSite = <T>(path: string, body: unknown): Promise<T> =>
 export const deleteFromSite = <T>(path: string): Promise<T> =>
   requestSite<T>(path, "DELETE");
 
+/** A DELETE that has to say which thing — a staged feed photo is named by
+ *  its storage path, which belongs in a body rather than a URL. */
+export const deleteFromSiteWithBody = <T>(path: string, body: unknown): Promise<T> =>
+  requestSite<T>(path, "DELETE", body);
+
 /** A photo, as multipart. `file` is what React Native's FormData wants for a
  *  local file: the asset's uri, a filename and a mime type. */
 export type UploadFile = { uri: string; name: string; type: string };

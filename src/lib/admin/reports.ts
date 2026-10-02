@@ -65,7 +65,21 @@ export type ReportCategory = (typeof REPORT_CATEGORIES)[number];
 // to (hiding the review) goes through hideReview()/restoreReview()
 // (src/app/admin/reviews/actions.ts) rather than this queue directly, same
 // separation as report -> hideListing() for a listing report.
-export const REPORT_TARGET_TYPES = ["user", "listing", "tee_time_invite", "message", "conversation", "order", "review"] as const;
+// 'post' / 'post_comment' — the member feed (0088). Reported from the post
+// card's menu (reportFeedContent() in src/lib/feed-operations.ts) and
+// moderated from /admin/feed, the same report -> hide/restore separation as
+// reviews above.
+export const REPORT_TARGET_TYPES = [
+  "user",
+  "listing",
+  "tee_time_invite",
+  "message",
+  "conversation",
+  "order",
+  "review",
+  "post",
+  "post_comment",
+] as const;
 export type ReportTargetType = (typeof REPORT_TARGET_TYPES)[number];
 
 // Roles an open report can be escalated TO (reports.escalated_to_role,
@@ -124,6 +138,8 @@ export const REPORT_TARGET_TYPE_LABELS: Record<ReportTargetType, string> = {
   conversation: "Conversation",
   order: "Order",
   review: "Review",
+  post: "Feed post",
+  post_comment: "Feed comment",
 };
 
 // Category subsets each member-facing report form actually offers — the

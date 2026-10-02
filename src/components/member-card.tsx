@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { Connection, Profile } from "@/lib/types";
 import { countryName } from "@/lib/regions";
 import { AGE_BAND_NOT_SHARED } from "@/lib/age";
@@ -52,7 +53,11 @@ export default function MemberCard({
         <MemberAvatar name={name} avatarUrl={member.avatar_url} color={member.avatar_color} size="xl" />
         <div className="min-w-0">
           <h3 className="font-display font-bold text-lg truncate">
-            {name} {isMe && <span className="text-green-700 text-xs font-sans">(you)</span>}
+            {/* Their page: profile, posts and anything they're selling. */}
+            <Link href={`/members/${member.id}`} className="hover:underline">
+              {name}
+            </Link>{" "}
+            {isMe && <span className="text-green-700 text-xs font-sans">(you)</span>}
           </h3>
           {/* A member who hasn't set a club still belongs in the directory,
               so the line says so rather than sitting empty. Italic and

@@ -146,12 +146,21 @@ const EXPECTED: Record<string, Expectation> = {
   // calls it while reading tee_time_interests, and an inline subquery there
   // would recurse.
   "has_confirmed_place(target_invite_id bigint)": { anon: false, authenticated: true },
+  // 0088. Answers only "may the CALLER see this post" — auth.uid() is read
+  // inside, never passed in. SECURITY DEFINER so the policies on
+  // post_images, post_likes, post_comments and storage.objects can share one
+  // answer, and so the block check sees both directions.
+  "can_view_post(target_post_id bigint)": { anon: false, authenticated: true },
 
   // --- Service role / internal only. Everything below is either a trigger
   // --- function, a sweep, or a privileged write path that must never be
   // --- reachable from a browser.
   "admin_distinct_webhook_event_types()": { anon: false, authenticated: false },
   "apply_new_bid()": { anon: false, authenticated: false },
+  // 0088. Keep posts.like_count / comment_count, which members have no
+  // UPDATE grant on — that is why they must be SECURITY DEFINER.
+  "bump_post_comment_count()": { anon: false, authenticated: false },
+  "bump_post_like_count()": { anon: false, authenticated: false },
   // 0084. The nightly sweep that closes rounds a clear day past their
   // play_date. SECURITY DEFINER so cron can run it without a session;
   // unreachable from a browser because a member closing other people's

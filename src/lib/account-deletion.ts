@@ -244,6 +244,20 @@ async function standDownCommitments(
     .update({ status: "removed" })
     .eq("seller_id", userId)
     .in("status", ["draft", "pending_review", "active", "reserved"]);
+
+  // --- Their posts in the feed --------------------------------------------
+  //
+  // Hidden now, deleted with their photos when the scrub runs. Hidden rather
+  // than deleted so that a deletion undone by asking within the thirty days
+  // can be undone completely:
+  //   update posts set hidden_at = null, hidden_reason = null
+  //    where author_id = '<id>' and hidden_reason = 'account_deletion';
+  // The admin client, because members have no grant on hidden_at (0088).
+  await admin
+    .from("posts")
+    .update({ hidden_at: new Date().toISOString(), hidden_reason: "account_deletion" })
+    .eq("author_id", userId)
+    .is("hidden_at", null);
 }
 
 /**
@@ -383,6 +397,7 @@ async function purgePersonalRows(
     "notifications",
     "member_birthdates",
     "listing_favourites",
+    "post_likes",
   ];
 
   for (const table of byUserId) {
@@ -391,6 +406,21 @@ async function purgePersonalRows(
 
   await admin.from("tee_time_interests").delete().eq("member_id", userId);
   await admin.from("tee_time_invites").delete().eq("member_id", userId);
+
+  // The feed (0088). Posts are the member's own photographs and words, so
+  // they go entirely — photos first, because the post_images rows that name
+  // them cascade away with the posts. Their comments on other people's posts
+  // go too: unlike a message, a comment removed from a thread leaves nobody
+  // holding half a conversation they need for a dispute.
+  const { data: postImages } = await admin
+    .from("post_images")
+    .select("path, posts!inner ( author_id )")
+    .eq("posts.author_id", userId)
+    .returns<{ path: string }[]>();
+  const paths = (postImages ?? []).map((row) => row.path);
+  if (paths.length > 0) await admin.storage.from("post-images").remove(paths);
+  await admin.from("posts").delete().eq("author_id", userId);
+  await admin.from("post_comments").delete().eq("author_id", userId);
 
   // Two-sided tables. Written as two statements rather than an `.or()` filter
   // because a malformed or-filter fails open in PostgREST — it returns rows

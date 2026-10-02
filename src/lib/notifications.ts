@@ -31,12 +31,13 @@ export const NOTIFICATION_CATEGORIES = [
   "disputes_refunds",
   "reviews",
   "tee_times",
+  "feed",
 ] as const;
 export type NotificationCategory = (typeof NOTIFICATION_CATEGORIES)[number];
 
 // Exactly the set notification_preferences.category's check constraint
 // allows — see design decision 3 in the migration.
-export const OPTIONAL_NOTIFICATION_CATEGORIES = ["messages", "offers", "auctions", "reviews", "tee_times"] as const;
+export const OPTIONAL_NOTIFICATION_CATEGORIES = ["messages", "offers", "auctions", "reviews", "tee_times", "feed"] as const;
 export type OptionalNotificationCategory = (typeof OPTIONAL_NOTIFICATION_CATEGORIES)[number];
 
 /** The delivery channels notification_preferences models, one boolean
@@ -57,6 +58,7 @@ export const NOTIFICATION_CATEGORY_LABELS: Record<NotificationCategory, string> 
   disputes_refunds: "Refunds & disputes",
   reviews: "Reviews",
   tee_times: "Tee times",
+  feed: "Your posts",
 };
 
 export const NOTIFICATION_CATEGORY_DESCRIPTIONS: Record<OptionalNotificationCategory, string> = {
@@ -65,6 +67,7 @@ export const NOTIFICATION_CATEGORY_DESCRIPTIONS: Record<OptionalNotificationCate
   auctions: "Outbid alerts, auctions ending soon, and results.",
   reviews: "When you're able to leave a review after a completed order.",
   tee_times: "When someone you've connected with posts a tee time.",
+  feed: "When another member comments on something you posted.",
 };
 
 // Every `type` value any part of this app writes to `notifications.type` —
@@ -113,6 +116,12 @@ export const NOTIFICATION_TYPES = [
   "tee_time_place_confirmed",
   "tee_time_place_withdrawn",
   "tee_time_cancelled",
+  // The feed (0088). A comment is one-to-one and somebody is waiting on a
+  // reply, so it is delivered like a message. A like is recorded in-app
+  // only — see likePost() in src/lib/feed-operations.ts for why it never
+  // emails or buzzes a phone.
+  "post_commented",
+  "post_liked",
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 
@@ -146,6 +155,8 @@ export const NOTIFICATION_TYPE_CATEGORY: Record<NotificationType, NotificationCa
   tee_time_place_confirmed: "tee_times",
   tee_time_place_withdrawn: "tee_times",
   tee_time_cancelled: "tee_times",
+  post_commented: "feed",
+  post_liked: "feed",
 };
 
 /** Which preference category (if any) governs delivery for this notification

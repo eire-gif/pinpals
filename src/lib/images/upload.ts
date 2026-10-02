@@ -396,3 +396,171 @@ export async function deleteMessageImage(
 ): Promise<void> {
   await supabase.storage.from("message-images").remove([path]);
 }
+
+// ---------------------------------------------------------------------------
+// Photos on a feed post
+// ---------------------------------------------------------------------------
+
+/** A feed photo is shown full-width on a phone and at most ~680px wide in
+ *  the website's feed column, with a lightbox beyond that. 2000 matches
+ *  listing photos and leaves next/image real detail to work with. */
+export const POST_IMAGE_MAX_DIMENSION = 2000;
+
+export type UploadedPostImage = { path: string; width: number; height: number };
+
+/**
+ * Validates, re-encodes and uploads one photo for a post that has not been
+ * created yet, returning its STAGING path.
+ *
+ * WHY STAGED. A post can carry six photos, and a request to a Vercel
+ * function cannot carry more than 4.5MB — so the photos travel one request
+ * each, ahead of the post, exactly as listing photos already do
+ * (/api/app/listings/images). They land under `pending/<member id>/`, which
+ * no member can read: post_image_post_id() returns null for a folder that is
+ * not a post id, so the storage policy refuses everyone. createPost() then
+ * MOVES them under the new post's id, which is what makes them visible.
+ *
+ * The dimensions ride in the file name — `<uuid>_<w>x<h>.<ext>` — so the
+ * post can record them without decoding the photo a second time. They come
+ * back from this server, never from the client, and attachPendingPostImages()
+ * parses them strictly.
+ *
+ * The same validate-and-re-encode pass as every other photo in this file:
+ * sharp emits no EXIF/IPTC/XMP unless `.withMetadata()` is called, and
+ * nothing here calls it. A round of golf is the one kind of photo whose GPS
+ * really is a golf course — but the same button posts a new driver
+ * photographed in a hallway, and the pipeline cannot tell them apart.
+ *
+ * `supabase` must be the ADMIN client: `post-images` gives `authenticated`
+ * no insert policy (0088), so this is the only door.
+ */
+export async function uploadPendingPostImage(
+  supabase: SupabaseClient,
+  userId: string,
+  file: File
+): Promise<UploadedPostImage> {
+  if (file.size === 0) {
+    throw new ImageProcessingError("That photo is empty.");
+  }
+  if (file.size > MAX_IMAGE_SIZE_BYTES) {
+    throw new ImageProcessingError(
+      `Photos must be under ${Math.round(MAX_IMAGE_SIZE_BYTES / (1024 * 1024))}MB.`
+    );
+  }
+  if (!isAllowedImageType(file.type)) {
+    throw new ImageProcessingError("Photos need to be a JPEG, PNG or WebP image.");
+  }
+
+  const input = Buffer.from(await file.arrayBuffer());
+
+  try {
+    await sharp(input, { failOn: "truncated" }).metadata();
+  } catch {
+    throw new ImageProcessingError("That file doesn't look like a valid image.");
+  }
+
+  let pipeline = sharp(input, { failOn: "truncated" }).rotate().resize({
+    width: POST_IMAGE_MAX_DIMENSION,
+    height: POST_IMAGE_MAX_DIMENSION,
+    fit: "inside",
+    withoutEnlargement: true,
+  });
+
+  const contentType = file.type;
+  if (contentType === "image/png") {
+    pipeline = pipeline.png({ quality: 85, compressionLevel: 8 });
+  } else if (contentType === "image/webp") {
+    pipeline = pipeline.webp({ quality: 85 });
+  } else {
+    pipeline = pipeline.jpeg({ quality: 85, mozjpeg: true });
+  }
+
+  let output: { data: Buffer; info: { width: number; height: number } };
+  try {
+    output = await pipeline.toBuffer({ resolveWithObject: true });
+  } catch {
+    throw new ImageProcessingError("Couldn't process that photo — try a different file.");
+  }
+
+  const { width, height } = output.info;
+  const path = `pending/${userId}/${crypto.randomUUID()}_${width}x${height}.${EXTENSION_BY_TYPE[contentType]}`;
+
+  const { error } = await supabase.storage
+    .from("post-images")
+    .upload(path, output.data, { contentType, upsert: false });
+
+  if (error) {
+    throw new ImageProcessingError(`Couldn't upload that photo: ${error.message}`);
+  }
+
+  return { path, width, height };
+}
+
+const PENDING_NAME = /^([0-9a-f-]{36})_([1-9][0-9]{0,4})x([1-9][0-9]{0,4})\.(jpg|png|webp)$/;
+
+/**
+ * Parses a staging path back into its parts, refusing anything that is not
+ * exactly one of `userId`'s own staged photos. This is the authorization
+ * check: a member who sends someone else's staging path — or a path into an
+ * existing post's folder — gets null here, and nothing is moved.
+ */
+export function parsePendingPostImagePath(
+  userId: string,
+  path: string
+): { fileName: string; extension: string; width: number; height: number } | null {
+  const prefix = `pending/${userId}/`;
+  if (typeof path !== "string" || !path.startsWith(prefix)) return null;
+  const fileName = path.slice(prefix.length);
+  const match = PENDING_NAME.exec(fileName);
+  if (!match) return null;
+  return { fileName, extension: match[4], width: Number(match[2]), height: Number(match[3]) };
+}
+
+/**
+ * Moves staged photos under a post's id, in order, and returns where each
+ * one landed. Throws ImageProcessingError if a path is not the member's own
+ * staged photo, or no longer exists (staged too long ago, or already used).
+ *
+ * `supabase` must be the ADMIN client — see uploadPendingPostImage().
+ */
+export async function attachPendingPostImages(
+  supabase: SupabaseClient,
+  userId: string,
+  postId: number,
+  pendingPaths: string[]
+): Promise<UploadedPostImage[]> {
+  const parsed = pendingPaths.map((p) => parsePendingPostImagePath(userId, p));
+  if (parsed.some((p) => p === null)) {
+    throw new ImageProcessingError("One of those photos couldn't be found — please add it again.");
+  }
+
+  const moved: UploadedPostImage[] = [];
+  try {
+    for (const [index, part] of parsed.entries()) {
+      const target = `${postId}/${crypto.randomUUID()}.${part!.extension}`;
+      const { error } = await supabase.storage.from("post-images").move(pendingPaths[index], target);
+      if (error) {
+        throw new ImageProcessingError("One of those photos couldn't be found — please add it again.");
+      }
+      moved.push({ path: target, width: part!.width, height: part!.height });
+    }
+  } catch (err) {
+    // Put back nothing, delete what moved: the caller removes the post, and
+    // a half-attached set of photos under a post id that no longer exists is
+    // exactly the orphan this is trying not to leave.
+    await deletePostImages(supabase, moved.map((m) => m.path));
+    throw err;
+  }
+  return moved;
+}
+
+/** Removes a post's photos from Storage. Best-effort: an orphaned object is
+ *  tidiness, never worth failing a delete the member has already seen
+ *  succeed. The rows in post_images go with the post by cascade. */
+export async function deletePostImages(
+  supabase: SupabaseClient,
+  paths: string[]
+): Promise<void> {
+  if (paths.length === 0) return;
+  await supabase.storage.from("post-images").remove(paths);
+}

@@ -363,6 +363,34 @@ export async function fetchMarketplaceListings(
   const hasMore = rows.length > limit;
   const page = hasMore ? rows.slice(0, limit) : rows;
 
+  const listings = await enrichListings(supabase, page, userId);
+
+  let nextCursor: string | null = null;
+  if (hasMore) {
+    const last = page[page.length - 1];
+    nextCursor = encodeMarketplaceCursor({
+      sort: filters.sort,
+      id: last.id,
+      createdAt: last.created_at,
+      priceCents: last.price_cents,
+    });
+  }
+
+  return { listings, nextCursor };
+}
+
+/**
+ * The card-ready half of fetchMarketplaceListings(), split out so a page
+ * that already has its listing rows — a member's own page, listing what
+ * they have for sale — renders the identical card with the identical price
+ * logic rather than a near-copy of it. Always three batched queries,
+ * whatever the number of listings.
+ */
+export async function enrichListings(
+  supabase: SupabaseClient,
+  page: Listing[],
+  userId: string | null
+): Promise<MarketplaceListing[]> {
   const listingIds = page.map((l) => l.id);
 
   const auctionListingIds = page
@@ -425,16 +453,5 @@ export async function fetchMarketplaceListings(
     };
   });
 
-  let nextCursor: string | null = null;
-  if (hasMore) {
-    const last = page[page.length - 1];
-    nextCursor = encodeMarketplaceCursor({
-      sort: filters.sort,
-      id: last.id,
-      createdAt: last.created_at,
-      priceCents: last.price_cents,
-    });
-  }
-
-  return { listings, nextCursor };
+  return listings;
 }

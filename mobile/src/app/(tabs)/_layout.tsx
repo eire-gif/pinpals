@@ -9,7 +9,13 @@ import { colors, fonts, spacing } from "@/lib/theme";
 import { useInboxUnread } from "@/lib/unread";
 
 /**
- * Five tabs. Home is the landing screen and carries the website's hero, so
+ * Six tabs. Feed joined beside Marketplace in October 2026 — the one place
+ * members see each other's rounds, which is the whole point of PinPals, so
+ * it earns a tab rather than a menu entry. Six still fits an iPhone SE's
+ * tab bar with labels at 11pt; a seventh would not, and anything after this
+ * goes in the menu.
+ *
+ * Previously five. Home is the landing screen and carries the website's hero, so
  * the app and the site read as one product — but where that page pitches
  * signing up, this one answers "what have I got on, and who is waiting on
  * me", which is the only question a signed-in member opens an app to ask.
@@ -149,6 +155,31 @@ export default function TabsLayout() {
           // site.
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="pricetags-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="feed"
+        options={{
+          title: "Feed",
+          // Names the tab, not the bar: the screen's own photo header
+          // carries the title, as on Marketplace beside it.
+          headerTitle: "",
+          // Sharing a round is what this tab is for, so the button to do it
+          // is in the header from the moment it opens — the same reasoning
+          // as Post a tee time on the Tee Times tab.
+          headerRight: () => (
+            <Pressable
+              onPress={() => router.push("/new-post")}
+              hitSlop={12}
+              style={{ paddingHorizontal: spacing.md }}
+              accessibilityLabel="Share a post"
+            >
+              <Ionicons name="add-circle" size={27} color={colors.green700} />
+            </Pressable>
+          ),
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="images-outline" size={size} color={color} />
           ),
         }}
       />
