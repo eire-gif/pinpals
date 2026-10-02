@@ -6,6 +6,7 @@ import {
   myLastReadAt,
   isConversationUnread,
   isConversationArchived,
+  conversationName,
   conversationRole,
   matchesInboxFilter,
   containsSensitiveData,
@@ -52,18 +53,29 @@ describe("nextMessagesCursor", () => {
   });
 });
 
+// 0087 moved read state onto conversation_members, so these take a list of
+// member rows rather than a conversation with four columns on it. The rules
+// are unchanged; what a caller hands them is not.
 describe("myLastReadAt / isConversationUnread", () => {
-  const base = {
-    user_a_id: "user-a",
-    user_b_id: "user-b",
-    user_a_last_read_at: "2026-09-01T00:00:00.000Z",
-    user_b_last_read_at: null,
-  };
+  const base = [
+    { member_id: "user-a", last_read_at: "2026-09-01T00:00:00.000Z" },
+    { member_id: "user-b", last_read_at: null },
+  ];
 
-  it("returns each side's own cursor", () => {
+  it("returns each member's own cursor", () => {
     expect(myLastReadAt(base, "user-a")).toBe("2026-09-01T00:00:00.000Z");
     expect(myLastReadAt(base, "user-b")).toBeNull();
     expect(myLastReadAt(base, "user-c")).toBeNull();
+  });
+
+  it("scales past two — a group member's cursor is just another row", () => {
+    const group = [
+      ...base,
+      { member_id: "user-c", last_read_at: "2026-09-05T00:00:00.000Z" },
+    ];
+    expect(myLastReadAt(group, "user-c")).toBe("2026-09-05T00:00:00.000Z");
+    expect(isConversationUnread({ last_message_at: "2026-09-03T00:00:00.000Z" }, group, "user-c")).toBe(false);
+    expect(isConversationUnread({ last_message_at: "2026-09-03T00:00:00.000Z" }, group, "user-b")).toBe(true);
   });
 
   it("a conversation with no messages yet is never unread", () => {
@@ -84,16 +96,43 @@ describe("myLastReadAt / isConversationUnread", () => {
 });
 
 describe("isConversationArchived", () => {
-  const base = {
-    user_a_id: "user-a",
-    user_b_id: "user-b",
-    user_a_archived_at: "2026-09-01T00:00:00.000Z",
-    user_b_archived_at: null,
-  };
+  const base = [
+    { member_id: "user-a", archived_at: "2026-09-01T00:00:00.000Z" },
+    { member_id: "user-b", archived_at: null },
+  ];
 
-  it("is per-side — one participant archiving never affects the other", () => {
+  it("is per-member — one participant archiving never affects the others", () => {
     expect(isConversationArchived(base, "user-a")).toBe(true);
     expect(isConversationArchived(base, "user-b")).toBe(false);
+  });
+
+  it("is false for somebody who is not in the conversation at all", () => {
+    expect(isConversationArchived(base, "user-c")).toBe(false);
+  });
+});
+
+describe("conversationName", () => {
+  const members = [
+    { member_id: "me", role: "member" as const, last_read_at: null, archived_at: null,
+      profile: { id: "me", first_name: "Eire", last_name: "Kelly", avatar_color: null } },
+    { member_id: "them", role: "member" as const, last_read_at: null, archived_at: null,
+      profile: { id: "them", first_name: "Brian", last_name: "Nolan", avatar_color: null } },
+  ];
+
+  it("names a direct thread after the other person, never yourself", () => {
+    expect(conversationName({ kind: "direct", title: null }, members, "me")).toBe("Brian Nolan");
+    expect(conversationName({ kind: "direct", title: null }, members, "them")).toBe("Eire Kelly");
+  });
+
+  it("names a group after its title, whoever is asking", () => {
+    const group = { kind: "group" as const, title: "Saturday fourball" };
+    expect(conversationName(group, members, "me")).toBe("Saturday fourball");
+    expect(conversationName(group, members, "them")).toBe("Saturday fourball");
+  });
+
+  it("says so rather than guessing when the other member's profile is missing", () => {
+    const partial = [members[0], { ...members[1], profile: null }];
+    expect(conversationName({ kind: "direct", title: null }, partial, "me")).toBe("Unknown member");
   });
 });
 

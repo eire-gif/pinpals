@@ -368,77 +368,170 @@ describe("blocked_users (0049): who can see/write a block, and its effect on mes
   });
 });
 
-describe("conversations: UPDATE (read receipts / archiving, 0049)", () => {
+// Read state moved off `conversations` and onto `conversation_members` in
+// 0087 — one row per member carrying that member's own cursor, instead of
+// four columns and a "which side am I" CASE. The rules are the same rules;
+// where they live is what changed.
+describe("conversation_members: UPDATE (read receipts / archiving, 0049 via 0087)", () => {
+  const myRow =
+    "update public.conversation_members set last_read_at = now() where conversation_id = $1 and member_id = $2";
+
   it("a participant can mark their own side read", async () => {
     await withRole("authenticated", USERS.buyer1, async (c) => {
-      const r = await c.query("update public.conversations set user_b_last_read_at = now() where id = $1", [
-        ids.conversationId,
-      ]);
+      const r = await c.query(myRow, [ids.conversationId, USERS.buyer1]);
       expect(r.rowCount).toBe(1);
     });
   });
 
   it("a participant CANNOT set the OTHER participant's read cursor", async () => {
+    // Not a rejection now but zero rows, and that is the correct shape: the
+    // other member's cursor is a different ROW, and the UPDATE policy's
+    // USING clause filters it out rather than a trigger raising on it. Same
+    // boundary, enforced one layer earlier — which is why this assertion
+    // changed from expectRejected to expectZeroRows rather than being
+    // deleted.
     await withRole("authenticated", USERS.buyer1, async (c) => {
-      await expectRejected(
-        c.query("update public.conversations set user_a_last_read_at = now() where id = $1", [ids.conversationId]),
-        /Only.*own read\/archive state|only.*own/i,
+      const r = await c.query(myRow, [ids.conversationId, USERS.seller1]);
+      expectZeroRows(r);
+    });
+  });
+
+  it("and the other participant's cursor really is untouched afterwards", async () => {
+    // Proving the above did nothing, rather than inferring it from rowCount.
+    await withRole("authenticated", USERS.buyer1, async (c) => {
+      await c.query("set local role service_role");
+      await c.query(
+        "update public.conversation_members set last_read_at = '2020-01-01T00:00:00Z' where conversation_id = $1 and member_id = $2",
+        [ids.conversationId, USERS.seller1],
       );
+      await c.query("set local role authenticated");
+
+      await c.query(myRow, [ids.conversationId, USERS.seller1]);
+
+      await c.query("set local role service_role");
+      const { rows } = await c.query<{ last_read_at: Date }>(
+        "select last_read_at from public.conversation_members where conversation_id = $1 and member_id = $2",
+        [ids.conversationId, USERS.seller1],
+      );
+      expect(new Date(rows[0].last_read_at).getUTCFullYear()).toBe(2020);
     });
   });
 
   it("a participant can archive and unarchive their own side only", async () => {
-    // Split across separate transactions — see the same reasoning in the
-    // "blocking mid-thread" test above (a failed statement aborts the rest
-    // of that Postgres transaction).
     await withRole("authenticated", USERS.buyer1, async (c) => {
-      const archive = await c.query("update public.conversations set user_b_archived_at = now() where id = $1", [
-        ids.conversationId,
-      ]);
-      expect(archive.rowCount).toBe(1);
-    });
-
-    await withRole("authenticated", USERS.buyer1, async (c) => {
-      await expectRejected(
-        c.query("update public.conversations set user_a_archived_at = now() where id = $1", [ids.conversationId]),
+      const archive = await c.query(
+        "update public.conversation_members set archived_at = now() where conversation_id = $1 and member_id = $2",
+        [ids.conversationId, USERS.buyer1],
       );
-    });
+      expect(archive.rowCount).toBe(1);
 
-    await withRole("authenticated", USERS.buyer1, async (c) => {
-      const unarchive = await c.query("update public.conversations set user_b_archived_at = null where id = $1", [
-        ids.conversationId,
-      ]);
+      const theirs = await c.query(
+        "update public.conversation_members set archived_at = now() where conversation_id = $1 and member_id = $2",
+        [ids.conversationId, USERS.seller1],
+      );
+      expectZeroRows(theirs);
+
+      const unarchive = await c.query(
+        "update public.conversation_members set archived_at = null where conversation_id = $1 and member_id = $2",
+        [ids.conversationId, USERS.buyer1],
+      );
       expect(unarchive.rowCount).toBe(1);
     });
   });
 
+  it("a member may not move themselves into another conversation, or promote themselves", async () => {
+    // prevent_conversation_member_tampering()'s whole job. The UPDATE policy
+    // allows the row; the trigger is what limits it to two columns.
+    await withRole("authenticated", USERS.buyer1, async (c) => {
+      await expectRejected(
+        c.query(
+          "update public.conversation_members set role = 'owner' where conversation_id = $1 and member_id = $2",
+          [ids.conversationId, USERS.buyer1],
+        ),
+        /own read and archive state/i,
+      );
+    });
+    await withRole("authenticated", USERS.buyer1, async (c) => {
+      await expectRejected(
+        c.query(
+          "update public.conversation_members set member_id = $3 where conversation_id = $1 and member_id = $2",
+          [ids.conversationId, USERS.buyer1, USERS.buyer2],
+        ),
+        /own read and archive state/i,
+      );
+    });
+  });
+
+  it("a member cannot add themselves to somebody else's conversation", async () => {
+    // There is no INSERT policy on conversation_members at all — membership
+    // is granted only by create_group_conversation()/add_conversation_member(),
+    // which check eligibility first. This is the whole boundary.
+    await withRole("authenticated", USERS.buyer2, async (c) => {
+      await expectRejected(
+        c.query(
+          "insert into public.conversation_members (conversation_id, member_id) values ($1, $2)",
+          [ids.conversationId, USERS.buyer2],
+        ),
+        /row-level security|permission denied/i,
+      );
+    });
+  });
+
+  it("a member cannot delete their way out of a DIRECT conversation", async () => {
+    // Leaving is a group action. Deleting your side of a two-person thread
+    // would leave the other person writing to someone who can no longer read
+    // them — archiving is what that is for.
+    await withRole("authenticated", USERS.buyer1, async (c) => {
+      const r = await c.query(
+        "delete from public.conversation_members where conversation_id = $1 and member_id = $2",
+        [ids.conversationId, USERS.buyer1],
+      );
+      expectZeroRows(r);
+    });
+  });
+});
+
+describe("conversations: UPDATE (identity columns stay put)", () => {
   it("nobody may change identity/listing/order/last_message_at columns, even their own conversation", async () => {
-    // Each column independently, in its own transaction — a failed
-    // statement aborts the rest of that Postgres transaction, so chaining
-    // three expectRejected() calls back to back on one connection would
-    // only genuinely test the first (the other two would throw from the
-    // already-aborted transaction, not from prevent_conversation_tampering()
-    // itself).
+    // These now match ZERO ROWS rather than raising, and that is a tightening
+    // rather than a loosening. Until 0087 a participant held an UPDATE policy
+    // on `conversations` (for their read/archive columns), so the row was
+    // visible to an UPDATE and prevent_conversation_tampering() was what
+    // refused the write. Read state has moved to conversation_members, so the
+    // only UPDATE policy left on this table is a group owner renaming their
+    // group — and a direct conversation matches no policy at all. The row is
+    // not merely unwritable now; it is invisible to the statement.
+    //
+    // The trigger still guards the one path that CAN update a conversation —
+    // a group owner — and that is tested in group-conversations.test.ts.
     await withRole("authenticated", USERS.seller1, async (c) => {
-      await expectRejected(
-        c.query("update public.conversations set listing_id = $1 where id = $2", [ids.listings.draft, ids.conversationId]),
+      expectZeroRows(
+        await c.query("update public.conversations set listing_id = $1 where id = $2", [ids.listings.draft, ids.conversationId]),
       );
-    });
-    await withRole("authenticated", USERS.seller1, async (c) => {
-      await expectRejected(
-        c.query("update public.conversations set order_id = $1 where id = $2", [ids.orderId, ids.conversationId]),
+      expectZeroRows(
+        await c.query("update public.conversations set order_id = $1 where id = $2", [ids.orderId, ids.conversationId]),
       );
-    });
-    await withRole("authenticated", USERS.seller1, async (c) => {
-      await expectRejected(
-        c.query("update public.conversations set user_a_id = $1 where id = $2", [USERS.buyer2, ids.conversationId]),
+      expectZeroRows(
+        await c.query("update public.conversations set user_a_id = $1 where id = $2", [USERS.buyer2, ids.conversationId]),
       );
     });
   });
 
   it("a non-participant cannot update someone else's conversation at all", async () => {
     await withRole("authenticated", USERS.buyer2, async (c) => {
-      const r = await c.query("update public.conversations set user_b_last_read_at = now() where id = $1", [
+      const r = await c.query("update public.conversations set title = 'hijacked' where id = $1", [
+        ids.conversationId,
+      ]);
+      expectZeroRows(r);
+    });
+  });
+
+  it("a participant cannot rename a DIRECT conversation", async () => {
+    // The only UPDATE policy left on conversations is for a group owner
+    // renaming their group. A direct thread is named after whoever you are
+    // talking to, and the shape check refuses a title on one anyway.
+    await withRole("authenticated", USERS.seller1, async (c) => {
+      const r = await c.query("update public.conversations set title = 'my thread' where id = $1", [
         ids.conversationId,
       ]);
       expectZeroRows(r);
@@ -520,7 +613,10 @@ describe("conversation_unread_counts() (0049)", () => {
       // Reset buyer1's read cursor to the beginning of time, then have
       // seller1 send one fresh message — buyer1 should see exactly 1
       // unread on this conversation.
-      await c.query("update public.conversations set user_b_last_read_at = null where id = $1", [ids.conversationId]);
+      await c.query(
+        "update public.conversation_members set last_read_at = null where conversation_id = $1 and member_id = $2",
+        [ids.conversationId, USERS.buyer1],
+      );
       await setIdentity(c, USERS.seller1);
       await c.query("insert into public.messages (conversation_id, sender_id, body) values ($1, $2, 'one new message')", [
         ids.conversationId,

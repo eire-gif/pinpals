@@ -195,17 +195,15 @@ export async function markConversationRead(conversationId: number): Promise<Mess
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const { data: conversation } = await supabase
-    .from("conversations")
-    .select("id, user_a_id, user_b_id")
-    .eq("id", conversationId)
-    .maybeSingle<Pick<Conversation, "id" | "user_a_id" | "user_b_id">>();
-  if (!conversation) return { error: "Conversation not found." };
-
-  const nowIso = new Date().toISOString();
-  const column = conversation.user_a_id === user.id ? "user_a_last_read_at" : "user_b_last_read_at";
-
-  const { error } = await supabase.from("conversations").update({ [column]: nowIso }).eq("id", conversationId);
+  // Straight at the caller's own member row (0087). No "which of two columns
+  // is mine" any more, and no need to read the conversation first: the UPDATE
+  // policy scopes this to member_id = auth.uid(), so naming both keys is the
+  // whole of the authorization.
+  const { error } = await supabase
+    .from("conversation_members")
+    .update({ last_read_at: new Date().toISOString() })
+    .eq("conversation_id", conversationId)
+    .eq("member_id", user.id);
   if (error) return { error: "Couldn't mark this conversation read." };
 
   revalidatePath("/conversations");
@@ -217,18 +215,11 @@ async function setArchived(conversationId: number, archived: boolean): Promise<M
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const { data: conversation } = await supabase
-    .from("conversations")
-    .select("id, user_a_id, user_b_id")
-    .eq("id", conversationId)
-    .maybeSingle<Pick<Conversation, "id" | "user_a_id" | "user_b_id">>();
-  if (!conversation) return { error: "Conversation not found." };
-
-  const column = conversation.user_a_id === user.id ? "user_a_archived_at" : "user_b_archived_at";
   const { error } = await supabase
-    .from("conversations")
-    .update({ [column]: archived ? new Date().toISOString() : null })
-    .eq("id", conversationId);
+    .from("conversation_members")
+    .update({ archived_at: archived ? new Date().toISOString() : null })
+    .eq("conversation_id", conversationId)
+    .eq("member_id", user.id);
   if (error) return { error: "Couldn't update this conversation." };
 
   refreshThread(conversationId);

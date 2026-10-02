@@ -35,23 +35,55 @@ export type Message = {
   hidden_at: string | null;
 };
 
+export type ConversationKind = "direct" | "group";
+
 export type InboxRow = {
   id: number;
+  // NOT `kind`. lib/inbox.ts intersects this type with `{ kind: "conversation" }`
+  // to discriminate a conversation row from an alert row, and two different
+  // `kind`s on one object collapse the intersection to `never` — which
+  // TypeScript reports as a hundred missing properties rather than as the name
+  // clash it is.
+  conversationKind: ConversationKind;
+  /** The thread's name: a group's title, or whoever a direct thread is with.
+   *  Still called otherName so the inbox row and the website agree. */
   otherName: string;
+  /** Null for a group, which has no single face — the row draws a glyph. */
   otherAvatarUrl: string | null;
   otherAvatarColor: string | null;
+  /** How many are in a group, for the row's subtitle. Null on a direct
+   *  thread, where "2 people" would be saying nothing. */
+  memberCount: number | null;
   lastMessageAt: string | null;
   listingTitle: string | null;
   unreadCount: number;
 };
 
+/** One person in a conversation, as the thread screen needs them: a name and
+ *  a face for their bubbles. */
+export type ThreadMember = {
+  id: string;
+  name: string;
+  avatarUrl: string | null;
+  avatarColor: string | null;
+  isOwner: boolean;
+};
+
 export type ConversationHeader = {
   id: number;
+  kind: ConversationKind;
   otherName: string;
   otherAvatarUrl: string | null;
   otherAvatarColor: string | null;
   listingId: number | null;
   listingTitle: string | null;
+  /** Everyone in it, including you. A group's bubbles need a name per sender;
+   *  a direct thread's do not, but carrying the list either way means the
+   *  screen has one shape to render rather than two. */
+  members: ThreadMember[];
+  /** Whether YOU started this group — the only member who may add people or
+   *  rename it. False on a direct thread, which has no owner. */
+  iAmOwner: boolean;
 };
 
 type ParticipantRow = {
@@ -62,28 +94,38 @@ type ParticipantRow = {
   avatar_color: string | null;
 };
 
+type MemberRow = {
+  member_id: string;
+  role: "owner" | "member";
+  last_read_at: string | null;
+  archived_at: string | null;
+  profile: ParticipantRow | null;
+};
+
 type ConversationRow = {
   id: number;
-  user_a_id: string;
-  user_b_id: string;
+  kind: "direct" | "group";
+  title: string | null;
+  created_by: string | null;
   listing_id: number | null;
   last_message_at: string | null;
   created_at: string;
-  user_a_archived_at: string | null;
-  user_b_archived_at: string | null;
-  user_a_last_read_at: string | null;
-  user_b_last_read_at: string | null;
-  user_a: ParticipantRow | null;
-  user_b: ParticipantRow | null;
+  members: MemberRow[];
   listing: { id: number; title: string } | null;
 };
 
+/**
+ * Membership is the participant list (0087), so one embed answers who is in a
+ * thread, what each of them has read, and who has archived their own copy —
+ * which used to be two joins and four columns that only ever worked for
+ * exactly two people.
+ */
 const CONVERSATION_SELECT = `
-  id, user_a_id, user_b_id, listing_id, last_message_at, created_at,
-  user_a_archived_at, user_b_archived_at,
-  user_a_last_read_at, user_b_last_read_at,
-  user_a:profiles!conversations_user_a_id_fkey(id, first_name, last_name, avatar_url, avatar_color),
-  user_b:profiles!conversations_user_b_id_fkey(id, first_name, last_name, avatar_url, avatar_color),
+  id, kind, title, created_by, listing_id, last_message_at, created_at,
+  members:conversation_members(
+    member_id, role, last_read_at, archived_at,
+    profile:profiles(id, first_name, last_name, avatar_url, avatar_color)
+  ),
   listing:listings(id, title)
 `;
 
@@ -98,17 +140,24 @@ const INBOX_LIMIT = 50;
 const nameOf = (p: ParticipantRow | null): string =>
   p ? `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim() || "A member" : "A member";
 
-const otherOf = (
-  row: Pick<ConversationRow, "user_a_id" | "user_a" | "user_b">,
-  userId: string
-): ParticipantRow | null => (row.user_a_id === userId ? row.user_b : row.user_a);
+const membersOf = (row: ConversationRow): MemberRow[] => row.members ?? [];
 
-/** Whether the caller's own side of this thread is archived. The other
- *  participant's view is unaffected — 0049's per-side columns. */
+/** Everyone but me. The faces on a group row, and — when there is one — the
+ *  person a direct thread is named after. */
+const othersOf = (row: ConversationRow, userId: string): MemberRow[] =>
+  membersOf(row).filter((m) => m.member_id !== userId);
+
+/** Whether the caller's own copy of this thread is archived. Every other
+ *  member's view is unaffected — their archived_at is on their own row. */
 const archivedForMe = (row: ConversationRow, userId: string): boolean =>
-  row.user_a_id === userId
-    ? row.user_a_archived_at !== null
-    : row.user_b_archived_at !== null;
+  membersOf(row).find((m) => m.member_id === userId)?.archived_at != null;
+
+/** What a thread is called: a group by its name, a direct thread by whoever
+ *  is on the other end. */
+const titleOf = (row: ConversationRow, userId: string): string =>
+  row.kind === "group"
+    ? (row.title ?? "Group")
+    : nameOf(othersOf(row, userId)[0]?.profile ?? null);
 
 /**
  * The inbox.
@@ -118,15 +167,19 @@ const archivedForMe = (row: ConversationRow, userId: string): boolean =>
  * returns every thread's unread count at once.
  *
  * Archived threads are filtered here rather than in the query, because
- * "archived" is whichever of two columns belongs to the caller and PostgREST
- * has no way to say that. Fifty rows is nothing to filter in JS.
+ * "archived" lives on the caller's own member row inside an embed and
+ * PostgREST cannot filter the parent on it. Fifty rows is nothing to filter
+ * in JS.
+ *
+ * No `.or()` on the pair columns any more: `conversations` carries an
+ * own-rows-only SELECT policy keyed on membership, and the old filter would
+ * have missed every group, whose pair columns are null.
  */
 export async function listInbox(userId: string): Promise<InboxRow[]> {
   const [conversations, unread] = await Promise.all([
     supabase
       .from("conversations")
       .select(CONVERSATION_SELECT)
-      .or(`user_a_id.eq.${userId},user_b_id.eq.${userId}`)
       .order("last_message_at", { ascending: false, nullsFirst: false })
       .order("created_at", { ascending: false })
       .limit(INBOX_LIMIT)
@@ -144,12 +197,17 @@ export async function listInbox(userId: string): Promise<InboxRow[]> {
   return (conversations.data ?? [])
     .filter((row) => !archivedForMe(row, userId))
     .map((row) => {
-      const other = otherOf(row, userId);
+      const others = othersOf(row, userId);
+      const other = others[0]?.profile ?? null;
       return {
         id: row.id,
-        otherName: nameOf(other),
-        otherAvatarUrl: other?.avatar_url ?? null,
-        otherAvatarColor: other?.avatar_color ?? null,
+        conversationKind: row.kind,
+        otherName: titleOf(row, userId),
+        // A group has no single face — the row shows a glyph instead, which
+        // is what these being null tells it to do.
+        otherAvatarUrl: row.kind === "group" ? null : (other?.avatar_url ?? null),
+        otherAvatarColor: row.kind === "group" ? null : (other?.avatar_color ?? null),
+        memberCount: row.kind === "group" ? membersOf(row).length : null,
         lastMessageAt: row.last_message_at,
         listingTitle: row.listing?.title ?? null,
         unreadCount: counts.get(row.id) ?? 0,
@@ -172,14 +230,25 @@ export async function conversationHeader(
   if (error) throw error;
   if (!data) return null;
 
-  const other = otherOf(data, userId);
+  const others = othersOf(data, userId);
+  const other = others[0]?.profile ?? null;
+
   return {
     id: data.id,
-    otherName: nameOf(other),
-    otherAvatarUrl: other?.avatar_url ?? null,
-    otherAvatarColor: other?.avatar_color ?? null,
+    kind: data.kind,
+    otherName: titleOf(data, userId),
+    otherAvatarUrl: data.kind === "group" ? null : (other?.avatar_url ?? null),
+    otherAvatarColor: data.kind === "group" ? null : (other?.avatar_color ?? null),
     listingId: data.listing_id,
     listingTitle: data.listing?.title ?? null,
+    members: membersOf(data).map((m) => ({
+      id: m.member_id,
+      name: nameOf(m.profile),
+      avatarUrl: m.profile?.avatar_url ?? null,
+      avatarColor: m.profile?.avatar_color ?? null,
+      isOwner: m.role === "owner",
+    })),
+    iAmOwner: membersOf(data).some((m) => m.member_id === userId && m.role === "owner"),
   };
 }
 
@@ -280,6 +349,75 @@ export async function sendPhotoMessage(
   return message;
 }
 
+/** A group holds this many, and create_group_conversation() enforces the
+ *  same number. Three fourballs at a society outing, and small enough that
+ *  the all-pairs block check stays trivial. */
+export const MAX_GROUP_MEMBERS = 20;
+
+/**
+ * Start a group.
+ *
+ * An RPC rather than a route, which is the opposite of how this app usually
+ * writes — and the reason is atomicity. A group is a conversation row plus N
+ * member rows, and a conversation that briefly exists with nobody in it is one
+ * that nobody, its creator included, can read. There is no way to do both from
+ * a client in one transaction.
+ *
+ * create_group_conversation() (0087) checks eligibility itself: the creator
+ * must be able to message everyone they add, and no two people in the list may
+ * be blocked with each other — checked across ALL pairs, because otherwise you
+ * could put two people who blocked each other in a room together.
+ *
+ * Its exceptions are written to be read by a member ("You can only add golfers
+ * you're connected with"), so the caller shows the message as-is.
+ */
+export async function createGroup(
+  title: string,
+  memberIds: string[]
+): Promise<number> {
+  const { data, error } = await supabase.rpc("create_group_conversation", {
+    p_title: title,
+    p_member_ids: memberIds,
+  });
+
+  if (error) throw new Error(error.message);
+  return Number(data);
+}
+
+/** Add someone to a group you started. Owner-only, and the same eligibility
+ *  and block checks apply — see add_conversation_member() (0087). */
+export async function addToGroup(
+  conversationId: number,
+  memberId: string
+): Promise<void> {
+  const { error } = await supabase.rpc("add_conversation_member", {
+    p_conversation_id: conversationId,
+    p_member_id: memberId,
+  });
+  if (error) throw new Error(error.message);
+}
+
+/**
+ * Leave a group.
+ *
+ * A real delete of your own membership row, which is what takes the thread —
+ * and its whole history — out of your reach. Deliberately NOT offered for a
+ * direct conversation: 0087 has no DELETE policy for one, because walking out
+ * of a two-person thread would leave the other person writing to somebody who
+ * can no longer read them. Archiving is what that is for.
+ */
+export async function leaveGroup(
+  conversationId: number,
+  userId: string
+): Promise<boolean> {
+  const { error } = await supabase
+    .from("conversation_members")
+    .delete()
+    .eq("conversation_id", conversationId)
+    .eq("member_id", userId);
+  return !error;
+}
+
 /** How long a photo's signed URL is good for. Long enough to scroll a
  *  thread and come back to it, short enough that a URL which escapes the
  *  app — a screenshot of a debug log, a copied link — stops working. */
@@ -334,22 +472,14 @@ export async function markRead(
   conversationId: number,
   userId: string
 ): Promise<void> {
-  const { data } = await supabase
-    .from("conversations")
-    .select("id, user_a_id")
-    .eq("id", conversationId)
-    .maybeSingle()
-    .overrideTypes<{ id: number; user_a_id: string }>();
-
-  if (!data) return;
-
-  const column =
-    data.user_a_id === userId ? "user_a_last_read_at" : "user_b_last_read_at";
-
+  // Straight at my own member row. No read-first to work out which of two
+  // columns is mine — the UPDATE policy scopes this to member_id =
+  // auth.uid(), so naming both keys IS the authorization.
   await supabase
-    .from("conversations")
-    .update({ [column]: new Date().toISOString() })
-    .eq("id", conversationId);
+    .from("conversation_members")
+    .update({ last_read_at: new Date().toISOString() })
+    .eq("conversation_id", conversationId)
+    .eq("member_id", userId);
 }
 
 /**
@@ -368,22 +498,11 @@ export async function hideConversation(
   conversationId: number,
   userId: string
 ): Promise<void> {
-  const { data } = await supabase
-    .from("conversations")
-    .select("id, user_a_id")
-    .eq("id", conversationId)
-    .maybeSingle()
-    .overrideTypes<{ id: number; user_a_id: string }>();
-
-  if (!data) return;
-
-  const column =
-    data.user_a_id === userId ? "user_a_archived_at" : "user_b_archived_at";
-
   await supabase
-    .from("conversations")
-    .update({ [column]: new Date().toISOString() })
-    .eq("id", conversationId);
+    .from("conversation_members")
+    .update({ archived_at: new Date().toISOString() })
+    .eq("conversation_id", conversationId)
+    .eq("member_id", userId);
 }
 
 // unreadMessageCount() used to live here — it summed

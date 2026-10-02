@@ -29,7 +29,17 @@ afterAll(closePool);
 
 type CountsRow = { message_count: string; alert_count: string };
 type ReadAtRow = { read_at: string | null };
-type CursorRow = { user_a_last_read_at: string | null; user_b_last_read_at: string | null };
+/** 0087 moved read state onto conversation_members — one row per member
+ *  with that member's own cursor, instead of four columns on the
+ *  conversation and a "which side am I" CASE around every read of them. */
+type CursorRow = { member_id: string; last_read_at: string | null };
+
+const MY_CURSOR =
+  "update public.conversation_members set last_read_at = now() where conversation_id = $1 and member_id = $2";
+const MY_ARCHIVE =
+  "update public.conversation_members set archived_at = now() where conversation_id = $1 and member_id = $2";
+const CURSORS =
+  "select member_id, last_read_at from public.conversation_members where conversation_id = $1 order by member_id";
 
 /** The badge, as the caller's own RLS sees it. bigint comes back from pg as a
  *  string — Number() here rather than at every call site. */
@@ -68,20 +78,14 @@ describe("inbox_unread_counts(): what a member's badge is made of", () => {
 
   it("stops counting messages once the caller's read cursor passes them", async () => {
     await withRole("authenticated", USERS.seller1, async (c) => {
-      await c.query(
-        "update public.conversations set user_a_last_read_at = now() where id = $1",
-        [ids.conversationId],
-      );
+      await c.query(MY_CURSOR, [ids.conversationId, USERS.seller1]);
       expect((await counts(c)).messages).toBe(0);
     });
   });
 
   it("leaves archived conversations out of the number", async () => {
     await withRole("authenticated", USERS.seller1, async (c) => {
-      await c.query(
-        "update public.conversations set user_a_archived_at = now() where id = $1",
-        [ids.conversationId],
-      );
+      await c.query(MY_ARCHIVE, [ids.conversationId, USERS.seller1]);
       expect((await counts(c)).messages).toBe(0);
     });
   });
@@ -187,16 +191,14 @@ describe("mark_inbox_read(): clearing it", () => {
 
   it("leaves an archived thread's cursor alone — the member already dealt with it", async () => {
     await withRole("authenticated", USERS.seller1, async (c) => {
-      await c.query(
-        "update public.conversations set user_a_archived_at = now() where id = $1",
-        [ids.conversationId],
-      );
+      await c.query(MY_ARCHIVE, [ids.conversationId, USERS.seller1]);
       await c.query("select public.mark_inbox_read()");
 
-      const { rows } = await c.query<CursorRow>("select user_a_last_read_at from public.conversations where id = $1", [
-        ids.conversationId,
-      ]);
-      expect(rows[0].user_a_last_read_at).toBeNull();
+      const { rows } = await c.query<CursorRow>(
+        "select member_id, last_read_at from public.conversation_members where conversation_id = $1 and member_id = $2",
+        [ids.conversationId, USERS.seller1],
+      );
+      expect(rows[0].last_read_at).toBeNull();
     });
   });
 
@@ -204,12 +206,15 @@ describe("mark_inbox_read(): clearing it", () => {
     await withRole("authenticated", USERS.seller1, async (c) => {
       await c.query("select public.mark_inbox_read()");
 
-      const { rows } = await c.query<CursorRow>(
-        "select user_a_last_read_at, user_b_last_read_at from public.conversations where id = $1",
-        [ids.conversationId],
-      );
-      expect(rows[0].user_a_last_read_at).not.toBeNull();
-      expect(rows[0].user_b_last_read_at).toBeNull();
+      // Read back as the service role: a member can see their own member row
+      // but the point of this test is the OTHER member's, which their own RLS
+      // correctly hides.
+      await c.query("set local role service_role");
+      const { rows } = await c.query<CursorRow>(CURSORS, [ids.conversationId]);
+      const mine = rows.find((r) => r.member_id === USERS.seller1);
+      const theirs = rows.find((r) => r.member_id === USERS.buyer1);
+      expect(mine?.last_read_at).not.toBeNull();
+      expect(theirs?.last_read_at).toBeNull();
     });
   });
 
@@ -223,12 +228,9 @@ describe("mark_inbox_read(): clearing it", () => {
       const alert = await c.query<ReadAtRow>("select read_at from public.notifications where id = $1", [ids.notificationId]);
       expect(alert.rows[0].read_at).toBeNull();
 
-      const conv = await c.query<CursorRow>(
-        "select user_a_last_read_at, user_b_last_read_at from public.conversations where id = $1",
-        [ids.conversationId],
-      );
-      expect(conv.rows[0].user_a_last_read_at).toBeNull();
-      expect(conv.rows[0].user_b_last_read_at).toBeNull();
+      const conv = await c.query<CursorRow>(CURSORS, [ids.conversationId]);
+      expect(conv.rows).toHaveLength(2);
+      for (const row of conv.rows) expect(row.last_read_at).toBeNull();
     });
   });
 

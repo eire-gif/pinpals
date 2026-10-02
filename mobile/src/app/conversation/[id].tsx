@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -28,12 +28,14 @@ import {
   dayLabel,
   listMessages,
   markRead,
+  leaveGroup,
   sendMessage,
   sendPhotoMessage,
   signedImageUrls,
   type ConversationHeader,
   type Cursor,
   type Message,
+  type ThreadMember,
 } from "@/lib/messages";
 import { subscribeToConversation } from "@/lib/realtime";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
@@ -279,6 +281,47 @@ export default function ConversationScreen() {
     });
   };
 
+  /** Sender id -> who they are, for a group's bubbles. Built once per header
+   *  rather than searched per message: a long thread renders hundreds of
+   *  bubbles and a linear scan of the member list for each is the kind of
+   *  thing that only shows up on somebody else's phone. */
+  const senders = useMemo(
+    () => new Map((header?.members ?? []).map((m) => [m.id, m])),
+    [header]
+  );
+
+  /**
+   * Leaving.
+   *
+   * A real delete of your own membership row, which takes the thread and its
+   * whole history out of your reach — so it asks first, and says plainly that
+   * it cannot be undone. There is deliberately no equivalent on a direct
+   * conversation: 0087 has no DELETE policy for one, because walking out of a
+   * two-person thread would leave the other person writing to somebody who
+   * can no longer read them. Hiding it from the inbox is what that is for.
+   */
+  const confirmLeave = () => {
+    Alert.alert(
+      `Leave ${header?.otherName ?? "this group"}?`,
+      "You'll stop receiving messages and won't be able to read the conversation again. Whoever started it can add you back.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Leave",
+          style: "destructive",
+          onPress: () => {
+            void (async () => {
+              if (!userId) return;
+              const ok = await leaveGroup(conversationId, userId);
+              if (ok) router.replace("/inbox");
+              else setSendError("Couldn't leave that group — please try again.");
+            })();
+          },
+        },
+      ]
+    );
+  };
+
   const over = draft.trim().length > MESSAGE_MAX_LENGTH;
 
   return (
@@ -295,6 +338,26 @@ export default function ConversationScreen() {
           headerBackTitle: "Back",
         }}
       />
+
+      {/* Who is actually in here. A group you are talking into without
+          knowing who is listening is the thing this prevents, and it is one
+          line because the navigation bar already carries the name. */}
+      {header?.kind === "group" ? (
+        <View style={styles.groupBar}>
+          <Ionicons name="people-outline" size={14} color={colors.ink500} />
+          <Text style={styles.groupBarLabel} numberOfLines={1}>
+            {header.members.map((m) => (m.id === userId ? "You" : m.name)).join(", ")}
+          </Text>
+          <Pressable
+            onPress={confirmLeave}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Leave this group"
+          >
+            <Text style={styles.leave}>Leave</Text>
+          </Pressable>
+        </View>
+      ) : null}
 
       {loading ? (
         <View style={styles.centre}>
@@ -384,9 +447,16 @@ export default function ConversationScreen() {
                     imageUrl={
                       item.image_path ? (imageUrls.get(item.image_path) ?? null) : null
                     }
-                    avatarUrl={header?.otherAvatarUrl ?? null}
-                    avatarColor={header?.otherAvatarColor ?? null}
-                    name={header?.otherName ?? null}
+                    sender={senders.get(item.sender_id) ?? null}
+                    // Only a group needs a name over each bubble. In a thread
+                    // with one other person, labelling every bubble with the
+                    // name already in the navigation bar is noise.
+                    showSenderName={header?.kind === "group"}
+                    // And only when the speaker changed: a run of four
+                    // messages from the same person is one name, not four.
+                    firstOfRun={
+                      !older || older.sender_id !== item.sender_id
+                    }
                   />
                 </>
               );
@@ -486,19 +556,24 @@ function Bubble({
   message,
   mine,
   imageUrl,
-  avatarUrl,
-  avatarColor,
-  name,
+  sender,
+  showSenderName,
+  firstOfRun,
 }: {
   message: Message;
   mine: boolean;
   /** Signed, and short-lived. Null while it is still being signed, or if
    *  signing failed — the placeholder below covers both. */
   imageUrl: string | null;
-  avatarUrl: string | null;
-  avatarColor: string | null;
-  name: string | null;
+  /** Who sent it. Null for someone who has since left the group — their
+   *  messages stay, because a conversation that loses lines reads as a bug. */
+  sender: ThreadMember | null;
+  showSenderName: boolean;
+  firstOfRun: boolean;
 }) {
+  const avatarUrl = sender?.avatarUrl ?? null;
+  const avatarColor = sender?.avatarColor ?? null;
+  const name = sender?.name ?? null;
   // A hidden message keeps its row rather than vanishing. A conversation that
   // silently loses a line reads as a bug; a line saying it was removed reads
   // as moderation, which is what happened.
@@ -515,6 +590,9 @@ function Bubble({
   return (
     <View style={[styles.bubbleRow, mine && styles.bubbleRowMine]}>
       {mine ? null : (
+        // Held at the bottom of the run so a block of messages from one
+        // person has one avatar beside its last line, the way every chat
+        // does it. An invisible spacer keeps the rest aligned.
         <Avatar url={avatarUrl} color={avatarColor} name={name} size={26} />
       )}
       <View
@@ -549,6 +627,12 @@ function Bubble({
           )
         ) : null}
 
+        {showSenderName && !mine && firstOfRun ? (
+          <Text style={[styles.senderName, message.image_path ? styles.caption : null]}>
+            {name ?? "A member"}
+          </Text>
+        ) : null}
+
         {message.body ? (
           <Text
             style={[
@@ -568,6 +652,24 @@ function Bubble({
 const styles = StyleSheet.create({
   fill: { flex: 1, backgroundColor: colors.cream50 },
   centre: { flex: 1, alignItems: "center", justifyContent: "center" },
+
+  groupBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 8,
+    backgroundColor: colors.surfaceTint,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.line,
+  },
+  groupBarLabel: {
+    flex: 1,
+    fontFamily: fonts.body,
+    fontSize: type.label,
+    color: colors.ink500,
+  },
+  leave: { fontFamily: fonts.bodyBold, fontSize: type.label, color: colors.red600 },
 
   context: {
     flexDirection: "row",
@@ -627,6 +729,12 @@ const styles = StyleSheet.create({
     color: colors.ink900,
   },
   bodyMine: { color: colors.cream50 },
+  senderName: {
+    fontFamily: fonts.bodyBold,
+    fontSize: type.label,
+    color: colors.green700,
+    marginBottom: 2,
+  },
 
   bubblePhoto: { paddingHorizontal: 0, paddingTop: 0, overflow: "hidden" },
   // 4:3 rather than a fixed height, so a portrait photo and a landscape one

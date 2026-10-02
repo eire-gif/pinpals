@@ -1,16 +1,20 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { formatDateTime } from "@/lib/admin/format";
-import { otherParticipantId, isConversationArchived } from "@/lib/messaging";
+import {
+  CONVERSATION_MEMBERS_EMBED,
+  conversationName,
+  isConversationArchived,
+  type ConversationMemberRow,
+} from "@/lib/messaging";
 import Pagination from "@/components/dashboard/pagination";
 import MarketplaceEmptyState from "@/components/marketplace/empty-state";
-import type { Conversation, ConversationParticipant } from "@/lib/types";
+import type { Conversation } from "@/lib/types";
 
 const PAGE_SIZE = 10;
 
 type ConversationRow = Conversation & {
-  user_a: ConversationParticipant | null;
-  user_b: ConversationParticipant | null;
+  members: ConversationMemberRow[];
 };
 
 // The task spec's "messages" view. Deliberately a thin summary, not a
@@ -30,10 +34,11 @@ export default async function MessagesTab({ userId, page }: { userId: string; pa
     supabase
       .from("conversations")
       .select(
-        "*, user_a:profiles!conversations_user_a_id_fkey(id, first_name, last_name, avatar_color), user_b:profiles!conversations_user_b_id_fkey(id, first_name, last_name, avatar_color)",
+        `*, ${CONVERSATION_MEMBERS_EMBED}`,
         { count: "exact" }
       )
-      .or(`user_a_id.eq.${userId},user_b_id.eq.${userId}`)
+      // Membership, not the pair columns — see 0087. RLS already scopes this
+      // to the caller's own conversations.
       .order("last_message_at", { ascending: false, nullsFirst: false })
       .range(rangeFrom, rangeTo)
       .returns<ConversationRow[]>(),
@@ -55,7 +60,7 @@ export default async function MessagesTab({ userId, page }: { userId: string; pa
   // archived threads mixed in — an accepted imprecision for this summary
   // widget, not a correctness issue for the real inbox at /conversations
   // (which has its own dedicated Archived tab and doesn't share this code).
-  const visibleRows = (rows ?? []).filter((c) => !isConversationArchived(c, userId));
+  const visibleRows = (rows ?? []).filter((c) => !isConversationArchived(c.members ?? [], userId));
 
   if (visibleRows.length === 0) {
     return (
@@ -73,9 +78,8 @@ export default async function MessagesTab({ userId, page }: { userId: string; pa
       <div className="bg-surface border border-line rounded-2xl overflow-hidden shadow-sm">
         <ul>
           {visibleRows.map((c) => {
-            const otherId = otherParticipantId(c, userId);
-            const other = c.user_a_id === otherId ? c.user_a : c.user_b;
-            const name = other ? `${other.first_name} ${other.last_name}`.trim() : "Unknown member";
+            const other = (c.members ?? []).find((m) => m.member_id !== userId)?.profile ?? null;
+            const name = conversationName(c, c.members ?? [], userId);
             const unread = unreadByConversation.get(c.id) ?? 0;
             return (
               <li key={c.id} className="border-b border-line last:border-0">

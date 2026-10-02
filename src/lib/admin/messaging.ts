@@ -99,13 +99,17 @@ export async function getConversationAccessWindow(params: {
   const { data: rows } = await query.returns<Message[]>();
   const messages = (rows ?? []).slice().reverse();
 
-  const { data: conversation } = await admin
-    .from("conversations")
-    .select("user_a_id, user_b_id")
-    .eq("id", resolved.conversationId)
-    .maybeSingle<{ user_a_id: string; user_b_id: string }>();
+  // From the membership table, so a reported group shows everyone in it
+  // rather than two nulls. Still the admin client, still only reachable
+  // through the audited, reason-required grantConversationAccess() — 0087
+  // changed where the participant list lives, not who may see it.
+  const { data: memberRows } = await admin
+    .from("conversation_members")
+    .select("member_id")
+    .eq("conversation_id", resolved.conversationId)
+    .returns<{ member_id: string }[]>();
 
-  const participantIds = conversation ? [conversation.user_a_id, conversation.user_b_id] : [];
+  const participantIds = (memberRows ?? []).map((m) => m.member_id);
   const { data: profiles } = participantIds.length
     ? await admin.from("profiles").select("id, first_name, last_name").in("id", participantIds)
     : { data: [] as { id: string; first_name: string; last_name: string }[] };
