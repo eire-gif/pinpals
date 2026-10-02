@@ -16,6 +16,7 @@ import * as SplashScreen from "expo-splash-screen";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
+import { appRouteFor } from "@/lib/alert-routes";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { hrefFromNotification, registerForPush } from "@/lib/push";
 import { colors, fonts } from "@/lib/theme";
@@ -94,8 +95,18 @@ function RootNavigator() {
   //
   // A notification that can only open the app makes the member hunt for the
   // thing it was about. `href` is the same path the web payload carries, so
-  // both channels lead to the same screen and there is one definition of
-  // where an event goes.
+  // both channels lead to the same event.
+  //
+  // IT IS A WEBSITE PATH, AND IT HAS TO BE TRANSLATED. Notifications predate
+  // the app, so `data.href` is something like /tee-times/interested — a page
+  // on pinpals.ie, not a route in src/app. Pushing it straight into
+  // expo-router lands on "Unmatched Route", which is what tapping a
+  // tee-time push used to do.
+  //
+  // appRouteFor() is the same table the inbox uses for a tapped alert row,
+  // so both ways of opening the same notification now go to the same screen.
+  // It was wired into the inbox and not into here, which is exactly the kind
+  // of half-fix a second entry point invites.
 
   useEffect(() => {
     // Waiting on the auth gate matters: routing to /invite/12 while the gate
@@ -104,19 +115,27 @@ function RootNavigator() {
 
     let active = true;
 
+    const open = (href: string | null) => {
+      if (!href) return;
+      const route = appRouteFor(href);
+      if (route.kind === "native") {
+        router.push(route.path as Href);
+        return;
+      }
+      // No native screen for it — the app's own web view, signed in, rather
+      // than a dead end.
+      router.push({ pathname: "/web", params: { path: route.path, title: "PinPals" } });
+    };
+
     // The cold-start case. A tap that launched the app is not delivered to
     // the listener below — it has already happened by the time React mounts.
     void Notifications.getLastNotificationResponseAsync().then((response) => {
       if (!active) return;
-      const href = hrefFromNotification(response?.notification);
-      if (href) router.push(href as Href);
+      open(hrefFromNotification(response?.notification));
     });
 
     const subscription = Notifications.addNotificationResponseReceivedListener(
-      (response) => {
-        const href = hrefFromNotification(response.notification);
-        if (href) router.push(href as Href);
-      }
+      (response) => open(hrefFromNotification(response.notification))
     );
 
     return () => {

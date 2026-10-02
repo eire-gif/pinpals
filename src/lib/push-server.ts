@@ -164,7 +164,67 @@ type ExpoTicket =
  * the case that actually accumulates rows — an uninstalled app. The
  * failure_count ceiling catches the rest eventually.
  */
-async function sendNative(rows: PushSubscriptionRow[], payload: PushPayload): Promise<Outcome> {
+/**
+ * The number for the red circle on the app icon.
+ *
+ * The same arithmetic as inbox_unread_counts() (0083, rewritten by 0087),
+ * written out here rather than called, because that function is SECURITY
+ * INVOKER and scoped to auth.uid() — it answers for the caller, and this
+ * caller is the service role sending to somebody else.
+ *
+ * Deliberately NOT a new SECURITY DEFINER function taking a user id: that is
+ * one more privileged function on the most sensitive tables in the app, and
+ * one more migration, to save two queries that only run when a push is
+ * already being sent.
+ *
+ * Returns null on any failure, and the caller then omits `badge` entirely —
+ * an Expo message with no badge leaves the icon alone, which is far better
+ * than sending 0 and wiping a number that was right.
+ */
+async function unreadTotalFor(admin: SupabaseClient, userId: string): Promise<number | null> {
+  try {
+    const [conversations, alerts] = await Promise.all([
+      admin
+        .from("conversation_members")
+        .select("last_read_at, conversation_id")
+        .eq("member_id", userId)
+        .is("archived_at", null)
+        .returns<{ last_read_at: string | null; conversation_id: number }[]>(),
+      admin
+        .from("notifications")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", userId)
+        .is("read_at", null)
+        // Delivery-only: every message writes one, and counting it would
+        // count each message twice. Same exclusion as 0083.
+        .neq("type", "new_message"),
+    ]);
+
+    if (conversations.error || alerts.error) return null;
+
+    let messages = 0;
+    for (const member of conversations.data ?? []) {
+      const { count, error } = await admin
+        .from("messages")
+        .select("id", { count: "exact", head: true })
+        .eq("conversation_id", member.conversation_id)
+        .neq("sender_id", userId)
+        .gt("created_at", member.last_read_at ?? "1970-01-01T00:00:00Z");
+      if (error) return null;
+      messages += count ?? 0;
+    }
+
+    return messages + (alerts.count ?? 0);
+  } catch {
+    return null;
+  }
+}
+
+async function sendNative(
+  rows: PushSubscriptionRow[],
+  payload: PushPayload,
+  badge: number | null
+): Promise<Outcome> {
   const outcome = EMPTY_OUTCOME();
 
   const headers: Record<string, string> = {
@@ -182,6 +242,9 @@ async function sendNative(rows: PushSubscriptionRow[], payload: PushPayload): Pr
     title: payload.title,
     body: payload.body,
     sound: "default" as const,
+    // Omitted rather than zeroed when we could not count — see
+    // unreadTotalFor(). A message with no `badge` leaves the icon as it was.
+    ...(badge === null ? {} : { badge }),
     // `href` is what hrefFromNotification() in the app reads to route a tap;
     // `tag` and `type` ride along so the two channels carry the same shape.
     data: { href: payload.href, tag: payload.tag, type: payload.type },
@@ -280,9 +343,15 @@ export async function sendPushToUser(
 
   const webUsable = webRows.length > 0 && configureVapid();
 
+  // Counted once for the whole send, not once per device, and only when
+  // there is a native device to put a number on.
+  const badge = nativeRows.length > 0 ? await unreadTotalFor(admin, userId) : null;
+
   const [webOutcome, nativeOutcome] = await Promise.all([
     webUsable ? sendWeb(webRows, JSON.stringify(payload)) : Promise.resolve(EMPTY_OUTCOME()),
-    nativeRows.length > 0 ? sendNative(nativeRows, payload) : Promise.resolve(EMPTY_OUTCOME()),
+    nativeRows.length > 0
+      ? sendNative(nativeRows, payload, badge)
+      : Promise.resolve(EMPTY_OUTCOME()),
   ]);
 
   const deadIds = [...webOutcome.dead, ...nativeOutcome.dead];
