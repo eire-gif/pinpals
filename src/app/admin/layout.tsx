@@ -61,6 +61,8 @@ const NAV_ITEMS: { href: string; label: string; enabled?: boolean; roles?: reado
   // review (MODERATION_ROLES gates the actual mutation in
   // src/app/admin/reviews/actions.ts, not this nav entry).
   { href: "/admin/reviews", label: "Reviews", enabled: true },
+  // The member feed (0088): hide or restore posts and comments.
+  { href: "/admin/feed", label: "Feed", enabled: true },
   // marketplace-trust-safety — see src/lib/admin/risk.ts's own header
   // comment on why this is a signal, never a verdict. No `roles`
   // restriction: any active staff member may raise a flag (same reasoning

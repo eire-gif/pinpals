@@ -220,7 +220,14 @@ function MemberCard({
 
   return (
     <View style={styles.card}>
-      <View style={styles.cardTop}>
+      {/* The top of the card opens the member's own page: their posts, and
+          anything they are selling. */}
+      <Pressable
+        style={styles.cardTop}
+        onPress={() => router.push({ pathname: "/member/[id]", params: { id: member.id } })}
+        accessibilityRole="link"
+        accessibilityLabel={`${member.name}'s page`}
+      >
         <Avatar
           url={member.avatarUrl}
           color={member.avatarColor}
@@ -240,7 +247,8 @@ function MemberCard({
             </Text>
           ) : null}
         </View>
-      </View>
+        <Ionicons name="chevron-forward" size={18} color={colors.ink500} />
+      </Pressable>
 
       <View style={styles.facts}>
         <Fact label="Handicap" value={member.handicap !== null ? String(member.handicap) : "Not shared"} />

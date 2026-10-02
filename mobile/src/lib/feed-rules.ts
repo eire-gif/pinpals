@@ -1,0 +1,107 @@
+/**
+ * The feed's rules, for the app — no React, no supabase, no expo-router, so
+ * it runs in the website's vitest (feed-rules.test.ts).
+ *
+ * Mirrors src/lib/feed.ts on the website. The app cannot import from the
+ * site (two packages, two toolchains), so the handful of constants are
+ * repeated here and the database (0088) is what actually enforces them;
+ * these exist so a member is told what is wrong before a check constraint
+ * is.
+ */
+
+export const POST_VISIBILITIES = ["members", "connections"] as const;
+export type PostVisibility = (typeof POST_VISIBILITIES)[number];
+
+export const POST_VISIBILITY_LABELS: Record<PostVisibility, string> = {
+  members: "All PinPals members",
+  connections: "My connections only",
+};
+
+export const POST_VISIBILITY_SHORT: Record<PostVisibility, string> = {
+  members: "Everyone",
+  connections: "Connections",
+};
+
+export const FEED_SCOPES = ["all", "connections"] as const;
+export type FeedScope = (typeof FEED_SCOPES)[number];
+
+export const FEED_SCOPE_LABELS: Record<FeedScope, string> = {
+  all: "All PinPals",
+  connections: "My connections",
+};
+
+export const MAX_POST_PHOTOS = 6;
+export const MAX_POST_BODY = 2000;
+export const MAX_COMMENT_BODY = 1000;
+/** Smaller than the website's page: a phone scrolls, and the first screen
+ *  should arrive fast on one bar of signal. */
+export const FEED_PAGE_SIZE = 15;
+export const FEED_LISTINGS_PER_PAGE = 3;
+
+/** Null when the draft is fine; otherwise a sentence a member can act on. */
+export function draftProblem(body: string, photoCount: number): string | null {
+  if (body.trim().length === 0 && photoCount === 0) return "Add a photo or write something to post.";
+  if (body.length > MAX_POST_BODY) return `Please keep your post under ${MAX_POST_BODY} characters.`;
+  if (photoCount > MAX_POST_PHOTOS) return `You can add up to ${MAX_POST_PHOTOS} photos to a post.`;
+  return null;
+}
+
+/**
+ * Interleaves posts with the marketplace listings from the same stretch of
+ * time. Identical rule to the website's interleaveFeed(): on a full page,
+ * listings older than the oldest post wait for the next page, so none is
+ * shown twice and none is pulled in from months back.
+ */
+export function interleave<P extends { createdAt: string }, L extends { createdAt: string }>(
+  posts: P[],
+  listings: L[],
+  pageIsFull: boolean
+): ({ kind: "post"; item: P } | { kind: "listing"; item: L })[] {
+  const floor = pageIsFull && posts.length > 0 ? posts[posts.length - 1].createdAt : null;
+  const inWindow = floor === null ? listings : listings.filter((l) => l.createdAt >= floor);
+  const merged: ({ kind: "post"; item: P } | { kind: "listing"; item: L })[] = [
+    ...posts.map((item) => ({ kind: "post" as const, item })),
+    ...inWindow.map((item) => ({ kind: "listing" as const, item })),
+  ];
+  merged.sort((a, b) => (a.item.createdAt < b.item.createdAt ? 1 : a.item.createdAt > b.item.createdAt ? -1 : 0));
+  return merged;
+}
+
+export function likeLine(count: number, likedByMe: boolean): string | null {
+  if (count <= 0) return null;
+  if (likedByMe) return count === 1 ? "You liked this" : `You and ${count - 1} ${count - 1 === 1 ? "other" : "others"}`;
+  return `${count} ${count === 1 ? "like" : "likes"}`;
+}
+
+export function commentLine(count: number): string | null {
+  if (count <= 0) return null;
+  return `${count} ${count === 1 ? "comment" : "comments"}`;
+}
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/** "just now", "5m", "3h", "2d", then "14 Sep" (and the year if not this
+ *  one). Written out rather than toLocaleDateString(): Hermes ships
+ *  without full Intl data on some builds, and a date that renders as
+ *  "9/14/2026" on one phone and "14 Sep" on another is a bug report. */
+export function ago(iso: string, now: Date = new Date()): string {
+  const then = new Date(iso);
+  const seconds = Math.max(0, Math.round((now.getTime() - then.getTime()) / 1000));
+  if (seconds < 60) return "just now";
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours}h`;
+  const days = Math.round(hours / 24);
+  if (days < 7) return `${days}d`;
+  const date = `${then.getDate()} ${MONTHS[then.getMonth()]}`;
+  return then.getFullYear() === now.getFullYear() ? date : `${date} ${then.getFullYear()}`;
+}
+
+/** Height for a single photo shown at `width`, kept between 4:5 portrait
+ *  and 16:9 landscape so one tall photo cannot fill the whole screen. */
+export function photoHeight(width: number, photo: { width: number | null; height: number | null }): number {
+  const ratio = photo.width && photo.height ? photo.width / photo.height : 4 / 3;
+  const clamped = Math.min(Math.max(ratio, 0.8), 16 / 9);
+  return Math.round(width / clamped);
+}

@@ -271,4 +271,16 @@ describe("every native destination is a screen that exists", () => {
     expect(routes.size).toBeGreaterThan(15);
     expect(routes).toContain("/");
   });
+
+  it("sends feed alerts to the native post, and member links to the native member page", () => {
+    expect(appRouteFor("/feed/57")).toEqual({ kind: "native", path: "/post/57" });
+    expect(appRouteFor("/feed")).toEqual({ kind: "native", path: "/feed" });
+    expect(appRouteFor("/members/0b6f1a3e-8c2d-4f5a-9e7b-1c2d3e4f5a6b")).toEqual({
+      kind: "native",
+      path: "/member/0b6f1a3e-8c2d-4f5a-9e7b-1c2d3e4f5a6b",
+    });
+    // Not a uuid: nothing native would know what to do with it.
+    expect(appRouteFor("/members/not-a-member").kind).toBe("web");
+    expect(appRouteFor("/feed/abc").kind).toBe("web");
+  });
 });

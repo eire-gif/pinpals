@@ -154,7 +154,9 @@ const cleanTerm = (raw: string): string =>
 export async function searchListings(
   filters: Filters,
   cursor: Cursor | null,
-  userId: string | null
+  userId: string | null,
+  /** The feed asks for a few at a time; the marketplace for a page. */
+  pageSize: number = PAGE_SIZE
 ): Promise<Page> {
   const term = cleanTerm(filters.q);
 
@@ -177,14 +179,14 @@ export async function searchListings(
     // database rather than guessed. See the note on the website's own
     // fetchMarketplaceListings, where getting this wrong meant the Load more
     // button never appeared at all.
-    p_limit: PAGE_SIZE + 1,
+    p_limit: pageSize + 1,
   });
 
   if (error) throw new Error("Couldn't load the marketplace. Pull down to try again.");
 
   const rows = (data ?? []) as ListingRow[];
-  const hasMore = rows.length > PAGE_SIZE;
-  const page = hasMore ? rows.slice(0, PAGE_SIZE) : rows;
+  const hasMore = rows.length > pageSize;
+  const page = hasMore ? rows.slice(0, pageSize) : rows;
 
   const [favourites, bids] = await Promise.all([
     favouritedIds(page.map((row) => row.id), userId),

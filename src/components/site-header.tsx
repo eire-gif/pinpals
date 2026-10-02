@@ -143,6 +143,9 @@ export default async function SiteHeader() {
           ]
         : undefined,
     },
+    // Beside Marketplace, as the app's tab bar has it. A plain link with no
+    // menu: the feed is one page, and "My posts" lives on it.
+    { href: "/feed", label: "Feed" },
     { href: "/news", label: "News" },
   ];
 

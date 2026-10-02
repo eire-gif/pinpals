@@ -168,6 +168,13 @@ export const ADMIN_ACTIONS = [
   // in src/app/admin/reviews/actions.ts.
   "review.hide",
   "review.restore",
+  // The member feed (0088) — /admin/feed. Same hide/restore-never-delete
+  // shape as reviews: a hidden post stays visible to its author, so a member
+  // is never left wondering where their post went.
+  "post.hide",
+  "post.restore",
+  "post_comment.hide",
+  "post_comment.restore",
   // /admin/risk-flags — src/app/admin/risk-flags/actions.ts. Purely an
   // internal signal for a human to review (see risk.ts's own header
   // comment); raising or clearing one never itself suspends, removes, or
@@ -246,6 +253,9 @@ export const AUDIT_TARGET_TYPES = [
   "fraud_flag",
   // The target of review.hide/review.restore above.
   "review",
+  // The targets of post.* and post_comment.* above (0088).
+  "post",
+  "post_comment",
   // /admin/clubs — the target of club.updated/club.verified. A
   // club.import_run entry names no single row (it touches a whole country),
   // and carries the country in `metadata` instead.

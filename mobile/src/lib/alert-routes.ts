@@ -59,6 +59,8 @@ const EXACT: Record<string, string> = {
   "/dashboard/connections": "/connections",
   "/dashboard/profile": "/profile",
 
+  "/feed": "/feed",
+
   "/community": "/members",
   "/members": "/members",
   "/courses": "/courses",
@@ -77,6 +79,16 @@ const PATTERNS: { match: RegExp; to: (id: string) => string }[] = [
   { match: /^\/conversations\/(\d+)$/, to: (id) => `/conversation/${id}` },
   { match: /^\/marketplace\/(\d+)$/, to: (id) => `/listing/${id}` },
   { match: /^\/tee-times\/(\d+)$/, to: (id) => `/invite/${id}` },
+  // The feed (0088). A like or comment alert points at the post.
+  { match: /^\/feed\/(\d+)$/, to: (id) => `/post/${id}` },
+  // A member's page is keyed by their uuid, not a number — the one pattern
+  // here that is not `\d+`, and still exact: anything that is not a uuid
+  // falls through to the web view rather than to a screen that would only
+  // say "not found".
+  {
+    match: /^\/members\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i,
+    to: (id) => `/member/${id}`,
+  },
 
   // Both the order page and its checkout land on the app's order screen. The
   // checkout itself cannot be native — card details are entered in Stripe's

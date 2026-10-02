@@ -1122,6 +1122,16 @@ async function resolveTargetSummaries(
           ? { type: "review", label: `Review #${row.target_id} (${r.rating}★)`, href: `/admin/reviews?reviewId=${row.target_id}` }
           : { type: "review", label: `Review #${row.target_id} no longer exists`, href: null }
       );
+    } else if (row.target_type === "post" || row.target_type === "post_comment") {
+      // The feed (0088). Not resolved to a caption here: a caption is member
+      // content, and the queue is a list a moderator scans, not reads. The
+      // link opens the post in /admin/feed, where hiding it is one form.
+      const param = row.target_type === "post" ? "postId" : "commentId";
+      summaries.set(k, {
+        type: row.target_type,
+        label: `${row.target_type === "post" ? "Post" : "Comment"} #${row.target_id}`,
+        href: `/admin/feed?${param}=${encodeURIComponent(row.target_id)}`,
+      });
     } else {
       // message / conversation — deliberately not resolved to a real row or
       // an href here, even though the tables now exist (0025_messaging.sql).
