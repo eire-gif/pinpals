@@ -190,7 +190,11 @@ export default function NewPostScreen() {
       <Stack.Screen
         options={{
           title: "New post",
-          presentation: "modal",
+          // No `presentation: "modal"` here. On iOS a screen's presentation
+          // cannot change after it has been pushed, and options set from
+          // inside the screen arrive after the push — react-native-screens
+          // treats that as a fatal error, which crashed the app the moment
+          // Share a post was tapped. Pushed like List an item instead.
           headerLeft: () => (
             <Pressable onPress={cancel} hitSlop={12} accessibilityRole="button">
               <Text style={styles.headerCancel}>Cancel</Text>
