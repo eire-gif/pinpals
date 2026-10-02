@@ -225,6 +225,46 @@ describe("every native destination is a screen that exists", () => {
     });
   }
 
+  /**
+   * THE PUSH NOTIFICATION TAP USES THIS TOO, and for a while it did not.
+   *
+   * There are two ways to open the same notification: tapping its row in the
+   * inbox, and tapping the system notification. The first went through
+   * appRouteFor() from the day it was written; the second pushed `data.href`
+   * straight into expo-router, so a tee-time push landed on expo-router's
+   * "Unmatched Route" screen — the href is a path on pinpals.ie, and the app
+   * has no /tee-times/interested.
+   *
+   * Nothing in a unit test can reach _layout.tsx's effect. What this can do
+   * is pin the hrefs the push server actually sends, so if one is ever added
+   * that this table does not handle, it fails here rather than on somebody's
+   * lock screen.
+   */
+  const PUSH_HREFS = [
+    // src/lib/tee-times-server.ts — the one that was broken.
+    "/tee-times/interested",
+    "/tee-times/requests",
+    "/tee-times/confirmed",
+    "/tee-times",
+    // src/lib/messaging-server.ts
+    "/conversations/412",
+    // src/lib/orders.ts and src/lib/stripe/payments.ts
+    "/dashboard/orders/5",
+    "/dashboard/orders/5/checkout",
+    "/dashboard/buying?tab=delivery",
+    "/dashboard/selling?tab=sales",
+    // 0056_marketplace_notifications_reviews.sql
+    "/marketplace/88",
+  ];
+
+  for (const href of PUSH_HREFS) {
+    it(`a push carrying ${href} opens a real screen`, () => {
+      const route = appRouteFor(href);
+      expect(route.kind).toBe("native");
+      expect(routes).toContain(asRoute(route.path));
+    });
+  }
+
   it("found the app directory at all", () => {
     // Guards the guard: if APP_DIR were wrong, `routes` would be empty and
     // every assertion above would fail for the wrong reason.
