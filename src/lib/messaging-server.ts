@@ -56,8 +56,13 @@ export async function sendMessageTo(params: {
   userId: string;
   conversationId: number;
   body: string;
+  /** A `message-images` storage path from uploadMessageImage(), for a message
+   *  that carries a photo. Never a URL — that bucket is private and its URLs
+   *  expire (0086). */
+  imagePath?: string | null;
 }): Promise<SendMessageResult> {
   const { supabase, userId, conversationId } = params;
+  const imagePath = params.imagePath ?? null;
 
   const rateLimit = await checkRateLimit({
     action: "send-message",
@@ -74,7 +79,8 @@ export async function sendMessageTo(params: {
   }
 
   const body = params.body.trim();
-  if (!body) {
+  // A photo is a message on its own. Without one, a blank body still isn't.
+  if (!body && !imagePath) {
     return { ok: false, reason: "invalid", message: "Message can't be empty." };
   }
   if (body.length > MESSAGE_MAX_LENGTH) {
@@ -123,7 +129,12 @@ export async function sendMessageTo(params: {
 
   const { data: message, error } = await supabase
     .from("messages")
-    .insert({ conversation_id: conversationId, sender_id: userId, body })
+    .insert({
+      conversation_id: conversationId,
+      sender_id: userId,
+      body,
+      image_path: imagePath,
+    })
     .select("*")
     .single<Message>();
 
@@ -149,13 +160,18 @@ export async function sendMessageTo(params: {
   }
 
   if (otherId) {
+    // What the recipient sees before opening the thread. A photo with no
+    // caption has no text to preview, and "" would render as a thread that
+    // apparently just went quiet.
+    const preview = body ? body.slice(0, 140) : "📷 Photo";
+
     await broadcast(conversationChannelTopic(conversationId), "new_message", {
       message,
     });
     await broadcast(inboxChannelTopic(otherId), "new_message", {
       conversationId,
       senderId: userId,
-      preview: body.slice(0, 140),
+      preview,
       createdAt: message.created_at,
     });
 
@@ -176,7 +192,9 @@ export async function sendMessageTo(params: {
       userId: otherId,
       type: "new_message",
       title: "New message",
-      body: `${senderName} sent you a message: "${body.slice(0, 140)}${body.length > 140 ? "…" : ""}"`,
+      body: body
+        ? `${senderName} sent you a message: "${body.slice(0, 140)}${body.length > 140 ? "…" : ""}"`
+        : `${senderName} sent you a photo.`,
       // Never put another member's free-text message content in an email —
       // see notifyUser()'s own comment on emailBody.
       emailBody: `${senderName} sent you a new message on Pinpals.`,

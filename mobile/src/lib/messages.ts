@@ -1,4 +1,4 @@
-import { postToSite } from "./api";
+import { postFormToSite, postToSite, type UploadFile } from "./api";
 import { supabase } from "./supabase";
 
 /**
@@ -26,6 +26,10 @@ export type Message = {
   sender_id: string;
   body: string;
   created_at: string;
+  /** A storage path in the private `message-images` bucket, never a URL —
+   *  see signedImageUrls() below. Null on a text-only message, and `body`
+   *  may be "" when this is set. */
+  image_path: string | null;
   /** Moderation only. `body` is never rewritten when a message is hidden —
    *  the UI decides whether to render it. See hideMessage() on the site. */
   hidden_at: string | null;
@@ -196,7 +200,7 @@ export async function listMessages(
 ): Promise<{ messages: Message[]; next: Cursor | null }> {
   let request = supabase
     .from("messages")
-    .select("id, conversation_id, sender_id, body, created_at, hidden_at")
+    .select("id, conversation_id, sender_id, body, created_at, image_path, hidden_at")
     .eq("conversation_id", conversationId);
 
   if (cursor) {
@@ -247,6 +251,71 @@ export async function sendMessage(
     { conversation_id: conversationId, body }
   );
   return message;
+}
+
+/**
+ * Send a photo, with an optional caption.
+ *
+ * Through the site for the same reasons sendMessage() is, and for one more:
+ * the app must never put a photo into Storage itself. A phone photo carries
+ * EXIF and EXIF carries GPS, and the only place that gets stripped is the
+ * sharp pipeline on the server — see claude/incident-avatar-exif-gps.md for
+ * what it cost the last time something skipped it. The `message-images`
+ * bucket gives members no insert policy at all, so this isn't merely the
+ * preferred path; it is the only one that works.
+ *
+ * Upload and send are one request, so a phone that drops signal mid-way
+ * cannot leave a photo in Storage that no message points at.
+ */
+export async function sendPhotoMessage(
+  conversationId: number,
+  file: UploadFile,
+  body = ""
+): Promise<Message> {
+  const { message } = await postFormToSite<{ message: Message }>(
+    "/api/app/messages/photo",
+    { conversation_id: String(conversationId), body },
+    { field: "file", file }
+  );
+  return message;
+}
+
+/** How long a photo's signed URL is good for. Long enough to scroll a
+ *  thread and come back to it, short enough that a URL which escapes the
+ *  app — a screenshot of a debug log, a copied link — stops working. */
+const IMAGE_URL_TTL_SECONDS = 60 * 60;
+
+/**
+ * Signed URLs for a page of messages, in one call.
+ *
+ * `message-images` is private (0086): the bucket's SELECT policy checks that
+ * the caller is a participant of the conversation whose id names the folder,
+ * and refuses to sign anything else. So this is not a convenience wrapper
+ * around a public URL — the signature IS the read authorization, granted by
+ * the database rather than assumed by the screen.
+ *
+ * Never throws. A photo that won't sign renders as a placeholder; a thread
+ * that throws while someone is reading it is worse than a missing picture.
+ */
+export async function signedImageUrls(
+  messages: Message[]
+): Promise<Map<string, string>> {
+  const paths = [...new Set(messages.map((m) => m.image_path).filter((p): p is string => !!p))];
+  if (paths.length === 0) return new Map();
+
+  try {
+    const { data } = await supabase.storage
+      .from("message-images")
+      .createSignedUrls(paths, IMAGE_URL_TTL_SECONDS);
+
+    const urls = new Map<string, string>();
+    for (const row of data ?? []) {
+      if (row.signedUrl && row.path) urls.set(row.path, row.signedUrl);
+    }
+    return urls;
+  } catch {
+    return new Map();
+  }
 }
 
 /**

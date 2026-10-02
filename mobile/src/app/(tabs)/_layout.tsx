@@ -156,6 +156,22 @@ export default function TabsLayout() {
         name="inbox"
         options={{
           title: "Inbox",
+          // Starting a conversation had no entry point at all: a thread only
+          // existed if you found the person in the directory or on your
+          // connections screen and pressed Message there. Every messaging app
+          // anyone has used puts a compose button here, top right, and the
+          // absence of one reads as "you cannot start one from the inbox".
+          headerRight: () => (
+            <Pressable
+              onPress={() => router.push("/new-chat")}
+              hitSlop={12}
+              style={{ paddingHorizontal: spacing.md }}
+              accessibilityRole="button"
+              accessibilityLabel="Start a new conversation"
+            >
+              <Ionicons name="create-outline" size={24} color={colors.green700} />
+            </Pressable>
+          ),
           tabBarBadge:
             unread.total > 0 ? (unread.total > 99 ? "99+" : unread.total) : undefined,
           tabBarBadgeStyle: { backgroundColor: colors.red600 },

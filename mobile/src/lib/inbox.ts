@@ -37,7 +37,35 @@ export type InboxAlert = {
   unread: boolean;
 };
 
+/**
+ * A single message that matched a search, shown as its own row.
+ *
+ * Only ever appears while there is a query. The inbox proper lists threads,
+ * not messages — but "where did he say the price" is a question about a
+ * message, and answering it with the thread it happens to be in leaves the
+ * member to scroll for it themselves.
+ */
+export type InboxMessageHit = {
+  kind: "message";
+  id: number;
+  at: string;
+  conversationId: number;
+  /** Taken from the loaded inbox row where we have one. A hit in a thread
+   *  below the 50-row cap has nothing to look up, and says so rather than
+   *  guessing. */
+  otherName: string | null;
+  otherAvatarUrl: string | null;
+  otherAvatarColor: string | null;
+  body: string;
+  mine: boolean;
+};
+
 export type InboxItem = InboxConversation | InboxAlert;
+
+/** What a list row can be. Message hits are search-only, so they are kept
+ *  out of InboxItem — nothing that merges, counts or swipes should ever
+ *  have to consider them. */
+export type InboxRowItem = InboxItem | InboxMessageHit;
 
 export type InboxCounts = { messages: number; alerts: number };
 
@@ -109,6 +137,120 @@ export function matchesInboxFilter(item: InboxItem, filter: InboxFilter): boolea
   if (filter === "all") return true;
   if (filter === "messages") return item.kind === "conversation";
   return item.kind === "alert";
+}
+
+/**
+ * Unread, for either kind of row.
+ *
+ * A conversation is unread when it has messages you haven't got to; an alert
+ * is unread until you open it. Two different mechanisms — a moving cursor
+ * and a one-off flag — which is exactly why this is written down once rather
+ * than re-derived at each call site.
+ *
+ * Note this is NOT the same question inbox_unread_counts() answers. That
+ * function is the badge and excludes archived threads and delivery-only
+ * alerts; this is a row in front of you, and a row you can see should match
+ * what the filter says about it.
+ */
+export function isUnread(item: InboxItem): boolean {
+  return item.kind === "conversation" ? item.unreadCount > 0 : item.unread;
+}
+
+// ---------------------------------------------------------------------------
+// Searching
+// ---------------------------------------------------------------------------
+
+/** Case- and accent-insensitive: "o'neill" should find "O'Neill", and
+ *  "dun laoghaire" should find "Dún Laoghaire". NFD then strip the combining
+ *  marks — the same normalisation a member would expect from any search box
+ *  and none of them would think to ask for. */
+const fold = (value: string): string =>
+  value
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase();
+
+/**
+ * Does this row match what was typed?
+ *
+ * Every word must appear somewhere in the row, not the phrase as typed —
+ * "declined offer" finds an alert titled "Offer declined". That is what
+ * people mean by searching, and it costs one extra split.
+ *
+ * A conversation is matched on who it is with and what it is about, because
+ * that is all a conversation row shows. Its MESSAGES are searched separately
+ * and on the server — see searchMessages() below — since the inbox never
+ * loaded their text.
+ */
+export function matchesQuery(item: InboxRowItem, query: string): boolean {
+  const words = fold(query).split(/\s+/).filter(Boolean);
+  if (words.length === 0) return true;
+
+  const haystack = fold(
+    item.kind === "conversation"
+      ? [item.otherName, item.listingTitle].filter(Boolean).join(" ")
+      : item.kind === "alert"
+        ? [item.title, item.body].filter(Boolean).join(" ")
+        : [item.otherName, item.body].filter(Boolean).join(" ")
+  );
+
+  return words.every((word) => haystack.includes(word));
+}
+
+type MessageHitRow = {
+  id: number;
+  conversation_id: number;
+  sender_id: string;
+  body: string;
+  created_at: string;
+};
+
+/**
+ * Messages whose text matches, from the server.
+ *
+ * search_my_messages() (0086) is SECURITY INVOKER, so `messages`' own
+ * participant-only SELECT policy decides what can match — this cannot reach
+ * a message the caller could not already have read one at a time. Hidden
+ * messages are excluded there, not here: a moderated message reads as "This
+ * message was removed" in the thread, and finding it by its text would undo
+ * that.
+ *
+ * `known` supplies the names. The RPC returns messages, and a message on its
+ * own cannot say who it is with; the inbox rows already loaded can, for every
+ * thread inside the 50-row cap. Older threads return a null name and the row
+ * says "A conversation" rather than inventing one.
+ *
+ * Never throws. Search failing should leave the list it was narrowing, not
+ * replace the screen with an error.
+ */
+export async function searchMessages(
+  query: string,
+  userId: string,
+  known: InboxConversation[]
+): Promise<InboxMessageHit[]> {
+  if (query.trim().length < 2) return [];
+
+  const names = new Map(known.map((row) => [row.id, row]));
+
+  try {
+    const { data } = await supabase.rpc("search_my_messages", { p_query: query });
+    return ((data as MessageHitRow[] | null) ?? []).map((row) => {
+      const thread = names.get(row.conversation_id);
+      return {
+        kind: "message" as const,
+        id: row.id,
+        at: row.created_at,
+        conversationId: row.conversation_id,
+        otherName: thread?.otherName ?? null,
+        otherAvatarUrl: thread?.otherAvatarUrl ?? null,
+        otherAvatarColor: thread?.otherAvatarColor ?? null,
+        body: row.body,
+        mine: row.sender_id === userId,
+      };
+    });
+  } catch {
+    return [];
+  }
 }
 
 // ---------------------------------------------------------------------------

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -6,13 +6,15 @@ import {
   RefreshControl,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
-import { router, useFocusEffect } from "expo-router";
+import { router, useFocusEffect, type Href } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import ReanimatedSwipeable from "react-native-gesture-handler/ReanimatedSwipeable";
 
 import { Avatar } from "@/components/avatar";
+import { appRouteFor } from "@/lib/alert-routes";
 import { useAuth } from "@/lib/auth";
 import {
   INBOX_FILTERS,
@@ -20,15 +22,20 @@ import {
   alertIcon,
   deleteAlert,
   inboxTotal,
+  isUnread,
   loadInbox,
   markAlertRead,
   markInboxRead,
   matchesInboxFilter,
+  matchesQuery,
+  searchMessages,
   type InboxAlert,
   type InboxConversation,
   type InboxCounts,
   type InboxFilter,
   type InboxItem,
+  type InboxMessageHit,
+  type InboxRowItem,
 } from "@/lib/inbox";
 import { hideConversation, inboxTime } from "@/lib/messages";
 import { subscribeToInbox } from "@/lib/realtime";
@@ -55,9 +62,14 @@ export default function InboxScreen() {
   const [items, setItems] = useState<InboxItem[]>([]);
   const [counts, setCounts] = useState<InboxCounts>({ messages: 0, alerts: 0 });
   const [filter, setFilter] = useState<InboxFilter>("all");
+  const [unreadOnly, setUnreadOnly] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [clearing, setClearing] = useState(false);
+
+  const [query, setQuery] = useState("");
+  const [hits, setHits] = useState<InboxMessageHit[]>([]);
+  const [searching, setSearching] = useState(false);
 
   const load = useCallback(async () => {
     if (!userId) {
@@ -96,8 +108,129 @@ export default function InboxScreen() {
     return subscribeToInbox(userId, () => void load());
   }, [userId, load]);
 
+  /**
+   * Message bodies, searched on the server.
+   *
+   * Debounced, because this is a round trip per keystroke otherwise. 250ms
+   * is under the threshold where typing feels like it is waiting for you and
+   * well over the interval between two keys.
+   *
+   * The timer is cleared on every change including the one that empties the
+   * box, so a request for "dri" never lands after the member has already
+   * given up and cleared the field.
+   */
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // `items` is read by the search but deliberately not a dependency of it.
+  // The list is only there to put names on the hits, and it changes identity
+  // on every refresh, every focus and every realtime ping — depending on it
+  // would restart the debounce each time, so a member typing while a message
+  // arrived would watch their search never fire.
+  const itemsRef = useRef(items);
+  itemsRef.current = items;
+
+  useEffect(() => {
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+
+    const q = query.trim();
+    // Two characters: one letter matches half the inbox and is nothing but a
+    // round trip. Alerts and names are still filtered from the first
+    // character, in `visible` below, because that costs nothing.
+    if (!userId || q.length < 2) {
+      setHits([]);
+      setSearching(false);
+      return;
+    }
+
+    setSearching(true);
+    searchTimer.current = setTimeout(() => {
+      void (async () => {
+        const conversations = itemsRef.current.filter(
+          (item): item is InboxConversation => item.kind === "conversation"
+        );
+        setHits(await searchMessages(q, userId, conversations));
+        setSearching(false);
+      })();
+    }, 250);
+
+    return () => {
+      if (searchTimer.current) clearTimeout(searchTimer.current);
+    };
+  }, [query, userId]);
+
   const total = inboxTotal(counts);
-  const visible = items.filter((item) => matchesInboxFilter(item, filter));
+  const searchingNow = query.trim().length > 0;
+
+  /**
+   * The list, in one place.
+   *
+   * Order of operations matters and is not arbitrary. The chips choose what
+   * KIND of thing to show, Unread narrows that to what still needs you, and
+   * the query narrows again — so "unread alerts about an offer" is three
+   * controls composing rather than three controls fighting.
+   *
+   * Message hits only join while there is a query, and only under All or
+   * Messages: a member who has asked to see alerts has said they don't want
+   * messages, and a search is not a reason to overrule them.
+   */
+  const visible = useMemo<InboxRowItem[]>(() => {
+    const rows: InboxRowItem[] = items
+      .filter((item) => matchesInboxFilter(item, filter))
+      .filter((item) => !unreadOnly || isUnread(item))
+      .filter((item) => !searchingNow || matchesQuery(item, query));
+
+    if (!searchingNow || filter === "alerts") return rows;
+
+    // Deliberately appended rather than interleaved by time. A matching
+    // message is a different sort of answer from a matching thread, and
+    // shuffling the two together by timestamp makes both harder to scan.
+    return [...rows, ...hits.filter((hit) => matchesQuery(hit, query))];
+  }, [items, filter, unreadOnly, searchingNow, query, hits]);
+
+  /**
+   * Opening an alert.
+   *
+   * Every notification's href is a path on the WEBSITE, because notifications
+   * long predate the app. This screen used to honour that literally: tapping
+   * "You've been offered a place" opened a web view. Being handed the site's
+   * own chrome, from inside the app, at the moment you wanted to say yes, is
+   * the worst version of both screens.
+   *
+   * appRouteFor() is the table that says which of those destinations the app
+   * now has — and it is tested (mobile/src/lib/alert-routes.test.ts), because
+   * a wrong entry sends someone to the wrong screen and reads as the alert
+   * being unhelpful rather than as a bug. Where the app genuinely has no
+   * screen — notification settings, golf news — the web view is still the
+   * right answer and still opens signed in.
+   *
+   * Marked read optimistically: the row is about to disappear from view and
+   * a badge that waits for a round trip to come down is how people learn to
+   * distrust it.
+   */
+  function openAlert(item: InboxAlert) {
+    if (item.unread) {
+      void markAlertRead(item.id);
+      setItems((prev) =>
+        prev.map((entry) =>
+          entry.kind === "alert" && entry.id === item.id
+            ? { ...entry, unread: false }
+            : entry
+        )
+      );
+      setCounts((prev) => ({ ...prev, alerts: Math.max(0, prev.alerts - 1) }));
+    }
+
+    const route = appRouteFor(item.href);
+    if (route.kind === "native") {
+      // typedRoutes is on, so Href is a union of the literal paths in
+      // src/app. This one is computed from a table at runtime and cannot be
+      // one of them by construction — the cast is the escape hatch, and
+      // alert-routes.test.ts is what actually checks the paths are real.
+      router.push(route.path as Href);
+      return;
+    }
+    router.push({ pathname: "/web", params: { path: route.path, title: item.title } });
+  }
 
   async function clearAll() {
     setClearing(true);
@@ -155,6 +288,27 @@ export default function InboxScreen() {
 
   return (
     <View style={styles.fill}>
+      {/* Above the chips, not among them. Searching is a different kind of
+          act from filtering — one narrows by what a row IS, the other by
+          what it says — and a field wedged into a row of pills reads as a
+          fourth pill. */}
+      <View style={styles.searchWrap}>
+        <Ionicons name="search" size={17} color={colors.ink500} />
+        <TextInput
+          style={styles.search}
+          value={query}
+          onChangeText={setQuery}
+          placeholder="Search messages and alerts"
+          placeholderTextColor={colors.ink500}
+          autoCorrect={false}
+          autoCapitalize="none"
+          returnKeyType="search"
+          clearButtonMode="while-editing"
+          accessibilityLabel="Search messages and alerts"
+        />
+        {searching ? <ActivityIndicator size="small" color={colors.ink500} /> : null}
+      </View>
+
       <View style={styles.bar}>
         <View style={styles.chips}>
           {INBOX_FILTERS.map((name) => {
@@ -173,6 +327,25 @@ export default function InboxScreen() {
               </Pressable>
             );
           })}
+
+          {/* A toggle rather than a fourth filter, because it composes with
+              the other three instead of replacing them: Alerts + Unread is a
+              question people ask, and a four-way radio could not express it.
+              The dot is what says it is a different sort of control. */}
+          <Pressable
+            onPress={() => setUnreadOnly((on) => !on)}
+            style={[styles.chip, styles.chipUnread, unreadOnly && styles.chipOn]}
+            accessibilityRole="button"
+            accessibilityState={{ selected: unreadOnly }}
+            accessibilityLabel={
+              unreadOnly ? "Showing unread only" : "Show unread only"
+            }
+          >
+            <View style={[styles.chipDot, unreadOnly && styles.chipDotOn]} />
+            <Text style={[styles.chipLabel, unreadOnly && styles.chipLabelOn]}>
+              Unread
+            </Text>
+          </Pressable>
         </View>
 
         {/* Shown only when there is something to clear. A button that does
@@ -206,41 +379,40 @@ export default function InboxScreen() {
             tintColor={colors.green700}
           />
         }
-        ListEmptyComponent={<Empty filter={filter} />}
-        renderItem={({ item }) => (
-          <SwipeRow item={item} onRemove={() => void removeItem(item)}>
-          {item.kind === "conversation" ? (
-            <ConversationRow
-              row={item}
-              onPress={() => router.push(`/conversation/${item.id}`)}
-            />
-          ) : (
-            <AlertRow
-              row={item}
-              onPress={() => {
-                if (item.unread) {
-                  void markAlertRead(item.id);
-                  setItems((prev) =>
-                    prev.map((entry) =>
-                      entry.kind === "alert" && entry.id === item.id
-                        ? { ...entry, unread: false }
-                        : entry
-                    )
-                  );
-                  setCounts((prev) => ({
-                    ...prev,
-                    alerts: Math.max(0, prev.alerts - 1),
-                  }));
-                }
-                router.push({
-                  pathname: "/web",
-                  params: { path: item.href, title: item.title },
-                });
-              }}
-            />
-          )}
-          </SwipeRow>
-        )}
+        ListEmptyComponent={
+          <Empty
+            filter={filter}
+            query={searchingNow ? query : ""}
+            unreadOnly={unreadOnly}
+          />
+        }
+        renderItem={({ item }) => {
+          // A search hit is a view onto a message, not a row that belongs to
+          // you — there is nothing to hide and nothing to delete, so it does
+          // not get a swipe. Giving it one would offer to destroy something
+          // it cannot.
+          if (item.kind === "message") {
+            return (
+              <MessageHitRow
+                row={item}
+                onPress={() => router.push(`/conversation/${item.conversationId}`)}
+              />
+            );
+          }
+
+          return (
+            <SwipeRow item={item} onRemove={() => void removeItem(item)}>
+              {item.kind === "conversation" ? (
+                <ConversationRow
+                  row={item}
+                  onPress={() => router.push(`/conversation/${item.id}`)}
+                />
+              ) : (
+                <AlertRow row={item} onPress={() => openAlert(item)} />
+              )}
+            </SwipeRow>
+          );
+        }}
       />
     </View>
   );
@@ -370,7 +542,83 @@ function AlertRow({ row, onPress }: { row: InboxAlert; onPress: () => void }) {
   );
 }
 
-function Empty({ filter }: { filter: InboxFilter }) {
+/**
+ * One message that matched a search.
+ *
+ * Shows the text, which is the whole point — the member searched for a word
+ * and wants to see it in context, not be told which thread to go and look
+ * through. Two lines: enough to recognise the message, short enough that ten
+ * hits are still a list.
+ *
+ * Quieter than the rows above it, deliberately. These are not things waiting
+ * on you; they are somewhere you asked to be taken.
+ */
+function MessageHitRow({
+  row,
+  onPress,
+}: {
+  row: InboxMessageHit;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable style={styles.hit} onPress={onPress} accessibilityRole="button">
+      <Avatar
+        url={row.otherAvatarUrl}
+        color={row.otherAvatarColor}
+        name={row.otherName}
+        size={30}
+      />
+      <View style={styles.rowBody}>
+        <Text style={styles.hitWho} numberOfLines={1}>
+          {row.mine ? "You" : (row.otherName ?? "A conversation")}
+          <Text style={styles.hitWhen}> · {inboxTime(row.at)}</Text>
+        </Text>
+        <Text style={styles.hitBody} numberOfLines={2}>
+          {row.body}
+        </Text>
+      </View>
+      <Ionicons name="chevron-forward" size={16} color={colors.ink500} />
+    </Pressable>
+  );
+}
+
+function Empty({
+  filter,
+  query,
+  unreadOnly,
+}: {
+  filter: InboxFilter;
+  query: string;
+  unreadOnly: boolean;
+}) {
+  // Nothing matched is not the same as nothing exists, and telling someone
+  // who mistyped a name that they have no messages is how a search box
+  // becomes something people stop trusting.
+  if (query) {
+    return (
+      <View style={styles.empty}>
+        <Ionicons name="search-outline" size={40} color={colors.ink500} />
+        <Text style={styles.emptyTitle}>Nothing matched “{query.trim()}”</Text>
+        <Text style={styles.emptyBody}>
+          Searching looks at alert text, who a conversation is with, and the
+          messages inside it.
+        </Text>
+      </View>
+    );
+  }
+
+  if (unreadOnly) {
+    return (
+      <View style={styles.empty}>
+        <Ionicons name="checkmark-done-outline" size={44} color={colors.ink500} />
+        <Text style={styles.emptyTitle}>Nothing unread</Text>
+        <Text style={styles.emptyBody}>
+          You&apos;re all caught up. Turn Unread off to see everything again.
+        </Text>
+      </View>
+    );
+  }
+
   const copy =
     filter === "messages"
       ? {
@@ -411,7 +659,28 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingTop: spacing.sm,
   },
-  chips: { flexDirection: "row", gap: 6, flexShrink: 1 },
+  searchWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    marginHorizontal: spacing.md,
+    marginTop: spacing.sm,
+    paddingHorizontal: 13,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.surface,
+  },
+  // 16pt floor — iOS zooms the screen when a smaller input takes focus.
+  search: {
+    flex: 1,
+    height: 44,
+    fontFamily: fonts.body,
+    fontSize: type.body,
+    color: colors.ink900,
+  },
+
+  chips: { flexDirection: "row", gap: 6, flexShrink: 1, flexWrap: "wrap" },
   chip: {
     paddingHorizontal: 13,
     paddingVertical: 7,
@@ -421,6 +690,14 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
   },
   chipOn: { backgroundColor: colors.green700, borderColor: colors.green700 },
+  chipUnread: { flexDirection: "row", alignItems: "center", gap: 6 },
+  chipDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: colors.green600,
+  },
+  chipDotOn: { backgroundColor: colors.cream50 },
   chipLabel: {
     fontFamily: fonts.bodySemi,
     fontSize: type.small,
@@ -491,6 +768,27 @@ const styles = StyleSheet.create({
     height: 9,
     borderRadius: 4.5,
     backgroundColor: colors.green600,
+  },
+
+  // Indented and unbordered, so a run of hits reads as results under the
+  // list rather than as more inbox.
+  hit: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    paddingVertical: 11,
+    paddingHorizontal: 14,
+    marginLeft: spacing.md,
+    borderRadius: radii.md,
+    backgroundColor: colors.surfaceTint,
+  },
+  hitWho: { fontFamily: fonts.bodySemi, fontSize: type.small, color: colors.ink900 },
+  hitWhen: { fontFamily: fonts.body, color: colors.ink500 },
+  hitBody: {
+    fontFamily: fonts.body,
+    fontSize: type.small,
+    lineHeight: 19,
+    color: colors.ink500,
   },
 
   swipe: {
