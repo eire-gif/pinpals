@@ -14,7 +14,7 @@ import { router, useFocusEffect } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { MarketplaceFilters } from "@/components/marketplace-filters";
-import { ScreenHeader } from "@/components/screen-header";
+import { ScreenHeader, useCollapsingHeader } from "@/components/screen-header";
 import { useAuth } from "@/lib/auth";
 import {
   EMPTY_FILTERS,
@@ -47,6 +47,9 @@ import { colors, fonts, radii, spacing, type } from "@/lib/theme";
  * something on their laptop that the app swears does not exist.
  */
 export default function MarketplaceScreen() {
+  // The photograph band shrinks to a strip as the list scrolls (see
+  // screen-header.tsx), and opens again whenever the list is rebuilt.
+  const { scrollY, resetY, scrollProps } = useCollapsingHeader();
   const { session } = useAuth();
   const userId = session?.user?.id ?? null;
 
@@ -55,6 +58,12 @@ export default function MarketplaceScreen() {
   const [cards, setCards] = useState<Card[]>([]);
   const [cursor, setCursor] = useState<Cursor | null>(null);
   const [loading, setLoading] = useState(true);
+  // The list unmounts while loading, so its scroll position goes back to
+  // the top — the band has to follow, or it stays collapsed over a list
+  // that is no longer scrolled.
+  useEffect(() => {
+    if (loading) resetY.setValue(0);
+  }, [loading, resetY]);
   const [refreshing, setRefreshing] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -138,6 +147,7 @@ export default function MarketplaceScreen() {
         scene="parkland"
         title="Marketplace"
         subtitle="Clubs and kit from other members"
+        scrollY={scrollY}
       />
 
       <View style={styles.controls}>
@@ -178,6 +188,7 @@ export default function MarketplaceScreen() {
         </View>
       ) : (
         <FlatList
+          {...scrollProps}
           data={cards}
           keyExtractor={(item) => String(item.id)}
           numColumns={2}

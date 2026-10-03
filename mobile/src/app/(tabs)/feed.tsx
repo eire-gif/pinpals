@@ -15,7 +15,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { Avatar } from "@/components/avatar";
 import { PostCard } from "@/components/post-card";
-import { ScreenHeader } from "@/components/screen-header";
+import { ScreenHeader, useCollapsingHeader } from "@/components/screen-header";
 import { useAuth } from "@/lib/auth";
 import { loadFeed, type FeedEntry, type FeedPost } from "@/lib/feed";
 import { FEED_SCOPES, FEED_SCOPE_LABELS, type FeedScope } from "@/lib/feed-rules";
@@ -36,6 +36,9 @@ import { usePostActions } from "@/lib/use-post-actions";
  * mobile/src/lib/feed.ts. Every write goes through the website.
  */
 export default function FeedScreen() {
+  // The photograph band shrinks to a strip as the list scrolls (see
+  // screen-header.tsx), and opens again whenever the list is rebuilt.
+  const { scrollY, resetY, scrollProps } = useCollapsingHeader();
   const { session } = useAuth();
   const userId = session?.user?.id ?? null;
   const { width } = useWindowDimensions();
@@ -46,6 +49,12 @@ export default function FeedScreen() {
   const [cursor, setCursor] = useState<string | null>(null);
   const [noConnections, setNoConnections] = useState(false);
   const [loading, setLoading] = useState(true);
+  // The list unmounts while loading, so its scroll position goes back to
+  // the top — the band has to follow, or it stays collapsed over a list
+  // that is no longer scrolled.
+  useEffect(() => {
+    if (loading) resetY.setValue(0);
+  }, [loading, resetY]);
   const [refreshing, setRefreshing] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -195,12 +204,13 @@ export default function FeedScreen() {
 
   return (
     <View style={styles.fill}>
-      <ScreenHeader scene="oldHead" title="Feed" subtitle="Rounds and photos from PinPals members" />
+      <ScreenHeader scene="oldHead" title="Feed" subtitle="Rounds and photos from PinPals members" scrollY={scrollY} />
 
       {loading ? (
         <ActivityIndicator style={styles.spinner} color={colors.green700} />
       ) : (
         <FlatList
+          {...scrollProps}
           data={entries}
           keyExtractor={(e) => `${e.kind}-${e.item.id}`}
           ListHeaderComponent={header}

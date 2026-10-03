@@ -100,40 +100,60 @@ export default function HomeScreen() {
             <Text style={styles.eyebrow}>Golf community — Ireland &amp; the UK</Text>
           </View>
 
+          {/* Two lines by design, not by wrapping. Left to wrap, the line
+              break fell wherever the measured width said it would, and on
+              some phones the italic rendered wider than it measured — "ball"
+              ran off the edge of the screen. A fixed break leaves each line
+              well short of the edge whatever the font does. */}
           <Text style={styles.heroTitle}>
-            Find your <Text style={styles.heroTitleAccent}>next four ball</Text>.
+            Find your{"\n"}
+            <Text style={styles.heroTitleAccent}>next fourball.</Text>
           </Text>
 
           {courses ? (
             <Text style={styles.heroSub}>
-              {courses.toLocaleString("en-IE")} clubs on the books, from
-              Ballybunion to St Andrews.
+              {courses.toLocaleString("en-IE")} clubs, from Ballybunion to St
+              Andrews.
             </Text>
           ) : null}
 
+          {/* Fixed-width buttons, label centred. They used to be sized to
+              their own label, which left no slack: where a phone drew the
+              text a touch wider than it measured it, the last letter was
+              cut off ("Post a tee tim"). Two equal halves and a full-width
+              third give every label room to spare. */}
           <View style={styles.heroButtons}>
             <Pressable
-              style={[styles.cta, styles.ctaGreen]}
+              style={[styles.cta, styles.ctaHalf, styles.ctaGreen]}
               onPress={() => router.push("/post-tee-time")}
+              accessibilityRole="button"
             >
-              <Text style={styles.ctaGreenLabel}>Post a tee time</Text>
+              <Text style={styles.ctaGreenLabel} numberOfLines={1}>
+                Post a tee time
+              </Text>
             </Pressable>
 
             <Pressable
-              style={[styles.cta, styles.ctaCream]}
+              style={[styles.cta, styles.ctaHalf, styles.ctaCream]}
               onPress={() => router.push("/tee-times")}
+              accessibilityRole="button"
             >
-              <Text style={styles.ctaCreamLabel}>Find a game</Text>
+              <Text style={styles.ctaCreamLabel} numberOfLines={1}>
+                Find a game
+              </Text>
             </Pressable>
 
             {/* The marketplace accent from globals.css, and ink-900 on it is
                 not a style choice: white on this orange is 1.99:1, nowhere
                 near WCAG AA. */}
             <Pressable
-              style={[styles.cta, styles.ctaBuy]}
+              style={[styles.cta, styles.ctaFull, styles.ctaBuy]}
               onPress={() => router.push("/new-listing")}
+              accessibilityRole="button"
             >
-              <Text style={styles.ctaBuyLabel}>List an item</Text>
+              <Text style={styles.ctaBuyLabel} numberOfLines={1}>
+                List an item
+              </Text>
             </Pressable>
           </View>
         </View>
@@ -380,7 +400,9 @@ const styles = StyleSheet.create({
   fill: { flex: 1, backgroundColor: colors.cream50 },
   content: { paddingBottom: spacing.xl },
 
-  hero: { minHeight: 380, justifyContent: "flex-end" },
+  // Sized by what is in it, not a minimum: the old 380pt floor left a
+  // band of empty sky above the text on every phone.
+  hero: { justifyContent: "flex-end" },
   heroImage: { resizeMode: "cover" },
   scrim: {
     position: "absolute",
@@ -390,7 +412,12 @@ const styles = StyleSheet.create({
     left: 0,
     backgroundColor: "rgba(6,16,30,0.62)",
   },
-  heroBody: { padding: spacing.lg, gap: spacing.sm },
+  heroBody: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.xl,
+    paddingBottom: spacing.lg,
+    gap: spacing.sm,
+  },
 
   eyebrowRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   rule: { width: 20, height: 2, backgroundColor: colors.gold400 },
@@ -404,8 +431,8 @@ const styles = StyleSheet.create({
   },
   heroTitle: {
     fontFamily: fonts.display,
-    fontSize: 34,
-    lineHeight: 40,
+    fontSize: 32,
+    lineHeight: 38,
     color: "#ffffff",
   },
   // fontStyle: "italic" does nothing once fontFamily is set — the italic is
@@ -415,6 +442,8 @@ const styles = StyleSheet.create({
     fontFamily: fonts.body,
     fontSize: type.body,
     color: "rgba(255,255,255,0.92)",
+    // Room on the right for a line drawn wider than it was measured.
+    paddingRight: spacing.lg,
   },
   heroButtons: {
     flexDirection: "row",
@@ -425,10 +454,14 @@ const styles = StyleSheet.create({
 
   cta: {
     minHeight: 46,
+    alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: spacing.sm,
     borderRadius: radii.pill,
   },
+  // Two halves either side of an 8pt gap, then one across the whole row.
+  ctaHalf: { flexBasis: "47%", flexGrow: 1 },
+  ctaFull: { flexBasis: "100%" },
   ctaGreen: { backgroundColor: colors.green600 },
   ctaGreenLabel: { color: "#ffffff", fontFamily: fonts.bodyBold, fontSize: type.body },
   ctaCream: { backgroundColor: "#fbf8ef" },
