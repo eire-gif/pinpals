@@ -36,8 +36,7 @@ export function PostCard({
   onLike,
   onComment,
   onMenu,
-  onDeleteComment,
-  onReportComment,
+  onCommentOptions,
 }: {
   post: FeedPost;
   /** The card's content width, for sizing photos. */
@@ -47,8 +46,8 @@ export function PostCard({
   /** Open the post (or focus its comment box when already open). */
   onComment: (post: FeedPost) => void;
   onMenu: (post: FeedPost) => void;
-  onDeleteComment?: (comment: FeedComment) => void;
-  onReportComment?: (comment: FeedComment) => void;
+  /** Long-press on a comment: delete, report or block, whichever apply. */
+  onCommentOptions?: (comment: FeedComment) => void;
 }) {
   const [expanded, setExpanded] = useState(standalone || post.body.length <= LONG_POST);
   const [viewer, setViewer] = useState<number | null>(null);
@@ -155,11 +154,7 @@ export function PostCard({
               key={c.id}
               comment={c}
               onAuthor={() => openMember(c.author.id)}
-              onLongPress={
-                c.canDelete
-                  ? onDeleteComment && (() => onDeleteComment(c))
-                  : onReportComment && (() => onReportComment(c))
-              }
+              onLongPress={onCommentOptions && (() => onCommentOptions(c))}
             />
           ))}
         </View>
@@ -183,7 +178,7 @@ function CommentRow({
     <Pressable
       onLongPress={onLongPress}
       style={styles.comment}
-      accessibilityHint={onLongPress ? (comment.canDelete ? "Long-press to delete" : "Long-press to report") : undefined}
+      accessibilityHint={onLongPress ? "Long-press for options" : undefined}
     >
       <Pressable onPress={onAuthor}>
         <Avatar url={comment.author.avatarUrl} color={comment.author.avatarColor} name={comment.author.name} size={28} />
@@ -278,37 +273,48 @@ function PhotoViewer({ photos, index, onClose }: { photos: FeedPhoto[]; index: n
  */
 export function showPostMenu(
   post: FeedPost,
-  handlers: { onDelete: () => void; onAudience: () => void; onReport: () => void; onProfile: () => void }
+  handlers: { onDelete: () => void; onAudience: () => void; onReport: () => void; onProfile: () => void; onBlock: () => void }
 ) {
-  const options = post.isMine
-    ? [post.visibility === "members" ? "Show to connections only" : "Show to all members", "Delete post", "Cancel"]
-    : [`View ${post.author.name.split(" ")[0]}'s profile`, "Report post", "Cancel"];
-  const destructive = post.isMine ? 1 : undefined;
-  const run = (i: number) => {
-    if (post.isMine) {
-      if (i === 0) handlers.onAudience();
-      if (i === 1) handlers.onDelete();
-    } else {
-      if (i === 0) handlers.onProfile();
-      if (i === 1) handlers.onReport();
-    }
-  };
+  const first = post.author.name.split(" ")[0];
+  const items: { label: string; destructive?: boolean; run: () => void }[] = post.isMine
+    ? [
+        { label: post.visibility === "members" ? "Show to connections only" : "Show to all members", run: handlers.onAudience },
+        { label: "Delete post", destructive: true, run: handlers.onDelete },
+      ]
+    : [
+        { label: `View ${first}'s profile`, run: handlers.onProfile },
+        { label: "Report post", run: handlers.onReport },
+        // Apple guideline 1.2: a member must be able to block someone from
+        // the content itself, not only from a conversation.
+        { label: `Block ${first}`, destructive: true, run: handlers.onBlock },
+      ];
+  showSheet("Post", items);
+}
 
+/** The platform's own options sheet: an action sheet on iOS, an alert with
+ *  buttons on Android. Shared by the post and comment menus. */
+export function showSheet(title: string, items: { label: string; destructive?: boolean; run: () => void }[]) {
   if (Platform.OS === "ios") {
+    const destructive = items.findIndex((item) => item.destructive);
     ActionSheetIOS.showActionSheetWithOptions(
-      { options, cancelButtonIndex: options.length - 1, destructiveButtonIndex: destructive },
-      run
+      {
+        options: [...items.map((item) => item.label), "Cancel"],
+        cancelButtonIndex: items.length,
+        destructiveButtonIndex: destructive >= 0 ? destructive : undefined,
+      },
+      (i) => {
+        if (i < items.length) items[i].run();
+      }
     );
   } else {
-    Alert.alert(
-      "Post",
-      undefined,
-      options.slice(0, -1).map((label, i) => ({
-        text: label,
-        style: i === destructive ? "destructive" : "default",
-        onPress: () => run(i),
-      }))
-    );
+    Alert.alert(title, undefined, [
+      ...items.map((item) => ({
+        text: item.label,
+        style: (item.destructive ? "destructive" : "default") as "destructive" | "default",
+        onPress: item.run,
+      })),
+      { text: "Cancel", style: "cancel" as const },
+    ]);
   }
 }
 

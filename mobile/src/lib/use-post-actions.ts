@@ -2,7 +2,8 @@ import { useCallback } from "react";
 import { Alert } from "react-native";
 import { router } from "expo-router";
 
-import { askReportReason, showPostMenu } from "@/components/post-card";
+import { askReportReason, showPostMenu, showSheet } from "@/components/post-card";
+import { blockConfirmText, blockMember } from "./blocking";
 import { changeAudience, deleteComment, deletePost, report, setLike, type FeedComment, type FeedPost } from "./feed";
 
 /**
@@ -18,8 +19,35 @@ export function usePostActions(handlers: {
   remove: (postId: number) => void;
   /** Re-read after a change the screen cannot patch in place. */
   reload: () => void;
+  /** After blocking a member: take everything of theirs off this screen.
+   *  The database already hides it; this saves waiting for a reload. */
+  afterBlock: (memberId: string) => void;
 }) {
-  const { update, remove, reload } = handlers;
+  const { update, remove, reload, afterBlock } = handlers;
+
+  /** Apple guideline 1.2: block from the content itself. Asks first,
+   *  because the effect reaches well past the post in front of you. */
+  const block = useCallback(
+    (memberId: string, name: string) => {
+      const { title, message } = blockConfirmText(name);
+      Alert.alert(title, message, [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Block",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await blockMember(memberId);
+              afterBlock(memberId);
+            } catch (err) {
+              Alert.alert("Couldn't block that member", err instanceof Error ? err.message : "Please try again.");
+            }
+          },
+        },
+      ]);
+    },
+    [afterBlock]
+  );
 
   const like = useCallback(
     async (post: FeedPost) => {
@@ -77,9 +105,10 @@ export function usePostActions(handlers: {
               Alert.alert("Couldn't send that", err instanceof Error ? err.message : "Please try again.");
             }
           }),
+        onBlock: () => block(post.author.id, post.author.name),
       });
     },
-    [update, remove]
+    [update, remove, block]
   );
 
   const removeComment = useCallback(
@@ -119,5 +148,27 @@ export function usePostActions(handlers: {
     });
   }, []);
 
-  return { like, menu, removeComment, reportComment };
+  /** Long-press on a comment. Your own: delete. Someone else's on your
+   *  post: delete, report or block. Someone else's elsewhere: report or
+   *  block. */
+  const commentOptions = useCallback(
+    (comment: FeedComment) => {
+      const first = comment.author.name.split(" ")[0];
+      const items: { label: string; destructive?: boolean; run: () => void }[] = [];
+      if (comment.canDelete) items.push({ label: "Delete comment", run: () => removeComment(comment) });
+      if (!comment.isMine) {
+        items.push({ label: "Report comment", run: () => reportComment(comment) });
+        items.push({ label: `Block ${first}`, destructive: true, run: () => block(comment.author.id, comment.author.name) });
+      }
+      // Your own comment has one option; go straight to its confirm.
+      if (comment.isMine) {
+        removeComment(comment);
+        return;
+      }
+      showSheet("Comment", items);
+    },
+    [removeComment, reportComment, block]
+  );
+
+  return { like, menu, commentOptions };
 }

@@ -137,7 +137,20 @@ export default function FeedScreen() {
   const remove = useCallback((postId: number) => {
     setEntries((prev) => prev.filter((e) => !(e.kind === "post" && e.item.id === postId)));
   }, []);
-  const actions = usePostActions({ update, remove, reload: load });
+  // A block takes the member's posts out of the list and their comments out
+  // of everyone else's posts at once; the database hides them from here on.
+  const afterBlock = useCallback((memberId: string) => {
+    setEntries((prev) =>
+      prev
+        .filter((e) => !(e.kind === "post" && e.item.author.id === memberId))
+        .map((e) =>
+          e.kind === "post" && e.item.comments.some((c) => c.author.id === memberId)
+            ? { kind: "post", item: { ...e.item, comments: e.item.comments.filter((c) => c.author.id !== memberId) } }
+            : e
+        )
+    );
+  }, []);
+  const actions = usePostActions({ update, remove, reload: load, afterBlock });
 
   const header = (
     <View>
@@ -235,8 +248,7 @@ export default function FeedScreen() {
                 onComment={(p) =>
                   router.push({ pathname: "/post/[id]", params: { id: String(p.id), focus: "comment" } })
                 }
-                onDeleteComment={actions.removeComment}
-                onReportComment={actions.reportComment}
+                onCommentOptions={actions.commentOptions}
               />
             ) : (
               <Pressable

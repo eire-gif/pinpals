@@ -12,6 +12,7 @@ import {
   setPostLike,
   updatePost,
 } from "@/lib/feed-operations";
+import { blockMember, unblockMember } from "@/lib/blocking";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -108,5 +109,27 @@ export async function reportAction(input: {
   const { supabase, userId } = await member();
   const result = await reportFeedContent({ supabase, userId, ...input });
   if (!result.ok) return { ok: false, error: result.message };
+  return { ok: true, value: null };
+}
+
+/** Block a member from a post, a comment or their page. Their posts and
+ *  comments leave the viewer's feed at once — see src/lib/blocking.ts. */
+export async function blockAction(memberId: string): Promise<FeedActionResult> {
+  const { supabase, userId } = await member();
+  const result = await blockMember(supabase, userId, memberId);
+  if (!result.ok) return { ok: false, error: result.message };
+  refresh();
+  revalidatePath(`/members/${memberId}`);
+  revalidatePath("/conversations");
+  return { ok: true, value: null };
+}
+
+export async function unblockAction(memberId: string): Promise<FeedActionResult> {
+  const { supabase, userId } = await member();
+  const result = await unblockMember(supabase, userId, memberId);
+  if (!result.ok) return { ok: false, error: result.message };
+  refresh();
+  revalidatePath(`/members/${memberId}`);
+  revalidatePath("/conversations");
   return { ok: true, value: null };
 }

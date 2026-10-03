@@ -4,6 +4,8 @@ import { notFound, redirect } from "next/navigation";
 import type { Metadata } from "next";
 
 import ConnectButton from "@/app/community/connect-button";
+import BlockControl from "./block-control";
+import { hasBlocked } from "@/lib/blocking";
 import ListingCard from "@/app/marketplace/listing-card";
 import PostCard from "@/app/feed/post-card";
 import MemberAvatar from "@/components/member-avatar";
@@ -62,6 +64,7 @@ export default async function MemberPage({
   if (!member) notFound();
 
   const isMe = member.id === user.id;
+  const blocked = isMe ? false : await hasBlocked(supabase, user.id, member.id);
 
   const [ageBandResult, connectionResult, postCount, posts, listingsResult] = await Promise.all([
     supabase
@@ -136,8 +139,10 @@ export default async function MemberPage({
       <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8 grid md:grid-cols-[260px_1fr] gap-6 items-start">
         <aside className="bg-surface border border-line rounded-2xl p-5 grid gap-4 md:sticky md:top-24">
           {/* The same control as the directory card — connect, or message
-              once connected — so it behaves identically in both places. */}
-          {!isMe && (
+              once connected — so it behaves identically in both places.
+              Hidden while blocked: connecting to someone you've blocked
+              would undo nothing and confuse everything. */}
+          {!isMe && !blocked && (
             <div className="border-b border-line pb-4">
               <ConnectButton
                 memberId={member.id}
@@ -146,6 +151,7 @@ export default async function MemberPage({
               />
             </div>
           )}
+          {!isMe && <BlockControl memberId={member.id} name={name} blocked={blocked} />}
           <dl className="grid grid-cols-3 md:grid-cols-1 gap-4">
             <div>
               <dt className="text-xs text-ink-500">Handicap</dt>
@@ -197,7 +203,7 @@ export default async function MemberPage({
                       </Link>
                     </>
                   ) : (
-                    `${firstName} hasn't shared anything you can see yet.`
+                    blocked ? `You have blocked ${firstName}, so their posts are hidden.` : `${firstName} hasn't shared anything you can see yet.`
                   )}
                 </div>
               ) : (

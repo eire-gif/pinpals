@@ -61,6 +61,9 @@ export type FeedComment = {
    *  since nobody else is sent hidden ones. */
   hidden: boolean;
   canDelete: boolean;
+  /** Written by the viewer. Not the same as canDelete: a post's author can
+   *  delete anyone's comment on it, but can only block someone else. */
+  isMine: boolean;
 };
 
 export type FeedPost = {
@@ -281,6 +284,7 @@ function toComment(row: CommentRow, viewerId: string, postAuthorId: string | nul
     // own post. The policy is what enforces it; this only decides whether
     // to draw the button.
     canDelete: row.author_id === viewerId || postAuthorId === viewerId,
+    isMine: row.author_id === viewerId,
   };
 }
 

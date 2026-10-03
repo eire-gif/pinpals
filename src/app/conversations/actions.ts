@@ -13,6 +13,7 @@ import {
 import { sendMessageTo } from "@/lib/messaging-server";
 import { REPORT_CATEGORIES, parseEvidenceRefs, type ReportCategory } from "@/lib/admin/reports";
 import { checkRateLimit, rateLimitMessage } from "@/lib/rate-limit";
+import { blockMember, unblockMember } from "@/lib/blocking";
 import type { Conversation, Message } from "@/lib/types";
 
 export type MessageActionState = { error?: string; success?: boolean };
@@ -32,8 +33,7 @@ const REPORT_MAX_ATTEMPTS = 10;
 const REPORT_WINDOW_SECONDS = 60 * 60;
 const START_CONVERSATION_MAX_ATTEMPTS = 20;
 const START_CONVERSATION_WINDOW_SECONDS = 60 * 60;
-const BLOCK_USER_MAX_ATTEMPTS = 20;
-const BLOCK_USER_WINDOW_SECONDS = 60 * 60;
+// Blocking's own ceiling now lives with the operation, in src/lib/blocking.ts.
 
 function refreshThread(conversationId: number) {
   revalidatePath(`/conversations/${conversationId}`);
@@ -247,22 +247,14 @@ export async function blockUser(otherUserId: string): Promise<MessageActionState
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
-  if (otherUserId === user.id) return { error: "You can't block yourself." };
 
-  const rateLimit = await checkRateLimit({
-    action: "block-user",
-    identifier: user.id,
-    maxHits: BLOCK_USER_MAX_ATTEMPTS,
-    windowSeconds: BLOCK_USER_WINDOW_SECONDS,
-  });
-  if (!rateLimit.allowed) {
-    return { error: rateLimitMessage(rateLimit.retryAfterSeconds) };
-  }
-
-  const { error } = await supabase.from("blocked_users").insert({ blocker_id: user.id, blocked_id: otherUserId });
-  if (error && error.code !== "23505") return { error: "Couldn't block that member — please try again." };
+  // The shared operation (src/lib/blocking.ts) — the feed, member pages and
+  // the app block through the same code, with the same rate limit.
+  const result = await blockMember(supabase, user.id, otherUserId);
+  if (!result.ok) return { error: result.message };
 
   revalidatePath("/conversations");
+  revalidatePath("/feed");
   return { success: true };
 }
 
@@ -271,14 +263,11 @@ export async function unblockUser(otherUserId: string): Promise<MessageActionSta
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const { error } = await supabase
-    .from("blocked_users")
-    .delete()
-    .eq("blocker_id", user.id)
-    .eq("blocked_id", otherUserId);
-  if (error) return { error: "Couldn't unblock that member — please try again." };
+  const result = await unblockMember(supabase, user.id, otherUserId);
+  if (!result.ok) return { error: result.message };
 
   revalidatePath("/conversations");
+  revalidatePath("/feed");
   return { success: true };
 }
 
@@ -451,7 +440,7 @@ export async function reportUser(otherUserId: string, _prev: MessageActionState,
   return { success: true };
 }
 
-// Same shape and reasoning as BLOCK_USER_MAX_ATTEMPTS above — a rare,
+// Same shape and reasoning as BLOCK_MAX_ATTEMPTS in src/lib/blocking.ts — a rare,
 // deliberate action a real member does a handful of times, tight ceiling
 // mainly to blunt a scripted mute/unmute-flapping loop.
 const MUTE_USER_MAX_ATTEMPTS = 20;
