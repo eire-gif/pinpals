@@ -3,8 +3,10 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Image,
   Pressable,
   RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -18,6 +20,7 @@ import { PostCard } from "@/components/post-card";
 import { useAuth } from "@/lib/auth";
 import { loadMemberPosts, loadMemberProfile, type FeedPost, type MemberProfile } from "@/lib/feed";
 import { blockConfirmText, blockMember, unblockMember } from "@/lib/blocking";
+import { listMemberListings, priceLine, type Card } from "@/lib/marketplace";
 import { conversationWith, requestConnection, respondToConnection } from "@/lib/members";
 import { supabase } from "@/lib/supabase";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
@@ -41,6 +44,7 @@ export default function MemberScreen() {
 
   const [profile, setProfile] = useState<MemberProfile | null>(null);
   const [posts, setPosts] = useState<FeedPost[]>([]);
+  const [listings, setListings] = useState<Card[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [link, setLink] = useState<Link>(null);
   const [loading, setLoading] = useState(true);
@@ -53,9 +57,12 @@ export default function MemberScreen() {
   const load = useCallback(async () => {
     if (!userId || !id) return;
     try {
-      const [p, page, connection, myBlock] = await Promise.all([
+      const [p, page, forSale, connection, myBlock] = await Promise.all([
         loadMemberProfile(id),
         loadMemberPosts(userId, id, null),
+        // A failure here leaves the row empty rather than the whole page
+        // unloadable — the posts are what most people came for.
+        listMemberListings(id, userId).catch(() => [] as Card[]),
         isMe
           ? Promise.resolve(null)
           : supabase
@@ -77,6 +84,7 @@ export default function MemberScreen() {
       setBlocked(myBlock);
       setProfile(p);
       setPosts(page.posts);
+      setListings(forSale);
       setCursor(page.cursor);
       setLink(
         connection
@@ -224,19 +232,7 @@ export default function MemberScreen() {
       <View style={styles.stats}>
         <Stat label="Handicap" value={profile.handicap === null ? "—" : String(profile.handicap)} />
         <Stat label="Posts" value={String(profile.postCount)} />
-        <Stat
-          label="For sale"
-          value={String(profile.forSale)}
-          onPress={
-            profile.forSale > 0
-              ? () =>
-                  router.push({
-                    pathname: "/web",
-                    params: { path: `/members/${profile.id}?tab=selling`, title: `${profile.firstName}'s listings` },
-                  })
-              : undefined
-          }
-        />
+        <Stat label="For sale" value={String(profile.forSale)} />
         <Stat label="Age range" value={profile.ageBand ?? "—"} />
       </View>
 
@@ -295,6 +291,43 @@ export default function MemberScreen() {
         </Pressable>
       )}
 
+      {/* What they're selling, right here rather than a trip to the
+          website — each card opens the app's own listing screen, where
+          buying, offers and messaging the seller all work natively. */}
+      {listings.length > 0 && (
+        <>
+          <Text style={styles.section}>For sale</Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.listingStrip}
+            contentContainerStyle={styles.listingStripContent}
+          >
+            {listings.map((card) => (
+              <Pressable
+                key={card.id}
+                style={styles.listingCard}
+                onPress={() => router.push({ pathname: "/listing/[id]", params: { id: String(card.id) } })}
+                accessibilityRole="link"
+                accessibilityLabel={`${card.title}, ${priceLine(card).value}`}
+              >
+                {card.imageUrl ? (
+                  <Image source={{ uri: card.imageUrl }} style={styles.listingImage} />
+                ) : (
+                  <View style={[styles.listingImage, styles.listingImageEmpty]}>
+                    <Ionicons name="pricetag-outline" size={26} color={colors.ink500} />
+                  </View>
+                )}
+                <Text style={styles.listingTitle} numberOfLines={2}>
+                  {card.title}
+                </Text>
+                <Text style={styles.listingPrice}>{priceLine(card).value}</Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        </>
+      )}
+
       <Text style={styles.section}>Posts</Text>
     </View>
   );
@@ -333,6 +366,7 @@ export default function MemberScreen() {
         renderItem={({ item }) => (
           <PostCard
             post={item}
+            currentMemberId={id}
             width={width - spacing.md * 2 - 2}
             onLike={actions.like}
             onMenu={actions.menu}
@@ -416,6 +450,20 @@ const styles = StyleSheet.create({
   blockedStrong: { fontFamily: fonts.bodyBold, color: colors.ink900 },
   blockLink: { alignSelf: "flex-start", marginTop: spacing.sm + 2, paddingVertical: spacing.xs },
   blockLinkText: { fontFamily: fonts.bodySemi, fontSize: 13.5, color: colors.ink500 },
+  listingStrip: { marginTop: spacing.sm, marginHorizontal: -spacing.md },
+  listingStripContent: { paddingHorizontal: spacing.md, gap: spacing.sm + 2 },
+  listingCard: {
+    width: 148,
+    backgroundColor: colors.surface,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.line,
+    padding: spacing.sm,
+  },
+  listingImage: { width: "100%", aspectRatio: 1, borderRadius: radii.md, backgroundColor: colors.cream100 },
+  listingImageEmpty: { alignItems: "center", justifyContent: "center" },
+  listingTitle: { fontFamily: fonts.bodyBold, fontSize: 13.5, lineHeight: 18, color: colors.ink900, marginTop: spacing.sm, minHeight: 36 },
+  listingPrice: { fontFamily: fonts.display, fontSize: 16, color: colors.green700, marginTop: 2 },
   section: { fontFamily: fonts.display, fontSize: type.heading, color: colors.ink900, marginTop: spacing.lg },
   empty: { fontFamily: fonts.body, fontSize: type.small, color: colors.ink500, textAlign: "center", marginTop: spacing.lg },
 });

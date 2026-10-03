@@ -10,7 +10,7 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { Stack, router } from "expo-router";
+import { Stack, router, useFocusEffect } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { Avatar } from "@/components/avatar";
@@ -82,6 +82,25 @@ export default function MembersScreen() {
     const timer = setTimeout(() => void load(), query ? 300 : 0);
     return () => clearTimeout(timer);
   }, [load, query]);
+
+  // Coming back from a member's page: you may have connected, accepted or
+  // blocked there, and a card still offering "Connect" would then fail
+  // with "already got a request". The first focus is the mount, which the
+  // effect above already loads.
+  // `load` is read through a ref so this runs on focus only — not again on
+  // every keystroke, which would bypass the search debounce.
+  const focused = useRef(false);
+  const latestLoad = useRef(load);
+  latestLoad.current = load;
+  useFocusEffect(
+    useCallback(() => {
+      if (!focused.current) {
+        focused.current = true;
+        return;
+      }
+      void latestLoad.current();
+    }, [])
+  );
 
   async function connect(member: Member) {
     if (!userId) return;

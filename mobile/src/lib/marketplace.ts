@@ -188,12 +188,27 @@ export async function searchListings(
   const hasMore = rows.length > pageSize;
   const page = hasMore ? rows.slice(0, pageSize) : rows;
 
-  const [favourites, bids] = await Promise.all([
-    favouritedIds(page.map((row) => row.id), userId),
-    auctionPrices(page),
-  ]);
+  const cards = await toCards(page, userId);
 
-  const cards: Card[] = page.map((row) => ({
+  const last = page[page.length - 1];
+
+  return {
+    cards,
+    cursor:
+      hasMore && last
+        ? { createdAt: last.created_at, priceCents: last.price_cents, id: last.id }
+        : null,
+  };
+}
+
+/** Rows to cards: favourites and live auction prices filled in, in one
+ *  round trip each for the whole page. */
+async function toCards(rows: ListingRow[], userId: string | null): Promise<Card[]> {
+  const [favourites, bids] = await Promise.all([
+    favouritedIds(rows.map((row) => row.id), userId),
+    auctionPrices(rows),
+  ]);
+  return rows.map((row) => ({
     id: row.id,
     title: row.title,
     priceCents: row.price_cents,
@@ -207,16 +222,27 @@ export async function searchListings(
     isFavourited: favourites.has(row.id),
     currentBidCents: bids.get(row.id) ?? null,
   }));
+}
 
-  const last = page[page.length - 1];
+/** Matches the website's member page, which shows the same 24. */
+export const MEMBER_LISTINGS_LIMIT = 24;
 
-  return {
-    cards,
-    cursor:
-      hasMore && last
-        ? { createdAt: last.created_at, priceCents: last.price_cents, id: last.id }
-        : null,
-  };
+/**
+ * What one member has for sale right now, newest first — the "For sale"
+ * row on their page. The same query the website's /members/<id>?tab=selling
+ * runs: active listings only, so drafts, sold and removed items never show.
+ */
+export async function listMemberListings(memberId: string, userId: string | null): Promise<Card[]> {
+  const { data, error } = await supabase
+    .from("listings")
+    .select("id, title, price_cents, image_url, county, condition, sale_type, brand, model, created_at")
+    .eq("seller_id", memberId)
+    .eq("status", "active")
+    .order("created_at", { ascending: false })
+    .limit(MEMBER_LISTINGS_LIMIT)
+    .overrideTypes<ListingRow[]>();
+  if (error) throw new Error("Couldn't load their listings. Pull down to try again.");
+  return toCards((data ?? []) as ListingRow[], userId);
 }
 
 async function favouritedIds(
