@@ -242,7 +242,15 @@ async function safeNotify(label: string, fn: () => Promise<void>): Promise<void>
 /** Someone asked to join a round you're hosting. */
 export async function notifyInterestReceived(
   admin: SupabaseClient,
-  input: { hostId: string; applicantId: string; interestId: number; invite: InviteRef }
+  input: {
+    hostId: string;
+    applicantId: string;
+    interestId: number;
+    invite: InviteRef;
+    /** Set when a golfer who dropped out asks again (0091): the first
+     *  request's dedupe key is spent, and this is a new request. */
+    repeat?: number;
+  }
 ): Promise<void> {
   await safeNotify("interest-received", async () => {
     const applicantName = await memberNameFor(admin, input.applicantId);
@@ -253,7 +261,11 @@ export async function notifyInterestReceived(
       body: `${applicantName} has asked for a place at ${whenAt(input.invite)}.`,
       href: HOST_HREF,
       data: { inviteId: input.invite.inviteId, interestId: input.interestId },
-      dedupeKey: buildDedupeKey(["tee_time", input.invite.inviteId, "interest", input.interestId, "received"]),
+      dedupeKey: buildDedupeKey(
+        input.repeat === undefined
+          ? ["tee_time", input.invite.inviteId, "interest", input.interestId, "received"]
+          : ["tee_time", input.invite.inviteId, "interest", input.interestId, "received", "again", input.repeat]
+      ),
     });
   });
 }

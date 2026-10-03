@@ -316,7 +316,10 @@ export type MyTeeTimeRequest = TeeTimeInterest & {
 
 // What the browse page needs to know about the current member's own
 // interest in each invite, so it can swap the button for a status.
-export type MyInterest = Pick<TeeTimeInterest, "invite_id" | "status">;
+export type MyInterest = Pick<TeeTimeInterest, "invite_id" | "status"> & {
+  /** Set when the golfer handed the place back themselves (0091). */
+  withdrawn_at: string | null;
+};
 
 // ============ MEMBER CONNECTIONS ============
 

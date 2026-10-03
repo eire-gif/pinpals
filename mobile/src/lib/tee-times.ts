@@ -13,6 +13,8 @@ import { supabase } from "./supabase";
 export type Invite = {
   id: number;
   member_id: string;
+  /** open | full | cancelled | completed */
+  status: string;
   club_name: string | null;
   club_id: number | null;
   play_date: string;
@@ -48,7 +50,7 @@ export type Invite = {
 };
 
 const SELECT = `
-  id, member_id, club_name, club_id, play_date, time_from, time_to,
+  id, member_id, status, club_name, club_id, play_date, time_from, time_to,
   exact_tee_time, spaces_available, has_tee_time_booked, handicap_limit,
   notes, county, ladies_only,
   host:profiles!tee_time_invites_member_id_fkey (

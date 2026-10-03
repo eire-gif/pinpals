@@ -17,6 +17,9 @@ export type InterestStatus = "pending" | "accepted" | "confirmed" | "declined";
 export type MyInterest = {
   id: number;
   status: InterestStatus;
+  /** The golfer handed the place back themselves (0091), so they may ask
+   *  again — unlike a host's "no", which is final. */
+  withdrawn?: boolean;
 };
 
 /**
@@ -34,17 +37,18 @@ export async function getMyInterest(
 ): Promise<MyInterest | null> {
   const { data, error } = await supabase
     .from("tee_time_interests")
-    .select("id, status")
+    .select("id, status, withdrawn_at")
     .eq("invite_id", inviteId)
     .eq("member_id", memberId)
     .maybeSingle()
-    .overrideTypes<MyInterest>();
+    .overrideTypes<{ id: number; status: InterestStatus; withdrawn_at: string | null }>();
 
   if (error) throw error;
-  return data;
+  return data ? { id: data.id, status: data.status, withdrawn: !!data.withdrawn_at } : null;
 }
 
-/** Ask to join a tee time. Resolves to the new interest row. */
+/** Ask to join a tee time — or, after dropping out of it, ask again (the
+ *  site puts the old request back to pending). Resolves to the row. */
 export async function expressInterest(inviteId: number): Promise<MyInterest> {
   const { interest_id } = await postToSite<{ interest_id: number }>(
     "/api/app/tee-times/interest",

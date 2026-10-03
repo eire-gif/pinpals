@@ -110,9 +110,12 @@ export async function expressInterest(
     // UNIQUE (invite_id, member_id). Checking first instead would race; this
     // is the constraint doing the work, and a second tap on a flaky mobile
     // connection lands here rather than creating a duplicate.
-    if (error.code === "23505") {
-      return fail("conflict", "You've already expressed interest in this invite.");
-    }
+    //
+    // Since 0091 there is one case where a row already exists and asking is
+    // still fair: the golfer dropped out of this round themselves and wants
+    // back in. rejoin_tee_time() puts that row back to pending — and refuses
+    // everything else (a live request, a host's "no") in its own words.
+    if (error.code === "23505") return rejoin(supabase, userId, inviteId);
     return fail("failed", "Couldn't record your interest — please try again.");
   }
 
@@ -132,6 +135,42 @@ export async function expressInterest(
   });
 
   return { ok: true, value: { interestId: interest.id } };
+}
+
+const KNOWN_REJOIN_MESSAGES = [
+  "already expressed interest",
+  "already answered",
+  "no longer open",
+  "no longer available",
+  "your own invite",
+];
+
+async function rejoin(
+  supabase: SupabaseClient,
+  userId: string,
+  inviteId: number
+): Promise<Result<{ interestId: number }>> {
+  const { data, error } = await supabase.rpc("rejoin_tee_time", { p_invite_id: inviteId });
+  if (error) {
+    const known = KNOWN_REJOIN_MESSAGES.some((m) => error.message.includes(m));
+    return fail("conflict", known ? error.message : "You've already expressed interest in this invite.");
+  }
+  const row = (data as { interest_id: number; host_id: string; club_name: string; play_date: string }[] | null)?.[0];
+  if (!row) return fail("conflict", "You've already expressed interest in this invite.");
+
+  // Same notification as a first request. A fresh dedupe key: the first
+  // request's key is already spent, and this is genuinely a new request.
+  after(async () => {
+    await notifyInterestReceived(createAdminClient(), {
+      hostId: row.host_id,
+      applicantId: userId,
+      interestId: row.interest_id,
+      invite: { inviteId, clubName: row.club_name, playDate: row.play_date },
+      repeat: Date.now(),
+    });
+  });
+
+  return { ok: true, value: { interestId: row.interest_id } };
 }
 
 // ===========================================================================

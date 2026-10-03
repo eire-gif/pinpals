@@ -308,13 +308,33 @@ export default function InviteScreen() {
               </>
             )}
 
-            {interest?.status === "declined" && (
-              <Status
-                icon="close-circle-outline"
-                title="You're not in this round"
-                body="This place has gone — either the host filled it, or it was handed back. There are other tee times on the way."
-              />
-            )}
+            {interest?.status === "declined" &&
+              (interest.withdrawn ? (
+                <>
+                  <Status
+                    icon="refresh-outline"
+                    title="You gave up your place"
+                    body={
+                      invite.status === "open"
+                        ? `Can make it after all? Ask ${hostFirst} again — they'll decide as before.`
+                        : "This round has no spaces left just now."
+                    }
+                  />
+                  {invite.status === "open" && invite.play_date >= todayIso() ? (
+                    <Action
+                      label="Ask to join again"
+                      busy={busy}
+                      onPress={() => void run(() => expressInterest(inviteId))}
+                    />
+                  ) : null}
+                </>
+              ) : (
+                <Status
+                  icon="close-circle-outline"
+                  title="You're not in this round"
+                  body="The host has filled this place. There are other tee times on the way."
+                />
+              ))}
 
             {actionError ? (
               <Text style={styles.error}>{actionError}</Text>
