@@ -17,8 +17,8 @@
       ],
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "PinPals uses your location to show tee times at courses near you.",
-        "NSCameraUsageDescription": "PinPals uses your camera to photograph clubs you are listing for sale.",
-        "NSPhotoLibraryUsageDescription": "PinPals uses your photo library to attach photos to a listing.",
+        "NSCameraUsageDescription": "PinPals uses your camera so you can take photos for your listings, posts, messages and profile picture.",
+        "NSPhotoLibraryUsageDescription": "PinPals uses your photo library so you can add photos to your listings, posts, messages and profile picture.",
         "ITSAppUsesNonExemptEncryption": false
       }
     },
@@ -48,7 +48,9 @@
       ],
       "permissions": [
         "android.permission.ACCESS_COARSE_LOCATION",
-        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
+      ],
+      "blockedPermissions": [
         "android.permission.RECORD_AUDIO"
       ]
     },
@@ -72,8 +74,9 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "PinPals uses your photo library to attach photos to a listing.",
-          "cameraPermission": "PinPals uses your camera to photograph clubs you are listing for sale."
+          "photosPermission": "PinPals uses your photo library so you can add photos to your listings, posts, messages and profile picture.",
+          "cameraPermission": "PinPals uses your camera so you can take photos for your listings, posts, messages and profile picture.",
+          "microphonePermission": false
         }
       ],
       [
