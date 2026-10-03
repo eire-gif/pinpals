@@ -9,7 +9,7 @@ import {
   View,
 } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { router } from "expo-router";
+import { router, type Href } from "expo-router";
 import Constants from "expo-constants";
 
 import { useAuth } from "@/lib/auth";
@@ -146,41 +146,16 @@ export default function ProfileScreen() {
       </View>
 
       <View style={styles.group}>
-        {/* Native first. Sending these through a web view for something the
-            app can do itself would be slower and would lose the back
-            gesture. */}
-        <NativeLink
-          icon="add-circle-outline"
-          label="Post a tee time"
-          to="/post-tee-time"
-        />
-        <NativeLink
-          icon="people-outline"
-          label="Requests to join"
-          to="/tee-time-requests"
-        />
-        <NativeLink
-          icon="chatbubbles-outline"
-          label="Messages"
-          to="/inbox"
-        />
-        <Link
-          icon="person-circle-outline"
-          label="Edit profile"
-          href="/profile/edit"
-        />
-        <Link
-          icon="golf-outline"
-          label="My tee times"
-          href="/dashboard/availability"
-        />
-        <Link icon="cart-outline" label="Buying" href="/dashboard/buying" />
-        <Link icon="pricetags-outline" label="Selling" href="/dashboard/selling" />
-        <Link
-          icon="options-outline"
-          label="Notification settings"
-          href="/dashboard/notifications"
-        />
+        {/* Every row opens a screen in the app. These used to open the
+            website for the four the app could not do yet; it can now. */}
+        <NativeLink icon="add-circle-outline" label="Post a tee time" to="/post-tee-time" />
+        <NativeLink icon="people-outline" label="Requests to join" to="/tee-time-requests" />
+        <NativeLink icon="chatbubbles-outline" label="Messages" to="/inbox" />
+        <NativeLink icon="person-circle-outline" label="Edit profile" to="/edit-profile" />
+        <NativeLink icon="golf-outline" label="My tee times" to="/my-rounds" />
+        <NativeLink icon="cart-outline" label="Buying" to="/buying" />
+        <NativeLink icon="pricetags-outline" label="Selling" to="/selling" />
+        <NativeLink icon="options-outline" label="Notification settings" to="/notification-settings" />
       </View>
 
       <Pressable
@@ -242,35 +217,10 @@ function NativeLink({
 }: {
   icon: keyof typeof Ionicons.glyphMap;
   label: string;
-  to: "/post-tee-time" | "/tee-time-requests" | "/inbox";
+  to: Href;
 }) {
   return (
     <Pressable style={styles.link} onPress={() => router.push(to)}>
-      <Ionicons name={icon} size={20} color={colors.green700} />
-      <Text style={styles.linkLabel}>{label}</Text>
-      <Ionicons name="chevron-forward" size={18} color={colors.ink500} />
-    </Pressable>
-  );
-}
-
-function Link({
-  icon,
-  label,
-  href,
-}: {
-  icon: keyof typeof Ionicons.glyphMap;
-  label: string;
-  href: string;
-}) {
-  return (
-    <Pressable
-      style={styles.link}
-      // Pushed as a screen rather than opened in Safari, so the member stays
-      // in the app and stays signed in — WebShell hands the session over.
-      onPress={() =>
-        router.push({ pathname: "/web", params: { path: href, title: label } })
-      }
-    >
       <Ionicons name={icon} size={20} color={colors.green700} />
       <Text style={styles.linkLabel}>{label}</Text>
       <Ionicons name="chevron-forward" size={18} color={colors.ink500} />

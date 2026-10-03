@@ -8,13 +8,12 @@ import {
   Text,
   View,
 } from "react-native";
-import { useFocusEffect, useRouter } from "expo-router";
+import { router as appRouter, useFocusEffect, useRouter } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import * as Linking from "expo-linking";
 
 import { InviteCard } from "@/components/invite-card";
 import { ScreenHeader, useCollapsingHeader } from "@/components/screen-header";
-import { SITE_URL } from "@/lib/config";
 import { useCurrentLocation } from "@/lib/location";
 import { listInvites, listInvitesNear, type Invite } from "@/lib/tee-times";
 import { colors, radii, spacing, type } from "@/lib/theme";
@@ -264,8 +263,8 @@ function EmptyState({
       }
       action={{
         label: "Post a tee time",
-        onPress: () =>
-          void Linking.openURL(`${SITE_URL}/dashboard/availability/new`),
+        // The app's own form — this used to open Safari.
+        onPress: () => appRouter.push("/post-tee-time"),
       }}
     />
   );

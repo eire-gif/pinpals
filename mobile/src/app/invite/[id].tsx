@@ -222,15 +222,8 @@ export default function InviteScreen() {
             </Text>
             <Pressable
               style={styles.primary}
-              onPress={() =>
-                router.push({
-                  pathname: "/web",
-                  params: {
-                    path: "/dashboard/availability",
-                    title: "My tee times",
-                  },
-                })
-              }
+              // Accepting and declining golfers is native.
+              onPress={() => router.push("/tee-time-requests")}
             >
               <Text style={styles.primaryLabel}>Manage who&apos;s coming</Text>
             </Pressable>

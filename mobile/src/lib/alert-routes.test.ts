@@ -100,13 +100,14 @@ describe("appRouteFor", () => {
     });
   });
 
+  it("opens the app's own settings, tee times and profile editor", () => {
+    expect(appRouteFor("/dashboard/notifications")).toMatchObject({ kind: "native" });
+    expect(appRouteFor("/dashboard/availability")).toMatchObject({ kind: "native" });
+    expect(appRouteFor("/profile/edit")).toMatchObject({ kind: "native" });
+  });
+
   it("falls back to the web view for a page the app doesn't have", () => {
-    // notificationHref()'s own default, and the settings page the menu still
-    // opens in a web view.
-    expect(appRouteFor("/dashboard/notifications")).toEqual({
-      kind: "web",
-      path: "/dashboard/notifications",
-    });
+    // notificationHref()'s own default.
     expect(appRouteFor("/news/some-article")).toEqual({
       kind: "web",
       path: "/news/some-article",
