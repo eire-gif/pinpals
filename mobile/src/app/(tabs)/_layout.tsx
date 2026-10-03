@@ -124,6 +124,13 @@ export default function TabsLayout() {
           // Names the tab, not the bar: the screen's own photo header
           // carries the title now.
           headerTitle: "",
+          // Oct 2026 design: the photograph runs up behind the status bar
+          // and the menu, so the bar is see-through here and its buttons
+          // are drawn for a dark photograph.
+          headerTransparent: true,
+          headerStyle: { backgroundColor: "transparent" },
+          headerShadowVisible: false,
+          headerLeft: () => <MenuButton onPress={() => setMenuOpen(true)} color={colors.cream50} />,
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="golf-outline" size={size} color={color} />
           ),
@@ -134,10 +141,21 @@ export default function TabsLayout() {
             <Pressable
               onPress={() => router.push("/post-tee-time")}
               hitSlop={12}
-              style={{ paddingHorizontal: spacing.md }}
+              style={{ marginRight: spacing.md }}
               accessibilityLabel="Post a tee time"
             >
-              <Ionicons name="add-circle" size={27} color={colors.green700} />
+              <View
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: 20,
+                  backgroundColor: colors.green700,
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Ionicons name="add" size={26} color={colors.cream50} />
+              </View>
             </Pressable>
           ),
         }}
