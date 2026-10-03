@@ -5,6 +5,7 @@ import ClubCombobox from "@/components/club-combobox";
 import { COUNTRIES, regionsForCountry } from "@/lib/regions";
 import MemberAvatar from "@/components/member-avatar";
 import { ALLOWED_AVATAR_TYPES } from "@/lib/avatar";
+import { shrinkForUpload } from "@/lib/images/shrink-for-upload";
 import { ageBandForDate, AGE_BAND_NOT_SHARED } from "@/lib/age";
 import { updateProfile, type ProfileFormState } from "./actions";
 
@@ -30,6 +31,9 @@ export default function EditProfileForm({
   };
 }) {
   const [state, formAction, pending] = useActionState(updateProfile, initialState);
+  // True while a just-picked photo is being downscaled; saving waits for it,
+  // or the full-size original would be sent.
+  const [photoBusy, setPhotoBusy] = useState(false);
 
   const todayIso = new Date().toISOString().slice(0, 10);
   // Local state purely so the band preview below updates as they type — the
@@ -62,6 +66,24 @@ export default function EditProfileForm({
               type="file"
               name="avatar"
               accept={ALLOWED_AVATAR_TYPES.join(",")}
+              // This whole form posts to a Server Action, whose body limit a
+              // phone photo exceeds several times over — the save failed
+              // before it reached updateProfile(). The photo is swapped for
+              // a downscaled copy the moment it is picked; 1024px is double
+              // what the server keeps (512), so nothing visible is lost.
+              onChange={async (e) => {
+                const input = e.currentTarget;
+                const picked = input.files?.[0];
+                if (!picked) return;
+                setPhotoBusy(true);
+                const smaller = await shrinkForUpload(picked, { maxEdge: 1024, keepBelowBytes: 500 * 1024 });
+                if (smaller !== picked && typeof DataTransfer !== "undefined") {
+                  const transfer = new DataTransfer();
+                  transfer.items.add(smaller);
+                  input.files = transfer.files;
+                }
+                setPhotoBusy(false);
+              }}
               className="text-sm file:mr-3 file:px-3.5 file:py-2 file:rounded-full file:border-[1.5px] file:border-line file:bg-surface file:text-sm file:font-bold file:text-ink-900 hover:file:bg-cream-100"
             />
             <p className="text-xs text-ink-500">JPEG, PNG or WebP, up to 2MB. Leave empty to keep your current photo.</p>
@@ -229,7 +251,7 @@ export default function EditProfileForm({
 
       <button
         type="submit"
-        disabled={pending}
+        disabled={pending || photoBusy}
         className="mt-1 w-full py-3.5 rounded-full font-bold bg-green-700 text-cream-50 hover:bg-green-600 transition disabled:opacity-60"
       >
         {pending ? "Saving…" : "Save profile"}
