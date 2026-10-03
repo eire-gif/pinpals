@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -17,6 +18,7 @@ import {
   dateLabel,
   getInvite,
   hostName,
+  todayIso,
   whenLabel,
   type Invite,
 } from "@/lib/tee-times";
@@ -278,18 +280,46 @@ export default function InviteScreen() {
             )}
 
             {interest?.status === "confirmed" && (
-              <Status
-                icon="golf-outline"
-                title="You're playing"
-                body={`Your place is confirmed. ${hostFirst} has your details.`}
-              />
+              <>
+                <Status
+                  icon="golf-outline"
+                  title="You're playing"
+                  body={`Your place is confirmed. ${hostFirst} has your details.`}
+                />
+                {/* Plans change. Until the day itself, a confirmed golfer can
+                    hand the place back: the host is told and the space
+                    reopens for someone else (0090). */}
+                {invite.play_date >= todayIso() && (
+                  <Pressable
+                    style={[styles.secondary, busy && styles.disabled]}
+                    disabled={busy}
+                    accessibilityRole="button"
+                    onPress={() =>
+                      Alert.alert(
+                        "Cancel your place?",
+                        `${hostFirst} will be told you can't make it, and the space goes back for someone else to take.`,
+                        [
+                          { text: "Keep my place", style: "cancel" },
+                          {
+                            text: "Cancel my place",
+                            style: "destructive",
+                            onPress: () => void run(() => confirmPlace(interest.id, false)),
+                          },
+                        ]
+                      )
+                    }
+                  >
+                    <Text style={styles.secondaryLabel}>Cancel my place</Text>
+                  </Pressable>
+                )}
+              </>
             )}
 
             {interest?.status === "declined" && (
               <Status
                 icon="close-circle-outline"
-                title="Not this time"
-                body="This place has gone. There are other tee times on the way."
+                title="You're not in this round"
+                body="This place has gone — either the host filled it, or it was handed back. There are other tee times on the way."
               />
             )}
 

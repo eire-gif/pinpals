@@ -8,6 +8,7 @@ import {
   formatClock,
   formatInviteDate,
   formatTimeRange,
+  todayIsoDate,
 } from "@/lib/tee-times";
 import { confirmTeeTimePlace } from "./availability/actions";
 
@@ -25,6 +26,15 @@ export default function MyTeeTimeRequests({ requests }: { requests: MyTeeTimeReq
       setBusyId(null);
     });
   }
+
+  // Plans change: a confirmed golfer can hand the place back until the day
+  // itself (0090). It asks first, because the host is told straight away.
+  function cancelPlace(requestId: number, clubName: string) {
+    if (!window.confirm(`Cancel your place at ${clubName}? The host will be told and the space goes back for someone else.`)) return;
+    respond(requestId, false);
+  }
+
+  const today = todayIsoDate();
 
   if (requests.length === 0) {
     return (
@@ -78,9 +88,20 @@ export default function MyTeeTimeRequests({ requests }: { requests: MyTeeTimeReq
             )}
 
             {request.status === "confirmed" && (
-              <p className="mt-4 rounded-xl bg-green-700 px-4 py-3 text-sm font-semibold text-cream-50">
-                You&rsquo;re confirmed for this tee time.
-              </p>
+              <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl bg-green-700 px-4 py-3">
+                <p className="flex-1 min-w-[12rem] text-sm font-semibold text-cream-50">
+                  You&rsquo;re confirmed for this tee time.
+                </p>
+                {invite.play_date >= today && (
+                  <button
+                    onClick={() => cancelPlace(request.id, invite.club_name)}
+                    disabled={pending}
+                    className="px-4 py-2 rounded-full font-bold text-xs border-[1.5px] border-cream-50/70 text-cream-50 hover:bg-cream-50/10 transition disabled:opacity-50"
+                  >
+                    {isBusy ? "Cancelling…" : "Cancel my place"}
+                  </button>
+                )}
+              </div>
             )}
           </article>
         );
