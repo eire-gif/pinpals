@@ -33,19 +33,18 @@ import {
   type ListingStatus,
 } from "@/lib/listings";
 import { ApiError } from "@/lib/api";
+import { PurchasePanel } from "@/components/purchase-panel";
+import { sweepMarketplace } from "@/lib/purchase";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 
 /**
  * One listing.
  *
- * Everything a member reads before deciding is native: the photos, the price,
- * the specs, the seller and their rating. Everything that moves money is not.
- *
- * Buy now opens Stripe Checkout, which has to be a real browser. Offers and
- * bids have state machines, reservation timers and notifications behind
- * them, and a second implementation of any of that is how two systems start
- * disagreeing about who owns a club. All three open the site's own page,
- * signed in, through the web view — so the member never leaves the app.
+ * Native throughout, including buying: Buy now, offers, counter-offers and
+ * bids all happen here (components/purchase-panel.tsx), through routes that
+ * call the same operations as the website — so there is still one
+ * implementation of the offer and auction state machines, on the server.
+ * The one step that opens the website is Stripe's card form, at the end.
  */
 const GALLERY_WIDTH = Dimensions.get("window").width;
 
@@ -68,6 +67,10 @@ export default function ListingScreen() {
       return;
     }
     try {
+      // Bring offers, reservations and auctions up to date first, as the
+      // website does on every marketplace page — otherwise a lapsed
+      // reservation would read as "under offer" until someone opened the site.
+      if (userId) await sweepMarketplace();
       const row = await getListingDetail(numeric, userId);
       if (!row) setNotFound(true);
       setListing(row);
@@ -306,28 +309,10 @@ export default function ListingScreen() {
               onChanged={load}
               onEdit={openOnSite}
             />
-          ) : (
-            <>
-              {/* The money. Deliberately one button to one place: the
-                  listing's own page on the site, opened signed in. Buy needs
-                  Stripe Checkout in a real browser, and offers and bids carry
-                  state the app has no business keeping a second copy of. */}
-              <Pressable style={styles.primary} onPress={openOnSite} accessibilityRole="button">
-                <Text style={styles.primaryLabel}>
-                  {auction
-                    ? "Place a bid"
-                    : listing.saleType === "offers_allowed"
-                      ? "Buy or make an offer"
-                      : "Buy now"}
-                </Text>
-                <Ionicons name="arrow-forward" size={18} color={colors.cream50} />
-              </Pressable>
-
-              <Text style={styles.footnote}>
-                Payment is handled securely on pinpals.ie — you stay signed in.
-              </Text>
-            </>
-          )}
+          ) : userId ? (
+            // Buy now, offers and bids, native. See purchase-panel.tsx.
+            <PurchasePanel listing={listing} userId={userId} onChanged={() => void load()} />
+          ) : null}
         </View>
       </ScrollView>
     </>

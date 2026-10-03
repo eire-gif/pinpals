@@ -40,9 +40,9 @@ import { colors, fonts, radii, spacing, type } from "@/lib/theme";
  * and who you still owe a review.
  *
  * Read-only apart from reviews, which are a plain insert the database
- * already polices. Paying and finishing checkout open the website inside the
- * app: payment runs in Stripe's own iframe and there is no version of that
- * this screen could host.
+ * already polices. Finishing checkout and answering a counter-offer are
+ * native (app/checkout.tsx, the listing screen); paying opens Stripe's card
+ * form on the website inside the app, until a build carries Stripe's SDK.
  *
  * The Purchases tab leads with what the member has to DO. An order waiting
  * on payment with a reservation ticking down is the only thing on this screen
@@ -321,7 +321,13 @@ function PurchaseRow({ purchase }: { purchase: Purchase }) {
       {purchase.nextAction ? (
         <Pressable
           style={styles.cta}
-          onPress={() => openSite(purchase.nextAction!.path, "Order")}
+          onPress={() =>
+            // Choosing delivery is native now; paying is still Stripe's
+            // card form on the site.
+            purchase.nextAction!.path.endsWith("/checkout")
+              ? router.push({ pathname: "/checkout", params: { order: String(purchase.id) } })
+              : openSite(purchase.nextAction!.path, "Pay securely")
+          }
           accessibilityRole="button"
         >
           <Text style={styles.ctaLabel}>{purchase.nextAction.label}</Text>
@@ -353,9 +359,8 @@ function OfferRow({ offer }: { offer: MyOffer }) {
         {offer.status === "countered" ? (
           <Pressable
             style={styles.cta}
-            onPress={() =>
-              openSite(`/marketplace/${offer.listingId}`, "Offer")
-            }
+            // The listing screen answers it natively (purchase-panel.tsx).
+            onPress={() => router.push(`/listing/${offer.listingId}`)}
             accessibilityRole="button"
           >
             <Text style={styles.ctaLabel}>Answer the counter</Text>

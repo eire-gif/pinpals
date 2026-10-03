@@ -1,6 +1,7 @@
 import { useCallback, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Image,
   Pressable,
@@ -13,6 +14,7 @@ import {
 import { Stack, router, useFocusEffect } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
+import { AmountSheet } from "@/components/amount-sheet";
 import { ScreenHeader } from "@/components/screen-header";
 import { useAuth } from "@/lib/auth";
 import {
@@ -32,6 +34,7 @@ import {
   type LiveAuction,
   type SaleOrder,
 } from "@/lib/selling";
+import { respondToOffer, type OfferAction } from "@/lib/purchase";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 
 /**
@@ -99,9 +102,8 @@ export default function SellingScreen() {
     }
   }, [userId]);
 
-  // On focus: answering an offer happens on the website, in a web view this
-  // screen pushed. Coming back should not still show the offer you just
-  // accepted.
+  // On focus: offers are answered here now, but a sale can move on from
+  // anywhere — the order screen, the listing, the website.
   useFocusEffect(
     useCallback(() => {
       void load();
@@ -178,6 +180,7 @@ export default function SellingScreen() {
             setRefreshing(true);
             void load();
           }}
+          onReload={() => void load()}
         />
       )}
     </View>
@@ -199,11 +202,14 @@ function Body({
   data,
   refreshing,
   onRefresh,
+  onReload,
 }: {
   tab: TabKey;
   data: Data;
   refreshing: boolean;
   onRefresh: () => void;
+  /** Quiet reload after answering an offer. */
+  onReload: () => void;
 }) {
   const refresh = (
     <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.green700} />
@@ -257,7 +263,7 @@ function Body({
             />
           ) : null
         }
-        renderItem={({ item }) => <OfferRow offer={item} />}
+        renderItem={({ item }) => <OfferRow offer={item} onAnswered={onReload} />}
       />
     );
   }
@@ -355,38 +361,90 @@ function ListingRow({ listing }: { listing: ListingPerformance }) {
   );
 }
 
-function OfferRow({ offer }: { offer: IncomingOffer }) {
+function OfferRow({ offer, onAnswered }: { offer: IncomingOffer; onAnswered: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [countering, setCountering] = useState(false);
+
+  // Answered in the app, through /api/app/offers/[id] — the same
+  // offer_action() the website calls, which re-checks the deadline and that
+  // this member is the seller. Accepting reserves the item for the buyer and
+  // gives them a checkout window; they are told by the database trigger.
+  async function answer(action: OfferAction, counter?: number) {
+    setBusy(true);
+    try {
+      await respondToOffer(offer.id, action, counter);
+      onAnswered();
+    } catch (err) {
+      Alert.alert("Couldn't do that", err instanceof Error ? err.message : "Please try again.");
+      throw err;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function confirm(action: "accept" | "decline") {
+    const accept = action === "accept";
+    Alert.alert(
+      accept ? `Accept ${euro(offer.amountEur)}?` : "Decline this offer?",
+      accept
+        ? "The item is reserved for the buyer while they pay. Other offers on it are closed."
+        : "The buyer will be told. They can make a new offer.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: accept ? "Accept" : "Decline",
+          style: accept ? "default" : "destructive",
+          onPress: () => void answer(action).catch(() => undefined),
+        },
+      ]
+    );
+  }
+
+  const waitingOnBuyer = offer.status === "countered";
+
   return (
     <View style={styles.card}>
       <View style={styles.cardBody}>
-        <Text style={styles.title} numberOfLines={2}>
-          {offer.listingTitle}
-        </Text>
+        <Pressable onPress={() => router.push(`/listing/${offer.listingId}`)} accessibilityRole="link">
+          <Text style={styles.title} numberOfLines={2}>
+            {offer.listingTitle}
+          </Text>
+        </Pressable>
         <Text style={styles.offerAmount}>{euro(offer.amountEur)}</Text>
         <Text style={styles.meta}>
-          {offer.status === "countered" ? "You countered · " : ""}
+          {waitingOnBuyer ? "You countered — waiting for the buyer · " : ""}
           {timeRemaining(offer.expiresAt)}
         </Text>
 
-        {/* Answering happens on the website. offer_action() is the one place
-            a seller's response is written, and it checks the deadline again
-            server-side — so a second implementation here would be a second
-            opinion on money. */}
-        <Pressable
-          style={styles.cta}
-          onPress={() =>
-            router.push({
-              pathname: "/web",
-              params: { path: `/marketplace/${offer.listingId}`, title: "Offers" },
-            })
-          }
-          accessibilityRole="button"
-        >
-          <Text style={styles.ctaLabel}>
-            {offer.status === "countered" ? "View offer" : "Answer this offer"}
-          </Text>
-        </Pressable>
+        {waitingOnBuyer ? null : busy ? (
+          <ActivityIndicator color={colors.green700} style={{ alignSelf: "flex-start" }} />
+        ) : (
+          <View style={styles.offerButtons}>
+            <Pressable style={styles.cta} onPress={() => confirm("accept")} accessibilityRole="button">
+              <Text style={styles.ctaLabel}>Accept</Text>
+            </Pressable>
+            <Pressable style={styles.ctaQuiet} onPress={() => setCountering(true)} accessibilityRole="button">
+              <Text style={styles.ctaQuietLabel}>Counter</Text>
+            </Pressable>
+            <Pressable style={styles.ctaQuiet} onPress={() => confirm("decline")} accessibilityRole="button">
+              <Text style={styles.ctaQuietLabel}>Decline</Text>
+            </Pressable>
+          </View>
+        )}
       </View>
+
+      <AmountSheet
+        visible={countering}
+        title="Counter-offer"
+        intro={`They offered ${euro(offer.amountEur)}. Your counter must be higher than that and no more than your asking price.`}
+        confirmLabel={(amount) => (amount === null ? "Send counter-offer" : `Counter at ${euro(amount)}`)}
+        onClose={() => setCountering(false)}
+        onSubmit={async (amount) => {
+          await respondToOffer(offer.id, "counter", amount);
+          setCountering(false);
+          onAnswered();
+        }}
+      />
     </View>
   );
 }
@@ -646,4 +704,13 @@ const styles = StyleSheet.create({
     backgroundColor: colors.green700,
   },
   ctaLabel: { fontFamily: fonts.bodyBold, fontSize: type.small, color: colors.cream50 },
+  offerButtons: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginTop: 6 },
+  ctaQuiet: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: 10,
+    borderRadius: radii.pill,
+    borderWidth: 1.5,
+    borderColor: colors.line,
+  },
+  ctaQuietLabel: { fontFamily: fonts.bodyBold, fontSize: type.small, color: colors.ink900 },
 });
