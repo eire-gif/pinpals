@@ -152,3 +152,78 @@ describe("what dropping out still refuses", () => {
     });
   });
 });
+
+// ---------------------------------------------------------------------------
+// Migration 0091 — asking again after dropping out.
+// ---------------------------------------------------------------------------
+
+const rejoin = (c: PoolClient) =>
+  c.query<{ interest_id: string }>("select * from public.rejoin_tee_time($1)", [ids.teeTime.inviteId]);
+
+describe("rejoin_tee_time after dropping out (0091)", () => {
+  it("marks a golfer's own drop-out as withdrawn", async () => {
+    await withRole("authenticated", USERS.buyer1, async (c) => {
+      await dropOut(c, ids.teeTime.confirmedBuyer1);
+      const r = await c.query<{ withdrawn_at: string | null }>(
+        "select withdrawn_at from public.tee_time_interests where id = $1",
+        [ids.teeTime.confirmedBuyer1],
+      );
+      expect(r.rows[0].withdrawn_at).not.toBeNull();
+    });
+  });
+
+  it("lets them ask again: back to pending, withdrawn cleared", async () => {
+    await withRole("authenticated", USERS.buyer1, async (c) => {
+      await dropOut(c, ids.teeTime.confirmedBuyer1);
+      const r = await rejoin(c);
+      expect(r.rows[0].interest_id).toBe(ids.teeTime.confirmedBuyer1);
+      const row = await c.query<{ status: string; withdrawn_at: string | null }>(
+        "select status, withdrawn_at from public.tee_time_interests where id = $1",
+        [ids.teeTime.confirmedBuyer1],
+      );
+      expect(row.rows[0]).toEqual({ status: "pending", withdrawn_at: null });
+    });
+  });
+
+  it("does not let someone the HOST declined ask again", async () => {
+    await withRole("authenticated", USERS.admin, async (c) => {
+      await expectRejected(rejoin(c), /already answered/);
+    });
+  });
+
+  it("refuses while their request is still live", async () => {
+    await withRole("authenticated", USERS.moderator, async (c) => {
+      await expectRejected(rejoin(c), /already expressed interest/);
+    });
+  });
+
+  it("refuses a round that is no longer open", async () => {
+    await withRole("authenticated", USERS.buyer1, async (c) => {
+      await dropOut(c, ids.teeTime.confirmedBuyer1);
+      await arrange(c, "update public.tee_time_invites set status = 'cancelled' where id = $1", [ids.teeTime.inviteId]);
+      await expectRejected(rejoin(c), /no longer open/);
+    });
+  });
+
+  it("refuses a round that has been played", async () => {
+    await withRole("authenticated", USERS.buyer1, async (c) => {
+      await dropOut(c, ids.teeTime.confirmedBuyer1);
+      await arrange(c, "update public.tee_time_invites set play_date = current_date - 3 where id = $1", [
+        ids.teeTime.inviteId,
+      ]);
+      await expectRejected(rejoin(c), /no longer open/);
+    });
+  });
+
+  it("refuses the host on their own round", async () => {
+    await withRole("authenticated", USERS.seller1, async (c) => {
+      await expectRejected(rejoin(c), /your own invite/);
+    });
+  });
+
+  it("is not available to anon", async () => {
+    await withRole("anon", null, async (c) => {
+      await expectRejected(rejoin(c));
+    });
+  });
+});

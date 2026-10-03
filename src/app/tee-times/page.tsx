@@ -152,13 +152,19 @@ export default async function TeeTimesPage({
   if (inviteIds.length > 0) {
     const { data } = await supabase
       .from("tee_time_interests")
-      .select("invite_id, status")
+      .select("invite_id, status, withdrawn_at")
       .eq("member_id", user.id)
       .in("invite_id", inviteIds)
       .returns<MyInterest[]>();
     myInterests = data ?? [];
   }
-  const myInterestByInvite = new Map(myInterests.map((i) => [i.invite_id, i.status]));
+  // A place the golfer handed back themselves (0091) reads as "not asked":
+  // they get the button again. A host's "no" still shows as Declined.
+  const myInterestByInvite = new Map(
+    myInterests
+      .filter((i) => !(i.status === "declined" && i.withdrawn_at))
+      .map((i) => [i.invite_id, i.status])
+  );
 
   const today = new Date().toISOString().slice(0, 10);
   const hasFilters = Boolean(county || club || date || spaces || coords || ladiesOnly);
