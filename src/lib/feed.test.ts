@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   interleaveFeed,
+  threadComments,
   likeSummary,
   parseFeedScope,
   parseVisibility,
@@ -109,5 +110,34 @@ describe("relativeTime", () => {
     expect(relativeTime("2026-10-02T09:00:00Z", now)).toBe("3h");
     expect(relativeTime("2026-09-30T12:00:00Z", now)).toBe("2d");
     expect(relativeTime("2026-09-01T12:00:00Z", now)).toMatch(/Sept? 1|1 Sept?/);
+  });
+});
+
+describe("threadComments", () => {
+  const c = (id: number, parentId: number | null, createdAt: string) => ({ id, parentId, createdAt });
+
+  it("puts each reply under its comment, oldest first, and keeps top-level comments in time order", () => {
+    const out = threadComments([
+      c(1, null, "2026-10-03T10:00:00Z"),
+      c(2, null, "2026-10-03T10:05:00Z"),
+      c(3, 1, "2026-10-03T10:10:00Z"),
+      c(4, 1, "2026-10-03T10:07:00Z"),
+      c(5, 2, "2026-10-03T10:20:00Z"),
+    ]);
+    expect(out.map((x) => [x.id, x.depth])).toEqual([
+      [1, 0],
+      [4, 1],
+      [3, 1],
+      [2, 0],
+      [5, 1],
+    ]);
+  });
+
+  it("shows a reply whose parent isn't loaded as a comment of its own, not nowhere", () => {
+    const out = threadComments([c(7, 99, "2026-10-03T10:00:00Z"), c(8, null, "2026-10-03T09:00:00Z")]);
+    expect(out.map((x) => [x.id, x.depth])).toEqual([
+      [8, 0],
+      [7, 0],
+    ]);
   });
 });

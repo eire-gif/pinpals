@@ -67,7 +67,7 @@ export const NOTIFICATION_CATEGORY_DESCRIPTIONS: Record<OptionalNotificationCate
   auctions: "Outbid alerts, auctions ending soon, and results.",
   reviews: "When you're able to leave a review after a completed order.",
   tee_times: "When someone you've connected with posts a tee time.",
-  feed: "When another member comments on something you posted.",
+  feed: "When another member comments on something you posted, or replies to your comment.",
 };
 
 // Every `type` value any part of this app writes to `notifications.type` —
@@ -121,6 +121,7 @@ export const NOTIFICATION_TYPES = [
   // only — see likePost() in src/lib/feed-operations.ts for why it never
   // emails or buzzes a phone.
   "post_commented",
+  "post_comment_replied",
   "post_liked",
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
@@ -156,6 +157,7 @@ export const NOTIFICATION_TYPE_CATEGORY: Record<NotificationType, NotificationCa
   tee_time_place_withdrawn: "tee_times",
   tee_time_cancelled: "tee_times",
   post_commented: "feed",
+  post_comment_replied: "feed",
   post_liked: "feed",
 };
 

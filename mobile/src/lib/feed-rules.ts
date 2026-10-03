@@ -105,3 +105,38 @@ export function photoHeight(width: number, photo: { width: number | null; height
   const clamped = Math.min(Math.max(ratio, 0.8), 16 / 9);
   return Math.round(width / clamped);
 }
+
+/**
+ * Comments in thread order: each top-level comment, oldest first, followed
+ * by its replies, oldest first (0092 — one level of replies). Kept identical to threadComments() in src/lib/feed.ts on the site.
+ *
+ * A reply whose parent is not in the list — not loaded in a preview, or
+ * invisible to this viewer because of a block — is shown as a top-level
+ * comment at its own time rather than dropped. `depth` is what a screen
+ * indents by.
+ */
+export function threadComments<T extends { id: number; parentId: number | null; createdAt: string }>(
+  comments: T[]
+): (T & { depth: 0 | 1 })[] {
+  const byTime = [...comments].sort((a, b) =>
+    a.createdAt === b.createdAt ? a.id - b.id : a.createdAt < b.createdAt ? -1 : 1
+  );
+  const present = new Set(byTime.map((c) => c.id));
+  const replies = new Map<number, T[]>();
+  const roots: T[] = [];
+  for (const c of byTime) {
+    if (c.parentId !== null && present.has(c.parentId)) {
+      const list = replies.get(c.parentId) ?? [];
+      list.push(c);
+      replies.set(c.parentId, list);
+    } else {
+      roots.push(c);
+    }
+  }
+  const out: (T & { depth: 0 | 1 })[] = [];
+  for (const root of roots) {
+    out.push({ ...root, depth: 0 });
+    for (const reply of replies.get(root.id) ?? []) out.push({ ...reply, depth: 1 });
+  }
+  return out;
+}

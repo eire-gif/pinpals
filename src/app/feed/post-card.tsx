@@ -41,6 +41,9 @@ export default function PostCard({ post, standalone = false }: { post: FeedPost;
   const [likeCount, setLikeCount] = useState(post.likeCount);
   const [expanded, setExpanded] = useState(standalone || post.body.length <= LONG_POST);
   const [comment, setComment] = useState("");
+  // Replying to one comment rather than the post (0092). The database files
+  // a reply to a reply under its top-level comment.
+  const [replyTo, setReplyTo] = useState<{ id: number; name: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [reporting, setReporting] = useState<{ target: "post" | "post_comment"; id: number } | null>(null);
@@ -74,12 +77,13 @@ export default function PostCard({ post, standalone = false }: { post: FeedPost;
     if (!body) return;
     setError(null);
     startTransition(async () => {
-      const result = await addCommentAction(post.id, body);
+      const result = await addCommentAction(post.id, body, replyTo?.id ?? null);
       if (!result.ok) {
         setError(result.error);
         return;
       }
       setComment("");
+      setReplyTo(null);
       router.refresh();
     });
   }
@@ -281,7 +285,11 @@ export default function PostCard({ post, standalone = false }: { post: FeedPost;
         </button>
         <button
           type="button"
-          onClick={() => commentInput.current?.focus()}
+          onClick={() => {
+            // A comment on the post itself, not an answer to anyone.
+            setReplyTo(null);
+            commentInput.current?.focus();
+          }}
           className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-bold rounded-lg my-1 text-ink-500 hover:bg-cream-100 transition"
         >
           <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
@@ -299,7 +307,7 @@ export default function PostCard({ post, standalone = false }: { post: FeedPost;
             </Link>
           )}
           {shownComments.map((c) => (
-            <div key={c.id} className="flex gap-2.5">
+            <div key={c.id} className={`flex gap-2.5 ${c.depth === 1 ? "ml-9" : ""}`}>
               <Link href={`/members/${c.author.id}`} className="shrink-0">
                 <MemberAvatar name={c.author.name} avatarUrl={c.author.avatarUrl} color={c.author.avatarColor} size="xs" />
               </Link>
@@ -313,6 +321,18 @@ export default function PostCard({ post, standalone = false }: { post: FeedPost;
                 </div>
                 <div className="flex gap-3 px-3.5 pt-1 text-[11px] text-ink-500">
                   <time dateTime={c.createdAt}>{relativeTime(c.createdAt)}</time>
+                  {!c.hidden && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setReplyTo({ id: c.id, name: c.author.name });
+                        commentInput.current?.focus();
+                      }}
+                      className="font-semibold hover:text-ink-900"
+                    >
+                      Reply
+                    </button>
+                  )}
                   {c.canDelete && (
                     <button type="button" onClick={() => removeComment(c)} className="font-semibold hover:text-red-600">
                       Delete
@@ -339,6 +359,16 @@ export default function PostCard({ post, standalone = false }: { post: FeedPost;
         </div>
       )}
 
+      {replyTo && (
+        <div className="px-5 pt-2 -mb-1 flex items-center gap-2 text-xs text-ink-500">
+          <span>
+            Replying to <span className="font-bold text-ink-900">{replyTo.name}</span>
+          </span>
+          <button type="button" onClick={() => setReplyTo(null)} className="font-semibold hover:text-ink-900">
+            Cancel
+          </button>
+        </div>
+      )}
       <form onSubmit={submitComment} className="px-5 pt-2 pb-4 flex items-end gap-2">
         <label htmlFor={`comment-${post.id}`} className="sr-only">
           Write a comment
@@ -356,7 +386,7 @@ export default function PostCard({ post, standalone = false }: { post: FeedPost;
           }}
           rows={1}
           maxLength={MAX_COMMENT_BODY}
-          placeholder="Write a comment…"
+          placeholder={replyTo ? `Reply to ${replyTo.name.split(" ")[0]}…` : "Write a comment…"}
           className="flex-1 resize-none rounded-2xl border-[1.5px] border-line bg-surface-tint px-4 py-2 text-base sm:text-sm focus:outline-none focus:border-green-700"
         />
         <button

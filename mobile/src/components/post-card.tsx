@@ -37,6 +37,7 @@ export function PostCard({
   onComment,
   onMenu,
   onCommentOptions,
+  onReply,
   currentMemberId,
 }: {
   post: FeedPost;
@@ -49,6 +50,9 @@ export function PostCard({
   onMenu: (post: FeedPost) => void;
   /** Long-press on a comment: delete, report or block, whichever apply. */
   onCommentOptions?: (comment: FeedComment) => void;
+  /** Reply to one comment. Without it (the feed list), Reply opens the post
+   *  with the reply box ready. */
+  onReply?: (comment: FeedComment) => void;
   /** Set on a member's own page: tapping that member's name does nothing
    *  there, rather than stacking a second copy of the page you're on. */
   currentMemberId?: string;
@@ -162,6 +166,14 @@ export function PostCard({
               comment={c}
               onAuthor={() => openMember(c.author.id)}
               onLongPress={onCommentOptions && (() => onCommentOptions(c))}
+              onReply={() =>
+                onReply
+                  ? onReply(c)
+                  : router.push({
+                      pathname: "/post/[id]",
+                      params: { id: String(post.id), focus: "comment", reply: String(c.id), replyName: c.author.name },
+                    })
+              }
             />
           ))}
         </View>
@@ -176,15 +188,17 @@ function CommentRow({
   comment,
   onAuthor,
   onLongPress,
+  onReply,
 }: {
   comment: FeedComment;
   onAuthor: () => void;
   onLongPress?: () => void;
+  onReply: () => void;
 }) {
   return (
     <Pressable
       onLongPress={onLongPress}
-      style={styles.comment}
+      style={[styles.comment, comment.depth === 1 && styles.reply]}
       accessibilityHint={onLongPress ? "Long-press for options" : undefined}
     >
       <Pressable onPress={onAuthor}>
@@ -198,7 +212,20 @@ function CommentRow({
           <Text style={styles.commentText}>{comment.body}</Text>
           {comment.hidden && <Text style={styles.hiddenNote}>Hidden by PinPals — only you can see this.</Text>}
         </View>
-        <Text style={styles.commentMeta}>{ago(comment.createdAt)}</Text>
+        <View style={styles.commentMetaRow}>
+          <Text style={styles.commentMeta}>{ago(comment.createdAt)}</Text>
+          {comment.hidden ? null : (
+            <Text
+              style={styles.replyLink}
+              onPress={onReply}
+              accessibilityRole="button"
+              accessibilityLabel={`Reply to ${comment.author.name}`}
+              suppressHighlighting
+            >
+              Reply
+            </Text>
+          )}
+        </View>
       </View>
     </Pressable>
   );
@@ -426,6 +453,8 @@ const styles = StyleSheet.create({
   viewAllText: { fontFamily: fonts.bodySemi, fontSize: type.small, color: colors.ink500 },
   comments: { paddingHorizontal: spacing.md, paddingBottom: spacing.md, gap: spacing.sm + 2 },
   comment: { flexDirection: "row", gap: spacing.sm },
+  // One level of replies (0092), tucked under the comment they answer.
+  reply: { marginLeft: 36 },
   commentBody: { flex: 1, minWidth: 0 },
   bubble: {
     backgroundColor: colors.surfaceTint,
@@ -439,7 +468,9 @@ const styles = StyleSheet.create({
   commentName: { fontFamily: fonts.bodyBold, fontSize: 13.5, color: colors.ink900 },
   commentText: { fontFamily: fonts.body, fontSize: 14.5, lineHeight: 20, color: colors.ink900 },
   hiddenNote: { fontFamily: fonts.body, fontSize: 11.5, color: colors.ink500, marginTop: 4 },
-  commentMeta: { fontFamily: fonts.body, fontSize: 11.5, color: colors.ink500, marginTop: 3, marginLeft: spacing.sm + 4 },
+  commentMetaRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, marginTop: 3, marginLeft: spacing.sm + 4 },
+  commentMeta: { fontFamily: fonts.body, fontSize: 11.5, color: colors.ink500 },
+  replyLink: { fontFamily: fonts.bodyBold, fontSize: 12, color: colors.ink500, paddingVertical: 2 },
   viewer: { flex: 1, backgroundColor: "rgba(12,32,56,0.97)" },
   viewerClose: { position: "absolute", top: 56, right: spacing.md, padding: spacing.xs },
 });

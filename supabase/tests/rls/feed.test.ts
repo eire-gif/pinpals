@@ -564,3 +564,97 @@ describe("reporting and preferences", () => {
     });
   });
 });
+
+// ---------------------------------------------------------------------------
+// 0092 — replies to comments
+// ---------------------------------------------------------------------------
+
+async function comment(c: PoolClient, postId: string, author: string, body: string, parent: string | null = null) {
+  await as(c, author);
+  const { rows } = await c.query<{ id: string; parent_id: string | null }>(
+    "insert into public.post_comments (post_id, author_id, body, parent_id) values ($1, $2, $3, $4) returning id, parent_id",
+    [postId, author, body, parent],
+  );
+  return rows[0];
+}
+
+describe("replies to comments", () => {
+  it("a member replies to a comment; the reply carries its parent and counts", async () => {
+    await withRole("authenticated", USERS.seller1, async (c) => {
+      const p = await post(c, USERS.seller1);
+      const top = await comment(c, p, USERS.buyer1, "Shot!");
+      const reply = await comment(c, p, USERS.buyer2, "It was", top.id);
+      expect(reply.parent_id).toBe(top.id);
+      const { rows } = await c.query<{ comment_count: number }>("select comment_count from public.posts where id = $1", [p]);
+      expect(rows[0].comment_count).toBe(2);
+    });
+  });
+
+  it("a reply to a reply joins the same thread, one level deep", async () => {
+    await withRole("authenticated", USERS.seller1, async (c) => {
+      const p = await post(c, USERS.seller1);
+      const top = await comment(c, p, USERS.buyer1, "Shot!");
+      const first = await comment(c, p, USERS.buyer2, "Agreed", top.id);
+      const second = await comment(c, p, USERS.seller1, "Thanks both", first.id);
+      expect(second.parent_id).toBe(top.id);
+    });
+  });
+
+  it("refuses a parent on a different post", async () => {
+    await withRole("authenticated", USERS.seller1, async (c) => {
+      const p1 = await post(c, USERS.seller1);
+      const p2 = await post(c, USERS.seller1);
+      const top = await comment(c, p1, USERS.buyer1, "On the first");
+      await as(c, USERS.buyer2);
+      await refused(
+        c,
+        "insert into public.post_comments (post_id, author_id, body, parent_id) values ($1, $2, 'x', $3)",
+        [p2, USERS.buyer2, top.id],
+        /no longer available/,
+      );
+    });
+  });
+
+  it("refuses replying to someone you have blocked or who blocked you", async () => {
+    await withRole("authenticated", USERS.seller1, async (c) => {
+      const p = await post(c, USERS.seller1);
+      const top = await comment(c, p, USERS.buyer1, "Shot!");
+      await block(c, USERS.buyer1, USERS.buyer2);
+      await as(c, USERS.buyer2);
+      await refused(
+        c,
+        "insert into public.post_comments (post_id, author_id, body, parent_id) values ($1, $2, 'x', $3)",
+        [p, USERS.buyer2, top.id],
+        /no longer available/,
+      );
+    });
+  });
+
+  it("refuses replying to a comment a moderator has hidden", async () => {
+    await withRole("authenticated", USERS.seller1, async (c) => {
+      const p = await post(c, USERS.seller1);
+      const top = await comment(c, p, USERS.buyer1, "Shot!");
+      await asService(c, () => c.query("update public.post_comments set hidden_at = now() where id = $1", [top.id]));
+      await as(c, USERS.buyer2);
+      await refused(
+        c,
+        "insert into public.post_comments (post_id, author_id, body, parent_id) values ($1, $2, 'x', $3)",
+        [p, USERS.buyer2, top.id],
+        /no longer available/,
+      );
+    });
+  });
+
+  it("deleting a comment takes its replies with it, and the count follows", async () => {
+    await withRole("authenticated", USERS.seller1, async (c) => {
+      const p = await post(c, USERS.seller1);
+      const top = await comment(c, p, USERS.buyer1, "Shot!");
+      await comment(c, p, USERS.buyer2, "Agreed", top.id);
+      await comment(c, p, USERS.seller1, "Cheers", top.id);
+      await as(c, USERS.buyer1);
+      await c.query("delete from public.post_comments where id = $1", [top.id]);
+      const { rows } = await c.query<{ comment_count: number }>("select comment_count from public.posts where id = $1", [p]);
+      expect(rows[0].comment_count).toBe(0);
+    });
+  });
+});

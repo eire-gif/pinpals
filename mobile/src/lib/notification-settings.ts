@@ -33,7 +33,7 @@ export const CATEGORY_DESCRIPTIONS: Record<Category, string> = {
   auctions: "Outbid alerts, auctions ending soon, and results.",
   reviews: "When you're able to leave a review after a completed order.",
   tee_times: "When someone you've connected with posts a tee time.",
-  feed: "When another member comments on something you posted.",
+  feed: "When another member comments on something you posted, or replies to your comment.",
 };
 
 export type Preference = { email: boolean; push: boolean };

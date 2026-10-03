@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ago, commentLine, draftProblem, interleave, likeLine, photoHeight } from "./feed-rules";
+import { ago, commentLine, draftProblem, interleave, likeLine, photoHeight, threadComments } from "./feed-rules";
 
 describe("draftProblem", () => {
   it("needs a photo or some words", () => {
@@ -52,5 +52,26 @@ describe("photoHeight", () => {
     expect(photoHeight(400, { width: 1000, height: 3000 })).toBe(500);
     expect(photoHeight(400, { width: 4000, height: 1000 })).toBe(225);
     expect(photoHeight(400, { width: null, height: null })).toBe(300);
+  });
+});
+
+describe("threadComments", () => {
+  const c = (id: number, parentId: number | null, createdAt: string) => ({ id, parentId, createdAt });
+
+  it("puts replies under their comment, oldest first", () => {
+    const out = threadComments([
+      c(1, null, "2026-10-03T10:00:00Z"),
+      c(2, null, "2026-10-03T10:05:00Z"),
+      c(3, 1, "2026-10-03T10:10:00Z"),
+    ]);
+    expect(out.map((x) => [x.id, x.depth])).toEqual([
+      [1, 0],
+      [3, 1],
+      [2, 0],
+    ]);
+  });
+
+  it("shows a reply without its parent as a comment of its own", () => {
+    expect(threadComments([c(7, 99, "2026-10-03T10:00:00Z")])[0].depth).toBe(0);
   });
 });

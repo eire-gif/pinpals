@@ -84,9 +84,13 @@ export async function setLikeAction(
   return { ok: true, value: result.value };
 }
 
-export async function addCommentAction(postId: number, body: string): Promise<FeedActionResult<{ id: number }>> {
+export async function addCommentAction(
+  postId: number,
+  body: string,
+  parentId: number | null = null
+): Promise<FeedActionResult<{ id: number }>> {
   const { supabase, userId } = await member();
-  const result = await addComment({ supabase, userId, postId, body });
+  const result = await addComment({ supabase, userId, postId, body, parentId });
   if (!result.ok) return { ok: false, error: result.message };
   refresh(postId);
   return { ok: true, value: result.value };

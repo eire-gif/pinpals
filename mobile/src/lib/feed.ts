@@ -12,6 +12,7 @@ import {
   FEED_LISTINGS_PER_PAGE,
   FEED_PAGE_SIZE,
   interleave,
+  threadComments,
   type FeedScope,
   type PostVisibility,
 } from "./feed-rules";
@@ -58,6 +59,10 @@ export type FeedComment = {
   /** Written by the viewer. Not the same as canDelete: a post's author can
    *  delete anyone's comment on it, but can only block someone else. */
   isMine: boolean;
+  /** The top-level comment this one replies to (0092), or null. */
+  parentId: number | null;
+  /** 1 when shown indented under its parent; set by threadComments(). */
+  depth: 0 | 1;
 };
 
 export type FeedPost = {
@@ -114,6 +119,7 @@ type CommentRow = {
   body: string;
   hidden_at: string | null;
   created_at: string;
+  parent_id: number | null;
   author: ProfileEmbed | null;
 };
 
@@ -127,7 +133,7 @@ const POST_SELECT = `
 `;
 
 const COMMENT_SELECT = `
-  id, post_id, author_id, body, hidden_at, created_at,
+  id, post_id, author_id, body, hidden_at, created_at, parent_id,
   author:profiles!post_comments_author_id_fkey ( id, first_name, last_name, avatar_url, avatar_color, home_club )
 `;
 
@@ -152,7 +158,9 @@ const toComment = (row: CommentRow, viewerId: string, postAuthorId: string | nul
   // The DELETE policy's rule: your own, or any on your own post. The policy
   // enforces it; this only decides whether to offer the button.
   canDelete: row.author_id === viewerId || postAuthorId === viewerId,
-    isMine: row.author_id === viewerId,
+  isMine: row.author_id === viewerId,
+  parentId: row.parent_id,
+  depth: 0,
 });
 
 async function signPhotos(paths: string[]): Promise<Map<string, string>> {
@@ -198,6 +206,27 @@ async function hydrate(viewerId: string, rows: PostRow[], commentsPerPost: numbe
     byPost.set(row.post_id, list);
   }
 
+  // A preview reply needs what it answers: fetch any parent the latest-N cut
+  // left out. RLS still decides — an invisible parent doesn't come back and
+  // the reply shows on its own. Same as the site's hydratePosts().
+  const shown = [...byPost.values()].flat();
+  const shownIds = new Set(shown.map((c) => c.id));
+  const missing = [
+    ...new Set(shown.map((c) => c.parentId).filter((id): id is number => id !== null && !shownIds.has(id))),
+  ];
+  if (missing.length > 0) {
+    const { data: parents } = await supabase
+      .from("post_comments")
+      .select(COMMENT_SELECT)
+      .in("id", missing)
+      .overrideTypes<CommentRow[]>();
+    for (const row of (parents ?? []) as CommentRow[]) {
+      const list = byPost.get(row.post_id) ?? [];
+      list.push(toComment(row, viewerId, authorOf.get(row.post_id) ?? null));
+      byPost.set(row.post_id, list);
+    }
+  }
+
   return rows.map((row) => ({
     id: row.id,
     author: toAuthor(row.author, row.author_id),
@@ -213,7 +242,7 @@ async function hydrate(viewerId: string, rows: PostRow[], commentsPerPost: numbe
     isMine: row.author_id === viewerId,
     hidden: row.hidden_at !== null,
     createdAt: row.created_at,
-    comments: (byPost.get(row.id) ?? []).reverse(),
+    comments: threadComments(byPost.get(row.id) ?? []),
   }));
 }
 
@@ -324,7 +353,10 @@ export async function loadPost(viewerId: string, postId: number): Promise<FeedPo
     .order("id", { ascending: true })
     .limit(500)
     .overrideTypes<CommentRow[]>();
-  return { ...post, comments: ((comments ?? []) as CommentRow[]).map((c) => toComment(c, viewerId, data.author_id)) };
+  return {
+    ...post,
+    comments: threadComments(((comments ?? []) as CommentRow[]).map((c) => toComment(c, viewerId, data.author_id))),
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -431,8 +463,9 @@ export const createPost = (input: {
 export const setLike = (postId: number, liked: boolean): Promise<{ liked: boolean; likeCount: number }> =>
   postToSite(`/api/app/posts/${postId}/like`, { liked });
 
-export const addComment = (postId: number, body: string): Promise<{ id: number }> =>
-  postToSite(`/api/app/posts/${postId}/comments`, { body });
+/** A comment on the post, or — with `parentId` — a reply to one comment. */
+export const addComment = (postId: number, body: string, parentId: number | null = null): Promise<{ id: number }> =>
+  postToSite(`/api/app/posts/${postId}/comments`, parentId === null ? { body } : { body, parent_id: parentId });
 
 export const deleteComment = (postId: number, commentId: number): Promise<{ ok: true }> =>
   deleteFromSite(`/api/app/posts/${postId}/comments/${commentId}`);
