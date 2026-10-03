@@ -58,6 +58,9 @@ const EXACT: Record<string, string> = {
   "/dashboard/payouts": "/payouts",
   "/dashboard/connections": "/connections",
   "/dashboard/profile": "/profile",
+  "/dashboard/notifications": "/notification-settings",
+  "/dashboard/availability": "/my-rounds",
+  "/profile/edit": "/edit-profile",
 
   "/feed": "/feed",
 

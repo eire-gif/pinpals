@@ -128,13 +128,7 @@ export const MENU: MenuSection[] = [
       { kind: "native", label: "Your profile", icon: "person-outline", to: "/profile" },
       { kind: "native", label: "Edit your profile", icon: "create-outline", to: "/edit-profile" },
       { kind: "native", label: "Blocked members", icon: "hand-left-outline", to: "/blocked-members" },
-      {
-        kind: "web",
-        label: "Notification settings",
-        icon: "options-outline",
-        path: "/dashboard/notifications",
-        title: "Notification settings",
-      },
+      { kind: "native", label: "Notification settings", icon: "options-outline", to: "/notification-settings" },
     ],
   },
   {
