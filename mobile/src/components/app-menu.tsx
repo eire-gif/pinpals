@@ -306,7 +306,7 @@ const styles = StyleSheet.create({
 });
 
 /** The three bars, for a screen header's left slot. */
-export function MenuButton({ onPress }: { onPress: () => void }) {
+export function MenuButton({ onPress, color = colors.green700 }: { onPress: () => void; color?: string }) {
   return (
     <Pressable
       onPress={onPress}
@@ -315,7 +315,7 @@ export function MenuButton({ onPress }: { onPress: () => void }) {
       accessibilityRole="button"
       accessibilityLabel="Open menu"
     >
-      <Ionicons name="menu" size={26} color={colors.green700} />
+      <Ionicons name="menu" size={26} color={color} />
     </Pressable>
   );
 }

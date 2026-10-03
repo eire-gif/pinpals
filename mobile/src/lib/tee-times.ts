@@ -197,3 +197,60 @@ export const distanceLabel = (km?: number): string | null => {
   if (km === undefined) return null;
   return km < 1 ? "under 1 km away" : `${Math.round(km)} km away`;
 };
+
+// ===========================================================================
+// For the Tee times cards (Oct 2026 redesign)
+// ===========================================================================
+
+export type CardPlayer = { id: string; name: string; avatarUrl: string | null; avatarColor: string | null };
+
+/**
+ * Who has already confirmed on each round, for the faces on the card — one
+ * query for the whole list.
+ *
+ * RLS decides what comes back (0084): on a round still looking for players,
+ * anyone who can see the round can see who is in it; on a full one, only the
+ * players do. Pending and declined requests never come back to anyone but
+ * the host, so they never appear here.
+ */
+export async function confirmedPlayersFor(inviteIds: number[]): Promise<Map<number, CardPlayer[]>> {
+  const out = new Map<number, CardPlayer[]>();
+  if (inviteIds.length === 0) return out;
+  const { data } = await supabase
+    .from("tee_time_interests")
+    .select("invite_id, member_id, profiles (first_name, last_name, avatar_url, avatar_color)")
+    .in("invite_id", inviteIds)
+    .eq("status", "confirmed")
+    .overrideTypes<
+      {
+        invite_id: number;
+        member_id: string;
+        profiles: {
+          first_name: string | null;
+          last_name: string | null;
+          avatar_url: string | null;
+          avatar_color: string | null;
+        } | null;
+      }[]
+    >();
+  for (const row of data ?? []) {
+    const list = out.get(row.invite_id) ?? [];
+    list.push({
+      id: row.member_id,
+      name: [row.profiles?.first_name, row.profiles?.last_name].filter(Boolean).join(" ") || "A member",
+      avatarUrl: row.profiles?.avatar_url ?? null,
+      avatarColor: row.profiles?.avatar_color ?? null,
+    });
+    out.set(row.invite_id, list);
+  }
+  return out;
+}
+
+/** Which of the bundled card photos a round shows: steady per club, so a
+ *  club always looks the same, and spread across the eight. */
+export function coursePhotoIndex(invite: Pick<Invite, "club_id" | "club_name">, count: number): number {
+  const key = invite.club_id !== null ? String(invite.club_id) : (invite.club_name ?? "");
+  let h = 0;
+  for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0;
+  return h % count;
+}
