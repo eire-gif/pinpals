@@ -21,7 +21,7 @@ import {
   type RequestStatus,
 } from "@/lib/rounds";
 import { confirmPlace } from "@/lib/tee-time-interest";
-import { dateLabel } from "@/lib/tee-times";
+import { dateLabel, todayIso } from "@/lib/tee-times";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 
 /**
@@ -88,20 +88,25 @@ export default function MyRequestsScreen() {
 
   function confirmDecline(request: MyRequest) {
     // Giving a place back frees a space in someone's fourball and cannot be
-    // undone without asking again, so it asks first.
+    // undone without asking again, so it asks first. The same question for
+    // an offer and for a place already confirmed (0090) — only the words
+    // differ.
+    const confirmed = request.status === "confirmed";
     Alert.alert(
-      "Give up your place?",
+      confirmed ? "Cancel your place?" : "Give up your place?",
       `${request.club} on ${dateLabel(request.playDate, true)}. The host will be told and the space goes back.`,
       [
-        { text: "Keep it", style: "cancel" },
+        { text: confirmed ? "Keep my place" : "Keep it", style: "cancel" },
         {
-          text: "Give it up",
+          text: confirmed ? "Cancel my place" : "Give it up",
           style: "destructive",
           onPress: () => void answer(request, false),
         },
       ]
     );
   }
+
+  const today = todayIso();
 
   // Waiting is the only state the member can do nothing about, so it is the
   // one worth surfacing before they read a single row.
@@ -203,6 +208,19 @@ export default function MyRequestsScreen() {
                     <Text style={styles.buttonLabel}>I can&apos;t make it</Text>
                   </Pressable>
                 </View>
+              ) : item.status === "confirmed" && item.playDate >= today ? (
+                <Pressable
+                  style={[styles.button, styles.buttonCancel]}
+                  disabled={busyId === item.interestId}
+                  onPress={() => confirmDecline(item)}
+                  accessibilityRole="button"
+                >
+                  {busyId === item.interestId ? (
+                    <ActivityIndicator color={colors.ink500} size="small" />
+                  ) : (
+                    <Text style={styles.buttonLabel}>Cancel my place</Text>
+                  )}
+                </Pressable>
               ) : null}
             </View>
           )}
@@ -268,6 +286,7 @@ const styles = StyleSheet.create({
     borderColor: colors.line,
   },
   buttonLabel: { fontFamily: fonts.bodySemi, fontSize: type.small, color: colors.ink500 },
+  buttonCancel: { flex: 0, alignSelf: "stretch" },
   buttonYes: { backgroundColor: colors.green700, borderColor: colors.green700 },
   buttonYesLabel: { fontFamily: fonts.bodyBold, fontSize: type.small, color: colors.cream50 },
 

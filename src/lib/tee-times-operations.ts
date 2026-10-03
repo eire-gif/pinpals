@@ -247,7 +247,8 @@ export type ConfirmResult = {
 };
 
 /**
- * The golfer confirms their place, or drops out.
+ * The golfer confirms their place, or drops out — from an offer, or (since
+ * 0090) from a place already confirmed, up to the day of the round.
  *
  * Same shape as respondToInterest: the status check and the
  * hand-the-space-back arithmetic are in confirm_tee_time_place() (0077)
