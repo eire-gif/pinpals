@@ -169,6 +169,21 @@ const QUICK_LINKS: QuickLink[] = [
       </svg>
     ),
   },
+  {
+    // Last on purpose — it's a reference destination, not something a member
+    // comes to the dashboard to do. But it has to be reachable from here:
+    // "available in your dashboard" is a promise the sign-up modal and the
+    // Privacy Policy both make, and a footer link alone doesn't keep it.
+    href: "/dashboard/legal",
+    label: "Legal & privacy",
+    description: "What you've agreed to, your marketing preferences and your data rights.",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-5 h-5">
+        <path d="M12 3.5l7 3v5c0 4-2.9 7.4-7 9-4.1-1.6-7-5-7-9v-5l7-3z" />
+        <path d="M9.25 12.25l2 2 3.5-3.75" />
+      </svg>
+    ),
+  },
 ];
 
 export default async function DashboardPage({
