@@ -2,9 +2,10 @@ import { asId, authenticateAppRequest, badRequest, readJson, unauthenticated } f
 import { addComment, statusForFeedFailure } from "@/lib/feed-operations";
 
 /**
- * POST /api/app/posts/[id]/comments   { body }  → { id }
+ * POST /api/app/posts/[id]/comments   { body, parent_id? }  → { id }
  *
- * A route because the post's author is notified — see addComment().
+ * A route because the post's author — and, for a reply, the person
+ * answered — is notified. See addComment().
  */
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const auth = await authenticateAppRequest(request);
@@ -13,10 +14,18 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const postId = asId((await params).id);
   if (postId === null) return badRequest("Post id must be a positive integer.");
 
-  const input = await readJson<{ body?: unknown }>(request);
+  const input = await readJson<{ body?: unknown; parent_id?: unknown }>(request);
   if (!input || typeof input.body !== "string") return badRequest("Expected { body }.");
+  const parentId = input.parent_id == null ? null : asId(input.parent_id);
+  if (input.parent_id != null && parentId === null) return badRequest("parent_id must be a positive integer.");
 
-  const result = await addComment({ supabase: auth.supabase, userId: auth.user.id, postId, body: input.body });
+  const result = await addComment({
+    supabase: auth.supabase,
+    userId: auth.user.id,
+    postId,
+    body: input.body,
+    parentId,
+  });
   if (!result.ok) {
     return Response.json({ error: result.message, reason: result.reason }, { status: statusForFeedFailure(result.reason) });
   }

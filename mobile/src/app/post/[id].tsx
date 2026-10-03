@@ -30,7 +30,12 @@ import { usePostActions } from "@/lib/use-post-actions";
  * member may not see look identical here, on purpose.
  */
 export default function PostScreen() {
-  const { id, focus } = useLocalSearchParams<{ id: string; focus?: string }>();
+  const { id, focus, reply, replyName } = useLocalSearchParams<{
+    id: string;
+    focus?: string;
+    reply?: string;
+    replyName?: string;
+  }>();
   const postId = Number(id);
   const { session } = useAuth();
   const userId = session?.user?.id ?? null;
@@ -40,6 +45,11 @@ export default function PostScreen() {
   const [loading, setLoading] = useState(true);
   const [comment, setComment] = useState("");
   const [sending, setSending] = useState(false);
+  // Replying to one comment rather than the post (0092). Arrives from the
+  // feed's Reply link; set by this screen's own.
+  const [replyTo, setReplyTo] = useState<{ id: number; name: string } | null>(
+    reply && Number.isInteger(Number(reply)) ? { id: Number(reply), name: replyName || "this comment" } : null
+  );
   const input = useRef<TextInput>(null);
   const scroller = useRef<ScrollView>(null);
 
@@ -83,8 +93,9 @@ export default function PostScreen() {
     if (!body || !post || sending) return;
     setSending(true);
     try {
-      await addComment(post.id, body);
+      await addComment(post.id, body, replyTo?.id ?? null);
       setComment("");
+      setReplyTo(null);
       await load();
       setTimeout(() => scroller.current?.scrollToEnd({ animated: true }), 100);
     } catch (err) {
@@ -118,25 +129,43 @@ export default function PostScreen() {
               standalone
               onLike={actions.like}
               onMenu={actions.menu}
-              onComment={() => input.current?.focus()}
+              onComment={() => {
+                // The Comment button is for the post itself.
+                setReplyTo(null);
+                input.current?.focus();
+              }}
               onCommentOptions={actions.commentOptions}
+              onReply={(c) => {
+                setReplyTo({ id: c.id, name: c.author.name });
+                input.current?.focus();
+              }}
             />
             {post.comments.length > 0 && (
-              <Text style={styles.hint}>Long-press a comment to delete, report or block.</Text>
+              <Text style={styles.hint}>Tap Reply to answer a comment. Long-press to delete, report or block.</Text>
             )}
           </ScrollView>
 
+          {replyTo ? (
+            <View style={styles.replying}>
+              <Text style={styles.replyingText} numberOfLines={1}>
+                Replying to <Text style={styles.replyingName}>{replyTo.name}</Text>
+              </Text>
+              <Pressable onPress={() => setReplyTo(null)} hitSlop={10} accessibilityRole="button" accessibilityLabel="Cancel reply">
+                <Ionicons name="close-circle" size={20} color={colors.ink500} />
+              </Pressable>
+            </View>
+          ) : null}
           <View style={styles.composer}>
             <TextInput
               ref={input}
               value={comment}
               onChangeText={setComment}
-              placeholder="Write a comment…"
+              placeholder={replyTo ? `Reply to ${replyTo.name.split(" ")[0]}…` : "Write a comment…"}
               placeholderTextColor={colors.ink500}
               multiline
               maxLength={MAX_COMMENT_BODY}
               style={styles.input}
-              accessibilityLabel="Write a comment"
+              accessibilityLabel={replyTo ? `Reply to ${replyTo.name}` : "Write a comment"}
             />
             <Pressable
               onPress={send}
@@ -158,6 +187,19 @@ const styles = StyleSheet.create({
   fill: { flex: 1, backgroundColor: colors.cream50 },
   content: { padding: spacing.md, paddingBottom: spacing.xl },
   hint: { fontFamily: fonts.body, fontSize: 12, color: colors.ink500, textAlign: "center", marginTop: spacing.md },
+  replying: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.sm,
+    backgroundColor: colors.cream50,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.line,
+  },
+  replyingText: { flex: 1, fontFamily: fonts.body, fontSize: type.small, color: colors.ink500 },
+  replyingName: { fontFamily: fonts.bodyBold, color: colors.ink900 },
   composer: {
     flexDirection: "row",
     alignItems: "flex-end",

@@ -5,6 +5,7 @@ import {
   FEED_LISTINGS_PER_PAGE,
   FEED_PAGE_SIZE,
   interleaveFeed,
+  threadComments,
   type FeedScope,
   type PostVisibility,
 } from "@/lib/feed";
@@ -64,6 +65,10 @@ export type FeedComment = {
   /** Written by the viewer. Not the same as canDelete: a post's author can
    *  delete anyone's comment on it, but can only block someone else. */
   isMine: boolean;
+  /** The top-level comment this one replies to (0092), or null. */
+  parentId: number | null;
+  /** 1 when shown indented under its parent; set by threadComments(). */
+  depth: 0 | 1;
 };
 
 export type FeedPost = {
@@ -128,6 +133,7 @@ type CommentRow = {
   body: string;
   hidden_at: string | null;
   created_at: string;
+  parent_id: number | null;
   author: ProfileEmbed | null;
 };
 
@@ -142,7 +148,7 @@ const POST_SELECT = `
 `;
 
 const COMMENT_SELECT = `
-  id, post_id, author_id, body, hidden_at, created_at,
+  id, post_id, author_id, body, hidden_at, created_at, parent_id,
   author:profiles!post_comments_author_id_fkey ( id, first_name, last_name, avatar_url, avatar_color, home_club )
 `;
 
@@ -251,6 +257,32 @@ async function hydratePosts(
     commentsByPost.set(row.post_id, list);
   }
 
+  // A preview reply makes no sense without what it answers, so fetch any
+  // parent the latest-N cut left out (0092). Visibility is still RLS's call:
+  // a parent the viewer may not see simply doesn't come back, and the reply
+  // shows on its own.
+  const shownIds = new Set([...commentsByPost.values()].flat().map((c) => c.id));
+  const missingParents = [
+    ...new Set(
+      [...commentsByPost.values()]
+        .flat()
+        .map((c) => c.parentId)
+        .filter((id): id is number => id !== null && !shownIds.has(id))
+    ),
+  ];
+  if (missingParents.length > 0) {
+    const { data: parents } = await supabase
+      .from("post_comments")
+      .select(COMMENT_SELECT)
+      .in("id", missingParents)
+      .returns<CommentRow[]>();
+    for (const row of parents ?? []) {
+      const list = commentsByPost.get(row.post_id) ?? [];
+      list.push(toComment(row, viewerId, authorOf.get(row.post_id) ?? null));
+      commentsByPost.set(row.post_id, list);
+    }
+  }
+
   return rows.map((row) => ({
     id: row.id,
     author: toAuthor(row.author, row.author_id),
@@ -268,7 +300,7 @@ async function hydratePosts(
     createdAt: row.created_at,
     // Fetched newest first so the limit keeps the latest; shown oldest
     // first, as a conversation reads.
-    comments: (commentsByPost.get(row.id) ?? []).reverse(),
+    comments: threadComments(commentsByPost.get(row.id) ?? []),
   }));
 }
 
@@ -285,6 +317,8 @@ function toComment(row: CommentRow, viewerId: string, postAuthorId: string | nul
     // to draw the button.
     canDelete: row.author_id === viewerId || postAuthorId === viewerId,
     isMine: row.author_id === viewerId,
+    parentId: row.parent_id,
+    depth: 0,
   };
 }
 
@@ -405,7 +439,7 @@ export async function getPost(
     .limit(500)
     .returns<CommentRow[]>();
 
-  return { ...post, comments: (comments ?? []).map((c) => toComment(c, viewerId, data.author_id)) };
+  return { ...post, comments: threadComments((comments ?? []).map((c) => toComment(c, viewerId, data.author_id))) };
 }
 
 /** Counts for a member's page header. */

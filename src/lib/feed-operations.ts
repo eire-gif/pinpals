@@ -381,8 +381,13 @@ export async function addComment(input: {
   userId: string;
   postId: number;
   body: string;
+  /** Replying to this comment (0092). The database files a reply to a
+   *  reply under its top-level comment, and refuses a parent the replier
+   *  could not see. */
+  parentId?: number | null;
 }): Promise<FeedResult<{ id: number }>> {
   const { supabase, userId, postId } = input;
+  const parentId = input.parentId ?? null;
   const body = input.body.trim();
 
   const problem = validateComment(body);
@@ -398,15 +403,52 @@ export async function addComment(input: {
     .maybeSingle<{ id: number; author_id: string }>();
   if (!post) return fail("not_found", "That post is no longer available.");
 
+  // Who is being answered — read under the replier's own RLS, so a comment
+  // they cannot see is "not there" here as well as in the trigger.
+  let answered: { author_id: string } | null = null;
+  if (parentId !== null) {
+    const { data: parent } = await supabase
+      .from("post_comments")
+      .select("author_id")
+      .eq("id", parentId)
+      .eq("post_id", postId)
+      .maybeSingle<{ author_id: string }>();
+    if (!parent) return fail("not_found", "That comment is no longer available to reply to.");
+    answered = parent;
+  }
+
   const { data: comment, error } = await supabase
     .from("post_comments")
-    .insert({ post_id: postId, author_id: userId, body })
+    .insert({ post_id: postId, author_id: userId, body, parent_id: parentId })
     .select("id")
     .single<{ id: number }>();
 
-  if (error || !comment) return fail("failed", "Couldn't post your comment — please try again.");
+  if (error || !comment) {
+    if (error?.message.includes("no longer available")) {
+      return fail("not_found", "That comment is no longer available to reply to.");
+    }
+    return fail("failed", "Couldn't post your comment — please try again.");
+  }
 
-  if (post.author_id !== userId) {
+  // The person answered hears about it — "replied to your comment" — unless
+  // they are answering themselves. If they also wrote the post, that one
+  // notification covers both; nobody needs two buzzes for one comment.
+  if (answered && answered.author_id !== userId) {
+    const name = await memberName(supabase, userId);
+    const snippet = body.length > 120 ? `${body.slice(0, 117)}…` : body;
+    await notifyUser(createAdminClient(), {
+      userId: answered.author_id,
+      type: "post_comment_replied",
+      title: `${name} replied to your comment`,
+      body: snippet,
+      href: `/feed/${postId}`,
+      data: { post_id: postId, comment_id: comment.id, parent_id: parentId },
+      dedupeKey: buildDedupeKey(["post_comment_replied", comment.id]),
+      emailBody: `${name} replied to your comment on PinPals.`,
+    });
+  }
+
+  if (post.author_id !== userId && post.author_id !== answered?.author_id) {
     const name = await memberName(supabase, userId);
     const snippet = body.length > 120 ? `${body.slice(0, 117)}…` : body;
     await notifyUser(createAdminClient(), {

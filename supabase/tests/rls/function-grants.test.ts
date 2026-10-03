@@ -161,6 +161,7 @@ const EXPECTED: Record<string, Expectation> = {
   // 0088. Keep posts.like_count / comment_count, which members have no
   // UPDATE grant on — that is why they must be SECURITY DEFINER.
   "bump_post_comment_count()": { anon: false, authenticated: false },
+  "prepare_post_comment_reply()": { anon: false, authenticated: false },
   "bump_post_like_count()": { anon: false, authenticated: false },
   // 0084. The nightly sweep that closes rounds a clear day past their
   // play_date. SECURITY DEFINER so cron can run it without a session;
