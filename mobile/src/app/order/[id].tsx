@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Image,
@@ -26,18 +26,19 @@ import { colors, fonts, radii, spacing, type } from "@/lib/theme";
  * money is. Only the actions differ, and only the buyer has any: paying is
  * the one thing an order can still be waiting on.
  *
- * PAYING OPENS THE WEBSITE, and always will. Card details are entered in
- * Stripe's own iframe through PaymentElement; there is no version of that
- * this screen could host without the native Stripe SDK, which would cost
- * over-the-air updates for everyone. Reporting a problem also opens the
- * site, because it writes to `reports` with the admin client.
+ * PAYING OPENS THE WEBSITE — for now. Card details are entered in Stripe's
+ * own iframe through PaymentElement; a native card sheet needs Stripe's iOS
+ * SDK, which is a native module and so arrives with a new build, not an
+ * over-the-air update. Choosing delivery is native (app/checkout.tsx).
+ * Reporting a problem also opens the site, because it writes to `reports`
+ * with the admin client.
  *
  * No header photograph here on purpose. This screen is a receipt, and a
  * receipt with a sunset on it would be the app being pleased with itself
  * while somebody is trying to work out whether they've been charged twice.
  */
 export default function OrderScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, pay } = useLocalSearchParams<{ id: string; pay?: string }>();
   const orderId = Number(id);
   const { session } = useAuth();
   const userId = session?.user?.id ?? null;
@@ -67,6 +68,18 @@ export default function OrderScreen() {
 
   const openSite = (path: string, title: string) =>
     router.push({ pathname: "/web", params: { path, title } });
+
+  // Arriving straight from the app's checkout (?pay=1): the order has just
+  // been reserved and the member's next step is the card form, so open it
+  // for them — once. Back from Stripe lands here, on the order.
+  const opened = useRef(false);
+  useEffect(() => {
+    if (pay !== "1" || opened.current || !order) return;
+    if (order.buyerId !== userId || order.paymentStatus === "paid" || !order.checkoutCompletedAt) return;
+    opened.current = true;
+    openSite(`/dashboard/orders/${order.id}`, "Pay securely");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pay, order, userId]);
 
   if (loading) {
     return (
@@ -157,22 +170,23 @@ export default function OrderScreen() {
               The seller is holding it for you — {deadline.toLowerCase()}.
             </Text>
           ) : null}
+          {/* Choosing delivery is native (app/checkout.tsx); paying is
+              Stripe's card form on the site. */}
           <Pressable
             style={styles.cta}
             onPress={() =>
-              openSite(
-                order.checkoutCompletedAt
-                  ? `/dashboard/orders/${order.id}`
-                  : `/dashboard/orders/${order.id}/checkout`,
-                "Order"
-              )
+              order.checkoutCompletedAt
+                ? openSite(`/dashboard/orders/${order.id}`, "Pay securely")
+                : router.push({ pathname: "/checkout", params: { order: String(order.id) } })
             }
             accessibilityRole="button"
           >
             <Text style={styles.ctaLabel}>
               {order.checkoutCompletedAt ? "Pay now" : "Finish checkout"}
             </Text>
-            <Ionicons name="open-outline" size={15} color={colors.cream50} />
+            {order.checkoutCompletedAt ? (
+              <Ionicons name="lock-closed-outline" size={15} color={colors.cream50} />
+            ) : null}
           </Pressable>
           <Text style={styles.fine}>
             Card details are entered with Stripe, never in PinPals.

@@ -5,11 +5,16 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { publishListingFor } from "@/lib/listing-operations";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { eurToCents, centsToEur, MIN_OFFER_AMOUNT_CENTS, DEFAULT_CHECKOUT_WINDOW_MINUTES } from "@/lib/marketplace";
 import { checkRateLimit, rateLimitMessage } from "@/lib/rate-limit";
-import { linkConversationToOrder } from "@/lib/conversations-server";
+import {
+  makeOffer,
+  placeBid as placeBidFor,
+  respondToOffer,
+  sweepMarketplace,
+  type OfferActionKind,
+} from "@/lib/marketplace-operations";
 import { REPORT_CATEGORIES, parseEvidenceRefs, type ReportCategory } from "@/lib/admin/reports";
-import type { Listing, Offer, Order } from "@/lib/types";
+import type { Listing } from "@/lib/types";
 
 export type PublishListingState = { error?: string; success?: boolean };
 
@@ -54,77 +59,31 @@ export async function publishListing(listingId: number): Promise<PublishListingS
 
 export type OfferFormState = { error?: string; success?: boolean };
 
-// By user id — generous enough for genuine back-and-forth negotiation
-// across several listings, tight enough to blunt a scripted offer-spam loop
-// against sellers.
-const CREATE_OFFER_MAX_ATTEMPTS = 20;
-const CREATE_OFFER_WINDOW_SECONDS = 60 * 60;
-
-// prevent_offer_self_dealing()'s (0044) and prepare_and_validate_offer()'s
-// (0048) own raised exception messages — already written to be read by a
-// buyer, not just a developer, same "surface the trigger's own message"
-// discipline as placeBid()'s KNOWN_BID_REJECTION_SNIPPETS below. Anything
-// else (an unexpected Postgres/network error) falls back to a generic
-// message rather than leaking a raw driver error.
-const KNOWN_OFFER_CREATE_REJECTION_SNIPPETS = [
-  "Sellers cannot make offers",
-  "not currently accepting offers",
-  "does not accept offers",
-  "must be at least",
-  "must be less than the asking price",
-  "not found",
-  // is_blocked() check added by prepare_and_validate_offer() in
-  // 0055_marketplace_trust_safety.sql.
-  "blocked",
-];
-
 /**
  * Opportunistic sweep for every lazily-corrected, time-based state this app
  * has: a past-deadline offer still stored as 'pending'/'countered', a
- * checkout reservation whose window has passed (both 0048), and — since
- * 0056_marketplace_notifications_reviews.sql — an auction past its own
- * `ends_at` that's never been closed (run_auction_sweeps(), which also
- * fires "ending soon" notifications for a still-live auction inside its own
- * threshold). None of these are ever load-bearing for correctness
- * (offer_action()/prepare_and_validate_offer() re-check expiry against
- * `now()` directly regardless of when a sweep last ran; an ended auction
- * simply can't be bid on again once its own validate_bid() sees `now() >
- * ends_at`), so a failure here is logged and swallowed rather than blocking
- * whatever triggered the sweep — see 0048's own "no pg_cron dependency"
- * header comment for why this app calls these opportunistically instead of
- * on a schedule. Called from createOffer() below (so a stale chain never
- * trips the one-active-offer unique index) and from every marketplace-
- * relevant page's own load (listing detail, buying/selling workspaces, the
- * checkout pages) so what's rendered — and what notifications have fired —
- * doesn't lag behind reality by more than one page view.
+ * checkout reservation whose window has passed (both 0048), and an auction
+ * past its own `ends_at` that's never been closed (run_auction_sweeps(),
+ * 0056). None of these are ever load-bearing for correctness — every write
+ * re-checks expiry against now() itself — so a failure is logged and
+ * swallowed rather than blocking whatever triggered the sweep. See 0048's
+ * "no pg_cron dependency" header comment for why these run opportunistically
+ * instead of on a schedule. Called before offers and purchases, and from
+ * every marketplace-relevant page's own load, so what's rendered — and what
+ * notifications have fired — doesn't lag reality by more than a page view.
+ *
+ * The work is in src/lib/marketplace-operations.ts, shared with the app.
  */
 export async function runOfferSweeps(): Promise<void> {
-  const admin = createAdminClient();
-  const [reservations, offers, auctions] = await Promise.all([
-    admin.rpc("release_expired_offer_reservations"),
-    admin.rpc("expire_stale_offers"),
-    admin.rpc("run_auction_sweeps"),
-  ]);
-  if (reservations.error) {
-    console.error("release_expired_offer_reservations failed:", reservations.error.message);
-  }
-  if (offers.error) {
-    console.error("expire_stale_offers failed:", offers.error.message);
-  }
-  if (auctions.error) {
-    console.error("run_auction_sweeps failed:", auctions.error.message);
-  }
+  await sweepMarketplace();
 }
 
 /**
- * Creates a fresh offer chain — the one client-writable step in the offer
- * workflow that stays on the ordinary RLS+trigger path (see 0048's header
- * comment on why only the response/accept step needed a new SECURITY
- * DEFINER function). Everything about validity — amount bounds, the listing
- * actually accepting offers, self-dealing, the one-active-chain-per-buyer
- * rule — is enforced by prepare_and_validate_offer() and the unique partial
- * index at insert time; MIN_OFFER_AMOUNT_CENTS here is only a fast,
- * friendly client-side hint, same split as everywhere else in this schema.
+ * Creates a fresh offer chain. Everything about validity is enforced by
+ * prepare_and_validate_offer() and the one-active-chain index at insert
+ * time (0048); the rate limit and the friendly messages are in
+ * makeOffer() (src/lib/marketplace-operations.ts), which the app's
+ * /api/app/listings/[id]/offers route calls too.
  */
 export async function createOffer(
   listingId: number,
@@ -140,43 +99,19 @@ export async function createOffer(
     redirect("/login");
   }
 
-  const rateLimit = await checkRateLimit({
-    action: "create-offer",
-    identifier: user.id,
-    maxHits: CREATE_OFFER_MAX_ATTEMPTS,
-    windowSeconds: CREATE_OFFER_WINDOW_SECONDS,
+  const result = await makeOffer({
+    supabase,
+    userId: user.id,
+    listingId,
+    amountEur: Number(formData.get("amount")),
   });
-  if (!rateLimit.allowed) {
-    return { error: rateLimitMessage(rateLimit.retryAfterSeconds) };
-  }
-
-  const amount = Number(formData.get("amount"));
-  if (!amount || Number.isNaN(amount) || amount <= 0 || eurToCents(amount) < MIN_OFFER_AMOUNT_CENTS) {
-    return { error: `Enter a valid offer of at least ${centsToEur(MIN_OFFER_AMOUNT_CENTS)} euro.` };
-  }
-
-  // Clears any past-deadline offer/reservation on this listing first, so a
-  // stale chain of this buyer's own never trips the one-active-offer unique
-  // index, and a stale 'reserved' listing status left over from an expired
-  // checkout window never blocks this new offer either.
-  await runOfferSweeps();
-
-  const { error } = await supabase.from("offers").insert({
-    listing_id: listingId,
-    buyer_id: user.id,
-    amount_eur: amount,
-  });
-
-  if (error) {
-    // offers_one_active_chain_per_buyer_listing (0048) — this buyer already
-    // has a pending/countered offer on this listing.
-    if (error.code === "23505") {
-      return { error: "You already have an active offer on this listing — see your offer status below." };
-    }
-    const message = KNOWN_OFFER_CREATE_REJECTION_SNIPPETS.some((snippet) => error.message.includes(snippet))
-      ? error.message
-      : "Couldn't send that offer — the listing may no longer be available.";
-    return { error: message };
+  if (!result.ok) {
+    return {
+      error:
+        result.message === "You already have an active offer on this listing."
+          ? "You already have an active offer on this listing — see your offer status below."
+          : result.message,
+    };
   }
 
   revalidatePath(`/marketplace/${listingId}`);
@@ -184,56 +119,16 @@ export async function createOffer(
 }
 
 export type OfferActionState = { error?: string; success?: boolean };
-export type OfferActionKind = "accept" | "decline" | "counter" | "withdraw";
-
-// One shared bucket across accept/decline/counter/withdraw, keyed by caller
-// id — offer_action() itself is the actual authorization boundary (a buyer
-// can't rack up a seller's attempts and vice versa, since each caller is
-// rate-limited under their own id regardless of which role they're acting
-// in). Generous enough for a real back-and-forth on a handful of offers at
-// once, tight enough to blunt a scripted accept/decline-spam loop.
-const OFFER_RESPONSE_MAX_ATTEMPTS = 30;
-const OFFER_RESPONSE_WINDOW_SECONDS = 60 * 60;
-
-// offer_action()'s (0048) own raised exception messages — surfaced
-// directly, same discipline as KNOWN_OFFER_CREATE_REJECTION_SNIPPETS above.
-const KNOWN_OFFER_RESPONSE_REJECTION_SNIPPETS = [
-  "expired",
-  "no longer available",
-  "not a party to this offer",
-  "Only the seller",
-  "Only the buyer",
-  "Only a pending offer",
-  "cannot be acted on",
-  "needs an amount",
-  // is_blocked() check added by offer_action() in
-  // 0055_marketplace_trust_safety.sql — accept/counter only, decline/
-  // withdraw stay allowed even while blocked.
-  "blocked",
-  "must be higher than the current offer",
-  "cannot exceed the asking price",
-  "Unknown offer action",
-  "not found",
-  "Not authenticated",
-];
+export type { OfferActionKind };
 
 /**
  * Every offer state transition except creation — seller accept/decline/
  * counter on a 'pending' offer, buyer accept/decline on a 'countered' one,
- * and buyer withdraw of their own 'pending' offer. One function for every
- * caller/action pair (rather than four separate Server Actions) because
- * offer_action() (0048) is itself already the single choke-point that knows
- * who's allowed to do what to which offer — duplicating that branching up
- * here would just be a second, driftable copy of the same state machine.
- *
- * Accepting is the one branch that's genuinely transactional server-side:
- * offer_action() locks the listing and offer, re-validates both are still
- * eligible, reserves the listing and snapshots a pending order with a
- * short checkout window — see that function's own header comment for the
- * lock-ordering reasoning. Every transition, including this one, is
- * recorded automatically by the existing log_offer_event()/log_order_event()
- * triggers (0038/0040), so nothing here writes to offer_events/order_events
- * directly.
+ * buyer withdraw of their own 'pending' offer. offer_action() (0048) is the
+ * single choke-point that knows who may do what; respondToOffer()
+ * (src/lib/marketplace-operations.ts) adds the rate limit, the IDOR
+ * cross-check of offer against listing before the service-role call, and
+ * the conversation link on accept. Shared with the app.
  */
 export async function offerAction(
   offerId: number,
@@ -250,86 +145,15 @@ export async function offerAction(
     redirect("/login");
   }
 
-  const rateLimit = await checkRateLimit({
-    action: "offer-response",
-    identifier: user.id,
-    maxHits: OFFER_RESPONSE_MAX_ATTEMPTS,
-    windowSeconds: OFFER_RESPONSE_WINDOW_SECONDS,
+  const result = await respondToOffer({
+    supabase,
+    userId: user.id,
+    offerId,
+    listingId,
+    action,
+    counterAmountEur: counterAmountEur ?? null,
   });
-  if (!rateLimit.allowed) {
-    return { error: rateLimitMessage(rateLimit.retryAfterSeconds) };
-  }
-
-  // Security-critical cross-check (IDOR guard), same reasoning the old
-  // respondToOffer() documented: offerId and listingId are two independent
-  // client-supplied ids, and nothing on the wire enforces that they
-  // actually match. Confirmed here, via the caller's own RLS-bound read
-  // (buyers can view their own offers; sellers can view offers on their
-  // listings — 0032), BEFORE ever calling the privileged RPC below, so a
-  // mismatched pair fails closed with a friendly message instead of
-  // offer_action() silently acting on the wrong listing's offer (it has no
-  // way to know listingId was even supplied — only offerId is).
-  const { data: offer } = await supabase
-    .from("offers")
-    .select("id, listing_id")
-    .eq("id", offerId)
-    .maybeSingle<Pick<Offer, "id" | "listing_id">>();
-  if (!offer || offer.listing_id !== listingId) {
-    return { error: "That offer no longer matches this listing — refresh and try again." };
-  }
-
-  let counterAmountCents: number | null = null;
-  if (action === "counter") {
-    if (!counterAmountEur || Number.isNaN(counterAmountEur) || counterAmountEur <= 0) {
-      return { error: "Enter a valid counter-offer amount in euro." };
-    }
-    counterAmountCents = eurToCents(counterAmountEur);
-  }
-
-  // offer_action() is SECURITY DEFINER and revoked from anon/authenticated
-  // (0048) — called only via the service-role client, exactly like
-  // create_purchase_order() (0050, ./checkout/actions.ts) uses the same
-  // client for its own privileged writes. p_caller_id is this action's own
-  // re-verified session user, never trusted from the client, and
-  // offer_action() re-checks it again itself against the locked rows —
-  // belt and suspenders, not a substitute for either layer.
-  const admin = createAdminClient();
-  const { error } = await admin.rpc("offer_action", {
-    p_offer_id: offerId,
-    p_caller_id: user.id,
-    p_action: action,
-    p_counter_amount_cents: counterAmountCents,
-    p_checkout_minutes: DEFAULT_CHECKOUT_WINDOW_MINUTES,
-  });
-
-  if (error) {
-    const message = KNOWN_OFFER_RESPONSE_REJECTION_SNIPPETS.some((snippet) => error.message.includes(snippet))
-      ? error.message
-      : "Couldn't complete that action — please refresh and try again.";
-    return { error: message };
-  }
-
-  // Best-effort conversation<->order link (see src/lib/conversations-server.ts) —
-  // offer_action() creates the order atomically inside its own transaction
-  // and returns the offer row, not the order, so this looks the resulting
-  // order back up by offer_id rather than threading a new return value
-  // through an already-shipped, tested RPC for this one, non-blocking
-  // follow-up write.
-  if (action === "accept") {
-    const { data: order } = await admin
-      .from("orders")
-      .select("id, buyer_id, seller_id")
-      .eq("offer_id", offerId)
-      .maybeSingle<Pick<Order, "id" | "buyer_id" | "seller_id">>();
-    if (order) {
-      await linkConversationToOrder({
-        listingId,
-        buyerId: order.buyer_id,
-        sellerId: order.seller_id,
-        orderId: order.id,
-      });
-    }
-  }
+  if (!result.ok) return { error: result.message };
 
   revalidatePath(`/marketplace/${listingId}`);
   revalidatePath("/marketplace");
@@ -339,37 +163,10 @@ export async function offerAction(
 
 export type BidFormState = { error?: string; success?: boolean };
 
-// By user id — generous enough for genuine back-and-forth bidding in the
-// closing minutes of an auction, tight enough to blunt a scripted
-// bid-spam/denial-of-service attempt against one auction.
-const PLACE_BID_MAX_ATTEMPTS = 30;
-const PLACE_BID_WINDOW_SECONDS = 10 * 60;
-
-// validate_bid()'s own raised exception messages (0046_listing_creation_
-// workflow.sql) are already written to be read by a bidder, not just a
-// developer — surfaced directly rather than masked, same as
-// offerAction()'s own snippet-matched errors above. Matched
-// against a fixed set of known snippets so a genuinely unexpected
-// Postgres/network error still falls back to a generic message instead of
-// leaking a raw driver error.
-const KNOWN_BID_REJECTION_SNIPPETS = [
-  "Sellers cannot bid",
-  "is not open for bidding",
-  "has already ended",
-  "Bid must",
-  "not found",
-];
-
 /**
- * Places a bid on an auction — a straight authenticated insert into `bids`,
- * relying entirely on validate_bid() (the `BEFORE INSERT` trigger from
- * 0046_listing_creation_workflow.sql) for the actual amount/status/timing
- * validation. Nothing about eligibility or the minimum amount is checked
- * here first: whatever this action is told the "minimum next bid" was when
- * the page rendered is only ever a hint for the form's placeholder — the
- * trigger re-validates against the auction's current state at the instant
- * this insert lands, so a stale hint can only produce a friendly rejection,
- * never an accepted under-bid.
+ * Places a bid. validate_bid() (0046) decides everything at the instant the
+ * insert lands; see placeBid() in src/lib/marketplace-operations.ts, which
+ * the app's /api/app/listings/[id]/bids route also calls.
  */
 export async function placeBid(
   listingId: number,
@@ -383,33 +180,14 @@ export async function placeBid(
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const rateLimit = await checkRateLimit({
-    action: "place-bid",
-    identifier: user.id,
-    maxHits: PLACE_BID_MAX_ATTEMPTS,
-    windowSeconds: PLACE_BID_WINDOW_SECONDS,
+  const result = await placeBidFor({
+    supabase,
+    userId: user.id,
+    listingId,
+    auctionId,
+    amountEur: Number(formData.get("amount")),
   });
-  if (!rateLimit.allowed) {
-    return { error: rateLimitMessage(rateLimit.retryAfterSeconds) };
-  }
-
-  const amountEur = Number(formData.get("amount"));
-  if (!amountEur || Number.isNaN(amountEur) || amountEur <= 0) {
-    return { error: "Enter a valid bid amount in euro." };
-  }
-
-  const { error } = await supabase.from("bids").insert({
-    auction_id: auctionId,
-    bidder_id: user.id,
-    amount_cents: eurToCents(amountEur),
-  });
-
-  if (error) {
-    const message = KNOWN_BID_REJECTION_SNIPPETS.some((snippet) => error.message.includes(snippet))
-      ? error.message
-      : "Couldn't place that bid — the auction may have just changed. Please refresh and try again.";
-    return { error: message };
-  }
+  if (!result.ok) return { error: result.message };
 
   revalidatePath(`/marketplace/${listingId}`);
   return { success: true };
