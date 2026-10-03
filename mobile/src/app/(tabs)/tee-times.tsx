@@ -13,7 +13,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import * as Linking from "expo-linking";
 
 import { InviteCard } from "@/components/invite-card";
-import { ScreenHeader } from "@/components/screen-header";
+import { ScreenHeader, useCollapsingHeader } from "@/components/screen-header";
 import { SITE_URL } from "@/lib/config";
 import { useCurrentLocation } from "@/lib/location";
 import { listInvites, listInvitesNear, type Invite } from "@/lib/tee-times";
@@ -24,12 +24,21 @@ type Scope = "all" | "near";
 const RADIUS_KM = 50;
 
 export default function TeeTimesScreen() {
+  // The photograph band shrinks to a strip as the list scrolls (see
+  // screen-header.tsx), and opens again whenever the list is rebuilt.
+  const { scrollY, resetY, scrollProps } = useCollapsingHeader();
   const router = useRouter();
   const location = useCurrentLocation();
 
   const [scope, setScope] = useState<Scope>("all");
   const [invites, setInvites] = useState<Invite[]>([]);
   const [loading, setLoading] = useState(true);
+  // The list unmounts while loading, so its scroll position goes back to
+  // the top — the band has to follow, or it stays collapsed over a list
+  // that is no longer scrolled.
+  useEffect(() => {
+    if (loading) resetY.setValue(0);
+  }, [loading, resetY]);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -106,7 +115,7 @@ export default function TeeTimesScreen() {
       {/* Above the scope buttons, pinned. It cannot go inside the list: the
           segments have to stay put while you scroll, and a photograph
           underneath them would read as an advert rather than as a header. */}
-      <ScreenHeader scene="ballybunion" title="Tee times" subtitle={subtitle} />
+      <ScreenHeader scene="ballybunion" title="Tee times" subtitle={subtitle} scrollY={scrollY} />
 
       <View style={styles.segments}>
         <Segment
@@ -128,6 +137,7 @@ export default function TeeTimesScreen() {
         </View>
       ) : (
         <FlatList
+          {...scrollProps}
           contentContainerStyle={styles.list}
           data={invites}
           keyExtractor={(item) => String(item.id)}
