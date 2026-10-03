@@ -37,6 +37,7 @@ export function PostCard({
   onComment,
   onMenu,
   onCommentOptions,
+  currentMemberId,
 }: {
   post: FeedPost;
   /** The card's content width, for sizing photos. */
@@ -48,6 +49,9 @@ export function PostCard({
   onMenu: (post: FeedPost) => void;
   /** Long-press on a comment: delete, report or block, whichever apply. */
   onCommentOptions?: (comment: FeedComment) => void;
+  /** Set on a member's own page: tapping that member's name does nothing
+   *  there, rather than stacking a second copy of the page you're on. */
+  currentMemberId?: string;
 }) {
   const [expanded, setExpanded] = useState(standalone || post.body.length <= LONG_POST);
   const [viewer, setViewer] = useState<number | null>(null);
@@ -57,7 +61,10 @@ export function PostCard({
   const shownComments = post.comments;
   const more = Math.max(0, post.commentCount - shownComments.filter((c) => !c.hidden).length);
 
-  const openMember = (id: string) => router.push({ pathname: "/member/[id]", params: { id } });
+  const openMember = (id: string) => {
+    if (id === currentMemberId) return;
+    router.push({ pathname: "/member/[id]", params: { id } });
+  };
   const openPost = () => router.push({ pathname: "/post/[id]", params: { id: String(post.id) } });
 
   return (
