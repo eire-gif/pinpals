@@ -127,6 +127,7 @@ export const MENU: MenuSection[] = [
       { kind: "native", label: "Messages & alerts", icon: "mail-outline", to: "/inbox" },
       { kind: "native", label: "Your profile", icon: "person-outline", to: "/profile" },
       { kind: "native", label: "Edit your profile", icon: "create-outline", to: "/edit-profile" },
+      { kind: "native", label: "Blocked members", icon: "hand-left-outline", to: "/blocked-members" },
       {
         kind: "web",
         label: "Notification settings",

@@ -12,6 +12,7 @@ import {
   deleteCommentAction,
   deletePostAction,
   reportAction,
+  blockAction,
   setLikeAction,
   updatePostAction,
 } from "./actions";
@@ -102,6 +103,32 @@ export default function PostCard({ post, standalone = false }: { post: FeedPost;
         return;
       }
       if (standalone) router.push("/feed");
+      else router.refresh();
+    });
+  }
+
+  /**
+   * Block from the feed. A real confirm, because the effect is wider than
+   * the post in front of you: every post and comment by this member leaves
+   * your feed, and neither of you can message the other. Nobody is told.
+   */
+  function block(memberId: string, name: string) {
+    setMenuOpen(false);
+    const first = name.split(" ")[0] || "this member";
+    if (
+      !window.confirm(
+        `Block ${name}?\n\nYou won't see ${first}'s posts or comments, and ${first} won't see yours. Neither of you can message the other. ${first} isn't told. You can unblock from ${first}'s page.`
+      )
+    ) {
+      return;
+    }
+    startTransition(async () => {
+      const result = await blockAction(memberId);
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      if (standalone && memberId === post.author.id) router.push("/feed");
       else router.refresh();
     });
   }
@@ -200,6 +227,13 @@ export default function PostCard({ post, standalone = false }: { post: FeedPost;
                   >
                     Report post
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => block(post.author.id, post.author.name)}
+                    className="block w-full text-left px-4 py-2.5 text-red-600 hover:bg-cream-100"
+                  >
+                    Block {post.author.name.split(" ")[0]}
+                  </button>
                 </>
               )}
             </div>
@@ -291,6 +325,11 @@ export default function PostCard({ post, standalone = false }: { post: FeedPost;
                       className="font-semibold hover:text-ink-900"
                     >
                       Report
+                    </button>
+                  )}
+                  {!c.isMine && (
+                    <button type="button" onClick={() => block(c.author.id, c.author.name)} className="font-semibold hover:text-red-600">
+                      Block
                     </button>
                   )}
                 </div>

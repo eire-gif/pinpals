@@ -67,6 +67,15 @@ export default function PostScreen() {
     update: (pid, change) => setPost((p) => (p && p.id === pid ? change(p) : p)),
     remove: () => router.back(),
     reload: load,
+    // Blocking the post's author leaves nothing to show; blocking a
+    // commenter just takes their comments away.
+    afterBlock: (memberId) => {
+      if (post && post.author.id === memberId) {
+        router.back();
+        return;
+      }
+      setPost((p) => (p ? { ...p, comments: p.comments.filter((c) => c.author.id !== memberId) } : p));
+    },
   });
 
   async function send() {
@@ -110,11 +119,10 @@ export default function PostScreen() {
               onLike={actions.like}
               onMenu={actions.menu}
               onComment={() => input.current?.focus()}
-              onDeleteComment={actions.removeComment}
-              onReportComment={actions.reportComment}
+              onCommentOptions={actions.commentOptions}
             />
             {post.comments.length > 0 && (
-              <Text style={styles.hint}>Long-press a comment to delete or report it.</Text>
+              <Text style={styles.hint}>Long-press a comment to delete, report or block.</Text>
             )}
           </ScrollView>
 

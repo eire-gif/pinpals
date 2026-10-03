@@ -55,6 +55,9 @@ export type FeedComment = {
   createdAt: string;
   hidden: boolean;
   canDelete: boolean;
+  /** Written by the viewer. Not the same as canDelete: a post's author can
+   *  delete anyone's comment on it, but can only block someone else. */
+  isMine: boolean;
 };
 
 export type FeedPost = {
@@ -149,6 +152,7 @@ const toComment = (row: CommentRow, viewerId: string, postAuthorId: string | nul
   // The DELETE policy's rule: your own, or any on your own post. The policy
   // enforces it; this only decides whether to offer the button.
   canDelete: row.author_id === viewerId || postAuthorId === viewerId,
+    isMine: row.author_id === viewerId,
 });
 
 async function signPhotos(paths: string[]): Promise<Map<string, string>> {

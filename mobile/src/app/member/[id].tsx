@@ -17,6 +17,7 @@ import { Avatar } from "@/components/avatar";
 import { PostCard } from "@/components/post-card";
 import { useAuth } from "@/lib/auth";
 import { loadMemberPosts, loadMemberProfile, type FeedPost, type MemberProfile } from "@/lib/feed";
+import { blockConfirmText, blockMember, unblockMember } from "@/lib/blocking";
 import { conversationWith, requestConnection, respondToConnection } from "@/lib/members";
 import { supabase } from "@/lib/supabase";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
@@ -45,11 +46,14 @@ export default function MemberScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [busy, setBusy] = useState(false);
+  // Whether I have blocked this member. Only my own blocks are readable
+  // (0049), which is all this screen needs to choose Block or Unblock.
+  const [blocked, setBlocked] = useState(false);
 
   const load = useCallback(async () => {
     if (!userId || !id) return;
     try {
-      const [p, page, connection] = await Promise.all([
+      const [p, page, connection, myBlock] = await Promise.all([
         loadMemberProfile(id),
         loadMemberPosts(userId, id, null),
         isMe
@@ -60,7 +64,17 @@ export default function MemberScreen() {
               .or(`and(requester_id.eq.${userId},recipient_id.eq.${id}),and(requester_id.eq.${id},recipient_id.eq.${userId})`)
               .maybeSingle<{ id: number; requester_id: string; recipient_id: string; status: "pending" | "accepted" | "declined" }>()
               .then(({ data }) => data),
+        isMe
+          ? Promise.resolve(false)
+          : supabase
+              .from("blocked_users")
+              .select("blocked_id")
+              .eq("blocker_id", userId)
+              .eq("blocked_id", id)
+              .maybeSingle()
+              .then(({ data }) => !!data),
       ]);
+      setBlocked(myBlock);
       setProfile(p);
       setPosts(page.posts);
       setCursor(page.cursor);
@@ -100,7 +114,52 @@ export default function MemberScreen() {
     update: (postId, change) => setPosts((prev) => prev.map((p) => (p.id === postId ? change(p) : p))),
     remove: (postId) => setPosts((prev) => prev.filter((p) => p.id !== postId)),
     reload: load,
+    // Blocking this member from one of their posts reloads the page into its
+    // blocked state; blocking a commenter drops their comments.
+    afterBlock: (memberId) => {
+      if (memberId === id) {
+        void load();
+        return;
+      }
+      setPosts((prev) => prev.map((p) => ({ ...p, comments: p.comments.filter((c) => c.author.id !== memberId) })));
+    },
   });
+
+  function block() {
+    if (!profile) return;
+    const { title, message } = blockConfirmText(profile.name);
+    Alert.alert(title, message, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Block",
+        style: "destructive",
+        onPress: async () => {
+          setBusy(true);
+          try {
+            await blockMember(profile.id);
+            await load();
+          } catch (err) {
+            Alert.alert("Couldn't block that member", err instanceof Error ? err.message : "Please try again.");
+          } finally {
+            setBusy(false);
+          }
+        },
+      },
+    ]);
+  }
+
+  async function unblock() {
+    if (!profile) return;
+    setBusy(true);
+    try {
+      await unblockMember(profile.id);
+      await load();
+    } catch (err) {
+      Alert.alert("Couldn't unblock that member", err instanceof Error ? err.message : "Please try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function connect() {
     if (!userId || !id) return;
@@ -183,6 +242,17 @@ export default function MemberScreen() {
 
       {profile.bio ? <Text style={styles.bio}>{profile.bio}</Text> : null}
 
+      {blocked ? (
+        <View style={styles.blockedBox}>
+          <Text style={styles.blockedText}>
+            <Text style={styles.blockedStrong}>You&apos;ve blocked {profile.firstName}.</Text> Neither of you sees the
+            other&apos;s posts or comments, or can message the other.
+          </Text>
+          <Pressable style={[styles.button, styles.buttonOutline]} onPress={unblock} disabled={busy}>
+            <Text style={styles.buttonOutlineLabel}>{busy ? "Unblocking…" : `Unblock ${profile.firstName}`}</Text>
+          </Pressable>
+        </View>
+      ) : (
       <View style={styles.buttons}>
         {isMe ? (
           <Pressable style={[styles.button, styles.buttonOutline]} onPress={() => router.push("/edit-profile")}>
@@ -214,6 +284,16 @@ export default function MemberScreen() {
           </Pressable>
         )}
       </View>
+      )}
+
+      {/* Apple guideline 1.2: a member must be able to block someone from
+          their profile as well as from what they post. Quiet, because it
+          is rarely needed; a confirm says what it does. */}
+      {!isMe && !blocked && (
+        <Pressable onPress={block} disabled={busy} hitSlop={8} style={styles.blockLink} accessibilityRole="button">
+          <Text style={styles.blockLinkText}>Block {profile.firstName}</Text>
+        </Pressable>
+      )}
 
       <Text style={styles.section}>Posts</Text>
     </View>
@@ -243,7 +323,11 @@ export default function MemberScreen() {
         }
         ListEmptyComponent={
           <Text style={styles.empty}>
-            {isMe ? "You haven't posted yet. Share your last round from the Feed tab." : `${profile.firstName} hasn't shared anything you can see yet.`}
+            {isMe
+              ? "You haven't posted yet. Share your last round from the Feed tab."
+              : blocked
+                ? `You have blocked ${profile.firstName}, so their posts are hidden.`
+                : `${profile.firstName} hasn't shared anything you can see yet.`}
           </Text>
         }
         renderItem={({ item }) => (
@@ -253,8 +337,7 @@ export default function MemberScreen() {
             onLike={actions.like}
             onMenu={actions.menu}
             onComment={(p) => router.push({ pathname: "/post/[id]", params: { id: String(p.id), focus: "comment" } })}
-            onDeleteComment={actions.removeComment}
-            onReportComment={actions.reportComment}
+            onCommentOptions={actions.commentOptions}
           />
         )}
       />
@@ -320,6 +403,19 @@ const styles = StyleSheet.create({
   buttonOutlineLabel: { fontFamily: fonts.bodyBold, fontSize: type.small, color: colors.green700 },
   buttonQuiet: { backgroundColor: colors.green100 },
   buttonQuietLabel: { fontFamily: fonts.bodyBold, fontSize: type.small, color: colors.green700 },
+  blockedBox: {
+    marginTop: spacing.md,
+    gap: spacing.sm + 2,
+    backgroundColor: colors.surface,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.line,
+    padding: spacing.md,
+  },
+  blockedText: { fontFamily: fonts.body, fontSize: 14, lineHeight: 20, color: colors.ink500 },
+  blockedStrong: { fontFamily: fonts.bodyBold, color: colors.ink900 },
+  blockLink: { alignSelf: "flex-start", marginTop: spacing.sm + 2, paddingVertical: spacing.xs },
+  blockLinkText: { fontFamily: fonts.bodySemi, fontSize: 13.5, color: colors.ink500 },
   section: { fontFamily: fonts.display, fontSize: type.heading, color: colors.ink900, marginTop: spacing.lg },
   empty: { fontFamily: fonts.body, fontSize: type.small, color: colors.ink500, textAlign: "center", marginTop: spacing.lg },
 });
