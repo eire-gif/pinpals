@@ -80,7 +80,7 @@ export default function SignUpForm() {
             Optional because nothing on Pinpals needs it to work, and asking
             for data you don't need is both a conversion cost and a data
             minimisation problem. The note below is not reassurance copy —
-            it's the literal behaviour of the schema (0074 keeps it in an
+            it's the literal behaviour of the schema (0089 keeps it in an
             owner-read-only table with no mechanism to release it). If that
             ever changes, this sentence has to change first. */}
         <div className="grid gap-1.5 min-w-0">

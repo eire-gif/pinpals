@@ -1,4 +1,4 @@
-// Migration 0074 — the sign-up consent record and the private contact row.
+// Migration 0089 — the sign-up consent record and the private contact row.
 //
 // Two claims are made to members in writing and enforced only here, so they
 // are what this file mainly tests:

@@ -144,7 +144,7 @@ export async function signUp(_prev: SignUpState, formData: FormData): Promise<Si
   // Server Action could do afterwards would satisfy `auth.uid() = user_id`
   // on member_consent_events. Metadata is the one channel that reaches the
   // database inside the same transaction that creates the user, where
-  // handle_new_user() (migration 0074) unpacks it. Consent and account are
+  // handle_new_user() (migration 0089) unpacks it. Consent and account are
   // therefore created together or not at all — which is the whole point of
   // keeping a consent record.
   const { data, error } = await supabase.auth.signUp({

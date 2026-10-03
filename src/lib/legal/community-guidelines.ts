@@ -25,14 +25,15 @@ export const COMMUNITY_GUIDELINES: LegalDocument = {
   title: "Pinpals Community & Tee-Time Guidelines",
   shortTitle: "Community Guidelines",
   version: "1.0",
-  effectiveFrom: "2026-09-10",
+  effectiveFrom: "2026-10-03",
   summary: "How members treat each other, and how to stay safe meeting someone new for a round.",
   keyPoints: [
     "We don't vet members. Nobody here has been background-checked, including the person you're about to play with.",
     "Meet at the clubhouse, tell someone where you're going, and travel separately the first time.",
     "Be who you say you are — false handicaps, false clubs and false names all end accounts.",
     "Turn up, or cancel early. Somebody held a tee time for you.",
-    "Report anything that feels wrong. We'd much rather hear it than not.",
+    "Zero tolerance for abuse and objectionable content — it's removed, and the accounts behind it are closed.",
+    "Report anything that feels wrong, and block anyone you don't want to hear from. We'd much rather hear it than not.",
   ],
   sections: [
     {
@@ -45,7 +46,7 @@ export const COMMUNITY_GUIDELINES: LegalDocument = {
         },
         {
           kind: "p",
-          text: "What we do have: a report option on every profile, listing and conversation; a record of behaviour across accounts; and staff who read reports and act on them. That is a way of dealing with problems, not a guarantee against them.",
+          text: "What we do have: a report option on every post, comment, listing, review and conversation; a way to block any member; a record of behaviour across accounts; and staff who read reports and act on them. That is a way of dealing with problems, not a guarantee against them.",
         },
       ],
     },
@@ -139,15 +140,42 @@ export const COMMUNITY_GUIDELINES: LegalDocument = {
             "using anything you learn through Pinpals to market to someone.",
           ],
         },
+        {
+          kind: "note",
+          text: "Pinpals has zero tolerance for objectionable content and abusive members. Content like this is removed, and the member who posted it can expect their account to be suspended or permanently closed — without warning where the conduct is serious.",
+        },
+      ],
+    },
+    {
+      id: "feed",
+      heading: "7. Posting in the feed",
+      blocks: [
+        {
+          kind: "p",
+          text: "The feed is for golf: your rounds, your course, your clubs, the shot you'll be telling people about for a year. Share a post with every member or only with your connections — either way, the people who see it are fellow members, so keep it friendly.",
+        },
+        {
+          kind: "ul",
+          items: [
+            "Only post photographs you took, and only of people who are happy to be in them.",
+            "Comments are a conversation, not a pile-on. Disagree with the golf, never with the person.",
+            "No advertising, no selling outside the marketplace, and no links to anything that isn't golf.",
+            "Never post someone else's contact details, address or car registration — not even in jest.",
+          ],
+        },
       ],
     },
     {
       id: "reporting",
-      heading: "7. Reporting a problem",
+      heading: "8. Reporting and blocking",
       blocks: [
         {
           kind: "p",
-          text: "Every profile, listing and conversation has a report option. Use it. A report takes a moment, it goes to our staff, and it is kept with that member's record even if we take no action immediately — patterns are usually what make a problem visible.",
+          text: "Every post, comment, listing, review and conversation has a report option, on the website and in the app. Use it. A report takes a moment and goes straight to our staff, who review every one — we aim to within 24 hours — and act on it: removing the content, and warning, suspending or closing the account responsible where that is warranted. Reports are kept with that member's record even if no action is needed straight away, because patterns are usually what make a problem visible.",
+        },
+        {
+          kind: "p",
+          text: "You can also block any member, from one of their posts or comments, from their member page, or from a conversation. You will stop seeing each other's posts and comments, and neither of you can message the other. They are not told, and you can undo it whenever you like. Blocking someone and reporting them are not either-or — if someone has been abusive, please do both.",
         },
         {
           kind: "p",

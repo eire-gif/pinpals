@@ -42,7 +42,7 @@ export type LegalDocument = {
   slug: LegalDocumentSlug;
   /**
    * The consent_type recorded in member_consent_events for this document
-   * (see supabase/migrations/0074_signup_consent_and_private_contact.sql).
+   * (see supabase/migrations/0089_signup_consent_and_private_contact.sql).
    * Underscored rather than hyphenated because it is a database value.
    */
   consentType: "terms" | "privacy" | "marketplace_rules" | "community_guidelines";

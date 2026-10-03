@@ -19,7 +19,7 @@ import { OPERATOR, SUPERVISORY_AUTHORITY, operatorFullDescription } from "./oper
  * the schema and would become misstatements if either changed:
  *
  *  - a member's phone number and date of birth are NOT visible to other
- *    members (0059 and 0074 both put them in owner-read-only tables);
+ *    members (0059 and 0089 both put them in owner-read-only tables);
  *  - the newsletter is opt-in, separately from accepting the Terms, and
  *    withdrawing is one toggle (Art. 7(3): as easy to withdraw as to give).
  *
@@ -37,7 +37,7 @@ export const PRIVACY: LegalDocument = {
   title: "Pinpals Privacy Policy",
   shortTitle: "Privacy Policy",
   version: "1.0",
-  effectiveFrom: "2026-09-10",
+  effectiveFrom: "2026-10-03",
   summary: "What personal data Pinpals holds about you, why, and what you can do about it.",
   keyPoints: [
     "We hold what you give us: your name, email, and whatever you choose to add — club, county, handicap, photo, phone, date of birth.",
@@ -85,7 +85,7 @@ export const PRIVACY: LegalDocument = {
         },
         {
           kind: "p",
-          text: "As you use the site: your listings and the photographs on them, your offers and bids, your orders, your messages to other members, your reviews, your tee-time availability and the invitations you accept, your notification settings, reports you make about other members, and support cases you open.",
+          text: "As you use the site: your listings and the photographs on them, your offers and bids, your orders, your messages to other members, your reviews, your posts in the feed with their photographs, your comments and likes, your tee-time availability and the invitations you accept, your notification settings, the members you have blocked, reports you make about other members, and support cases you open.",
         },
         {
           kind: "p",
@@ -116,6 +116,14 @@ export const PRIVACY: LegalDocument = {
         {
           kind: "p",
           text: "Messages you send another member are visible to that member, and to our staff where they need to look into a report, a dispute or a support case.",
+        },
+        {
+          kind: "p",
+          text: "Feed posts are seen by the audience you choose for each one: every signed-in member, or only your connections. Comments and likes on a post are seen by everyone who can see that post. Photographs in posts are stored privately and shown only to members who can see the post. Members you have blocked, and members who have blocked you, do not see your posts or comments.",
+        },
+        {
+          kind: "p",
+          text: "Who you have blocked is visible only to you. The member you block is not told.",
         },
         {
           kind: "p",
@@ -202,7 +210,7 @@ export const PRIVACY: LegalDocument = {
       blocks: [
         {
           kind: "p",
-          text: "Your account and profile: for as long as your account is open. When you close it, we delete or anonymise your profile, listings, messages and tee-time history, except where something below requires us to keep a record.",
+          text: "Your account and profile: for as long as your account is open. When you close it, we delete or anonymise your profile, listings, feed posts and their photographs, comments, messages and tee-time history, except where something below requires us to keep a record.",
         },
         {
           kind: "p",

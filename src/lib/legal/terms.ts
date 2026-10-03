@@ -33,7 +33,7 @@ export const TERMS: LegalDocument = {
   title: "Pinpals Terms of Service",
   shortTitle: "Terms of Service",
   version: "1.0",
-  effectiveFrom: "2026-09-10",
+  effectiveFrom: "2026-10-03",
   summary: "The agreement between you and Pinpals when you use the site.",
   keyPoints: [
     "Pinpals introduces golfers to each other. It doesn't run the golf, and it isn't the seller in a marketplace sale.",
@@ -41,6 +41,7 @@ export const TERMS: LegalDocument = {
     "Tee-time arrangements are between you and the other golfers — green fees, club rules and turning up are your responsibility.",
     "When you sell, you're the seller. Pinpals takes a commission and handles the payment.",
     "We don't vet members, verify handicaps or check that clubs are genuine. Use your judgement, and meet people at the club.",
+    "Zero tolerance: objectionable content and abusive members are removed. You can report any post, comment, listing or conversation, and block any member.",
     "Nothing here takes away rights the law gives you as a consumer, and nothing here limits our liability for personal injury or fraud.",
   ],
   sections: [
@@ -110,7 +111,7 @@ export const TERMS: LegalDocument = {
         },
         {
           kind: "p",
-          text: "Anything a member writes — a profile, a listing, a message, a review — is that member's own. We do not check it in advance, and publishing it does not mean we agree with it or vouch for it.",
+          text: "Anything a member writes — a profile, a post, a comment, a listing, a message, a review — is that member's own. We do not check it in advance, and publishing it does not mean we agree with it or vouch for it.",
         },
       ],
     },
@@ -135,7 +136,7 @@ export const TERMS: LegalDocument = {
         },
         {
           kind: "note",
-          text: "You are meeting people you have not met before. Arrange to meet at the clubhouse, tell someone where you are going, and make your own judgement about who you play with. If a member makes you uncomfortable, report them — every profile and message has a report option, and we would far rather hear about it early.",
+          text: "You are meeting people you have not met before. Arrange to meet at the clubhouse, tell someone where you are going, and make your own judgement about who you play with. If a member makes you uncomfortable, report them and block them — every post, comment, listing and conversation has a report option, and we would far rather hear about it early.",
         },
         {
           kind: "p",
@@ -216,14 +217,19 @@ export const TERMS: LegalDocument = {
     },
     {
       id: "conduct",
-      heading: "8. How you must behave",
+      heading: "8. How you must behave — zero tolerance",
       blocks: [
+        {
+          kind: "note",
+          text: "Pinpals has zero tolerance for objectionable content and for abusive members. Objectionable content means anything abusive, harassing, threatening, hateful, discriminatory, sexually explicit, violent, defamatory or unlawful, and anything that exposes another person's private information. If you post it, or treat another member abusively, we will remove it and we may suspend or permanently close your account, without warning where the conduct is serious.",
+        },
         { kind: "p", text: "You agree not to:" },
         {
           kind: "ul",
           items: [
             "give false information about yourself, your handicap, your club, or anything you list;",
-            "harass, threaten, abuse, defame or discriminate against another member, or post content that is unlawful, hateful or obscene;",
+            "harass, threaten, abuse, bully, defame or discriminate against another member, or post content that is unlawful, hateful, obscene or sexually explicit;",
+            "keep contacting a member who has asked you to stop, or who has blocked you, including by opening a new account;",
             "use Pinpals to advertise a business, a service, or anything other than your own golf equipment, without our written agreement;",
             "take a transaction off-platform in order to avoid commission, after making contact through Pinpals;",
             "scrape, copy, republish or resell any part of the site, including the course directory and the member directory;",
@@ -239,9 +245,31 @@ export const TERMS: LegalDocument = {
       ],
     },
     {
-      id: "content",
-      heading: "9. Content you post",
+      id: "reporting-and-blocking",
+      heading: "9. Reporting and blocking",
       blocks: [
+        {
+          kind: "p",
+          text: "Every post, comment, listing, review and conversation on Pinpals has a report option, on the website and in the app. Reports go to our staff, who review every one and act on it — removing the content, and warning, suspending or closing the account of the member responsible where that is warranted. We aim to deal with every report within 24 hours.",
+        },
+        {
+          kind: "p",
+          text: "You can block any member from one of their posts or comments, from their member page, or from a conversation. Once you do, neither of you sees the other's posts or comments, and neither of you can message the other. The member is not told. You can undo a block at any time from that member's page, or from Blocked members in the app.",
+        },
+        {
+          kind: "p",
+          text: `You can also report something by writing to ${OPERATOR.complaintsContact}.`,
+        },
+      ],
+    },
+    {
+      id: "content",
+      heading: "10. Content you post",
+      blocks: [
+        {
+          kind: "p",
+          text: "When you share a post in the feed you choose who sees it: every signed-in Pinpals member, or only your connections. Comments on a post can be seen by everyone who can see the post. Whichever you choose, other members can see what you share — do not post anything you would not want them to see.",
+        },
         {
           kind: "p",
           text: "Anything you post stays yours. By posting it, you give us a non-exclusive, royalty-free licence to host, store, display and reproduce it for the purpose of running and promoting Pinpals, for as long as you keep it on the site.",
@@ -249,6 +277,10 @@ export const TERMS: LegalDocument = {
         {
           kind: "p",
           text: "You confirm that you own, or have permission to use, everything you post, and that posting it does not infringe anyone else's rights. Do not upload a photograph you did not take, and do not upload a photograph of someone who has not agreed to it.",
+        },
+        {
+          kind: "p",
+          text: "We do not check content before it appears, but we may remove anything that breaks these Terms or the Community Guidelines, whether or not anyone has reported it.",
         },
         {
           kind: "p",
@@ -262,7 +294,7 @@ export const TERMS: LegalDocument = {
     },
     {
       id: "availability",
-      heading: "10. The site itself",
+      heading: "11. The site itself",
       blocks: [
         {
           kind: "p",
@@ -276,7 +308,7 @@ export const TERMS: LegalDocument = {
     },
     {
       id: "liability",
-      heading: "11. Our responsibility to you",
+      heading: "12. Our responsibility to you",
       blocks: [
         {
           kind: "note",
@@ -312,7 +344,7 @@ export const TERMS: LegalDocument = {
     },
     {
       id: "your-responsibility",
-      heading: "12. Your responsibility to us",
+      heading: "13. Your responsibility to us",
       blocks: [
         {
           kind: "p",
@@ -322,7 +354,7 @@ export const TERMS: LegalDocument = {
     },
     {
       id: "closing",
-      heading: "13. Closing your account",
+      heading: "14. Closing your account",
       blocks: [
         {
           kind: "p",
@@ -336,7 +368,7 @@ export const TERMS: LegalDocument = {
     },
     {
       id: "changes",
-      heading: "14. Changes to these Terms",
+      heading: "15. Changes to these Terms",
       blocks: [
         {
           kind: "p",
@@ -350,7 +382,7 @@ export const TERMS: LegalDocument = {
     },
     {
       id: "general",
-      heading: "15. General",
+      heading: "16. General",
       blocks: [
         {
           kind: "p",

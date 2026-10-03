@@ -18,7 +18,7 @@ const MAX_USER_AGENT_LENGTH = 300;
  * Every consent write from the dashboard goes through here, so that the
  * evidence fields are captured the same way in every case and nobody has
  * to remember to add them. Note there is no update path and no delete
- * path: withdrawing is a new row saying so (see migration 0074).
+ * path: withdrawing is a new row saying so (see migration 0089).
  */
 async function recordConsent(
   userId: string,

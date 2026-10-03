@@ -6,7 +6,7 @@ import { LEGAL_DOCUMENTS } from "@/lib/legal";
  * Types live here rather than in src/lib/types.ts because they are only
  * meaningful alongside the document registry they refer to, and because
  * `consent_type` has to stay in step with three things at once: the CHECK
- * constraint in supabase/migrations/0074_signup_consent_and_private_contact.sql,
+ * constraint in supabase/migrations/0089_signup_consent_and_private_contact.sql,
  * the `consentType` field on each document in src/lib/legal/, and the
  * labels below. Keeping them in one file makes that obvious; spreading
  * them across the codebase is how they drift.

@@ -63,7 +63,7 @@ export function canonicalDocumentText(doc: LegalDocument): string {
   return lines.join("\n");
 }
 
-/** Lowercase hex SHA-256 of the canonical text. Matches the CHECK constraint in migration 0074. */
+/** Lowercase hex SHA-256 of the canonical text. Matches the CHECK constraint in migration 0089. */
 export function documentSha256(doc: LegalDocument): string {
   return createHash("sha256").update(canonicalDocumentText(doc), "utf8").digest("hex");
 }
