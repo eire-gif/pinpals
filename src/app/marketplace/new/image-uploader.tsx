@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { ALLOWED_IMAGE_TYPES, MAX_LISTING_IMAGES } from "@/lib/marketplace";
+import { UPLOAD_FAILED_MESSAGE, shrinkForUpload } from "@/lib/images/shrink-for-upload";
 import { uploadListingImageAction, removeUploadedListingImageAction } from "./actions";
 
 type ImageEntry = {
@@ -41,8 +42,16 @@ export default function ImageUploader() {
 
   async function uploadOne(entry: ImageEntry) {
     const formData = new FormData();
-    formData.set("file", entry.file);
-    const result = await uploadListingImageAction(formData);
+    // Shrunk first: a full-size phone photo is several times the Server
+    // Action body limit, and an action refused at the door throws instead of
+    // returning an error — which left the tile on "Uploading…" for good.
+    formData.set("file", await shrinkForUpload(entry.file));
+    let result: Awaited<ReturnType<typeof uploadListingImageAction>>;
+    try {
+      result = await uploadListingImageAction(formData);
+    } catch {
+      result = { error: UPLOAD_FAILED_MESSAGE };
+    }
 
     setImages((prev) =>
       prev.map((img) => {

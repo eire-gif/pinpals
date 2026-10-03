@@ -17,6 +17,18 @@ const SUPABASE_URL =
 const supabaseHostname = new URL(SUPABASE_URL).hostname;
 
 const nextConfig: NextConfig = {
+  // Photos are downscaled in the browser before upload (see
+  // src/lib/images/shrink-for-upload.ts), so a listing photo normally
+  // arrives well under 1MB. This is the backstop for the cases the browser
+  // can't shrink — a format it can't decode, an old browser — so they reach
+  // the server's own checks and get a clear message, instead of being
+  // refused at the door by Next's 1MB default. Kept under Vercel's 4.5MB
+  // request ceiling, which applies whatever this says.
+  experimental: {
+    serverActions: {
+      bodySizeLimit: "4mb",
+    },
+  },
   images: {
     remotePatterns: [
       {

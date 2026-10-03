@@ -4,6 +4,7 @@ import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
 import ClubCombobox from "@/components/club-combobox";
+import { shrinkForUpload } from "@/lib/images/shrink-for-upload";
 import MemberAvatar from "@/components/member-avatar";
 import {
   MAX_POST_BODY,
@@ -20,41 +21,6 @@ type Photo = {
   path: string | null;
   error: string | null;
 };
-
-/** Longest edge sent from the browser. The server re-encodes to 2000px
- *  regardless; doing it here as well is what keeps one phone photo inside a
- *  single request rather than three. */
-const CLIENT_MAX_EDGE = 2000;
-
-/**
- * Downscales a picked photo in the browser before it is sent.
- *
- * Re-drawing on a canvas also drops EXIF on the way out — but that is a
- * bonus, not the safeguard. The server strips metadata with sharp whatever
- * arrives, because a request does not have to come from this page.
- */
-async function shrink(file: File): Promise<Blob> {
-  if (!file.type.startsWith("image/") || file.type === "image/gif") return file;
-  try {
-    const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
-    const scale = Math.min(1, CLIENT_MAX_EDGE / Math.max(bitmap.width, bitmap.height));
-    if (scale === 1 && file.size < 1.5 * 1024 * 1024) {
-      bitmap.close();
-      return file;
-    }
-    const canvas = document.createElement("canvas");
-    canvas.width = Math.round(bitmap.width * scale);
-    canvas.height = Math.round(bitmap.height * scale);
-    canvas.getContext("2d")?.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-    bitmap.close();
-    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.86));
-    return blob ?? file;
-  } catch {
-    // A browser that cannot decode it (HEIC on some desktops) sends the
-    // original, and the server answers for it.
-    return file;
-  }
-}
 
 export default function Composer({
   me,
@@ -78,7 +44,7 @@ export default function Composer({
 
   async function stage(photo: Photo, file: File) {
     const form = new FormData();
-    form.append("file", await shrink(file), file.name.replace(/\.\w+$/, "") + ".jpg");
+    form.append("file", await shrinkForUpload(file));
     let next: Partial<Photo>;
     try {
       const response = await fetch("/feed/photo", { method: "POST", body: form });
