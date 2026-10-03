@@ -11,7 +11,6 @@ import {
   loadPurchaseState,
   makeOffer,
   offerTotal,
-  orderForOffer,
   placeBid,
   respondToOffer,
   type PurchaseState,
@@ -176,18 +175,6 @@ export function PurchasePanel({
     ]);
   }
 
-  async function continueAccepted() {
-    if (!offer) return;
-    setBusy(true);
-    try {
-      const orderId = await orderForOffer(offer.id);
-      if (orderId) goToOrder(orderId, false);
-      else Alert.alert("Order not found", "Pull down to refresh and try again.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
   return (
     <View style={styles.panel}>
       {/* ---------------- Auction ---------------- */}
@@ -224,7 +211,7 @@ export function PurchasePanel({
       {/* ---------------- Fixed price ---------------- */}
       {!isAuction && price !== null ? (
         <>
-          {offer?.status === "countered" || offer?.status === "accepted" ? null : (
+          {offer?.status === "countered" ? null : (
             <Primary
               label={`Buy now · ${eur(price)}`}
               onPress={() => router.push({ pathname: "/checkout", params: { listing: String(listing.id) } })}
@@ -247,17 +234,20 @@ export function PurchasePanel({
                 <Primary label={`Accept ${eur(offer.amountEur)}`} onPress={() => void answerCounter(true)} busy={busy} />
                 <Secondary label="Decline" onPress={() => void answerCounter(false)} />
               </View>
-            ) : offer?.status === "accepted" ? (
-              <View style={[styles.offerBox, styles.offerBoxAction]}>
-                <Text style={styles.offerHead}>Offer accepted: {eur(offer.amountEur)}</Text>
-                <Text style={styles.small}>Choose delivery and pay to complete the sale.</Text>
-                <Primary label="Continue to checkout" onPress={() => void continueAccepted()} busy={busy} />
-              </View>
             ) : (
+              // An accepted offer whose order is still open was handled at
+              // the top (openOrder). Reaching here, its checkout window
+              // lapsed and the item went back on sale — so it is history,
+              // and the member can buy or offer again like anyone else.
               <>
-                {offer && (offer.status === "declined" || offer.status === "expired") ? (
+                {offer && (offer.status === "declined" || offer.status === "expired" || offer.status === "accepted") ? (
                   <Text style={styles.small}>
-                    Your last offer of {eur(offer.amountEur)} was {offer.status === "declined" ? "declined" : "not answered in time"}.
+                    Your last offer of {eur(offer.amountEur)}{" "}
+                    {offer.status === "declined"
+                      ? "was declined."
+                      : offer.status === "accepted"
+                        ? "was accepted, but checkout wasn't finished in time."
+                        : "has expired."}
                   </Text>
                 ) : null}
                 <Secondary label="Make an offer" onPress={() => setSheet("offer")} />

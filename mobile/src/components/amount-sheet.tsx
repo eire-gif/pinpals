@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -51,12 +51,17 @@ export function AmountSheet({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Reset only as the sheet OPENS. Resetting whenever `initial` changed
+  // would wipe a bid mid-typing when the listing reloads underneath with a
+  // new minimum.
+  const wasVisible = useRef(false);
   useEffect(() => {
-    if (visible) {
+    if (visible && !wasVisible.current) {
       setText(initial);
       setError(null);
       setBusy(false);
     }
+    wasVisible.current = visible;
   }, [visible, initial]);
 
   const amount = parseEuro(text);

@@ -145,7 +145,15 @@ export async function loadPurchaseState(
     auctionSale ? loadAuction(listingId, saleType) : Promise.resolve(null),
   ]);
 
-  const offer = offerResult.data?.[0];
+  const latest = offerResult.data?.[0];
+  // A pending or countered offer past its deadline is over, whether or not
+  // the sweep has caught up with it yet — offer_action() would refuse it.
+  const offer =
+    latest &&
+    (latest.status === "pending" || latest.status === "countered") &&
+    new Date(latest.expires_at).getTime() <= Date.now()
+      ? { ...latest, status: "expired" as const }
+      : latest;
   const order = orderResult.data?.[0];
   const orderLive =
     order && (!order.reservation_expires_at || new Date(order.reservation_expires_at).getTime() > Date.now());
@@ -211,6 +219,20 @@ async function loadAuction(listingId: number, saleType: string): Promise<Auction
 // ---------------------------------------------------------------------------
 // Writes, through the site
 // ---------------------------------------------------------------------------
+
+/**
+ * Ask the site to expire stale offers, release lapsed reservations and close
+ * ended auctions before the app reads them — what the website does on every
+ * marketplace page load. Best-effort: a failure leaves the read a little
+ * stale, never wrong, because every write re-checks expiry on the server.
+ */
+export async function sweepMarketplace(): Promise<void> {
+  try {
+    await postToSite<{ ok: true }>("/api/app/marketplace/sweep", {});
+  } catch {
+    // See above.
+  }
+}
 
 export const makeOffer = (listingId: number, amountEur: number) =>
   postToSite<{ ok: true }>(`/api/app/listings/${listingId}/offers`, { amount_eur: amountEur });
@@ -353,17 +375,6 @@ export async function loadOfferOrderItem(orderId: number): Promise<CheckoutItem 
     collectionNotes: listing.collection_notes,
     reservationExpiresAt: order.reservation_expires_at,
   };
-}
-
-/** The order an accepted offer created, for the buyer. */
-export async function orderForOffer(offerId: number): Promise<number | null> {
-  const { data } = await supabase
-    .from("orders")
-    .select("id")
-    .eq("offer_id", offerId)
-    .maybeSingle()
-    .overrideTypes<{ id: number }>();
-  return data?.id ?? null;
 }
 
 // ---------------------------------------------------------------------------

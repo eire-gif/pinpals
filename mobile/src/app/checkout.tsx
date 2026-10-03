@@ -26,6 +26,7 @@ import {
   listAddresses,
   loadBuyNowItem,
   loadOfferOrderItem,
+  sweepMarketplace,
   type Address,
   type CheckoutItem,
   type DeliveryMethod,
@@ -68,8 +69,14 @@ export default function CheckoutScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    if (!userId) return;
+    if (!userId) {
+      setLoading(false);
+      return;
+    }
     try {
+      // Release lapsed reservations first, or an item whose last buyer
+      // walked away would still read as unavailable here.
+      await sweepMarketplace();
       const [loaded, saved] = await Promise.all([
         orderId ? loadOfferOrderItem(orderId) : listingId ? loadBuyNowItem(listingId) : Promise.resolve(null),
         listAddresses(userId),

@@ -34,6 +34,7 @@ import {
 } from "@/lib/listings";
 import { ApiError } from "@/lib/api";
 import { PurchasePanel } from "@/components/purchase-panel";
+import { sweepMarketplace } from "@/lib/purchase";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 
 /**
@@ -66,6 +67,10 @@ export default function ListingScreen() {
       return;
     }
     try {
+      // Bring offers, reservations and auctions up to date first, as the
+      // website does on every marketplace page — otherwise a lapsed
+      // reservation would read as "under offer" until someone opened the site.
+      if (userId) await sweepMarketplace();
       const row = await getListingDetail(numeric, userId);
       if (!row) setNotFound(true);
       setListing(row);
