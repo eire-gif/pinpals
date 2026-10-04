@@ -243,6 +243,15 @@ export default function ConnectionsScreen() {
           renderItem={({ item }) => (
             <View style={[styles.card, item.kind === "outgoing" && styles.cardQuiet]}>
               <View style={styles.cardTop}>
+                {/* Photo and name open the member's page (tester feedback,
+                    4 Oct 2026). The message button beside them stays its
+                    own target. */}
+                <Pressable
+                  style={styles.cardLink}
+                  onPress={() => router.push({ pathname: "/member/[id]", params: { id: item.member.id } })}
+                  accessibilityRole="link"
+                  accessibilityLabel={`${item.member.name}'s page`}
+                >
                 <Avatar
                   url={item.member.avatarUrl}
                   color={item.member.avatarColor}
@@ -262,6 +271,8 @@ export default function ConnectionsScreen() {
                     </Text>
                   ) : null}
                 </View>
+                {item.kind !== "accepted" ? <Ionicons name="chevron-forward" size={18} color={colors.ink500} /> : null}
+                </Pressable>
 
                 {item.kind === "accepted" ? (
                   <Pressable
@@ -357,6 +368,7 @@ const styles = StyleSheet.create({
   },
   cardQuiet: { backgroundColor: colors.surfaceTint },
   cardTop: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  cardLink: { flex: 1, flexDirection: "row", alignItems: "center", gap: spacing.sm, minHeight: 44 },
   cardHead: { flex: 1, gap: 1 },
   name: { fontFamily: fonts.display, fontSize: 17, color: colors.ink900 },
   club: { fontFamily: fonts.bodySemi, fontSize: type.small, color: colors.green700 },

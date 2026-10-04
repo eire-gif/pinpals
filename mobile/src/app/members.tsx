@@ -14,6 +14,7 @@ import { Stack, router, useFocusEffect } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { Avatar } from "@/components/avatar";
+import { InviteBanner, SuggestionRow } from "@/components/pinpals";
 import { ScreenHeader } from "@/components/screen-header";
 import { useAuth } from "@/lib/auth";
 import {
@@ -27,11 +28,19 @@ import {
   type Member,
   type MemberScope,
 } from "@/lib/members";
+import { suggestedPinPals, type Suggestion } from "@/lib/onboarding";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 import { KEYBOARD_DISMISS_MODE } from "@/components/keyboard";
 
 /**
- * The golfer directory.
+ * Find PinPals — the golfer directory, and the one place to look for people
+ * (tester feedback, 4 Oct 2026: Home's "Find PinPals" used to open a
+ * separate suggestions screen where you then had to tap "Search every
+ * member" to find anyone). /find-pinpals now redirects here.
+ *
+ * Suggestions (suggested_pinpals(): your club, clubs near you, courses in
+ * common, already excluding connections and blocks) lead the Everyone list
+ * when nothing is being searched; search and the scopes cover every member.
  *
  * Search, three scopes, and one button per card that knows where you stand
  * with that member. The website's version is the same shape; what it cannot
@@ -40,6 +49,9 @@ import { KEYBOARD_DISMISS_MODE } from "@/components/keyboard";
  * Handicap obeys `handicap_visible` and age is a band rather than a date —
  * both decided in lib/members.ts so no screen can forget.
  */
+/** How many suggestions lead the list. */
+const SUGGESTED = 5;
+
 export default function MembersScreen() {
   const { session } = useAuth();
   const userId = session?.user?.id ?? null;
@@ -52,6 +64,12 @@ export default function MembersScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+
+  useEffect(() => {
+    // Best-effort: the directory works without them.
+    void suggestedPinPals(SUGGESTED, 25).then(setSuggestions);
+  }, []);
 
   // Every keystroke would be a query. The token is what stops a slow early
   // response landing on top of a fast later one — the same guard the courses
@@ -147,7 +165,7 @@ export default function MembersScreen() {
       <View style={styles.fill}>
         <ScreenHeader
           scene="linksDusk"
-          title="Members"
+          title="Find PinPals"
           subtitle="Golfers across Ireland and the UK"
         />
 
@@ -158,7 +176,7 @@ export default function MembersScreen() {
               style={styles.searchInput}
               value={query}
               onChangeText={setQuery}
-              placeholder="Name or club"
+              placeholder="Search every member by name or club"
               placeholderTextColor={colors.ink500}
               autoCorrect={false}
               returnKeyType="search"
@@ -205,6 +223,24 @@ export default function MembersScreen() {
                 }}
                 tintColor={colors.green700}
               />
+            }
+            ListHeaderComponent={
+              scope === "everyone" && !query.trim() && suggestions.length > 0 ? (
+                <View>
+                  <Text style={styles.sectionTitle}>Suggested for you</Text>
+                  <View style={styles.suggestCard}>
+                    {suggestions.slice(0, SUGGESTED).map((p, i, all) => (
+                      <SuggestionRow key={p.id} person={p} last={i === all.length - 1} />
+                    ))}
+                  </View>
+                  <Text style={styles.sectionTitle}>All members</Text>
+                </View>
+              ) : null
+            }
+            ListFooterComponent={
+              <View style={styles.invite}>
+                <InviteBanner title="Friend not on PinPals yet?" body="Send them a link — it's free to join." />
+              </View>
             }
             ListEmptyComponent={<Empty unavailable={unavailable} searching={query.trim() !== ""} />}
             renderItem={({ item }) => (
@@ -418,6 +454,24 @@ const styles = StyleSheet.create({
   chipLabelOn: { color: colors.cream50 },
 
   list: { padding: spacing.md, paddingTop: 0, gap: spacing.sm, flexGrow: 1 },
+  sectionTitle: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 13,
+    letterSpacing: 1.2,
+    textTransform: "uppercase",
+    color: colors.ink500,
+    marginTop: spacing.xs,
+    marginBottom: spacing.sm,
+  },
+  suggestCard: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: radii.lg,
+    paddingHorizontal: 14,
+    marginBottom: spacing.md,
+  },
+  invite: { marginTop: spacing.sm },
 
   card: {
     gap: spacing.sm,
