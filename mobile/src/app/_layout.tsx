@@ -23,6 +23,9 @@ import { colors, fonts } from "@/lib/theme";
 
 void SplashScreen.preventAutoHideAsync();
 
+/** The screens someone without an account can see. Everything else needs a session. */
+const PUBLIC_ROUTES = new Set(["welcome", "login", "signup", "verify"]);
+
 /**
  * The auth gate.
  *
@@ -32,7 +35,7 @@ void SplashScreen.preventAutoHideAsync();
  * land back on login without each screen having to handle it.
  */
 function RootNavigator() {
-  const { session, loading } = useAuth();
+  const { session, loading, consumeJustJoined } = useAuth();
   const segments = useSegments();
   const router = useRouter();
 
@@ -52,18 +55,20 @@ function RootNavigator() {
 
     void SplashScreen.hideAsync();
 
-    // Keyed on "is this the login screen", NOT "is this inside (tabs)". The
-    // latter looks equivalent until a signed-in route lives outside the tab
-    // group — invite/[id] does — and then every push to it is immediately
-    // bounced back to the tabs.
-    const onLogin = segments[0] === "login";
+    // Keyed on "is this a signed-out screen", NOT "is this inside (tabs)".
+    // The latter looks equivalent until a signed-in route lives outside the
+    // tab group — invite/[id] does — and then every push to it is
+    // immediately bounced back to the tabs.
+    const onPublic = PUBLIC_ROUTES.has(segments[0] ?? "");
 
-    if (!session && !onLogin) {
-      router.replace("/login");
-    } else if (session && onLogin) {
-      router.replace("/(tabs)");
+    if (!session && !onPublic) {
+      router.replace("/welcome");
+    } else if (session && onPublic) {
+      // A member who has just typed their email code goes on to build their
+      // profile; everyone else signing in goes Home.
+      router.replace(consumeJustJoined() ? "/onboarding" : "/(tabs)");
     }
-  }, [session, loading, fontsLoaded, segments, router]);
+  }, [session, loading, fontsLoaded, segments, router, consumeJustJoined]);
 
   // ---------------------------------------------------------------------
   // Push registration
@@ -154,7 +159,11 @@ function RootNavigator() {
       }}
     >
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen name="welcome" options={{ headerShown: false }} />
       <Stack.Screen name="login" options={{ headerShown: false }} />
+      <Stack.Screen name="signup" options={{ headerShown: false }} />
+      <Stack.Screen name="verify" options={{ headerShown: false }} />
+      <Stack.Screen name="onboarding" options={{ headerShown: false, gestureEnabled: false }} />
       <Stack.Screen
         name="invite/[id]"
         options={{ title: "Tee time", headerBackTitle: "Back" }}
