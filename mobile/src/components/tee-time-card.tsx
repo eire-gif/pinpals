@@ -2,6 +2,7 @@ import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { Avatar } from "@/components/avatar";
+import { StarRow } from "@/components/stars";
 import {
   coursePhotoIndex,
   dateLabel,
@@ -100,14 +101,17 @@ export function TeeTimeCard({
           </View>
         </View>
 
-        <View style={styles.photoWrap}>
-          <Image source={PHOTOS[coursePhotoIndex(invite, PHOTOS.length)]} style={styles.photo} />
-          <View style={styles.spaces}>
-            <Ionicons name="people" size={13} color={colors.ink900} />
-            <Text style={styles.spacesText}>
-              {spaces} {spaces === 1 ? "space" : "spaces"}
-            </Text>
+        <View style={styles.photoCol}>
+          <View style={styles.photoWrap}>
+            <Image source={PHOTOS[coursePhotoIndex(invite, PHOTOS.length)]} style={styles.photo} />
+            <View style={styles.spaces}>
+              <Ionicons name="people" size={13} color={colors.ink900} />
+              <Text style={styles.spacesText}>
+                {spaces} {spaces === 1 ? "space" : "spaces"}
+              </Text>
+            </View>
           </View>
+          <CourseRating avg={invite.club?.rating_avg} count={invite.club?.rating_count} />
         </View>
       </View>
 
@@ -153,6 +157,29 @@ function Tag({ icon, label }: { icon: keyof typeof Ionicons.glyphMap; label: str
       <Ionicons name={icon} size={13} color={colors.green800} />
       <Text style={styles.tagText} numberOfLines={1}>
         {label}
+      </Text>
+    </View>
+  );
+}
+
+/**
+ * The course's member rating, under its photo — only once someone has rated
+ * it. Five grey stars on an unrated course would read as "rated badly", and
+ * at launch that is nearly every course.
+ */
+function CourseRating({ avg, count }: { avg?: number | null; count?: number }) {
+  if (!count || avg === null || avg === undefined) return null;
+  const value = Number(avg);
+  return (
+    <View
+      style={styles.rating}
+      accessible
+      accessibilityLabel={`Course rated ${value.toFixed(1)} out of 5 by ${count} ${count === 1 ? "member" : "members"}`}
+    >
+      <StarRow value={value} size={12} />
+      <Text style={styles.ratingText}>
+        {value.toFixed(1)}/5
+        <Text style={styles.ratingCount}> ({count})</Text>
       </Text>
     </View>
   );
@@ -208,10 +235,14 @@ const styles = StyleSheet.create({
   },
   tagText: { fontFamily: fonts.bodySemi, fontSize: 11.5, color: colors.green800, flexShrink: 1 },
 
-  photoWrap: {
+  photoCol: {
     alignSelf: "flex-start",
     width: "40%",
     maxWidth: 160,
+    gap: 6,
+  },
+  photoWrap: {
+    width: "100%",
     aspectRatio: 0.92,
     borderRadius: 16,
     overflow: "hidden",
@@ -230,6 +261,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.gold400,
   },
   spacesText: { fontFamily: fonts.bodyBold, fontSize: 12, color: colors.ink900 },
+  rating: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5 },
+  ratingText: { fontFamily: fonts.bodyBold, fontSize: 12.5, color: colors.ink900 },
+  ratingCount: { fontFamily: fonts.body, color: colors.ink500 },
 
   bottom: { flexDirection: "row", alignItems: "center", gap: 10 },
   hostText: { flex: 1, minWidth: 0 },
