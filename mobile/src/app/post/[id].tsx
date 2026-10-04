@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
+ 
   ScrollView,
   StyleSheet,
   Text,
@@ -12,6 +11,7 @@ import { Stack, router, useLocalSearchParams } from "expo-router";
 
 import { CommentComposer, CommentList, useCommentThread } from "@/components/comment-thread";
 import { PostCard, postCardWidth } from "@/components/post-card";
+import { KEYBOARD_DISMISS_MODE, KeyboardInset } from "@/components/keyboard";
 import { LoadError, StateMessage } from "@/components/state-message";
 import { useAuth } from "@/lib/auth";
 import { loadPost, type FeedPost } from "@/lib/feed";
@@ -130,12 +130,8 @@ export default function PostScreen() {
           body="It may have been deleted, or shared only with the author's connections."
         />
       ) : (
-        <KeyboardAvoidingView
-          style={styles.fill}
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
-          keyboardVerticalOffset={Platform.OS === "ios" ? 96 : 0}
-        >
-          <ScrollView ref={scroller} style={styles.fill} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        <KeyboardInset style={styles.fill}>
+          <ScrollView ref={scroller} style={styles.fill} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" keyboardDismissMode={KEYBOARD_DISMISS_MODE}>
             <PostCard
               post={post}
               width={postCardWidth(width)}
@@ -160,7 +156,7 @@ export default function PostScreen() {
             />
           </ScrollView>
           <CommentComposer meAvatar={me} thread={thread} />
-        </KeyboardAvoidingView>
+        </KeyboardInset>
       )}
     </>
   );

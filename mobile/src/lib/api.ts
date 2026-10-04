@@ -110,6 +110,10 @@ function messageFor(status: number, serverMessage: string | null): string {
       return "That tee time is no longer available.";
     case 409:
       return "Something changed — pull down to refresh.";
+    case 413:
+      // Vercel refuses a body over ~4.5 MB before our code runs, so there
+      // is no server wording to show.
+      return "That photo is too large to send — try a different photo.";
     default:
       return "Something went wrong. Please try again.";
   }

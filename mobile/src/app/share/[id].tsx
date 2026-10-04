@@ -22,6 +22,7 @@ import { POST_KIND_LABELS } from "@/lib/post-details";
 import { createShareLink, loadPost, setSaved, type FeedPost, type ShareTarget } from "@/lib/feed";
 import { loadShareTargets, sendPostTo } from "@/lib/share-targets";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
+import { KEYBOARD_DISMISS_MODE } from "@/components/keyboard";
 
 /**
  * Share a post (phase 6), as a sheet — the mockup's "Share Post":
@@ -130,7 +131,7 @@ export default function ShareScreen() {
           ),
         }}
       />
-      <ScrollView style={styles.fill} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <ScrollView keyboardDismissMode={KEYBOARD_DISMISS_MODE} style={styles.fill} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <View style={[styles.card, { width: cardWidth, height: Math.round((cardWidth * 630) / 1200) }]}>
           {link ? (
             <Image

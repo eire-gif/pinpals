@@ -16,6 +16,7 @@ import * as Linking from "expo-linking";
 import { useAuth } from "@/lib/auth";
 import { SITE_URL } from "@/lib/config";
 import { colors, radii, spacing, type } from "@/lib/theme";
+import { KEYBOARD_DISMISS_MODE } from "@/components/keyboard";
 
 export default function LoginScreen() {
   const { signIn } = useAuth();
@@ -43,7 +44,7 @@ export default function LoginScreen() {
         style={styles.fill}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        <ScrollView
+        <ScrollView keyboardDismissMode={KEYBOARD_DISMISS_MODE}
           contentContainerStyle={styles.scroll}
           keyboardShouldPersistTaps="handled"
         >

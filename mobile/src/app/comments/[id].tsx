@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { Stack, router, useLocalSearchParams } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
+import { KEYBOARD_DISMISS_MODE, KeyboardInset } from "@/components/keyboard";
 import { LoadError, StateMessage } from "@/components/state-message";
 import { CommentComposer, CommentList, useCommentThread } from "@/components/comment-thread";
 import { useAuth } from "@/lib/auth";
@@ -132,12 +133,8 @@ export default function CommentsScreen() {
           body="The post may have been deleted, or shared only with the author's connections."
         />
       ) : (
-        <KeyboardAvoidingView
-          style={styles.fill}
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
-          keyboardVerticalOffset={Platform.OS === "ios" ? 56 : 0}
-        >
-          <ScrollView ref={scroller} style={styles.fill} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        <KeyboardInset style={styles.fill}>
+          <ScrollView ref={scroller} style={styles.fill} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" keyboardDismissMode={KEYBOARD_DISMISS_MODE}>
             <CommentList
               comments={post.comments}
               onLike={actions.likeComment}
@@ -146,7 +143,7 @@ export default function CommentsScreen() {
             />
           </ScrollView>
           <CommentComposer meAvatar={me} thread={thread} />
-        </KeyboardAvoidingView>
+        </KeyboardInset>
       )}
     </>
   );

@@ -28,6 +28,7 @@ import {
   type MemberScope,
 } from "@/lib/members";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
+import { KEYBOARD_DISMISS_MODE } from "@/components/keyboard";
 
 /**
  * The golfer directory.
@@ -190,7 +191,7 @@ export default function MembersScreen() {
             <ActivityIndicator color={colors.green700} />
           </View>
         ) : (
-          <FlatList
+          <FlatList keyboardDismissMode={KEYBOARD_DISMISS_MODE}
             contentContainerStyle={styles.list}
             data={members}
             keyExtractor={(item) => item.id}
