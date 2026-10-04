@@ -46,6 +46,7 @@ import { hideConversation, inboxTime } from "@/lib/messages";
 import { confirmPlace, respondToRequest } from "@/lib/tee-time-interest";
 import { subscribeToInbox } from "@/lib/realtime";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
+import { KEYBOARD_DISMISS_MODE } from "@/components/keyboard";
 
 /**
  * Messages and alerts, in one list.
@@ -385,7 +386,7 @@ export default function InboxScreen() {
         </Pressable>
       </View>
 
-      <SectionList
+      <SectionList keyboardDismissMode={KEYBOARD_DISMISS_MODE}
         sections={sections}
         keyExtractor={(item) => `${item.kind}-${item.id}`}
         contentContainerStyle={styles.list}

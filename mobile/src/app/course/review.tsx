@@ -24,6 +24,7 @@ import {
   type ReviewTag,
 } from "@/lib/onboarding";
 import { colors, fonts, radii, spacing } from "@/lib/theme";
+import { KEYBOARD_DISMISS_MODE, KEYBOARD_DONE_ID, KeyboardDoneBar } from "@/components/keyboard";
 
 const MAX = 1000;
 
@@ -118,7 +119,7 @@ export default function ReviewSheet() {
     <>
       <Stack.Screen options={{ title: existing ? "Edit your review" : "Rate & review" }} />
       <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        <ScrollView keyboardDismissMode={KEYBOARD_DISMISS_MODE} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           {name ? <Text style={styles.course}>{name}</Text> : null}
 
           <View style={styles.starsBlock}>
@@ -149,10 +150,12 @@ export default function ReviewSheet() {
           <Text style={styles.label}>
             Tell other golfers about it <Text style={styles.soft}>Optional</Text>
           </Text>
+          <KeyboardDoneBar />
           <TextInput
             value={body}
             onChangeText={(t) => setBody(t.slice(0, MAX))}
             multiline
+            inputAccessoryViewID={KEYBOARD_DONE_ID}
             placeholder="Greens, the welcome, the hole you'll remember…"
             placeholderTextColor={colors.ink500}
             style={styles.input}

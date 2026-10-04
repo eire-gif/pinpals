@@ -29,6 +29,8 @@ import {
 } from "@/lib/profile";
 import { COUNTRY_NAMES, regionsFor, searchClubs, type ClubHit } from "@/lib/tee-time-post";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
+import { KEYBOARD_DONE_ID, KeyboardDoneBar } from "@/components/keyboard";
+import { PHOTO_PICKER_OPTIONS } from "@/lib/photo-picking";
 
 /**
  * Editing your own profile, natively.
@@ -160,8 +162,8 @@ export default function EditProfileScreen() {
 
     const result =
       source === "camera"
-        ? await ImagePicker.launchCameraAsync({ mediaTypes: ["images"], quality: 0.8 })
-        : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], quality: 0.8 });
+        ? await ImagePicker.launchCameraAsync(PHOTO_PICKER_OPTIONS)
+        : await ImagePicker.launchImageLibraryAsync(PHOTO_PICKER_OPTIONS);
 
     if (result.canceled || result.assets.length === 0) return;
 
@@ -392,11 +394,13 @@ export default function EditProfileScreen() {
         </Section>
 
         <Section title="About you" hint="A line or two. Other members see this.">
+          <KeyboardDoneBar />
           <TextInput
             style={[styles.input, styles.multiline]}
             value={form.bio}
             onChangeText={(v) => set({ bio: v })}
             multiline
+            inputAccessoryViewID={KEYBOARD_DONE_ID}
             numberOfLines={4}
             textAlignVertical="top"
             placeholder="Play most Saturdays, always up for a fourball."

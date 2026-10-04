@@ -41,6 +41,7 @@ import {
 } from "@/lib/messages";
 import { subscribeToConversation } from "@/lib/realtime";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
+import { PHOTO_PICKER_OPTIONS } from "@/lib/photo-picking";
 
 /**
  * One conversation.
@@ -245,10 +246,9 @@ export default function ConversationScreen() {
 
     const result =
       source === "camera"
-        ? await ImagePicker.launchCameraAsync({ mediaTypes: ["images"], quality: 0.8 })
+        ? await ImagePicker.launchCameraAsync(PHOTO_PICKER_OPTIONS)
         : await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ["images"],
-            quality: 0.8,
+            ...PHOTO_PICKER_OPTIONS,
             // One at a time. A photo here is a message, and five photos
             // picked at once would be five messages sent without anyone
             // deciding to send five messages.

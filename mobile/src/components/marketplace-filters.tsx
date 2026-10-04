@@ -28,6 +28,7 @@ import {
 import { COUNTRY_NAMES, regionsFor } from "@/lib/tee-time-post";
 import { SUBCATEGORIES } from "@/lib/listings";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
+import { KEYBOARD_DISMISS_MODE } from "@/components/keyboard";
 
 /**
  * The filter sheet.
@@ -120,7 +121,7 @@ export function MarketplaceFilters({
           </Pressable>
         </View>
 
-        <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
+        <ScrollView keyboardDismissMode={KEYBOARD_DISMISS_MODE} contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
           <Group title="Sort by">
             {MARKETPLACE_SORTS.map((value) => (
               <Chip

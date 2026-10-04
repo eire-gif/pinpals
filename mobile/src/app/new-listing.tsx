@@ -41,6 +41,8 @@ import {
 } from "@/lib/listings";
 import { COUNTRY_NAMES, regionsFor } from "@/lib/tee-time-post";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
+import { KEYBOARD_DONE_ID, KeyboardDoneBar } from "@/components/keyboard";
+import { PHOTO_PICKER_OPTIONS } from "@/lib/photo-picking";
 
 /**
  * Listing something for sale.
@@ -207,16 +209,10 @@ export default function NewListingScreen() {
       const remaining = MAX_LISTING_IMAGES - photos.length;
       const result =
         source === "camera"
-          ? await ImagePicker.launchCameraAsync({
-              mediaTypes: ["images"],
-              // The bucket caps a photo at 5MB and the server downscales to
-              // 2000px anyway, so sending a 12-megapixel original would only
-              // buy a slower upload and a likelier rejection.
-              quality: 0.8,
-            })
+          ? // Smaller JPEGs: see lib/photo-picking.ts.
+            await ImagePicker.launchCameraAsync(PHOTO_PICKER_OPTIONS)
           : await ImagePicker.launchImageLibraryAsync({
-              mediaTypes: ["images"],
-              quality: 0.8,
+              ...PHOTO_PICKER_OPTIONS,
               allowsMultipleSelection: true,
               selectionLimit: remaining,
             });
@@ -532,6 +528,7 @@ export default function NewListingScreen() {
           title="Anything else?"
           hint="Optional. Wear and tear, what's included, why you're selling."
         >
+          <KeyboardDoneBar />
           <TextInput
             style={[styles.input, styles.notes]}
             value={description}
@@ -539,6 +536,7 @@ export default function NewListingScreen() {
             placeholder="Bought new in 2024, headcover and tool included."
             placeholderTextColor={colors.ink500}
             multiline
+            inputAccessoryViewID={KEYBOARD_DONE_ID}
             maxLength={MAX_DESCRIPTION_LENGTH}
             accessibilityLabel="Description"
           />

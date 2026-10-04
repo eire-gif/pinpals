@@ -5,7 +5,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { AppMenu, MenuButton } from "@/components/app-menu";
 import { useAuth } from "@/lib/auth";
-import { colors, fonts, spacing } from "@/lib/theme";
+import { colors, fonts, radii, spacing } from "@/lib/theme";
 import { useInboxUnread } from "@/lib/unread";
 
 /**
@@ -174,31 +174,38 @@ export default function TabsLayout() {
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="pricetags-outline" size={size} color={color} />
           ),
-          // Selling is half of what this tab is for, so "List an item" sits
-          // where Post a tee time sits on Tee Times. The marketplace orange,
-          // with an ink-900 plus: white on that orange is 1.99:1.
+          // Selling is half of what this tab is for, so "List item" sits
+          // where Post a tee time sits on Tee Times. A labelled pill rather
+          // than a bare orange "+" (tester feedback, 4 Oct 2026): the words
+          // say what it does, and PinPals green keeps the marketplace orange
+          // for buying, where cream on orange wouldn't read anyway.
           headerRight: () => (
             <Pressable
               onPress={() => router.push("/new-listing")}
-              hitSlop={12}
-              style={{ marginRight: spacing.md }}
+              hitSlop={8}
+              style={({ pressed }) => [
+                {
+                  marginRight: spacing.md,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 6,
+                  height: 36,
+                  paddingLeft: 12,
+                  paddingRight: 16,
+                  borderRadius: radii.pill,
+                  backgroundColor: colors.green700,
+                  shadowColor: colors.navy900,
+                  shadowOpacity: 0.18,
+                  shadowRadius: 6,
+                  shadowOffset: { width: 0, height: 2 },
+                },
+                pressed && { opacity: 0.85 },
+              ]}
               accessibilityRole="button"
               accessibilityLabel="List an item for sale"
             >
-              <View
-                style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: 20,
-                  backgroundColor: colors.buy500,
-                  borderWidth: 1.5,
-                  borderColor: colors.buy700,
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <Ionicons name="add" size={26} color={colors.ink900} />
-              </View>
+              <Ionicons name="pricetag" size={15} color={colors.gold400} />
+              <Text style={{ fontFamily: fonts.bodyBold, fontSize: 15, color: colors.cream50 }}>List item</Text>
             </Pressable>
           ),
         }}

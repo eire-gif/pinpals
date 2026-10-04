@@ -6,6 +6,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { InviteBanner, SuggestionRow } from "@/components/pinpals";
 import { suggestedPinPals, type Suggestion } from "@/lib/onboarding";
 import { colors, fonts, radii, spacing } from "@/lib/theme";
+import { KEYBOARD_DISMISS_MODE } from "@/components/keyboard";
 
 const RADIUS_KM = 25;
 
@@ -57,7 +58,7 @@ export default function FindPinPalsScreen() {
   return (
     <>
       <Stack.Screen options={{ title: "Find PinPals", headerBackTitle: "Back" }} />
-      <ScrollView style={styles.fill} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <ScrollView keyboardDismissMode={KEYBOARD_DISMISS_MODE} style={styles.fill} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <View style={styles.search}>
           <Ionicons name="search" size={20} color={colors.ink500} />
           <TextInput

@@ -40,6 +40,8 @@ import { listConfirmedRounds } from "@/lib/rounds";
 import { todayIso } from "@/lib/tee-times";
 import { COUNTRY_NAMES, searchClubs, type ClubHit } from "@/lib/tee-time-post";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
+import { KEYBOARD_DISMISS_MODE, KEYBOARD_DONE_ID, KeyboardDoneBar } from "@/components/keyboard";
+import { PHOTO_PICKER_OPTIONS, photoProblem } from "@/lib/photo-picking";
 
 type Photo = {
   id: string;
@@ -189,25 +191,29 @@ export default function NewPostScreen() {
 
       const result =
         source === "camera"
-          ? await ImagePicker.launchCameraAsync({ mediaTypes: ["images"], quality: 0.8 })
+          ? await ImagePicker.launchCameraAsync(PHOTO_PICKER_OPTIONS)
           : await ImagePicker.launchImageLibraryAsync({
-              mediaTypes: ["images"],
-              // The server downscales to 2000px regardless; sending the
-              // 12-megapixel original only buys a slower upload from the
-              // car park and a likelier rejection.
-              quality: 0.8,
+              // Smaller JPEGs: see lib/photo-picking.ts.
+              ...PHOTO_PICKER_OPTIONS,
               allowsMultipleSelection: true,
               selectionLimit: room,
             });
       if (result.canceled) return;
 
-      const added = result.assets.slice(0, room).map((asset) => ({
-        photo: { id: String(++nextId), uri: asset.uri, status: "uploading" as const },
-        type: asset.mimeType ?? "image/jpeg",
-        name: asset.fileName ?? `photo-${nextId}.jpg`,
-      }));
+      const added = result.assets.slice(0, room).map((asset) => {
+        // A photo that can't be sent says why at once, rather than failing
+        // after an upload with a bare "Retry".
+        const problem = photoProblem(asset);
+        return {
+          photo: problem
+            ? { id: String(++nextId), uri: asset.uri, status: "failed" as const, error: problem }
+            : { id: String(++nextId), uri: asset.uri, status: "uploading" as const },
+          type: asset.mimeType ?? "image/jpeg",
+          name: asset.fileName ?? `photo-${nextId}.jpg`,
+        };
+      });
       setPhotos((prev) => [...prev, ...added.map((a) => a.photo)]);
-      for (const a of added) void upload(a.photo, a.type, a.name);
+      for (const a of added) if (a.photo.status === "uploading") void upload(a.photo, a.type, a.name);
     },
     [photos.length, upload]
   );
@@ -358,7 +364,7 @@ export default function NewPostScreen() {
       />
 
       <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-        <ScrollView style={styles.fill} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        <ScrollView keyboardDismissMode={KEYBOARD_DISMISS_MODE} style={styles.fill} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           {recap && recapDetails ? (
             <View style={styles.recap}>
               <Text style={styles.recapIntro}>
@@ -405,6 +411,7 @@ export default function NewPostScreen() {
             </View>
           )}
 
+          <KeyboardDoneBar />
           <TextInput
             value={body}
             onChangeText={(t) => {
@@ -414,6 +421,7 @@ export default function NewPostScreen() {
             placeholder={PROMPTS[postType === "photo" ? "photo" : kind]}
             placeholderTextColor={colors.ink500}
             multiline
+            inputAccessoryViewID={KEYBOARD_DONE_ID}
             maxLength={MAX_POST_BODY}
             // A round, hole or shot starts with its numbers, not the caption.
             autoFocus={!structured && postType !== "photo"}
@@ -513,7 +521,13 @@ export default function NewPostScreen() {
             })}
           </View>
 
-          {failed && <Text style={styles.warn}>Retry or remove the photos that didn&apos;t upload, then post.</Text>}
+          {failed && (
+            <Text style={styles.warn}>
+              {/* Say why, not just that it failed: "too large" and "no
+                  signal" need different things from the member. */}
+              {photos.find((p) => p.status === "failed")?.error ?? "A photo didn't upload."} Retry or remove it, then post.
+            </Text>
+          )}
         </ScrollView>
       </KeyboardAvoidingView>
     </>

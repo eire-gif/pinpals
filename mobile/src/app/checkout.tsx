@@ -33,6 +33,7 @@ import {
   type NewAddress,
 } from "@/lib/purchase";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
+import { KEYBOARD_DISMISS_MODE } from "@/components/keyboard";
 
 /**
  * Checkout, in the app.
@@ -142,7 +143,7 @@ export default function CheckoutScreen() {
   return (
     <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === "ios" ? "padding" : undefined}>
       <Stack.Screen options={{ title: "Checkout", headerBackTitle: "Back" }} />
-      <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
+      <ScrollView keyboardDismissMode={KEYBOARD_DISMISS_MODE} contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
         {/* What is being bought */}
         <View style={[styles.card, styles.itemRow]}>
           {item.imageUrl ? (

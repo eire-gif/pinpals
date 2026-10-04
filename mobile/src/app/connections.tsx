@@ -25,6 +25,7 @@ import {
   type Member,
 } from "@/lib/members";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
+import { KEYBOARD_DISMISS_MODE } from "@/components/keyboard";
 
 /**
  * Your connections, and the requests waiting on you.
@@ -183,7 +184,7 @@ export default function ConnectionsScreen() {
           <ActivityIndicator color={colors.green700} />
         </View>
       ) : (
-        <SectionList
+        <SectionList keyboardDismissMode={KEYBOARD_DISMISS_MODE}
           style={styles.fill}
           contentContainerStyle={styles.list}
           sections={sections}

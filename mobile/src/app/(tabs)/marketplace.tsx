@@ -28,6 +28,7 @@ import {
   type Filters,
 } from "@/lib/marketplace";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
+import { KEYBOARD_DISMISS_MODE } from "@/components/keyboard";
 
 /**
  * The marketplace, native.
@@ -187,7 +188,7 @@ export default function MarketplaceScreen() {
           <ActivityIndicator color={colors.green700} />
         </View>
       ) : (
-        <FlatList
+        <FlatList keyboardDismissMode={KEYBOARD_DISMISS_MODE}
           {...scrollProps}
           data={cards}
           keyExtractor={(item) => String(item.id)}
