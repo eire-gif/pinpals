@@ -13,6 +13,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { ScreenHeader } from "@/components/screen-header";
 import { useAuth } from "@/lib/auth";
+import { isOn } from "@/lib/features";
 import { listConfirmedRounds, type ConfirmedRound } from "@/lib/rounds";
 import { dateLabel, todayIso } from "@/lib/tee-times";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
@@ -116,7 +117,7 @@ export default function ConfirmedRoundsScreen() {
               onRecap={
                 // Played rounds offer a recap (phase 7) — never posted
                 // without the member pressing Post in the composer.
-                item.playDate < todayIso()
+                isOn("recapPrompts") && item.playDate < todayIso()
                   ? () => router.push({ pathname: "/new-post", params: { type: "round", recap: String(item.inviteId) } })
                   : undefined
               }
@@ -206,7 +207,7 @@ const styles = StyleSheet.create({
     gap: 6,
     marginTop: spacing.sm + 2,
     minHeight: 44,
-    borderRadius: 999,
+    borderRadius: radii.pill,
     borderWidth: 1.5,
     borderColor: colors.green700,
   },

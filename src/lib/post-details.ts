@@ -41,6 +41,14 @@
 export const POST_KINDS = ["general", "round", "hole", "shot"] as const;
 export type PostKind = (typeof POST_KINDS)[number];
 
+/** What a stored post IS, in a word — for tiles, badges and share text. */
+export const POST_KIND_LABELS: Record<PostKind, string> = {
+  general: "Post",
+  round: "Round",
+  hole: "Hole",
+  shot: "Shot",
+};
+
 export const POST_TYPES = ["general", "round", "hole", "shot", "photo", "tee_time"] as const;
 export type PostType = (typeof POST_TYPES)[number];
 

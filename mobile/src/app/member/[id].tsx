@@ -28,7 +28,9 @@ import {
 import { useAuth } from "@/lib/auth";
 import { loadMemberPosts, loadMemberProfile, type FeedPost, type MemberProfile } from "@/lib/feed";
 import { loadMemberCourses, loadMemberRounds } from "@/lib/member-profile";
-import { identityTiles, isProfileTab, type IdentityTile, type ProfileCourse, type ProfileTab, type RoundRow } from "@/lib/profile-sections";
+import { LoadError } from "@/components/state-message";
+import { isOn } from "@/lib/features";
+import { PROFILE_TAB_LABELS, identityTiles, isProfileTab, type IdentityTile, type ProfileCourse, type ProfileTab, type RoundRow } from "@/lib/profile-sections";
 import { blockConfirmText, blockMember, unblockMember } from "@/lib/blocking";
 import { listMemberListings, priceLine, type Card } from "@/lib/marketplace";
 import { conversationWith, requestConnection, respondToConnection } from "@/lib/members";
@@ -74,9 +76,10 @@ export default function MemberScreen() {
   // Whether I have blocked this member. Only my own blocks are readable
   // (0049), which is all this screen needs to choose Block or Unblock.
   const [blocked, setBlocked] = useState(false);
-  const [tab, setTab] = useState<ProfileTab>(isProfileTab(tabParam) ? tabParam : "posts");
+  const [tab, setTab] = useState<ProfileTab>(isOn("profileSections") && isProfileTab(tabParam) ? tabParam : "posts");
   const [sections, setSections] = useState<Sections>({});
   const [sectionLoading, setSectionLoading] = useState(false);
+  const [sectionFailed, setSectionFailed] = useState<ProfileTab | null>(null);
 
   const load = useCallback(async () => {
     if (!userId || !id) return;
@@ -109,6 +112,7 @@ export default function MemberScreen() {
       setProfile(p);
       // A refresh starts every section again; the open one reloads below.
       setSections({});
+      setSectionFailed(null);
       setPosts(page.posts);
       setListings(forSale);
       setCursor(page.cursor);
@@ -135,7 +139,7 @@ export default function MemberScreen() {
 
   // Load the open section the first time it's needed (and after a refresh).
   useEffect(() => {
-    if (!userId || !id || !profile || blocked || tab === "posts" || sections[tab] !== undefined) return;
+    if (!userId || !id || !profile || blocked || tab === "posts" || sections[tab] !== undefined || sectionFailed === tab) return;
     let live = true;
     setSectionLoading(true);
     const work: Promise<Partial<Sections>> =
@@ -146,15 +150,16 @@ export default function MemberScreen() {
           : loadMemberPosts(userId, id, null, tab).then((page) => ({ [tab]: page.posts }));
     work
       .then((part) => live && setSections((prev) => ({ ...prev, ...part })))
-      .catch(() => live && setSections((prev) => ({ ...prev, [tab]: tab === "courses" ? { played: [], bucket: [] } : [] })))
+      // A failure is shown as one, with Try again — never as "nothing shared".
+      .catch(() => live && setSectionFailed(tab))
       .finally(() => live && setSectionLoading(false));
     return () => {
       live = false;
     };
-  }, [tab, sections, userId, id, profile, blocked]);
+  }, [tab, sections, sectionFailed, userId, id, profile, blocked]);
 
   function onTile(key: IdentityTile["key"]) {
-    if (key === "courses") setTab("courses");
+    if (key === "courses" && isOn("profileSections")) setTab("courses");
     else if (key === "posts") setTab("posts");
     else if (key === "pinpals" && isMe) router.push("/connections");
     else if (key === "handicap" && isMe) router.push("/edit-profile");
@@ -411,13 +416,15 @@ export default function MemberScreen() {
         </>
       )}
 
-      {!blocked && <ProfileTabs tab={tab} onChange={setTab} />}
+      {!blocked && isOn("profileSections") ? <ProfileTabs tab={tab} onChange={setTab} /> : null}
     </View>
   );
 
   const first = profile.firstName;
   const sectionBody = sectionLoading ? (
     <ActivityIndicator style={{ marginTop: spacing.xl }} color={colors.green700} />
+  ) : sectionFailed === tab ? (
+    <LoadError what={PROFILE_TAB_LABELS[tab].toLowerCase()} onRetry={() => setSectionFailed(null)} />
   ) : tab === "rounds" ? (
     <RoundsSection
       rows={sections.rounds ?? []}

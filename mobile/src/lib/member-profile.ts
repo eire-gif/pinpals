@@ -24,7 +24,9 @@ export async function loadMemberRounds(memberId: string): Promise<RoundRow[]> {
     .order("created_at", { ascending: false })
     .limit(ROUNDS_LIMIT)
     .overrideTypes<{ id: number; created_at: string; details: unknown; club: { id: number; name: string } | null }[]>();
-  if (error) return [];
+  // 42703: the database predates kind/details (0095) — no rounds, not a failure.
+  if (error?.code === "42703") return [];
+  if (error) throw new Error("Couldn't load rounds.");
   return (data ?? []).map(toRoundRow).filter((r): r is RoundRow => r !== null);
 }
 
@@ -39,7 +41,7 @@ export async function loadMemberCourses(
   memberId: string,
   homeClubId: number | null
 ): Promise<{ played: ProfileCourse[]; bucket: ProfileCourse[] }> {
-  const [{ data: lists }, { data: reviews }] = await Promise.all([
+  const [{ data: lists, error }, { data: reviews }] = await Promise.all([
     supabase
       .from("member_courses")
       .select("club_id, kind, club:clubs ( id, name, town, country )")
@@ -53,6 +55,8 @@ export async function loadMemberCourses(
       .eq("member_id", memberId)
       .overrideTypes<{ club_id: number; rating: number }[]>(),
   ]);
+  // Ratings are a garnish; the lists are the section.
+  if (error) throw new Error("Couldn't load courses.");
   const ratings = new Map((reviews ?? []).map((r) => [r.club_id, r.rating]));
   const played: ProfileCourse[] = [];
   const bucket: ProfileCourse[] = [];

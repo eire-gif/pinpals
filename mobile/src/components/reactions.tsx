@@ -31,7 +31,7 @@ export function ReactionDisc({ reaction, size = 18, ring }: { reaction: Reaction
         ring ? { borderWidth: Math.max(1.5, size / 14), borderColor: ring } : null,
       ]}
     >
-      <Ionicons name={info.icon as GlyphName} size={Math.round(size * 0.56)} color="#ffffff" />
+      <Ionicons name={info.icon as GlyphName} size={Math.round(size * 0.56)} color={colors.surface} />
     </View>
   );
 }

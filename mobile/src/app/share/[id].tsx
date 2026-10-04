@@ -18,6 +18,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { Avatar } from "@/components/avatar";
 import { useAuth } from "@/lib/auth";
+import { POST_KIND_LABELS } from "@/lib/post-details";
 import { createShareLink, loadPost, setSaved, type FeedPost, type ShareTarget } from "@/lib/feed";
 import { loadShareTargets, sendPostTo } from "@/lib/share-targets";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
@@ -57,14 +58,15 @@ export default function ShareScreen() {
 
   useEffect(() => {
     if (!userId || !Number.isInteger(postId)) return;
-    void loadPost(userId, postId).then(setPost);
+    // The post only adds Save and a better message here; the link works without it.
+    void loadPost(userId, postId).then(setPost).catch(() => setPost(null));
     createShareLink(postId)
       .then(setLink)
       .catch((err) => setLinkError(err instanceof Error ? err.message : "Couldn't make a share link."));
   }, [userId, postId]);
 
   useEffect(() => {
-    if (showTargets && !targets && userId) void loadShareTargets(userId).then(setTargets);
+    if (showTargets && !targets && userId) void loadShareTargets(userId).then(setTargets).catch(() => setTargets([]));
   }, [showTargets, targets, userId]);
 
   const shown = useMemo(() => {
@@ -77,7 +79,7 @@ export default function ShareScreen() {
   async function shareOutside() {
     if (!link) return;
     const where = post?.club ? ` at ${post.club.name}` : "";
-    const message = post && link.rich ? `My ${post.kind === "general" ? "post" : post.kind}${where} on PinPals` : "On PinPals";
+    const message = post && link.rich ? `My ${POST_KIND_LABELS[post.kind].toLowerCase()}${where} on PinPals` : "On PinPals";
     try {
       // iOS draws `url` as a rich link (the card); Android has no url
       // field, so the link rides in the message.

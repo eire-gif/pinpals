@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { Stack, router, useLocalSearchParams } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
+import { LoadError, StateMessage } from "@/components/state-message";
 import { CommentComposer, CommentList, useCommentThread } from "@/components/comment-thread";
 import { useAuth } from "@/lib/auth";
 import { loadPost, type FeedPost } from "@/lib/feed";
 import { supabase } from "@/lib/supabase";
-import { colors, fonts, spacing, type } from "@/lib/theme";
+import { colors, spacing } from "@/lib/theme";
 import { usePostActions } from "@/lib/use-post-actions";
 
 /**
@@ -35,6 +36,7 @@ export default function CommentsScreen() {
 
   const [post, setPost] = useState<FeedPost | null>(null);
   const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
   const [me, setMe] = useState<{ url: string | null; color: string | null; name: string } | null>(null);
   const scroller = useRef<ScrollView>(null);
 
@@ -42,6 +44,9 @@ export default function CommentsScreen() {
     if (!userId || !Number.isInteger(postId)) return;
     try {
       setPost(await loadPost(userId, postId));
+      setFailed(false);
+    } catch {
+      setFailed(true);
     } finally {
       setLoading(false);
     }
@@ -110,12 +115,22 @@ export default function CommentsScreen() {
       />
       {loading ? (
         <ActivityIndicator style={{ marginTop: spacing.xl }} color={colors.green700} />
+      ) : failed ? (
+        <LoadError
+          what="these comments"
+          size="screen"
+          onRetry={() => {
+            setLoading(true);
+            void load();
+          }}
+        />
       ) : !post ? (
-        <View style={styles.gone}>
-          <Ionicons name="chatbubbles-outline" size={36} color={colors.ink500} />
-          <Text style={styles.goneTitle}>These comments aren&apos;t available</Text>
-          <Text style={styles.goneBody}>The post may have been deleted, or shared only with the author&apos;s connections.</Text>
-        </View>
+        <StateMessage
+          size="screen"
+          icon="chatbubbles-outline"
+          title="These comments aren't available"
+          body="The post may have been deleted, or shared only with the author's connections."
+        />
       ) : (
         <KeyboardAvoidingView
           style={styles.fill}
@@ -140,7 +155,4 @@ export default function CommentsScreen() {
 const styles = StyleSheet.create({
   fill: { flex: 1, backgroundColor: colors.cream50 },
   content: { padding: spacing.md, paddingBottom: spacing.lg },
-  gone: { flex: 1, alignItems: "center", justifyContent: "center", padding: spacing.lg, gap: spacing.sm, backgroundColor: colors.cream50 },
-  goneTitle: { fontFamily: fonts.display, fontSize: type.title, color: colors.ink900, textAlign: "center" },
-  goneBody: { fontFamily: fonts.body, fontSize: type.small, color: colors.ink500, textAlign: "center" },
 });

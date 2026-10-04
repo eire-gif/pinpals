@@ -4,8 +4,10 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { AchievementCard } from "@/components/achievement-card";
 import { coursePhoto } from "@/components/course-photos";
+import { StateMessage } from "@/components/state-message";
 import { achievementOf, ACHIEVEMENT_INFO } from "@/lib/achievements";
 import type { FeedPost } from "@/lib/feed";
+import { POST_KIND_LABELS } from "@/lib/post-details";
 import {
   PROFILE_TABS,
   PROFILE_TAB_LABELS,
@@ -19,7 +21,7 @@ import {
   type ProfileTab,
   type RoundRow,
 } from "@/lib/profile-sections";
-import { colors, fonts, radii, spacing, type } from "@/lib/theme";
+import { colors, fonts, navyAlpha, radii, spacing, type } from "@/lib/theme";
 
 /**
  * The pieces of a member's page (phase 10): identity tiles, the section
@@ -268,19 +270,19 @@ export function HighlightsSection({ posts, width, empty, isMe = false }: { posts
 function HighlightTile({ post, size }: { post: FeedPost; size: number }) {
   const photo = post.photos[0]?.url;
   const achievement = achievementOf({ kind: post.kind, details: post.details, courseName: post.club?.name ?? null });
-  const label = achievement?.achievementTitle ?? (post.kind === "round" ? "Round" : post.kind === "hole" ? "Hole" : post.kind === "shot" ? "Shot" : null);
+  const label = achievement?.achievementTitle ?? POST_KIND_LABELS[post.kind];
   return (
     <Pressable
       onPress={() => openPost(post.id)}
       style={[styles.hTile, { width: size, height: size }]}
       accessibilityRole="imagebutton"
-      accessibilityLabel={`${label ?? "Post"}${post.body ? `: ${post.body.slice(0, 80)}` : ""}. ${post.likeCount} reactions`}
+      accessibilityLabel={`${label}${post.body ? `: ${post.body.slice(0, 80)}` : ""}. ${post.likeCount} reactions`}
     >
       <Image source={photo ? { uri: photo } : coursePhoto(post.club?.id ?? null, post.club?.name ?? null)} style={styles.hImage} />
       {!photo ? (
         <View style={styles.hVeil}>
           <Text style={styles.hText} numberOfLines={3}>
-            {post.body || post.club?.name || label || ""}
+            {post.body || post.club?.name || label}
           </Text>
         </View>
       ) : null}
@@ -344,17 +346,7 @@ function Empty({
   text: string;
   action?: { label: string; onPress: () => void };
 }) {
-  return (
-    <View style={styles.empty}>
-      <Ionicons name={icon} size={28} color={colors.ink500} />
-      <Text style={styles.emptyText}>{text}</Text>
-      {action ? (
-        <Pressable onPress={action.onPress} style={styles.emptyButton} accessibilityRole="button">
-          <Text style={styles.emptyButtonText}>{action.label}</Text>
-        </Pressable>
-      ) : null}
-    </View>
-  );
+  return <StateMessage icon={icon} body={text} action={action} />;
 }
 
 const styles = StyleSheet.create({
@@ -451,7 +443,7 @@ const styles = StyleSheet.create({
 
   hTile: { borderRadius: radii.sm, overflow: "hidden", backgroundColor: colors.navy900 },
   hImage: { width: "100%", height: "100%" },
-  hVeil: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(12,32,56,0.6)", padding: 8, justifyContent: "center" },
+  hVeil: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: navyAlpha(0.6), padding: 8, justifyContent: "center" },
   hText: { fontFamily: fonts.bodySemi, fontSize: 12.5, lineHeight: 16, color: colors.cream50 },
   hMedal: {
     position: "absolute",
@@ -471,7 +463,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 3,
-    backgroundColor: "rgba(12,32,56,0.65)",
+    backgroundColor: navyAlpha(0.65),
     borderRadius: radii.pill,
     paddingHorizontal: 6,
     paddingVertical: 2,
@@ -493,8 +485,4 @@ const styles = StyleSheet.create({
   tallyText: { fontFamily: fonts.bodySemi, fontSize: 13, color: colors.cream50 },
   tallyCount: { fontFamily: fonts.bodySemi, fontSize: 13, color: colors.gold400 },
 
-  empty: { alignItems: "center", gap: spacing.sm, paddingVertical: spacing.xl, paddingHorizontal: spacing.lg },
-  emptyText: { fontFamily: fonts.body, fontSize: type.small, lineHeight: 20, color: colors.ink500, textAlign: "center" },
-  emptyButton: { marginTop: spacing.xs, borderRadius: radii.pill, borderWidth: 1.5, borderColor: colors.green700, paddingHorizontal: spacing.md, minHeight: 40, justifyContent: "center" },
-  emptyButtonText: { fontFamily: fonts.bodyBold, fontSize: type.small, color: colors.green700 },
 });

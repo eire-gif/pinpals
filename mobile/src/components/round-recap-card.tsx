@@ -3,7 +3,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 
 import type { RoundDetails } from "@/lib/post-details";
 import { bestHoleLine, recapStats } from "@/lib/round-recap";
-import { colors, fonts, radii, spacing } from "@/lib/theme";
+import { colors, creamAlpha, fonts, navyAlpha, radii, spacing } from "@/lib/theme";
 
 /**
  * The Round Recap card (phase 7) — the mockup's "Share Your Round" panel.
@@ -108,11 +108,11 @@ const styles = StyleSheet.create({
   heroImage: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, width: "100%", height: "100%" },
   // A flat navy veil rather than a gradient: a real gradient is a native
   // module (expo-linear-gradient), and this card ships over the air.
-  heroShade: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(12,32,56,0.48)" },
+  heroShade: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: navyAlpha(0.48) },
   heroText: { padding: spacing.md - 2 },
   kicker: { fontFamily: fonts.bodySemi, fontSize: 11, letterSpacing: 1.6, color: colors.gold400 },
   course: { fontFamily: fonts.display, fontSize: 22, color: colors.cream50, marginTop: 2 },
-  subtitle: { fontFamily: fonts.body, fontSize: 13, color: "rgba(247,243,234,0.88)", marginTop: 2 },
+  subtitle: { fontFamily: fonts.body, fontSize: 13, color: creamAlpha(0.88), marginTop: 2 },
 
   body: { padding: spacing.md - 2, gap: spacing.sm + 2 },
   scoreRow: { flexDirection: "row", gap: spacing.sm },

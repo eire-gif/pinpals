@@ -559,7 +559,7 @@ export async function loadMemberPosts(
   if (error) {
     // Before 0095 there is no details column to filter on: the section is
     // empty rather than broken. The plain list still has to load.
-    if (filter === "achievements") return { posts: [], cursor: null };
+    if (filter === "achievements" && error.code === "42703") return { posts: [], cursor: null };
     throw new Error("Couldn't load posts. Pull down to try again.");
   }
   const rows = (data ?? []) as PostRow[];
@@ -572,9 +572,11 @@ export async function loadMemberPosts(
 /** One post with all its comments. Null for "gone" and "not yours to see"
  *  alike — the two are deliberately indistinguishable. */
 export async function loadPost(viewerId: string, postId: number): Promise<FeedPost | null> {
-  const { data } = await selectPosts<PostRow>((select) =>
+  const { data, error } = await selectPosts<PostRow>((select) =>
     supabase.from("posts").select(select).eq("id", postId).maybeSingle<PostRow>()
   );
+  // A failed request is not "gone": screens show Try again, not "deleted".
+  if (error) throw new Error("Couldn't load that post. Please try again.");
   if (!data) return null;
   const [post] = await hydrate(viewerId, [data], 0);
   const { data: comments } = await selectComments<CommentRow[]>((select) =>

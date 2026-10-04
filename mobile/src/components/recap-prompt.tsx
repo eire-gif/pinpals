@@ -8,6 +8,7 @@ import type { ConfirmedRound } from "@/lib/rounds";
 import { playedWhen, withWhom } from "@/lib/round-recap";
 import { todayIso } from "@/lib/tee-times";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
+import { isOn } from "@/lib/features";
 
 /**
  * "How did it go?" — the offer to share a round you've played (phase 7).
@@ -17,6 +18,11 @@ import { colors, fonts, radii, spacing, type } from "@/lib/theme";
  * Renders nothing when there's nothing to offer.
  */
 export function RecapPrompt({ userId, style }: { userId: string | null; style?: StyleProp<ViewStyle> }) {
+  // Kill switch: no offers, no queries.
+  return isOn("recapPrompts") ? <RecapPromptInner userId={userId} style={style} /> : null;
+}
+
+function RecapPromptInner({ userId, style }: { userId: string | null; style?: StyleProp<ViewStyle> }) {
   const [round, setRound] = useState<ConfirmedRound | null>(null);
 
   // On focus, so coming back from posting the recap takes the offer away.

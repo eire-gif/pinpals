@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { StyleSheet, Text, TextInput, View, type KeyboardTypeOptions } from "react-native";
 
 import { Chip, ChipGroup } from "@/components/form-bits";
+import { isOn } from "@/lib/features";
 import { recentDays } from "@/lib/feed-rules";
 import { ACHIEVEMENT_INFO } from "@/lib/achievements";
 import { LIES, LIE_LABELS, LIMITS, TEES, type PostKind } from "@/lib/post-details";
@@ -43,7 +44,7 @@ export function PostDetailsForm({
 
   // Phase 8: once the numbers support an achievement, offer to mark it.
   // Never pre-selected — a 78 is only "Broke 80" if the member says so.
-  const claimable = claimableAchievements(kind, draft);
+  const claimable = isOn("achievementClaims") ? claimableAchievements(kind, draft) : [];
   const achievementGroup =
     claimable.length > 0 ? (
       <Group title="An achievement?" hint="Optional — makes it a highlight post.">

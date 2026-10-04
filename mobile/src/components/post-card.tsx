@@ -28,7 +28,7 @@ import { POST_VISIBILITY_SHORT, ago, handicapLabel, photoHeight, previewComments
 import { mentionSegments } from "@/lib/mentions";
 import { detailChips } from "@/lib/post-details";
 import { REACTION_INFO, topReactions, type ReactionKey } from "@/lib/reactions";
-import { colors, fonts, radii, spacing, type } from "@/lib/theme";
+import { colors, creamAlpha, fonts, navyAlpha, radii, spacing, type } from "@/lib/theme";
 
 const LONG_POST = 280;
 /** A caption with no photo is the post, so it is set larger. */
@@ -783,7 +783,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 5,
   },
-  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "rgba(247,243,234,0.55)" },
+  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: creamAlpha(0.55) },
   dotActive: { backgroundColor: colors.cream50, width: 16 },
 
   // 4. Golf
@@ -852,7 +852,7 @@ const styles = StyleSheet.create({
   replyLink: { fontFamily: fonts.bodySemi, fontSize: 12, color: colors.ink500, paddingVertical: 2 },
   foot: { height: spacing.md - 4 },
 
-  viewer: { flex: 1, backgroundColor: "rgba(12,32,56,0.97)" },
+  viewer: { flex: 1, backgroundColor: navyAlpha(0.97) },
   viewerClose: { position: "absolute", top: 56, right: spacing.md, padding: spacing.xs },
   viewerCount: {
     position: "absolute",

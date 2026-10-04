@@ -2,7 +2,7 @@ import { Image, Pressable, StyleSheet, Text, View, type ImageSourcePropType } fr
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import type { Achievement } from "@/lib/achievements";
-import { colors, fonts, radii, spacing } from "@/lib/theme";
+import { colors, creamAlpha, fonts, navyAlpha, radii, spacing } from "@/lib/theme";
 
 /**
  * An achievement, presented (Oct 2026 feed redesign, phase 8) — the
@@ -110,16 +110,14 @@ export function AchievementCard({
   );
 }
 
-const CREAM = "rgba(247,243,234,";
-
 const styles = StyleSheet.create({
   card: { borderRadius: radii.md, overflow: "hidden", backgroundColor: colors.navy900, justifyContent: "center" },
   photo: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, width: "100%", height: "100%" },
   // Two flat veils rather than a gradient (a gradient is a native module and
   // this ships over the air): an even navy, and more of it at the bottom
   // where the tiles sit.
-  veil: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(12,32,56,0.62)" },
-  veilBottom: { position: "absolute", left: 0, right: 0, bottom: 0, height: "38%", backgroundColor: "rgba(12,32,56,0.28)" },
+  veil: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: navyAlpha(0.62) },
+  veilBottom: { position: "absolute", left: 0, right: 0, bottom: 0, height: "38%", backgroundColor: navyAlpha(0.28) },
   content: { alignItems: "center", paddingHorizontal: spacing.md, paddingVertical: spacing.lg },
   medal: {
     width: 44,
@@ -127,7 +125,7 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     backgroundColor: colors.gold400,
     borderWidth: 3,
-    borderColor: `${CREAM}0.9)`,
+    borderColor: creamAlpha(0.9),
     alignItems: "center",
     justifyContent: "center",
     marginBottom: spacing.sm + 2,
@@ -138,7 +136,7 @@ const styles = StyleSheet.create({
   heroLong: { fontSize: 46, lineHeight: 54 },
   heroSide: { fontFamily: fonts.display, fontSize: 26, color: colors.gold400, marginBottom: 10 },
   meta: { fontFamily: fonts.bodySemi, fontSize: 14, color: colors.cream50, textAlign: "center", marginTop: 2 },
-  tagline: { fontFamily: fonts.body, fontSize: 13, color: `${CREAM}0.8)`, marginTop: 4, textAlign: "center" },
+  tagline: { fontFamily: fonts.body, fontSize: 13, color: creamAlpha(0.8), marginTop: 4, textAlign: "center" },
   stats: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.md, alignSelf: "stretch", justifyContent: "center" },
   stat: {
     flex: 1,
@@ -146,9 +144,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: spacing.sm,
     borderRadius: radii.md,
-    backgroundColor: `${CREAM}0.12)`,
+    backgroundColor: creamAlpha(0.12),
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: `${CREAM}0.35)`,
+    borderColor: creamAlpha(0.35),
   },
   statValue: { fontFamily: fonts.display, fontSize: 22, color: colors.cream50 },
   statLabel: { fontFamily: fonts.bodySemi, fontSize: 10, letterSpacing: 1.2, color: colors.gold400, marginTop: 2 },
@@ -159,7 +157,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    backgroundColor: "rgba(12,32,56,0.7)",
+    backgroundColor: navyAlpha(0.7),
     borderRadius: radii.pill,
     paddingHorizontal: 8,
     paddingVertical: 3,
