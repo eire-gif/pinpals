@@ -16,7 +16,7 @@ import { Stack, router, useLocalSearchParams } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { Avatar } from "@/components/avatar";
-import { PostCard } from "@/components/post-card";
+import { PostCard, postCardWidth } from "@/components/post-card";
 import { useAuth } from "@/lib/auth";
 import { loadMemberPosts, loadMemberProfile, type FeedPost, type MemberProfile } from "@/lib/feed";
 import { blockConfirmText, blockMember, unblockMember } from "@/lib/blocking";
@@ -367,7 +367,7 @@ export default function MemberScreen() {
           <PostCard
             post={item}
             currentMemberId={id}
-            width={width - spacing.md * 2 - 2}
+            width={postCardWidth(width)}
             onLike={actions.like}
             onMenu={actions.menu}
             onComment={(p) => router.push({ pathname: "/post/[id]", params: { id: String(p.id), focus: "comment" } })}

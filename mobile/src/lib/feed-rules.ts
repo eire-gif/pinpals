@@ -98,6 +98,15 @@ export function ago(iso: string, now: Date = new Date()): string {
   return then.getFullYear() === now.getFullYear() ? date : `${date} ${then.getFullYear()}`;
 }
 
+/** "HCP 12.4"; "HCP +1.2" for a plus handicap, which profiles store as a
+ *  negative index (profile-update.ts allows -10 to 54); whole numbers
+ *  without the ".0". Shown on a post only when the member shares it. */
+export function handicapLabel(handicap: number): string {
+  const index = Math.abs(handicap);
+  const figure = Number.isInteger(index) ? index.toFixed(0) : index.toFixed(1);
+  return handicap < 0 ? `HCP +${figure}` : `HCP ${figure}`;
+}
+
 /** Height for a single photo shown at `width`, kept between 4:5 portrait
  *  and 16:9 landscape so one tall photo cannot fill the whole screen. */
 export function photoHeight(width: number, photo: { width: number | null; height: number | null }): number {

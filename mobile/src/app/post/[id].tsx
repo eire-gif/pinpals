@@ -15,7 +15,7 @@ import {
 import { Stack, router, useLocalSearchParams } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
-import { PostCard } from "@/components/post-card";
+import { PostCard, postCardWidth } from "@/components/post-card";
 import { useAuth } from "@/lib/auth";
 import { addComment, loadPost, type FeedPost } from "@/lib/feed";
 import { MAX_COMMENT_BODY } from "@/lib/feed-rules";
@@ -125,7 +125,7 @@ export default function PostScreen() {
           <ScrollView ref={scroller} style={styles.fill} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
             <PostCard
               post={post}
-              width={width - spacing.md * 2 - 2}
+              width={postCardWidth(width)}
               standalone
               onLike={actions.like}
               onMenu={actions.menu}

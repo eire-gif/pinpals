@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Animated,
   FlatList,
   Image,
   Pressable,
@@ -14,7 +15,7 @@ import { router, useFocusEffect } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { Avatar } from "@/components/avatar";
-import { PostCard } from "@/components/post-card";
+import { PostCard, postCardWidth } from "@/components/post-card";
 import { ScreenHeader, useCollapsingHeader } from "@/components/screen-header";
 import { useAuth } from "@/lib/auth";
 import { loadFeed, type FeedEntry, type FeedPost } from "@/lib/feed";
@@ -42,7 +43,7 @@ export default function FeedScreen() {
   const { session } = useAuth();
   const userId = session?.user?.id ?? null;
   const { width } = useWindowDimensions();
-  const cardWidth = width - spacing.md * 2 - 2;
+  const cardWidth = postCardWidth(width);
 
   const [scope, setScope] = useState<FeedScope>("all");
   const [entries, setEntries] = useState<FeedEntry[]>([]);
@@ -169,26 +170,35 @@ export default function FeedScreen() {
         accessibilityRole="button"
         accessibilityLabel="Share a post"
       >
-        <Avatar url={me?.avatarUrl} color={me?.avatarColor} name={me?.name} size={38} />
-        <Text style={styles.composePrompt}>How did the round go?</Text>
-        <Ionicons name="images-outline" size={22} color={colors.green700} />
+        <Avatar url={me?.avatarUrl} color={me?.avatarColor} name={me?.name} size={40} />
+        <View style={styles.composeText}>
+          <Text style={styles.composeTitle}>How did the round go?</Text>
+          <Text style={styles.composePrompt} numberOfLines={1}>
+            Share the view, the card, the fourball
+          </Text>
+        </View>
+        <View style={styles.composeCamera}>
+          <Ionicons name="camera-outline" size={20} color={colors.cream50} />
+        </View>
       </Pressable>
 
-      <View style={styles.scopes} accessibilityRole="tablist">
-        {FEED_SCOPES.map((s) => {
-          const active = s === scope;
-          return (
-            <Pressable
-              key={s}
-              onPress={() => setScope(s)}
-              style={[styles.chip, active && styles.chipActive]}
-              accessibilityRole="tab"
-              accessibilityState={{ selected: active }}
-            >
-              <Text style={[styles.chipLabel, active && styles.chipLabelActive]}>{FEED_SCOPE_LABELS[s]}</Text>
-            </Pressable>
-          );
-        })}
+      <View style={styles.scopes}>
+        <View style={styles.segment} accessibilityRole="tablist">
+          {FEED_SCOPES.map((s) => {
+            const active = s === scope;
+            return (
+              <Pressable
+                key={s}
+                onPress={() => setScope(s)}
+                style={[styles.segmentItem, active && styles.segmentItemActive]}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: active }}
+              >
+                <Text style={[styles.segmentLabel, active && styles.segmentLabelActive]}>{FEED_SCOPE_LABELS[s]}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
         {userId && (
           <Pressable
             onPress={() => router.push({ pathname: "/member/[id]", params: { id: userId } })}
@@ -207,7 +217,12 @@ export default function FeedScreen() {
       <ScreenHeader scene="oldHead" title="Feed" subtitle="Rounds and photos from PinPals members" scrollY={scrollY} />
 
       {loading ? (
-        <ActivityIndicator style={styles.spinner} color={colors.green700} />
+        <View style={styles.list}>
+          {header}
+          <SkeletonCard />
+          <View style={{ height: spacing.md }} />
+          <SkeletonCard />
+        </View>
       ) : (
         <FlatList
           {...scrollProps}
@@ -267,7 +282,10 @@ export default function FeedScreen() {
                 accessibilityRole="link"
                 accessibilityLabel={`New in the marketplace: ${item.item.title}`}
               >
-                <Text style={styles.listingKicker}>NEW IN THE MARKETPLACE</Text>
+                <View style={styles.listingKickerRow}>
+                  <Ionicons name="pricetag" size={11} color={colors.gold500} />
+                  <Text style={styles.listingKicker}>NEW IN THE MARKETPLACE</Text>
+                </View>
                 <View style={styles.listingRow}>
                   {item.item.imageUrl ? (
                     <Image source={{ uri: item.item.imageUrl }} style={styles.listingImage} />
@@ -294,6 +312,45 @@ export default function FeedScreen() {
   );
 }
 
+/**
+ * The shape of a post while the first page loads: a face, two lines, a
+ * photograph and an action bar, gently pulsing. Better than a spinner on a
+ * blank cream page — the member sees where things will land, and the list
+ * appears into the space it already had.
+ */
+function SkeletonCard() {
+  const pulse = useRef(new Animated.Value(0.55)).current;
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 1, duration: 700, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 0.55, duration: 700, useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [pulse]);
+  return (
+    <Animated.View
+      style={[styles.skeleton, { opacity: pulse }]}
+      accessible
+      accessibilityLabel="Loading posts"
+      accessibilityRole="progressbar"
+    >
+      <View style={styles.skeletonHeader}>
+        <View style={styles.skeletonAvatar} />
+        <View style={{ flex: 1, gap: 6 }}>
+          <View style={[styles.skeletonLine, { width: "45%" }]} />
+          <View style={[styles.skeletonLine, { width: "30%", height: 9 }]} />
+        </View>
+      </View>
+      <View style={styles.skeletonPhoto} />
+      <View style={[styles.skeletonLine, { width: "70%", marginHorizontal: spacing.md, marginTop: spacing.md }]} />
+      <View style={[styles.skeletonLine, { width: "40%", marginHorizontal: spacing.md, marginVertical: spacing.sm }]} />
+    </Animated.View>
+  );
+}
+
 function Empty({ title, body, cta, onPress }: { title: string; body: string; cta: string; onPress: () => void }) {
   return (
     <View style={styles.empty}>
@@ -306,43 +363,73 @@ function Empty({ title, body, cta, onPress }: { title: string; body: string; cta
   );
 }
 
+/** The same lift the post card uses, so everything in the list sits on the
+ *  cream at one height. */
+const lift = {
+  shadowColor: colors.navy900,
+  shadowOpacity: 0.07,
+  shadowRadius: 14,
+  shadowOffset: { width: 0, height: 4 },
+  elevation: 2,
+} as const;
+
 const styles = StyleSheet.create({
   fill: { flex: 1, backgroundColor: colors.cream50 },
-  spinner: { marginTop: spacing.xl },
   list: { padding: spacing.md, paddingBottom: spacing.xl * 2 },
   compose: {
     flexDirection: "row",
     alignItems: "center",
-    gap: spacing.sm + 2,
+    gap: spacing.sm + 4,
     backgroundColor: colors.surface,
     borderRadius: radii.lg,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.line,
-    padding: spacing.sm + 4,
-  },
-  composePrompt: { flex: 1, fontFamily: fonts.body, fontSize: type.body, color: colors.ink500 },
-  scopes: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginVertical: spacing.md },
-  chip: {
+    paddingVertical: spacing.sm + 4,
     paddingHorizontal: spacing.md - 2,
-    paddingVertical: spacing.sm,
-    borderRadius: radii.pill,
-    borderWidth: 1.5,
-    borderColor: colors.line,
-    backgroundColor: colors.surface,
+    ...lift,
   },
-  chipActive: { backgroundColor: colors.navy900, borderColor: colors.navy900 },
-  chipLabel: { fontFamily: fonts.bodyBold, fontSize: 13.5, color: colors.ink900 },
-  chipLabelActive: { color: colors.cream50 },
+  composeText: { flex: 1, minWidth: 0 },
+  composeTitle: { fontFamily: fonts.display, fontSize: 17, color: colors.ink900 },
+  composePrompt: { fontFamily: fonts.body, fontSize: 13, color: colors.ink500, marginTop: 1 },
+  composeCamera: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: colors.green700,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  scopes: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginTop: spacing.md, marginBottom: spacing.md },
+  // A segmented control rather than two loose chips: it is one choice
+  // between two views of the same list, and should look like one.
+  segment: {
+    flexDirection: "row",
+    backgroundColor: colors.cream100,
+    borderRadius: radii.pill,
+    padding: 3,
+  },
+  segmentItem: {
+    paddingHorizontal: spacing.md - 2,
+    paddingVertical: spacing.sm - 1,
+    borderRadius: radii.pill,
+    minHeight: 34,
+    justifyContent: "center",
+  },
+  segmentItemActive: { backgroundColor: colors.navy900 },
+  segmentLabel: { fontFamily: fonts.bodySemi, fontSize: 13.5, color: colors.ink500 },
+  segmentLabelActive: { color: colors.cream50 },
   myPosts: { marginLeft: "auto", paddingVertical: spacing.sm, paddingHorizontal: spacing.xs },
   myPostsLabel: { fontFamily: fonts.bodyBold, fontSize: 13.5, color: colors.green700 },
   listing: {
-    backgroundColor: colors.surfaceTint,
+    backgroundColor: colors.surface,
     borderRadius: radii.lg,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.line,
     padding: spacing.sm + 4,
+    ...lift,
   },
-  listingKicker: { fontFamily: fonts.bodyBold, fontSize: 10.5, letterSpacing: 1.4, color: colors.gold500, marginBottom: spacing.sm },
+  listingKickerRow: { flexDirection: "row", alignItems: "center", gap: 5, marginBottom: spacing.sm },
+  listingKicker: { fontFamily: fonts.bodyBold, fontSize: 10.5, letterSpacing: 1.4, color: colors.gold500 },
   listingRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm + 4 },
   listingImage: { width: 76, height: 76, borderRadius: radii.md, backgroundColor: colors.cream100 },
   listingImageEmpty: { alignItems: "center", justifyContent: "center" },
@@ -351,10 +438,21 @@ const styles = StyleSheet.create({
   listingPrice: { fontFamily: fonts.display, fontSize: 17, color: colors.green700, marginTop: 2 },
   listingMeta: { fontFamily: fonts.body, fontSize: 12.5, color: colors.ink500, marginTop: 2 },
   error: { fontFamily: fonts.body, fontSize: type.small, color: colors.red600, textAlign: "center", marginTop: spacing.lg },
+  skeleton: {
+    backgroundColor: colors.surface,
+    borderRadius: radii.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.line,
+    paddingBottom: spacing.sm,
+  },
+  skeletonHeader: { flexDirection: "row", alignItems: "center", gap: spacing.sm + 4, padding: spacing.md },
+  skeletonAvatar: { width: 46, height: 46, borderRadius: 23, backgroundColor: colors.cream100 },
+  skeletonLine: { height: 11, borderRadius: 6, backgroundColor: colors.cream100 },
+  skeletonPhoto: { height: 220, backgroundColor: colors.cream100 },
   empty: {
     backgroundColor: colors.surface,
     borderRadius: radii.lg,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.line,
     padding: spacing.lg,
     alignItems: "center",

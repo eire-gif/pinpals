@@ -6,6 +6,7 @@ import {
   postToSite,
   type UploadFile,
 } from "./api";
+import { placeLabel } from "./courses";
 import { searchListings, EMPTY_FILTERS, type Card } from "./marketplace";
 import { supabase } from "./supabase";
 import {
@@ -44,7 +45,13 @@ export type FeedAuthor = {
   avatarUrl: string | null;
   avatarColor: string | null;
   homeClub: string | null;
+  /** Null unless the member chose to show it (handicap_visible) — decided
+   *  once, here, so no screen can forget. */
+  handicap: number | null;
 };
+
+/** Where the post was played. `place` is placeLabel() — "Donabate · Ireland". */
+export type FeedClub = { id: number; name: string; place: string | null; ratingAvg: number | null; ratingCount: number };
 
 export type FeedPhoto = { path: string; url: string | null; width: number | null; height: number | null };
 
@@ -70,7 +77,7 @@ export type FeedPost = {
   author: FeedAuthor;
   body: string;
   visibility: PostVisibility;
-  club: { id: number; name: string } | null;
+  club: FeedClub | null;
   photos: FeedPhoto[];
   likeCount: number;
   commentCount: number;
@@ -96,6 +103,19 @@ type ProfileEmbed = {
   avatar_url: string | null;
   avatar_color: string | null;
   home_club: string | null;
+  handicap: number | null;
+  handicap_visible: boolean | null;
+};
+
+type ClubEmbed = {
+  id: number;
+  name: string;
+  slug: string | null;
+  country: string | null;
+  region: string | null;
+  town: string | null;
+  rating_avg: number | null;
+  rating_count: number | null;
 };
 
 type PostRow = {
@@ -108,7 +128,7 @@ type PostRow = {
   hidden_at: string | null;
   created_at: string;
   author: ProfileEmbed | null;
-  club: { id: number; name: string } | null;
+  club: ClubEmbed | null;
   post_images: { path: string; position: number; width: number | null; height: number | null }[];
 };
 
@@ -124,17 +144,21 @@ type CommentRow = {
 };
 
 // posts has two foreign keys to profiles (author_id, hidden_by), so the
-// embed has to name one. Same strings as src/lib/feed-server.ts.
+// embed has to name one. Started as the same strings as
+// src/lib/feed-server.ts; the app now also reads the handicap pair and the
+// club's place and rating for the card header (Oct 2026 feed polish). Every
+// one of those columns is already readable by signed-in members — the
+// member page and the Courses tab read them directly.
 const POST_SELECT = `
   id, author_id, body, visibility, like_count, comment_count, hidden_at, created_at,
-  author:profiles!posts_author_id_fkey ( id, first_name, last_name, avatar_url, avatar_color, home_club ),
-  club:clubs ( id, name ),
+  author:profiles!posts_author_id_fkey ( id, first_name, last_name, avatar_url, avatar_color, home_club, handicap, handicap_visible ),
+  club:clubs ( id, name, slug, country, region, town, rating_avg, rating_count ),
   post_images ( path, position, width, height )
 `;
 
 const COMMENT_SELECT = `
   id, post_id, author_id, body, hidden_at, created_at, parent_id,
-  author:profiles!post_comments_author_id_fkey ( id, first_name, last_name, avatar_url, avatar_color, home_club )
+  author:profiles!post_comments_author_id_fkey ( id, first_name, last_name, avatar_url, avatar_color, home_club, handicap, handicap_visible )
 `;
 
 const toAuthor = (row: ProfileEmbed | null, fallbackId: string): FeedAuthor =>
@@ -145,8 +169,32 @@ const toAuthor = (row: ProfileEmbed | null, fallbackId: string): FeedAuthor =>
         avatarUrl: row.avatar_url,
         avatarColor: row.avatar_color,
         homeClub: row.home_club,
+        handicap: row.handicap_visible && row.handicap !== null ? Number(row.handicap) : null,
       }
-    : { id: fallbackId, name: "A member", avatarUrl: null, avatarColor: null, homeClub: null };
+    : { id: fallbackId, name: "A member", avatarUrl: null, avatarColor: null, homeClub: null, handicap: null };
+
+const toClub = (row: ClubEmbed | null): FeedClub | null => {
+  if (!row) return null;
+  const place = row.country
+    ? placeLabel({
+        id: row.id,
+        name: row.name,
+        slug: row.slug ?? "",
+        country: row.country,
+        region: row.region,
+        town: row.town,
+        latitude: null,
+        longitude: null,
+      })
+    : null;
+  return {
+    id: row.id,
+    name: row.name,
+    place: place || null,
+    ratingAvg: row.rating_avg === null ? null : Number(row.rating_avg),
+    ratingCount: row.rating_count ?? 0,
+  };
+};
 
 const toComment = (row: CommentRow, viewerId: string, postAuthorId: string | null): FeedComment => ({
   id: row.id,
@@ -232,7 +280,7 @@ async function hydrate(viewerId: string, rows: PostRow[], commentsPerPost: numbe
     author: toAuthor(row.author, row.author_id),
     body: row.body,
     visibility: row.visibility,
-    club: row.club,
+    club: toClub(row.club),
     photos: [...row.post_images]
       .sort((a, b) => a.position - b.position)
       .map((img) => ({ path: img.path, url: urls.get(img.path) ?? null, width: img.width, height: img.height })),

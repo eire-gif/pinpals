@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ago, commentLine, draftProblem, interleave, likeLine, photoHeight, threadComments } from "./feed-rules";
+import { ago, commentLine, draftProblem, handicapLabel, interleave, likeLine, photoHeight, threadComments } from "./feed-rules";
 
 describe("draftProblem", () => {
   it("needs a photo or some words", () => {
@@ -73,5 +73,19 @@ describe("threadComments", () => {
 
   it("shows a reply without its parent as a comment of its own", () => {
     expect(threadComments([c(7, 99, "2026-10-03T10:00:00Z")])[0].depth).toBe(0);
+  });
+});
+
+describe("handicapLabel", () => {
+  it("shows an index to one decimal, and whole numbers without one", () => {
+    expect(handicapLabel(12.4)).toBe("HCP 12.4");
+    expect(handicapLabel(18)).toBe("HCP 18");
+    expect(handicapLabel(0)).toBe("HCP 0");
+    expect(handicapLabel(54)).toBe("HCP 54");
+  });
+
+  it("shows a plus handicap (stored negative) with a plus sign", () => {
+    expect(handicapLabel(-1.2)).toBe("HCP +1.2");
+    expect(handicapLabel(-3)).toBe("HCP +3");
   });
 });
