@@ -11,6 +11,25 @@ export async function GET(request: NextRequest) {
   const tokenHash = searchParams.get("token_hash");
   const type = searchParams.get("type");
   const next = searchParams.get("next");
+  const code = searchParams.get("code");
+  // Only allow same-site relative redirects from `next` (guards against an
+  // open-redirect via a tampered link).
+  const destination = next && next.startsWith("/") ? next : "/profile/edit?welcome=1";
+
+  // Supabase's DEFAULT confirmation email links through Supabase's own
+  // verify endpoint, which confirms the address and then lands here with a
+  // PKCE `code` rather than a token_hash. Without this branch those members
+  // were confirmed but sent to /login with an error. The branded templates
+  // (supabase/templates/) use token_hash below; this keeps any default-
+  // template email already in someone's inbox working too.
+  if (code && !tokenHash) {
+    const supabase = await createClient();
+    const { error } = await supabase.auth.exchangeCodeForSession(code);
+    if (!error) return NextResponse.redirect(`${origin}${destination}`);
+    // The code is tied to the browser that signed up. Opened elsewhere, the
+    // address is still confirmed: say so, rather than "something went wrong".
+    return NextResponse.redirect(`${origin}/login?confirmed=1`);
+  }
 
   if (tokenHash && type) {
     const supabase = await createClient();
@@ -19,13 +38,7 @@ export async function GET(request: NextRequest) {
       token_hash: tokenHash,
     });
 
-    if (!error) {
-      // Only allow same-site relative redirects from `next` (guards against an
-      // open-redirect via a tampered link).
-      const destination =
-        next && next.startsWith("/") ? next : "/profile/edit?welcome=1";
-      return NextResponse.redirect(`${origin}${destination}`);
-    }
+    if (!error) return NextResponse.redirect(`${origin}${destination}`);
   }
 
   // Send recovery failures back to the reset request page, everything else to login.
