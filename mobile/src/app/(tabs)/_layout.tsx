@@ -174,6 +174,33 @@ export default function TabsLayout() {
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="pricetags-outline" size={size} color={color} />
           ),
+          // Selling is half of what this tab is for, so "List an item" sits
+          // where Post a tee time sits on Tee Times. The marketplace orange,
+          // with an ink-900 plus: white on that orange is 1.99:1.
+          headerRight: () => (
+            <Pressable
+              onPress={() => router.push("/new-listing")}
+              hitSlop={12}
+              style={{ marginRight: spacing.md }}
+              accessibilityRole="button"
+              accessibilityLabel="List an item for sale"
+            >
+              <View
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: 20,
+                  backgroundColor: colors.buy500,
+                  borderWidth: 1.5,
+                  borderColor: colors.buy700,
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Ionicons name="add" size={26} color={colors.ink900} />
+              </View>
+            </Pressable>
+          ),
         }}
       />
       <Tabs.Screen

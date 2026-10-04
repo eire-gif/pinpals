@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  FlatList,
+  Alert,
   Pressable,
+  SectionList,
   RefreshControl,
   StyleSheet,
   Text,
@@ -17,9 +18,12 @@ import { Avatar } from "@/components/avatar";
 import { appRouteFor } from "@/lib/alert-routes";
 import { useAuth } from "@/lib/auth";
 import {
+  DAY_BUCKET_LABELS,
   INBOX_FILTERS,
   INBOX_FILTER_LABELS,
-  alertIcon,
+  alertLook,
+  dayBucket,
+  type DayBucket,
   deleteAlert,
   inboxTotal,
   isUnread,
@@ -37,7 +41,9 @@ import {
   type InboxMessageHit,
   type InboxRowItem,
 } from "@/lib/inbox";
+import { ApiError } from "@/lib/api";
 import { hideConversation, inboxTime } from "@/lib/messages";
+import { confirmPlace, respondToRequest } from "@/lib/tee-time-interest";
 import { subscribeToInbox } from "@/lib/realtime";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 
@@ -278,6 +284,43 @@ export default function InboxScreen() {
     }
   }
 
+  /**
+   * Sections, not one long list.
+   *
+   * Under Messages, threads group the way a messaging app groups them: group
+   * chats first (they are the busiest and the easiest to lose), then this
+   * week's conversations, then older ones. Everywhere else rows group by day —
+   * Today, Yesterday, This week, Earlier — because an alert is about when
+   * something happened. A search drops the grouping entirely: results are
+   * ranked answers, and splitting them by date makes the right one harder
+   * to spot.
+   */
+  const sections = useMemo<InboxSection[]>(() => {
+    if (searchingNow) return visible.length ? [{ key: "results", title: "", data: visible, fresh: 0 }] : [];
+
+    if (filter === "messages") {
+      const convs = visible.filter((r): r is InboxConversation => r.kind === "conversation");
+      const groups = convs.filter((c) => c.conversationKind === "group");
+      const direct = convs.filter((c) => c.conversationKind !== "group");
+      const recent = direct.filter((c) => dayBucket(c.at) !== "earlier");
+      const older = direct.filter((c) => dayBucket(c.at) === "earlier");
+      const out: InboxSection[] = [];
+      if (groups.length) out.push({ key: "groups", title: "Group chats", data: groups, fresh: groups.filter(isUnread).length });
+      if (recent.length) out.push({ key: "recent", title: "Recent conversations", data: recent, fresh: recent.filter(isUnread).length });
+      if (older.length) out.push({ key: "older", title: "Older conversations", data: older, fresh: older.filter(isUnread).length });
+      return out;
+    }
+
+    const order: DayBucket[] = ["today", "yesterday", "week", "earlier"];
+    return order
+      .map((bucket) => {
+        const data = visible.filter((r) => dayBucket(r.at) === bucket);
+        const fresh = data.filter((r) => r.kind !== "message" && isUnread(r)).length;
+        return { key: bucket, title: DAY_BUCKET_LABELS[bucket], data, fresh };
+      })
+      .filter((section) => section.data.length > 0);
+  }, [visible, filter, searchingNow]);
+
   if (loading) {
     return (
       <View style={[styles.fill, styles.centre]}>
@@ -288,12 +331,12 @@ export default function InboxScreen() {
 
   return (
     <View style={styles.fill}>
-      {/* Above the chips, not among them. Searching is a different kind of
-          act from filtering — one narrows by what a row IS, the other by
-          what it says — and a field wedged into a row of pills reads as a
-          fourth pill. */}
+      {/* Above the chips, not among them. Searching narrows by what a row
+          SAYS, the chips by what it IS; a field wedged into a row of pills
+          reads as a fourth pill. Bigger than before, because it is the
+          quickest way to anything in here. */}
       <View style={styles.searchWrap}>
-        <Ionicons name="search" size={17} color={colors.ink500} />
+        <Ionicons name="search" size={20} color={colors.ink500} />
         <TextInput
           style={styles.search}
           value={query}
@@ -309,66 +352,44 @@ export default function InboxScreen() {
         {searching ? <ActivityIndicator size="small" color={colors.ink500} /> : null}
       </View>
 
-      <View style={styles.bar}>
-        <View style={styles.chips}>
-          {INBOX_FILTERS.map((name) => {
-            const active = filter === name;
-            return (
-              <Pressable
-                key={name}
-                onPress={() => setFilter(name)}
-                style={[styles.chip, active && styles.chipOn]}
-                accessibilityRole="button"
-                accessibilityState={{ selected: active }}
-              >
-                <Text style={[styles.chipLabel, active && styles.chipLabelOn]}>
-                  {INBOX_FILTER_LABELS[name]}
-                </Text>
-              </Pressable>
-            );
-          })}
+      <View style={styles.chips}>
+        {INBOX_FILTERS.map((name) => {
+          const active = filter === name;
+          return (
+            <Pressable
+              key={name}
+              onPress={() => setFilter(name)}
+              style={[styles.chip, active && styles.chipOn]}
+              accessibilityRole="button"
+              accessibilityState={{ selected: active }}
+            >
+              <Text style={[styles.chipLabel, active && styles.chipLabelOn]}>
+                {INBOX_FILTER_LABELS[name]}
+              </Text>
+            </Pressable>
+          );
+        })}
 
-          {/* A toggle rather than a fourth filter, because it composes with
-              the other three instead of replacing them: Alerts + Unread is a
-              question people ask, and a four-way radio could not express it.
-              The dot is what says it is a different sort of control. */}
-          <Pressable
-            onPress={() => setUnreadOnly((on) => !on)}
-            style={[styles.chip, styles.chipUnread, unreadOnly && styles.chipOn]}
-            accessibilityRole="button"
-            accessibilityState={{ selected: unreadOnly }}
-            accessibilityLabel={
-              unreadOnly ? "Showing unread only" : "Show unread only"
-            }
-          >
-            <View style={[styles.chipDot, unreadOnly && styles.chipDotOn]} />
-            <Text style={[styles.chipLabel, unreadOnly && styles.chipLabelOn]}>
-              Unread
-            </Text>
-          </Pressable>
-        </View>
-
-        {/* Shown only when there is something to clear. A button that does
-            nothing teaches people it is safe to ignore. */}
-        {total > 0 ? (
-          <Pressable
-            onPress={() => void clearAll()}
-            disabled={clearing}
-            hitSlop={8}
-            accessibilityRole="button"
-            accessibilityLabel="Mark everything as read"
-          >
-            <Text style={[styles.clear, clearing && styles.clearOff]}>
-              {clearing ? "Marking…" : "Mark all read"}
-            </Text>
-          </Pressable>
-        ) : null}
+        {/* A toggle rather than a fourth filter: it composes with the other
+            three (Alerts + Unread is a question people ask). The dot is what
+            says it is a different sort of control. */}
+        <Pressable
+          onPress={() => setUnreadOnly((on) => !on)}
+          style={[styles.chip, styles.chipUnread, unreadOnly && styles.chipOn]}
+          accessibilityRole="button"
+          accessibilityState={{ selected: unreadOnly }}
+          accessibilityLabel={unreadOnly ? "Showing unread only" : "Show unread only"}
+        >
+          <View style={[styles.chipDot, unreadOnly && styles.chipDotOn]} />
+          <Text style={[styles.chipLabel, unreadOnly && styles.chipLabelOn]}>Unread</Text>
+        </Pressable>
       </View>
 
-      <FlatList
-        data={visible}
+      <SectionList
+        sections={sections}
         keyExtractor={(item) => `${item.kind}-${item.id}`}
         contentContainerStyle={styles.list}
+        stickySectionHeadersEnabled={false}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -379,18 +400,43 @@ export default function InboxScreen() {
             tintColor={colors.green700}
           />
         }
+        ListHeaderComponent={
+          // Shown only when there is something to clear. A button that does
+          // nothing teaches people it is safe to ignore.
+          total > 0 && !searchingNow ? (
+            <View style={styles.markRow}>
+              <Pressable
+                onPress={() => void clearAll()}
+                disabled={clearing}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel="Mark everything as read"
+              >
+                <Text style={[styles.clear, clearing && styles.clearOff]}>
+                  {clearing ? "Marking…" : "Mark all read"}
+                </Text>
+              </Pressable>
+            </View>
+          ) : null
+        }
+        renderSectionHeader={({ section }) =>
+          section.title ? (
+            <View style={styles.sectionHead}>
+              <Text style={styles.sectionTitle}>{section.title}</Text>
+              {section.fresh > 0 ? (
+                <View style={styles.newPill}>
+                  <Text style={styles.newPillText}>{section.fresh} new</Text>
+                </View>
+              ) : null}
+            </View>
+          ) : null
+        }
         ListEmptyComponent={
-          <Empty
-            filter={filter}
-            query={searchingNow ? query : ""}
-            unreadOnly={unreadOnly}
-          />
+          <Empty filter={filter} query={searchingNow ? query : ""} unreadOnly={unreadOnly} />
         }
         renderItem={({ item }) => {
           // A search hit is a view onto a message, not a row that belongs to
-          // you — there is nothing to hide and nothing to delete, so it does
-          // not get a swipe. Giving it one would offer to destroy something
-          // it cannot.
+          // you — nothing to hide, nothing to delete, so no swipe.
           if (item.kind === "message") {
             return (
               <MessageHitRow
@@ -408,7 +454,7 @@ export default function InboxScreen() {
                   onPress={() => router.push(`/conversation/${item.id}`)}
                 />
               ) : (
-                <AlertRow row={item} onPress={() => openAlert(item)} />
+                <AlertRow row={item} onPress={() => openAlert(item)} onAnswered={() => void load()} />
               )}
             </SwipeRow>
           );
@@ -418,12 +464,13 @@ export default function InboxScreen() {
   );
 }
 
+type InboxSection = { key: string; title: string; data: InboxRowItem[]; fresh: number };
+
 /**
  * The row, with an action behind it.
  *
  * Right-side only: left-to-right is the back gesture on iOS, and stealing it
- * inside a list is how a screen stops feeling native. `rightThreshold` is
- * generous enough that a brush past a row while scrolling does not open it.
+ * inside a list is how a screen stops feeling native.
  */
 function SwipeRow({
   item,
@@ -464,6 +511,19 @@ function SwipeRow({
 
 // ---------------------------------------------------------------------------
 
+/** "You: See you there", "Stephen: Lovely", or the photo / listing fallback. */
+function previewLine(row: InboxConversation): string {
+  const m = row.lastMessage;
+  if (!m) {
+    if (row.conversationKind === "group") return `${row.memberCount ?? 0} people`;
+    return row.listingTitle ?? "Direct message";
+  }
+  const text = m.body.trim() || (m.photo ? "Sent a photo" : "");
+  if (m.mine) return `You: ${text}`;
+  if (row.conversationKind === "group" && m.senderFirstName) return `${m.senderFirstName}: ${text}`;
+  return text;
+}
+
 function ConversationRow({
   row,
   onPress,
@@ -472,50 +532,44 @@ function ConversationRow({
   onPress: () => void;
 }) {
   const unread = row.unreadCount > 0;
-
   const group = row.conversationKind === "group";
 
   return (
-    <Pressable style={styles.row} onPress={onPress} accessibilityRole="button">
-      {/* A group has no single face, so it gets a glyph rather than one
-          member's avatar picked arbitrarily — which would look like a
-          conversation with that person. */}
-      {group ? (
-        <View style={styles.glyph}>
-          <Ionicons name="people" size={21} color={colors.green700} />
-        </View>
-      ) : (
-        <Avatar
-          url={row.otherAvatarUrl}
-          color={row.otherAvatarColor}
-          name={row.otherName}
-          size={44}
-        />
-      )}
+    <Pressable
+      style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`${row.otherName}${unread ? `, ${row.unreadCount} unread` : ""}. ${previewLine(row)}`}
+    >
+      <View>
+        {/* A group has no single face, so it gets a glyph rather than one
+            member's avatar — which would look like a chat with that person. */}
+        {group ? (
+          <View style={[styles.iconCircle, styles.groupCircle]}>
+            <Ionicons name="people" size={24} color={colors.green700} />
+          </View>
+        ) : (
+          <Avatar url={row.otherAvatarUrl} color={row.otherAvatarColor} name={row.otherName} size={50} />
+        )}
+        {unread ? <View style={[styles.cornerDot, { backgroundColor: colors.green600 }]} /> : null}
+      </View>
 
-      <View style={styles.rowBody}>
-        <View style={styles.rowTop}>
-          <Text style={styles.name} numberOfLines={1}>
+      <View style={styles.cardBody}>
+        <View style={styles.cardTop}>
+          <Text style={[styles.title, unread && styles.titleUnread]} numberOfLines={1}>
             {row.otherName}
           </Text>
-          <Text style={styles.time}>{inboxTime(row.lastMessageAt)}</Text>
+          <Text style={[styles.time, unread && styles.timeUnread]}>{inboxTime(row.lastMessageAt)}</Text>
         </View>
-
-        {/* The listing, not the last message — it says which of two threads
-            with the same person this is, and costs no extra query. A group
-            says how many are in it instead, which is the equivalent fact. */}
-        <Text style={styles.context} numberOfLines={1}>
-          {group
-            ? `${row.memberCount ?? 0} people`
-            : (row.listingTitle ?? "Direct message")}
+        {group ? <Text style={styles.subtle}>{row.memberCount ?? 0} people</Text> : null}
+        <Text style={[styles.preview, unread && styles.previewUnread]} numberOfLines={1}>
+          {previewLine(row)}
         </Text>
       </View>
 
       {unread ? (
         <View style={styles.badge}>
-          <Text style={styles.badgeLabel}>
-            {row.unreadCount > 99 ? "99+" : row.unreadCount}
-          </Text>
+          <Text style={styles.badgeLabel}>{row.unreadCount > 99 ? "99+" : row.unreadCount}</Text>
         </View>
       ) : (
         <Ionicons name="chevron-forward" size={18} color={colors.ink500} />
@@ -524,48 +578,142 @@ function ConversationRow({
   );
 }
 
-function AlertRow({ row, onPress }: { row: InboxAlert; onPress: () => void }) {
+/**
+ * An alert, with its answer in place when it is the kind that needs one.
+ *
+ * "Geoff wants to join your round" and "You've been offered a place" are the
+ * two alerts with a clock on them, and both used to need three taps to
+ * answer. Now the buttons are on the row. Anything the server says has
+ * already been answered (409) just collapses the buttons — the member has
+ * answered elsewhere, which is fine.
+ */
+function AlertRow({
+  row,
+  onPress,
+  onAnswered,
+}: {
+  row: InboxAlert;
+  onPress: () => void;
+  onAnswered: () => void;
+}) {
+  const look = alertLook(row.type);
+  const [state, setState] = useState<"idle" | "busy" | "done">("idle");
+  const [doneText, setDoneText] = useState("");
+
+  const canAnswerRequest = row.type === "tee_time_interest_received" && row.interestId !== null;
+  const canAnswerOffer = row.type === "tee_time_place_offered" && row.interestId !== null;
+
+  const answer = async (fn: () => Promise<unknown>, label: string) => {
+    setState("busy");
+    try {
+      await fn();
+      setDoneText(label);
+    } catch (e) {
+      setDoneText(e instanceof ApiError && e.status === 409 ? "Already answered" : "Couldn't do that — open it to try again");
+    }
+    setState("done");
+    onAnswered();
+  };
+
+  const decline = () =>
+    Alert.alert("Decline this request?", "They'll be told the round can't take them.", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Decline",
+        style: "destructive",
+        onPress: () => void answer(() => respondToRequest(row.interestId!, false), "Declined"),
+      },
+    ]);
+
   return (
-    <Pressable
-      style={[styles.row, row.unread && styles.rowUnread]}
-      onPress={onPress}
-      accessibilityRole="button"
-    >
-      {/* Same 44pt circle as an avatar, so the two kinds of row line up down
-          the left edge instead of looking like two lists stapled together. */}
-      <View style={styles.glyph}>
-        <Ionicons name={alertIcon(row.type)} size={21} color={colors.green700} />
-      </View>
-
-      <View style={styles.rowBody}>
-        <View style={styles.rowTop}>
-          <Text style={styles.name} numberOfLines={1}>
-            {row.title}
-          </Text>
-          <Text style={styles.time}>{inboxTime(row.at)}</Text>
+    <View style={[styles.card, styles.alertCard, row.unread && styles.cardUnread]}>
+      <Pressable style={styles.alertMain} onPress={onPress} accessibilityRole="button">
+        <View>
+          <View style={[styles.iconCircle, { backgroundColor: look.bg }]}>
+            <Ionicons name={look.icon as keyof typeof Ionicons.glyphMap} size={22} color={look.fg} />
+          </View>
+          {row.unread ? <View style={[styles.cornerDot, { backgroundColor: look.fg }]} /> : null}
         </View>
-        {row.body ? (
-          <Text style={styles.context} numberOfLines={2}>
-            {row.body}
-          </Text>
-        ) : null}
-      </View>
 
-      {row.unread ? <View style={styles.dot} /> : null}
-    </Pressable>
+        <View style={styles.cardBody}>
+          <View style={styles.cardTop}>
+            <Text style={[styles.title, row.unread && styles.titleUnread]} numberOfLines={2}>
+              {row.title}
+            </Text>
+            <Text style={styles.time}>{inboxTime(row.at)}</Text>
+          </View>
+          {row.body ? (
+            <Text style={styles.preview} numberOfLines={3}>
+              {row.body}
+            </Text>
+          ) : null}
+        </View>
+
+        <Ionicons name="chevron-forward" size={18} color={colors.ink500} />
+      </Pressable>
+
+      {(canAnswerRequest || canAnswerOffer) && state !== "done" ? (
+        <View style={styles.inlineActions}>
+          {canAnswerRequest ? (
+            <>
+              <Pressable
+                style={[styles.inlineBtn, styles.inlinePrimary]}
+                onPress={() => router.push("/tee-time-requests")}
+                disabled={state === "busy"}
+                accessibilityRole="button"
+              >
+                <Text style={styles.inlinePrimaryLabel}>View request</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.inlineBtn, styles.inlineSecondary]}
+                onPress={decline}
+                disabled={state === "busy"}
+                accessibilityRole="button"
+              >
+                <Text style={styles.inlineSecondaryLabel}>{state === "busy" ? "…" : "Decline"}</Text>
+              </Pressable>
+            </>
+          ) : (
+            <>
+              <Pressable
+                style={[styles.inlineBtn, styles.inlinePrimary]}
+                onPress={() => void answer(() => confirmPlace(row.interestId!, true), "You're in — place confirmed")}
+                disabled={state === "busy"}
+                accessibilityRole="button"
+              >
+                <Text style={styles.inlinePrimaryLabel}>{state === "busy" ? "…" : "Confirm place"}</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.inlineBtn, styles.inlineSecondary]}
+                onPress={() =>
+                  Alert.alert("Give the place back?", "The host will be told so they can offer it to someone else.", [
+                    { text: "Keep it", style: "cancel" },
+                    {
+                      text: "Can't make it",
+                      style: "destructive",
+                      onPress: () => void answer(() => confirmPlace(row.interestId!, false), "Place given back"),
+                    },
+                  ])
+                }
+                disabled={state === "busy"}
+                accessibilityRole="button"
+              >
+                <Text style={styles.inlineSecondaryLabel}>Can&apos;t make it</Text>
+              </Pressable>
+            </>
+          )}
+        </View>
+      ) : null}
+
+      {state === "done" ? <Text style={styles.doneText}>{doneText}</Text> : null}
+    </View>
   );
 }
 
 /**
- * One message that matched a search.
- *
- * Shows the text, which is the whole point — the member searched for a word
- * and wants to see it in context, not be told which thread to go and look
- * through. Two lines: enough to recognise the message, short enough that ten
- * hits are still a list.
- *
- * Quieter than the rows above it, deliberately. These are not things waiting
- * on you; they are somewhere you asked to be taken.
+ * One message that matched a search. Shows the text — the member searched
+ * for a word and wants to see it in context. Quieter than the cards: these
+ * are somewhere you asked to be taken, not things waiting on you.
  */
 function MessageHitRow({
   row,
@@ -576,13 +724,8 @@ function MessageHitRow({
 }) {
   return (
     <Pressable style={styles.hit} onPress={onPress} accessibilityRole="button">
-      <Avatar
-        url={row.otherAvatarUrl}
-        color={row.otherAvatarColor}
-        name={row.otherName}
-        size={30}
-      />
-      <View style={styles.rowBody}>
+      <Avatar url={row.otherAvatarUrl} color={row.otherAvatarColor} name={row.otherName} size={32} />
+      <View style={styles.cardBody}>
         <Text style={styles.hitWho} numberOfLines={1}>
           {row.mine ? "You" : (row.otherName ?? "A conversation")}
           <Text style={styles.hitWhen}> · {inboxTime(row.at)}</Text>
@@ -605,17 +748,14 @@ function Empty({
   query: string;
   unreadOnly: boolean;
 }) {
-  // Nothing matched is not the same as nothing exists, and telling someone
-  // who mistyped a name that they have no messages is how a search box
-  // becomes something people stop trusting.
+  // Nothing matched is not the same as nothing exists.
   if (query) {
     return (
       <View style={styles.empty}>
         <Ionicons name="search-outline" size={40} color={colors.ink500} />
         <Text style={styles.emptyTitle}>Nothing matched “{query.trim()}”</Text>
         <Text style={styles.emptyBody}>
-          Searching looks at alert text, who a conversation is with, and the
-          messages inside it.
+          Searching looks at alert text, who a conversation is with, and the messages inside it.
         </Text>
       </View>
     );
@@ -626,9 +766,7 @@ function Empty({
       <View style={styles.empty}>
         <Ionicons name="checkmark-done-outline" size={44} color={colors.ink500} />
         <Text style={styles.emptyTitle}>Nothing unread</Text>
-        <Text style={styles.emptyBody}>
-          You&apos;re all caught up. Turn Unread off to see everything again.
-        </Text>
+        <Text style={styles.emptyBody}>You&apos;re all caught up. Turn Unread off to see everything again.</Text>
       </View>
     );
   }
@@ -638,13 +776,13 @@ function Empty({
       ? {
           icon: "chatbubbles-outline" as const,
           title: "No messages yet",
-          body: "Conversations start from a marketplace listing, a connection, or a tee time you've been accepted for.",
+          body: "Start one with the pencil at the top, or message someone from a listing, a tee time or their profile.",
         }
       : filter === "alerts"
         ? {
             icon: "notifications-outline" as const,
             title: "No alerts yet",
-            body: "Offers, auction activity, payments and tee-time replies all land here.",
+            body: "Offers, tee-time replies, likes and comments all land here.",
           }
         : {
             icon: "mail-outline" as const,
@@ -665,145 +803,144 @@ const styles = StyleSheet.create({
   fill: { flex: 1, backgroundColor: colors.cream50 },
   centre: { flex: 1, alignItems: "center", justifyContent: "center" },
 
-  bar: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: spacing.sm,
-    paddingHorizontal: spacing.md,
-    paddingTop: spacing.sm,
-  },
   searchWrap: {
     flexDirection: "row",
     alignItems: "center",
-    gap: spacing.sm,
+    gap: 10,
     marginHorizontal: spacing.md,
-    marginTop: spacing.sm,
-    paddingHorizontal: 13,
+    marginTop: spacing.md,
+    paddingHorizontal: 16,
+    minHeight: 50,
     borderRadius: radii.pill,
     borderWidth: 1,
     borderColor: colors.line,
     backgroundColor: colors.surface,
   },
   // 16pt floor — iOS zooms the screen when a smaller input takes focus.
-  search: {
-    flex: 1,
-    height: 44,
-    fontFamily: fonts.body,
-    fontSize: type.body,
-    color: colors.ink900,
-  },
+  search: { flex: 1, height: 50, fontFamily: fonts.body, fontSize: type.body, color: colors.ink900 },
 
-  chips: { flexDirection: "row", gap: 6, flexShrink: 1, flexWrap: "wrap" },
+  chips: { flexDirection: "row", flexWrap: "wrap", gap: 8, paddingHorizontal: spacing.md, paddingTop: 12 },
   chip: {
-    paddingHorizontal: 13,
-    paddingVertical: 7,
+    minHeight: 40,
+    justifyContent: "center",
+    paddingHorizontal: 16,
     borderRadius: radii.pill,
     borderWidth: 1,
     borderColor: colors.line,
     backgroundColor: colors.surface,
   },
   chipOn: { backgroundColor: colors.green700, borderColor: colors.green700 },
-  chipUnread: { flexDirection: "row", alignItems: "center", gap: 6 },
-  chipDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
-    backgroundColor: colors.green600,
-  },
+  chipUnread: { flexDirection: "row", alignItems: "center", gap: 7 },
+  chipDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.green600 },
   chipDotOn: { backgroundColor: colors.cream50 },
-  chipLabel: {
-    fontFamily: fonts.bodySemi,
-    fontSize: type.small,
-    color: colors.ink500,
-  },
+  chipLabel: { fontFamily: fonts.bodySemi, fontSize: 15, color: colors.ink900 },
   chipLabelOn: { color: colors.cream50 },
 
-  clear: {
-    fontFamily: fonts.bodyBold,
-    fontSize: type.small,
-    color: colors.green700,
-  },
+  list: { paddingHorizontal: spacing.md, paddingBottom: spacing.xl, flexGrow: 1 },
+  markRow: { alignItems: "flex-end", paddingTop: 10 },
+  clear: { fontFamily: fonts.bodyBold, fontSize: type.small, color: colors.green700 },
   clearOff: { color: colors.ink500 },
 
-  list: { padding: spacing.md, gap: spacing.sm, flexGrow: 1 },
-
-  row: {
+  sectionHead: {
     flexDirection: "row",
     alignItems: "center",
-    gap: spacing.sm,
+    justifyContent: "space-between",
+    paddingTop: 18,
+    paddingBottom: 8,
+  },
+  sectionTitle: { fontFamily: fonts.bodySemi, fontSize: 17, color: colors.ink900 },
+  newPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: radii.pill,
+    backgroundColor: colors.green100,
+  },
+  newPillText: { fontFamily: fonts.bodyBold, fontSize: 12.5, color: colors.green800 },
+
+  card: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
     padding: 14,
-    borderRadius: radii.md,
+    marginBottom: 10,
+    borderRadius: radii.lg,
     borderWidth: 1,
-    borderColor: colors.line,
+    borderColor: "#e8e0cc",
     backgroundColor: colors.surface,
   },
-  rowUnread: { backgroundColor: colors.green100, borderColor: colors.green600 },
-  rowBody: { flex: 1, gap: 3 },
-  rowTop: { flexDirection: "row", alignItems: "baseline", gap: spacing.sm },
-  name: {
-    flex: 1,
-    fontFamily: fonts.display,
-    fontSize: 17,
-    color: colors.ink900,
-  },
-  time: { fontFamily: fonts.body, fontSize: type.label, color: colors.ink500 },
-  context: {
-    fontFamily: fonts.body,
-    fontSize: type.small,
-    color: colors.ink500,
-  },
+  cardPressed: { backgroundColor: colors.surfaceTint },
+  cardUnread: { borderColor: "#cfe0cd" },
+  alertCard: { flexDirection: "column", alignItems: "stretch", gap: 10 },
+  alertMain: { flexDirection: "row", alignItems: "center", gap: 12 },
+  cardBody: { flex: 1, gap: 3 },
+  cardTop: { flexDirection: "row", alignItems: "flex-start", gap: spacing.sm },
+  title: { flex: 1, fontFamily: fonts.bodySemi, fontSize: 16, color: colors.ink900 },
+  titleUnread: { fontFamily: fonts.bodyBold },
+  time: { fontFamily: fonts.body, fontSize: 13, color: colors.ink500, marginTop: 2 },
+  timeUnread: { fontFamily: fonts.bodySemi, color: colors.green700 },
+  subtle: { fontFamily: fonts.body, fontSize: 13, color: colors.ink500 },
+  preview: { fontFamily: fonts.body, fontSize: 14.5, lineHeight: 20, color: "#4c5667" },
+  previewUnread: { color: colors.ink900, fontFamily: fonts.bodySemi },
 
-  glyph: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+  iconCircle: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: colors.green100,
+  },
+  groupCircle: { backgroundColor: colors.green100 },
+  cornerDot: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    width: 13,
+    height: 13,
+    borderRadius: 6.5,
+    borderWidth: 2,
+    borderColor: colors.surface,
   },
 
   badge: {
-    minWidth: 22,
-    height: 22,
-    paddingHorizontal: 6,
+    minWidth: 24,
+    height: 24,
+    paddingHorizontal: 7,
     borderRadius: radii.pill,
     backgroundColor: colors.green700,
     alignItems: "center",
     justifyContent: "center",
   },
-  badgeLabel: {
-    fontFamily: fonts.bodyBold,
-    fontSize: 11.5,
-    color: colors.cream50,
-  },
-  dot: {
-    width: 9,
-    height: 9,
-    borderRadius: 4.5,
-    backgroundColor: colors.green600,
-  },
+  badgeLabel: { fontFamily: fonts.bodyBold, fontSize: 12, color: colors.cream50 },
 
-  // Indented and unbordered, so a run of hits reads as results under the
-  // list rather than as more inbox.
+  inlineActions: { flexDirection: "row", gap: 10, paddingLeft: 62 },
+  inlineBtn: {
+    flex: 1,
+    minHeight: 44,
+    borderRadius: radii.pill,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 12,
+  },
+  inlinePrimary: { backgroundColor: colors.green700 },
+  inlinePrimaryLabel: { fontFamily: fonts.bodyBold, fontSize: 14.5, color: colors.cream50 },
+  inlineSecondary: { borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface },
+  inlineSecondaryLabel: { fontFamily: fonts.bodyBold, fontSize: 14.5, color: colors.ink900 },
+  doneText: { fontFamily: fonts.bodySemi, fontSize: 14, color: colors.green800, paddingLeft: 62 },
+
   hit: {
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
     paddingVertical: 11,
     paddingHorizontal: 14,
+    marginBottom: 8,
     marginLeft: spacing.md,
     borderRadius: radii.md,
     backgroundColor: colors.surfaceTint,
   },
   hitWho: { fontFamily: fonts.bodySemi, fontSize: type.small, color: colors.ink900 },
   hitWhen: { fontFamily: fonts.body, color: colors.ink500 },
-  hitBody: {
-    fontFamily: fonts.body,
-    fontSize: type.small,
-    lineHeight: 19,
-    color: colors.ink500,
-  },
+  hitBody: { fontFamily: fonts.body, fontSize: type.small, lineHeight: 19, color: colors.ink500 },
 
   swipe: {
     width: 86,
@@ -811,30 +948,14 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 3,
     marginLeft: spacing.sm,
-    borderRadius: radii.md,
+    marginBottom: 10,
+    borderRadius: radii.lg,
     backgroundColor: colors.ink500,
   },
   swipeDelete: { backgroundColor: colors.red600 },
   swipeLabel: { fontFamily: fonts.bodyBold, fontSize: 11.5, color: colors.cream50 },
 
-  empty: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: spacing.sm,
-    padding: spacing.lg,
-  },
-  emptyTitle: {
-    fontFamily: fonts.display,
-    fontSize: 21,
-    lineHeight: 27,
-    color: colors.ink900,
-    textAlign: "center",
-  },
-  emptyBody: {
-    fontFamily: fonts.body,
-    fontSize: type.body,
-    color: colors.ink500,
-    textAlign: "center",
-  },
+  empty: { flex: 1, alignItems: "center", justifyContent: "center", gap: spacing.sm, padding: spacing.lg, marginTop: 40 },
+  emptyTitle: { fontFamily: fonts.display, fontSize: 21, lineHeight: 27, color: colors.ink900, textAlign: "center" },
+  emptyBody: { fontFamily: fonts.body, fontSize: type.body, color: colors.ink500, textAlign: "center" },
 });

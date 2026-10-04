@@ -35,6 +35,9 @@ export type InboxAlert = {
    *  never handed to the browser. */
   href: string;
   unread: boolean;
+  /** Set on tee-time alerts about one request — lets the row offer the
+   *  answer in place (View request / Decline, Confirm / Can't make it). */
+  interestId: number | null;
 };
 
 /**
@@ -279,6 +282,8 @@ export function alertIcon(type: string): keyof typeof Ionicons.glyphMap {
   return "notifications-outline";
 }
 
+export { alertLook, dayBucket, DAY_BUCKET_LABELS, type AlertLook, type DayBucket } from "./inbox-look";
+
 // ---------------------------------------------------------------------------
 // Reading
 // ---------------------------------------------------------------------------
@@ -292,7 +297,7 @@ type AlertRow = {
   type: string;
   title: string;
   body: string | null;
-  data: { href?: string } | null;
+  data: { href?: string; interestId?: number } | null;
   read_at: string | null;
   created_at: string;
 };
@@ -337,6 +342,7 @@ export async function loadInbox(userId: string): Promise<LoadedInbox> {
           body: row.body,
           href: row.data?.href ?? "/dashboard",
           unread: row.read_at === null,
+          interestId: typeof row.data?.interestId === "number" ? row.data.interestId : null,
         }))
     ),
     counts,
