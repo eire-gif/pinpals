@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { MAX_POST_PHOTOS, parseVisibility, validateComment, validatePostDraft, type PostVisibility } from "@/lib/feed";
 import { cleanDetails, detailsProblem, isPostKind, type PostKind } from "@/lib/post-details";
+import { DEFAULT_REACTION, REACTION_INFO, isReaction, normaliseCounts, type ReactionCounts, type ReactionKey } from "@/lib/reactions";
 import {
   ImageProcessingError,
   attachPendingPostImages,
@@ -345,13 +346,30 @@ export async function deletePost(input: {
  * dedupe key is per liker per post, so like-unlike-like cannot make the
  * bell count climb.
  */
+/**
+ * Likes and reactions (0096). A reaction is a like with a flavour: `like`
+ * says whether the member has reacted at all, `reaction` which one. An older
+ * app sends no reaction and gets the default, Great Shot; reacting again
+ * with a different one changes it in place (one row per member per post).
+ *
+ * Returns the server's numbers, which the app puts over its optimistic
+ * guess: the total, the breakdown, and what the member's reaction now is.
+ */
 export async function setPostLike(input: {
   supabase: SupabaseClient;
   userId: string;
   postId: number;
   like: boolean;
-}): Promise<FeedResult<{ liked: boolean; likeCount: number }>> {
+  reaction?: unknown;
+}): Promise<
+  FeedResult<{ liked: boolean; likeCount: number; reaction: ReactionKey | null; reactionCounts: ReactionCounts }>
+> {
   const { supabase, userId, postId, like } = input;
+  if (input.reaction !== undefined && input.reaction !== null && !isReaction(input.reaction)) {
+    return fail("invalid", "That reaction isn't recognised — please update the app.");
+  }
+  const reaction: ReactionKey = isReaction(input.reaction) ? input.reaction : DEFAULT_REACTION;
+  const explicit = isReaction(input.reaction);
 
   const refused = await limited("like-post", userId, LIKE_MAX, LIKE_WINDOW_SECONDS);
   if (refused) return refused;
@@ -365,22 +383,39 @@ export async function setPostLike(input: {
 
   let newlyLiked = false;
   if (like) {
-    const { error } = await supabase.from("post_likes").insert({ post_id: postId, user_id: userId });
-    // 23505: already liked. The member's intent — "this is liked" — is
-    // already true, so it is a success, not an error. A double tap on a
-    // slow connection lands here.
+    const { error } = await supabase.from("post_likes").insert({ post_id: postId, user_id: userId, reaction });
+    // 23505: already reacted. With a reaction named, that's a change of
+    // reaction — update the one row. Without one (an older app's "like"),
+    // the member's intent is already true: a success, not an error. A double
+    // tap on a slow connection lands here too.
     if (error && error.code !== "23505") return fail("failed", "Couldn't save that — please try again.");
+    if (error && explicit) {
+      const { error: changeError } = await supabase
+        .from("post_likes")
+        .update({ reaction })
+        .eq("post_id", postId)
+        .eq("user_id", userId);
+      if (changeError) return fail("failed", "Couldn't save that — please try again.");
+    }
     newlyLiked = !error;
   } else {
     const { error } = await supabase.from("post_likes").delete().eq("post_id", postId).eq("user_id", userId);
     if (error) return fail("failed", "Couldn't save that — please try again.");
   }
 
-  const { data: after } = await supabase
-    .from("posts")
-    .select("like_count")
-    .eq("id", postId)
-    .maybeSingle<{ like_count: number }>();
+  const [{ data: after }, { data: mine }] = await Promise.all([
+    supabase
+      .from("posts")
+      .select("like_count, reaction_counts")
+      .eq("id", postId)
+      .maybeSingle<{ like_count: number; reaction_counts: unknown }>(),
+    supabase
+      .from("post_likes")
+      .select("reaction")
+      .eq("post_id", postId)
+      .eq("user_id", userId)
+      .maybeSingle<{ reaction: string }>(),
+  ]);
 
   if (newlyLiked && post.author_id !== userId) {
     const name = await memberName(supabase, userId);
@@ -390,7 +425,9 @@ export async function setPostLike(input: {
     const { error } = await admin.rpc("notify_user", {
       p_user_id: post.author_id,
       p_type: "post_liked",
-      p_title: `${name} liked your post`,
+      // Still type "post_liked": alert routing, preferences and dedupe all
+      // key on it, and a reaction is a like. Only the words name it.
+      p_title: `${name} reacted ${REACTION_INFO[reaction].label} to your post`,
       p_body: "Tap to see it.",
       p_data: { href: `/feed/${postId}`, post_id: postId },
       p_dedupe_key: buildDedupeKey(["post_liked", postId, userId]),
@@ -398,7 +435,16 @@ export async function setPostLike(input: {
     if (error) console.error("[feed] like notification failed:", error.message);
   }
 
-  return { ok: true, value: { liked: like, likeCount: after?.like_count ?? 0 } };
+  const likeCount = after?.like_count ?? 0;
+  return {
+    ok: true,
+    value: {
+      liked: mine !== null,
+      likeCount,
+      reaction: mine && isReaction(mine.reaction) ? mine.reaction : null,
+      reactionCounts: normaliseCounts(after?.reaction_counts, likeCount),
+    },
+  };
 }
 
 // ===========================================================================

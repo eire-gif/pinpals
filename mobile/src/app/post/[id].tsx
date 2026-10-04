@@ -128,6 +128,7 @@ export default function PostScreen() {
               width={postCardWidth(width)}
               standalone
               onLike={actions.like}
+                onReact={actions.react}
                 onShare={actions.share}
                 onSave={actions.save}
               onMenu={actions.menu}

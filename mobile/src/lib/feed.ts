@@ -18,6 +18,7 @@ import {
   type PostVisibility,
 } from "./feed-rules";
 import type { HoleDetails, PostKind, RoundDetails, ShotDetails } from "./post-details";
+import { isReaction, normaliseCounts, type ReactionCounts, type ReactionKey } from "./reactions";
 
 /**
  * The feed, for the app.
@@ -85,7 +86,13 @@ export type FeedPost = {
   visibility: PostVisibility;
   club: FeedClub | null;
   photos: FeedPhoto[];
+  /** How many reacted, all reactions together (posts.like_count). */
   likeCount: number;
+  /** The breakdown (0096), e.g. { on_fire: 3, great_shot: 1 }. */
+  reactionCounts: ReactionCounts;
+  /** The viewer's reaction, or null. likedByMe is just this !== null,
+   *  kept so code that only asks "reacted at all?" stays simple. */
+  myReaction: ReactionKey | null;
   commentCount: number;
   likedByMe: boolean;
   /** Bookmarked by the viewer (0094). Private — never shown to anyone else. */
@@ -142,6 +149,7 @@ type PostRow = {
   /** Absent when reading a database without 0095 (see selectPosts). */
   kind?: PostKind;
   details?: RoundDetails | HoleDetails | ShotDetails | null;
+  reaction_counts?: unknown;
   author: ProfileEmbed | null;
   club: ClubEmbed | null;
   post_images: { path: string; position: number; width: number | null; height: number | null }[];
@@ -171,13 +179,14 @@ const POST_SELECT_LEGACY = `
   post_images ( path, position, width, height )
 `;
 
-const POST_SELECT = POST_SELECT_LEGACY.replace("created_at,", "created_at, kind, details,");
+const POST_SELECT = POST_SELECT_LEGACY.replace("created_at,", "created_at, kind, details, reaction_counts,");
 
 /**
- * Runs a posts query with kind/details, and once more without them if the
- * database doesn't have those columns yet (Postgres 42703, undefined column)
- * — so an app update that reaches phones before migration 0095 is applied
- * shows every post as a general one instead of an empty feed. The order is
+ * Runs a posts query with kind/details (0095) and reaction_counts (0096),
+ * and once more without them if the database doesn't have those columns yet
+ * (Postgres 42703, undefined column) — so an app update that reaches phones
+ * before the migrations are applied shows every post as a general one, with
+ * its likes as Great Shots, instead of an empty feed. The order is
  * meant to be migration → merge → `eas update`; it slipped once already.
  */
 let legacyPosts = false;
@@ -266,7 +275,7 @@ async function hydrate(viewerId: string, rows: PostRow[], commentsPerPost: numbe
   const ids = rows.map((r) => r.id);
 
   const [likes, saves, comments, urls] = await Promise.all([
-    supabase.from("post_likes").select("post_id").eq("user_id", viewerId).in("post_id", ids).overrideTypes<{ post_id: number }[]>(),
+    myReactions(viewerId, ids),
     // Before 0094 is applied this errors, and every post simply shows as
     // not saved — the feed must not depend on the newest table.
     supabase.from("post_saves").select("post_id").eq("user_id", viewerId).in("post_id", ids).overrideTypes<{ post_id: number }[]>(),
@@ -283,7 +292,7 @@ async function hydrate(viewerId: string, rows: PostRow[], commentsPerPost: numbe
     signPhotos(rows.flatMap((r) => r.post_images.map((img) => img.path))),
   ]);
 
-  const liked = new Set((likes.data ?? []).map((l) => l.post_id));
+  const reacted = new Map(likes.map((l) => [l.post_id, l.reaction]));
   const saved = new Set((saves.data ?? []).map((l) => l.post_id));
   const authorOf = new Map(rows.map((r) => [r.id, r.author_id]));
   const byPost = new Map<number, FeedComment[]>();
@@ -325,8 +334,10 @@ async function hydrate(viewerId: string, rows: PostRow[], commentsPerPost: numbe
       .sort((a, b) => a.position - b.position)
       .map((img) => ({ path: img.path, url: urls.get(img.path) ?? null, width: img.width, height: img.height })),
     likeCount: row.like_count,
+    reactionCounts: normaliseCounts(row.reaction_counts, row.like_count),
+    myReaction: reacted.get(row.id) ?? null,
     commentCount: row.comment_count,
-    likedByMe: liked.has(row.id),
+    likedByMe: reacted.has(row.id),
     savedByMe: saved.has(row.id),
     kind: row.kind ?? "general",
     details: row.details ?? null,
@@ -335,6 +346,27 @@ async function hydrate(viewerId: string, rows: PostRow[], commentsPerPost: numbe
     createdAt: row.created_at,
     comments: threadComments(byPost.get(row.id) ?? []),
   }));
+}
+
+/** The viewer's reactions on these posts. Before 0096 there is no reaction
+ *  column: read the likes alone and count each as the default. */
+async function myReactions(viewerId: string, ids: number[]): Promise<{ post_id: number; reaction: ReactionKey }[]> {
+  const withReaction = await supabase
+    .from("post_likes")
+    .select("post_id, reaction")
+    .eq("user_id", viewerId)
+    .in("post_id", ids)
+    .overrideTypes<{ post_id: number; reaction: string }[]>();
+  if (!withReaction.error) {
+    return (withReaction.data ?? []).map((l) => ({ post_id: l.post_id, reaction: isReaction(l.reaction) ? l.reaction : "great_shot" }));
+  }
+  const plain = await supabase
+    .from("post_likes")
+    .select("post_id")
+    .eq("user_id", viewerId)
+    .in("post_id", ids)
+    .overrideTypes<{ post_id: number }[]>();
+  return (plain.data ?? []).map((l) => ({ post_id: l.post_id, reaction: "great_shot" as const }));
 }
 
 async function connectedIds(userId: string): Promise<string[]> {
@@ -563,8 +595,17 @@ export const createPost = (input: {
     ...(input.kind && input.kind !== "general" ? { kind: input.kind, details: input.details } : {}),
   });
 
-export const setLike = (postId: number, liked: boolean): Promise<{ liked: boolean; likeCount: number }> =>
-  postToSite(`/api/app/posts/${postId}/like`, { liked });
+export type ReactionResult = {
+  liked: boolean;
+  likeCount: number;
+  /** Absent from a pre-0096 website; the caller keeps its own guess then. */
+  reaction?: ReactionKey | null;
+  reactionCounts?: ReactionCounts;
+};
+
+/** Reacts (or un-reacts). `reaction` omitted is the website's default. */
+export const setLike = (postId: number, liked: boolean, reaction?: ReactionKey): Promise<ReactionResult> =>
+  postToSite(`/api/app/posts/${postId}/like`, reaction ? { liked, reaction } : { liked });
 
 /** A comment on the post, or — with `parentId` — a reply to one comment. */
 export const addComment = (postId: number, body: string, parentId: number | null = null): Promise<{ id: number }> =>

@@ -15,6 +15,7 @@ import {
   type FeedComment,
   type FeedPost,
 } from "./feed";
+import { DEFAULT_REACTION, applyReaction, type ReactionKey } from "./reactions";
 import { supabase } from "./supabase";
 
 /**
@@ -60,21 +61,48 @@ export function usePostActions(handlers: {
     [afterBlock]
   );
 
-  const like = useCallback(
-    async (post: FeedPost) => {
-      const next = !post.likedByMe;
-      // Optimistic: a heart that waits for a round trip feels broken, and
-      // the worst case is a heart that flips back with a message.
-      update(post.id, (p) => ({ ...p, likedByMe: next, likeCount: Math.max(0, p.likeCount + (next ? 1 : -1)) }));
+  /**
+   * Sets the viewer's reaction — or clears it, with null (0096).
+   *
+   * Optimistic: the button and counts change at once, because a reaction
+   * that waits for a round trip feels broken. The server's answer then
+   * replaces the guess, so the database stays the source of truth; on a
+   * failure the post goes back to exactly what it was, with a message.
+   */
+  const react = useCallback(
+    async (post: FeedPost, reaction: ReactionKey | null) => {
+      const before = { myReaction: post.myReaction, likedByMe: post.likedByMe, likeCount: post.likeCount, reactionCounts: post.reactionCounts };
+      if (reaction === post.myReaction) return;
+      const guess = applyReaction(post.reactionCounts, post.likeCount, post.myReaction, reaction);
+      update(post.id, (p) => ({
+        ...p,
+        myReaction: reaction,
+        likedByMe: reaction !== null,
+        likeCount: guess.total,
+        reactionCounts: guess.counts,
+      }));
       try {
-        const result = await setLike(post.id, next);
-        update(post.id, (p) => ({ ...p, likedByMe: result.liked, likeCount: result.likeCount }));
+        const result = await setLike(post.id, reaction !== null, reaction ?? undefined);
+        update(post.id, (p) => ({
+          ...p,
+          likedByMe: result.liked,
+          likeCount: result.likeCount,
+          myReaction: result.reaction !== undefined ? result.reaction : p.myReaction,
+          reactionCounts: result.reactionCounts ?? p.reactionCounts,
+        }));
       } catch (err) {
-        update(post.id, (p) => ({ ...p, likedByMe: !next, likeCount: Math.max(0, p.likeCount + (next ? -1 : 1)) }));
+        update(post.id, (p) => ({ ...p, ...before }));
         Alert.alert("Couldn't save that", err instanceof Error ? err.message : "Please try again.");
       }
     },
     [update]
+  );
+
+  /** A single tap on React: the default reaction, or off again if the
+   *  viewer has already reacted (with anything). */
+  const like = useCallback(
+    (post: FeedPost) => react(post, post.myReaction ? null : DEFAULT_REACTION),
+    [react]
   );
 
   /** Save is private and silent, so it is optimistic like the heart and says
@@ -219,5 +247,5 @@ export function usePostActions(handlers: {
     [removeComment, reportComment, block]
   );
 
-  return { like, save, share, menu, commentOptions };
+  return { like, react, save, share, menu, commentOptions };
 }

@@ -300,6 +300,7 @@ export default function FeedScreen() {
                 post={item.item}
                 width={cardWidth}
                 onLike={actions.like}
+                onReact={actions.react}
                 onShare={actions.share}
                 onSave={actions.save}
                 onMenu={actions.menu}

@@ -19,9 +19,11 @@ import { router } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { Avatar } from "@/components/avatar";
+import { ReactionDisc, ReactionPicker, ReactionStack } from "@/components/reactions";
 import type { FeedAuthor, FeedClub, FeedComment, FeedPhoto, FeedPost } from "@/lib/feed";
 import { POST_VISIBILITY_SHORT, ago, handicapLabel, photoHeight, previewComments } from "@/lib/feed-rules";
 import { detailChips } from "@/lib/post-details";
+import { REACTION_INFO, topReactions, type ReactionKey } from "@/lib/reactions";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 
 const LONG_POST = 280;
@@ -44,8 +46,10 @@ const MEDIA_INSET = 12;
  *   2. text
  *   3. media    — inset, rounded, never taller than 4:5; tap for full size
  *   4. golf     — a round, hole or shot's facts as chips (post-details.ts)
- *   5. proof    — reactions and comment count
- *   6. actions  — React · Comment · Share · Save, 44pt each
+ *   5. proof    — the top reactions as discs, the total, comment count
+ *   6. actions  — React · Comment · Share · Save, 44pt each. React: tap
+ *                 for Great Shot (or to take yours away), long-press to
+ *                 choose (phase 4, components/reactions.tsx)
  *   7. comments — at most two, flat, then "View all N comments"
  *
  * Separators are hairlines and whitespace rather than boxes. Nothing here
@@ -56,6 +60,7 @@ export function PostCard({
   width,
   standalone = false,
   onLike,
+  onReact,
   onComment,
   onShare,
   onSave,
@@ -68,7 +73,10 @@ export function PostCard({
   /** The card's content width (see postCardWidth). */
   width: number;
   standalone?: boolean;
+  /** Tap on React: the default reaction, or off. */
   onLike: (post: FeedPost) => void;
+  /** A reaction chosen in the picker, or null to take it away. */
+  onReact: (post: FeedPost, reaction: ReactionKey | null) => void;
   /** Open the post (or focus its comment box when already open). */
   onComment: (post: FeedPost) => void;
   onShare: (post: FeedPost) => void;
@@ -146,10 +154,14 @@ export function PostCard({
       {(post.likeCount > 0 || post.commentCount > 0) && (
         <View style={styles.proof}>
           {post.likeCount > 0 ? (
-            <View style={styles.proofLeft} accessibilityLabel={`${post.likeCount} ${post.likeCount === 1 ? "reaction" : "reactions"}`}>
-              <View style={styles.reactionBubble}>
-                <Ionicons name="heart" size={10} color={colors.surface} />
-              </View>
+            <View
+              style={styles.proofLeft}
+              accessible
+              accessibilityLabel={`${post.likeCount} ${post.likeCount === 1 ? "reaction" : "reactions"}: ${topReactions(post.reactionCounts)
+                .map((r) => REACTION_INFO[r].label)
+                .join(", ")}`}
+            >
+              <ReactionStack reactions={topReactions(post.reactionCounts)} />
               <Text style={styles.proofText}>{post.likeCount}</Text>
             </View>
           ) : (
@@ -169,15 +181,7 @@ export function PostCard({
       )}
 
       <View style={styles.actions}>
-        <ActionButton
-          icon={post.likedByMe ? "heart" : "heart-outline"}
-          label="React"
-          active={post.likedByMe}
-          activeColor={colors.red600}
-          bounce
-          onPress={() => onLike(post)}
-          accessibilityLabel={post.likedByMe ? "Remove reaction" : "React"}
-        />
+        <ReactButton post={post} onTap={() => onLike(post)} onReact={(r) => onReact(post, r)} />
         <ActionButton icon="chatbubble-outline" label="Comment" onPress={() => onComment(post)} />
         <ActionButton icon="arrow-redo-outline" label="Share" onPress={() => onShare(post)} />
         <ActionButton
@@ -304,16 +308,92 @@ function AuthorHeader({
   );
 }
 
-/** One of the four actions: icon over nothing, label beside it, the full
- *  quarter of the row as its tap target (never under 44pt). React bounces
- *  when it fills, on the native driver. */
+/**
+ * React. Tap: Great Shot, or take your reaction away. Long-press (or the
+ * VoiceOver action): the picker, anchored to this button. Shows your
+ * reaction in its own colour once you have one.
+ */
+function ReactButton({
+  post,
+  onTap,
+  onReact,
+}: {
+  post: FeedPost;
+  onTap: () => void;
+  onReact: (reaction: ReactionKey | null) => void;
+}) {
+  const ref = useRef<View>(null);
+  const scale = useRef(new Animated.Value(1)).current;
+  const [anchor, setAnchor] = useState<{ x: number; y: number; width: number } | null>(null);
+  const [open, setOpen] = useState(false);
+  const mine = post.myReaction;
+  const info = mine ? REACTION_INFO[mine] : null;
+
+  const pop = () => {
+    scale.setValue(0.7);
+    Animated.spring(scale, { toValue: 1, friction: 3, tension: 160, useNativeDriver: true }).start();
+  };
+  const openPicker = () => {
+    ref.current?.measureInWindow((x, y, width) => {
+      setAnchor({ x, y, width });
+      setOpen(true);
+    });
+  };
+
+  return (
+    <>
+      <Pressable
+        ref={ref}
+        onPress={() => {
+          if (!mine) pop();
+          onTap();
+        }}
+        onLongPress={openPicker}
+        delayLongPress={280}
+        style={({ pressed }) => [styles.action, pressed && styles.actionPressed]}
+        accessibilityRole="button"
+        accessibilityState={mine ? { selected: true } : undefined}
+        accessibilityLabel={info ? `Your reaction: ${info.label}. Tap to remove` : "React, Great Shot"}
+        accessibilityHint="Long-press to choose a reaction"
+        accessibilityActions={[{ name: "longpress", label: "Choose a reaction" }]}
+        onAccessibilityAction={(e) => {
+          if (e.nativeEvent.actionName === "longpress") openPicker();
+        }}
+      >
+        <Animated.View style={{ transform: [{ scale }] }}>
+          {mine ? (
+            <ReactionDisc reaction={mine} size={20} />
+          ) : (
+            <Ionicons name="golf-outline" size={20} color={colors.ink500} />
+          )}
+        </Animated.View>
+        <Text style={[styles.actionLabel, { color: info ? info.color : colors.ink500 }]} numberOfLines={1}>
+          {info ? info.label : "React"}
+        </Text>
+      </Pressable>
+      <ReactionPicker
+        visible={open}
+        anchor={anchor}
+        current={mine}
+        onClose={() => setOpen(false)}
+        onPick={(r) => {
+          setOpen(false);
+          if (r && r !== mine) pop();
+          onReact(r);
+        }}
+      />
+    </>
+  );
+}
+
+/** One of the other three actions: icon and label, the full quarter of the
+ *  row as its tap target (never under 44pt). */
 function ActionButton({
   icon,
   label,
   onPress,
   active = false,
   activeColor,
-  bounce = false,
   accessibilityLabel,
 }: {
   icon: ComponentProps<typeof Ionicons>["name"];
@@ -321,29 +401,18 @@ function ActionButton({
   onPress: () => void;
   active?: boolean;
   activeColor?: string;
-  bounce?: boolean;
   accessibilityLabel?: string;
 }) {
-  const scale = useRef(new Animated.Value(1)).current;
   const color = active && activeColor ? activeColor : colors.ink500;
-  const press = () => {
-    if (bounce && !active) {
-      scale.setValue(0.7);
-      Animated.spring(scale, { toValue: 1, friction: 3, tension: 160, useNativeDriver: true }).start();
-    }
-    onPress();
-  };
   return (
     <Pressable
-      onPress={press}
+      onPress={onPress}
       style={({ pressed }) => [styles.action, pressed && styles.actionPressed]}
       accessibilityRole="button"
       accessibilityState={active ? { selected: true } : undefined}
       accessibilityLabel={accessibilityLabel ?? label}
     >
-      <Animated.View style={{ transform: [{ scale }] }}>
-        <Ionicons name={icon} size={20} color={color} />
-      </Animated.View>
+      <Ionicons name={icon} size={20} color={color} />
       <Text style={[styles.actionLabel, { color }]} numberOfLines={1}>
         {label}
       </Text>
@@ -734,14 +803,6 @@ const styles = StyleSheet.create({
     paddingTop: spacing.sm + 4,
   },
   proofLeft: { flexDirection: "row", alignItems: "center", gap: 6 },
-  reactionBubble: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: colors.red600,
-    alignItems: "center",
-    justifyContent: "center",
-  },
   proofText: { fontFamily: fonts.body, fontSize: 13, color: colors.ink500 },
 
   // 6. Actions

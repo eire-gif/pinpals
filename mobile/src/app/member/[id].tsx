@@ -369,6 +369,7 @@ export default function MemberScreen() {
             currentMemberId={id}
             width={postCardWidth(width)}
             onLike={actions.like}
+                onReact={actions.react}
                 onShare={actions.share}
                 onSave={actions.save}
             onMenu={actions.menu}
