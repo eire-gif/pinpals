@@ -82,6 +82,17 @@ describe("buildShareCard", () => {
     expect(card.hero).toEqual({ big: "Hole 7", small: "Ace" });
   });
 
+  it("an achievement names itself on the card", () => {
+    const card = buildShareCard({ ...base, details: { ...(base.details as object), achievement: "breaking_80" } }, AUTHOR);
+    expect(card.kicker).toBe("BROKE 80");
+    expect(card.pageTitle).toBe("Broke 80! Niamh shot 78 (+6) at Old Head Golf Links");
+    const ace = buildShareCard(
+      { ...base, kind: "hole", details: { hole: 7, par: 3, yards: 162, score: 1, achievement: "hole_in_one" } },
+      AUTHOR
+    );
+    expect(ace.kicker).toBe("HOLE IN ONE");
+  });
+
   it("a round without a par shows the score alone", () => {
     const card = buildShareCard({ ...base, details: { score: 81 } }, AUTHOR);
     expect(card.hero).toEqual({ big: "81", small: null });

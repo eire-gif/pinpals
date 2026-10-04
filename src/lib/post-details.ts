@@ -157,9 +157,21 @@ export type RoundDetails = {
   back_nine?: number;
   longest_drive?: number;
   tee_time_id?: number;
+  /** A claimed achievement (0100) — see achievements.ts for which the
+   *  numbers must support. */
+  achievement?: string;
 };
 
-export type HoleDetails = { hole: number; par?: number; yards?: number; score?: number };
+export type HoleDetails = {
+  hole: number;
+  par?: number;
+  yards?: number;
+  score?: number;
+  /** The club, e.g. for an ace (0100). */
+  club?: string;
+  /** A claimed achievement (0100). */
+  achievement?: string;
+};
 
 export type ShotDetails = {
   hole?: number;
@@ -211,9 +223,9 @@ function isIsoDate(v: unknown): v is string {
 const ROUND_KEYS = [
   "score", "holes", "course_par", "tee", "played_on", "differential",
   "fairways_hit", "fairways_total", "gir", "putts", "birdies", "best_hole",
-  "front_nine", "back_nine", "longest_drive", "tee_time_id",
+  "front_nine", "back_nine", "longest_drive", "tee_time_id", "achievement",
 ] as const;
-const HOLE_KEYS = ["hole", "par", "yards", "score"] as const;
+const HOLE_KEYS = ["hole", "par", "yards", "score", "club", "achievement"] as const;
 const SHOT_KEYS = ["hole", "shot_number", "club", "distance_yards", "lie", "result"] as const;
 
 /**
@@ -249,6 +261,7 @@ export function detailsProblem(kind: PostKind, details: unknown): string | null 
       return "Your front and back nines should add up to your score.";
     if (d.longest_drive !== undefined && !inRange(d.longest_drive, LIMITS.drive)) return "That drive doesn't look right.";
     if (d.tee_time_id !== undefined && !(isInt(d.tee_time_id) && d.tee_time_id > 0)) return "That round couldn't be found.";
+    if (d.achievement !== undefined && !shortText(d.achievement, 24)) return "That achievement isn't recognised.";
     if (d.fairways_hit !== undefined && d.fairways_total !== undefined && (d.fairways_hit as number) > (d.fairways_total as number))
       return "Fairways hit can't be more than fairways played.";
     if (d.putts !== undefined && !inRange(d.putts, LIMITS.putts)) return "That putt count doesn't look right.";
@@ -268,6 +281,8 @@ export function detailsProblem(kind: PostKind, details: unknown): string | null 
     if (d.par !== undefined && !inRange(d.par, LIMITS.par)) return "A hole is a par 3, 4, 5 or 6.";
     if (d.yards !== undefined && !inRange(d.yards, LIMITS.yards)) return "That yardage doesn't look right.";
     if (d.score !== undefined && !inRange(d.score, LIMITS.holeScore)) return "That score doesn't look right.";
+    if (d.club !== undefined && !shortText(d.club, LIMITS.clubLength)) return "Keep the club short — \"7 Iron\", \"Driver\".";
+    if (d.achievement !== undefined && !shortText(d.achievement, 24)) return "That achievement isn't recognised.";
     return null;
   }
 
@@ -359,6 +374,7 @@ export function detailChips(post: { kind: PostKind; details: unknown }): string[
     chips.push(`Hole ${d.hole}`);
     if (d.par !== undefined) chips.push(`Par ${d.par}`);
     if (d.yards !== undefined) chips.push(`${d.yards} yds`);
+    if (d.club) chips.push(d.club);
     if (d.score !== undefined) chips.push(scoreName(d.score, d.par) ?? `Scored ${d.score}`);
   } else if (post.kind === "shot" && isObject(post.details)) {
     const d = post.details as ShotDetails;

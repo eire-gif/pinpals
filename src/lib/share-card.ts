@@ -1,3 +1,4 @@
+import { achievementOf } from "@/lib/achievements";
 import { LIE_LABELS, roundScoreLabel, scoreName, type HoleDetails, type PostKind, type RoundDetails, type ShotDetails } from "@/lib/post-details";
 
 /**
@@ -67,7 +68,19 @@ const PLAIN = (photo: number): ShareCard => ({
 export function buildShareCard(post: ShareCardPost | null, sharerId: string): ShareCard {
   const photo = post ? (post.clubId ?? post.id) % SHARE_PHOTOS : 0;
   if (!post || post.hidden || post.authorId !== sharerId) return PLAIN(photo);
+  const card = buildRichCard(post, photo);
+  // An achievement (phase 8) names itself on the card — "PERSONAL BEST",
+  // "HOLE IN ONE" — and leads the preview's title.
+  const achievement = achievementOf({ kind: post.kind, details: post.details, courseName: post.clubName });
+  if (!achievement) return card;
+  return {
+    ...card,
+    kicker: achievement.achievementTitle.toUpperCase(),
+    pageTitle: `${achievement.achievementTitle}! ${card.pageTitle}`,
+  };
+}
 
+function buildRichCard(post: ShareCardPost, photo: number): ShareCard {
   const who = post.authorFirstName?.trim() || "A PinPal";
   const course = post.clubName?.trim() || null;
   const at = course ? ` at ${course}` : "";

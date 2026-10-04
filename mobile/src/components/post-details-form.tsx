@@ -3,8 +3,9 @@ import { StyleSheet, Text, TextInput, View, type KeyboardTypeOptions } from "rea
 
 import { Chip, ChipGroup } from "@/components/form-bits";
 import { recentDays } from "@/lib/feed-rules";
+import { ACHIEVEMENT_INFO } from "@/lib/achievements";
 import { LIES, LIE_LABELS, LIMITS, TEES, type PostKind } from "@/lib/post-details";
-import type { DetailsDraft } from "@/lib/post-draft";
+import { claimableAchievements, type DetailsDraft } from "@/lib/post-draft";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 
 /**
@@ -39,6 +40,25 @@ export function PostDetailsForm({
   const set = <K extends keyof DetailsDraft>(key: K) => (value: DetailsDraft[K]) => onChange({ ...draft, [key]: value });
   const toggle = <K extends keyof DetailsDraft>(key: K, value: DetailsDraft[K]) =>
     onChange({ ...draft, [key]: draft[key] === value ? ("" as DetailsDraft[K]) : value });
+
+  // Phase 8: once the numbers support an achievement, offer to mark it.
+  // Never pre-selected — a 78 is only "Broke 80" if the member says so.
+  const claimable = claimableAchievements(kind, draft);
+  const achievementGroup =
+    claimable.length > 0 ? (
+      <Group title="An achievement?" hint="Optional — makes it a highlight post.">
+        <ChipGroup>
+          {claimable.map((a) => (
+            <Chip
+              key={a}
+              label={ACHIEVEMENT_INFO[a].title}
+              selected={draft.achievement === a}
+              onPress={() => toggle("achievement", a)}
+            />
+          ))}
+        </ChipGroup>
+      </Group>
+    ) : null;
 
   if (kind === "round") {
     return (
@@ -111,6 +131,7 @@ export function PostDetailsForm({
             <NumberField label="Score" value={draft.best_score} onChange={set("best_score")} />
           </Row>
         </Group>
+        {achievementGroup}
       </View>
     );
   }
@@ -136,7 +157,17 @@ export function PostDetailsForm({
               <Chip key={s} label={s === "1" ? "1 · Ace" : s} selected={draft.hole_score === s} onPress={() => toggle("hole_score", s)} />
             ))}
           </ChipGroup>
+          <TextInput
+            value={draft.club}
+            onChangeText={set("club")}
+            placeholder="Club (optional) — 7 Iron, Driver…"
+            placeholderTextColor={colors.ink500}
+            maxLength={LIMITS.clubLength}
+            style={styles.text}
+            accessibilityLabel="Club"
+          />
         </Group>
+        {achievementGroup}
       </View>
     );
   }

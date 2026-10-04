@@ -1,3 +1,4 @@
+import { achievementProblem, eligibleAchievements, type AchievementType } from "./achievements";
 import {
   cleanDetails,
   detailsProblem,
@@ -47,6 +48,9 @@ export type DetailsDraft = {
   distance_yards: string;
   lie: Lie | "";
   result: string;
+  /** A claimed achievement (phase 8), "" for none. Only kept while the
+   *  numbers support it — see claimableAchievements(). */
+  achievement: string;
 };
 
 export function emptyDraft(today: string): DetailsDraft {
@@ -54,7 +58,7 @@ export function emptyDraft(today: string): DetailsDraft {
     score: "", holes: "18", course_par: "", tee: "", played_on: today, differential: "",
     fairways_hit: "", fairways_total: "", gir: "", putts: "", birdies: "", front_nine: "", back_nine: "", longest_drive: "", tee_time_id: "", best_hole: "", best_par: "", best_score: "",
     hole: "", par: "", yards: "", hole_score: "",
-    shot_number: "", club: "", distance_yards: "", lie: "", result: "",
+    shot_number: "", club: "", distance_yards: "", lie: "", result: "", achievement: "",
   };
 }
 
@@ -95,6 +99,7 @@ export function draftToDetails(kind: PostKind, d: DetailsDraft): RoundDetails | 
       longest_drive: num(d.longest_drive),
       tee_time_id: num(d.tee_time_id),
       best_hole: best,
+      achievement: d.achievement || undefined,
     }) as unknown as RoundDetails;
   }
   if (kind === "hole") {
@@ -103,6 +108,8 @@ export function draftToDetails(kind: PostKind, d: DetailsDraft): RoundDetails | 
       par: num(d.par),
       yards: num(d.yards),
       score: num(d.hole_score),
+      club: d.club,
+      achievement: d.achievement || undefined,
     }) as unknown as HoleDetails;
   }
   if (kind === "shot") {
@@ -120,5 +127,14 @@ export function draftToDetails(kind: PostKind, d: DetailsDraft): RoundDetails | 
 
 /** The composer's verdict on its golf fields: null when they're fine. */
 export function draftDetailsProblem(kind: PostKind, d: DetailsDraft): string | null {
-  return kind === "general" ? null : detailsProblem(kind, draftToDetails(kind, d));
+  if (kind === "general") return null;
+  const details = draftToDetails(kind, d);
+  return detailsProblem(kind, details) ?? achievementProblem(kind, details);
+}
+
+/** The achievements the draft's numbers support right now (without any
+ *  claim already made), most remarkable first. */
+export function claimableAchievements(kind: PostKind, d: DetailsDraft): AchievementType[] {
+  if (kind !== "round" && kind !== "hole") return [];
+  return eligibleAchievements(kind, draftToDetails(kind, { ...d, achievement: "" }));
 }

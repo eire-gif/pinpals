@@ -52,6 +52,12 @@ describe("posts.kind and posts.details", () => {
       await insert(c, "round", { score: 74, birdies: 3 }); // 0098
       await insert(c, "round", { score: 78, front_nine: 38, back_nine: 40, longest_drive: 285, tee_time_id: 5 }); // 0099
       await insert(c, "round", { score: 41, holes: 9, front_nine: 41, back_nine: 40 });
+      // 0100 — achievements the numbers support
+      await insert(c, "hole", { hole: 7, par: 3, yards: 162, score: 1, club: "7 Iron", achievement: "hole_in_one" });
+      await insert(c, "hole", { hole: 18, par: 5, score: 3, achievement: "eagle" });
+      await insert(c, "round", { score: 79, achievement: "breaking_80" });
+      await insert(c, "round", { score: 88, achievement: "personal_best" });
+      await insert(c, "round", { score: 84, best_hole: { hole: 11, par: 3, score: 1 }, achievement: "hole_in_one" });
       await insert(c, "shot", { result: "Off the flagstick" });
     });
   });
@@ -75,6 +81,15 @@ describe("posts.kind and posts.details", () => {
       await refused(c, "round", { score: 78, front_nine: 38, back_nine: 41 });
       await refused(c, "round", { score: 78, longest_drive: 900 });
       await refused(c, "round", { score: 78, tee_time_id: 0 });
+      await refused(c, "round", { score: 80, achievement: "breaking_80" });
+      await refused(c, "round", { score: 79, holes: 9, achievement: "breaking_80" });
+      await refused(c, "round", { score: 40, holes: 9, achievement: "personal_best" });
+      await refused(c, "round", { score: 84, achievement: "hole_in_one" });
+      await refused(c, "round", { score: 84, achievement: "albatross" });
+      await refused(c, "hole", { hole: 7, par: 3, score: 2, achievement: "hole_in_one" });
+      await refused(c, "hole", { hole: 7, par: 3, score: 1, achievement: "eagle" });
+      await refused(c, "hole", { hole: 7, score: 3, achievement: "eagle" });
+      await refused(c, "hole", { hole: 7, par: 3, club: "   " });
       await refused(c, "round", { score: 78, best_hole: { hole: 6 } });
       await refused(c, "round", { score: 78, best_hole: { hole: 6, score: 3, colour: "red" } });
       await refused(c, "round", { score: 78, map: [[1, 2]] });

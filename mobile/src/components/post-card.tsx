@@ -18,8 +18,11 @@ import {
 import { router } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
+import { AchievementCard } from "@/components/achievement-card";
 import { Avatar } from "@/components/avatar";
+import { coursePhoto } from "@/components/course-photos";
 import { ReactionDisc, ReactionPicker, ReactionStack } from "@/components/reactions";
+import { achievementOf } from "@/lib/achievements";
 import type { FeedAuthor, FeedClub, FeedComment, FeedPhoto, FeedPost } from "@/lib/feed";
 import { POST_VISIBILITY_SHORT, ago, handicapLabel, photoHeight, previewComments } from "@/lib/feed-rules";
 import { mentionSegments } from "@/lib/mentions";
@@ -96,7 +99,16 @@ export function PostCard({
   const [expanded, setExpanded] = useState(standalone || post.body.length <= limit);
   const [viewer, setViewer] = useState<number | null>(null);
   const mediaWidth = width - MEDIA_INSET * 2;
-  const chips = detailChips(post);
+  // Phase 8: an achievement post leads with its achievement card, in place
+  // of the photo strip and the detail chips (the card carries the numbers;
+  // tapping it opens the photos).
+  const achievement = achievementOf({
+    kind: post.kind,
+    details: post.details,
+    courseName: post.club?.name ?? null,
+    createdAt: post.createdAt,
+  });
+  const chips = achievement ? [] : detailChips(post);
 
   // The feed shows two comments at most and never a thread; standalone (the
   // post screen) shows none here — the screen draws the full thread.
@@ -135,7 +147,21 @@ export function PostCard({
         </Text>
       ) : null}
 
-      {hasPhotos && (
+      {achievement ? (
+        <View style={styles.media}>
+          <AchievementCard
+            achievement={achievement}
+            width={mediaWidth}
+            photo={
+              post.photos[0]?.url
+                ? { uri: post.photos[0].url }
+                : coursePhoto(post.club?.id ?? null, post.club?.name ?? null)
+            }
+            photoCount={post.photos.length}
+            onPress={hasPhotos ? () => setViewer(0) : undefined}
+          />
+        </View>
+      ) : hasPhotos && (
         <View style={styles.media}>
           <Photos photos={post.photos} width={mediaWidth} onOpen={setViewer} />
         </View>

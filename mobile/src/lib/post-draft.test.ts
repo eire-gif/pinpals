@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { draftDetailsProblem, draftToDetails, emptyDraft } from "./post-draft";
+import { claimableAchievements, draftDetailsProblem, draftToDetails, emptyDraft } from "./post-draft";
 
 const today = "2026-10-04";
 
@@ -42,6 +42,22 @@ describe("recap fields (0099)", () => {
     expect(draftToDetails("round", { ...emptyDraft(today), holes: "9", score: "41", front_nine: "41", back_nine: "40" })).toEqual({
       score: 41, holes: 9, front_nine: 41, played_on: today,
     });
+  });
+});
+
+describe("achievements in the draft (phase 8)", () => {
+  it("offers what the numbers support", () => {
+    expect(claimableAchievements("round", { ...emptyDraft(today), score: "79" })).toEqual([
+      "personal_best", "breaking_80", "breaking_90", "breaking_100",
+    ]);
+    expect(claimableAchievements("hole", { ...emptyDraft(today), hole: "7", par: "3", hole_score: "1" })).toEqual(["hole_in_one"]);
+    expect(claimableAchievements("shot", { ...emptyDraft(today), club: "Driver" })).toEqual([]);
+  });
+  it("stores a hole's club and the claim, and refuses an unsupported claim", () => {
+    const d = { ...emptyDraft(today), hole: "7", par: "3", hole_score: "1", club: "7 Iron", achievement: "hole_in_one" };
+    expect(draftToDetails("hole", d)).toEqual({ hole: 7, par: 3, score: 1, club: "7 Iron", achievement: "hole_in_one" });
+    expect(draftDetailsProblem("hole", d)).toBeNull();
+    expect(draftDetailsProblem("hole", { ...d, hole_score: "2" })).toMatch(/hole in one/);
   });
 });
 

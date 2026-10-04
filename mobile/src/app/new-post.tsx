@@ -11,11 +11,13 @@ import {
   Text,
   TextInput,
   View,
+  useWindowDimensions,
 } from "react-native";
 import { Stack, router, useLocalSearchParams } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
+import { AchievementCard } from "@/components/achievement-card";
 import { coursePhoto } from "@/components/course-photos";
 import { PostDetailsForm } from "@/components/post-details-form";
 import { RoundRecapCard } from "@/components/round-recap-card";
@@ -31,7 +33,8 @@ import {
   type PostVisibility,
 } from "@/lib/feed-rules";
 import { POST_TYPE_INFO, isPostType, type PostKind, type PostType, type RoundDetails } from "@/lib/post-details";
-import { draftDetailsProblem, draftToDetails, emptyDraft, type DetailsDraft } from "@/lib/post-draft";
+import { achievementOf } from "@/lib/achievements";
+import { claimableAchievements, draftDetailsProblem, draftToDetails, emptyDraft, type DetailsDraft } from "@/lib/post-draft";
 import { recapCaption, recapSubtitle, type RecapSource } from "@/lib/round-recap";
 import { listConfirmedRounds } from "@/lib/rounds";
 import { todayIso } from "@/lib/tee-times";
@@ -234,6 +237,12 @@ export default function NewPostScreen() {
   const detailsIssue = structured ? draftDetailsProblem(kind, details) : null;
   const problem = detailsIssue ?? draftProblem(body, photos.length, structured);
   const canPost = !posting && !uploading && !failed && problem === null;
+  const { width: screenWidth } = useWindowDimensions();
+  // Phase 8: a claimed achievement previews exactly as the feed will draw it.
+  const achievement =
+    structured && details.achievement
+      ? achievementOf({ kind, details: draftToDetails(kind, details), courseName: club?.name ?? recap?.course ?? null, createdAt: new Date().toISOString() })
+      : null;
 
   async function post() {
     if (!canPost) return;
@@ -375,10 +384,23 @@ export default function NewPostScreen() {
                 kind={kind}
                 draft={details}
                 onChange={(next) => {
-                  setDetails(next);
+                  // A claim the numbers no longer support (the score was
+                  // changed) is dropped, not left to fail on Post.
+                  const still = next.achievement && claimableAchievements(kind, next).includes(next.achievement as never);
+                  setDetails(still || !next.achievement ? next : { ...next, achievement: "" });
                   setTouched(true);
                 }}
               />
+              {achievement ? (
+                <View style={styles.achievementPreview}>
+                  <Text style={styles.achievementPreviewLabel}>How it will look</Text>
+                  <AchievementCard
+                    achievement={achievement}
+                    width={screenWidth - spacing.md * 2}
+                    photo={photos[0]?.uri ? { uri: photos[0].uri } : coursePhoto(club?.id ?? null, club?.name ?? null)}
+                  />
+                </View>
+              ) : null}
               {touched && detailsIssue ? <Text style={styles.detailsHint}>{detailsIssue}</Text> : null}
             </View>
           )}
@@ -499,6 +521,8 @@ export default function NewPostScreen() {
 }
 
 const styles = StyleSheet.create({
+  achievementPreview: { marginTop: spacing.md, gap: spacing.sm },
+  achievementPreviewLabel: { fontFamily: fonts.bodySemi, fontSize: 12, letterSpacing: 0.8, color: colors.ink500, textTransform: "uppercase" },
   fill: { flex: 1, backgroundColor: colors.cream50 },
   content: { padding: spacing.md, paddingBottom: spacing.xl * 2 },
   headerCancel: { fontFamily: fonts.body, fontSize: type.body, color: colors.ink500 },

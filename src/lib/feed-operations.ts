@@ -2,6 +2,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { MAX_POST_PHOTOS, parseVisibility, validateComment, validatePostDraft, type PostVisibility } from "@/lib/feed";
+import { achievementProblem } from "@/lib/achievements";
 import { cleanDetails, detailsProblem, isPostKind, type PostKind } from "@/lib/post-details";
 import { DEFAULT_REACTION, REACTION_INFO, isReaction, normaliseCounts, type ReactionCounts, type ReactionKey } from "@/lib/reactions";
 import {
@@ -180,8 +181,30 @@ export async function createPost(input: {
       : rawDetails !== null && typeof rawDetails === "object" && !Array.isArray(rawDetails)
         ? cleanDetails(rawDetails as Record<string, unknown>)
         : rawDetails;
-  const detailsIssue = detailsProblem(kind, details);
+  const detailsIssue = detailsProblem(kind, details) ?? achievementProblem(kind, details);
   if (detailsIssue) return fail("invalid", detailsIssue);
+
+  // Personal Best (0100) is the one claim a post's own numbers can't
+  // settle: it must beat every full round the member has posted before.
+  // (Equal isn't a new best.) Their own posts, read under their own RLS.
+  const claim = details && typeof details === "object" ? (details as { achievement?: string; score?: number }) : null;
+  if (kind === "round" && claim?.achievement === "personal_best" && typeof claim.score === "number") {
+    const { data: earlier } = await supabase
+      .from("posts")
+      .select("details")
+      .eq("author_id", userId)
+      .eq("kind", "round")
+      .order("created_at", { ascending: false })
+      .limit(500)
+      .returns<{ details: { score?: number; holes?: number } | null }[]>();
+    const best = (earlier ?? [])
+      .map((r) => r.details)
+      .filter((d): d is { score: number; holes?: number } => !!d && typeof d.score === "number" && d.holes !== 9)
+      .reduce<number | null>((min, d) => (min === null || d.score < min ? d.score : min), null);
+    if (best !== null && claim.score >= best) {
+      return fail("invalid", `Your best round on PinPals is ${best} — a personal best has to beat it.`);
+    }
+  }
 
   // A recap (0099) names the tee time it was. Only someone who played it —
   // its host, or a confirmed player — may attach it: otherwise the app's
