@@ -22,12 +22,25 @@ export const POST_VISIBILITY_SHORT: Record<PostVisibility, string> = {
   connections: "Connections",
 };
 
+/**
+ * The feed's two tabs (Oct 2026 feed redesign, phase 2). The values are the
+ * data model's and unchanged — "all" is every post this member may see,
+ * "connections" is posts by their accepted connections (and themselves),
+ * both newest first. Only the names are new:
+ *
+ *   For You   → "all". There is no ranking yet; when there is, it replaces
+ *               loadFeed()'s "all" query and this label stays put.
+ *   Following → "connections". PinPals has connections, not one-way
+ *               follows, so "following" someone means being connected.
+ *
+ * The website still says "All PinPals" / "My connections" (src/lib/feed.ts).
+ */
 export const FEED_SCOPES = ["all", "connections"] as const;
 export type FeedScope = (typeof FEED_SCOPES)[number];
 
 export const FEED_SCOPE_LABELS: Record<FeedScope, string> = {
-  all: "All PinPals",
-  connections: "My connections",
+  all: "For You",
+  connections: "Following",
 };
 
 export const MAX_POST_PHOTOS = 6;

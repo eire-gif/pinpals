@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ago, commentLine, draftProblem, golfChips, handicapLabel, previewComments, interleave, likeLine, photoHeight, threadComments } from "./feed-rules";
+import { FEED_SCOPES, FEED_SCOPE_LABELS, ago, commentLine, draftProblem, golfChips, handicapLabel, previewComments, interleave, likeLine, photoHeight, threadComments } from "./feed-rules";
 
 describe("draftProblem", () => {
   it("needs a photo or some words", () => {
@@ -123,5 +123,12 @@ describe("previewComments", () => {
   it("shows what there is when there are fewer", () => {
     expect(previewComments([c(1, "2026-10-01T10:01:00Z")]).map((x) => x.id)).toEqual([1]);
     expect(previewComments([])).toEqual([]);
+  });
+});
+
+describe("feed tabs", () => {
+  it("are For You then Following, over the unchanged scope values", () => {
+    expect(FEED_SCOPES.map((s) => FEED_SCOPE_LABELS[s])).toEqual(["For You", "Following"]);
+    expect([...FEED_SCOPES]).toEqual(["all", "connections"]);
   });
 });

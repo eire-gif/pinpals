@@ -332,9 +332,10 @@ async function connectedIds(userId: string): Promise<string[]> {
 }
 
 /**
- * One page of the feed. "All PinPals" mixes in a few new marketplace
- * listings from the same stretch of time, through the same search function
- * the Marketplace tab uses; "My connections" is people only.
+ * One page of the feed, newest first. For You ("all") mixes in a few new
+ * marketplace listings from the same stretch of time, through the same
+ * search function the Marketplace tab uses; Following ("connections") is
+ * people only — your connections and you.
  */
 export async function loadFeed(viewerId: string, scope: FeedScope, before: string | null): Promise<FeedPage> {
   let authors: string[] | null = null;

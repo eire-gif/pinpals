@@ -29,9 +29,10 @@ import { usePostActions } from "@/lib/use-post-actions";
  * The Feed tab: what members are playing, posting and selling.
  *
  * Sits beside Marketplace in the tab bar. Posts are photos of rounds (or
- * anything golf), with likes and comments; "All PinPals" mixes in a few new
- * marketplace listings from the same stretch of time, "My connections" is
- * people only.
+ * anything golf), with likes and comments. Two tabs (phase 2): For You is
+ * every post you may see, with a few new marketplace listings from the same
+ * stretch of time; Following is your connections' posts, people only. Both
+ * newest first. "My posts" sits beside them.
  *
  * Reads are direct to Supabase and RLS decides what appears — see
  * mobile/src/lib/feed.ts. Every write goes through the website.
@@ -183,7 +184,7 @@ export default function FeedScreen() {
       </Pressable>
 
       <View style={styles.scopes}>
-        <View style={styles.segment} accessibilityRole="tablist">
+        <View style={styles.segment} accessibilityRole="tablist" accessibilityLabel="Feed">
           {FEED_SCOPES.map((s) => {
             const active = s === scope;
             return (
@@ -204,7 +205,10 @@ export default function FeedScreen() {
             onPress={() => router.push({ pathname: "/member/[id]", params: { id: userId } })}
             style={styles.myPosts}
             accessibilityRole="link"
+            accessibilityLabel="My posts"
+            hitSlop={6}
           >
+            <Ionicons name="person-circle-outline" size={18} color={colors.green700} />
             <Text style={styles.myPostsLabel}>My posts</Text>
           </Pressable>
         )}
@@ -249,8 +253,8 @@ export default function FeedScreen() {
               <Text style={styles.error}>{error}</Text>
             ) : noConnections ? (
               <Empty
-                title="No connections yet"
-                body="Posts from golfers you connect with appear here."
+                title="Nobody to follow yet"
+                body="Following shows posts from golfers you're connected with. Connect with a few and their rounds land here."
                 cta="Find golfers"
                 onPress={() => router.push("/members")}
               />
@@ -405,22 +409,31 @@ const styles = StyleSheet.create({
   // A segmented control rather than two loose chips: it is one choice
   // between two views of the same list, and should look like one.
   segment: {
+    flex: 1,
     flexDirection: "row",
     backgroundColor: colors.cream100,
     borderRadius: radii.pill,
     padding: 3,
   },
   segmentItem: {
-    paddingHorizontal: spacing.md - 2,
+    flex: 1,
+    alignItems: "center",
+    paddingHorizontal: spacing.sm,
     paddingVertical: spacing.sm - 1,
     borderRadius: radii.pill,
-    minHeight: 34,
+    minHeight: 38,
     justifyContent: "center",
   },
   segmentItemActive: { backgroundColor: colors.navy900 },
   segmentLabel: { fontFamily: fonts.bodySemi, fontSize: 13.5, color: colors.ink500 },
   segmentLabelActive: { color: colors.cream50 },
-  myPosts: { marginLeft: "auto", paddingVertical: spacing.sm, paddingHorizontal: spacing.xs },
+  myPosts: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    minHeight: 40,
+    paddingHorizontal: spacing.xs,
+  },
   myPostsLabel: { fontFamily: fonts.bodyBold, fontSize: 13.5, color: colors.green700 },
   listing: {
     backgroundColor: colors.surface,
