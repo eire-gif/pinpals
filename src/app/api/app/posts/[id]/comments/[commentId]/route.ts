@@ -1,5 +1,31 @@
-import { asId, authenticateAppRequest, badRequest, unauthenticated } from "@/lib/app-api";
-import { deleteComment, statusForFeedFailure } from "@/lib/feed-operations";
+import { asId, authenticateAppRequest, badRequest, readJson, unauthenticated } from "@/lib/app-api";
+import { deleteComment, editComment, statusForFeedFailure } from "@/lib/feed-operations";
+
+/**
+ * PATCH /api/app/posts/[id]/comments/[commentId]   { body }  → { id, editedAt }
+ *
+ * Edits your own comment (0097). The database is the rule — author only,
+ * not a hidden comment — and marks it edited.
+ */
+export async function PATCH(
+  request: Request,
+  { params }: { params: Promise<{ id: string; commentId: string }> }
+) {
+  const auth = await authenticateAppRequest(request);
+  if (!auth) return unauthenticated();
+
+  const commentId = asId((await params).commentId);
+  if (commentId === null) return badRequest("Comment id must be a positive integer.");
+
+  const input = await readJson<{ body?: unknown }>(request);
+  if (!input || typeof input.body !== "string") return badRequest("Expected { body }.");
+
+  const result = await editComment({ supabase: auth.supabase, userId: auth.user.id, commentId, body: input.body });
+  if (!result.ok) {
+    return Response.json({ error: result.message, reason: result.reason }, { status: statusForFeedFailure(result.reason) });
+  }
+  return Response.json(result.value);
+}
 
 /**
  * DELETE /api/app/posts/[id]/comments/[commentId]

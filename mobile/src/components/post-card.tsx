@@ -22,6 +22,7 @@ import { Avatar } from "@/components/avatar";
 import { ReactionDisc, ReactionPicker, ReactionStack } from "@/components/reactions";
 import type { FeedAuthor, FeedClub, FeedComment, FeedPhoto, FeedPost } from "@/lib/feed";
 import { POST_VISIBILITY_SHORT, ago, handicapLabel, photoHeight, previewComments } from "@/lib/feed-rules";
+import { mentionSegments } from "@/lib/mentions";
 import { detailChips } from "@/lib/post-details";
 import { REACTION_INFO, topReactions, type ReactionKey } from "@/lib/reactions";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
@@ -50,7 +51,10 @@ const MEDIA_INSET = 12;
  *   6. actions  — React · Comment · Share · Save, 44pt each. React: tap
  *                 for Great Shot (or to take yours away), long-press to
  *                 choose (phase 4, components/reactions.tsx)
- *   7. comments — at most two, flat, then "View all N comments"
+ *   7. comments — at most two, flat, then "View all N comments"; every way
+ *                 into the conversation opens the Comments sheet (phase 5).
+ *                 On the post screen (standalone) the card shows no thread:
+ *                 the screen draws the full one under it
  *
  * Separators are hairlines and whitespace rather than boxes. Nothing here
  * needs a native module, so changes to this file ship over the air.
@@ -66,7 +70,6 @@ export function PostCard({
   onSave,
   onMenu,
   onCommentOptions,
-  onReply,
   currentMemberId,
 }: {
   post: FeedPost;
@@ -82,11 +85,8 @@ export function PostCard({
   onShare: (post: FeedPost) => void;
   onSave: (post: FeedPost) => void;
   onMenu: (post: FeedPost) => void;
-  /** Long-press on a comment: delete, report or block, whichever apply. */
+  /** Long-press on a preview comment: edit, delete, report or block. */
   onCommentOptions?: (comment: FeedComment) => void;
-  /** Reply to one comment. Without it (the feed list), Reply opens the post
-   *  with the reply box ready. */
-  onReply?: (comment: FeedComment) => void;
   /** Set on a member's own page: tapping that member's name does nothing
    *  there, rather than stacking a second copy of the page you're on. */
   currentMemberId?: string;
@@ -98,16 +98,16 @@ export function PostCard({
   const mediaWidth = width - MEDIA_INSET * 2;
   const chips = detailChips(post);
 
-  // The feed shows two comments at most and never a thread; the post screen
-  // shows everything, threaded.
-  const shownComments = standalone ? post.comments : previewComments(post.comments, 2);
+  // The feed shows two comments at most and never a thread; standalone (the
+  // post screen) shows none here — the screen draws the full thread.
+  const shownComments = standalone ? [] : previewComments(post.comments, 2);
   const more = post.commentCount > shownComments.filter((c) => !c.hidden).length;
 
   const openMember = (id: string) => {
     if (id === currentMemberId) return;
     router.push({ pathname: "/member/[id]", params: { id } });
   };
-  const openPost = () => router.push({ pathname: "/post/[id]", params: { id: String(post.id) } });
+  const openComments = () => router.push({ pathname: "/comments/[id]", params: { id: String(post.id) } });
 
   return (
     <View style={styles.card}>
@@ -170,7 +170,7 @@ export function PostCard({
           {post.commentCount > 0 && (
             <Text
               style={styles.proofText}
-              onPress={standalone ? undefined : openPost}
+              onPress={standalone ? undefined : openComments}
               accessibilityRole={standalone ? undefined : "link"}
               suppressHighlighting
             >
@@ -195,7 +195,7 @@ export function PostCard({
       </View>
 
       {!standalone && more && (
-        <Pressable onPress={openPost} style={styles.viewAll} accessibilityRole="link">
+        <Pressable onPress={openComments} style={styles.viewAll} accessibilityRole="link">
           <Text style={styles.viewAllText}>
             View all {post.commentCount} {post.commentCount === 1 ? "comment" : "comments"}
           </Text>
@@ -203,21 +203,18 @@ export function PostCard({
       )}
 
       {shownComments.length > 0 && (
-        <View style={[styles.comments, standalone && styles.commentsStandalone]}>
+        <View style={styles.comments}>
           {shownComments.map((c) => (
             <CommentRow
               key={c.id}
-              comment={standalone ? c : { ...c, depth: 0 }}
-              compact={!standalone}
+              comment={c}
               onAuthor={() => openMember(c.author.id)}
               onLongPress={onCommentOptions && (() => onCommentOptions(c))}
               onReply={() =>
-                onReply
-                  ? onReply(c)
-                  : router.push({
-                      pathname: "/post/[id]",
-                      params: { id: String(post.id), focus: "comment", reply: String(c.id), replyName: c.author.name },
-                    })
+                router.push({
+                  pathname: "/comments/[id]",
+                  params: { id: String(post.id), reply: String(c.id), replyName: c.author.name },
+                })
               }
             />
           ))}
@@ -420,80 +417,67 @@ function ActionButton({
   );
 }
 
+/** One comment in the feed's collapsed preview: name and text on one line,
+ *  @mentions highlighted, then the time and Reply. The full thread, with
+ *  likes and every option, is the Comments sheet (comment-thread.tsx). */
 function CommentRow({
   comment,
-  compact,
   onAuthor,
   onLongPress,
   onReply,
 }: {
   comment: FeedComment;
-  /** The feed's preview: one line of name-and-text, no bubble. The post
-   *  screen keeps the bubble, where a thread is read rather than glanced at. */
-  compact: boolean;
   onAuthor: () => void;
   onLongPress?: () => void;
   onReply: () => void;
 }) {
-  const meta = (
-    <View style={[styles.commentMetaRow, compact && styles.commentMetaRowCompact]}>
-      <Text style={styles.commentMeta}>{ago(comment.createdAt)}</Text>
-      {comment.hidden ? null : (
-        <Text
-          style={styles.replyLink}
-          onPress={onReply}
-          accessibilityRole="button"
-          accessibilityLabel={`Reply to ${comment.author.name}`}
-          suppressHighlighting
-        >
-          Reply
-        </Text>
-      )}
-    </View>
-  );
-
-  if (compact) {
-    return (
-      <Pressable
-        onLongPress={onLongPress}
-        style={[styles.comment, comment.depth === 1 && styles.replyCompact]}
-        accessibilityHint={onLongPress ? "Long-press for options" : undefined}
-      >
-        <Pressable onPress={onAuthor} style={styles.commentAvatar}>
-          <Avatar url={comment.author.avatarUrl} color={comment.author.avatarColor} name={comment.author.name} size={24} />
-        </Pressable>
-        <View style={styles.commentBody}>
-          <Text style={styles.commentText} numberOfLines={3}>
-            <Text style={styles.commentName} onPress={onAuthor}>
-              {comment.author.name}
-            </Text>{" "}
-            {comment.body}
-          </Text>
-          {comment.hidden && <Text style={styles.hiddenNote}>Hidden by PinPals — only you can see this.</Text>}
-          {meta}
-        </View>
-      </Pressable>
-    );
-  }
-
   return (
     <Pressable
       onLongPress={onLongPress}
-      style={[styles.comment, comment.depth === 1 && styles.reply]}
+      style={styles.comment}
       accessibilityHint={onLongPress ? "Long-press for options" : undefined}
     >
-      <Pressable onPress={onAuthor}>
-        <Avatar url={comment.author.avatarUrl} color={comment.author.avatarColor} name={comment.author.name} size={30} />
+      <Pressable onPress={onAuthor} style={styles.commentAvatar}>
+        <Avatar url={comment.author.avatarUrl} color={comment.author.avatarColor} name={comment.author.name} size={24} />
       </Pressable>
       <View style={styles.commentBody}>
-        <View style={[styles.bubble, comment.hidden && styles.bubbleHidden]}>
+        <Text style={styles.commentText} numberOfLines={3}>
           <Text style={styles.commentName} onPress={onAuthor}>
             {comment.author.name}
+          </Text>{" "}
+          {mentionSegments(comment.body, comment.mentions).map((seg, i) =>
+            seg.mention ? (
+              <Text key={i} style={styles.mention}>
+                {seg.text}
+              </Text>
+            ) : (
+              <Text key={i}>{seg.text}</Text>
+            )
+          )}
+        </Text>
+        {comment.hidden && <Text style={styles.hiddenNote}>Hidden by PinPals — only you can see this.</Text>}
+        <View style={styles.commentMetaRow}>
+          <Text style={styles.commentMeta}>
+            {ago(comment.createdAt)}
+            {comment.editedAt ? " · Edited" : ""}
           </Text>
-          <Text style={styles.commentText}>{comment.body}</Text>
-          {comment.hidden && <Text style={styles.hiddenNote}>Hidden by PinPals — only you can see this.</Text>}
+          {comment.hidden ? null : (
+            <Text
+              style={styles.replyLink}
+              onPress={onReply}
+              accessibilityRole="button"
+              accessibilityLabel={`Reply to ${comment.author.name}`}
+              suppressHighlighting
+            >
+              Reply
+            </Text>
+          )}
+          {comment.likeCount > 0 && (
+            <Text style={styles.commentMeta}>
+              <Ionicons name="heart" size={11} color={colors.red600} /> {comment.likeCount}
+            </Text>
+          )}
         </View>
-        {meta}
       </View>
     </Pressable>
   );
@@ -830,30 +814,14 @@ const styles = StyleSheet.create({
   viewAll: { paddingHorizontal: spacing.md, minHeight: 32, justifyContent: "center" },
   viewAllText: { fontFamily: fonts.bodySemi, fontSize: 13.5, color: colors.ink500 },
   comments: { paddingHorizontal: spacing.md, gap: spacing.sm + 2, paddingTop: spacing.xs },
-  commentsStandalone: {
-    marginTop: spacing.sm,
-    paddingTop: spacing.md,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.line,
-  },
   comment: { flexDirection: "row", gap: spacing.sm },
   commentAvatar: { paddingTop: 1 },
-  // One level of replies (0092) on the post screen; the feed preview is flat.
-  reply: { marginLeft: 38 },
-  replyCompact: { marginLeft: 32 },
   commentBody: { flex: 1, minWidth: 0 },
-  bubble: {
-    backgroundColor: colors.surfaceTint,
-    borderRadius: radii.lg,
-    paddingHorizontal: spacing.sm + 4,
-    paddingVertical: spacing.sm,
-  },
-  bubbleHidden: { backgroundColor: colors.cream100 },
   commentName: { fontFamily: fonts.bodyBold, fontSize: 13.5, color: colors.ink900 },
   commentText: { fontFamily: fonts.body, fontSize: 13.5, lineHeight: 19, color: colors.ink900 },
   hiddenNote: { fontFamily: fonts.body, fontSize: 11.5, color: colors.ink500, marginTop: 4 },
-  commentMetaRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, marginTop: 3, marginLeft: spacing.sm + 4 },
-  commentMetaRowCompact: { marginLeft: 0, marginTop: 2 },
+  commentMetaRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, marginTop: 2 },
+  mention: { fontFamily: fonts.bodySemi, color: colors.green700 },
   commentMeta: { fontFamily: fonts.body, fontSize: 12, color: colors.ink500 },
   replyLink: { fontFamily: fonts.bodySemi, fontSize: 12, color: colors.ink500, paddingVertical: 2 },
   foot: { height: spacing.md - 4 },

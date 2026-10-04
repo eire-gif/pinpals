@@ -169,6 +169,11 @@ const EXPECTED: Record<string, Expectation> = {
   "bump_post_comment_count()": { anon: false, authenticated: false },
   "prepare_post_comment_reply()": { anon: false, authenticated: false },
   "bump_post_like_count()": { anon: false, authenticated: false },
+  // 0097. A trigger that cleans @mentions (reads connections, blocks and
+  // posts the commenter can't), and the comment-like counter (members have
+  // no UPDATE on like_count). Triggers only — callable by nobody.
+  "clean_post_comment_mentions()": { anon: false, authenticated: false },
+  "bump_post_comment_like_count()": { anon: false, authenticated: false },
   // 0084. The nightly sweep that closes rounds a clear day past their
   // play_date. SECURITY DEFINER so cron can run it without a session;
   // unreachable from a browser because a member closing other people's

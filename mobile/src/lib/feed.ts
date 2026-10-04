@@ -18,6 +18,7 @@ import {
   type PostVisibility,
 } from "./feed-rules";
 import type { HoleDetails, PostKind, RoundDetails, ShotDetails } from "./post-details";
+import type { MentionTarget } from "./mentions";
 import { isReaction, normaliseCounts, type ReactionCounts, type ReactionKey } from "./reactions";
 
 /**
@@ -36,10 +37,10 @@ import { isReaction, normaliseCounts, type ReactionCounts, type ReactionKey } fr
  * have been a direct delete, but one rule for every feed write is easier to
  * keep than one rule and an exception.
  *
- * THE ONE EXCEPTION is saving (0094): a private bookmark that notifies
- * nobody, written straight to Supabase exactly as listing favourites are
- * (marketplace.ts setFavourite). Its insert policy is can_view_post(), so the
- * rule that matters is still the database's.
+ * THE EXCEPTIONS are saving a post (0094) and liking a comment (0097):
+ * neither notifies anybody, so both are written straight to Supabase exactly
+ * as listing favourites are (marketplace.ts setFavourite). Their policies
+ * are the rule — only what you can see, only as yourself.
  */
 
 /** An hour, matching the website. */
@@ -77,6 +78,12 @@ export type FeedComment = {
   parentId: number | null;
   /** 1 when shown indented under its parent; set by threadComments(). */
   depth: 0 | 1;
+  /** Members named with @ (0097), with the names to find in the body. */
+  mentions: MentionTarget[];
+  likeCount: number;
+  likedByMe: boolean;
+  /** When the author last changed it (0097), or null. */
+  editedAt: string | null;
 };
 
 export type FeedPost = {
@@ -163,6 +170,10 @@ type CommentRow = {
   hidden_at: string | null;
   created_at: string;
   parent_id: number | null;
+  /** Absent on a database without 0097 (see selectComments). */
+  mentions?: string[] | null;
+  like_count?: number;
+  edited_at?: string | null;
   author: ProfileEmbed | null;
 };
 
@@ -201,10 +212,60 @@ async function selectPosts<T>(
   return run(POST_SELECT_LEGACY);
 }
 
-const COMMENT_SELECT = `
+const COMMENT_SELECT_LEGACY = `
   id, post_id, author_id, body, hidden_at, created_at, parent_id,
   author:profiles!post_comments_author_id_fkey ( id, first_name, last_name, avatar_url, avatar_color, home_club, handicap, handicap_visible )
 `;
+
+const COMMENT_SELECT = COMMENT_SELECT_LEGACY.replace("parent_id,", "parent_id, mentions, like_count, edited_at,");
+
+/** selectPosts()'s fallback for comments: 0097's columns, or without them. */
+let legacyComments = false;
+async function selectComments<T>(
+  run: (select: string) => PromiseLike<{ data: T | null; error: { code?: string } | null }>
+): Promise<{ data: T | null; error: { code?: string } | null }> {
+  if (!legacyComments) {
+    const result = await run(COMMENT_SELECT);
+    if (result.error?.code !== "42703") return result;
+    legacyComments = true;
+  }
+  return run(COMMENT_SELECT_LEGACY);
+}
+
+/**
+ * What a list of comment rows needs besides itself: the names behind their
+ * mentions, and which of them the viewer has liked. Two small queries per
+ * page; either failing (an older database) just means plain text and no
+ * hearts filled in.
+ */
+async function commentExtras(
+  viewerId: string,
+  rows: CommentRow[]
+): Promise<{ names: Map<string, string>; liked: Set<number> }> {
+  const mentionIds = [...new Set(rows.flatMap((r) => r.mentions ?? []))];
+  const commentIds = rows.map((r) => r.id);
+  const [people, likes] = await Promise.all([
+    mentionIds.length
+      ? supabase
+          .from("profiles")
+          .select("id, first_name, last_name")
+          .in("id", mentionIds)
+          .overrideTypes<{ id: string; first_name: string | null; last_name: string | null }[]>()
+      : Promise.resolve({ data: [] as { id: string; first_name: string | null; last_name: string | null }[] }),
+    commentIds.length
+      ? supabase
+          .from("post_comment_likes")
+          .select("comment_id")
+          .eq("user_id", viewerId)
+          .in("comment_id", commentIds)
+          .overrideTypes<{ comment_id: number }[]>()
+      : Promise.resolve({ data: [] as { comment_id: number }[] }),
+  ]);
+  const names = new Map(
+    (people.data ?? []).map((p) => [p.id, [p.first_name, p.last_name].filter(Boolean).join(" ")] as const)
+  );
+  return { names, liked: new Set((likes.data ?? []).map((l) => l.comment_id)) };
+}
 
 const toAuthor = (row: ProfileEmbed | null, fallbackId: string): FeedAuthor =>
   row
@@ -241,7 +302,12 @@ const toClub = (row: ClubEmbed | null): FeedClub | null => {
   };
 };
 
-const toComment = (row: CommentRow, viewerId: string, postAuthorId: string | null): FeedComment => ({
+const toComment = (
+  row: CommentRow,
+  viewerId: string,
+  postAuthorId: string | null,
+  extras: { names: Map<string, string>; liked: Set<number> } = { names: new Map(), liked: new Set() }
+): FeedComment => ({
   id: row.id,
   postId: row.post_id,
   author: toAuthor(row.author, row.author_id),
@@ -254,6 +320,12 @@ const toComment = (row: CommentRow, viewerId: string, postAuthorId: string | nul
   isMine: row.author_id === viewerId,
   parentId: row.parent_id,
   depth: 0,
+  mentions: (row.mentions ?? [])
+    .map((id) => ({ id, name: extras.names.get(id) ?? "" }))
+    .filter((m) => m.name),
+  likeCount: row.like_count ?? 0,
+  likedByMe: extras.liked.has(row.id),
+  editedAt: row.edited_at ?? null,
 });
 
 async function signPhotos(paths: string[]): Promise<Map<string, string>> {
@@ -280,48 +352,56 @@ async function hydrate(viewerId: string, rows: PostRow[], commentsPerPost: numbe
     // not saved — the feed must not depend on the newest table.
     supabase.from("post_saves").select("post_id").eq("user_id", viewerId).in("post_id", ids).overrideTypes<{ post_id: number }[]>(),
     commentsPerPost > 0
-      ? supabase
-          .from("post_comments")
-          .select(COMMENT_SELECT)
-          .in("post_id", ids)
-          .order("created_at", { ascending: false })
-          .order("id", { ascending: false })
-          .limit(Math.min(ids.length * commentsPerPost * 4, 200))
-          .overrideTypes<CommentRow[]>()
-      : Promise.resolve({ data: [] as CommentRow[] }),
+      ? selectComments<CommentRow[]>((select) =>
+          supabase
+            .from("post_comments")
+            .select(select)
+            .in("post_id", ids)
+            .order("created_at", { ascending: false })
+            .order("id", { ascending: false })
+            .limit(Math.min(ids.length * commentsPerPost * 4, 200))
+            .overrideTypes<CommentRow[]>()
+        )
+      : Promise.resolve({ data: [] as CommentRow[], error: null }),
     signPhotos(rows.flatMap((r) => r.post_images.map((img) => img.path))),
   ]);
 
   const reacted = new Map(likes.map((l) => [l.post_id, l.reaction]));
   const saved = new Set((saves.data ?? []).map((l) => l.post_id));
   const authorOf = new Map(rows.map((r) => [r.id, r.author_id]));
-  const byPost = new Map<number, FeedComment[]>();
+  // The latest few per post, rows first, so the extras (mention names,
+  // the viewer's comment likes) are fetched once for the whole page.
+  const kept = new Map<number, CommentRow[]>();
   for (const row of (comments.data ?? []) as CommentRow[]) {
-    const list = byPost.get(row.post_id) ?? [];
+    const list = kept.get(row.post_id) ?? [];
     if (list.length >= commentsPerPost) continue;
-    list.push(toComment(row, viewerId, authorOf.get(row.post_id) ?? null));
-    byPost.set(row.post_id, list);
+    list.push(row);
+    kept.set(row.post_id, list);
   }
 
   // A preview reply needs what it answers: fetch any parent the latest-N cut
   // left out. RLS still decides — an invisible parent doesn't come back and
   // the reply shows on its own. Same as the site's hydratePosts().
-  const shown = [...byPost.values()].flat();
-  const shownIds = new Set(shown.map((c) => c.id));
+  const shownRows = [...kept.values()].flat();
+  const shownIds = new Set(shownRows.map((c) => c.id));
   const missing = [
-    ...new Set(shown.map((c) => c.parentId).filter((id): id is number => id !== null && !shownIds.has(id))),
+    ...new Set(shownRows.map((c) => c.parent_id).filter((id): id is number => id !== null && !shownIds.has(id))),
   ];
   if (missing.length > 0) {
-    const { data: parents } = await supabase
-      .from("post_comments")
-      .select(COMMENT_SELECT)
-      .in("id", missing)
-      .overrideTypes<CommentRow[]>();
+    const { data: parents } = await selectComments<CommentRow[]>((select) =>
+      supabase.from("post_comments").select(select).in("id", missing).overrideTypes<CommentRow[]>()
+    );
     for (const row of (parents ?? []) as CommentRow[]) {
-      const list = byPost.get(row.post_id) ?? [];
-      list.push(toComment(row, viewerId, authorOf.get(row.post_id) ?? null));
-      byPost.set(row.post_id, list);
+      const list = kept.get(row.post_id) ?? [];
+      list.push(row);
+      kept.set(row.post_id, list);
     }
+  }
+
+  const extras = await commentExtras(viewerId, [...kept.values()].flat());
+  const byPost = new Map<number, FeedComment[]>();
+  for (const [postId, list] of kept) {
+    byPost.set(postId, list.map((row) => toComment(row, viewerId, authorOf.get(postId) ?? null, extras)));
   }
 
   return rows.map((row) => ({
@@ -475,18 +555,63 @@ export async function loadPost(viewerId: string, postId: number): Promise<FeedPo
   );
   if (!data) return null;
   const [post] = await hydrate(viewerId, [data], 0);
-  const { data: comments } = await supabase
-    .from("post_comments")
-    .select(COMMENT_SELECT)
-    .eq("post_id", postId)
-    .order("created_at", { ascending: true })
-    .order("id", { ascending: true })
-    .limit(500)
-    .overrideTypes<CommentRow[]>();
+  const { data: comments } = await selectComments<CommentRow[]>((select) =>
+    supabase
+      .from("post_comments")
+      .select(select)
+      .eq("post_id", postId)
+      .order("created_at", { ascending: true })
+      .order("id", { ascending: true })
+      .limit(500)
+      .overrideTypes<CommentRow[]>()
+  );
+  const rows = (comments ?? []) as CommentRow[];
+  const extras = await commentExtras(viewerId, rows);
   return {
     ...post,
-    comments: threadComments(((comments ?? []) as CommentRow[]).map((c) => toComment(c, viewerId, data.author_id))),
+    comments: threadComments(rows.map((c) => toComment(c, viewerId, data.author_id, extras))),
   };
+}
+
+/**
+ * Who can be @mentioned in a comment on `post`, for the picker: the post's
+ * author, everyone already in the thread, and the viewer's connections.
+ * The database re-checks every one when the comment is saved
+ * (clean_post_comment_mentions) — this only decides what to suggest.
+ */
+export async function mentionCandidates(
+  viewerId: string,
+  post: FeedPost
+): Promise<(MentionTarget & { avatarUrl: string | null; avatarColor: string | null })[]> {
+  const thread = [post.author, ...post.comments.map((c) => c.author)].map((a) => ({
+    id: a.id,
+    name: a.name,
+    avatarUrl: a.avatarUrl,
+    avatarColor: a.avatarColor,
+  }));
+  let connections: typeof thread = [];
+  try {
+    const ids = await connectedIds(viewerId);
+    if (ids.length > 0) {
+      const { data } = await supabase
+        .from("profiles")
+        .select("id, first_name, last_name, avatar_url, avatar_color")
+        .in("id", ids.slice(0, 500))
+        .overrideTypes<
+          { id: string; first_name: string | null; last_name: string | null; avatar_url: string | null; avatar_color: string | null }[]
+        >();
+      connections = (data ?? []).map((p) => ({
+        id: p.id,
+        name: [p.first_name, p.last_name].filter(Boolean).join(" "),
+        avatarUrl: p.avatar_url,
+        avatarColor: p.avatar_color,
+      }));
+    }
+  } catch {
+    // Suggest the thread alone.
+  }
+  const seen = new Set<string>([viewerId]);
+  return [...thread, ...connections].filter((p) => p.name && p.name !== "A member" && !seen.has(p.id) && seen.add(p.id));
 }
 
 // ---------------------------------------------------------------------------
@@ -607,9 +732,38 @@ export type ReactionResult = {
 export const setLike = (postId: number, liked: boolean, reaction?: ReactionKey): Promise<ReactionResult> =>
   postToSite(`/api/app/posts/${postId}/like`, reaction ? { liked, reaction } : { liked });
 
-/** A comment on the post, or — with `parentId` — a reply to one comment. */
-export const addComment = (postId: number, body: string, parentId: number | null = null): Promise<{ id: number }> =>
-  postToSite(`/api/app/posts/${postId}/comments`, parentId === null ? { body } : { body, parent_id: parentId });
+/** A comment on the post, or — with `parentId` — a reply to one comment.
+ *  `mentions` are member ids named with @; the server keeps the ones the
+ *  database allows and returns them. */
+export const addComment = (
+  postId: number,
+  body: string,
+  parentId: number | null = null,
+  mentions: string[] = []
+): Promise<{ id: number; mentions?: string[] }> =>
+  postToSite(`/api/app/posts/${postId}/comments`, {
+    body,
+    ...(parentId === null ? {} : { parent_id: parentId }),
+    ...(mentions.length ? { mentions } : {}),
+  });
+
+/** Changes the text of your own comment (0097); the server marks it edited. */
+export const editComment = (postId: number, commentId: number, body: string): Promise<{ id: number; editedAt: string | null }> =>
+  patchSite(`/api/app/posts/${postId}/comments/${commentId}`, { body });
+
+/**
+ * Likes or unlikes a comment (0097). Direct to Supabase, like saving a
+ * post: nobody is notified, and the policies are the rule (only a comment
+ * you can see, only as yourself). DO NOTHING on a repeat tap.
+ */
+export async function setCommentLike(commentId: number, userId: string, liked: boolean): Promise<void> {
+  const { error } = liked
+    ? await supabase
+        .from("post_comment_likes")
+        .upsert({ comment_id: commentId, user_id: userId }, { onConflict: "comment_id,user_id", ignoreDuplicates: true })
+    : await supabase.from("post_comment_likes").delete().eq("comment_id", commentId).eq("user_id", userId);
+  if (error) throw new Error("Couldn't save that. Please try again.");
+}
 
 export const deleteComment = (postId: number, commentId: number): Promise<{ ok: true }> =>
   deleteFromSite(`/api/app/posts/${postId}/comments/${commentId}`);

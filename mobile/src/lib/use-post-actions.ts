@@ -10,6 +10,7 @@ import {
   deleteComment,
   deletePost,
   report,
+  setCommentLike,
   setLike,
   setSaved,
   type FeedComment,
@@ -225,27 +226,60 @@ export function usePostActions(handlers: {
     });
   }, []);
 
-  /** Long-press on a comment. Your own: delete. Someone else's on your
-   *  post: delete, report or block. Someone else's elsewhere: report or
-   *  block. */
+  /**
+   * A comment's options (the "···" or a long-press). Your own: edit or
+   * delete. Someone else's on your post: delete, report or block. Someone
+   * else's elsewhere: report or block. A hidden comment of yours can only
+   * be deleted — editing must not launder a moderated comment (0097).
+   *
+   * `onEdit` is what Edit does on this screen; without one (the feed's
+   * preview) it opens the comments screen ready to edit.
+   */
   const commentOptions = useCallback(
-    (comment: FeedComment) => {
+    (comment: FeedComment, opts?: { onEdit?: (comment: FeedComment) => void }) => {
       const first = comment.author.name.split(" ")[0];
       const items: { label: string; destructive?: boolean; run: () => void }[] = [];
-      if (comment.canDelete) items.push({ label: "Delete comment", run: () => removeComment(comment) });
+      if (comment.isMine && !comment.hidden) {
+        const onEdit =
+          opts?.onEdit ??
+          ((c: FeedComment) =>
+            router.push({ pathname: "/comments/[id]", params: { id: String(c.postId), edit: String(c.id) } }));
+        items.push({ label: "Edit comment", run: () => onEdit(comment) });
+      }
+      if (comment.canDelete) items.push({ label: "Delete comment", destructive: comment.isMine, run: () => removeComment(comment) });
       if (!comment.isMine) {
         items.push({ label: "Report comment", run: () => reportComment(comment) });
         items.push({ label: `Block ${first}`, destructive: true, run: () => block(comment.author.id, comment.author.name) });
-      }
-      // Your own comment has one option; go straight to its confirm.
-      if (comment.isMine) {
-        removeComment(comment);
-        return;
       }
       showSheet("Comment", items);
     },
     [removeComment, reportComment, block]
   );
 
-  return { like, react, save, share, menu, commentOptions };
+  /** A heart on a comment: optimistic, rolled back on failure. */
+  const likeComment = useCallback(
+    async (comment: FeedComment) => {
+      const next = !comment.likedByMe;
+      const patch = (liked: boolean, delta: number) =>
+        update(comment.postId, (p) => ({
+          ...p,
+          comments: p.comments.map((c) =>
+            c.id === comment.id ? { ...c, likedByMe: liked, likeCount: Math.max(0, c.likeCount + delta) } : c
+          ),
+        }));
+      patch(next, next ? 1 : -1);
+      try {
+        const { data } = await supabase.auth.getSession();
+        const userId = data.session?.user?.id;
+        if (!userId) throw new Error("Please sign in again.");
+        await setCommentLike(comment.id, userId, next);
+      } catch (err) {
+        patch(!next, next ? -1 : 1);
+        Alert.alert("Couldn't save that", err instanceof Error ? err.message : "Please try again.");
+      }
+    },
+    [update]
+  );
+
+  return { like, react, save, share, menu, commentOptions, likeComment };
 }

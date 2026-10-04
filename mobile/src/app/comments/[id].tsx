@@ -1,19 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-  useWindowDimensions,
-} from "react-native";
+import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Stack, router, useLocalSearchParams } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { CommentComposer, CommentList, useCommentThread } from "@/components/comment-thread";
-import { PostCard, postCardWidth } from "@/components/post-card";
 import { useAuth } from "@/lib/auth";
 import { loadPost, type FeedPost } from "@/lib/feed";
 import { supabase } from "@/lib/supabase";
@@ -21,15 +11,17 @@ import { colors, fonts, spacing, type } from "@/lib/theme";
 import { usePostActions } from "@/lib/use-post-actions";
 
 /**
- * One post with its whole conversation.
+ * Comments, as a sheet over the feed (phase 5). The feed card stays
+ * collapsed — two comments at most — and every way into the conversation
+ * (Comment, "View all", "N comments", Reply, Edit) lands here.
  *
- * Where a like, comment or mention alert lands (alert-routes.ts: /feed/<id>)
- * and where a shared link opens. The thread under the card is the same
- * component as the Comments sheet (components/comment-thread.tsx), so replies,
- * mentions, comment likes and edits behave identically in both. A post that
- * has gone and a post the member may not see look identical here, on purpose.
+ * Presented as a modal (registered in app/_layout.tsx, which is the one
+ * place a presentation can be set without crashing iOS). Params:
+ *   focus=comment          open with the keyboard up
+ *   reply=<id>&replyName=  replying to that comment
+ *   edit=<id>              editing that comment of yours
  */
-export default function PostScreen() {
+export default function CommentsScreen() {
   const { id, focus, reply, replyName, edit } = useLocalSearchParams<{
     id: string;
     focus?: string;
@@ -40,7 +32,6 @@ export default function PostScreen() {
   const postId = Number(id);
   const { session } = useAuth();
   const userId = session?.user?.id ?? null;
-  const { width } = useWindowDimensions();
 
   const [post, setPost] = useState<FeedPost | null>(null);
   const [loading, setLoading] = useState(true);
@@ -94,8 +85,6 @@ export default function PostScreen() {
     update: (pid, change) => setPost((p) => (p && p.id === pid ? change(p) : p)),
     remove: () => router.back(),
     reload: load,
-    // Blocking the post's author leaves nothing to show; blocking a
-    // commenter just takes their comments away.
     afterBlock: (memberId) => {
       if (post && post.author.id === memberId) {
         router.back();
@@ -105,40 +94,35 @@ export default function PostScreen() {
     },
   });
 
+  const count = post ? post.comments.filter((c) => !c.hidden).length : 0;
+
   return (
     <>
-      <Stack.Screen options={{ title: "Post", headerBackTitle: "Back" }} />
+      <Stack.Screen
+        options={{
+          title: post ? `Comments (${count})` : "Comments",
+          headerRight: () => (
+            <Pressable onPress={() => router.back()} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close">
+              <Ionicons name="close" size={24} color={colors.ink900} />
+            </Pressable>
+          ),
+        }}
+      />
       {loading ? (
         <ActivityIndicator style={{ marginTop: spacing.xl }} color={colors.green700} />
       ) : !post ? (
         <View style={styles.gone}>
-          <Ionicons name="images-outline" size={36} color={colors.ink500} />
-          <Text style={styles.goneTitle}>This post isn&apos;t available</Text>
-          <Text style={styles.goneBody}>It may have been deleted, or shared only with the author&apos;s connections.</Text>
+          <Ionicons name="chatbubbles-outline" size={36} color={colors.ink500} />
+          <Text style={styles.goneTitle}>These comments aren&apos;t available</Text>
+          <Text style={styles.goneBody}>The post may have been deleted, or shared only with the author&apos;s connections.</Text>
         </View>
       ) : (
         <KeyboardAvoidingView
           style={styles.fill}
           behavior={Platform.OS === "ios" ? "padding" : undefined}
-          keyboardVerticalOffset={Platform.OS === "ios" ? 96 : 0}
+          keyboardVerticalOffset={Platform.OS === "ios" ? 56 : 0}
         >
           <ScrollView ref={scroller} style={styles.fill} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-            <PostCard
-              post={post}
-              width={postCardWidth(width)}
-              standalone
-              onLike={actions.like}
-              onReact={actions.react}
-              onShare={actions.share}
-              onSave={actions.save}
-              onMenu={actions.menu}
-              onComment={() => {
-                // The Comment button is for the post itself.
-                thread.cancel();
-                thread.input.current?.focus();
-              }}
-            />
-            <Text style={styles.section}>Comments</Text>
             <CommentList
               comments={post.comments}
               onLike={actions.likeComment}
@@ -155,9 +139,8 @@ export default function PostScreen() {
 
 const styles = StyleSheet.create({
   fill: { flex: 1, backgroundColor: colors.cream50 },
-  content: { padding: spacing.md, paddingBottom: spacing.xl },
-  section: { fontFamily: fonts.display, fontSize: type.heading, color: colors.ink900, marginTop: spacing.lg, marginBottom: spacing.md },
-  gone: { alignItems: "center", padding: spacing.xl, gap: spacing.sm },
+  content: { padding: spacing.md, paddingBottom: spacing.lg },
+  gone: { flex: 1, alignItems: "center", justifyContent: "center", padding: spacing.lg, gap: spacing.sm, backgroundColor: colors.cream50 },
   goneTitle: { fontFamily: fonts.display, fontSize: type.title, color: colors.ink900, textAlign: "center" },
   goneBody: { fontFamily: fonts.body, fontSize: type.small, color: colors.ink500, textAlign: "center" },
 });

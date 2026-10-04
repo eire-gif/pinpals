@@ -305,7 +305,7 @@ export default function FeedScreen() {
                 onSave={actions.save}
                 onMenu={actions.menu}
                 onComment={(p) =>
-                  router.push({ pathname: "/post/[id]", params: { id: String(p.id), focus: "comment" } })
+                  router.push({ pathname: "/comments/[id]", params: { id: String(p.id), focus: "comment" } })
                 }
                 onCommentOptions={actions.commentOptions}
               />

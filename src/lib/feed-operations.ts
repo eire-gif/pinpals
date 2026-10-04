@@ -460,9 +460,15 @@ export async function addComment(input: {
    *  reply under its top-level comment, and refuses a parent the replier
    *  could not see. */
   parentId?: number | null;
-}): Promise<FeedResult<{ id: number }>> {
+  /** Members named with @ (0097). Sent as the app found them; the database
+   *  keeps only those the commenter may name and who can see the post
+   *  (clean_post_comment_mentions), and only those are notified. */
+  mentions?: unknown;
+}): Promise<FeedResult<{ id: number; mentions: string[] }>> {
   const { supabase, userId, postId } = input;
   const parentId = input.parentId ?? null;
+  const mentions = parseMentions(input.mentions);
+  if (mentions === null) return fail("invalid", "Those mentions couldn't be read — please try again.");
   const body = input.body.trim();
 
   const problem = validateComment(body);
@@ -494,9 +500,9 @@ export async function addComment(input: {
 
   const { data: comment, error } = await supabase
     .from("post_comments")
-    .insert({ post_id: postId, author_id: userId, body, parent_id: parentId })
-    .select("id")
-    .single<{ id: number }>();
+    .insert({ post_id: postId, author_id: userId, body, parent_id: parentId, ...(mentions.length ? { mentions } : {}) })
+    .select("id, mentions")
+    .single<{ id: number; mentions: string[] | null }>();
 
   if (error || !comment) {
     if (error?.message.includes("no longer available")) {
@@ -541,7 +547,72 @@ export async function addComment(input: {
     });
   }
 
-  return { ok: true, value: { id: comment.id } };
+  // Everyone the database kept in `mentions`, less anyone who has just been
+  // told about this comment another way — one buzz per comment per person.
+  const alreadyTold = new Set([userId, post.author_id, answered?.author_id].filter(Boolean));
+  const mentioned = (comment.mentions ?? []).filter((id) => !alreadyTold.has(id));
+  if (mentioned.length > 0) {
+    const name = await memberName(supabase, userId);
+    const snippet = body.length > 120 ? `${body.slice(0, 117)}…` : body;
+    const admin = createAdminClient();
+    for (const id of mentioned) {
+      await notifyUser(admin, {
+        userId: id,
+        type: "post_comment_mentioned",
+        title: `${name} mentioned you in a comment`,
+        body: snippet,
+        href: `/feed/${postId}`,
+        data: { post_id: postId, comment_id: comment.id },
+        dedupeKey: buildDedupeKey(["post_comment_mentioned", comment.id, id]),
+        emailBody: `${name} mentioned you in a comment on PinPals.`,
+      });
+    }
+  }
+
+  return { ok: true, value: { id: comment.id, mentions: comment.mentions ?? [] } };
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Up to ten member ids, or null for anything that isn't a list of ids.
+ *  Absent is an empty list. */
+export function parseMentions(raw: unknown): string[] | null {
+  if (raw === undefined || raw === null) return [];
+  if (!Array.isArray(raw) || raw.length > 10) return null;
+  if (!raw.every((id) => typeof id === "string" && UUID.test(id))) return null;
+  return [...new Set(raw as string[])];
+}
+
+/**
+ * Changes the body of the member's own comment (0097). The UPDATE policy is
+ * the rule — the author, a comment not hidden by a moderator — and the
+ * database stamps edited_at, which the app shows as "Edited". Mentions
+ * aren't re-read and nobody is notified: an edit is a correction, not a
+ * second comment.
+ */
+export async function editComment(input: {
+  supabase: SupabaseClient;
+  userId: string;
+  commentId: number;
+  body: string;
+}): Promise<FeedResult<{ id: number; editedAt: string | null }>> {
+  const body = input.body.trim();
+  const problem = validateComment(body);
+  if (problem) return fail("invalid", problem);
+
+  const refused = await limited("edit-comment", input.userId, COMMENT_MAX, COMMENT_WINDOW_SECONDS);
+  if (refused) return refused;
+
+  const { data, error } = await input.supabase
+    .from("post_comments")
+    .update({ body })
+    .eq("id", input.commentId)
+    .eq("author_id", input.userId)
+    .select("id, edited_at")
+    .maybeSingle<{ id: number; edited_at: string | null }>();
+  if (error) return fail("failed", "Couldn't save your edit — please try again.");
+  if (!data) return fail("not_found", "That comment can't be edited any more.");
+  return { ok: true, value: { id: data.id, editedAt: data.edited_at } };
 }
 
 export async function deleteComment(input: {

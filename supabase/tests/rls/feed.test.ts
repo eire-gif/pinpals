@@ -434,14 +434,17 @@ describe("comments", () => {
     });
   });
 
-  it("members cannot edit comments or set their moderation flag", async () => {
+  // 0097 allows an author to edit their comment's BODY (marked edited — see
+  // comment-mentions-likes-edits.test.ts). The moderation flag and every
+  // other column stay out of reach.
+  it("members cannot set their comment's moderation flag, on insert or after", async () => {
     await withRole("authenticated", USERS.seller1, async (c) => {
       const id = await post(c, USERS.seller1);
       const { rows } = await c.query<{ id: string }>(
         "insert into public.post_comments (post_id, author_id, body) values ($1, $2, 'first') returning id",
         [id, USERS.seller1],
       );
-      await refused(c, "update public.post_comments set body = 'changed' where id = $1", [rows[0].id], /permission denied/);
+      await refused(c, "update public.post_comments set hidden_at = null where id = $1", [rows[0].id], /permission denied/);
       await refused(
         c,
         "insert into public.post_comments (post_id, author_id, body, hidden_at) values ($1, $2, 'x', now())",

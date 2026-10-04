@@ -373,7 +373,7 @@ export default function MemberScreen() {
                 onShare={actions.share}
                 onSave={actions.save}
             onMenu={actions.menu}
-            onComment={(p) => router.push({ pathname: "/post/[id]", params: { id: String(p.id), focus: "comment" } })}
+            onComment={(p) => router.push({ pathname: "/comments/[id]", params: { id: String(p.id), focus: "comment" } })}
             onCommentOptions={actions.commentOptions}
           />
         )}
