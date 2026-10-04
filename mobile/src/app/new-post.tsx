@@ -16,7 +16,10 @@ import { Stack, router, useLocalSearchParams } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
+import { coursePhoto } from "@/components/course-photos";
 import { PostDetailsForm } from "@/components/post-details-form";
+import { RoundRecapCard } from "@/components/round-recap-card";
+import { useAuth } from "@/lib/auth";
 import { createPost, discardPhoto, stagePhoto, type StagedPhoto } from "@/lib/feed";
 import {
   MAX_POST_BODY,
@@ -27,8 +30,11 @@ import {
   recentDays,
   type PostVisibility,
 } from "@/lib/feed-rules";
-import { POST_TYPE_INFO, isPostType, type PostKind, type PostType } from "@/lib/post-details";
+import { POST_TYPE_INFO, isPostType, type PostKind, type PostType, type RoundDetails } from "@/lib/post-details";
 import { draftDetailsProblem, draftToDetails, emptyDraft, type DetailsDraft } from "@/lib/post-draft";
+import { recapCaption, recapSubtitle, type RecapSource } from "@/lib/round-recap";
+import { listConfirmedRounds } from "@/lib/rounds";
+import { todayIso } from "@/lib/tee-times";
 import { COUNTRY_NAMES, searchClubs, type ClubHit } from "@/lib/tee-time-post";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 
@@ -70,7 +76,11 @@ const PROMPTS: Record<PostKind | "photo", string> = {
  * no member can read.
  */
 export default function NewPostScreen() {
-  const params = useLocalSearchParams<{ type?: string }>();
+  const params = useLocalSearchParams<{ type?: string; recap?: string }>();
+  const { session } = useAuth();
+  const userId = session?.user?.id ?? null;
+  // ?recap=<tee time id>: a round recap of a played tee time (phase 7).
+  const recapId = params.recap && Number.isInteger(Number(params.recap)) ? Number(params.recap) : null;
   const postType: PostType = isPostType(params.type) && params.type !== "tee_time" ? params.type : "general";
   const info = POST_TYPE_INFO[postType];
   const kind: PostKind = info.kind ?? "general";
@@ -82,10 +92,46 @@ export default function NewPostScreen() {
   const [visibility, setVisibility] = useState<PostVisibility>("members");
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [club, setClub] = useState<ClubHit | null>(null);
+  // The played round a recap is built from, once loaded; and whether the
+  // member has written their own caption (then it's theirs — no more
+  // suggestions overwrite it).
+  const [recap, setRecap] = useState<RecapSource | null>(null);
+  const [bodyEdited, setBodyEdited] = useState(false);
+
+  useEffect(() => {
+    if (!recapId || !userId) return;
+    let live = true;
+    listConfirmedRounds(userId)
+      .then(({ past }) => {
+        const round = past.find((r) => r.inviteId === recapId);
+        if (!live || !round) return;
+        setRecap({
+          inviteId: round.inviteId,
+          course: round.club,
+          playDate: round.playDate,
+          when: round.when,
+          players: round.players.map((p) => p.name),
+        });
+        if (round.clubRef) setClub(round.clubRef);
+        setDetails((d) => ({ ...d, played_on: round.playDate, tee_time_id: String(round.inviteId) }));
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [recapId, userId]);
   const [query, setQuery] = useState("");
   const [hits, setHits] = useState<ClubHit[]>([]);
   const [searching, setSearching] = useState(false);
   const [posting, setPosting] = useState(false);
+
+  // The suggested caption follows the numbers until the member writes their
+  // own. Nothing is posted until they press Post.
+  const recapDetails = recap ? ((draftToDetails("round", details) ?? {}) as Partial<RoundDetails>) : null;
+  const suggested = recap && recapDetails ? recapCaption(recap, recapDetails, todayIso()) : null;
+  useEffect(() => {
+    if (suggested !== null && !bodyEdited) setBody(suggested);
+  }, [suggested, bodyEdited]);
 
   useEffect(() => {
     if (club || query.trim().length < 2) {
@@ -279,7 +325,7 @@ export default function NewPostScreen() {
     <>
       <Stack.Screen
         options={{
-          title: info.title,
+          title: recap || recapId ? "Share your round" : info.title,
           // No `presentation: "modal"` here. On iOS a screen's presentation
           // cannot change after it has been pushed, and options set from
           // inside the screen arrive after the push — react-native-screens
@@ -304,6 +350,23 @@ export default function NewPostScreen() {
 
       <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <ScrollView style={styles.fill} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+          {recap && recapDetails ? (
+            <View style={styles.recap}>
+              <Text style={styles.recapIntro}>
+                We&apos;ve made a recap from your round. Add your numbers and change anything you like — nothing is
+                shared until you press Post.
+              </Text>
+              <RoundRecapCard
+                course={club?.name ?? recap.course}
+                subtitle={recapSubtitle(recap, recapDetails, todayIso())}
+                details={recapDetails}
+                photo={
+                  photos[0]?.uri ? { uri: photos[0].uri } : coursePhoto(club?.id ?? null, club?.name ?? recap.course)
+                }
+              />
+            </View>
+          ) : null}
+
           {structured && courseBlock}
 
           {structured && (
@@ -322,7 +385,10 @@ export default function NewPostScreen() {
 
           <TextInput
             value={body}
-            onChangeText={setBody}
+            onChangeText={(t) => {
+              setBody(t);
+              if (recap) setBodyEdited(true);
+            }}
             placeholder={PROMPTS[postType === "photo" ? "photo" : kind]}
             placeholderTextColor={colors.ink500}
             multiline
@@ -332,6 +398,19 @@ export default function NewPostScreen() {
             style={[styles.body, structured && styles.bodyShort]}
             accessibilityLabel={structured ? "Caption" : "Your post"}
           />
+          {recap && bodyEdited && suggested && body !== suggested ? (
+            <Text
+              style={styles.suggest}
+              onPress={() => {
+                setBodyEdited(false);
+                setBody(suggested);
+              }}
+              accessibilityRole="button"
+              suppressHighlighting
+            >
+              Use the suggested caption
+            </Text>
+          ) : null}
 
           {photos.length > 0 && (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.strip}>
@@ -439,6 +518,9 @@ const styles = StyleSheet.create({
     padding: spacing.md,
   },
   bodyShort: { minHeight: 84 },
+  recap: { gap: spacing.sm + 2, marginBottom: spacing.md },
+  recapIntro: { fontFamily: fonts.body, fontSize: type.small, lineHeight: 20, color: colors.ink500 },
+  suggest: { fontFamily: fonts.bodySemi, fontSize: 13, color: colors.green700, paddingVertical: spacing.sm },
   labelFirst: { marginTop: 0 },
   details: { marginTop: spacing.md, marginBottom: spacing.md },
   detailsHint: { fontFamily: fonts.bodySemi, fontSize: type.small, color: colors.ink500, marginTop: spacing.sm },

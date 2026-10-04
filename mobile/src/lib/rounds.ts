@@ -23,11 +23,12 @@ type InviteRow = {
   time_from: string | null;
   time_to: string | null;
   exact_tee_time: string | null;
-  club: { name: string } | null;
+  club_id: number | null;
+  club: { name: string; town: string | null; country: string } | null;
 };
 
 const INVITE_SELECT =
-  "id, club_name, play_date, time_from, time_to, exact_tee_time, club:clubs!tee_time_invites_club_id_fkey (name)";
+  "id, club_name, play_date, time_from, time_to, exact_tee_time, club_id, club:clubs!tee_time_invites_club_id_fkey (name, town, country)";
 
 /** Both are checked, same as home.ts: an invite posted from the app carries
  *  `club_id` and leaves `club_name` null, while older website rows have the
@@ -35,6 +36,9 @@ const INVITE_SELECT =
  *  blank for every app-posted round — this does not. */
 const clubOf = (row: InviteRow): string =>
   row.club?.name ?? row.club_name ?? "Tee time";
+
+const clubRefOf = (row: InviteRow): ConfirmedRound["clubRef"] =>
+  row.club_id && row.club ? { id: row.club_id, name: row.club.name, town: row.club.town, country: row.club.country } : null;
 
 const whenOf = (row: InviteRow): string => {
   const exact = clockTime(row.exact_tee_time);
@@ -54,6 +58,10 @@ export type Player = { name: string; homeClub: string | null };
 export type ConfirmedRound = {
   inviteId: number;
   club: string;
+  /** The directory course, when the tee time was posted against one (every
+   *  app-posted round; older website rows only have the name). A recap
+   *  (phase 7) needs it to tag the post. */
+  clubRef: { id: number; name: string; town: string | null; country: string } | null;
   playDate: string;
   when: string;
   role: "hosting" | "playing";
@@ -104,6 +112,7 @@ export async function listConfirmedRounds(userId: string): Promise<ConfirmedRoun
     rounds.set(row.id, {
       inviteId: row.id,
       club: clubOf(row),
+      clubRef: clubRefOf(row),
       playDate: row.play_date,
       when: whenOf(row),
       role: "hosting",
@@ -118,6 +127,7 @@ export async function listConfirmedRounds(userId: string): Promise<ConfirmedRoun
       rounds.set(row.invite.id, {
         inviteId: row.invite.id,
         club: clubOf(row.invite),
+        clubRef: clubRefOf(row.invite),
         playDate: row.invite.play_date,
         when: whenOf(row.invite),
         role: "playing",

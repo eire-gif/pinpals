@@ -16,6 +16,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { Avatar } from "@/components/avatar";
 import { PostCard, postCardWidth } from "@/components/post-card";
+import { RecapPrompt } from "@/components/recap-prompt";
 import { ScreenHeader, useCollapsingHeader } from "@/components/screen-header";
 import { useAuth } from "@/lib/auth";
 import { loadFeed, type FeedEntry, type FeedPost } from "@/lib/feed";
@@ -167,6 +168,7 @@ export default function FeedScreen() {
 
   const header = (
     <View>
+      <RecapPrompt userId={userId} style={styles.recap} />
       <View style={styles.compose}>
         <View style={styles.composeTop}>
           <Pressable
@@ -427,6 +429,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md - 2,
     ...lift,
   },
+  // Only applied when the prompt renders (it's null with nothing to offer).
+  recap: { marginBottom: spacing.md },
   composeTop: { flexDirection: "row", alignItems: "center", gap: spacing.sm + 4 },
   composeMain: { flex: 1, flexDirection: "row", alignItems: "center", gap: spacing.sm + 4, minHeight: 44 },
   quick: {

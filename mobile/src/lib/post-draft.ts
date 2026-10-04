@@ -28,6 +28,11 @@ export type DetailsDraft = {
   gir: string;
   putts: string;
   birdies: string;
+  front_nine: string;
+  back_nine: string;
+  longest_drive: string;
+  /** The played tee time a recap came from (0099); "" for a plain round. */
+  tee_time_id: string;
   best_hole: string;
   best_par: string;
   best_score: string;
@@ -47,7 +52,7 @@ export type DetailsDraft = {
 export function emptyDraft(today: string): DetailsDraft {
   return {
     score: "", holes: "18", course_par: "", tee: "", played_on: today, differential: "",
-    fairways_hit: "", fairways_total: "", gir: "", putts: "", birdies: "", best_hole: "", best_par: "", best_score: "",
+    fairways_hit: "", fairways_total: "", gir: "", putts: "", birdies: "", front_nine: "", back_nine: "", longest_drive: "", tee_time_id: "", best_hole: "", best_par: "", best_score: "",
     hole: "", par: "", yards: "", hole_score: "",
     shot_number: "", club: "", distance_yards: "", lie: "", result: "",
   };
@@ -68,8 +73,13 @@ export function draftToDetails(kind: PostKind, d: DetailsDraft): RoundDetails | 
       d.best_hole.trim() || d.best_score.trim()
         ? { hole: num(d.best_hole), par: num(d.best_par), score: num(d.best_score) }
         : undefined;
+    // Both nines and no total: the total is their sum (18 holes only).
+    const front = num(d.front_nine);
+    const back = d.holes === "9" ? undefined : num(d.back_nine);
+    const score =
+      num(d.score) ?? (front !== undefined && back !== undefined && !Number.isNaN(front + back) ? front + back : undefined);
     return cleanDetails({
-      score: num(d.score),
+      score,
       holes: d.holes === "9" ? 9 : undefined,
       course_par: num(d.course_par),
       tee: d.tee,
@@ -80,6 +90,10 @@ export function draftToDetails(kind: PostKind, d: DetailsDraft): RoundDetails | 
       gir: num(d.gir),
       putts: num(d.putts),
       birdies: num(d.birdies),
+      front_nine: num(d.front_nine),
+      back_nine: d.holes === "9" ? undefined : num(d.back_nine),
+      longest_drive: num(d.longest_drive),
+      tee_time_id: num(d.tee_time_id),
       best_hole: best,
     }) as unknown as RoundDetails;
   }

@@ -183,6 +183,26 @@ export async function createPost(input: {
   const detailsIssue = detailsProblem(kind, details);
   if (detailsIssue) return fail("invalid", detailsIssue);
 
+  // A recap (0099) names the tee time it was. Only someone who played it —
+  // its host, or a confirmed player — may attach it: otherwise the app's
+  // "already shared" check could be spoofed, and a stranger could pin their
+  // post to your round. Read under the member's own RLS.
+  const teeTimeId =
+    kind === "round" && details && typeof details === "object" ? (details as { tee_time_id?: number }).tee_time_id : undefined;
+  if (teeTimeId !== undefined) {
+    const [hosted, joined] = await Promise.all([
+      supabase.from("tee_time_invites").select("id").eq("id", teeTimeId).eq("member_id", userId).maybeSingle(),
+      supabase
+        .from("tee_time_interests")
+        .select("id")
+        .eq("invite_id", teeTimeId)
+        .eq("member_id", userId)
+        .eq("status", "confirmed")
+        .maybeSingle(),
+    ]);
+    if (!hosted.data && !joined.data) return fail("invalid", "That round isn't one you played — share it without linking the tee time.");
+  }
+
   const problem = validatePostDraft({
     body: input.body,
     visibility,

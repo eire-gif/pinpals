@@ -32,6 +32,19 @@ describe("draftToDetails", () => {
   });
 });
 
+describe("recap fields (0099)", () => {
+  it("adds up the nines when no total is given, and keeps the tee time", () => {
+    expect(
+      draftToDetails("round", { ...emptyDraft(today), front_nine: "38", back_nine: "40", longest_drive: "285", tee_time_id: "12" })
+    ).toEqual({ score: 78, front_nine: 38, back_nine: 40, longest_drive: 285, tee_time_id: 12, played_on: today });
+  });
+  it("a 9-hole round keeps only the one nine", () => {
+    expect(draftToDetails("round", { ...emptyDraft(today), holes: "9", score: "41", front_nine: "41", back_nine: "40" })).toEqual({
+      score: 41, holes: 9, front_nine: 41, played_on: today,
+    });
+  });
+});
+
 describe("draftDetailsProblem", () => {
   it("asks for what each kind needs", () => {
     expect(draftDetailsProblem("round", emptyDraft(today))).toMatch(/score/);

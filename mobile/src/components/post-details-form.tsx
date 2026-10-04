@@ -48,6 +48,14 @@ export function PostDetailsForm({
             <NumberField label="Score" value={draft.score} onChange={set("score")} required big />
             <NumberField label="Course par" value={draft.course_par} onChange={set("course_par")} placeholder="72" />
           </Row>
+          <Row>
+            <NumberField label={draft.holes === "9" ? "Nine" : "Front 9"} value={draft.front_nine} onChange={set("front_nine")} />
+            {draft.holes === "9" ? (
+              <View style={styles.cell} />
+            ) : (
+              <NumberField label="Back 9" value={draft.back_nine} onChange={set("back_nine")} />
+            )}
+          </Row>
           <ChipGroup>
             {(["18", "9"] as const).map((h) => (
               <Chip key={h} label={`${h} holes`} selected={draft.holes === h} onPress={() => set("holes")(h)} />
@@ -82,6 +90,9 @@ export function PostDetailsForm({
           </Row>
           <Row>
             <NumberField label="Birdies" value={draft.birdies} onChange={set("birdies")} />
+            <NumberField label="Longest drive" hint="yds" value={draft.longest_drive} onChange={set("longest_drive")} />
+          </Row>
+          <Row>
             <NumberField
               label="Differential"
               hint="if you know it"
@@ -89,6 +100,7 @@ export function PostDetailsForm({
               onChange={set("differential")}
               keyboardType="numbers-and-punctuation"
             />
+            <View style={styles.cell} />
           </Row>
         </Group>
 

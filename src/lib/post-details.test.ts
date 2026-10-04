@@ -46,6 +46,17 @@ describe("detailsProblem", () => {
     expect(detailsProblem("round", { score: 78, birdies: 19 })).toMatch(/birdie/);
   });
 
+  it("a recap's nines, drive and tee time (0099)", () => {
+    expect(detailsProblem("round", { score: 78, front_nine: 38, back_nine: 40, longest_drive: 285, tee_time_id: 12 })).toBeNull();
+    expect(detailsProblem("round", { score: 78, front_nine: 38, back_nine: 41 })).toMatch(/add up/);
+    expect(detailsProblem("round", { score: 40, holes: 9, front_nine: 40, back_nine: 41 })).toBeNull();
+    expect(detailsProblem("round", { score: 78, longest_drive: 900 })).toMatch(/drive/);
+    expect(detailsProblem("round", { score: 78, tee_time_id: 0 })).toMatch(/round/);
+    expect(detailChips({ kind: "round", details: { score: 78, front_nine: 38, back_nine: 40, longest_drive: 285 } })).toEqual([
+      "78", "Front 38 · Back 40", "285 yd drive",
+    ]);
+  });
+
   it("refuses nonsense in a round", () => {
     expect(detailsProblem("round", { score: 12 })).toMatch(/score/);
     expect(detailsProblem("round", { score: 78.5 })).toMatch(/score/);

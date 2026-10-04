@@ -825,6 +825,24 @@ export type ShareTarget =
   | { kind: "conversation"; conversationId: number; name: string; avatarUrl: string | null; avatarColor: string | null; group: boolean }
   | { kind: "member"; memberId: string; name: string; avatarUrl: string | null; avatarColor: string | null };
 
+/**
+ * Which of these played tee times the viewer has already shared as a
+ * round recap (0099, details.tee_time_id) — so the app stops offering a
+ * recap for them. Before 0099 the key can't exist: an empty answer.
+ */
+export async function sharedRecapInviteIds(viewerId: string, inviteIds: number[]): Promise<Set<number>> {
+  if (inviteIds.length === 0) return new Set();
+  const { data, error } = await supabase
+    .from("posts")
+    .select("details")
+    .eq("author_id", viewerId)
+    .eq("kind", "round")
+    .in("details->>tee_time_id", inviteIds.map(String))
+    .overrideTypes<{ details: { tee_time_id?: number } | null }[]>();
+  if (error) return new Set();
+  return new Set((data ?? []).map((r) => r.details?.tee_time_id).filter((id): id is number => typeof id === "number"));
+}
+
 export const deletePost = (postId: number): Promise<{ ok: true }> => deleteFromSite(`/api/app/posts/${postId}`);
 
 export const changeAudience = (postId: number, visibility: PostVisibility): Promise<{ id: number }> =>

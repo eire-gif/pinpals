@@ -50,6 +50,8 @@ describe("posts.kind and posts.details", () => {
       await insert(c, "shot", { hole: 18, shot_number: 2, club: "3 Wood", distance_yards: 245, lie: "fairway", result: "Eagle" });
       await insert(c, "round", { score: 81 });
       await insert(c, "round", { score: 74, birdies: 3 }); // 0098
+      await insert(c, "round", { score: 78, front_nine: 38, back_nine: 40, longest_drive: 285, tee_time_id: 5 }); // 0099
+      await insert(c, "round", { score: 41, holes: 9, front_nine: 41, back_nine: 40 });
       await insert(c, "shot", { result: "Off the flagstick" });
     });
   });
@@ -70,6 +72,9 @@ describe("posts.kind and posts.details", () => {
       await refused(c, "round", { score: 78, gir: 19 });
       await refused(c, "round", { score: 78, birdies: 19 });
       await refused(c, "round", { score: 78, birdies: 2.5 });
+      await refused(c, "round", { score: 78, front_nine: 38, back_nine: 41 });
+      await refused(c, "round", { score: 78, longest_drive: 900 });
+      await refused(c, "round", { score: 78, tee_time_id: 0 });
       await refused(c, "round", { score: 78, best_hole: { hole: 6 } });
       await refused(c, "round", { score: 78, best_hole: { hole: 6, score: 3, colour: "red" } });
       await refused(c, "round", { score: 78, map: [[1, 2]] });

@@ -149,6 +149,14 @@ export type RoundDetails = {
   /** Added in 0098, for the share card. */
   birdies?: number;
   best_hole?: BestHole;
+  /** Added in 0099, for the round recap: the two nines (they must add up
+   *  to `score` on an 18-hole round), the longest drive in yards, and the
+   *  confirmed tee time this round was (tee_time_invites.id) — the website
+   *  checks the poster actually played it. */
+  front_nine?: number;
+  back_nine?: number;
+  longest_drive?: number;
+  tee_time_id?: number;
 };
 
 export type HoleDetails = { hole: number; par?: number; yards?: number; score?: number };
@@ -181,6 +189,8 @@ export const LIMITS = {
   stat: [0, 18],
   putts: [0, 99],
   differential: [-10, 60],
+  nine: [9, 99],
+  drive: [50, 450],
   teeLength: 20,
   clubLength: 24,
   resultLength: 40,
@@ -201,6 +211,7 @@ function isIsoDate(v: unknown): v is string {
 const ROUND_KEYS = [
   "score", "holes", "course_par", "tee", "played_on", "differential",
   "fairways_hit", "fairways_total", "gir", "putts", "birdies", "best_hole",
+  "front_nine", "back_nine", "longest_drive", "tee_time_id",
 ] as const;
 const HOLE_KEYS = ["hole", "par", "yards", "score"] as const;
 const SHOT_KEYS = ["hole", "shot_number", "club", "distance_yards", "lie", "result"] as const;
@@ -231,6 +242,13 @@ export function detailsProblem(kind: PostKind, details: unknown): string | null 
       if (d[key] !== undefined && !inRange(d[key], LIMITS.stat)) return "Fairways and greens are counted 0 to 18.";
     }
     if (d.birdies !== undefined && !inRange(d.birdies, LIMITS.stat)) return "That birdie count doesn't look right.";
+    for (const key of ["front_nine", "back_nine"] as const) {
+      if (d[key] !== undefined && !inRange(d[key], LIMITS.nine)) return "That nine doesn't look right.";
+    }
+    if (d.front_nine !== undefined && d.back_nine !== undefined && d.holes !== 9 && (d.front_nine as number) + (d.back_nine as number) !== d.score)
+      return "Your front and back nines should add up to your score.";
+    if (d.longest_drive !== undefined && !inRange(d.longest_drive, LIMITS.drive)) return "That drive doesn't look right.";
+    if (d.tee_time_id !== undefined && !(isInt(d.tee_time_id) && d.tee_time_id > 0)) return "That round couldn't be found.";
     if (d.fairways_hit !== undefined && d.fairways_total !== undefined && (d.fairways_hit as number) > (d.fairways_total as number))
       return "Fairways hit can't be more than fairways played.";
     if (d.putts !== undefined && !inRange(d.putts, LIMITS.putts)) return "That putt count doesn't look right.";
@@ -324,11 +342,13 @@ export function detailChips(post: { kind: PostKind; details: unknown }): string[
     const d = post.details as RoundDetails;
     chips.push(roundScoreLabel(d.score, d.course_par));
     if (d.holes === 9) chips.push("9 holes");
+    if (d.front_nine !== undefined && d.back_nine !== undefined) chips.push(`Front ${d.front_nine} · Back ${d.back_nine}`);
     if (d.tee) chips.push(`${d.tee} tees`);
     if (d.fairways_hit !== undefined) chips.push(`${d.fairways_hit}${d.fairways_total ? `/${d.fairways_total}` : ""} fairways`);
     if (d.birdies !== undefined && d.birdies > 0) chips.push(`${d.birdies} ${d.birdies === 1 ? "birdie" : "birdies"}`);
     if (d.gir !== undefined) chips.push(`${d.gir} GIR`);
     if (d.putts !== undefined) chips.push(`${d.putts} putts`);
+    if (d.longest_drive !== undefined) chips.push(`${d.longest_drive} yd drive`);
     if (d.differential !== undefined) chips.push(`Diff ${d.differential.toFixed(1)}`);
     if (d.best_hole) {
       const name = scoreName(d.best_hole.score, d.best_hole.par);
