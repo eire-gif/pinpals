@@ -29,6 +29,10 @@ export const FEATURES = {
   /** Rounds / Courses / Highlights / Achievements on member pages (phase 10).
    *  Off: the page shows Posts only, as before. */
   profileSections: true,
+  /** Video posts (0102): composing and playing clips. Also needs a binary
+   *  with expo-video — see native-capabilities.ts. Off: no video button;
+   *  posted videos still show their poster. */
+  video: true,
 
   // ---- Gates (unfinished, off) ----
   /** Groups (phase 11): model only — see claude/groups-architecture.md. */
@@ -37,8 +41,6 @@ export const FEATURES = {
   sharedRounds: false,
   /** Shot maps: nothing captures shot positions or hole geometry yet. */
   shotMaps: false,
-  /** Video posts: needs upload, transcoding and a player (a native build). */
-  video: false,
 } as const;
 
 export type Feature = keyof typeof FEATURES;

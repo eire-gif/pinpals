@@ -86,6 +86,8 @@ export type FeedComment = {
   editedAt: string | null;
 };
 
+export type FeedVideo = { url: string; durationMs: number | null; width: number | null; height: number | null };
+
 export type FeedPost = {
   id: number;
   author: FeedAuthor;
@@ -93,6 +95,8 @@ export type FeedPost = {
   visibility: PostVisibility;
   club: FeedClub | null;
   photos: FeedPhoto[];
+  /** One short clip (0102), signed on read like photos; null for most posts. */
+  video: FeedVideo | null;
   /** How many reacted, all reactions together (posts.like_count). */
   likeCount: number;
   /** The breakdown (0096), e.g. { on_fire: 3, great_shot: 1 }. */
@@ -342,11 +346,42 @@ async function signPhotos(paths: string[]): Promise<Map<string, string>> {
   }
 }
 
+/**
+ * The posts' videos (0102), signed. A separate query, not an embed in
+ * POST_SELECT, so a database without 0102 just has no videos and the feed
+ * still loads.
+ */
+async function loadVideos(ids: number[]): Promise<Map<number, FeedVideo>> {
+  const out = new Map<number, FeedVideo>();
+  if (ids.length === 0) return out;
+  try {
+    const { data, error } = await supabase
+      .from("post_videos")
+      .select("post_id, path, duration_ms, width, height")
+      .in("post_id", ids)
+      .overrideTypes<{ post_id: number; path: string; duration_ms: number | null; width: number | null; height: number | null }[]>();
+    if (error || !data || data.length === 0) return out;
+    const { data: signed } = await supabase.storage.from("post-videos").createSignedUrls(
+      data.map((v) => v.path),
+      PHOTO_URL_TTL_SECONDS
+    );
+    const urlByPath = new Map<string, string>();
+    for (const row of signed ?? []) if (row.signedUrl && row.path) urlByPath.set(row.path, row.signedUrl);
+    for (const v of data) {
+      const url = urlByPath.get(v.path);
+      if (url) out.set(v.post_id, { url, durationMs: v.duration_ms, width: v.width, height: v.height });
+    }
+  } catch {
+    // A video that can't be signed: the post still shows its caption.
+  }
+  return out;
+}
+
 async function hydrate(viewerId: string, rows: PostRow[], commentsPerPost: number): Promise<FeedPost[]> {
   if (rows.length === 0) return [];
   const ids = rows.map((r) => r.id);
 
-  const [likes, saves, comments, urls] = await Promise.all([
+  const [likes, saves, comments, urls, videos] = await Promise.all([
     myReactions(viewerId, ids),
     // Before 0094 is applied this errors, and every post simply shows as
     // not saved — the feed must not depend on the newest table.
@@ -364,6 +399,7 @@ async function hydrate(viewerId: string, rows: PostRow[], commentsPerPost: numbe
         )
       : Promise.resolve({ data: [] as CommentRow[], error: null }),
     signPhotos(rows.flatMap((r) => r.post_images.map((img) => img.path))),
+    loadVideos(ids),
   ]);
 
   const reacted = new Map(likes.map((l) => [l.post_id, l.reaction]));
@@ -413,6 +449,7 @@ async function hydrate(viewerId: string, rows: PostRow[], commentsPerPost: numbe
     photos: [...row.post_images]
       .sort((a, b) => a.position - b.position)
       .map((img) => ({ path: img.path, url: urls.get(img.path) ?? null, width: img.width, height: img.height })),
+    video: videos.get(row.id) ?? null,
     likeCount: row.like_count,
     reactionCounts: normaliseCounts(row.reaction_counts, row.like_count),
     myReaction: reacted.get(row.id) ?? null,
@@ -754,6 +791,8 @@ export const createPost = (input: {
    *  older app sent and an older website accepts. */
   kind?: PostKind;
   details?: RoundDetails | HoleDetails | ShotDetails | null;
+  /** 0102. A video staged by stageVideo(); never with photos. */
+  video?: { path: string; durationMs: number | null; width: number | null; height: number | null } | null;
 }): Promise<{ id: number }> =>
   postToSite<{ id: number }>("/api/app/posts", {
     body: input.body,
@@ -761,6 +800,9 @@ export const createPost = (input: {
     club_id: input.clubId,
     photo_paths: input.photoPaths,
     ...(input.kind && input.kind !== "general" ? { kind: input.kind, details: input.details } : {}),
+    ...(input.video
+      ? { video: { path: input.video.path, duration_ms: input.video.durationMs, width: input.video.width, height: input.video.height } }
+      : {}),
   });
 
 export type ReactionResult = {

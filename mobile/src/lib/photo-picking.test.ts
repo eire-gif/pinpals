@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("expo-image-picker", () => ({ UIImagePickerPreferredAssetRepresentationMode: { Compatible: "compatible" } }));
+// A binary without the newer native modules (1.0.0 (5)).
+vi.mock("expo", () => ({ requireOptionalNativeModule: () => null }));
 
 const { MAX_UPLOAD_BYTES, PHOTO_PICKER_OPTIONS, photoProblem } = await import("./photo-picking");
 

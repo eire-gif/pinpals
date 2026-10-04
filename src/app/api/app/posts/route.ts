@@ -2,7 +2,10 @@ import { authenticateAppRequest, badRequest, readJson, unauthenticated } from "@
 import { createPost, statusForFeedFailure } from "@/lib/feed-operations";
 
 /**
- * POST /api/app/posts   { body, visibility, club_id, photo_paths, kind?, details? }
+ * POST /api/app/posts   { body, visibility, club_id, photo_paths, kind?, details?, video? }
+ *
+ * `video` (0102) is { path, duration_ms?, width?, height? }: the path from
+ * POST /api/app/posts/videos, after the phone has uploaded to it.
  *
  * `kind` and `details` (0095) are a round, hole or shot and its golf facts —
  * shapes in src/lib/post-details.ts. Absent means a general post, so older
@@ -28,6 +31,7 @@ export async function POST(request: Request) {
     photo_paths?: unknown;
     kind?: unknown;
     details?: unknown;
+    video?: unknown;
   }>(request);
   if (!input) return badRequest("Expected JSON.");
 
@@ -40,6 +44,7 @@ export async function POST(request: Request) {
     photoPaths: input.photo_paths ?? [],
     kind: input.kind,
     details: input.details,
+    video: input.video,
   });
 
   if (!result.ok) {

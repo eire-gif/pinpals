@@ -42,7 +42,7 @@ import {
 import { COUNTRY_NAMES, regionsFor } from "@/lib/tee-time-post";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 import { FORM_SCROLL_KEYBOARD, KeyboardDoneButton } from "@/components/keyboard";
-import { PHOTO_PICKER_OPTIONS } from "@/lib/photo-picking";
+import { PHOTO_PICKER_OPTIONS, preparePhotoForUpload } from "@/lib/photo-picking";
 
 /**
  * Listing something for sale.
@@ -181,7 +181,8 @@ export default function NewListingScreen() {
           type: asset.mimeType ?? "image/jpeg",
         };
         setPhotos((prev) => [...prev, { id, uri: asset.uri, status: "uploading" }]);
-        void send(id, file);
+        // Resized on the phone first where the build can (photo-picking.ts).
+        void preparePhotoForUpload({ ...file, width: asset.width, height: asset.height }).then((ready) => send(id, ready));
       }
     },
     [send]

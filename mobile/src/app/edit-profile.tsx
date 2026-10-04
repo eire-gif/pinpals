@@ -30,7 +30,7 @@ import {
 import { COUNTRY_NAMES, regionsFor, searchClubs, type ClubHit } from "@/lib/tee-time-post";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 import { KeyboardDoneButton } from "@/components/keyboard";
-import { PHOTO_PICKER_OPTIONS } from "@/lib/photo-picking";
+import { PHOTO_PICKER_OPTIONS, preparePhotoForUpload } from "@/lib/photo-picking";
 
 /**
  * Editing your own profile, natively.
@@ -168,11 +168,15 @@ export default function EditProfileScreen() {
     if (result.canceled || result.assets.length === 0) return;
 
     const asset = result.assets[0];
-    const file: UploadFile = {
+    // The avatar bucket takes 2 MB: resized on the phone first where the
+    // build can (photo-picking.ts).
+    const file: UploadFile = await preparePhotoForUpload({
       uri: asset.uri,
       name: asset.fileName ?? "avatar.jpg",
       type: asset.mimeType ?? "image/jpeg",
-    };
+      width: asset.width,
+      height: asset.height,
+    });
     setForm((prev) => ({ ...prev, photo: file, removePhoto: false }));
     setAvatarUrl(asset.uri);
   }, []);

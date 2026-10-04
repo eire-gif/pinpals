@@ -78,6 +78,8 @@ export type FeedPost = {
   visibility: PostVisibility;
   club: { id: number; name: string } | null;
   photos: FeedPhoto[];
+  /** 0102: one short clip, signed on read like photos; null for most posts. */
+  video: { url: string; durationMs: number | null } | null;
   likeCount: number;
   commentCount: number;
   likedByMe: boolean;
@@ -207,6 +209,36 @@ async function signPhotos(supabase: SupabaseClient, paths: string[]): Promise<Ma
 }
 
 /**
+ * The posts' videos (0102), signed. A separate query rather than an embed in
+ * POST_SELECT, so a database without 0102 yet just has no videos, and the
+ * feed still loads.
+ */
+async function loadVideos(supabase: SupabaseClient, ids: number[]): Promise<Map<number, { url: string; durationMs: number | null }>> {
+  const out = new Map<number, { url: string; durationMs: number | null }>();
+  if (ids.length === 0) return out;
+  try {
+    const { data, error } = await supabase
+      .from("post_videos")
+      .select("post_id, path, duration_ms")
+      .in("post_id", ids)
+      .returns<{ post_id: number; path: string; duration_ms: number | null }[]>();
+    if (error || !data || data.length === 0) return out;
+    const { data: signed } = await supabase.storage.from("post-videos").createSignedUrls(
+      data.map((v) => v.path),
+      PHOTO_URL_TTL_SECONDS
+    );
+    const urlByPath = new Map((signed ?? []).filter((s) => s.signedUrl && s.path).map((s) => [s.path as string, s.signedUrl]));
+    for (const v of data) {
+      const url = urlByPath.get(v.path);
+      if (url) out.set(v.post_id, { url, durationMs: v.duration_ms });
+    }
+  } catch {
+    // A video that can't be signed: the post still shows its caption.
+  }
+  return out;
+}
+
+/**
  * Turns post rows into FeedPosts: one batched lookup each for the viewer's
  * likes, the preview comments and the photo signatures, whatever the page
  * size. Never a query per post.
@@ -220,7 +252,7 @@ async function hydratePosts(
   if (rows.length === 0) return [];
   const ids = rows.map((r) => r.id);
 
-  const [likes, comments, urls] = await Promise.all([
+  const [likes, comments, urls, videos] = await Promise.all([
     supabase
       .from("post_likes")
       .select("post_id")
@@ -244,6 +276,7 @@ async function hydratePosts(
       supabase,
       rows.flatMap((r) => r.post_images.map((img) => img.path))
     ),
+    loadVideos(supabase, ids),
   ]);
 
   const liked = new Set((likes.data ?? []).map((l) => l.post_id));
@@ -292,6 +325,7 @@ async function hydratePosts(
     photos: [...row.post_images]
       .sort((a, b) => a.position - b.position)
       .map((img) => ({ path: img.path, url: urls.get(img.path) ?? null, width: img.width, height: img.height })),
+    video: videos.get(row.id) ?? null,
     likeCount: row.like_count,
     commentCount: row.comment_count,
     likedByMe: liked.has(row.id),

@@ -41,13 +41,25 @@ import { todayIso } from "@/lib/tee-times";
 import { COUNTRY_NAMES, searchClubs, type ClubHit } from "@/lib/tee-time-post";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 import { KEYBOARD_DISMISS_MODE, KeyboardDoneButton } from "@/components/keyboard";
-import { PHOTO_PICKER_OPTIONS, photoProblem } from "@/lib/photo-picking";
+import { PHOTO_PICKER_OPTIONS, photoProblem, preparePhotoForUpload } from "@/lib/photo-picking";
+import { videoEnabled } from "@/lib/native-capabilities";
+import { discardVideo, durationLabel, stageVideo, videoProblem, type PickedVideo } from "@/lib/post-video";
 
 type Photo = {
   id: string;
   uri: string;
   status: "uploading" | "done" | "failed";
   staged?: StagedPhoto;
+  error?: string;
+};
+
+/** The one video a post can carry (0102), while it uploads. */
+type Video = {
+  picked: PickedVideo;
+  status: "uploading" | "done" | "failed";
+  /** 0–1 while uploading. */
+  progress: number;
+  path?: string;
   error?: string;
 };
 
@@ -96,6 +108,7 @@ export default function NewPostScreen() {
   const [body, setBody] = useState("");
   const [visibility, setVisibility] = useState<PostVisibility>("members");
   const [photos, setPhotos] = useState<Photo[]>([]);
+  const [video, setVideo] = useState<Video | null>(null);
   const [club, setClub] = useState<ClubHit | null>(null);
   // The played round a recap is built from, once loaded; and whether the
   // member has written their own caption (then it's theirs — no more
@@ -157,9 +170,11 @@ export default function NewPostScreen() {
     };
   }, [query, club]);
 
-  const upload = useCallback(async (photo: Photo, mimeType: string, fileName: string) => {
+  const upload = useCallback(async (photo: Photo, mimeType: string, fileName: string, width?: number, height?: number) => {
     try {
-      const staged = await stagePhoto({ uri: photo.uri, name: fileName, type: mimeType });
+      // Resized on the phone first where the build can (photo-picking.ts).
+      const ready = await preparePhotoForUpload({ uri: photo.uri, name: fileName, type: mimeType, width, height });
+      const staged = await stagePhoto(ready);
       setPhotos((prev) => prev.map((p) => (p.id === photo.id ? { ...p, status: "done", staged } : p)));
     } catch (err) {
       setPhotos((prev) =>
@@ -172,10 +187,33 @@ export default function NewPostScreen() {
     }
   }, []);
 
+  const startVideo = useCallback(async (picked: PickedVideo) => {
+    const problem = videoProblem(picked);
+    if (problem) {
+      setVideo({ picked, status: "failed", progress: 0, error: problem });
+      return;
+    }
+    setVideo({ picked, status: "uploading", progress: 0 });
+    try {
+      const path = await stageVideo(picked, (progress) =>
+        setVideo((v) => (v && v.picked.uri === picked.uri ? { ...v, progress } : v))
+      );
+      setVideo((v) => (v && v.picked.uri === picked.uri ? { ...v, status: "done", progress: 1, path } : v));
+    } catch (err) {
+      setVideo((v) =>
+        v && v.picked.uri === picked.uri
+          ? { ...v, status: "failed", error: err instanceof Error ? err.message : "The video didn't upload." }
+          : v
+      );
+    }
+  }, []);
+
   const pick = useCallback(
     async (source: "camera" | "library") => {
       const room = MAX_POST_PHOTOS - photos.length;
-      if (room <= 0) return;
+      if (room <= 0 || video) return;
+      // Videos (0102) only where the build has the player.
+      const withVideo = videoEnabled();
 
       const permission =
         source === "camera"
@@ -189,16 +227,46 @@ export default function NewPostScreen() {
         return;
       }
 
+      const videoOptions: ImagePicker.ImagePickerOptions = withVideo
+        ? {
+            mediaTypes: ["images", "videos"],
+            // Recording stops at 30 seconds; library clips are checked after.
+            videoMaxDuration: 30,
+            // 720p H.264: a 30-second clip is a few megabytes.
+            videoQuality: ImagePicker.UIImagePickerControllerQualityType.IFrame1280x720,
+            videoExportPreset: ImagePicker.VideoExportPreset.H264_1280x720,
+          }
+        : {};
       const result =
         source === "camera"
-          ? await ImagePicker.launchCameraAsync(PHOTO_PICKER_OPTIONS)
+          ? await ImagePicker.launchCameraAsync({ ...PHOTO_PICKER_OPTIONS, ...videoOptions })
           : await ImagePicker.launchImageLibraryAsync({
               // Smaller JPEGs: see lib/photo-picking.ts.
               ...PHOTO_PICKER_OPTIONS,
+              ...videoOptions,
               allowsMultipleSelection: true,
               selectionLimit: room,
             });
       if (result.canceled) return;
+
+      const videos = result.assets.filter((a) => a.type === "video");
+      if (videos.length > 0) {
+        if (photos.length > 0 || result.assets.length > 1) {
+          Alert.alert("Photos or a video", "A post can have photos or one video, not both. Choose a video on its own.");
+          return;
+        }
+        const v = videos[0];
+        void startVideo({
+          uri: v.uri,
+          fileName: v.fileName,
+          mimeType: v.mimeType,
+          fileSize: v.fileSize,
+          duration: v.duration,
+          width: v.width,
+          height: v.height,
+        });
+        return;
+      }
 
       const added = result.assets.slice(0, room).map((asset) => {
         // A photo that can't be sent says why at once, rather than failing
@@ -210,13 +278,20 @@ export default function NewPostScreen() {
             : { id: String(++nextId), uri: asset.uri, status: "uploading" as const },
           type: asset.mimeType ?? "image/jpeg",
           name: asset.fileName ?? `photo-${nextId}.jpg`,
+          width: asset.width,
+          height: asset.height,
         };
       });
       setPhotos((prev) => [...prev, ...added.map((a) => a.photo)]);
-      for (const a of added) if (a.photo.status === "uploading") void upload(a.photo, a.type, a.name);
+      for (const a of added) if (a.photo.status === "uploading") void upload(a.photo, a.type, a.name, a.width, a.height);
     },
-    [photos.length, upload]
+    [photos.length, upload, video, startVideo]
   );
+
+  function removeVideo() {
+    if (video?.path) void discardVideo(video.path);
+    setVideo(null);
+  }
 
   function remove(photo: Photo) {
     setPhotos((prev) => prev.filter((p) => p.id !== photo.id));
@@ -238,10 +313,10 @@ export default function NewPostScreen() {
     return () => clearTimeout(t);
   }, [postType, pick]);
 
-  const uploading = photos.some((p) => p.status === "uploading");
-  const failed = photos.some((p) => p.status === "failed");
+  const uploading = photos.some((p) => p.status === "uploading") || video?.status === "uploading";
+  const failed = photos.some((p) => p.status === "failed") || video?.status === "failed";
   const detailsIssue = structured ? draftDetailsProblem(kind, details) : null;
-  const problem = detailsIssue ?? draftProblem(body, photos.length, structured);
+  const problem = detailsIssue ?? draftProblem(body, photos.length + (video ? 1 : 0), structured);
   const canPost = !posting && !uploading && !failed && problem === null;
   const { width: screenWidth } = useWindowDimensions();
   // Phase 8: a claimed achievement previews exactly as the feed will draw it.
@@ -259,6 +334,14 @@ export default function NewPostScreen() {
         visibility,
         clubId: club?.id ?? null,
         photoPaths: photos.map((p) => p.staged!.path),
+        video: video?.path
+          ? {
+              path: video.path,
+              durationMs: video.picked.duration ? Math.round(video.picked.duration) : null,
+              width: video.picked.width ?? null,
+              height: video.picked.height ?? null,
+            }
+          : null,
         kind,
         details: structured ? draftToDetails(kind, details) : null,
       });
@@ -270,7 +353,7 @@ export default function NewPostScreen() {
   }
 
   function cancel() {
-    if (body.trim() || photos.length > 0 || touched) {
+    if (body.trim() || photos.length > 0 || video || touched) {
       Alert.alert("Discard this post?", undefined, [
         { text: "Keep editing", style: "cancel" },
         {
@@ -278,6 +361,7 @@ export default function NewPostScreen() {
           style: "destructive",
           onPress: () => {
             for (const p of photos) if (p.staged) void discardPhoto(p.staged.path);
+            if (video?.path) void discardVideo(video.path);
             router.back();
           },
         },
@@ -470,28 +554,63 @@ export default function NewPostScreen() {
             </ScrollView>
           )}
 
+          {video ? (
+            <View style={styles.videoTile}>
+              <View style={styles.videoIcon}>
+                <Ionicons name={video.status === "failed" ? "alert-circle" : "videocam"} size={22} color={colors.cream50} />
+              </View>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={styles.videoTitle}>
+                  Video{durationLabel(video.picked.duration) ? ` · ${durationLabel(video.picked.duration)}` : ""}
+                </Text>
+                <Text style={styles.videoStatus} numberOfLines={2}>
+                  {video.status === "uploading"
+                    ? `Uploading… ${Math.round(video.progress * 100)}%`
+                    : video.status === "done"
+                      ? "Ready to post"
+                      : video.error ?? "Didn't upload"}
+                </Text>
+                {video.status === "uploading" ? (
+                  <View style={styles.progressTrack}>
+                    <View style={[styles.progressFill, { width: `${Math.max(4, Math.round(video.progress * 100))}%` }]} />
+                  </View>
+                ) : null}
+              </View>
+              {video.status === "failed" && !videoProblem(video.picked) ? (
+                <Pressable onPress={() => void startVideo(video.picked)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Try the video again">
+                  <Ionicons name="refresh" size={22} color={colors.green700} />
+                </Pressable>
+              ) : null}
+              <Pressable onPress={removeVideo} hitSlop={8} accessibilityRole="button" accessibilityLabel="Remove video">
+                <Ionicons name="close-circle" size={24} color={colors.ink500} />
+              </Pressable>
+            </View>
+          ) : null}
+
           <View style={styles.pickRow}>
             <Pressable
-              style={[styles.pick, photos.length >= MAX_POST_PHOTOS && styles.pickDisabled]}
+              style={[styles.pick, (photos.length >= MAX_POST_PHOTOS || !!video) && styles.pickDisabled]}
               onPress={() => void pick("library")}
-              disabled={photos.length >= MAX_POST_PHOTOS}
+              disabled={photos.length >= MAX_POST_PHOTOS || !!video}
               accessibilityRole="button"
             >
               <Ionicons name="images-outline" size={20} color={colors.green700} />
-              <Text style={styles.pickLabel}>Photos</Text>
+              <Text style={styles.pickLabel}>{videoEnabled() ? "Library" : "Photos"}</Text>
             </Pressable>
             <Pressable
-              style={[styles.pick, photos.length >= MAX_POST_PHOTOS && styles.pickDisabled]}
+              style={[styles.pick, (photos.length >= MAX_POST_PHOTOS || !!video) && styles.pickDisabled]}
               onPress={() => void pick("camera")}
-              disabled={photos.length >= MAX_POST_PHOTOS}
+              disabled={photos.length >= MAX_POST_PHOTOS || !!video}
               accessibilityRole="button"
             >
               <Ionicons name="camera-outline" size={20} color={colors.green700} />
               <Text style={styles.pickLabel}>Camera</Text>
             </Pressable>
-            <Text style={styles.pickCount}>
-              {photos.length}/{MAX_POST_PHOTOS}
-            </Text>
+            {video ? null : (
+              <Text style={styles.pickCount}>
+                {photos.length}/{MAX_POST_PHOTOS}
+              </Text>
+            )}
           </View>
 
           {!structured && courseBlock}
@@ -523,7 +642,10 @@ export default function NewPostScreen() {
             <Text style={styles.warn}>
               {/* Say why, not just that it failed: "too large" and "no
                   signal" need different things from the member. */}
-              {photos.find((p) => p.status === "failed")?.error ?? "A photo didn't upload."} Retry or remove it, then post.
+              {video?.status === "failed"
+                ? video.error ?? "The video didn't upload."
+                : photos.find((p) => p.status === "failed")?.error ?? "A photo didn't upload."}{" "}
+              {video?.status === "failed" ? "Remove it or try again, then post." : "Retry or remove it, then post."}
             </Text>
           )}
         </ScrollView>
@@ -535,6 +657,22 @@ export default function NewPostScreen() {
 }
 
 const styles = StyleSheet.create({
+  videoTile: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm + 4,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: radii.lg,
+    padding: spacing.sm + 4,
+    marginTop: spacing.sm,
+  },
+  videoIcon: { width: 44, height: 44, borderRadius: radii.md, backgroundColor: colors.navy900, alignItems: "center", justifyContent: "center" },
+  videoTitle: { fontFamily: fonts.bodyBold, fontSize: 15, color: colors.ink900 },
+  videoStatus: { fontFamily: fonts.body, fontSize: 13, color: colors.ink500, marginTop: 1 },
+  progressTrack: { height: 4, borderRadius: 2, backgroundColor: colors.cream100, marginTop: 6, overflow: "hidden" },
+  progressFill: { height: 4, borderRadius: 2, backgroundColor: colors.green700 },
   achievementPreview: { marginTop: spacing.md, gap: spacing.sm },
   achievementPreviewLabel: { fontFamily: fonts.bodySemi, fontSize: 12, letterSpacing: 0.8, color: colors.ink500, textTransform: "uppercase" },
   fill: { flex: 1, backgroundColor: colors.cream50 },
