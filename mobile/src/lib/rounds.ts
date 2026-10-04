@@ -269,3 +269,83 @@ export async function listConfirmedPlayers(
       homeClub: row.profiles?.home_club ?? null,
     }));
 }
+
+// ---------------------------------------------------------------------------
+// Places offered to you, waiting on your answer
+// ---------------------------------------------------------------------------
+
+export type OfferedPlace = {
+  interestId: number;
+  inviteId: number;
+  club: string;
+  playDate: string;
+  when: string;
+  teeTimeBooked: boolean;
+  spacesLeft: number;
+  host: { id: string; name: string; avatarUrl: string | null; avatarColor: string | null; homeClub: string | null } | null;
+};
+
+type OfferedRow = {
+  id: number;
+  invite: (InviteRow & {
+    spaces_available: number;
+    has_tee_time_booked: boolean;
+    host: {
+      id: string;
+      first_name: string | null;
+      last_name: string | null;
+      avatar_url: string | null;
+      avatar_color: string | null;
+      home_club: string | null;
+    } | null;
+  }) | null;
+};
+
+/**
+ * Only the places a host has offered you and you have not yet answered —
+ * the rows behind Home's "You've been offered N places". Soonest round first,
+ * because that is the one about to lapse; rounds already in the past are left
+ * out, since there is nothing left to confirm.
+ *
+ * Same table and the same `accepted` status Home counts, so the number on
+ * Home and the cards on this screen cannot disagree.
+ */
+export async function listOfferedPlaces(userId: string): Promise<OfferedPlace[]> {
+  const { data } = await supabase
+    .from("tee_time_interests")
+    .select(
+      `id, invite:tee_time_invites (${INVITE_SELECT}, spaces_available, has_tee_time_booked,
+        host:profiles!tee_time_invites_member_id_fkey (id, first_name, last_name, avatar_url, avatar_color, home_club))`
+    )
+    .eq("member_id", userId)
+    .eq("status", "accepted")
+    .overrideTypes<OfferedRow[]>();
+
+  const today = new Date().toISOString().slice(0, 10);
+
+  return (data ?? [])
+    .filter((row): row is OfferedRow & { invite: NonNullable<OfferedRow["invite"]> } => row.invite !== null)
+    .filter((row) => row.invite.play_date >= today)
+    .map((row) => {
+      const h = row.invite.host;
+      return {
+        interestId: row.id,
+        inviteId: row.invite.id,
+        club: clubOf(row.invite),
+        playDate: row.invite.play_date,
+        when: whenOf(row.invite),
+        teeTimeBooked: row.invite.has_tee_time_booked,
+        spacesLeft: row.invite.spaces_available,
+        host: h
+          ? {
+              id: h.id,
+              name: `${h.first_name ?? ""} ${h.last_name ?? ""}`.trim() || "A PinPals member",
+              avatarUrl: h.avatar_url,
+              avatarColor: h.avatar_color,
+              homeClub: h.home_club,
+            }
+          : null,
+      };
+    })
+    .sort((a, b) => a.playDate.localeCompare(b.playDate));
+}
