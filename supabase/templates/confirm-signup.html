@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>Confirm your PinPals account</title>
+</head>
+<body style="margin:0;padding:0;background:#f7f3ea;">
+<!-- PinPals auth email: confirm-signup. Source of truth: supabase/templates/ in the repo.
+     Paste into Supabase -> Authentication -> Emails -> Templates -> "Confirm sign up". -->
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;">One tap to confirm your email and start finding your next fourball.</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f7f3ea;">
+  <tr>
+    <td align="center" style="padding:32px 16px;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:520px;">
+        <tr>
+          <td style="background:#0c2038;border-radius:16px 16px 0 0;padding:28px 32px 24px 32px;">
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td style="vertical-align:middle;padding-right:12px;">
+                  <img src="https://www.pinpals.ie/icons/icon-192.png" width="40" height="40" alt="" style="display:block;border:0;border-radius:10px;">
+                </td>
+                <td style="vertical-align:middle;font-family:Georgia,'Times New Roman',serif;font-size:26px;font-weight:bold;color:#f7f3ea;">PinPals</td>
+              </tr>
+            </table>
+            <div style="width:48px;height:3px;background:#e8c46b;border-radius:2px;margin-top:16px;"></div>
+          </td>
+        </tr>
+        <tr>
+          <td style="background:#ffffff;border:1px solid #ddd2b8;border-top:0;border-radius:0 0 16px 16px;padding:32px;">
+            <h1 style="margin:0 0 12px 0;font-family:Georgia,'Times New Roman',serif;font-size:26px;line-height:1.25;color:#0e1520;">Welcome to PinPals{{ if .Data.first_name }}, {{ .Data.first_name }}{{ end }}</h1>
+            <p style="margin:0 0 24px 0;font-family:-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;font-size:16px;line-height:1.55;color:#3d4757;">You're nearly in. Confirm your email address and we'll take you straight to your profile, so you can add your home club and start finding golfers to play with.</p>
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td style="background:#1f5c2e;border-radius:999px;">
+                  <a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&amp;type=email" style="display:inline-block;padding:14px 28px;font-family:-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;font-size:16px;font-weight:bold;color:#f7f3ea;text-decoration:none;border-radius:999px;">Confirm my email</a>
+                </td>
+              </tr>
+            </table>
+            <p style="margin:24px 0 0 0;font-family:-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;font-size:13px;line-height:1.55;color:#647082;">Didn't sign up for PinPals? You can ignore this email &mdash; no account is created until the address is confirmed.</p>
+            <p style="margin:12px 0 0 0;font-family:-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;font-size:12px;line-height:1.5;color:#647082;word-break:break-all;">If the button doesn't work, paste this into your browser:<br><a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&amp;type=email" style="color:#1f5c2e;">{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&amp;type=email</a></p>
+          </td>
+        </tr>
+        <tr>
+          <td align="center" style="padding:20px 16px 0 16px;font-family:-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;font-size:12px;line-height:1.5;color:#647082;">
+            PinPals &middot; Golf, together &middot; Tee times, rounds and kit from golfers across Ireland and the UK<br>
+            <a href="https://www.pinpals.ie" style="color:#647082;">pinpals.ie</a>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+</body>
+</html>
