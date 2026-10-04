@@ -15,6 +15,7 @@ import {
   interleave,
   threadComments,
   type FeedScope,
+  type PostGolfDetails,
   type PostVisibility,
 } from "./feed-rules";
 
@@ -33,6 +34,11 @@ import {
  * TypeScript on the server. Deleting a comment notifies nobody and could
  * have been a direct delete, but one rule for every feed write is easier to
  * keep than one rule and an exception.
+ *
+ * THE ONE EXCEPTION is saving (0094): a private bookmark that notifies
+ * nobody, written straight to Supabase exactly as listing favourites are
+ * (marketplace.ts setFavourite). Its insert policy is can_view_post(), so the
+ * rule that matters is still the database's.
  */
 
 /** An hour, matching the website. */
@@ -82,6 +88,13 @@ export type FeedPost = {
   likeCount: number;
   commentCount: number;
   likedByMe: boolean;
+  /** Bookmarked by the viewer (0094). Private — never shown to anyone else. */
+  savedByMe: boolean;
+  /** Hole, par, yardage, club, score — when the post carries them. Always
+   *  null today: no post stores golf details yet. The card already renders
+   *  them (feed-rules golfChips), so the phase that adds "Share a hole /
+   *  round" only has to fill this in. */
+  golf: PostGolfDetails | null;
   isMine: boolean;
   hidden: boolean;
   createdAt: string;
@@ -229,8 +242,11 @@ async function hydrate(viewerId: string, rows: PostRow[], commentsPerPost: numbe
   if (rows.length === 0) return [];
   const ids = rows.map((r) => r.id);
 
-  const [likes, comments, urls] = await Promise.all([
+  const [likes, saves, comments, urls] = await Promise.all([
     supabase.from("post_likes").select("post_id").eq("user_id", viewerId).in("post_id", ids).overrideTypes<{ post_id: number }[]>(),
+    // Before 0094 is applied this errors, and every post simply shows as
+    // not saved — the feed must not depend on the newest table.
+    supabase.from("post_saves").select("post_id").eq("user_id", viewerId).in("post_id", ids).overrideTypes<{ post_id: number }[]>(),
     commentsPerPost > 0
       ? supabase
           .from("post_comments")
@@ -245,6 +261,7 @@ async function hydrate(viewerId: string, rows: PostRow[], commentsPerPost: numbe
   ]);
 
   const liked = new Set((likes.data ?? []).map((l) => l.post_id));
+  const saved = new Set((saves.data ?? []).map((l) => l.post_id));
   const authorOf = new Map(rows.map((r) => [r.id, r.author_id]));
   const byPost = new Map<number, FeedComment[]>();
   for (const row of (comments.data ?? []) as CommentRow[]) {
@@ -287,6 +304,8 @@ async function hydrate(viewerId: string, rows: PostRow[], commentsPerPost: numbe
     likeCount: row.like_count,
     commentCount: row.comment_count,
     likedByMe: liked.has(row.id),
+    savedByMe: saved.has(row.id),
+    golf: null,
     isMine: row.author_id === viewerId,
     hidden: row.hidden_at !== null,
     createdAt: row.created_at,
@@ -517,6 +536,20 @@ export const addComment = (postId: number, body: string, parentId: number | null
 
 export const deleteComment = (postId: number, commentId: number): Promise<{ ok: true }> =>
   deleteFromSite(`/api/app/posts/${postId}/comments/${commentId}`);
+
+/**
+ * Saves or unsaves a post for the viewer. Direct to Supabase (see the note
+ * at the top). DO NOTHING on a duplicate rather than an upsert: members have
+ * no UPDATE on post_saves, and a double tap must not be an error.
+ */
+export async function setSaved(postId: number, userId: string, saved: boolean): Promise<void> {
+  const { error } = saved
+    ? await supabase
+        .from("post_saves")
+        .upsert({ post_id: postId, user_id: userId }, { onConflict: "post_id,user_id", ignoreDuplicates: true })
+    : await supabase.from("post_saves").delete().eq("post_id", postId).eq("user_id", userId);
+  if (error) throw new Error("Couldn't save that. Please try again.");
+}
 
 export const deletePost = (postId: number): Promise<{ ok: true }> => deleteFromSite(`/api/app/posts/${postId}`);
 

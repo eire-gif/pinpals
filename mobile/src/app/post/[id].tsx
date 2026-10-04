@@ -128,6 +128,8 @@ export default function PostScreen() {
               width={postCardWidth(width)}
               standalone
               onLike={actions.like}
+                onShare={actions.share}
+                onSave={actions.save}
               onMenu={actions.menu}
               onComment={() => {
                 // The Comment button is for the post itself.

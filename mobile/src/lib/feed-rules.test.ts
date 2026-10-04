@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ago, commentLine, draftProblem, handicapLabel, interleave, likeLine, photoHeight, threadComments } from "./feed-rules";
+import { ago, commentLine, draftProblem, golfChips, handicapLabel, previewComments, interleave, likeLine, photoHeight, threadComments } from "./feed-rules";
 
 describe("draftProblem", () => {
   it("needs a photo or some words", () => {
@@ -87,5 +87,41 @@ describe("handicapLabel", () => {
   it("shows a plus handicap (stored negative) with a plus sign", () => {
     expect(handicapLabel(-1.2)).toBe("HCP +1.2");
     expect(handicapLabel(-3)).toBe("HCP +3");
+  });
+});
+
+describe("golfChips", () => {
+  it("is empty without golf details", () => {
+    expect(golfChips(null)).toEqual([]);
+    expect(golfChips({})).toEqual([]);
+  });
+
+  it("orders a hole the way a golfer says it", () => {
+    expect(golfChips({ hole: 7, par: 3, yards: 162, club: " 7 Iron ", result: "Ace" })).toEqual([
+      "Hole 7",
+      "Par 3",
+      "162 yds",
+      "7 Iron",
+      "Ace",
+    ]);
+  });
+
+  it("writes a round score against par", () => {
+    expect(golfChips({ roundScore: 78, toPar: 6 })).toEqual(["78 (+6)"]);
+    expect(golfChips({ roundScore: 70, toPar: -2 })).toEqual(["70 (-2)"]);
+    expect(golfChips({ roundScore: 72, toPar: 0 })).toEqual(["72 (E)"]);
+    expect(golfChips({ roundScore: 81 })).toEqual(["81"]);
+  });
+});
+
+describe("previewComments", () => {
+  const c = (id: number, at: string) => ({ id, createdAt: at });
+  it("keeps the latest two, oldest first", () => {
+    const list = [c(3, "2026-10-01T10:03:00Z"), c(1, "2026-10-01T10:01:00Z"), c(2, "2026-10-01T10:02:00Z")];
+    expect(previewComments(list).map((x) => x.id)).toEqual([2, 3]);
+  });
+  it("shows what there is when there are fewer", () => {
+    expect(previewComments([c(1, "2026-10-01T10:01:00Z")]).map((x) => x.id)).toEqual([1]);
+    expect(previewComments([])).toEqual([]);
   });
 });

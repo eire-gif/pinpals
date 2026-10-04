@@ -1,10 +1,21 @@
 import { useCallback } from "react";
-import { Alert } from "react-native";
+import { Alert, Platform, Share } from "react-native";
 import { router } from "expo-router";
 
 import { askReportReason, showPostMenu, showSheet } from "@/components/post-card";
 import { blockConfirmText, blockMember } from "./blocking";
-import { changeAudience, deleteComment, deletePost, report, setLike, type FeedComment, type FeedPost } from "./feed";
+import { SITE_URL } from "./config";
+import {
+  changeAudience,
+  deleteComment,
+  deletePost,
+  report,
+  setLike,
+  setSaved,
+  type FeedComment,
+  type FeedPost,
+} from "./feed";
+import { supabase } from "./supabase";
 
 /**
  * What every screen that shows posts does with them, in one place: like,
@@ -65,6 +76,44 @@ export function usePostActions(handlers: {
     },
     [update]
   );
+
+  /** Save is private and silent, so it is optimistic like the heart and says
+   *  nothing on success; the filled bookmark is the confirmation. */
+  const save = useCallback(
+    async (post: FeedPost) => {
+      const next = !post.savedByMe;
+      update(post.id, (p) => ({ ...p, savedByMe: next }));
+      try {
+        const { data } = await supabase.auth.getSession();
+        const userId = data.session?.user?.id;
+        if (!userId) throw new Error("Please sign in again.");
+        await setSaved(post.id, userId, next);
+      } catch (err) {
+        update(post.id, (p) => ({ ...p, savedByMe: !next }));
+        Alert.alert("Couldn't save that", err instanceof Error ? err.message : "Please try again.");
+      }
+    },
+    [update]
+  );
+
+  /**
+   * The platform's own share sheet with a link to the post on the website,
+   * which applies the same can_view_post() rule — sharing a connections-only
+   * post with a stranger shows them a sign-in page, then nothing. Sharing
+   * within PinPals (to a pal or a group) is a later phase.
+   */
+  const share = useCallback(async (post: FeedPost) => {
+    const url = `${SITE_URL}/feed/${post.id}`;
+    const where = post.club ? ` at ${post.club.name}` : "";
+    const message = `${post.author.name}${where} on PinPals`;
+    try {
+      // iOS shows `url` as a rich link and `message` beside it; Android has
+      // no url field, so the link rides in the message.
+      await Share.share(Platform.OS === "ios" ? { message, url } : { message: `${message}\n${url}` });
+    } catch {
+      // Dismissing the sheet is not an error worth telling anyone about.
+    }
+  }, []);
 
   const menu = useCallback(
     (post: FeedPost) => {
@@ -170,5 +219,5 @@ export function usePostActions(handlers: {
     [removeComment, reportComment, block]
   );
 
-  return { like, menu, commentOptions };
+  return { like, save, share, menu, commentOptions };
 }

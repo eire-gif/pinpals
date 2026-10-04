@@ -369,6 +369,8 @@ export default function MemberScreen() {
             currentMemberId={id}
             width={postCardWidth(width)}
             onLike={actions.like}
+                onShare={actions.share}
+                onSave={actions.save}
             onMenu={actions.menu}
             onComment={(p) => router.push({ pathname: "/post/[id]", params: { id: String(p.id), focus: "comment" } })}
             onCommentOptions={actions.commentOptions}

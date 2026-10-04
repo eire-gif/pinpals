@@ -107,8 +107,55 @@ export function handicapLabel(handicap: number): string {
   return handicap < 0 ? `HCP +${figure}` : `HCP ${figure}`;
 }
 
-/** Height for a single photo shown at `width`, kept between 4:5 portrait
- *  and 16:9 landscape so one tall photo cannot fill the whole screen. */
+/**
+ * The golf facts a post can carry: one hole (a shot, an ace, a birdie) or a
+ * whole round. Every field optional — a "Share a hole" post may know the
+ * hole and the club but not the yardage.
+ */
+export type PostGolfDetails = {
+  hole?: number | null;
+  par?: number | null;
+  yards?: number | null;
+  club?: string | null;
+  /** "Ace", "Eagle", "Birdie"… or a score on the hole as written. */
+  result?: string | null;
+  /** Gross round score, and its relation to par. */
+  roundScore?: number | null;
+  toPar?: number | null;
+};
+
+/** The chips under a post's media, in reading order: "Hole 7", "Par 3",
+ *  "162 yds", "7 Iron", "Ace", "78 (+6)". Empty when there is nothing. */
+export function golfChips(golf: PostGolfDetails | null | undefined): string[] {
+  if (!golf) return [];
+  const chips: string[] = [];
+  if (golf.hole) chips.push(`Hole ${golf.hole}`);
+  if (golf.par) chips.push(`Par ${golf.par}`);
+  if (golf.yards) chips.push(`${golf.yards} yds`);
+  if (golf.club?.trim()) chips.push(golf.club.trim());
+  if (golf.result?.trim()) chips.push(golf.result.trim());
+  if (golf.roundScore) {
+    const rel =
+      golf.toPar === null || golf.toPar === undefined ? "" : golf.toPar === 0 ? " (E)" : ` (${golf.toPar > 0 ? "+" : ""}${golf.toPar})`;
+    chips.push(`${golf.roundScore}${rel}`);
+  }
+  return chips;
+}
+
+/** Comments for a feed card's preview: the latest `max`, oldest first, flat.
+ *  The feed never shows a thread — replies show as plain rows here, and the
+ *  full thread lives on the post screen. Hidden comments (visible only to
+ *  their author) count like any other. */
+export function previewComments<T extends { id: number; createdAt: string }>(comments: T[], max = 2): T[] {
+  const byTime = [...comments].sort((a, b) =>
+    a.createdAt === b.createdAt ? a.id - b.id : a.createdAt < b.createdAt ? -1 : 1
+  );
+  return byTime.slice(-max);
+}
+
+/** Height for media shown at `width`, kept between 4:5 portrait and 16:9
+ *  landscape so one tall photo cannot fill the whole screen. 4:5 is the feed
+ *  preview's limit; the full photo opens when tapped. */
 export function photoHeight(width: number, photo: { width: number | null; height: number | null }): number {
   const ratio = photo.width && photo.height ? photo.width / photo.height : 4 / 3;
   const clamped = Math.min(Math.max(ratio, 0.8), 16 / 9);

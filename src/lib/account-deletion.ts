@@ -398,6 +398,7 @@ async function purgePersonalRows(
     "member_birthdates",
     "listing_favourites",
     "post_likes",
+    "post_saves",
   ];
 
   for (const table of byUserId) {
