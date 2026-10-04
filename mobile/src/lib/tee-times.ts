@@ -44,6 +44,9 @@ export type Invite = {
     town: string | null;
     region: string | null;
     holes: number | null;
+    /** The course's member rating (0093). 0 / null until someone rates it. */
+    rating_count: number;
+    rating_avg: number | null;
   } | null;
   /** Only set when the list came from a location search. */
   distance_km?: number;
@@ -57,7 +60,7 @@ const SELECT = `
     first_name, last_name, home_club, handicap, handicap_visible,
     avatar_url, avatar_color
   ),
-  club:clubs!tee_time_invites_club_id_fkey (name, town, region, holes)
+  club:clubs!tee_time_invites_club_id_fkey (name, town, region, holes, rating_count, rating_avg)
 `;
 
 /** Local calendar date as YYYY-MM-DD. Not `toISOString()`, which is UTC and so

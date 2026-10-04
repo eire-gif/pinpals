@@ -128,6 +128,12 @@ export default function HomeScreen() {
               text a touch wider than it measured it, the last letter was
               cut off ("Post a tee tim"). Two equal halves and a full-width
               third give every label room to spare. */}
+          {/* NO numberOfLines on these labels. With it, iOS measured the
+              label once and then, after a trip to another tab and back,
+              re-laid it out narrower than the text and drew "Find PinP…".
+              Each label now stretches to its button's full width and centres
+              itself, so there is nothing to truncate against — at worst a
+              very large text size wraps onto a second line. */}
           <View style={styles.heroButtons}>
             {/* First, and the only gold one: finding people to play with is
                 what PinPals is for, and the other three all assume you have
@@ -137,12 +143,11 @@ export default function HomeScreen() {
               onPress={() => router.push("/find-pinpals")}
               accessibilityRole="button"
             >
-              <View style={styles.ctaRow}>
-                <Ionicons name="people" size={20} color={colors.ink900} />
-                <Text style={styles.ctaGoldLabel} numberOfLines={1}>
-                  Find PinPals
-                </Text>
-              </View>
+              {/* The icon sits inside the label (an Ionicon is itself a
+                  Text) so the whole line is measured as one string. */}
+              <Text style={[styles.ctaLabel, styles.ctaGoldLabel]}>
+                <Ionicons name="people" size={19} color={colors.ink900} /> Find PinPals
+              </Text>
             </Pressable>
 
             <Pressable
@@ -150,9 +155,7 @@ export default function HomeScreen() {
               onPress={() => router.push("/post-tee-time")}
               accessibilityRole="button"
             >
-              <Text style={styles.ctaGreenLabel} numberOfLines={1}>
-                Post a tee time
-              </Text>
+              <Text style={[styles.ctaLabel, styles.ctaGreenLabel]}>Post a tee time</Text>
             </Pressable>
 
             <Pressable
@@ -160,9 +163,7 @@ export default function HomeScreen() {
               onPress={() => router.push("/tee-times")}
               accessibilityRole="button"
             >
-              <Text style={styles.ctaCreamLabel} numberOfLines={1}>
-                Find a game
-              </Text>
+              <Text style={[styles.ctaLabel, styles.ctaCreamLabel]}>Find a game</Text>
             </Pressable>
 
             {/* The marketplace accent from globals.css, and ink-900 on it is
@@ -173,9 +174,7 @@ export default function HomeScreen() {
               onPress={() => router.push("/new-listing")}
               accessibilityRole="button"
             >
-              <Text style={styles.ctaBuyLabel} numberOfLines={1}>
-                List an item
-              </Text>
+              <Text style={[styles.ctaLabel, styles.ctaBuyLabel]}>List an item</Text>
             </Pressable>
           </View>
         </View>
@@ -557,7 +556,7 @@ const styles = StyleSheet.create({
   ctaCream: { backgroundColor: "#fbf8ef" },
   ctaCreamLabel: { color: colors.navy900, fontFamily: fonts.bodyBold, fontSize: type.body },
   ctaGold: { backgroundColor: colors.gold400, minHeight: 52 },
-  ctaRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  ctaLabel: { alignSelf: "stretch", textAlign: "center" },
   ctaGoldLabel: { color: colors.ink900, fontFamily: fonts.bodyBold, fontSize: 17 },
   ctaBuy: {
     backgroundColor: colors.buy500,
