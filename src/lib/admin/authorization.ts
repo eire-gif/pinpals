@@ -2,6 +2,8 @@ import "server-only";
 import { notFound, redirect } from "next/navigation";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
+import { createBearerClient } from "@/lib/supabase/bearer";
+import { appAdminToken } from "./app-context";
 import { canAccess, type StaffRecord, type StaffRole } from "./roles";
 
 export type StaffSession = { user: User; staff: StaffRecord | null };
@@ -10,10 +12,15 @@ async function resolveSession(): Promise<{
   supabase: SupabaseClient;
   session: StaffSession | null;
 }> {
-  const supabase = await createClient();
+  // From the app (/api/app/admin/*), the member is identified by the bearer
+  // token the route placed in appAdminContext; from the website, by cookies.
+  // Everything after this point — the staff_roles read, canAccess(), the AAL
+  // check — is identical for both, which is the point.
+  const token = appAdminToken();
+  const supabase = token ? createBearerClient(token) : await createClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = token ? await supabase.auth.getUser(token) : await supabase.auth.getUser();
 
   if (!user) {
     return { supabase, session: null };
