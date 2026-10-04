@@ -164,6 +164,9 @@ function RootNavigator() {
           collapsed and the conversation has a screen of its own. Set here,
           not in the screen — iOS can't change presentation after a push. */}
       <Stack.Screen name="comments/[id]" options={{ presentation: "modal", title: "Comments" }} />
+      {/* Share a post (phase 6): a sheet like Comments. */}
+      <Stack.Screen name="share/[id]" options={{ presentation: "modal", title: "Share post" }} />
+      <Stack.Screen name="saved" options={{ title: "Saved posts", headerBackTitle: "Back" }} />
       <Stack.Screen
         name="invite/[id]"
         options={{ title: "Tee time", headerBackTitle: "Back" }}

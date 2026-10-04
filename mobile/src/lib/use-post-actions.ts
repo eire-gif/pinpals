@@ -1,10 +1,9 @@
 import { useCallback } from "react";
-import { Alert, Platform, Share } from "react-native";
+import { Alert } from "react-native";
 import { router } from "expo-router";
 
 import { askReportReason, showPostMenu, showSheet } from "@/components/post-card";
 import { blockConfirmText, blockMember } from "./blocking";
-import { SITE_URL } from "./config";
 import {
   changeAudience,
   deleteComment,
@@ -125,23 +124,10 @@ export function usePostActions(handlers: {
     [update]
   );
 
-  /**
-   * The platform's own share sheet with a link to the post on the website,
-   * which applies the same can_view_post() rule — sharing a connections-only
-   * post with a stranger shows them a sign-in page, then nothing. Sharing
-   * within PinPals (to a pal or a group) is a later phase.
-   */
-  const share = useCallback(async (post: FeedPost) => {
-    const url = `${SITE_URL}/feed/${post.id}`;
-    const where = post.club ? ` at ${post.club.name}` : "";
-    const message = `${post.author.name}${where} on PinPals`;
-    try {
-      // iOS shows `url` as a rich link and `message` beside it; Android has
-      // no url field, so the link rides in the message.
-      await Share.share(Platform.OS === "ios" ? { message, url } : { message: `${message}\n${url}` });
-    } catch {
-      // Dismissing the sheet is not an error worth telling anyone about.
-    }
+  /** Share opens the share sheet (phase 6): inside PinPals by message,
+   *  outside with a share card, or save. See app/share/[id].tsx. */
+  const share = useCallback((post: FeedPost) => {
+    router.push({ pathname: "/share/[id]", params: { id: String(post.id) } });
   }, []);
 
   const menu = useCallback(

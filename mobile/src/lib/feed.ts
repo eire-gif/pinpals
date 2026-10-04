@@ -782,6 +782,49 @@ export async function setSaved(postId: number, userId: string, saved: boolean): 
   if (error) throw new Error("Couldn't save that. Please try again.");
 }
 
+/** A public share link for a post (phase 6): the page to send, its share
+ *  card, and whether the card carries the golf details (only on your own
+ *  posts). Made fresh each time — the website signs it, nothing is stored. */
+export const createShareLink = (postId: number): Promise<{ url: string; imageUrl: string; rich: boolean }> =>
+  postToSite(`/api/app/posts/${postId}/share`, {});
+
+/**
+ * The viewer's saved posts, most recently saved first (0094). A save whose
+ * post they can no longer see (deleted, hidden, or narrowed to connections)
+ * simply doesn't come back — posts' RLS decides, as everywhere.
+ */
+export async function loadSavedPosts(
+  viewerId: string,
+  before: string | null
+): Promise<{ posts: FeedPost[]; cursor: string | null }> {
+  let query = supabase
+    .from("post_saves")
+    .select("post_id, created_at")
+    .eq("user_id", viewerId)
+    .order("created_at", { ascending: false })
+    .limit(FEED_PAGE_SIZE + 1);
+  if (before) query = query.lt("created_at", before);
+  const { data: saves, error } = await query.overrideTypes<{ post_id: number; created_at: string }[]>();
+  if (error) throw new Error("Couldn't load your saved posts. Pull down to try again.");
+  const page = (saves ?? []).slice(0, FEED_PAGE_SIZE);
+  const hasMore = (saves ?? []).length > FEED_PAGE_SIZE;
+  if (page.length === 0) return { posts: [], cursor: null };
+
+  const { data } = await selectPosts<PostRow[]>((select) =>
+    supabase.from("posts").select(select).in("id", page.map((s) => s.post_id)).overrideTypes<PostRow[]>()
+  );
+  const posts = await hydrate(viewerId, (data ?? []) as PostRow[], PREVIEW_COMMENTS);
+  const order = new Map(page.map((s, i) => [s.post_id, i]));
+  posts.sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
+  return { posts, cursor: hasMore ? page[page.length - 1].created_at : null };
+}
+
+/** Someone to send a post to inside PinPals: a conversation you already
+ *  have (direct or group), or a connection you haven't messaged yet. */
+export type ShareTarget =
+  | { kind: "conversation"; conversationId: number; name: string; avatarUrl: string | null; avatarColor: string | null; group: boolean }
+  | { kind: "member"; memberId: string; name: string; avatarUrl: string | null; avatarColor: string | null };
+
 export const deletePost = (postId: number): Promise<{ ok: true }> => deleteFromSite(`/api/app/posts/${postId}`);
 
 export const changeAudience = (postId: number, visibility: PostVisibility): Promise<{ id: number }> =>

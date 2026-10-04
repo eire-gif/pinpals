@@ -81,6 +81,7 @@ export function PostDetailsForm({
             <NumberField label="Putts" value={draft.putts} onChange={set("putts")} />
           </Row>
           <Row>
+            <NumberField label="Birdies" value={draft.birdies} onChange={set("birdies")} />
             <NumberField
               label="Differential"
               hint="if you know it"
@@ -88,7 +89,6 @@ export function PostDetailsForm({
               onChange={set("differential")}
               keyboardType="numbers-and-punctuation"
             />
-            <View style={styles.cell} />
           </Row>
         </Group>
 

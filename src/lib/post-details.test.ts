@@ -40,9 +40,10 @@ describe("detailsProblem", () => {
     expect(
       detailsProblem("round", {
         score: 78, holes: 18, course_par: 72, tee: "White", played_on: "2026-10-04", differential: 6.3,
-        fairways_hit: 8, fairways_total: 14, gir: 7, putts: 31, best_hole: { hole: 6, par: 4, score: 3 },
+        fairways_hit: 8, fairways_total: 14, gir: 7, putts: 31, birdies: 3, best_hole: { hole: 6, par: 4, score: 3 },
       })
     ).toBeNull();
+    expect(detailsProblem("round", { score: 78, birdies: 19 })).toMatch(/birdie/);
   });
 
   it("refuses nonsense in a round", () => {
@@ -105,8 +106,8 @@ describe("words", () => {
       "Hole 7", "Par 3", "162 yds", "Ace",
     ]);
     expect(
-      detailChips({ kind: "round", details: { score: 78, course_par: 72, tee: "White", fairways_hit: 8, fairways_total: 14, gir: 7, putts: 31, best_hole: { hole: 6, par: 4, score: 3 } } })
-    ).toEqual(["78 (+6)", "White tees", "8/14 fairways", "7 GIR", "31 putts", "Best: 6 · Birdie"]);
+      detailChips({ kind: "round", details: { score: 78, course_par: 72, tee: "White", fairways_hit: 8, fairways_total: 14, birdies: 2, gir: 7, putts: 31, best_hole: { hole: 6, par: 4, score: 3 } } })
+    ).toEqual(["78 (+6)", "White tees", "8/14 fairways", "2 birdies", "7 GIR", "31 putts", "Best: 6 · Birdie"]);
     expect(detailChips({ kind: "shot", details: { hole: 18, club: "3 Wood", distance_yards: 245, lie: "fairway", result: "Eagle" } })).toEqual([
       "Hole 18", "3 Wood", "245 yds", "From the fairway", "Eagle",
     ]);

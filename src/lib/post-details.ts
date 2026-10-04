@@ -146,6 +146,8 @@ export type RoundDetails = {
   fairways_total?: number;
   gir?: number;
   putts?: number;
+  /** Added in 0098, for the share card. */
+  birdies?: number;
   best_hole?: BestHole;
 };
 
@@ -198,7 +200,7 @@ function isIsoDate(v: unknown): v is string {
 
 const ROUND_KEYS = [
   "score", "holes", "course_par", "tee", "played_on", "differential",
-  "fairways_hit", "fairways_total", "gir", "putts", "best_hole",
+  "fairways_hit", "fairways_total", "gir", "putts", "birdies", "best_hole",
 ] as const;
 const HOLE_KEYS = ["hole", "par", "yards", "score"] as const;
 const SHOT_KEYS = ["hole", "shot_number", "club", "distance_yards", "lie", "result"] as const;
@@ -228,6 +230,7 @@ export function detailsProblem(kind: PostKind, details: unknown): string | null 
     for (const key of ["fairways_hit", "fairways_total", "gir"] as const) {
       if (d[key] !== undefined && !inRange(d[key], LIMITS.stat)) return "Fairways and greens are counted 0 to 18.";
     }
+    if (d.birdies !== undefined && !inRange(d.birdies, LIMITS.stat)) return "That birdie count doesn't look right.";
     if (d.fairways_hit !== undefined && d.fairways_total !== undefined && (d.fairways_hit as number) > (d.fairways_total as number))
       return "Fairways hit can't be more than fairways played.";
     if (d.putts !== undefined && !inRange(d.putts, LIMITS.putts)) return "That putt count doesn't look right.";
@@ -323,6 +326,7 @@ export function detailChips(post: { kind: PostKind; details: unknown }): string[
     if (d.holes === 9) chips.push("9 holes");
     if (d.tee) chips.push(`${d.tee} tees`);
     if (d.fairways_hit !== undefined) chips.push(`${d.fairways_hit}${d.fairways_total ? `/${d.fairways_total}` : ""} fairways`);
+    if (d.birdies !== undefined && d.birdies > 0) chips.push(`${d.birdies} ${d.birdies === 1 ? "birdie" : "birdies"}`);
     if (d.gir !== undefined) chips.push(`${d.gir} GIR`);
     if (d.putts !== undefined) chips.push(`${d.putts} putts`);
     if (d.differential !== undefined) chips.push(`Diff ${d.differential.toFixed(1)}`);

@@ -27,6 +27,7 @@ export type DetailsDraft = {
   fairways_total: string;
   gir: string;
   putts: string;
+  birdies: string;
   best_hole: string;
   best_par: string;
   best_score: string;
@@ -46,7 +47,7 @@ export type DetailsDraft = {
 export function emptyDraft(today: string): DetailsDraft {
   return {
     score: "", holes: "18", course_par: "", tee: "", played_on: today, differential: "",
-    fairways_hit: "", fairways_total: "", gir: "", putts: "", best_hole: "", best_par: "", best_score: "",
+    fairways_hit: "", fairways_total: "", gir: "", putts: "", birdies: "", best_hole: "", best_par: "", best_score: "",
     hole: "", par: "", yards: "", hole_score: "",
     shot_number: "", club: "", distance_yards: "", lie: "", result: "",
   };
@@ -78,6 +79,7 @@ export function draftToDetails(kind: PostKind, d: DetailsDraft): RoundDetails | 
       fairways_total: num(d.fairways_total),
       gir: num(d.gir),
       putts: num(d.putts),
+      birdies: num(d.birdies),
       best_hole: best,
     }) as unknown as RoundDetails;
   }
