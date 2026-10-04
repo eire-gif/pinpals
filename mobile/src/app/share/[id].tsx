@@ -131,7 +131,7 @@ export default function ShareScreen() {
           ),
         }}
       />
-      <ScrollView keyboardDismissMode={KEYBOARD_DISMISS_MODE} style={styles.fill} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <ScrollView keyboardDismissMode={KEYBOARD_DISMISS_MODE} automaticallyAdjustKeyboardInsets style={styles.fill} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <View style={[styles.card, { width: cardWidth, height: Math.round((cardWidth * 630) / 1200) }]}>
           {link ? (
             <Image

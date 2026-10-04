@@ -41,7 +41,7 @@ import {
 } from "@/lib/listings";
 import { COUNTRY_NAMES, regionsFor } from "@/lib/tee-time-post";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
-import { KEYBOARD_DONE_ID, KeyboardDoneBar } from "@/components/keyboard";
+import { FORM_SCROLL_KEYBOARD, KeyboardDoneButton } from "@/components/keyboard";
 import { PHOTO_PICKER_OPTIONS } from "@/lib/photo-picking";
 
 /**
@@ -318,8 +318,9 @@ export default function NewListingScreen() {
 
       <ScrollView
         contentContainerStyle={styles.content}
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag"
+        // Scrolls the field being typed in (the description, say) above the
+        // keyboard; drag down to put the keyboard away.
+        {...FORM_SCROLL_KEYBOARD}
       >
         <PhotoStrip
           photos={photos}
@@ -528,7 +529,6 @@ export default function NewListingScreen() {
           title="Anything else?"
           hint="Optional. Wear and tear, what's included, why you're selling."
         >
-          <KeyboardDoneBar />
           <TextInput
             style={[styles.input, styles.notes]}
             value={description}
@@ -536,7 +536,6 @@ export default function NewListingScreen() {
             placeholder="Bought new in 2024, headcover and tool included."
             placeholderTextColor={colors.ink500}
             multiline
-            inputAccessoryViewID={KEYBOARD_DONE_ID}
             maxLength={MAX_DESCRIPTION_LENGTH}
             accessibilityLabel="Description"
           />
@@ -567,6 +566,8 @@ export default function NewListingScreen() {
           </Text>
         </View>
       </ScrollView>
+      {/* Closes the keyboard from the multi-line fields (Return adds a line). */}
+      <KeyboardDoneButton />
     </View>
   );
 }
