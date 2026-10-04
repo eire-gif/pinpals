@@ -152,6 +152,8 @@ const EXPECTED: Record<string, Expectation> = {
   // post_images, post_likes, post_comments and storage.objects can share one
   // answer, and so the block check sees both directions.
   "can_view_post(target_post_id bigint)": { anon: false, authenticated: true },
+  // 0101. A number, never who; null across a block.
+  "member_pinpal_count(target_member_id uuid)": { anon: false, authenticated: true },
 
   // --- Service role / internal only. Everything below is either a trigger
   // --- function, a sweep, or a privileged write path that must never be

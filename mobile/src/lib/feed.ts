@@ -523,25 +523,47 @@ export async function loadFeed(viewerId: string, scope: FeedScope, before: strin
   };
 }
 
+/**
+ * Which of a member's posts a profile section lists (phase 10). Every one
+ * is still read under RLS, so a section never shows more than the feed would.
+ *
+ *   all           newest first, paged
+ *   achievements  posts carrying details.achievement, newest first, paged
+ *   highlights    their most-reacted posts (at least one reaction), up to 12
+ */
+export type MemberPostFilter = "all" | "achievements" | "highlights";
+const HIGHLIGHTS = 12;
+
 /** A member's posts, newest first — whichever of them the viewer may see. */
 export async function loadMemberPosts(
   viewerId: string,
   memberId: string,
-  before: string | null
+  before: string | null,
+  filter: MemberPostFilter = "all"
 ): Promise<{ posts: FeedPost[]; cursor: string | null }> {
   const { data, error } = await selectPosts<PostRow[]>((select) => {
-    let query = supabase
-      .from("posts")
-      .select(select)
-      .eq("author_id", memberId)
-      .order("created_at", { ascending: false })
-      .order("id", { ascending: false })
-      .limit(FEED_PAGE_SIZE + 1);
+    let query = supabase.from("posts").select(select).eq("author_id", memberId);
+    if (filter === "highlights") {
+      return query
+        .gt("like_count", 0)
+        .order("like_count", { ascending: false })
+        .order("created_at", { ascending: false })
+        .limit(HIGHLIGHTS)
+        .overrideTypes<PostRow[]>();
+    }
+    if (filter === "achievements") query = query.not("details->>achievement", "is", null);
+    query = query.order("created_at", { ascending: false }).order("id", { ascending: false }).limit(FEED_PAGE_SIZE + 1);
     if (before) query = query.lt("created_at", before);
     return query.overrideTypes<PostRow[]>();
   });
-  if (error) throw new Error("Couldn't load posts. Pull down to try again.");
+  if (error) {
+    // Before 0095 there is no details column to filter on: the section is
+    // empty rather than broken. The plain list still has to load.
+    if (filter === "achievements") return { posts: [], cursor: null };
+    throw new Error("Couldn't load posts. Pull down to try again.");
+  }
   const rows = (data ?? []) as PostRow[];
+  if (filter === "highlights") return { posts: await hydrate(viewerId, rows, 0), cursor: null };
   const hasMore = rows.length > FEED_PAGE_SIZE;
   const page = hasMore ? rows.slice(0, FEED_PAGE_SIZE) : rows;
   return { posts: await hydrate(viewerId, page, PREVIEW_COMMENTS), cursor: hasMore ? page[page.length - 1].created_at : null };
@@ -623,8 +645,17 @@ export type MemberProfile = {
   name: string;
   firstName: string;
   homeClub: string | null;
+  /** The directory course, when the home club was chosen from it. */
+  homeClubId: number | null;
   place: string | null;
+  /** Null when not set, or not shared with this reader (handicap_visible). */
   handicap: number | null;
+  /** The owner's own handicap when they've hidden it — only ever filled
+   *  when the reader IS the owner, so no screen can leak it. */
+  privateHandicap: number | null;
+  coursesPlayed: number;
+  /** PinPals (accepted connections). Null across a block, or before 0101. */
+  pinpals: number | null;
   bio: string | null;
   avatarUrl: string | null;
   avatarColor: string | null;
@@ -634,17 +665,18 @@ export type MemberProfile = {
   forSale: number;
 };
 
-export async function loadMemberProfile(memberId: string): Promise<MemberProfile | null> {
-  const [{ data: row }, { data: band }, { count: postCount }, { count: forSale }] = await Promise.all([
+export async function loadMemberProfile(memberId: string, viewerId: string | null = null): Promise<MemberProfile | null> {
+  const [{ data: row }, { data: band }, { count: postCount }, { count: forSale }, { count: coursesPlayed }, pinpals] = await Promise.all([
     supabase
       .from("profiles")
-      .select("id, first_name, last_name, home_club, county, country, handicap, handicap_visible, bio, avatar_url, avatar_color, created_at")
+      .select("id, first_name, last_name, home_club, home_club_id, county, country, handicap, handicap_visible, bio, avatar_url, avatar_color, created_at")
       .eq("id", memberId)
       .maybeSingle<{
         id: string;
         first_name: string | null;
         last_name: string | null;
         home_club: string | null;
+        home_club_id: number | null;
         county: string | null;
         country: string | null;
         handicap: number | null;
@@ -657,6 +689,11 @@ export async function loadMemberProfile(memberId: string): Promise<MemberProfile
     supabase.from("member_age_bands").select("age_band").eq("user_id", memberId).maybeSingle<{ age_band: string }>(),
     supabase.from("posts").select("id", { count: "exact", head: true }).eq("author_id", memberId),
     supabase.from("listings").select("id", { count: "exact", head: true }).eq("seller_id", memberId).eq("status", "active"),
+    supabase.from("member_courses").select("id", { count: "exact", head: true }).eq("member_id", memberId).eq("kind", "played"),
+    // 0101. Missing function (OTA ahead of the migration) → no tile.
+    supabase
+      .rpc("member_pinpal_count", { target_member_id: memberId })
+      .then(({ data, error }) => (error || typeof data !== "number" ? null : data)),
   ]);
   if (!row) return null;
 
@@ -668,9 +705,13 @@ export async function loadMemberProfile(memberId: string): Promise<MemberProfile
     name: [row.first_name, row.last_name].filter(Boolean).join(" ") || "A member",
     firstName: row.first_name || "This member",
     homeClub: row.home_club,
+    homeClubId: row.home_club_id,
     place: [row.county, row.country].filter(Boolean).join(", ") || null,
     // handicap_visible is the member's own choice — honoured here, once.
     handicap: row.handicap_visible ? row.handicap : null,
+    privateHandicap: viewerId === row.id && !row.handicap_visible ? row.handicap : null,
+    coursesPlayed: coursesPlayed ?? 0,
+    pinpals,
     bio: row.bio,
     avatarUrl: row.avatar_url,
     avatarColor: row.avatar_color,
