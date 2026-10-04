@@ -13,6 +13,7 @@ import { router, type Href } from "expo-router";
 import Constants from "expo-constants";
 
 import { useAuth } from "@/lib/auth";
+import { isSuperAdmin } from "@/lib/admin";
 import { supabase } from "@/lib/supabase";
 import {
   deletionDateLabel,
@@ -36,6 +37,7 @@ export default function ProfileScreen() {
   const [deletion, setDeletion] = useState<DeletionState | null>(null);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
+  const [superAdmin, setSuperAdmin] = useState(false);
 
   const load = useCallback(async () => {
     if (!session?.user.id) return;
@@ -55,6 +57,10 @@ export default function ProfileScreen() {
     } catch {
       setDeletion(null);
     }
+
+    // Shows or hides the Admin row only. Not a security check: every admin
+    // page is guarded on the server — see mobile/src/lib/admin.ts.
+    setSuperAdmin(await isSuperAdmin());
 
     setLoading(false);
   }, [session?.user.id]);
@@ -157,6 +163,12 @@ export default function ProfileScreen() {
         <NativeLink icon="pricetags-outline" label="Selling" to="/selling" />
         <NativeLink icon="options-outline" label="Notification settings" to="/notification-settings" />
       </View>
+
+      {superAdmin ? (
+        <View style={styles.group}>
+          <NativeLink icon="shield-half-outline" label="Admin" to="/admin" />
+        </View>
+      ) : null}
 
       <Pressable
         style={styles.signOut}
