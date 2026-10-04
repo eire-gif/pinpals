@@ -1122,6 +1122,14 @@ async function resolveTargetSummaries(
           ? { type: "review", label: `Review #${row.target_id} (${r.rating}★)`, href: `/admin/reviews?reviewId=${row.target_id}` }
           : { type: "review", label: `Review #${row.target_id} no longer exists`, href: null }
       );
+    } else if (row.target_type === "course_review") {
+      // 0093. Same reasoning as the feed: the text is member content and the
+      // queue is for scanning — the link opens it where hiding is one form.
+      summaries.set(k, {
+        type: row.target_type,
+        label: `Course review #${row.target_id}`,
+        href: `/admin/course-reviews?reviewId=${encodeURIComponent(row.target_id)}`,
+      });
     } else if (row.target_type === "post" || row.target_type === "post_comment") {
       // The feed (0088). Not resolved to a caption here: a caption is member
       // content, and the queue is a list a moderator scans, not reads. The

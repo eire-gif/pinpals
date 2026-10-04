@@ -1,6 +1,7 @@
 import { supabase } from "./supabase";
 import type { Club } from "./courses";
 import { loadMyProfile, saveMyProfile, type ProfileEdits } from "./profile";
+import { postToSite } from "./api";
 
 /**
  * The profile builder a new member walks through after joining, and the
@@ -309,3 +310,79 @@ export function suggestionReason(s: Suggestion): string {
   }
   return "Plays near you";
 }
+
+// ============ A course's own page ============
+
+export type CourseDetail = Club & {
+  website: string | null;
+  rating_dist: number[];
+};
+
+export type CourseReviewRow = {
+  id: number;
+  rating: number;
+  body: string | null;
+  tags: ReviewTag[];
+  played_month: string | null;
+  created_at: string;
+  member_id: string;
+  hidden_at: string | null;
+  member: {
+    first_name: string;
+    last_name: string;
+    avatar_url: string | null;
+    avatar_color: string | null;
+    home_club: string | null;
+  } | null;
+};
+
+export async function loadCourse(clubId: number): Promise<CourseDetail | null> {
+  const { data } = await supabase
+    .from("clubs")
+    .select(`${CLUB_SELECT}, website, rating_dist`)
+    .eq("id", clubId)
+    .maybeSingle<CourseDetail>();
+  return data ?? null;
+}
+
+/**
+ * Most recent first. RLS returns a hidden review only to its author, so the
+ * member's own hidden review still appears — with a note — instead of
+ * vanishing as though it had failed to save.
+ */
+export async function loadCourseReviews(clubId: number, limit = 30): Promise<CourseReviewRow[]> {
+  const { data } = await supabase
+    .from("course_reviews")
+    .select(
+      `id, rating, body, tags, played_month, created_at, member_id, hidden_at,
+       member:profiles!course_reviews_member_id_fkey ( first_name, last_name, avatar_url, avatar_color, home_club )`
+    )
+    .eq("club_id", clubId)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  return (data ?? []) as unknown as CourseReviewRow[];
+}
+
+export async function courseListCounts(clubId: number): Promise<{ played: number; bucket: number; home: number }> {
+  const [played, bucket, home] = await Promise.all([
+    supabase.from("member_courses").select("id", { count: "exact", head: true }).eq("club_id", clubId).eq("kind", "played"),
+    supabase.from("member_courses").select("id", { count: "exact", head: true }).eq("club_id", clubId).eq("kind", "bucket"),
+    supabase.from("profiles").select("id", { count: "exact", head: true }).eq("home_club_id", clubId),
+  ]);
+  return { played: played.count ?? 0, bucket: bucket.count ?? 0, home: home.count ?? 0 };
+}
+
+export async function myCourseState(userId: string, clubId: number): Promise<{ played: boolean; bucket: boolean }> {
+  const { data } = await supabase
+    .from("member_courses")
+    .select("kind")
+    .eq("member_id", userId)
+    .eq("club_id", clubId)
+    .overrideTypes<{ kind: CourseKind }[]>();
+  const kinds = new Set((data ?? []).map((r) => r.kind));
+  return { played: kinds.has("played"), bucket: kinds.has("bucket") };
+}
+
+/** Through the site: `reports` is not member-writable. */
+export const reportCourseReview = (reviewId: number, category: string) =>
+  postToSite<{ ok: true }>("/api/app/course-reviews/report", { review_id: reviewId, category });

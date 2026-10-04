@@ -158,6 +158,8 @@ function RootNavigator() {
       {/* The profile builder. No swipe-back: going "back" out of step one
           would land on a signed-in screen the member hasn't seen yet. */}
       <Stack.Screen name="onboarding" options={{ headerShown: false, gestureEnabled: false }} />
+      <Stack.Screen name="course/[id]" options={{ title: "Course", headerBackTitle: "Back" }} />
+      <Stack.Screen name="course/review" options={{ presentation: "modal", title: "Rate & review" }} />
       <Stack.Screen
         name="invite/[id]"
         options={{ title: "Tee time", headerBackTitle: "Back" }}

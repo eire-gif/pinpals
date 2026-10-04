@@ -97,6 +97,7 @@ create table if not exists public.course_reviews (
   ),
   hidden_at timestamptz,
   hidden_by uuid references public.profiles (id) on delete set null,
+  hidden_reason text check (hidden_reason is null or char_length(hidden_reason) <= 500),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   unique (club_id, member_id)

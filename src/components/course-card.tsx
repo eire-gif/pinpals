@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { ClubSummary } from "@/lib/types";
+import { RatingLine } from "@/components/course-stars";
 
 /**
  * One club in a directory list.
@@ -37,6 +38,7 @@ export default function CourseCard({ course }: { course: ClubSummary }) {
         <p className="text-[13px] text-ink-500 mt-0.5 truncate">
           {location || "Location not recorded yet"}
         </p>
+        <RatingLine avg={course.rating_avg} count={course.rating_count} size={13} className="text-[12.5px] text-ink-900 mt-1" />
         <div className="flex items-center gap-2 mt-1.5">
           {course.holes ? (
             <span className="text-[11.5px] font-bold text-ink-500 bg-cream-100 rounded-full px-2 py-0.5">

@@ -175,6 +175,9 @@ export const ADMIN_ACTIONS = [
   "post.restore",
   "post_comment.hide",
   "post_comment.restore",
+  // Course reviews (0093) — /admin/course-reviews, same hide/restore shape.
+  "course_review.hide",
+  "course_review.restore",
   // /admin/risk-flags — src/app/admin/risk-flags/actions.ts. Purely an
   // internal signal for a human to review (see risk.ts's own header
   // comment); raising or clearing one never itself suspends, removes, or
@@ -256,6 +259,8 @@ export const AUDIT_TARGET_TYPES = [
   // The targets of post.* and post_comment.* above (0088).
   "post",
   "post_comment",
+  // The target of course_review.* above (0093).
+  "course_review",
   // /admin/clubs — the target of club.updated/club.verified. A
   // club.import_run entry names no single row (it touches a whole country),
   // and carries the country in `metadata` instead.

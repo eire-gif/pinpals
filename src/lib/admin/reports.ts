@@ -79,6 +79,7 @@ export const REPORT_TARGET_TYPES = [
   "review",
   "post",
   "post_comment",
+  "course_review",
 ] as const;
 export type ReportTargetType = (typeof REPORT_TARGET_TYPES)[number];
 
@@ -140,6 +141,7 @@ export const REPORT_TARGET_TYPE_LABELS: Record<ReportTargetType, string> = {
   review: "Review",
   post: "Feed post",
   post_comment: "Feed comment",
+  course_review: "Course review",
 };
 
 // Category subsets each member-facing report form actually offers — the
