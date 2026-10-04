@@ -28,7 +28,7 @@ import {
   type ClubHit,
 } from "@/lib/tee-time-post";
 import { colors, radii, spacing, type } from "@/lib/theme";
-import { KEYBOARD_DISMISS_MODE, KEYBOARD_DONE_ID, KeyboardDoneBar } from "@/components/keyboard";
+import { KEYBOARD_DISMISS_MODE, KeyboardDoneButton } from "@/components/keyboard";
 
 /** Which picker is open, if any. One at a time, by construction: two open
  *  pickers is the wall of chips this replaced. */
@@ -392,14 +392,12 @@ export default function PostTeeTimeScreen() {
             />
 
             <Text style={styles.subLabel}>Notes</Text>
-            <KeyboardDoneBar />
             <TextInput
               value={notes}
               onChangeText={setNotes}
               placeholder="Buggies booked, casual round, happy to play for a few euro…"
               placeholderTextColor={colors.ink500}
               multiline
-              inputAccessoryViewID={KEYBOARD_DONE_ID}
               style={[styles.input, styles.notes]}
             />
           </Section>
@@ -441,6 +439,8 @@ export default function PostTeeTimeScreen() {
           )}
         </ScrollView>
       </KeyboardAvoidingView>
+      {/* Closes the keyboard from the multi-line fields (Return adds a line). */}
+      <KeyboardDoneButton />
     </>
   );
 }

@@ -34,7 +34,7 @@ import {
 } from "@/lib/buying";
 import { ORDER_STATUS_LABELS, PAYMENT_STATUS_LABELS, cents, shortDate, timeRemaining } from "@/lib/selling";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
-import { KEYBOARD_DISMISS_MODE, KEYBOARD_DONE_ID, KeyboardDoneBar } from "@/components/keyboard";
+import { KEYBOARD_DISMISS_MODE, KeyboardDoneButton } from "@/components/keyboard";
 
 /**
  * My buying — what you've bought, what you've offered, what you've saved,
@@ -178,6 +178,8 @@ export default function BuyingScreen() {
           onReviewed={() => void load()}
         />
       )}
+      {/* Closes the keyboard from the multi-line fields (Return adds a line). */}
+      <KeyboardDoneButton />
     </View>
   );
 }
@@ -204,7 +206,7 @@ function Body({
 
   if (tab === "purchases") {
     return (
-      <FlatList keyboardDismissMode={KEYBOARD_DISMISS_MODE}
+      <FlatList keyboardDismissMode={KEYBOARD_DISMISS_MODE} automaticallyAdjustKeyboardInsets
         style={styles.fill}
         contentContainerStyle={styles.list}
         data={data.purchases}
@@ -226,7 +228,7 @@ function Body({
 
   if (tab === "offers") {
     return (
-      <FlatList keyboardDismissMode={KEYBOARD_DISMISS_MODE}
+      <FlatList keyboardDismissMode={KEYBOARD_DISMISS_MODE} automaticallyAdjustKeyboardInsets
         style={styles.fill}
         contentContainerStyle={styles.list}
         data={data.offers}
@@ -249,7 +251,7 @@ function Body({
 
   if (tab === "saved") {
     return (
-      <FlatList keyboardDismissMode={KEYBOARD_DISMISS_MODE}
+      <FlatList keyboardDismissMode={KEYBOARD_DISMISS_MODE} automaticallyAdjustKeyboardInsets
         style={styles.fill}
         contentContainerStyle={styles.list}
         data={data.saved}
@@ -270,7 +272,7 @@ function Body({
   }
 
   return (
-    <FlatList keyboardDismissMode={KEYBOARD_DISMISS_MODE}
+    <FlatList keyboardDismissMode={KEYBOARD_DISMISS_MODE} automaticallyAdjustKeyboardInsets
       style={styles.fill}
       contentContainerStyle={styles.list}
       data={data.reviewable}
@@ -494,13 +496,11 @@ function ReviewRow({ order, onDone }: { order: Reviewable; onDone: () => void })
             ))}
           </View>
 
-          <KeyboardDoneBar />
           <TextInput
             style={styles.reviewInput}
             value={body}
             onChangeText={setBody}
             multiline
-            inputAccessoryViewID={KEYBOARD_DONE_ID}
             numberOfLines={3}
             textAlignVertical="top"
             maxLength={2000}

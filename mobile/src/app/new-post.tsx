@@ -40,7 +40,7 @@ import { listConfirmedRounds } from "@/lib/rounds";
 import { todayIso } from "@/lib/tee-times";
 import { COUNTRY_NAMES, searchClubs, type ClubHit } from "@/lib/tee-time-post";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
-import { KEYBOARD_DISMISS_MODE, KEYBOARD_DONE_ID, KeyboardDoneBar } from "@/components/keyboard";
+import { KEYBOARD_DISMISS_MODE, KeyboardDoneButton } from "@/components/keyboard";
 import { PHOTO_PICKER_OPTIONS, photoProblem } from "@/lib/photo-picking";
 
 type Photo = {
@@ -411,7 +411,6 @@ export default function NewPostScreen() {
             </View>
           )}
 
-          <KeyboardDoneBar />
           <TextInput
             value={body}
             onChangeText={(t) => {
@@ -421,7 +420,6 @@ export default function NewPostScreen() {
             placeholder={PROMPTS[postType === "photo" ? "photo" : kind]}
             placeholderTextColor={colors.ink500}
             multiline
-            inputAccessoryViewID={KEYBOARD_DONE_ID}
             maxLength={MAX_POST_BODY}
             // A round, hole or shot starts with its numbers, not the caption.
             autoFocus={!structured && postType !== "photo"}
@@ -530,6 +528,8 @@ export default function NewPostScreen() {
           )}
         </ScrollView>
       </KeyboardAvoidingView>
+      {/* Closes the keyboard from the multi-line fields (Return adds a line). */}
+      <KeyboardDoneButton />
     </>
   );
 }
