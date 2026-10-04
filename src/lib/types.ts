@@ -26,12 +26,28 @@ export type Club = {
   verified_at: string | null;
   created_at: string;
   updated_at: string;
+  /** Kept by a trigger on course_reviews (0093). 0 / null when unrated. */
+  rating_count: number;
+  rating_avg: number | null;
+  /** [one-star count, …, five-star count]. */
+  rating_dist: number[];
 };
 
 /** What a directory listing or a picker needs — never the whole row. */
 export type ClubSummary = Pick<
   Club,
-  "id" | "slug" | "name" | "country" | "region" | "town" | "website" | "latitude" | "longitude" | "holes"
+  | "id"
+  | "slug"
+  | "name"
+  | "country"
+  | "region"
+  | "town"
+  | "website"
+  | "latitude"
+  | "longitude"
+  | "holes"
+  | "rating_count"
+  | "rating_avg"
 >;
 
 export type Profile = {

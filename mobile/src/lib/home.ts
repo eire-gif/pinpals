@@ -50,6 +50,8 @@ export type HomeSummary = {
    * could not be read, and the nudge simply does not appear.
    */
   profileCompletion: number | null;
+  /** Has the member been through the profile builder (or skipped it)? */
+  onboarded: boolean;
 };
 
 /** Home club, county, handicap, bio, GUI number. First and last name are
@@ -197,18 +199,35 @@ async function courseCount(): Promise<number | null> {
 }
 
 /**
+ * Whether the member has been through the profile builder. False sends the
+ * Finish-your-profile row to the builder rather than to the edit form — the
+ * builder asks for courses played and PinPals, which the form does not.
+ * Members who joined before the builder existed have never seen it, and that
+ * is the point: they get it too.
+ */
+async function onboarded(userId: string): Promise<boolean> {
+  const { data } = await supabase
+    .from("profiles")
+    .select("onboarded_at")
+    .eq("id", userId)
+    .maybeSingle<{ onboarded_at: string | null }>();
+  return Boolean(data?.onboarded_at);
+}
+
+/**
  * One await for the whole screen. Every part is independent, so they run
  * together and a failure in any one leaves the rest of the page intact —
  * a home screen that renders nothing because a count query timed out is a
  * worse outcome than a home screen missing a count.
  */
 export async function loadHome(userId: string): Promise<HomeSummary> {
-  const [round, requests, offers, courses, completion] = await Promise.all([
+  const [round, requests, offers, courses, completion, builderDone] = await Promise.all([
     nextRound(userId).catch(() => null),
     requestsWaiting(userId).catch(() => 0),
     offersWaiting(userId).catch(() => 0),
     courseCount().catch(() => null),
     profileCompletion(userId).catch(() => null),
+    onboarded(userId).catch(() => true),
   ]);
 
   return {
@@ -217,5 +236,6 @@ export async function loadHome(userId: string): Promise<HomeSummary> {
     offersWaiting: offers,
     courseCount: courses,
     profileCompletion: completion,
+    onboarded: builderDone,
   };
 }

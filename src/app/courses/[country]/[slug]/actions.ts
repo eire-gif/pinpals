@@ -5,6 +5,12 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getClubById } from "@/lib/courses";
 import { isRegionInCountry } from "@/lib/regions";
+import {
+  deleteCourseReview,
+  reportCourseReview,
+  saveCourseReview,
+  setCourseList,
+} from "@/lib/course-reviews";
 
 export type SetHomeClubState = { error?: string; done?: boolean };
 
@@ -68,4 +74,76 @@ export async function setHomeClub(
   revalidatePath("/community");
 
   return { done: true };
+}
+
+// ============ Ratings, reviews and the two lists (0093) ============
+
+export type CourseActionState = { error?: string; done?: boolean };
+
+async function signedIn() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+  return { supabase, user };
+}
+
+async function revalidateClub(clubId: number) {
+  const club = await getClubById(clubId);
+  if (club) revalidatePath(`/courses/${club.country}/${club.slug}`);
+}
+
+export async function saveReviewAction(
+  _prev: CourseActionState,
+  formData: FormData
+): Promise<CourseActionState> {
+  const { supabase, user } = await signedIn();
+  const clubId = Number.parseInt(String(formData.get("clubId") ?? ""), 10);
+  if (!Number.isFinite(clubId)) return { error: "That club doesn't look right." };
+
+  const result = await saveCourseReview(supabase, user.id, clubId, {
+    rating: Number(formData.get("rating") ?? 0),
+    body: String(formData.get("body") ?? ""),
+    tags: formData.getAll("tags").map(String),
+    playedMonth: String(formData.get("playedMonth") ?? ""),
+  });
+  if (!result.ok) return { error: result.error };
+
+  await revalidateClub(clubId);
+  return { done: true };
+}
+
+export async function deleteReviewAction(formData: FormData): Promise<void> {
+  const { supabase, user } = await signedIn();
+  const clubId = Number.parseInt(String(formData.get("clubId") ?? ""), 10);
+  if (!Number.isFinite(clubId)) return;
+  await deleteCourseReview(supabase, user.id, clubId);
+  await revalidateClub(clubId);
+}
+
+export async function toggleCourseListAction(formData: FormData): Promise<void> {
+  const { supabase, user } = await signedIn();
+  const clubId = Number.parseInt(String(formData.get("clubId") ?? ""), 10);
+  const kind = formData.get("kind") === "bucket" ? "bucket" : "played";
+  const on = formData.get("on") === "1";
+  if (!Number.isFinite(clubId)) return;
+  await setCourseList(supabase, user.id, clubId, kind, on);
+  await revalidateClub(clubId);
+}
+
+export async function reportReviewAction(
+  _prev: CourseActionState,
+  formData: FormData
+): Promise<CourseActionState> {
+  const { supabase, user } = await signedIn();
+  const reviewId = Number.parseInt(String(formData.get("reviewId") ?? ""), 10);
+  if (!Number.isFinite(reviewId)) return { error: "That review doesn't look right." };
+  const result = await reportCourseReview({
+    supabase,
+    userId: user.id,
+    reviewId,
+    category: String(formData.get("category") ?? ""),
+  });
+  return result.ok ? { done: true } : { error: result.error };
 }

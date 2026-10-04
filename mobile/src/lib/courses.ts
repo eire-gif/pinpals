@@ -33,12 +33,18 @@ export type Club = {
   longitude: number | null;
   /** Only set by coursesNear(). */
   distance_km?: number;
+  /** Kept on `clubs` by a trigger on course_reviews (0093). 0 and null when unrated. */
+  rating_count?: number;
+  rating_avg?: number | null;
 };
 
 // `holes` is in the table and is deliberately NOT selected. Three rows out of
 // 2,655 have a value, so a "18 holes" line would be blank on 99.9% of cards —
 // a column that exists is not the same as a fact worth showing.
-const SELECT = "id, name, slug, country, region, town, latitude, longitude";
+// The rating pair rides along on every read, which is why it lives on `clubs`
+// rather than in a view — every list gets its stars without a second query.
+const SELECT =
+  "id, name, slug, country, region, town, latitude, longitude, rating_count, rating_avg";
 
 /** Same order as the website's country picker: home first. */
 export const COUNTRY_CODES = [

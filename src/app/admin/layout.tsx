@@ -63,6 +63,8 @@ const NAV_ITEMS: { href: string; label: string; enabled?: boolean; roles?: reado
   { href: "/admin/reviews", label: "Reviews", enabled: true },
   // The member feed (0088): hide or restore posts and comments.
   { href: "/admin/feed", label: "Feed", enabled: true },
+  // Course ratings and reviews (0093): hide or restore.
+  { href: "/admin/course-reviews", label: "Course reviews", enabled: true },
   // marketplace-trust-safety — see src/lib/admin/risk.ts's own header
   // comment on why this is a signal, never a verdict. No `roles`
   // restriction: any active staff member may raise a flag (same reasoning

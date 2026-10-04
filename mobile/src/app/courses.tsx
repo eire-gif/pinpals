@@ -14,6 +14,7 @@ import { Stack, useRouter } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import * as Linking from "expo-linking";
 
+import { RatingLine } from "@/components/stars";
 import { useCurrentLocation } from "@/lib/location";
 import {
   COUNTRY_CODES,
@@ -334,15 +335,7 @@ export default function CoursesScreen() {
               members={counts[item.id] ?? 0}
               // Browsing one country, its name on every card says nothing.
               hideCountry={!searching && scope.kind === "country"}
-              onPress={() =>
-                router.push({
-                  pathname: "/web",
-                  params: {
-                    path: `/courses/${item.country}/${item.slug}`,
-                    title: item.name,
-                  },
-                })
-              }
+              onPress={() => router.push(`/course/${item.id}`)}
             />
           )}
         />
@@ -378,6 +371,8 @@ function CourseRow({
             {place}
           </Text>
         ) : null}
+
+        <RatingLine avg={club.rating_avg} count={club.rating_count} />
 
         {distance || members > 0 ? (
           <View style={styles.meta}>

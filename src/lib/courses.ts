@@ -23,7 +23,8 @@ import { COUNTRY_CODES, type CountryCode } from "@/lib/regions";
 /** How many courses a country page shows before "load more". */
 export const COURSES_PER_PAGE = 60;
 
-const SUMMARY_COLUMNS = "id, slug, name, country, region, town, website, latitude, longitude, holes";
+const SUMMARY_COLUMNS =
+  "id, slug, name, country, region, town, website, latitude, longitude, holes, rating_count, rating_avg";
 
 export type CourseListFilters = {
   country: CountryCode;

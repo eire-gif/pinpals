@@ -12,7 +12,9 @@ import {
 import { useFocusEffect, useRouter } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
+import { InviteBanner, SuggestionCard } from "@/components/pinpals";
 import { useAuth } from "@/lib/auth";
+import { suggestedPinPals, type Suggestion } from "@/lib/onboarding";
 import { SITE_URL } from "@/lib/config";
 import { loadHome, type HomeSummary } from "@/lib/home";
 import { dateLabel } from "@/lib/tee-times";
@@ -44,10 +46,14 @@ export default function HomeScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
+  const [pinpals, setPinpals] = useState<Suggestion[] | null>(null);
+
   const load = useCallback(async () => {
     if (!userId) return;
     try {
-      setSummary(await loadHome(userId));
+      const [home, people] = await Promise.all([loadHome(userId), suggestedPinPals(10)]);
+      setSummary(home);
+      setPinpals(people);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -123,6 +129,22 @@ export default function HomeScreen() {
               cut off ("Post a tee tim"). Two equal halves and a full-width
               third give every label room to spare. */}
           <View style={styles.heroButtons}>
+            {/* First, and the only gold one: finding people to play with is
+                what PinPals is for, and the other three all assume you have
+                someone. Gold with ink-900 text is 9.6:1. */}
+            <Pressable
+              style={[styles.cta, styles.ctaFull, styles.ctaGold]}
+              onPress={() => router.push("/find-pinpals")}
+              accessibilityRole="button"
+            >
+              <View style={styles.ctaRow}>
+                <Ionicons name="people" size={20} color={colors.ink900} />
+                <Text style={styles.ctaGoldLabel} numberOfLines={1}>
+                  Find PinPals
+                </Text>
+              </View>
+            </Pressable>
+
             <Pressable
               style={[styles.cta, styles.ctaHalf, styles.ctaGreen]}
               onPress={() => router.push("/post-tee-time")}
@@ -207,14 +229,25 @@ export default function HomeScreen() {
               bare percentage — "60% complete" is a scold. What a member
               actually wants to know is why they'd bother, so the row says
               that instead and the meter is just the evidence. */}
-          {summary?.profileCompletion !== null &&
-          summary !== null &&
-          summary.profileCompletion < 100 ? (
+          {summary && !summary.onboarded ? (
+            <ProfileNudge
+              percent={summary.profileCompletion ?? 0}
+              text="Add your home club and the courses you've played, and meet golfers near you. Two minutes."
+              onPress={() => router.push("/onboarding")}
+            />
+          ) : summary?.profileCompletion !== null &&
+            summary !== null &&
+            summary.profileCompletion < 100 ? (
             <ProfileNudge
               percent={summary.profileCompletion}
               onPress={() => router.push("/edit-profile")}
             />
           ) : null}
+
+          <PinPalsNearYou
+            people={pinpals}
+            onSeeAll={() => router.push("/find-pinpals")}
+          />
 
           {/* Always here, unlike the rows above — these are shortcuts, not
               alerts. Two screens a member goes to on purpose and which were
@@ -264,7 +297,15 @@ export default function HomeScreen() {
  * and being scrolled past, so this is framed as what it gets you rather than
  * as a task list. It disappears at 100% and never comes back.
  */
-function ProfileNudge({ percent, onPress }: { percent: number; onPress: () => void }) {
+function ProfileNudge({
+  percent,
+  onPress,
+  text = "Members with a club, a handicap and a line about themselves get asked to play more often.",
+}: {
+  percent: number;
+  onPress: () => void;
+  text?: string;
+}) {
   return (
     <Pressable
       style={({ pressed }) => [styles.nudge, pressed && styles.nudgeOn]}
@@ -274,9 +315,7 @@ function ProfileNudge({ percent, onPress }: { percent: number; onPress: () => vo
     >
       <View style={styles.nudgeBody}>
         <Text style={styles.nudgeTitle}>Finish your profile</Text>
-        <Text style={styles.nudgeText}>
-          Members with a club, a handicap and a line about themselves get asked to play more often.
-        </Text>
+        <Text style={styles.nudgeText}>{text}</Text>
         <View style={styles.meter}>
           <View style={[styles.meterFill, { width: `${Math.max(percent, 4)}%` }]} />
         </View>
@@ -308,6 +347,57 @@ function QuickLink({
         {label}
       </Text>
     </Pressable>
+  );
+}
+
+/**
+ * Golfers at the member's club and clubs nearby, sideways.
+ *
+ * A strip rather than a list: Home is for glancing, and three faces with a
+ * Connect button each says "there are people here" faster than a table does.
+ * When there is nobody yet — the normal state for the first members at any
+ * club — it becomes the invite, because the honest answer to "who's near
+ * me?" at launch is "whoever you bring".
+ */
+function PinPalsNearYou({
+  people,
+  onSeeAll,
+}: {
+  people: Suggestion[] | null;
+  onSeeAll: () => void;
+}) {
+  if (people === null) return null;
+
+  return (
+    <View style={styles.pinpals}>
+      <View style={styles.sectionHead}>
+        <Text style={styles.sectionTitle}>PinPals near you</Text>
+        {people.length > 0 ? (
+          <Pressable onPress={onSeeAll} hitSlop={10} accessibilityRole="button">
+            <Text style={styles.sectionLink}>See all</Text>
+          </Pressable>
+        ) : null}
+      </View>
+      {people.length > 0 ? (
+        <>
+          <Text style={styles.sectionSub}>Members at your club and clubs within 25 km.</Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.strip}
+          >
+            {people.map((p) => (
+              <SuggestionCard key={p.id} person={p} />
+            ))}
+          </ScrollView>
+        </>
+      ) : (
+        <InviteBanner
+          title="You're early — bring your fourball"
+          body="Nobody near your club has joined yet. Invite the people you play with."
+        />
+      )}
+    </View>
   );
 }
 
@@ -466,6 +556,9 @@ const styles = StyleSheet.create({
   ctaGreenLabel: { color: "#ffffff", fontFamily: fonts.bodyBold, fontSize: type.body },
   ctaCream: { backgroundColor: "#fbf8ef" },
   ctaCreamLabel: { color: colors.navy900, fontFamily: fonts.bodyBold, fontSize: type.body },
+  ctaGold: { backgroundColor: colors.gold400, minHeight: 52 },
+  ctaRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  ctaGoldLabel: { color: colors.ink900, fontFamily: fonts.bodyBold, fontSize: 17 },
   ctaBuy: {
     backgroundColor: colors.buy500,
     borderWidth: 1.5,
@@ -539,6 +632,14 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   meterFill: { height: 5, borderRadius: 3, backgroundColor: colors.green600 },
+
+  pinpals: { gap: 8 },
+  sectionHead: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between" },
+  sectionTitle: { fontFamily: fonts.display, fontSize: 22, color: colors.ink900 },
+  sectionLink: { fontFamily: fonts.bodyBold, fontSize: type.small, color: colors.green700 },
+  sectionSub: { fontFamily: fonts.body, fontSize: type.small, color: colors.ink500 },
+  // Bleeds to the screen edge so a half-shown card says "swipe for more".
+  strip: { gap: 10, paddingRight: spacing.md, paddingTop: 4 },
 
   quickLinks: { flexDirection: "row", gap: spacing.sm },
   quickLink: {
