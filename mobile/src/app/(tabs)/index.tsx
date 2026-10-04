@@ -141,7 +141,7 @@ export default function HomeScreen() {
                 someone. Gold with ink-900 text is 9.6:1. */}
             <Pressable
               style={[styles.cta, styles.ctaFull, styles.ctaGold]}
-              onPress={() => router.push("/find-pinpals")}
+              onPress={() => router.push("/members")}
               accessibilityRole="button"
             >
               {/* The icon sits inside the label (an Ionicon is itself a
@@ -250,7 +250,7 @@ export default function HomeScreen() {
 
           <PinPalsNearYou
             people={pinpals}
-            onSeeAll={() => router.push("/find-pinpals")}
+            onSeeAll={() => router.push("/members")}
           />
 
           {/* Always here, unlike the rows above — these are shortcuts, not
