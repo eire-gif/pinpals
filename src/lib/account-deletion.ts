@@ -421,6 +421,14 @@ async function purgePersonalRows(
     .returns<{ path: string }[]>();
   const paths = (postImages ?? []).map((row) => row.path);
   if (paths.length > 0) await admin.storage.from("post-images").remove(paths);
+  // Their post videos (0102), the same way.
+  const { data: postVideos } = await admin
+    .from("post_videos")
+    .select("path, posts!inner ( author_id )")
+    .eq("posts.author_id", userId)
+    .returns<{ path: string }[]>();
+  const videoPaths = (postVideos ?? []).map((row) => row.path);
+  if (videoPaths.length > 0) await admin.storage.from("post-videos").remove(videoPaths);
   await admin.from("posts").delete().eq("author_id", userId);
   await admin.from("post_comments").delete().eq("author_id", userId);
 

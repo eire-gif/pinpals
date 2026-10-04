@@ -55,13 +55,18 @@ export type PostDraft = {
   /** A round, hole or shot post (0095) carries golf details, which are
    *  enough on their own — a score with no caption is a post. */
   hasDetails?: boolean;
+  /** A video (0102) is media too: a clip with no caption is a post. */
+  hasVideo?: boolean;
 };
 
 /** Null when the draft is fine; otherwise a sentence a member can act on. */
 export function validatePostDraft(draft: PostDraft): string | null {
   const body = draft.body.trim();
-  if (body.length === 0 && draft.photoCount === 0 && !draft.hasDetails) {
+  if (body.length === 0 && draft.photoCount === 0 && !draft.hasVideo && !draft.hasDetails) {
     return "Add a photo or write something to post.";
+  }
+  if (draft.hasVideo && draft.photoCount > 0) {
+    return "A post can have photos or a video, not both.";
   }
   if (draft.body.length > MAX_POST_BODY) {
     return `Please keep your post under ${MAX_POST_BODY.toLocaleString("en-IE")} characters.`;

@@ -21,6 +21,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { AchievementCard } from "@/components/achievement-card";
 import { Avatar } from "@/components/avatar";
 import { coursePhoto } from "@/components/course-photos";
+import { PostVideo } from "@/components/post-video";
 import { ReactionDisc, ReactionPicker, ReactionStack } from "@/components/reactions";
 import { achievementOf } from "@/lib/achievements";
 import type { FeedAuthor, FeedClub, FeedComment, FeedPhoto, FeedPost } from "@/lib/feed";
@@ -166,6 +167,12 @@ export function PostCard({
           <Photos photos={post.photos} width={mediaWidth} onOpen={setViewer} />
         </View>
       )}
+
+      {post.video ? (
+        <View style={styles.media}>
+          <PostVideo video={post.video} club={post.club} width={mediaWidth} />
+        </View>
+      ) : null}
 
       {chips.length > 0 && (
         <View style={styles.chips} accessibilityLabel={chips.join(", ")}>

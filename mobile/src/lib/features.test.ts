@@ -6,16 +6,15 @@ describe("feature flags", () => {
   it("unfinished features stay off until their backend ships", () => {
     // Switching one of these on? Its backend must exist first — see the
     // design docs named in features.ts — then update this test.
-    expect({ groups: FEATURES.groups, sharedRounds: FEATURES.sharedRounds, shotMaps: FEATURES.shotMaps, video: FEATURES.video }).toEqual({
+    expect({ groups: FEATURES.groups, sharedRounds: FEATURES.sharedRounds, shotMaps: FEATURES.shotMaps }).toEqual({
       groups: false,
       sharedRounds: false,
       shotMaps: false,
-      video: false,
     });
   });
 
   it("shipped features are on", () => {
-    expect([FEATURES.recapPrompts, FEATURES.achievementClaims, FEATURES.profileSections]).toEqual([true, true, true]);
+    expect([FEATURES.recapPrompts, FEATURES.achievementClaims, FEATURES.profileSections, FEATURES.video]).toEqual([true, true, true, true]);
   });
 });
 

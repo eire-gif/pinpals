@@ -16,6 +16,7 @@ import { buildDedupeKey } from "@/lib/notifications";
 import { notifyUser } from "@/lib/notifications-server";
 import { checkRateLimit, rateLimitMessage } from "@/lib/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { VideoAttachError, attachPendingPostVideo, deletePostVideos, readPostVideoInput } from "@/lib/videos";
 
 /**
  * Every write to the feed, once, for both callers: the website's Server
@@ -147,8 +148,14 @@ export async function createPost(input: {
    *  posts only; the app sends a kind and its details. */
   kind?: unknown;
   details?: unknown;
+  /** 0102. A staged video: { path, duration_ms?, width?, height? }, the path
+   *  from POST /api/app/posts/videos. One per post, never with photos. */
+  video?: unknown;
 }): Promise<FeedResult<{ id: number }>> {
   const { supabase, userId } = input;
+
+  const video = readPostVideoInput(userId, input.video);
+  if (typeof video === "string") return fail("invalid", video);
 
   const photoPaths = Array.isArray(input.photoPaths)
     ? input.photoPaths.filter((p): p is string => typeof p === "string" && p.length > 0)
@@ -232,6 +239,7 @@ export async function createPost(input: {
     clubId,
     photoCount: photoPaths.length,
     hasDetails: kind !== "general",
+    hasVideo: video !== null,
   });
   if (problem) return fail("invalid", problem);
 
@@ -259,6 +267,30 @@ export async function createPost(input: {
     .single<{ id: number }>();
 
   if (error || !post) return fail("failed", "Couldn't post that just now — please try again.");
+
+  if (video) {
+    // Same all-or-nothing as photos: a video post whose video didn't arrive
+    // is not the post the member wrote.
+    const admin = createAdminClient();
+    let moved: string | null = null;
+    try {
+      moved = await attachPendingPostVideo(admin, userId, post.id, video.path);
+      const { error: rowError } = await admin.from("post_videos").insert({
+        post_id: post.id,
+        path: moved,
+        duration_ms: video.durationMs,
+        width: video.width,
+        height: video.height,
+      });
+      if (rowError) throw new Error(rowError.message);
+    } catch (err) {
+      if (moved) await deletePostVideos(admin, [moved]);
+      await supabase.from("posts").delete().eq("id", post.id);
+      if (err instanceof VideoAttachError) return fail("invalid", err.message);
+      return fail("failed", "Couldn't attach your video — please try again.");
+    }
+    return { ok: true, value: { id: post.id } };
+  }
 
   if (photoPaths.length === 0) return { ok: true, value: { id: post.id } };
 
@@ -359,9 +391,9 @@ export async function deletePost(input: {
   // Storage objects to remove.
   const { data: current } = await supabase
     .from("posts")
-    .select("id, author_id, post_images ( path )")
+    .select("id, author_id, post_images ( path ), post_videos ( path )")
     .eq("id", postId)
-    .maybeSingle<{ id: number; author_id: string; post_images: { path: string }[] }>();
+    .maybeSingle<{ id: number; author_id: string; post_images: { path: string }[]; post_videos: { path: string }[] | { path: string } | null }>();
 
   if (!current) return fail("not_found", "That post no longer exists.");
   if (current.author_id !== userId) return fail("forbidden", "You can only delete your own posts.");
@@ -371,6 +403,9 @@ export async function deletePost(input: {
   if (!data || data.length === 0) return fail("not_found", "That post no longer exists.");
 
   await deletePostImages(createAdminClient(), current.post_images.map((img) => img.path));
+  // post_videos.post_id is unique, so PostgREST may embed it as an object.
+  const videos = current.post_videos === null ? [] : Array.isArray(current.post_videos) ? current.post_videos : [current.post_videos];
+  await deletePostVideos(createAdminClient(), videos.map((v) => v.path));
   return { ok: true, value: null };
 }
 

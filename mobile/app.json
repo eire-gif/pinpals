@@ -17,8 +17,9 @@
       ],
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "PinPals uses your location to show tee times at courses near you.",
-        "NSCameraUsageDescription": "PinPals uses your camera to photograph clubs you are listing for sale.",
-        "NSPhotoLibraryUsageDescription": "PinPals uses your photo library to attach photos to a listing.",
+        "NSCameraUsageDescription": "PinPals uses your camera to take photos and videos for your posts and listings.",
+        "NSPhotoLibraryUsageDescription": "PinPals uses your photo library to add photos and videos to your posts and listings.",
+        "NSMicrophoneUsageDescription": "PinPals uses your microphone to record sound with videos you post.",
         "ITSAppUsesNonExemptEncryption": false
       }
     },
@@ -72,8 +73,9 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "PinPals uses your photo library to attach photos to a listing.",
-          "cameraPermission": "PinPals uses your camera to photograph clubs you are listing for sale."
+          "photosPermission": "PinPals uses your photo library to add photos and videos to your posts and listings.",
+          "cameraPermission": "PinPals uses your camera to take photos and videos for your posts and listings.",
+          "microphonePermission": "PinPals uses your microphone to record sound with videos you post."
         }
       ],
       [
@@ -83,7 +85,8 @@
         }
       ],
       "@react-native-community/datetimepicker",
-      "expo-font"
+      "expo-font",
+      "expo-video"
     ],
     "experiments": {
       "typedRoutes": true

@@ -41,7 +41,7 @@ import {
 } from "@/lib/messages";
 import { subscribeToConversation } from "@/lib/realtime";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
-import { PHOTO_PICKER_OPTIONS } from "@/lib/photo-picking";
+import { PHOTO_PICKER_OPTIONS, preparePhotoForUpload } from "@/lib/photo-picking";
 
 /**
  * One conversation.
@@ -214,7 +214,8 @@ export default function ConversationScreen() {
     setSendError(null);
     try {
       const caption = draft.trim();
-      const sent = await sendPhotoMessage(conversationId, file, caption);
+      const ready = await preparePhotoForUpload({ ...file, width: asset.width, height: asset.height });
+      const sent = await sendPhotoMessage(conversationId, ready, caption);
       setDraft("");
       add(sent);
     } catch (err) {

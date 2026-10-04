@@ -257,6 +257,18 @@ export default function PostCard({ post, standalone = false }: { post: FeedPost;
       )}
 
       {post.photos.length > 0 && <PhotoGrid photos={post.photos} onOpen={setLightbox} />}
+      {post.video && (
+        // 0102. Loads nothing but its first frame until played; the signed
+        // URL is good for an hour, like the photos'.
+        <video
+          className="mt-3 w-full max-h-[70vh] rounded-xl bg-navy-900"
+          src={post.video.url}
+          controls
+          playsInline
+          preload="metadata"
+          aria-label="Video"
+        />
+      )}
 
       {(summary || post.commentCount > 0) && (
         <div className="px-5 pt-3 flex items-center justify-between text-xs text-ink-500">
