@@ -80,7 +80,7 @@ export default function FeedScreen() {
       setCursor(page.cursor);
       setNoConnections(page.noConnections);
     } catch (err) {
-      if (mine === token.current) setError(err instanceof Error ? err.message : "Couldn't load the feed.");
+      if (mine === token.current) setError(err instanceof Error ? err.message : "Couldn't load posts.");
     } finally {
       if (mine === token.current) {
         setLoading(false);
@@ -213,7 +213,7 @@ export default function FeedScreen() {
       </View>
 
       <View style={styles.scopes}>
-        <View style={styles.segment} accessibilityRole="tablist" accessibilityLabel="Feed">
+        <View style={styles.segment} accessibilityRole="tablist" accessibilityLabel="Social">
           {FEED_SCOPES.map((s) => {
             const active = s === scope;
             return (
@@ -247,7 +247,7 @@ export default function FeedScreen() {
 
   return (
     <View style={styles.fill}>
-      <ScreenHeader scene="oldHead" title="Feed" subtitle="Rounds and photos from PinPals members" scrollY={scrollY} />
+      <ScreenHeader scene="oldHead" title="Social" subtitle="Rounds and photos from PinPals members" scrollY={scrollY} />
 
       {loading ? (
         <View style={styles.list}>

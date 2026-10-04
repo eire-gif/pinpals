@@ -509,7 +509,7 @@ export async function loadFeed(viewerId: string, scope: FeedScope, before: strin
       : Promise.resolve([] as Card[]);
 
   const [{ data, error }, listings] = await Promise.all([selectPosts<PostRow[]>(postsQuery), listingsPromise]);
-  if (error) throw new Error("Couldn't load the feed. Pull down to try again.");
+  if (error) throw new Error("Couldn't load posts. Pull down to try again.");
 
   const rows = (data ?? []) as PostRow[];
   const hasMore = rows.length > FEED_PAGE_SIZE;

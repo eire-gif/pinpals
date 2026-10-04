@@ -11,7 +11,7 @@ import Composer from "./composer";
 import PostCard from "./post-card";
 
 export const metadata: Metadata = {
-  title: "Feed · PinPals",
+  title: "Social · PinPals",
   description: "Rounds, photos and news from PinPals members.",
 };
 
@@ -45,7 +45,7 @@ export default async function FeedPage({
       <div className="absolute inset-0 bg-gradient-to-b from-[rgba(9,22,40,0.5)] to-[rgba(9,22,40,0.92)] -z-10" />
       <div className="max-w-6xl mx-auto px-6">
         <span className="inline-flex items-center gap-2 text-xs font-bold tracking-widest uppercase text-gold-500">
-          <span className="w-5 h-0.5 bg-gold-500 inline-block" /> Feed
+          <span className="w-5 h-0.5 bg-gold-500 inline-block" /> Social
         </span>
         <h1 className="font-display font-bold text-4xl mt-2.5">From the fairways.</h1>
         <p className="text-white/80 mt-3 max-w-[52ch]">

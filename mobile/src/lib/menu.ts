@@ -80,7 +80,7 @@ export const MENU: MenuSection[] = [
       // The feed (0088) has its own tab; it is here too because the menu is
       // the one place that lists everything, and "where do I see what
       // people posted" should have an answer in it.
-      { kind: "native", label: "The feed", icon: "images-outline", to: "/feed" },
+      { kind: "native", label: "Social", icon: "images-outline", to: "/feed" },
       { kind: "native", label: "Saved posts", icon: "bookmark-outline", to: "/saved" },
       {
         kind: "native",
