@@ -178,11 +178,15 @@ async function requestsWaiting(userId: string): Promise<number> {
 }
 
 async function offersWaiting(userId: string): Promise<number> {
+  // Same rule as the Offered places screen (listOfferedPlaces): rounds still
+  // to come only, so the number on Home matches the cards behind it.
+  const today = new Date().toISOString().slice(0, 10);
   const { count } = await supabase
     .from("tee_time_interests")
-    .select("id", { count: "exact", head: true })
+    .select("id, invite:tee_time_invites!inner(play_date)", { count: "exact", head: true })
     .eq("member_id", userId)
-    .eq("status", "accepted");
+    .eq("status", "accepted")
+    .gte("invite.play_date", today);
 
   return count ?? 0;
 }

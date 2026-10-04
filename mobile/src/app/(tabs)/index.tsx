@@ -209,7 +209,7 @@ export default function HomeScreen() {
                   ? "You've been offered a place — confirm it"
                   : `You've been offered ${summary.offersWaiting} places — confirm them`
               }
-              onPress={() => router.push("/tee-times")}
+              onPress={() => router.push("/offered-places")}
             />
           ) : null}
 
