@@ -1,3 +1,4 @@
+import { cookies } from "next/headers";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { requireStaff } from "@/lib/admin/authorization";
@@ -86,6 +87,14 @@ export default async function AdminLayout({ children }: { children: ReactNode })
   // non-staff request.
   const { user, staff } = await requireStaff();
 
+  // Opened from the app's Admin screen (pp_shell — see src/proxy.ts). On a
+  // phone the menu below stacks ABOVE every page, twenty links deep, and the
+  // app already has the same list as its own screen; so in the app the menu
+  // and the sign-out button go, and each page starts at its content. Signing
+  // out from inside the app's web view would only end the web session the
+  // app handed over, which is a confusing thing for a button to do.
+  const inAppShell = (await cookies()).get("pp_shell")?.value === "1";
+
   return (
     <div className="min-h-screen bg-cream-50">
       <header className="bg-navy-900 text-cream-50 border-b border-white/10">
@@ -94,17 +103,23 @@ export default async function AdminLayout({ children }: { children: ReactNode })
             Pinpals <span className="text-gold-500">Admin</span>
           </Link>
           <div className="flex items-center gap-3 text-sm">
-            <span className="text-white/70 hidden sm:inline">{user.email}</span>
+            {!inAppShell && <span className="text-white/70 hidden sm:inline">{user.email}</span>}
             <span className="bg-gold-500 text-navy-900 text-xs font-bold px-2.5 py-1 rounded-full uppercase tracking-wide">
               {ROLE_LABELS[staff.role]}
             </span>
-            <SignOutButton />
+            {!inAppShell && <SignOutButton />}
           </div>
         </div>
       </header>
 
-      <div className="max-w-6xl mx-auto px-6 py-8 grid md:grid-cols-[220px_1fr] gap-8">
-        <nav className="space-y-1">
+      <div
+        className={
+          inAppShell
+            ? "max-w-6xl mx-auto px-4 py-5"
+            : "max-w-6xl mx-auto px-6 py-8 grid md:grid-cols-[220px_1fr] gap-8"
+        }
+      >
+        <nav className={inAppShell ? "hidden" : "space-y-1"}>
           {NAV_ITEMS.filter((item) => !item.roles || item.roles.includes(staff.role)).map((item) =>
             item.enabled ? (
               <Link
