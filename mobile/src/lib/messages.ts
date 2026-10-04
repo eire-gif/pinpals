@@ -57,6 +57,12 @@ export type InboxRow = {
   lastMessageAt: string | null;
   listingTitle: string | null;
   unreadCount: number;
+  /**
+   * The latest message, for the row's preview line. Null when the thread is
+   * empty, or its last message sits beyond the preview window (see
+   * listInbox) — the row then falls back to the listing title.
+   */
+  lastMessage: { body: string; mine: boolean; senderFirstName: string | null; photo: boolean } | null;
 };
 
 /** One person in a conversation, as the thread screen needs them: a name and
@@ -194,8 +200,10 @@ export async function listInbox(userId: string): Promise<InboxRow[]> {
       []).map((row) => [row.conversation_id, Number(row.unread_count)])
   );
 
-  return (conversations.data ?? [])
-    .filter((row) => !archivedForMe(row, userId))
+  const visible = (conversations.data ?? []).filter((row) => !archivedForMe(row, userId));
+  const previews = await latestMessages(visible.map((row) => row.id));
+
+  return visible
     .map((row) => {
       const others = othersOf(row, userId);
       const other = others[0]?.profile ?? null;
@@ -211,8 +219,55 @@ export async function listInbox(userId: string): Promise<InboxRow[]> {
         lastMessageAt: row.last_message_at,
         listingTitle: row.listing?.title ?? null,
         unreadCount: counts.get(row.id) ?? 0,
+        lastMessage: (() => {
+          const m = previews.get(row.id);
+          if (!m) return null;
+          const sender = membersOf(row).find((x) => x.member_id === m.sender_id)?.profile ?? null;
+          return {
+            body: m.body ?? "",
+            mine: m.sender_id === userId,
+            senderFirstName: sender?.first_name ?? null,
+            photo: Boolean(m.image_path),
+          };
+        })(),
       };
     });
+}
+
+type PreviewRow = {
+  conversation_id: number;
+  sender_id: string;
+  body: string | null;
+  image_path: string | null;
+  hidden_at: string | null;
+};
+
+/**
+ * The newest visible message in each of these conversations, in ONE query.
+ *
+ * Newest-first across all of them, capped, then the first row per thread
+ * wins. The cap means a thread whose last message is older than the 400
+ * newest across the whole inbox gets no preview — it is also the thread at
+ * the very bottom of the list, and it still shows its listing title. One
+ * bounded query beats fifty small ones on a phone signal.
+ */
+async function latestMessages(conversationIds: number[]): Promise<Map<number, PreviewRow>> {
+  const out = new Map<number, PreviewRow>();
+  if (conversationIds.length === 0) return out;
+
+  const { data } = await supabase
+    .from("messages")
+    .select("conversation_id, sender_id, body, image_path, hidden_at")
+    .in("conversation_id", conversationIds)
+    .is("hidden_at", null)
+    .order("created_at", { ascending: false })
+    .limit(400)
+    .overrideTypes<PreviewRow[]>();
+
+  for (const row of data ?? []) {
+    if (!out.has(row.conversation_id)) out.set(row.conversation_id, row);
+  }
+  return out;
 }
 
 /** Everything the thread screen needs above the messages. */
