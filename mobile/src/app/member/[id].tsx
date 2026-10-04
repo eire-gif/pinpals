@@ -16,9 +16,21 @@ import { Stack, router, useLocalSearchParams } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { Avatar } from "@/components/avatar";
-import { PostCard } from "@/components/post-card";
+import { PostCard, postCardWidth } from "@/components/post-card";
+import {
+  AchievementsSection,
+  CoursesSection,
+  HighlightsSection,
+  IdentityTiles,
+  ProfileTabs,
+  RoundsSection,
+} from "@/components/profile-sections";
 import { useAuth } from "@/lib/auth";
 import { loadMemberPosts, loadMemberProfile, type FeedPost, type MemberProfile } from "@/lib/feed";
+import { loadMemberCourses, loadMemberRounds } from "@/lib/member-profile";
+import { LoadError } from "@/components/state-message";
+import { isOn } from "@/lib/features";
+import { PROFILE_TAB_LABELS, identityTiles, isProfileTab, type IdentityTile, type ProfileCourse, type ProfileTab, type RoundRow } from "@/lib/profile-sections";
 import { blockConfirmText, blockMember, unblockMember } from "@/lib/blocking";
 import { listMemberListings, priceLine, type Card } from "@/lib/marketplace";
 import { conversationWith, requestConnection, respondToConnection } from "@/lib/members";
@@ -28,15 +40,26 @@ import { usePostActions } from "@/lib/use-post-actions";
 
 type Link = { id: number; status: "pending" | "accepted" | "declined"; theirsToAnswer: boolean } | null;
 
+/** A section's data, loaded the first time its tab is opened. */
+type Sections = {
+  rounds?: RoundRow[];
+  courses?: { played: ProfileCourse[]; bucket: ProfileCourse[] };
+  highlights?: FeedPost[];
+  achievements?: FeedPost[];
+};
+
 /**
  * A member's own page — the app's version of /members/<id> on the website.
  *
- * Who they are, then everything they have posted that this viewer may see.
- * Which posts appear is decided by RLS (0088), not here: a stranger sees
- * only what was shared with all members; a connection sees the rest.
+ * Who they are as a golfer (phase 10): handicap if they share it, home
+ * course, courses played, PinPals. Then five sections — Posts, Rounds,
+ * Courses, Highlights, Achievements. Which posts any section shows is
+ * decided by RLS (0088), not here: a stranger sees only what was shared with
+ * all members; a connection sees the rest. The privacy rule for each piece
+ * is written down in lib/profile-sections.ts.
  */
 export default function MemberScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, tab: tabParam } = useLocalSearchParams<{ id: string; tab?: string }>();
   const { session } = useAuth();
   const userId = session?.user?.id ?? null;
   const isMe = userId === id;
@@ -53,12 +76,16 @@ export default function MemberScreen() {
   // Whether I have blocked this member. Only my own blocks are readable
   // (0049), which is all this screen needs to choose Block or Unblock.
   const [blocked, setBlocked] = useState(false);
+  const [tab, setTab] = useState<ProfileTab>(isOn("profileSections") && isProfileTab(tabParam) ? tabParam : "posts");
+  const [sections, setSections] = useState<Sections>({});
+  const [sectionLoading, setSectionLoading] = useState(false);
+  const [sectionFailed, setSectionFailed] = useState<ProfileTab | null>(null);
 
   const load = useCallback(async () => {
     if (!userId || !id) return;
     try {
       const [p, page, forSale, connection, myBlock] = await Promise.all([
-        loadMemberProfile(id),
+        loadMemberProfile(id, userId),
         loadMemberPosts(userId, id, null),
         // A failure here leaves the row empty rather than the whole page
         // unloadable — the posts are what most people came for.
@@ -83,6 +110,9 @@ export default function MemberScreen() {
       ]);
       setBlocked(myBlock);
       setProfile(p);
+      // A refresh starts every section again; the open one reloads below.
+      setSections({});
+      setSectionFailed(null);
       setPosts(page.posts);
       setListings(forSale);
       setCursor(page.cursor);
@@ -107,7 +137,36 @@ export default function MemberScreen() {
     void load();
   }, [load]);
 
+  // Load the open section the first time it's needed (and after a refresh).
+  useEffect(() => {
+    if (!userId || !id || !profile || blocked || tab === "posts" || sections[tab] !== undefined || sectionFailed === tab) return;
+    let live = true;
+    setSectionLoading(true);
+    const work: Promise<Partial<Sections>> =
+      tab === "rounds"
+        ? loadMemberRounds(id).then((rounds) => ({ rounds }))
+        : tab === "courses"
+          ? loadMemberCourses(id, profile.homeClubId).then((courses) => ({ courses }))
+          : loadMemberPosts(userId, id, null, tab).then((page) => ({ [tab]: page.posts }));
+    work
+      .then((part) => live && setSections((prev) => ({ ...prev, ...part })))
+      // A failure is shown as one, with Try again — never as "nothing shared".
+      .catch(() => live && setSectionFailed(tab))
+      .finally(() => live && setSectionLoading(false));
+    return () => {
+      live = false;
+    };
+  }, [tab, sections, sectionFailed, userId, id, profile, blocked]);
+
+  function onTile(key: IdentityTile["key"]) {
+    if (key === "courses" && isOn("profileSections")) setTab("courses");
+    else if (key === "posts") setTab("posts");
+    else if (key === "pinpals" && isMe) router.push("/connections");
+    else if (key === "handicap" && isMe) router.push("/edit-profile");
+  }
+
   async function more() {
+    if (tab !== "posts") return;
     if (!userId || !id || !cursor) return;
     try {
       const page = await loadMemberPosts(userId, id, cursor);
@@ -217,24 +276,53 @@ export default function MemberScreen() {
     );
   }
 
+  const contentWidth = width - spacing.md * 2;
+  const tiles = blocked
+    ? []
+    : identityTiles(
+        {
+          handicap: profile.handicap,
+          privateHandicap: profile.privateHandicap,
+          coursesPlayed: profile.coursesPlayed,
+          pinpals: profile.pinpals,
+          postCount: profile.postCount,
+        },
+        isMe,
+      );
+  const meta = [profile.place, profile.ageBand ? `Age ${profile.ageBand}` : null, profile.joined].filter(Boolean).join(" · ");
+
   const header = (
     <View style={styles.profile}>
       <View style={styles.identity}>
-        <Avatar url={profile.avatarUrl} color={profile.avatarColor} name={profile.name} size={76} />
+        <View style={styles.avatarRing}>
+          <Avatar url={profile.avatarUrl} color={profile.avatarColor} name={profile.name} size={80} />
+        </View>
         <View style={styles.identityText}>
           <Text style={styles.name}>{profile.name}</Text>
-          <Text style={styles.club}>{profile.homeClub ?? "No home club set"}</Text>
-          {profile.place ? <Text style={styles.meta}>{profile.place}</Text> : null}
-          <Text style={styles.meta}>{profile.joined}</Text>
+          {profile.homeClub ? (
+            <Pressable
+              style={styles.homeRow}
+              disabled={!profile.homeClubId}
+              onPress={() => profile.homeClubId && router.push({ pathname: "/course/[id]", params: { id: String(profile.homeClubId) } })}
+              accessibilityRole={profile.homeClubId ? "link" : undefined}
+              accessibilityLabel={`Home course: ${profile.homeClub}`}
+            >
+              <Ionicons name="flag" size={13} color={colors.green700} />
+              <Text style={styles.club} numberOfLines={1}>
+                {profile.homeClub}
+              </Text>
+            </Pressable>
+          ) : isMe ? (
+            <Pressable style={styles.homeRow} onPress={() => router.push("/edit-profile")} accessibilityRole="button">
+              <Ionicons name="add-circle-outline" size={14} color={colors.green700} />
+              <Text style={styles.club}>Add your home course</Text>
+            </Pressable>
+          ) : null}
+          {meta ? <Text style={styles.meta}>{meta}</Text> : null}
         </View>
       </View>
 
-      <View style={styles.stats}>
-        <Stat label="Handicap" value={profile.handicap === null ? "—" : String(profile.handicap)} />
-        <Stat label="Posts" value={String(profile.postCount)} />
-        <Stat label="For sale" value={String(profile.forSale)} />
-        <Stat label="Age range" value={profile.ageBand ?? "—"} />
-      </View>
+      {tiles.length > 0 && <IdentityTiles tiles={tiles} onPress={onTile} />}
 
       {profile.bio ? <Text style={styles.bio}>{profile.bio}</Text> : null}
 
@@ -328,8 +416,44 @@ export default function MemberScreen() {
         </>
       )}
 
-      <Text style={styles.section}>Posts</Text>
+      {!blocked && isOn("profileSections") ? <ProfileTabs tab={tab} onChange={setTab} /> : null}
     </View>
+  );
+
+  const first = profile.firstName;
+  const sectionBody = sectionLoading ? (
+    <ActivityIndicator style={{ marginTop: spacing.xl }} color={colors.green700} />
+  ) : sectionFailed === tab ? (
+    <LoadError what={PROFILE_TAB_LABELS[tab].toLowerCase()} onRetry={() => setSectionFailed(null)} />
+  ) : tab === "rounds" ? (
+    <RoundsSection
+      rows={sections.rounds ?? []}
+      empty={isMe ? "Rounds you share from the Feed are kept here, with your best and your average." : `${first} hasn't shared a round you can see yet.`}
+    />
+  ) : tab === "courses" ? (
+    <CoursesSection
+      played={sections.courses?.played ?? []}
+      bucket={sections.courses?.bucket ?? []}
+      empty={isMe ? "Add the courses you've played and the ones on your bucket list." : `${first} hasn't added any courses yet.`}
+      onAdd={isMe ? () => router.push("/courses") : undefined}
+    />
+  ) : tab === "highlights" ? (
+    <HighlightsSection
+      isMe={isMe}
+      posts={sections.highlights ?? []}
+      width={contentWidth}
+      empty={isMe ? "Your most-reacted posts will show here." : `Nothing of ${first}'s has had a reaction yet.`}
+    />
+  ) : (
+    <AchievementsSection
+      posts={sections.achievements ?? []}
+      width={contentWidth}
+      empty={
+        isMe
+          ? "Mark a Hole in One, an Eagle, a Personal Best or breaking 80 when you post a round or a hole, and it's kept here."
+          : `${first} hasn't shared an achievement you can see yet.`
+      }
+    />
   );
 
   return (
@@ -337,11 +461,12 @@ export default function MemberScreen() {
       <Stack.Screen options={{ title: profile.firstName, headerBackTitle: "Back" }} />
       <FlatList
         style={styles.fill}
-        data={posts}
+        data={tab === "posts" && !blocked ? posts : []}
         keyExtractor={(p) => String(p.id)}
         ListHeaderComponent={header}
         contentContainerStyle={styles.list}
         ItemSeparatorComponent={() => <View style={{ height: spacing.md }} />}
+        ListHeaderComponentStyle={{ marginBottom: tab === "posts" ? spacing.md : 0 }}
         onEndReached={more}
         onEndReachedThreshold={0.6}
         refreshControl={
@@ -355,6 +480,9 @@ export default function MemberScreen() {
           />
         }
         ListEmptyComponent={
+          tab !== "posts" && !blocked ? (
+            sectionBody
+          ) : (
           <Text style={styles.empty}>
             {isMe
               ? "You haven't posted yet. Share your last round from the Feed tab."
@@ -362,38 +490,24 @@ export default function MemberScreen() {
                 ? `You have blocked ${profile.firstName}, so their posts are hidden.`
                 : `${profile.firstName} hasn't shared anything you can see yet.`}
           </Text>
+          )
         }
         renderItem={({ item }) => (
           <PostCard
             post={item}
             currentMemberId={id}
-            width={width - spacing.md * 2 - 2}
+            width={postCardWidth(width)}
             onLike={actions.like}
+                onReact={actions.react}
+                onShare={actions.share}
+                onSave={actions.save}
             onMenu={actions.menu}
-            onComment={(p) => router.push({ pathname: "/post/[id]", params: { id: String(p.id), focus: "comment" } })}
+            onComment={(p) => router.push({ pathname: "/comments/[id]", params: { id: String(p.id), focus: "comment" } })}
             onCommentOptions={actions.commentOptions}
           />
         )}
       />
     </>
-  );
-}
-
-function Stat({ label, value, onPress }: { label: string; value: string; onPress?: () => void }) {
-  const content = (
-    <>
-      <Text style={styles.statValue} numberOfLines={1}>
-        {value}
-      </Text>
-      <Text style={[styles.statLabel, onPress && { color: colors.green700 }]}>{label}</Text>
-    </>
-  );
-  return onPress ? (
-    <Pressable style={styles.stat} onPress={onPress} accessibilityRole="link">
-      {content}
-    </Pressable>
-  ) : (
-    <View style={styles.stat}>{content}</View>
   );
 }
 
@@ -403,22 +517,12 @@ const styles = StyleSheet.create({
   missing: { fontFamily: fonts.body, fontSize: type.body, color: colors.ink500, textAlign: "center", marginTop: spacing.xl },
   profile: { marginBottom: spacing.sm },
   identity: { flexDirection: "row", alignItems: "center", gap: spacing.md },
+  avatarRing: { padding: 3, borderRadius: 46, borderWidth: 2, borderColor: colors.gold400 },
+  homeRow: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 3, minHeight: 24 },
   identityText: { flex: 1, minWidth: 0 },
-  name: { fontFamily: fonts.display, fontSize: 24, color: colors.ink900 },
-  club: { fontFamily: fonts.bodySemi, fontSize: type.small, color: colors.green700, marginTop: 2 },
+  name: { fontFamily: fonts.display, fontSize: 26, color: colors.ink900 },
+  club: { flexShrink: 1, fontFamily: fonts.bodySemi, fontSize: type.small, color: colors.green700 },
   meta: { fontFamily: fonts.body, fontSize: 13, color: colors.ink500, marginTop: 1 },
-  stats: {
-    flexDirection: "row",
-    marginTop: spacing.md,
-    backgroundColor: colors.surface,
-    borderRadius: radii.lg,
-    borderWidth: 1,
-    borderColor: colors.line,
-    paddingVertical: spacing.sm + 4,
-  },
-  stat: { flex: 1, alignItems: "center", paddingHorizontal: 2 },
-  statValue: { fontFamily: fonts.display, fontSize: 18, color: colors.ink900 },
-  statLabel: { fontFamily: fonts.body, fontSize: 11.5, color: colors.ink500, marginTop: 2 },
   bio: { fontFamily: fonts.body, fontSize: 15, lineHeight: 21, color: colors.ink900, marginTop: spacing.md },
   buttons: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.md },
   button: {

@@ -22,12 +22,25 @@ export const POST_VISIBILITY_SHORT: Record<PostVisibility, string> = {
   connections: "Connections",
 };
 
+/**
+ * The feed's two tabs (Oct 2026 feed redesign, phase 2). The values are the
+ * data model's and unchanged — "all" is every post this member may see,
+ * "connections" is posts by their accepted connections (and themselves),
+ * both newest first. Only the names are new:
+ *
+ *   For You   → "all". There is no ranking yet; when there is, it replaces
+ *               loadFeed()'s "all" query and this label stays put.
+ *   Following → "connections". PinPals has connections, not one-way
+ *               follows, so "following" someone means being connected.
+ *
+ * The website still says "All PinPals" / "My connections" (src/lib/feed.ts).
+ */
 export const FEED_SCOPES = ["all", "connections"] as const;
 export type FeedScope = (typeof FEED_SCOPES)[number];
 
 export const FEED_SCOPE_LABELS: Record<FeedScope, string> = {
-  all: "All PinPals",
-  connections: "My connections",
+  all: "For You",
+  connections: "Following",
 };
 
 export const MAX_POST_PHOTOS = 6;
@@ -38,9 +51,12 @@ export const MAX_COMMENT_BODY = 1000;
 export const FEED_PAGE_SIZE = 15;
 export const FEED_LISTINGS_PER_PAGE = 3;
 
-/** Null when the draft is fine; otherwise a sentence a member can act on. */
-export function draftProblem(body: string, photoCount: number): string | null {
-  if (body.trim().length === 0 && photoCount === 0) return "Add a photo or write something to post.";
+/** Null when the draft is fine; otherwise a sentence a member can act on.
+ *  A round, hole or shot (hasDetails) is a post on its own — a score with no
+ *  caption or photo is still worth sharing. Same rule as the website's
+ *  validatePostDraft(). */
+export function draftProblem(body: string, photoCount: number, hasDetails = false): string | null {
+  if (body.trim().length === 0 && photoCount === 0 && !hasDetails) return "Add a photo or write something to post.";
   if (body.length > MAX_POST_BODY) return `Please keep your post under ${MAX_POST_BODY} characters.`;
   if (photoCount > MAX_POST_PHOTOS) return `You can add up to ${MAX_POST_PHOTOS} photos to a post.`;
   return null;
@@ -98,8 +114,45 @@ export function ago(iso: string, now: Date = new Date()): string {
   return then.getFullYear() === now.getFullYear() ? date : `${date} ${then.getFullYear()}`;
 }
 
-/** Height for a single photo shown at `width`, kept between 4:5 portrait
- *  and 16:9 landscape so one tall photo cannot fill the whole screen. */
+/** "HCP 12.4"; "HCP +1.2" for a plus handicap, which profiles store as a
+ *  negative index (profile-update.ts allows -10 to 54); whole numbers
+ *  without the ".0". Shown on a post only when the member shares it. */
+export function handicapLabel(handicap: number): string {
+  const index = Math.abs(handicap);
+  const figure = Number.isInteger(index) ? index.toFixed(0) : index.toFixed(1);
+  return handicap < 0 ? `HCP +${figure}` : `HCP ${figure}`;
+}
+
+/** Comments for a feed card's preview: the latest `max`, oldest first, flat.
+ *  The feed never shows a thread — replies show as plain rows here, and the
+ *  full thread lives on the post screen. Hidden comments (visible only to
+ *  their author) count like any other. */
+export function previewComments<T extends { id: number; createdAt: string }>(comments: T[], max = 2): T[] {
+  const byTime = [...comments].sort((a, b) =>
+    a.createdAt === b.createdAt ? a.id - b.id : a.createdAt < b.createdAt ? -1 : 1
+  );
+  return byTime.slice(-max);
+}
+
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+/** The last `count` days as YYYY-MM-DD with a label — "Today", "Yesterday",
+ *  then "Thu 1 Oct" — for "when did you play". Local dates, built by hand
+ *  for the same Hermes reason as ago(). */
+export function recentDays(count = 7, now: Date = new Date()): { iso: string; label: string }[] {
+  const out: { iso: string; label: string }[] = [];
+  for (let i = 0; i < count; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+    const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const label = i === 0 ? "Today" : i === 1 ? "Yesterday" : `${WEEKDAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]}`;
+    out.push({ iso, label });
+  }
+  return out;
+}
+
+/** Height for media shown at `width`, kept between 4:5 portrait and 16:9
+ *  landscape so one tall photo cannot fill the whole screen. 4:5 is the feed
+ *  preview's limit; the full photo opens when tapped. */
 export function photoHeight(width: number, photo: { width: number | null; height: number | null }): number {
   const ratio = photo.width && photo.height ? photo.width / photo.height : 4 / 3;
   const clamped = Math.min(Math.max(ratio, 0.8), 16 / 9);

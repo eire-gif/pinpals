@@ -160,6 +160,13 @@ function RootNavigator() {
       <Stack.Screen name="onboarding" options={{ headerShown: false, gestureEnabled: false }} />
       <Stack.Screen name="course/[id]" options={{ title: "Course", headerBackTitle: "Back" }} />
       <Stack.Screen name="course/review" options={{ presentation: "modal", title: "Rate & review" }} />
+      {/* Comments open as a sheet over the feed (phase 5): the card stays
+          collapsed and the conversation has a screen of its own. Set here,
+          not in the screen — iOS can't change presentation after a push. */}
+      <Stack.Screen name="comments/[id]" options={{ presentation: "modal", title: "Comments" }} />
+      {/* Share a post (phase 6): a sheet like Comments. */}
+      <Stack.Screen name="share/[id]" options={{ presentation: "modal", title: "Share post" }} />
+      <Stack.Screen name="saved" options={{ title: "Saved posts", headerBackTitle: "Back" }} />
       <Stack.Screen
         name="invite/[id]"
         options={{ title: "Tee time", headerBackTitle: "Back" }}

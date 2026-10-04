@@ -152,6 +152,8 @@ const EXPECTED: Record<string, Expectation> = {
   // post_images, post_likes, post_comments and storage.objects can share one
   // answer, and so the block check sees both directions.
   "can_view_post(target_post_id bigint)": { anon: false, authenticated: true },
+  // 0101. A number, never who; null across a block.
+  "member_pinpal_count(target_member_id uuid)": { anon: false, authenticated: true },
 
   // --- Service role / internal only. Everything below is either a trigger
   // --- function, a sweep, or a privileged write path that must never be
@@ -169,6 +171,11 @@ const EXPECTED: Record<string, Expectation> = {
   "bump_post_comment_count()": { anon: false, authenticated: false },
   "prepare_post_comment_reply()": { anon: false, authenticated: false },
   "bump_post_like_count()": { anon: false, authenticated: false },
+  // 0097. A trigger that cleans @mentions (reads connections, blocks and
+  // posts the commenter can't), and the comment-like counter (members have
+  // no UPDATE on like_count). Triggers only — callable by nobody.
+  "clean_post_comment_mentions()": { anon: false, authenticated: false },
+  "bump_post_comment_like_count()": { anon: false, authenticated: false },
   // 0084. The nightly sweep that closes rounds a clear day past their
   // play_date. SECURITY DEFINER so cron can run it without a session;
   // unreachable from a browser because a member closing other people's

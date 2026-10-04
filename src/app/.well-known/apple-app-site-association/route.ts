@@ -8,12 +8,15 @@
  * JSON is malformed, where a static file would simply serve nonsense and
  * universal links would stop working with no error anywhere.
  *
- * ONLY `/invite/*` IS CLAIMED, deliberately.
+ * THREE PATHS ARE CLAIMED, deliberately: `/invite/*`, `/feed/*` and `/s/*`.
  *
  * A universal link takes the path away from Safari for everyone who has the
  * app installed. So claiming a path the app renders worse than the website is
  * a downgrade, not a feature. `/invite/[id]` is the one route with an exact
- * native equivalent. The marketplace is a web view whose deep paths the app
+ * native equivalent. `/feed/<id>` (a post) and `/s/<token>` (a shared post,
+ * phase 6) joined it once the app had a native post screen — the app maps
+ * both to it in mobile/src/app/+native-intent.tsx. `/feed` itself opens the
+ * Feed tab. The marketplace is a web view whose deep paths the app
  * cannot currently route to, and `/courses` has no native screen at all —
  * both are better left in Safari until that changes.
  *
@@ -38,6 +41,21 @@ const ASSOCIATION = {
           {
             "/": "/invite/*",
             comment: "A tee time. The app has a native screen for this.",
+          },
+          {
+            // The website's photo proxy, never a page. Listed first: the
+            // first matching component wins.
+            "/": "/feed/photo/*",
+            exclude: true,
+            comment: "Signed photo URLs for the website's feed.",
+          },
+          {
+            "/": "/feed/*",
+            comment: "A post. The app's post screen (mobile/src/app/post/[id].tsx).",
+          },
+          {
+            "/": "/s/*",
+            comment: "A shared post (signed link). Opens the same post screen.",
           },
         ],
       },

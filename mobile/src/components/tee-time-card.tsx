@@ -2,6 +2,7 @@ import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { Avatar } from "@/components/avatar";
+import { COURSE_PHOTOS } from "@/components/course-photos";
 import { StarRow } from "@/components/stars";
 import {
   coursePhotoIndex,
@@ -26,16 +27,7 @@ import { colors, fonts, radii } from "@/lib/theme";
  * tools/prep-tee-time-images.py.
  */
 
-const PHOTOS = [
-  require("../../assets/images/courses/course-1.jpg"),
-  require("../../assets/images/courses/course-2.jpg"),
-  require("../../assets/images/courses/course-3.jpg"),
-  require("../../assets/images/courses/course-4.jpg"),
-  require("../../assets/images/courses/course-5.jpg"),
-  require("../../assets/images/courses/course-6.jpg"),
-  require("../../assets/images/courses/course-7.jpg"),
-  require("../../assets/images/courses/course-8.jpg"),
-];
+const PHOTOS = COURSE_PHOTOS;
 
 /** Faces shown before "+N". */
 const FACES = 3;

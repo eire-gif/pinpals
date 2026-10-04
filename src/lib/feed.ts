@@ -52,12 +52,15 @@ export type PostDraft = {
   visibility: PostVisibility;
   clubId: number | null;
   photoCount: number;
+  /** A round, hole or shot post (0095) carries golf details, which are
+   *  enough on their own — a score with no caption is a post. */
+  hasDetails?: boolean;
 };
 
 /** Null when the draft is fine; otherwise a sentence a member can act on. */
 export function validatePostDraft(draft: PostDraft): string | null {
   const body = draft.body.trim();
-  if (body.length === 0 && draft.photoCount === 0) {
+  if (body.length === 0 && draft.photoCount === 0 && !draft.hasDetails) {
     return "Add a photo or write something to post.";
   }
   if (draft.body.length > MAX_POST_BODY) {

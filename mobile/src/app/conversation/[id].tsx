@@ -21,7 +21,9 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { Avatar } from "@/components/avatar";
 import { EmojiTray } from "@/components/emoji-tray";
 import { ApiError, type UploadFile } from "@/lib/api";
+import { SharedPostCard } from "@/components/shared-post-card";
 import { useAuth } from "@/lib/auth";
+import { postIdsInText } from "@/lib/share-links";
 import {
   MESSAGE_MAX_LENGTH,
   conversationHeader,
@@ -444,6 +446,7 @@ export default function ConversationScreen() {
                   <Bubble
                     message={item}
                     mine={item.sender_id === userId}
+                    viewerId={userId}
                     imageUrl={
                       item.image_path ? (imageUrls.get(item.image_path) ?? null) : null
                     }
@@ -559,9 +562,12 @@ function Bubble({
   sender,
   showSenderName,
   firstOfRun,
+  viewerId,
 }: {
   message: Message;
   mine: boolean;
+  /** For reading a shared post with the viewer's own session. */
+  viewerId: string | null;
   /** Signed, and short-lived. Null while it is still being signed, or if
    *  signing failed — the placeholder below covers both. */
   imageUrl: string | null;
@@ -571,6 +577,12 @@ function Bubble({
   showSenderName: boolean;
   firstOfRun: boolean;
 }) {
+  // A shared post (phase 6) arrives as its link; draw the first one as a
+  // card and drop the bare address from the text above it.
+  const sharedPostId = message.body ? (postIdsInText(message.body)[0] ?? null) : null;
+  const shownBody = sharedPostId
+    ? message.body.replace(/https?:\/\/(?:www\.)?pinpals\.ie\/(?:feed\/\d+|s\/[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)/g, "").trim()
+    : message.body;
   const avatarUrl = sender?.avatarUrl ?? null;
   const avatarColor = sender?.avatarColor ?? null;
   const name = sender?.name ?? null;
@@ -633,7 +645,7 @@ function Bubble({
           </Text>
         ) : null}
 
-        {message.body ? (
+        {shownBody ? (
           <Text
             style={[
               styles.body,
@@ -641,9 +653,11 @@ function Bubble({
               message.image_path ? styles.caption : null,
             ]}
           >
-            {message.body}
+            {shownBody}
           </Text>
         ) : null}
+
+        {sharedPostId && viewerId ? <SharedPostCard postId={sharedPostId} viewerId={viewerId} mine={mine} /> : null}
       </View>
     </View>
   );

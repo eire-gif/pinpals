@@ -154,6 +154,13 @@ export default function ProfileScreen() {
       <View style={styles.group}>
         {/* Every row opens a screen in the app. These used to open the
             website for the four the app could not do yet; it can now. */}
+        {session?.user.id ? (
+          <NativeLink
+            icon="person-outline"
+            label="View my profile"
+            to={{ pathname: "/member/[id]", params: { id: session.user.id } }}
+          />
+        ) : null}
         <NativeLink icon="add-circle-outline" label="Post a tee time" to="/post-tee-time" />
         <NativeLink icon="people-outline" label="Requests to join" to="/tee-time-requests" />
         <NativeLink icon="chatbubbles-outline" label="Messages" to="/inbox" />

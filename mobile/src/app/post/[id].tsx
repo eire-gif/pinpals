@@ -1,40 +1,40 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
-  View,
   useWindowDimensions,
 } from "react-native";
 import { Stack, router, useLocalSearchParams } from "expo-router";
-import Ionicons from "@expo/vector-icons/Ionicons";
 
-import { PostCard } from "@/components/post-card";
+import { CommentComposer, CommentList, useCommentThread } from "@/components/comment-thread";
+import { PostCard, postCardWidth } from "@/components/post-card";
+import { LoadError, StateMessage } from "@/components/state-message";
 import { useAuth } from "@/lib/auth";
-import { addComment, loadPost, type FeedPost } from "@/lib/feed";
-import { MAX_COMMENT_BODY } from "@/lib/feed-rules";
-import { colors, fonts, radii, spacing, type } from "@/lib/theme";
+import { loadPost, type FeedPost } from "@/lib/feed";
+import { supabase } from "@/lib/supabase";
+import { colors, fonts, spacing, type } from "@/lib/theme";
 import { usePostActions } from "@/lib/use-post-actions";
 
 /**
- * One post with every comment, and a box to add one.
+ * One post with its whole conversation.
  *
- * Where a like or comment alert lands (see alert-routes.ts: /feed/<id>),
- * and where "View all N comments" goes. A post that has gone and a post the
- * member may not see look identical here, on purpose.
+ * Where a like, comment or mention alert lands (alert-routes.ts: /feed/<id>)
+ * and where a shared link opens. The thread under the card is the same
+ * component as the Comments sheet (components/comment-thread.tsx), so replies,
+ * mentions, comment likes and edits behave identically in both. A post that
+ * has gone and a post the member may not see look identical here, on purpose.
  */
 export default function PostScreen() {
-  const { id, focus, reply, replyName } = useLocalSearchParams<{
+  const { id, focus, reply, replyName, edit } = useLocalSearchParams<{
     id: string;
     focus?: string;
     reply?: string;
     replyName?: string;
+    edit?: string;
   }>();
   const postId = Number(id);
   const { session } = useAuth();
@@ -43,20 +43,17 @@ export default function PostScreen() {
 
   const [post, setPost] = useState<FeedPost | null>(null);
   const [loading, setLoading] = useState(true);
-  const [comment, setComment] = useState("");
-  const [sending, setSending] = useState(false);
-  // Replying to one comment rather than the post (0092). Arrives from the
-  // feed's Reply link; set by this screen's own.
-  const [replyTo, setReplyTo] = useState<{ id: number; name: string } | null>(
-    reply && Number.isInteger(Number(reply)) ? { id: Number(reply), name: replyName || "this comment" } : null
-  );
-  const input = useRef<TextInput>(null);
+  const [failed, setFailed] = useState(false);
+  const [me, setMe] = useState<{ url: string | null; color: string | null; name: string } | null>(null);
   const scroller = useRef<ScrollView>(null);
 
   const load = useCallback(async () => {
     if (!userId || !Number.isInteger(postId)) return;
     try {
       setPost(await loadPost(userId, postId));
+      setFailed(false);
+    } catch {
+      setFailed(true);
     } finally {
       setLoading(false);
     }
@@ -67,11 +64,34 @@ export default function PostScreen() {
   }, [load]);
 
   useEffect(() => {
-    if (!loading && post && focus === "comment") {
-      const t = setTimeout(() => input.current?.focus(), 350);
+    if (!userId) return;
+    void supabase
+      .from("profiles")
+      .select("first_name, last_name, avatar_url, avatar_color")
+      .eq("id", userId)
+      .maybeSingle<{ first_name: string | null; last_name: string | null; avatar_url: string | null; avatar_color: string | null }>()
+      .then(({ data }) => {
+        if (data) setMe({ url: data.avatar_url, color: data.avatar_color, name: [data.first_name, data.last_name].filter(Boolean).join(" ") });
+      });
+  }, [userId]);
+
+  const thread = useCommentThread({
+    post,
+    viewerId: userId,
+    reload: async () => {
+      await load();
+      setTimeout(() => scroller.current?.scrollToEnd({ animated: true }), 120);
+    },
+    initialReply: reply && Number.isInteger(Number(reply)) ? { id: Number(reply), name: replyName || "this comment" } : null,
+    initialEdit: edit && Number.isInteger(Number(edit)) ? Number(edit) : null,
+  });
+
+  useEffect(() => {
+    if (!loading && post && (focus === "comment" || reply)) {
+      const t = setTimeout(() => thread.input.current?.focus(), 350);
       return () => clearTimeout(t);
     }
-  }, [loading, post, focus]);
+  }, [loading, post, focus, reply, thread.input]);
 
   const actions = usePostActions({
     update: (pid, change) => setPost((p) => (p && p.id === pid ? change(p) : p)),
@@ -88,34 +108,27 @@ export default function PostScreen() {
     },
   });
 
-  async function send() {
-    const body = comment.trim();
-    if (!body || !post || sending) return;
-    setSending(true);
-    try {
-      await addComment(post.id, body, replyTo?.id ?? null);
-      setComment("");
-      setReplyTo(null);
-      await load();
-      setTimeout(() => scroller.current?.scrollToEnd({ animated: true }), 100);
-    } catch (err) {
-      Alert.alert("Couldn't post your comment", err instanceof Error ? err.message : "Please try again.");
-    } finally {
-      setSending(false);
-    }
-  }
-
   return (
     <>
       <Stack.Screen options={{ title: "Post", headerBackTitle: "Back" }} />
       {loading ? (
         <ActivityIndicator style={{ marginTop: spacing.xl }} color={colors.green700} />
+      ) : failed ? (
+        <LoadError
+          what="this post"
+          size="screen"
+          onRetry={() => {
+            setLoading(true);
+            void load();
+          }}
+        />
       ) : !post ? (
-        <View style={styles.gone}>
-          <Ionicons name="images-outline" size={36} color={colors.ink500} />
-          <Text style={styles.goneTitle}>This post isn&apos;t available</Text>
-          <Text style={styles.goneBody}>It may have been deleted, or shared only with the author&apos;s connections.</Text>
-        </View>
+        <StateMessage
+          size="screen"
+          icon="images-outline"
+          title="This post isn't available"
+          body="It may have been deleted, or shared only with the author's connections."
+        />
       ) : (
         <KeyboardAvoidingView
           style={styles.fill}
@@ -125,58 +138,28 @@ export default function PostScreen() {
           <ScrollView ref={scroller} style={styles.fill} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
             <PostCard
               post={post}
-              width={width - spacing.md * 2 - 2}
+              width={postCardWidth(width)}
               standalone
               onLike={actions.like}
+              onReact={actions.react}
+              onShare={actions.share}
+              onSave={actions.save}
               onMenu={actions.menu}
               onComment={() => {
                 // The Comment button is for the post itself.
-                setReplyTo(null);
-                input.current?.focus();
-              }}
-              onCommentOptions={actions.commentOptions}
-              onReply={(c) => {
-                setReplyTo({ id: c.id, name: c.author.name });
-                input.current?.focus();
+                thread.cancel();
+                thread.input.current?.focus();
               }}
             />
-            {post.comments.length > 0 && (
-              <Text style={styles.hint}>Tap Reply to answer a comment. Long-press to delete, report or block.</Text>
-            )}
+            <Text style={styles.section}>Comments</Text>
+            <CommentList
+              comments={post.comments}
+              onLike={actions.likeComment}
+              onReply={thread.startReply}
+              onOptions={(c) => actions.commentOptions(c, { onEdit: thread.startEdit })}
+            />
           </ScrollView>
-
-          {replyTo ? (
-            <View style={styles.replying}>
-              <Text style={styles.replyingText} numberOfLines={1}>
-                Replying to <Text style={styles.replyingName}>{replyTo.name}</Text>
-              </Text>
-              <Pressable onPress={() => setReplyTo(null)} hitSlop={10} accessibilityRole="button" accessibilityLabel="Cancel reply">
-                <Ionicons name="close-circle" size={20} color={colors.ink500} />
-              </Pressable>
-            </View>
-          ) : null}
-          <View style={styles.composer}>
-            <TextInput
-              ref={input}
-              value={comment}
-              onChangeText={setComment}
-              placeholder={replyTo ? `Reply to ${replyTo.name.split(" ")[0]}…` : "Write a comment…"}
-              placeholderTextColor={colors.ink500}
-              multiline
-              maxLength={MAX_COMMENT_BODY}
-              style={styles.input}
-              accessibilityLabel={replyTo ? `Reply to ${replyTo.name}` : "Write a comment"}
-            />
-            <Pressable
-              onPress={send}
-              disabled={sending || comment.trim().length === 0}
-              style={[styles.send, (sending || comment.trim().length === 0) && styles.sendDisabled]}
-              accessibilityRole="button"
-              accessibilityLabel="Post comment"
-            >
-              {sending ? <ActivityIndicator color={colors.cream50} /> : <Ionicons name="arrow-up" size={20} color={colors.cream50} />}
-            </Pressable>
-          </View>
+          <CommentComposer meAvatar={me} thread={thread} />
         </KeyboardAvoidingView>
       )}
     </>
@@ -186,55 +169,5 @@ export default function PostScreen() {
 const styles = StyleSheet.create({
   fill: { flex: 1, backgroundColor: colors.cream50 },
   content: { padding: spacing.md, paddingBottom: spacing.xl },
-  hint: { fontFamily: fonts.body, fontSize: 12, color: colors.ink500, textAlign: "center", marginTop: spacing.md },
-  replying: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: spacing.sm,
-    paddingHorizontal: spacing.md,
-    paddingTop: spacing.sm,
-    backgroundColor: colors.cream50,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.line,
-  },
-  replyingText: { flex: 1, fontFamily: fonts.body, fontSize: type.small, color: colors.ink500 },
-  replyingName: { fontFamily: fonts.bodyBold, color: colors.ink900 },
-  composer: {
-    flexDirection: "row",
-    alignItems: "flex-end",
-    gap: spacing.sm,
-    paddingHorizontal: spacing.md,
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.lg,
-    backgroundColor: colors.cream50,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.line,
-  },
-  input: {
-    flex: 1,
-    maxHeight: 120,
-    fontFamily: fonts.body,
-    fontSize: type.body,
-    color: colors.ink900,
-    backgroundColor: colors.surface,
-    borderRadius: radii.lg,
-    borderWidth: 1.5,
-    borderColor: colors.line,
-    paddingHorizontal: spacing.md,
-    paddingTop: spacing.sm + 2,
-    paddingBottom: spacing.sm + 2,
-  },
-  send: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: colors.green700,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  sendDisabled: { opacity: 0.4 },
-  gone: { alignItems: "center", padding: spacing.xl, gap: spacing.sm },
-  goneTitle: { fontFamily: fonts.display, fontSize: type.title, color: colors.ink900, textAlign: "center" },
-  goneBody: { fontFamily: fonts.body, fontSize: type.small, color: colors.ink500, textAlign: "center" },
+  section: { fontFamily: fonts.display, fontSize: type.heading, color: colors.ink900, marginTop: spacing.lg, marginBottom: spacing.md },
 });

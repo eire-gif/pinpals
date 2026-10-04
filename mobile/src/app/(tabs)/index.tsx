@@ -13,6 +13,7 @@ import { useFocusEffect, useRouter } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { InviteBanner, SuggestionCard } from "@/components/pinpals";
+import { RecapPrompt } from "@/components/recap-prompt";
 import { useAuth } from "@/lib/auth";
 import { suggestedPinPals, type Suggestion } from "@/lib/onboarding";
 import { SITE_URL } from "@/lib/config";
@@ -184,6 +185,10 @@ export default function HomeScreen() {
         <ActivityIndicator color={colors.green700} style={styles.spinner} />
       ) : (
         <View style={styles.body}>
+          {/* "How did it go?" for a round just played (phase 7). Renders
+              nothing when there's no round to offer. */}
+          <RecapPrompt userId={userId} />
+
           <NextRound summary={summary} onOpen={(id) => router.push(`/invite/${id}`)} />
 
           {/* Only rendered when there IS something waiting. A permanent row

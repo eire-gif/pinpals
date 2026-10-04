@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ago, commentLine, draftProblem, interleave, likeLine, photoHeight, threadComments } from "./feed-rules";
+import { FEED_SCOPES, FEED_SCOPE_LABELS, ago, commentLine, draftProblem, handicapLabel, recentDays, previewComments, interleave, likeLine, photoHeight, threadComments } from "./feed-rules";
 
 describe("draftProblem", () => {
   it("needs a photo or some words", () => {
@@ -73,5 +73,59 @@ describe("threadComments", () => {
 
   it("shows a reply without its parent as a comment of its own", () => {
     expect(threadComments([c(7, 99, "2026-10-03T10:00:00Z")])[0].depth).toBe(0);
+  });
+});
+
+describe("handicapLabel", () => {
+  it("shows an index to one decimal, and whole numbers without one", () => {
+    expect(handicapLabel(12.4)).toBe("HCP 12.4");
+    expect(handicapLabel(18)).toBe("HCP 18");
+    expect(handicapLabel(0)).toBe("HCP 0");
+    expect(handicapLabel(54)).toBe("HCP 54");
+  });
+
+  it("shows a plus handicap (stored negative) with a plus sign", () => {
+    expect(handicapLabel(-1.2)).toBe("HCP +1.2");
+    expect(handicapLabel(-3)).toBe("HCP +3");
+  });
+});
+
+describe("previewComments", () => {
+  const c = (id: number, at: string) => ({ id, createdAt: at });
+  it("keeps the latest two, oldest first", () => {
+    const list = [c(3, "2026-10-01T10:03:00Z"), c(1, "2026-10-01T10:01:00Z"), c(2, "2026-10-01T10:02:00Z")];
+    expect(previewComments(list).map((x) => x.id)).toEqual([2, 3]);
+  });
+  it("shows what there is when there are fewer", () => {
+    expect(previewComments([c(1, "2026-10-01T10:01:00Z")]).map((x) => x.id)).toEqual([1]);
+    expect(previewComments([])).toEqual([]);
+  });
+});
+
+describe("feed tabs", () => {
+  it("are For You then Following, over the unchanged scope values", () => {
+    expect(FEED_SCOPES.map((s) => FEED_SCOPE_LABELS[s])).toEqual(["For You", "Following"]);
+    expect([...FEED_SCOPES]).toEqual(["all", "connections"]);
+  });
+});
+
+describe("draftProblem with golf details", () => {
+  it("lets a round, hole or shot post stand on its own", () => {
+    expect(draftProblem("", 0, true)).toBeNull();
+    expect(draftProblem("", 0, false)).toMatch(/Add a photo/);
+  });
+});
+
+describe("recentDays", () => {
+  it("labels today, yesterday, then the date", () => {
+    const days = recentDays(3, new Date(2026, 9, 4, 13, 0));
+    expect(days).toEqual([
+      { iso: "2026-10-04", label: "Today" },
+      { iso: "2026-10-03", label: "Yesterday" },
+      { iso: "2026-10-02", label: "Fri 2 Oct" },
+    ]);
+  });
+  it("crosses a month boundary", () => {
+    expect(recentDays(2, new Date(2026, 9, 1, 9, 0))[1]).toEqual({ iso: "2026-09-30", label: "Yesterday" });
   });
 });

@@ -13,8 +13,9 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { ScreenHeader } from "@/components/screen-header";
 import { useAuth } from "@/lib/auth";
+import { isOn } from "@/lib/features";
 import { listConfirmedRounds, type ConfirmedRound } from "@/lib/rounds";
-import { dateLabel } from "@/lib/tee-times";
+import { dateLabel, todayIso } from "@/lib/tee-times";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 
 /**
@@ -113,6 +114,13 @@ export default function ConfirmedRoundsScreen() {
             <RoundCard
               round={item}
               onPress={() => router.push(`/invite/${item.inviteId}`)}
+              onRecap={
+                // Played rounds offer a recap (phase 7) — never posted
+                // without the member pressing Post in the composer.
+                isOn("recapPrompts") && item.playDate < todayIso()
+                  ? () => router.push({ pathname: "/new-post", params: { type: "round", recap: String(item.inviteId) } })
+                  : undefined
+              }
             />
           )}
           ListEmptyComponent={
@@ -139,7 +147,7 @@ export default function ConfirmedRoundsScreen() {
   );
 }
 
-function RoundCard({ round, onPress }: { round: ConfirmedRound; onPress: () => void }) {
+function RoundCard({ round, onPress, onRecap }: { round: ConfirmedRound; onPress: () => void; onRecap?: () => void }) {
   return (
     <Pressable style={styles.card} onPress={onPress} accessibilityRole="button">
       <View style={styles.cardTop}>
@@ -180,11 +188,30 @@ function RoundCard({ round, onPress }: { round: ConfirmedRound; onPress: () => v
           ))
         )}
       </View>
+
+      {onRecap ? (
+        <Pressable onPress={onRecap} style={styles.recapButton} accessibilityRole="button" accessibilityLabel={`Share your round at ${round.club}`}>
+          <Ionicons name="trophy-outline" size={16} color={colors.green700} />
+          <Text style={styles.recapLabel}>Share your round</Text>
+        </Pressable>
+      ) : null}
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
+  recapButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    marginTop: spacing.sm + 2,
+    minHeight: 44,
+    borderRadius: radii.pill,
+    borderWidth: 1.5,
+    borderColor: colors.green700,
+  },
+  recapLabel: { fontFamily: fonts.bodyBold, fontSize: type.small, color: colors.green700 },
   fill: { flex: 1, backgroundColor: colors.cream50 },
   centre: { alignItems: "center", justifyContent: "center" },
   list: { padding: spacing.md, gap: spacing.sm, flexGrow: 1 },

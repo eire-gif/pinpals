@@ -123,6 +123,9 @@ export const NOTIFICATION_TYPES = [
   "post_commented",
   "post_comment_replied",
   "post_liked",
+  // 0097. Named with @ in a comment — delivered like a reply: someone is
+  // talking to you.
+  "post_comment_mentioned",
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 
@@ -159,6 +162,7 @@ export const NOTIFICATION_TYPE_CATEGORY: Record<NotificationType, NotificationCa
   post_commented: "feed",
   post_comment_replied: "feed",
   post_liked: "feed",
+  post_comment_mentioned: "feed",
 };
 
 /** Which preference category (if any) governs delivery for this notification

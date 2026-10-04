@@ -2,6 +2,9 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { MAX_POST_PHOTOS, parseVisibility, validateComment, validatePostDraft, type PostVisibility } from "@/lib/feed";
+import { achievementProblem } from "@/lib/achievements";
+import { cleanDetails, detailsProblem, isPostKind, type PostKind } from "@/lib/post-details";
+import { DEFAULT_REACTION, REACTION_INFO, isReaction, normaliseCounts, type ReactionCounts, type ReactionKey } from "@/lib/reactions";
 import {
   ImageProcessingError,
   attachPendingPostImages,
@@ -140,6 +143,10 @@ export async function createPost(input: {
   clubId: unknown;
   /** Staging paths from stagePostPhoto(), in the order to show them. */
   photoPaths: unknown;
+  /** 0095. Omitted by the website's own composer, which posts general
+   *  posts only; the app sends a kind and its details. */
+  kind?: unknown;
+  details?: unknown;
 }): Promise<FeedResult<{ id: number }>> {
   const { supabase, userId } = input;
 
@@ -159,7 +166,73 @@ export async function createPost(input: {
   const clubId = parseClubId(input.clubId);
   if (clubId === "invalid") return fail("invalid", "That course couldn't be found — try choosing it again.");
 
-  const problem = validatePostDraft({ body: input.body, visibility, clubId, photoCount: photoPaths.length });
+  let kind: PostKind = "general";
+  if (input.kind !== undefined && input.kind !== null) {
+    if (!isPostKind(input.kind)) return fail("invalid", "That kind of post isn't recognised — please update the app.");
+    kind = input.kind;
+  }
+  // Blanks dropped before checking, the same as the app does, so an unused
+  // field sent as "" can't fail a post. The database check
+  // (post_details_valid, 0095) applies the same rules again.
+  const rawDetails = input.details ?? null;
+  const details =
+    kind === "general"
+      ? rawDetails
+      : rawDetails !== null && typeof rawDetails === "object" && !Array.isArray(rawDetails)
+        ? cleanDetails(rawDetails as Record<string, unknown>)
+        : rawDetails;
+  const detailsIssue = detailsProblem(kind, details) ?? achievementProblem(kind, details);
+  if (detailsIssue) return fail("invalid", detailsIssue);
+
+  // Personal Best (0100) is the one claim a post's own numbers can't
+  // settle: it must beat every full round the member has posted before.
+  // (Equal isn't a new best.) Their own posts, read under their own RLS.
+  const claim = details && typeof details === "object" ? (details as { achievement?: string; score?: number }) : null;
+  if (kind === "round" && claim?.achievement === "personal_best" && typeof claim.score === "number") {
+    const { data: earlier } = await supabase
+      .from("posts")
+      .select("details")
+      .eq("author_id", userId)
+      .eq("kind", "round")
+      .order("created_at", { ascending: false })
+      .limit(500)
+      .returns<{ details: { score?: number; holes?: number } | null }[]>();
+    const best = (earlier ?? [])
+      .map((r) => r.details)
+      .filter((d): d is { score: number; holes?: number } => !!d && typeof d.score === "number" && d.holes !== 9)
+      .reduce<number | null>((min, d) => (min === null || d.score < min ? d.score : min), null);
+    if (best !== null && claim.score >= best) {
+      return fail("invalid", `Your best round on PinPals is ${best} — a personal best has to beat it.`);
+    }
+  }
+
+  // A recap (0099) names the tee time it was. Only someone who played it —
+  // its host, or a confirmed player — may attach it: otherwise the app's
+  // "already shared" check could be spoofed, and a stranger could pin their
+  // post to your round. Read under the member's own RLS.
+  const teeTimeId =
+    kind === "round" && details && typeof details === "object" ? (details as { tee_time_id?: number }).tee_time_id : undefined;
+  if (teeTimeId !== undefined) {
+    const [hosted, joined] = await Promise.all([
+      supabase.from("tee_time_invites").select("id").eq("id", teeTimeId).eq("member_id", userId).maybeSingle(),
+      supabase
+        .from("tee_time_interests")
+        .select("id")
+        .eq("invite_id", teeTimeId)
+        .eq("member_id", userId)
+        .eq("status", "confirmed")
+        .maybeSingle(),
+    ]);
+    if (!hosted.data && !joined.data) return fail("invalid", "That round isn't one you played — share it without linking the tee time.");
+  }
+
+  const problem = validatePostDraft({
+    body: input.body,
+    visibility,
+    clubId,
+    photoCount: photoPaths.length,
+    hasDetails: kind !== "general",
+  });
   if (problem) return fail("invalid", problem);
 
   // Refuse a stranger's staging path before anything is written, rather
@@ -181,7 +254,7 @@ export async function createPost(input: {
   // the id it returns, which is the moment they become visible to anyone.
   const { data: post, error } = await supabase
     .from("posts")
-    .insert({ author_id: userId, body: input.body.trim(), visibility, club_id: clubId })
+    .insert({ author_id: userId, body: input.body.trim(), visibility, club_id: clubId, kind, details })
     .select("id")
     .single<{ id: number }>();
 
@@ -316,13 +389,30 @@ export async function deletePost(input: {
  * dedupe key is per liker per post, so like-unlike-like cannot make the
  * bell count climb.
  */
+/**
+ * Likes and reactions (0096). A reaction is a like with a flavour: `like`
+ * says whether the member has reacted at all, `reaction` which one. An older
+ * app sends no reaction and gets the default, Great Shot; reacting again
+ * with a different one changes it in place (one row per member per post).
+ *
+ * Returns the server's numbers, which the app puts over its optimistic
+ * guess: the total, the breakdown, and what the member's reaction now is.
+ */
 export async function setPostLike(input: {
   supabase: SupabaseClient;
   userId: string;
   postId: number;
   like: boolean;
-}): Promise<FeedResult<{ liked: boolean; likeCount: number }>> {
+  reaction?: unknown;
+}): Promise<
+  FeedResult<{ liked: boolean; likeCount: number; reaction: ReactionKey | null; reactionCounts: ReactionCounts }>
+> {
   const { supabase, userId, postId, like } = input;
+  if (input.reaction !== undefined && input.reaction !== null && !isReaction(input.reaction)) {
+    return fail("invalid", "That reaction isn't recognised — please update the app.");
+  }
+  const reaction: ReactionKey = isReaction(input.reaction) ? input.reaction : DEFAULT_REACTION;
+  const explicit = isReaction(input.reaction);
 
   const refused = await limited("like-post", userId, LIKE_MAX, LIKE_WINDOW_SECONDS);
   if (refused) return refused;
@@ -336,22 +426,39 @@ export async function setPostLike(input: {
 
   let newlyLiked = false;
   if (like) {
-    const { error } = await supabase.from("post_likes").insert({ post_id: postId, user_id: userId });
-    // 23505: already liked. The member's intent — "this is liked" — is
-    // already true, so it is a success, not an error. A double tap on a
-    // slow connection lands here.
+    const { error } = await supabase.from("post_likes").insert({ post_id: postId, user_id: userId, reaction });
+    // 23505: already reacted. With a reaction named, that's a change of
+    // reaction — update the one row. Without one (an older app's "like"),
+    // the member's intent is already true: a success, not an error. A double
+    // tap on a slow connection lands here too.
     if (error && error.code !== "23505") return fail("failed", "Couldn't save that — please try again.");
+    if (error && explicit) {
+      const { error: changeError } = await supabase
+        .from("post_likes")
+        .update({ reaction })
+        .eq("post_id", postId)
+        .eq("user_id", userId);
+      if (changeError) return fail("failed", "Couldn't save that — please try again.");
+    }
     newlyLiked = !error;
   } else {
     const { error } = await supabase.from("post_likes").delete().eq("post_id", postId).eq("user_id", userId);
     if (error) return fail("failed", "Couldn't save that — please try again.");
   }
 
-  const { data: after } = await supabase
-    .from("posts")
-    .select("like_count")
-    .eq("id", postId)
-    .maybeSingle<{ like_count: number }>();
+  const [{ data: after }, { data: mine }] = await Promise.all([
+    supabase
+      .from("posts")
+      .select("like_count, reaction_counts")
+      .eq("id", postId)
+      .maybeSingle<{ like_count: number; reaction_counts: unknown }>(),
+    supabase
+      .from("post_likes")
+      .select("reaction")
+      .eq("post_id", postId)
+      .eq("user_id", userId)
+      .maybeSingle<{ reaction: string }>(),
+  ]);
 
   if (newlyLiked && post.author_id !== userId) {
     const name = await memberName(supabase, userId);
@@ -361,7 +468,9 @@ export async function setPostLike(input: {
     const { error } = await admin.rpc("notify_user", {
       p_user_id: post.author_id,
       p_type: "post_liked",
-      p_title: `${name} liked your post`,
+      // Still type "post_liked": alert routing, preferences and dedupe all
+      // key on it, and a reaction is a like. Only the words name it.
+      p_title: `${name} reacted ${REACTION_INFO[reaction].label} to your post`,
       p_body: "Tap to see it.",
       p_data: { href: `/feed/${postId}`, post_id: postId },
       p_dedupe_key: buildDedupeKey(["post_liked", postId, userId]),
@@ -369,7 +478,16 @@ export async function setPostLike(input: {
     if (error) console.error("[feed] like notification failed:", error.message);
   }
 
-  return { ok: true, value: { liked: like, likeCount: after?.like_count ?? 0 } };
+  const likeCount = after?.like_count ?? 0;
+  return {
+    ok: true,
+    value: {
+      liked: mine !== null,
+      likeCount,
+      reaction: mine && isReaction(mine.reaction) ? mine.reaction : null,
+      reactionCounts: normaliseCounts(after?.reaction_counts, likeCount),
+    },
+  };
 }
 
 // ===========================================================================
@@ -385,9 +503,15 @@ export async function addComment(input: {
    *  reply under its top-level comment, and refuses a parent the replier
    *  could not see. */
   parentId?: number | null;
-}): Promise<FeedResult<{ id: number }>> {
+  /** Members named with @ (0097). Sent as the app found them; the database
+   *  keeps only those the commenter may name and who can see the post
+   *  (clean_post_comment_mentions), and only those are notified. */
+  mentions?: unknown;
+}): Promise<FeedResult<{ id: number; mentions: string[] }>> {
   const { supabase, userId, postId } = input;
   const parentId = input.parentId ?? null;
+  const mentions = parseMentions(input.mentions);
+  if (mentions === null) return fail("invalid", "Those mentions couldn't be read — please try again.");
   const body = input.body.trim();
 
   const problem = validateComment(body);
@@ -419,9 +543,9 @@ export async function addComment(input: {
 
   const { data: comment, error } = await supabase
     .from("post_comments")
-    .insert({ post_id: postId, author_id: userId, body, parent_id: parentId })
-    .select("id")
-    .single<{ id: number }>();
+    .insert({ post_id: postId, author_id: userId, body, parent_id: parentId, ...(mentions.length ? { mentions } : {}) })
+    .select("id, mentions")
+    .single<{ id: number; mentions: string[] | null }>();
 
   if (error || !comment) {
     if (error?.message.includes("no longer available")) {
@@ -466,7 +590,72 @@ export async function addComment(input: {
     });
   }
 
-  return { ok: true, value: { id: comment.id } };
+  // Everyone the database kept in `mentions`, less anyone who has just been
+  // told about this comment another way — one buzz per comment per person.
+  const alreadyTold = new Set([userId, post.author_id, answered?.author_id].filter(Boolean));
+  const mentioned = (comment.mentions ?? []).filter((id) => !alreadyTold.has(id));
+  if (mentioned.length > 0) {
+    const name = await memberName(supabase, userId);
+    const snippet = body.length > 120 ? `${body.slice(0, 117)}…` : body;
+    const admin = createAdminClient();
+    for (const id of mentioned) {
+      await notifyUser(admin, {
+        userId: id,
+        type: "post_comment_mentioned",
+        title: `${name} mentioned you in a comment`,
+        body: snippet,
+        href: `/feed/${postId}`,
+        data: { post_id: postId, comment_id: comment.id },
+        dedupeKey: buildDedupeKey(["post_comment_mentioned", comment.id, id]),
+        emailBody: `${name} mentioned you in a comment on PinPals.`,
+      });
+    }
+  }
+
+  return { ok: true, value: { id: comment.id, mentions: comment.mentions ?? [] } };
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Up to ten member ids, or null for anything that isn't a list of ids.
+ *  Absent is an empty list. */
+export function parseMentions(raw: unknown): string[] | null {
+  if (raw === undefined || raw === null) return [];
+  if (!Array.isArray(raw) || raw.length > 10) return null;
+  if (!raw.every((id) => typeof id === "string" && UUID.test(id))) return null;
+  return [...new Set(raw as string[])];
+}
+
+/**
+ * Changes the body of the member's own comment (0097). The UPDATE policy is
+ * the rule — the author, a comment not hidden by a moderator — and the
+ * database stamps edited_at, which the app shows as "Edited". Mentions
+ * aren't re-read and nobody is notified: an edit is a correction, not a
+ * second comment.
+ */
+export async function editComment(input: {
+  supabase: SupabaseClient;
+  userId: string;
+  commentId: number;
+  body: string;
+}): Promise<FeedResult<{ id: number; editedAt: string | null }>> {
+  const body = input.body.trim();
+  const problem = validateComment(body);
+  if (problem) return fail("invalid", problem);
+
+  const refused = await limited("edit-comment", input.userId, COMMENT_MAX, COMMENT_WINDOW_SECONDS);
+  if (refused) return refused;
+
+  const { data, error } = await input.supabase
+    .from("post_comments")
+    .update({ body })
+    .eq("id", input.commentId)
+    .eq("author_id", input.userId)
+    .select("id, edited_at")
+    .maybeSingle<{ id: number; edited_at: string | null }>();
+  if (error) return fail("failed", "Couldn't save your edit — please try again.");
+  if (!data) return fail("not_found", "That comment can't be edited any more.");
+  return { ok: true, value: { id: data.id, editedAt: data.edited_at } };
 }
 
 export async function deleteComment(input: {

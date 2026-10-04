@@ -28,6 +28,18 @@ export const colors = {
   surfaceTint: "#fbf8f1",
 } as const;
 
+/**
+ * Navy and cream at an opacity — the veils over photographs (achievement,
+ * recap and highlight cards, the photo viewer) and the soft text and
+ * frosted tiles that sit on them. Derived from the two tokens above so a
+ * change of navy or cream carries through; a gradient would be a native
+ * module, so cards stack flat veils instead.
+ */
+const rgb = (hex: string): string =>
+  [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)).join(",");
+export const navyAlpha = (alpha: number): string => `rgba(${rgb(colors.navy900)},${alpha})`;
+export const creamAlpha = (alpha: number): string => `rgba(${rgb(colors.cream50)},${alpha})`;
+
 export const spacing = {
   xs: 4,
   sm: 8,

@@ -19,7 +19,7 @@ export function alertLook(type: string): AlertLook {
   }
   if (type.startsWith("tee_time_")) return { icon: "golf", fg: "#1f5c2e", bg: "#e2ede1" };
   if (type === "post_liked") return { icon: "heart", fg: "#b42d3b", bg: "#fbe4e6" };
-  if (type === "post_commented" || type === "post_comment_replied") {
+  if (type === "post_commented" || type === "post_comment_replied" || type === "post_comment_mentioned") {
     return { icon: "chatbubble-ellipses", fg: "#6a3ea1", bg: "#eee6f8" };
   }
   if (type.startsWith("offer_") || type === "reservation_expired") return { icon: "pricetag", fg: "#9a4f00", bg: "#ffeed6" };
