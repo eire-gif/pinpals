@@ -21,7 +21,7 @@
  */
 export const FEATURES = {
   // ---- Kill switches (shipped, on) ----
-  /** "Share your round" offers on Home, the Feed and played rounds (phase 7, needs 0099). */
+  /** "Share your round" offers on Home, Social and played rounds (phase 7, needs 0099). */
   recapPrompts: true,
   /** Claiming an achievement in the composer (phase 8, needs 0100). Cards for
    *  achievements already posted always draw. */

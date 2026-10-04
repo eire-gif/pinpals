@@ -31,7 +31,7 @@ const TILE: Record<PostType, string> = {
 export default function ComposeScreen() {
   return (
     <>
-      <Stack.Screen options={{ title: "Create a post", headerBackTitle: "Feed" }} />
+      <Stack.Screen options={{ title: "Create a post", headerBackTitle: "Social" }} />
       <ScrollView style={styles.fill} contentContainerStyle={styles.content}>
         {menuPostTypes().map((t) => {
           const info = POST_TYPE_INFO[t];

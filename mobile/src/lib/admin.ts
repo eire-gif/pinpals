@@ -46,7 +46,7 @@ export const ADMIN_GROUPS: { title: string; sections: AdminSection[] }[] = [
     title: "Safety and moderation",
     sections: [
       { path: "/admin/reports", label: "Reports", icon: "flag-outline" },
-      { path: "/admin/feed", label: "Feed", icon: "images-outline" },
+      { path: "/admin/feed", label: "Social", icon: "images-outline" },
       { path: "/admin/reviews", label: "Seller reviews", icon: "chatbox-ellipses-outline" },
       { path: "/admin/course-reviews", label: "Course reviews", icon: "star-outline" },
       { path: "/admin/risk-flags", label: "Risk flags", icon: "warning-outline" },

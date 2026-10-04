@@ -113,7 +113,7 @@ export default async function AdminFeedPage({
 
   return (
     <div>
-      <h1 className="font-display font-bold text-2xl mb-1">Feed</h1>
+      <h1 className="font-display font-bold text-2xl mb-1">Social</h1>
       <p className="text-ink-500 mb-6">
         {total} {total === 1 ? "post" : "posts"}
         {status && <> · {status === "hidden" ? "Hidden only" : "Visible only"}</>}. Hiding never deletes — the author still sees

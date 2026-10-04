@@ -428,7 +428,7 @@ export default function MemberScreen() {
   ) : tab === "rounds" ? (
     <RoundsSection
       rows={sections.rounds ?? []}
-      empty={isMe ? "Rounds you share from the Feed are kept here, with your best and your average." : `${first} hasn't shared a round you can see yet.`}
+      empty={isMe ? "Rounds you share on Social are kept here, with your best and your average." : `${first} hasn't shared a round you can see yet.`}
     />
   ) : tab === "courses" ? (
     <CoursesSection
@@ -485,7 +485,7 @@ export default function MemberScreen() {
           ) : (
           <Text style={styles.empty}>
             {isMe
-              ? "You haven't posted yet. Share your last round from the Feed tab."
+              ? "You haven't posted yet. Share your last round from the Social tab."
               : blocked
                 ? `You have blocked ${profile.firstName}, so their posts are hidden.`
                 : `${profile.firstName} hasn't shared anything you can see yet.`}

@@ -213,7 +213,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="feed"
         options={{
-          title: "Feed",
+          title: "Social",
           // Names the tab, not the bar: the screen's own photo header
           // carries the title, as on Marketplace beside it.
           headerTitle: "",
