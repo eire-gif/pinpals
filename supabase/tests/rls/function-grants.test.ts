@@ -158,6 +158,12 @@ const EXPECTED: Record<string, Expectation> = {
   // --- reachable from a browser.
   "admin_distinct_webhook_event_types()": { anon: false, authenticated: false },
   "apply_new_bid()": { anon: false, authenticated: false },
+  // 0093. Course rating roll-up: a trigger function and the helper it calls.
+  // DEFINER because members cannot update clubs, which is why neither may be
+  // called directly — a member could otherwise recompute (harmless) or, with
+  // a future change, write to clubs.
+  "course_reviews_after_change()": { anon: false, authenticated: false },
+  "refresh_club_rating(p_club_id bigint)": { anon: false, authenticated: false },
   // 0088. Keep posts.like_count / comment_count, which members have no
   // UPDATE grant on — that is why they must be SECURITY DEFINER.
   "bump_post_comment_count()": { anon: false, authenticated: false },
