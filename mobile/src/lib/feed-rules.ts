@@ -51,9 +51,12 @@ export const MAX_COMMENT_BODY = 1000;
 export const FEED_PAGE_SIZE = 15;
 export const FEED_LISTINGS_PER_PAGE = 3;
 
-/** Null when the draft is fine; otherwise a sentence a member can act on. */
-export function draftProblem(body: string, photoCount: number): string | null {
-  if (body.trim().length === 0 && photoCount === 0) return "Add a photo or write something to post.";
+/** Null when the draft is fine; otherwise a sentence a member can act on.
+ *  A round, hole or shot (hasDetails) is a post on its own — a score with no
+ *  caption or photo is still worth sharing. Same rule as the website's
+ *  validatePostDraft(). */
+export function draftProblem(body: string, photoCount: number, hasDetails = false): string | null {
+  if (body.trim().length === 0 && photoCount === 0 && !hasDetails) return "Add a photo or write something to post.";
   if (body.length > MAX_POST_BODY) return `Please keep your post under ${MAX_POST_BODY} characters.`;
   if (photoCount > MAX_POST_PHOTOS) return `You can add up to ${MAX_POST_PHOTOS} photos to a post.`;
   return null;
@@ -120,41 +123,6 @@ export function handicapLabel(handicap: number): string {
   return handicap < 0 ? `HCP +${figure}` : `HCP ${figure}`;
 }
 
-/**
- * The golf facts a post can carry: one hole (a shot, an ace, a birdie) or a
- * whole round. Every field optional — a "Share a hole" post may know the
- * hole and the club but not the yardage.
- */
-export type PostGolfDetails = {
-  hole?: number | null;
-  par?: number | null;
-  yards?: number | null;
-  club?: string | null;
-  /** "Ace", "Eagle", "Birdie"… or a score on the hole as written. */
-  result?: string | null;
-  /** Gross round score, and its relation to par. */
-  roundScore?: number | null;
-  toPar?: number | null;
-};
-
-/** The chips under a post's media, in reading order: "Hole 7", "Par 3",
- *  "162 yds", "7 Iron", "Ace", "78 (+6)". Empty when there is nothing. */
-export function golfChips(golf: PostGolfDetails | null | undefined): string[] {
-  if (!golf) return [];
-  const chips: string[] = [];
-  if (golf.hole) chips.push(`Hole ${golf.hole}`);
-  if (golf.par) chips.push(`Par ${golf.par}`);
-  if (golf.yards) chips.push(`${golf.yards} yds`);
-  if (golf.club?.trim()) chips.push(golf.club.trim());
-  if (golf.result?.trim()) chips.push(golf.result.trim());
-  if (golf.roundScore) {
-    const rel =
-      golf.toPar === null || golf.toPar === undefined ? "" : golf.toPar === 0 ? " (E)" : ` (${golf.toPar > 0 ? "+" : ""}${golf.toPar})`;
-    chips.push(`${golf.roundScore}${rel}`);
-  }
-  return chips;
-}
-
 /** Comments for a feed card's preview: the latest `max`, oldest first, flat.
  *  The feed never shows a thread — replies show as plain rows here, and the
  *  full thread lives on the post screen. Hidden comments (visible only to
@@ -164,6 +132,22 @@ export function previewComments<T extends { id: number; createdAt: string }>(com
     a.createdAt === b.createdAt ? a.id - b.id : a.createdAt < b.createdAt ? -1 : 1
   );
   return byTime.slice(-max);
+}
+
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+/** The last `count` days as YYYY-MM-DD with a label — "Today", "Yesterday",
+ *  then "Thu 1 Oct" — for "when did you play". Local dates, built by hand
+ *  for the same Hermes reason as ago(). */
+export function recentDays(count = 7, now: Date = new Date()): { iso: string; label: string }[] {
+  const out: { iso: string; label: string }[] = [];
+  for (let i = 0; i < count; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+    const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const label = i === 0 ? "Today" : i === 1 ? "Yesterday" : `${WEEKDAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]}`;
+    out.push({ iso, label });
+  }
+  return out;
 }
 
 /** Height for media shown at `width`, kept between 4:5 portrait and 16:9

@@ -15,9 +15,9 @@ import {
   interleave,
   threadComments,
   type FeedScope,
-  type PostGolfDetails,
   type PostVisibility,
 } from "./feed-rules";
+import type { HoleDetails, PostKind, RoundDetails, ShotDetails } from "./post-details";
 
 /**
  * The feed, for the app.
@@ -90,11 +90,10 @@ export type FeedPost = {
   likedByMe: boolean;
   /** Bookmarked by the viewer (0094). Private — never shown to anyone else. */
   savedByMe: boolean;
-  /** Hole, par, yardage, club, score — when the post carries them. Always
-   *  null today: no post stores golf details yet. The card already renders
-   *  them (feed-rules golfChips), so the phase that adds "Share a hole /
-   *  round" only has to fill this in. */
-  golf: PostGolfDetails | null;
+  /** What kind of post (0095), and its golf facts — null for a general
+   *  post. Shapes and wording in post-details.ts, shared with the website. */
+  kind: PostKind;
+  details: RoundDetails | HoleDetails | ShotDetails | null;
   isMine: boolean;
   hidden: boolean;
   createdAt: string;
@@ -140,6 +139,9 @@ type PostRow = {
   comment_count: number;
   hidden_at: string | null;
   created_at: string;
+  /** Absent when reading a database without 0095 (see selectPosts). */
+  kind?: PostKind;
+  details?: RoundDetails | HoleDetails | ShotDetails | null;
   author: ProfileEmbed | null;
   club: ClubEmbed | null;
   post_images: { path: string; position: number; width: number | null; height: number | null }[];
@@ -162,12 +164,33 @@ type CommentRow = {
 // club's place and rating for the card header (Oct 2026 feed polish). Every
 // one of those columns is already readable by signed-in members — the
 // member page and the Courses tab read them directly.
-const POST_SELECT = `
+const POST_SELECT_LEGACY = `
   id, author_id, body, visibility, like_count, comment_count, hidden_at, created_at,
   author:profiles!posts_author_id_fkey ( id, first_name, last_name, avatar_url, avatar_color, home_club, handicap, handicap_visible ),
   club:clubs ( id, name, slug, country, region, town, rating_avg, rating_count ),
   post_images ( path, position, width, height )
 `;
+
+const POST_SELECT = POST_SELECT_LEGACY.replace("created_at,", "created_at, kind, details,");
+
+/**
+ * Runs a posts query with kind/details, and once more without them if the
+ * database doesn't have those columns yet (Postgres 42703, undefined column)
+ * — so an app update that reaches phones before migration 0095 is applied
+ * shows every post as a general one instead of an empty feed. The order is
+ * meant to be migration → merge → `eas update`; it slipped once already.
+ */
+let legacyPosts = false;
+async function selectPosts<T>(
+  run: (select: string) => PromiseLike<{ data: T | null; error: { code?: string } | null }>
+): Promise<{ data: T | null; error: { code?: string } | null }> {
+  if (!legacyPosts) {
+    const result = await run(POST_SELECT);
+    if (result.error?.code !== "42703") return result;
+    legacyPosts = true;
+  }
+  return run(POST_SELECT_LEGACY);
+}
 
 const COMMENT_SELECT = `
   id, post_id, author_id, body, hidden_at, created_at, parent_id,
@@ -305,7 +328,8 @@ async function hydrate(viewerId: string, rows: PostRow[], commentsPerPost: numbe
     commentCount: row.comment_count,
     likedByMe: liked.has(row.id),
     savedByMe: saved.has(row.id),
-    golf: null,
+    kind: row.kind ?? "general",
+    details: row.details ?? null,
     isMine: row.author_id === viewerId,
     hidden: row.hidden_at !== null,
     createdAt: row.created_at,
@@ -345,14 +369,17 @@ export async function loadFeed(viewerId: string, scope: FeedScope, before: strin
     authors = [viewerId, ...connected];
   }
 
-  let query = supabase
-    .from("posts")
-    .select(POST_SELECT)
-    .order("created_at", { ascending: false })
-    .order("id", { ascending: false })
-    .limit(FEED_PAGE_SIZE + 1);
-  if (authors) query = query.in("author_id", authors);
-  if (before) query = query.lt("created_at", before);
+  const postsQuery = (select: string) => {
+    let query = supabase
+      .from("posts")
+      .select(select)
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
+      .limit(FEED_PAGE_SIZE + 1);
+    if (authors) query = query.in("author_id", authors);
+    if (before) query = query.lt("created_at", before);
+    return query.overrideTypes<PostRow[]>();
+  };
 
   const listingsPromise =
     scope === "all"
@@ -369,7 +396,7 @@ export async function loadFeed(viewerId: string, scope: FeedScope, before: strin
           .catch(() => [] as Card[])
       : Promise.resolve([] as Card[]);
 
-  const [{ data, error }, listings] = await Promise.all([query.overrideTypes<PostRow[]>(), listingsPromise]);
+  const [{ data, error }, listings] = await Promise.all([selectPosts<PostRow[]>(postsQuery), listingsPromise]);
   if (error) throw new Error("Couldn't load the feed. Pull down to try again.");
 
   const rows = (data ?? []) as PostRow[];
@@ -390,16 +417,17 @@ export async function loadMemberPosts(
   memberId: string,
   before: string | null
 ): Promise<{ posts: FeedPost[]; cursor: string | null }> {
-  let query = supabase
-    .from("posts")
-    .select(POST_SELECT)
-    .eq("author_id", memberId)
-    .order("created_at", { ascending: false })
-    .order("id", { ascending: false })
-    .limit(FEED_PAGE_SIZE + 1);
-  if (before) query = query.lt("created_at", before);
-
-  const { data, error } = await query.overrideTypes<PostRow[]>();
+  const { data, error } = await selectPosts<PostRow[]>((select) => {
+    let query = supabase
+      .from("posts")
+      .select(select)
+      .eq("author_id", memberId)
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
+      .limit(FEED_PAGE_SIZE + 1);
+    if (before) query = query.lt("created_at", before);
+    return query.overrideTypes<PostRow[]>();
+  });
   if (error) throw new Error("Couldn't load posts. Pull down to try again.");
   const rows = (data ?? []) as PostRow[];
   const hasMore = rows.length > FEED_PAGE_SIZE;
@@ -410,7 +438,9 @@ export async function loadMemberPosts(
 /** One post with all its comments. Null for "gone" and "not yours to see"
  *  alike — the two are deliberately indistinguishable. */
 export async function loadPost(viewerId: string, postId: number): Promise<FeedPost | null> {
-  const { data } = await supabase.from("posts").select(POST_SELECT).eq("id", postId).maybeSingle<PostRow>();
+  const { data } = await selectPosts<PostRow>((select) =>
+    supabase.from("posts").select(select).eq("id", postId).maybeSingle<PostRow>()
+  );
   if (!data) return null;
   const [post] = await hydrate(viewerId, [data], 0);
   const { data: comments } = await supabase
@@ -520,12 +550,17 @@ export const createPost = (input: {
   visibility: PostVisibility;
   clubId: number | null;
   photoPaths: string[];
+  /** 0095. Omitted for a general post, so this request is exactly what an
+   *  older app sent and an older website accepts. */
+  kind?: PostKind;
+  details?: RoundDetails | HoleDetails | ShotDetails | null;
 }): Promise<{ id: number }> =>
   postToSite<{ id: number }>("/api/app/posts", {
     body: input.body,
     visibility: input.visibility,
     club_id: input.clubId,
     photo_paths: input.photoPaths,
+    ...(input.kind && input.kind !== "general" ? { kind: input.kind, details: input.details } : {}),
   });
 
 export const setLike = (postId: number, liked: boolean): Promise<{ liked: boolean; likeCount: number }> =>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { FEED_SCOPES, FEED_SCOPE_LABELS, ago, commentLine, draftProblem, golfChips, handicapLabel, previewComments, interleave, likeLine, photoHeight, threadComments } from "./feed-rules";
+import { FEED_SCOPES, FEED_SCOPE_LABELS, ago, commentLine, draftProblem, handicapLabel, recentDays, previewComments, interleave, likeLine, photoHeight, threadComments } from "./feed-rules";
 
 describe("draftProblem", () => {
   it("needs a photo or some words", () => {
@@ -90,30 +90,6 @@ describe("handicapLabel", () => {
   });
 });
 
-describe("golfChips", () => {
-  it("is empty without golf details", () => {
-    expect(golfChips(null)).toEqual([]);
-    expect(golfChips({})).toEqual([]);
-  });
-
-  it("orders a hole the way a golfer says it", () => {
-    expect(golfChips({ hole: 7, par: 3, yards: 162, club: " 7 Iron ", result: "Ace" })).toEqual([
-      "Hole 7",
-      "Par 3",
-      "162 yds",
-      "7 Iron",
-      "Ace",
-    ]);
-  });
-
-  it("writes a round score against par", () => {
-    expect(golfChips({ roundScore: 78, toPar: 6 })).toEqual(["78 (+6)"]);
-    expect(golfChips({ roundScore: 70, toPar: -2 })).toEqual(["70 (-2)"]);
-    expect(golfChips({ roundScore: 72, toPar: 0 })).toEqual(["72 (E)"]);
-    expect(golfChips({ roundScore: 81 })).toEqual(["81"]);
-  });
-});
-
 describe("previewComments", () => {
   const c = (id: number, at: string) => ({ id, createdAt: at });
   it("keeps the latest two, oldest first", () => {
@@ -130,5 +106,26 @@ describe("feed tabs", () => {
   it("are For You then Following, over the unchanged scope values", () => {
     expect(FEED_SCOPES.map((s) => FEED_SCOPE_LABELS[s])).toEqual(["For You", "Following"]);
     expect([...FEED_SCOPES]).toEqual(["all", "connections"]);
+  });
+});
+
+describe("draftProblem with golf details", () => {
+  it("lets a round, hole or shot post stand on its own", () => {
+    expect(draftProblem("", 0, true)).toBeNull();
+    expect(draftProblem("", 0, false)).toMatch(/Add a photo/);
+  });
+});
+
+describe("recentDays", () => {
+  it("labels today, yesterday, then the date", () => {
+    const days = recentDays(3, new Date(2026, 9, 4, 13, 0));
+    expect(days).toEqual([
+      { iso: "2026-10-04", label: "Today" },
+      { iso: "2026-10-03", label: "Yesterday" },
+      { iso: "2026-10-02", label: "Fri 2 Oct" },
+    ]);
+  });
+  it("crosses a month boundary", () => {
+    expect(recentDays(2, new Date(2026, 9, 1, 9, 0))[1]).toEqual({ iso: "2026-09-30", label: "Yesterday" });
   });
 });

@@ -20,6 +20,10 @@ describe("validatePostDraft", () => {
     expect(validatePostDraft({ ...base, body: "   \n " })).toMatch(/Add a photo/);
   });
 
+  it("accepts golf details on their own", () => {
+    expect(validatePostDraft({ ...base, hasDetails: true })).toBeNull();
+  });
+
   it("accepts photos with no caption, and a caption with no photos", () => {
     expect(validatePostDraft({ ...base, photoCount: 1 })).toBeNull();
     expect(validatePostDraft({ ...base, body: "Birdie on 18" })).toBeNull();

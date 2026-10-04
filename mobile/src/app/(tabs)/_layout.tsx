@@ -215,7 +215,7 @@ export default function TabsLayout() {
           // as Post a tee time on the Tee Times tab.
           headerRight: () => (
             <Pressable
-              onPress={() => router.push("/new-post")}
+              onPress={() => router.push("/compose")}
               hitSlop={12}
               style={{ paddingHorizontal: spacing.md }}
               accessibilityLabel="Share a post"

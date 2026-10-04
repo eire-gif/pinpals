@@ -19,6 +19,8 @@ import { PostCard, postCardWidth } from "@/components/post-card";
 import { ScreenHeader, useCollapsingHeader } from "@/components/screen-header";
 import { useAuth } from "@/lib/auth";
 import { loadFeed, type FeedEntry, type FeedPost } from "@/lib/feed";
+import { openPostType } from "@/lib/post-compose";
+import { POST_TYPE_INFO, type PostType } from "@/lib/post-details";
 import { FEED_SCOPES, FEED_SCOPE_LABELS, type FeedScope } from "@/lib/feed-rules";
 import { priceLine } from "@/lib/marketplace";
 import { supabase } from "@/lib/supabase";
@@ -165,23 +167,48 @@ export default function FeedScreen() {
 
   const header = (
     <View>
-      <Pressable
-        onPress={() => router.push("/new-post")}
-        style={styles.compose}
-        accessibilityRole="button"
-        accessibilityLabel="Share a post"
-      >
-        <Avatar url={me?.avatarUrl} color={me?.avatarColor} name={me?.name} size={40} />
-        <View style={styles.composeText}>
-          <Text style={styles.composeTitle}>How did the round go?</Text>
-          <Text style={styles.composePrompt} numberOfLines={1}>
-            Share the view, the card, the fourball
-          </Text>
+      <View style={styles.compose}>
+        <View style={styles.composeTop}>
+          <Pressable
+            onPress={() => router.push("/compose")}
+            style={styles.composeMain}
+            accessibilityRole="button"
+            accessibilityLabel="Create a post"
+          >
+            <Avatar url={me?.avatarUrl} color={me?.avatarColor} name={me?.name} size={40} />
+            <View style={styles.composeText}>
+              <Text style={styles.composeTitle}>How did the round go?</Text>
+              <Text style={styles.composePrompt} numberOfLines={1}>
+                Share the view, the card, the fourball
+              </Text>
+            </View>
+          </Pressable>
+          <Pressable
+            onPress={() => openPostType("photo")}
+            style={styles.composeCamera}
+            accessibilityRole="button"
+            accessibilityLabel="Share photos"
+          >
+            <Ionicons name="camera-outline" size={20} color={colors.cream50} />
+          </Pressable>
         </View>
-        <View style={styles.composeCamera}>
-          <Ionicons name="camera-outline" size={20} color={colors.cream50} />
+        {/* Straight to the four kinds members post most; the rest are a tap
+            on the prompt away (compose.tsx). */}
+        <View style={styles.quick}>
+          {QUICK_TYPES.map(({ type: t, label }) => (
+            <Pressable
+              key={t}
+              onPress={() => openPostType(t)}
+              style={({ pressed }) => [styles.quickChip, pressed && styles.quickChipPressed]}
+              accessibilityRole="button"
+              accessibilityLabel={POST_TYPE_INFO[t].title}
+            >
+              <Ionicons name={POST_TYPE_INFO[t].icon as keyof typeof Ionicons.glyphMap} size={15} color={colors.green700} />
+              <Text style={styles.quickLabel}>{label}</Text>
+            </Pressable>
+          ))}
         </View>
-      </Pressable>
+      </View>
 
       <View style={styles.scopes}>
         <View style={styles.segment} accessibilityRole="tablist" accessibilityLabel="Feed">
@@ -263,7 +290,7 @@ export default function FeedScreen() {
                 title="Be the first to post"
                 body="Share a photo from your last round — the view from the 7th, the scorecard, the fourball."
                 cta="Share a post"
-                onPress={() => router.push("/new-post")}
+                onPress={() => router.push("/compose")}
               />
             )
           }
@@ -357,6 +384,14 @@ function SkeletonCard() {
   );
 }
 
+/** The quick chips under the feed's prompt, as in the mockup. */
+const QUICK_TYPES: { type: PostType; label: string }[] = [
+  { type: "photo", label: "Photo" },
+  { type: "round", label: "Round" },
+  { type: "hole", label: "Hole" },
+  { type: "shot", label: "Shot" },
+];
+
 function Empty({ title, body, cta, onPress }: { title: string; body: string; cta: string; onPress: () => void }) {
   return (
     <View style={styles.empty}>
@@ -383,17 +418,34 @@ const styles = StyleSheet.create({
   fill: { flex: 1, backgroundColor: colors.cream50 },
   list: { padding: spacing.md, paddingBottom: spacing.xl * 2 },
   compose: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm + 4,
     backgroundColor: colors.surface,
     borderRadius: radii.lg,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.line,
-    paddingVertical: spacing.sm + 4,
+    paddingTop: spacing.sm + 4,
     paddingHorizontal: spacing.md - 2,
     ...lift,
   },
+  composeTop: { flexDirection: "row", alignItems: "center", gap: spacing.sm + 4 },
+  composeMain: { flex: 1, flexDirection: "row", alignItems: "center", gap: spacing.sm + 4, minHeight: 44 },
+  quick: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: spacing.sm + 2,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.line,
+    paddingVertical: spacing.xs,
+  },
+  quickChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    minHeight: 40,
+    paddingHorizontal: spacing.sm,
+    borderRadius: radii.sm,
+  },
+  quickChipPressed: { backgroundColor: colors.surfaceTint },
+  quickLabel: { fontFamily: fonts.bodySemi, fontSize: 13, color: colors.ink900 },
   composeText: { flex: 1, minWidth: 0 },
   composeTitle: { fontFamily: fonts.display, fontSize: 17, color: colors.ink900 },
   composePrompt: { fontFamily: fonts.body, fontSize: 13, color: colors.ink500, marginTop: 1 },

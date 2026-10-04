@@ -20,7 +20,8 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { Avatar } from "@/components/avatar";
 import type { FeedAuthor, FeedClub, FeedComment, FeedPhoto, FeedPost } from "@/lib/feed";
-import { POST_VISIBILITY_SHORT, ago, golfChips, handicapLabel, photoHeight, previewComments } from "@/lib/feed-rules";
+import { POST_VISIBILITY_SHORT, ago, handicapLabel, photoHeight, previewComments } from "@/lib/feed-rules";
+import { detailChips } from "@/lib/post-details";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 
 const LONG_POST = 280;
@@ -42,7 +43,7 @@ const MEDIA_INSET = 12;
  *                 time, audience, options
  *   2. text
  *   3. media    — inset, rounded, never taller than 4:5; tap for full size
- *   4. golf     — hole, par, yards, club, score as chips, when the post has them
+ *   4. golf     — a round, hole or shot's facts as chips (post-details.ts)
  *   5. proof    — reactions and comment count
  *   6. actions  — React · Comment · Share · Save, 44pt each
  *   7. comments — at most two, flat, then "View all N comments"
@@ -87,7 +88,7 @@ export function PostCard({
   const [expanded, setExpanded] = useState(standalone || post.body.length <= limit);
   const [viewer, setViewer] = useState<number | null>(null);
   const mediaWidth = width - MEDIA_INSET * 2;
-  const chips = golfChips(post.golf);
+  const chips = detailChips(post);
 
   // The feed shows two comments at most and never a thread; the post screen
   // shows everything, threaded.

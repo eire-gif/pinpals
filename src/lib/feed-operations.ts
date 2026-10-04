@@ -2,6 +2,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { MAX_POST_PHOTOS, parseVisibility, validateComment, validatePostDraft, type PostVisibility } from "@/lib/feed";
+import { cleanDetails, detailsProblem, isPostKind, type PostKind } from "@/lib/post-details";
 import {
   ImageProcessingError,
   attachPendingPostImages,
@@ -140,6 +141,10 @@ export async function createPost(input: {
   clubId: unknown;
   /** Staging paths from stagePostPhoto(), in the order to show them. */
   photoPaths: unknown;
+  /** 0095. Omitted by the website's own composer, which posts general
+   *  posts only; the app sends a kind and its details. */
+  kind?: unknown;
+  details?: unknown;
 }): Promise<FeedResult<{ id: number }>> {
   const { supabase, userId } = input;
 
@@ -159,7 +164,31 @@ export async function createPost(input: {
   const clubId = parseClubId(input.clubId);
   if (clubId === "invalid") return fail("invalid", "That course couldn't be found — try choosing it again.");
 
-  const problem = validatePostDraft({ body: input.body, visibility, clubId, photoCount: photoPaths.length });
+  let kind: PostKind = "general";
+  if (input.kind !== undefined && input.kind !== null) {
+    if (!isPostKind(input.kind)) return fail("invalid", "That kind of post isn't recognised — please update the app.");
+    kind = input.kind;
+  }
+  // Blanks dropped before checking, the same as the app does, so an unused
+  // field sent as "" can't fail a post. The database check
+  // (post_details_valid, 0095) applies the same rules again.
+  const rawDetails = input.details ?? null;
+  const details =
+    kind === "general"
+      ? rawDetails
+      : rawDetails !== null && typeof rawDetails === "object" && !Array.isArray(rawDetails)
+        ? cleanDetails(rawDetails as Record<string, unknown>)
+        : rawDetails;
+  const detailsIssue = detailsProblem(kind, details);
+  if (detailsIssue) return fail("invalid", detailsIssue);
+
+  const problem = validatePostDraft({
+    body: input.body,
+    visibility,
+    clubId,
+    photoCount: photoPaths.length,
+    hasDetails: kind !== "general",
+  });
   if (problem) return fail("invalid", problem);
 
   // Refuse a stranger's staging path before anything is written, rather
@@ -181,7 +210,7 @@ export async function createPost(input: {
   // the id it returns, which is the moment they become visible to anyone.
   const { data: post, error } = await supabase
     .from("posts")
-    .insert({ author_id: userId, body: input.body.trim(), visibility, club_id: clubId })
+    .insert({ author_id: userId, body: input.body.trim(), visibility, club_id: clubId, kind, details })
     .select("id")
     .single<{ id: number }>();
 

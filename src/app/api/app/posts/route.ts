@@ -2,7 +2,11 @@ import { authenticateAppRequest, badRequest, readJson, unauthenticated } from "@
 import { createPost, statusForFeedFailure } from "@/lib/feed-operations";
 
 /**
- * POST /api/app/posts   { body, visibility, club_id, photo_paths }
+ * POST /api/app/posts   { body, visibility, club_id, photo_paths, kind?, details? }
+ *
+ * `kind` and `details` (0095) are a round, hole or shot and its golf facts —
+ * shapes in src/lib/post-details.ts. Absent means a general post, so older
+ * app builds keep working unchanged.
  *
  * A new post from the app. `photo_paths` are what /api/app/posts/photos
  * handed back, one request per photo beforehand — a request to a Vercel
@@ -22,6 +26,8 @@ export async function POST(request: Request) {
     visibility?: unknown;
     club_id?: unknown;
     photo_paths?: unknown;
+    kind?: unknown;
+    details?: unknown;
   }>(request);
   if (!input) return badRequest("Expected JSON.");
 
@@ -32,6 +38,8 @@ export async function POST(request: Request) {
     visibility: input.visibility,
     clubId: input.club_id,
     photoPaths: input.photo_paths ?? [],
+    kind: input.kind,
+    details: input.details,
   });
 
   if (!result.ok) {
