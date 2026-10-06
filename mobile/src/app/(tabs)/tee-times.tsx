@@ -18,6 +18,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import * as Linking from "expo-linking";
 
+import { WithInvite } from "@/components/pinpals";
+import { INVITE_EVERY, inviteAfter } from "@/lib/invite-slots";
 import { TeeTimeCard } from "@/components/tee-time-card";
 import { useCollapsingHeader } from "@/components/screen-header";
 import { useCurrentLocation } from "@/lib/location";
@@ -245,12 +247,19 @@ export default function TeeTimesScreen() {
               />
             )
           }
-          renderItem={({ item }) => (
-            <TeeTimeCard
-              invite={item}
-              players={players.get(item.id) ?? []}
-              onPress={() => router.push(`/invite/${item.id}`)}
-            />
+          renderItem={({ item, index }) => (
+            <WithInvite
+              show={inviteAfter(index, shown.length, INVITE_EVERY.teeTimes)}
+              gap={spacing.md}
+              title="Short a player?"
+              body="Invite a friend to PinPals and fill your fourball."
+            >
+              <TeeTimeCard
+                invite={item}
+                players={players.get(item.id) ?? []}
+                onPress={() => router.push(`/invite/${item.id}`)}
+              />
+            </WithInvite>
           )}
         />
       )}

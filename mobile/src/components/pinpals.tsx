@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { useState } from "react";
 import { Pressable, Share, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
@@ -145,6 +146,33 @@ export function InviteBanner({
       <Pressable onPress={invite} style={styles.inviteButton} accessibilityRole="button">
         <Text style={styles.inviteLabel}>Invite</Text>
       </Pressable>
+    </View>
+  );
+}
+
+/**
+ * A list item with, when `show`, the invite card after it — how the card
+ * appears every Nth row in a list (lib/invite-slots.ts decides which).
+ * Both sit in one list cell, so `gap` repeats the list's own spacing.
+ */
+export function WithInvite({
+  show,
+  gap,
+  title,
+  body,
+  children,
+}: {
+  show: boolean;
+  gap: number;
+  title?: string;
+  body?: string;
+  children: ReactNode;
+}) {
+  if (!show) return <>{children}</>;
+  return (
+    <View style={{ gap }}>
+      {children}
+      <InviteBanner title={title} body={body} />
     </View>
   );
 }

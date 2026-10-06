@@ -14,7 +14,8 @@ import { Stack, router, useFocusEffect } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { Avatar } from "@/components/avatar";
-import { InviteBanner, SuggestionRow } from "@/components/pinpals";
+import { InviteBanner, SuggestionRow, WithInvite } from "@/components/pinpals";
+import { INVITE_EVERY, inviteAfter } from "@/lib/invite-slots";
 import { ScreenHeader } from "@/components/screen-header";
 import { useAuth } from "@/lib/auth";
 import {
@@ -243,14 +244,21 @@ export default function MembersScreen() {
               </View>
             }
             ListEmptyComponent={<Empty unavailable={unavailable} searching={query.trim() !== ""} />}
-            renderItem={({ item }) => (
-              <MemberCard
-                member={item}
-                connection={connections.get(item.id)}
-                busy={busyId === item.id}
-                onConnect={() => void connect(item)}
-                onMessage={() => void message(item)}
-              />
+            renderItem={({ item, index }) => (
+              <WithInvite
+                show={inviteAfter(index, members.length, INVITE_EVERY.members)}
+                gap={spacing.sm}
+                title="Friend not on PinPals yet?"
+                body="Send them a link — it's free to join."
+              >
+                <MemberCard
+                  member={item}
+                  connection={connections.get(item.id)}
+                  busy={busyId === item.id}
+                  onConnect={() => void connect(item)}
+                  onMessage={() => void message(item)}
+                />
+              </WithInvite>
             )}
           />
         )}
