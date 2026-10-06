@@ -3,6 +3,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-nati
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 
+import { routeAfterSignIn } from "@/lib/signup-code";
 import { supabase } from "@/lib/supabase";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 
@@ -47,12 +48,7 @@ export default function AuthConfirmScreen() {
         setFailed(true);
         return;
       }
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("onboarded_at")
-        .eq("id", userId)
-        .maybeSingle<{ onboarded_at: string | null }>();
-      router.replace(profile?.onboarded_at ? "/(tabs)" : "/onboarding");
+      router.replace(await routeAfterSignIn(userId));
     })();
   }, [tokenHash, type, router]);
 

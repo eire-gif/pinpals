@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -16,6 +16,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { KEYBOARD_DISMISS_MODE } from "@/components/keyboard";
 import { SITE_URL } from "@/lib/config";
+import { cleanCode, confirmWithCode, isCompleteCode, resendSignupCode } from "@/lib/signup-code";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 
 const MIN_PASSWORD = 6;
@@ -29,9 +30,11 @@ const MIN_PASSWORD = 6;
  * POST /api/app/signup, which runs the website's own sign-up function
  * (src/lib/signup.ts) — one set of rules, one rate limit.
  *
- * Email confirmation is on, so this ends at "check your inbox". Tapping the
- * link on this phone opens the app (the website's apple-app-site-association
- * claims /auth/confirm) and auth-confirm.tsx signs the member in.
+ * Email confirmation is on, so sign-up ends at the code screen below: the
+ * email carries a code as well as a link, and typing the code here signs the
+ * member in without leaving the app (lib/signup-code.ts). The link still
+ * works too — on this phone it opens the app (auth-confirm.tsx) when the mail
+ * app and iOS cooperate, and the website otherwise.
  */
 export default function SignUpScreen() {
   const router = useRouter();
@@ -81,29 +84,7 @@ export default function SignUpScreen() {
   };
 
   if (sentTo) {
-    return (
-      <SafeAreaView style={styles.fill}>
-        <ScrollView contentContainerStyle={styles.scroll}>
-          <View style={styles.card}>
-            <View style={styles.doneIcon}>
-              <Ionicons name="mail-open-outline" size={30} color={colors.green700} />
-            </View>
-            <Text style={styles.doneTitle}>Check your inbox</Text>
-            <Text style={styles.doneBody}>
-              We&apos;ve sent a confirmation link to <Text style={styles.doneEmail}>{sentTo}</Text>.
-            </Text>
-            <Text style={styles.doneBody}>
-              Open it on this phone and it brings you straight back here, signed in and ready to set up your
-              home club.
-            </Text>
-            <Pressable style={styles.primary} onPress={() => router.replace("/login")} accessibilityRole="button">
-              <Text style={styles.primaryLabel}>Back to log in</Text>
-            </Pressable>
-            <Text style={styles.hint}>No email after a few minutes? Check your spam folder.</Text>
-          </View>
-        </ScrollView>
-      </SafeAreaView>
-    );
+    return <ConfirmCode email={sentTo} onBack={() => setSentTo(null)} />;
   }
 
   return (
@@ -225,6 +206,160 @@ export default function SignUpScreen() {
   );
 }
 
+/** How long before "Send a new code" can be tapped again — Supabase's own
+ *  minimum gap between emails to one address is 60 seconds. */
+const RESEND_WAIT_SECONDS = 60;
+
+/**
+ * "Enter the code we emailed you." Shown straight after sign-up. iOS offers
+ * the code from Mail above the keyboard (textContentType oneTimeCode); the
+ * account is confirmed as soon as a full code is typed or pasted.
+ */
+function ConfirmCode({ email, onBack }: { email: string; onBack: () => void }) {
+  const router = useRouter();
+  const [code, setCode] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [checking, setChecking] = useState(false);
+  const [wait, setWait] = useState(RESEND_WAIT_SECONDS);
+  const lastTried = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (wait <= 0) return;
+    const t = setTimeout(() => setWait((w) => w - 1), 1000);
+    return () => clearTimeout(t);
+  }, [wait]);
+
+  const check = async (value: string) => {
+    if (checking || !isCompleteCode(value)) return;
+    lastTried.current = value;
+    setChecking(true);
+    setError(null);
+    setNotice(null);
+    const result = await confirmWithCode(email, value);
+    if (result.ok) {
+      router.replace(result.next);
+      return;
+    }
+    setError(result.error);
+    setChecking(false);
+  };
+
+  const onChange = (text: string) => {
+    const next = cleanCode(text);
+    const arrivedWhole = next.length - code.length > 1;
+    setCode(next);
+    setError(null);
+    // A code pasted or filled in by iOS confirms by itself. A typed one waits
+    // for the button: the project's code length is a dashboard setting (6 by
+    // default, up to 10), so the app can't know when typing is finished.
+    // Never retried automatically once turned down.
+    if (arrivedWhole && isCompleteCode(next) && next !== lastTried.current) void check(next);
+  };
+
+  const resend = async () => {
+    if (wait > 0) return;
+    setError(null);
+    setNotice(null);
+    const result = await resendSignupCode(email);
+    if (result.ok) {
+      setNotice("New code sent. Use the one in the latest email.");
+      setCode("");
+      lastTried.current = null;
+    } else {
+      setError(result.error);
+    }
+    setWait(RESEND_WAIT_SECONDS);
+  };
+
+  return (
+    <SafeAreaView style={styles.fill}>
+      <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+        <ScrollView
+          keyboardDismissMode={KEYBOARD_DISMISS_MODE}
+          contentContainerStyle={styles.scroll}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={styles.card}>
+            <View style={styles.doneIcon}>
+              <Ionicons name="mail-open-outline" size={30} color={colors.green700} />
+            </View>
+            <Text style={styles.doneTitle}>Enter your code</Text>
+            <Text style={styles.doneBody}>
+              We&apos;ve emailed a code to <Text style={styles.doneEmail}>{email}</Text>. Type it in below to
+              confirm your account.
+            </Text>
+
+            <TextInput
+              style={styles.codeInput}
+              value={code}
+              onChangeText={onChange}
+              keyboardType="number-pad"
+              textContentType="oneTimeCode"
+              autoComplete="one-time-code"
+              autoFocus
+              maxLength={12}
+              placeholder="000000"
+              placeholderTextColor={colors.line}
+              returnKeyType="done"
+              onSubmitEditing={() => void check(code)}
+              accessibilityLabel="Confirmation code"
+              editable={!checking}
+            />
+
+            {error ? (
+              <View style={styles.errorBox}>
+                <Text style={styles.errorText}>{error}</Text>
+              </View>
+            ) : null}
+            {notice ? <Text style={styles.notice}>{notice}</Text> : null}
+
+            <Pressable
+              style={[styles.primary, (checking || !isCompleteCode(code)) && styles.primaryDisabled]}
+              onPress={() => void check(code)}
+              disabled={checking || !isCompleteCode(code)}
+              accessibilityRole="button"
+            >
+              {checking ? (
+                <ActivityIndicator color={colors.cream50} />
+              ) : (
+                <Text style={styles.primaryLabel}>Confirm my account</Text>
+              )}
+            </Pressable>
+
+            <Pressable
+              style={styles.linkRow}
+              onPress={resend}
+              disabled={wait > 0}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: wait > 0 }}
+            >
+              <Text style={styles.linkMuted}>
+                No email?{" "}
+                <Text style={wait > 0 ? styles.linkWaiting : styles.link}>
+                  {wait > 0 ? `Send a new code in ${wait}s` : "Send a new code"}
+                </Text>
+              </Text>
+            </Pressable>
+            <Text style={[styles.hint, styles.centred]}>
+              Check your spam folder too. You can also tap the button in the email instead.
+            </Text>
+
+            <View style={styles.footerLinks}>
+              <Pressable style={styles.linkRow} onPress={onBack} accessibilityRole="button">
+                <Text style={styles.link}>Wrong email?</Text>
+              </Pressable>
+              <Pressable style={styles.linkRow} onPress={() => router.replace("/login")} accessibilityRole="link">
+                <Text style={styles.link}>Log in</Text>
+              </Pressable>
+            </View>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
+  );
+}
+
 const styles = StyleSheet.create({
   fill: { flex: 1, backgroundColor: colors.navy900 },
   scroll: { flexGrow: 1, justifyContent: "center", padding: spacing.lg },
@@ -293,4 +428,20 @@ const styles = StyleSheet.create({
   doneTitle: { fontFamily: fonts.display, fontSize: 26, color: colors.ink900, textAlign: "center" },
   doneBody: { fontFamily: fonts.body, fontSize: type.body, lineHeight: 22, color: colors.ink500, textAlign: "center" },
   doneEmail: { fontFamily: fonts.bodyBold, color: colors.ink900 },
+  codeInput: {
+    borderWidth: 1.5,
+    borderColor: colors.line,
+    borderRadius: radii.sm,
+    paddingVertical: 14,
+    fontFamily: fonts.bodyBold,
+    fontSize: 28,
+    letterSpacing: 8,
+    textAlign: "center",
+    color: colors.ink900,
+    backgroundColor: colors.surface,
+  },
+  notice: { fontFamily: fonts.body, fontSize: type.small, color: colors.green700, textAlign: "center" },
+  centred: { textAlign: "center" },
+  linkWaiting: { fontFamily: fonts.bodySemi, color: colors.ink500 },
+  footerLinks: { flexDirection: "row", justifyContent: "space-between" },
 });

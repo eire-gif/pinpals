@@ -12,7 +12,9 @@ import { checkRateLimit, rateLimitMessage } from "@/lib/rate-limit";
  * Email confirmation is on, so this never returns a session. The member
  * confirms from the email (supabase/templates/confirm-signup.html), whose
  * link is /auth/confirm on the website — and, on an iPhone with the app,
- * opens the app instead (the apple-app-site-association claims it).
+ * opens the app instead (the apple-app-site-association claims it). The same
+ * email carries a code, which the app's sign-up screen asks for — the route
+ * that never depends on how a mail app treats links.
  */
 
 export type SignUpInput = { firstName: string; lastName: string; email: string; password: string };
