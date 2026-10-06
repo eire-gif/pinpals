@@ -50,12 +50,16 @@ function recentMonths(): { value: string; label: string }[] {
  */
 export default function ReviewSheet() {
   const router = useRouter();
-  const { id, name } = useLocalSearchParams<{ id: string; name?: string }>();
+  const { id, name, rating: picked } = useLocalSearchParams<{ id: string; name?: string; rating?: string }>();
+  // Stars already tapped on Home or the Rate a course list arrive as
+  // `rating`, so the member isn't asked twice. An existing review still wins.
+  const pickedRating = Number(picked);
+  const initialRating = Number.isInteger(pickedRating) && pickedRating >= 1 && pickedRating <= 5 ? pickedRating : 0;
   const clubId = Number(id);
   const { session } = useAuth();
   const userId = session?.user?.id ?? null;
 
-  const [rating, setRating] = useState(0);
+  const [rating, setRating] = useState(initialRating);
   const [body, setBody] = useState("");
   const [tags, setTags] = useState<ReviewTag[]>([]);
   const [month, setMonth] = useState<string | null>(null);
