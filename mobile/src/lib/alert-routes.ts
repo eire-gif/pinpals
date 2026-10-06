@@ -50,6 +50,9 @@ const EXACT: Record<string, string> = {
   "/tee-times/confirmed": "/confirmed-rounds",
 
   "/marketplace": "/marketplace",
+  // Linked from emails and the website; the app has its own forms for both.
+  "/marketplace/new": "/new-listing",
+  "/dashboard/availability/new": "/post-tee-time",
 
   "/dashboard/listings": "/my-listings",
   "/dashboard/selling": "/selling",

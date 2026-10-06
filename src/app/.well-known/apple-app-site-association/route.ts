@@ -8,17 +8,26 @@
  * JSON is malformed, where a static file would simply serve nonsense and
  * universal links would stop working with no error anywhere.
  *
- * THREE PATHS ARE CLAIMED, deliberately: `/invite/*`, `/feed/*` and `/s/*`.
+ * WHAT IS CLAIMED (Oct 2026): every path the app has a native screen for.
  *
  * A universal link takes the path away from Safari for everyone who has the
- * app installed. So claiming a path the app renders worse than the website is
- * a downgrade, not a feature. `/invite/[id]` is the one route with an exact
- * native equivalent. `/feed/<id>` (a post) and `/s/<token>` (a shared post,
- * phase 6) joined it once the app had a native post screen — the app maps
- * both to it in mobile/src/app/+native-intent.tsx. `/feed` itself opens the
- * Feed tab. The marketplace is a web view whose deep paths the app
- * cannot currently route to, and `/courses` has no native screen at all —
- * both are better left in Safari until that changes.
+ * app installed, so only paths the app renders at least as well are claimed.
+ * Until October that was `/invite/*`, `/feed/*` and `/s/*`. Every other link
+ * in a notification email — a new message, a request for your tee time, an
+ * offered place, an order — opened Safari, which members reported as "the
+ * notification took me to the website". The app now routes all of them
+ * natively, through the same table its in-app alerts use
+ * (mobile/src/lib/alert-routes.ts, applied to incoming links in
+ * mobile/src/app/+native-intent.tsx), so they are claimed here too.
+ *
+ * Still left to Safari: course pages (no native equivalent of the full page),
+ * news, legal pages, admin, and the two Stripe returns — a Connect onboarding
+ * return and a payment confirmation must finish where they started.
+ *
+ * `/auth/confirm` is claimed for `type=email` only — sign-up confirmation and
+ * the magic link — so confirming on a phone signs you into the app
+ * (mobile/src/app/auth-confirm.tsx). Password recovery and email change stay
+ * on the website, where their forms are.
  *
  * Auth paths are excluded by omission, which matters more than it looks:
  * `/auth/app-session` is the one-time-code redemption the web views use
@@ -38,25 +47,44 @@ const ASSOCIATION = {
         // <Apple Team ID>.<bundle identifier>
         appIDs: ["8UEGCT8434.ie.pinpals.app"],
         components: [
+          // Exclusions first: Apple takes the first component that matches.
           {
-            "/": "/invite/*",
-            comment: "A tee time. The app has a native screen for this.",
-          },
-          {
-            // The website's photo proxy, never a page. Listed first: the
-            // first matching component wins.
             "/": "/feed/photo/*",
             exclude: true,
             comment: "Signed photo URLs for the website's feed.",
           },
           {
-            "/": "/feed/*",
-            comment: "A post. The app's post screen (mobile/src/app/post/[id].tsx).",
+            "/": "/dashboard/payouts/return*",
+            exclude: true,
+            comment: "Stripe Connect onboarding return. Finishes on the website.",
           },
           {
-            "/": "/s/*",
-            comment: "A shared post (signed link). Opens the same post screen.",
+            "/": "/dashboard/orders/*",
+            "?": { payment_intent: "*" },
+            exclude: true,
+            comment: "Stripe's return after paying. Finishes on the website.",
           },
+          {
+            "/": "/auth/confirm",
+            "?": { type: "email" },
+            comment: "Sign-up confirmation and magic link — signs in to the app.",
+          },
+          { "/": "/invite/*", comment: "A tee time." },
+          { "/": "/feed", comment: "Social." },
+          { "/": "/feed/*", comment: "A post." },
+          { "/": "/s/*", comment: "A shared post (signed link)." },
+          { "/": "/inbox", comment: "Inbox." },
+          { "/": "/conversations", comment: "Inbox." },
+          { "/": "/conversations/*", comment: "A conversation." },
+          { "/": "/tee-times", comment: "Tee times." },
+          { "/": "/tee-times/*", comment: "Requests, offered places, confirmed rounds, a round." },
+          { "/": "/marketplace", comment: "Marketplace." },
+          { "/": "/marketplace/*", comment: "A listing, or listing an item." },
+          { "/": "/dashboard", comment: "Home." },
+          { "/": "/dashboard/*", comment: "Listings, selling, buying, orders, payouts, connections, settings." },
+          { "/": "/members", comment: "Find PinPals." },
+          { "/": "/members/*", comment: "A member's page." },
+          { "/": "/community", comment: "Find PinPals." },
         ],
       },
     ],
