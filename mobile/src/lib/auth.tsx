@@ -63,7 +63,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { error: error ? "That email and password don't match." : null };
       },
       signOut: async () => {
-        await supabase.auth.signOut();
+        // This phone only. The default ("global") would also sign the member
+        // out of the website on every browser they use.
+        await supabase.auth.signOut({ scope: "local" });
       },
     }),
     [session, loading]

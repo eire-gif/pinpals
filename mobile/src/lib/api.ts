@@ -1,4 +1,6 @@
 import { SITE_URL } from "./config";
+import { isAuthApiError } from "@supabase/supabase-js";
+
 import { supabase } from "./supabase";
 
 /**
@@ -61,7 +63,17 @@ async function accessToken(force = false): Promise<string> {
   if (force) {
     const { data, error } = await supabase.auth.refreshSession();
     const refreshed = data.session?.access_token;
-    if (error || !refreshed) throw new ApiError(401, SIGN_IN_AGAIN);
+    if (error || !refreshed) {
+      // The server refused the refresh token: the session is gone (signed
+      // out elsewhere, or expired). Reads would carry on working until the
+      // access token runs out, leaving an app that looks signed in but
+      // refuses every change. Drop it so the auth gate shows the login
+      // screen. Only for a definite refusal — never for a dropped signal.
+      if (isAuthApiError(error) && error.status >= 400 && error.status < 500) {
+        void supabase.auth.signOut({ scope: "local" });
+      }
+      throw new ApiError(401, SIGN_IN_AGAIN);
+    }
     return refreshed;
   }
 

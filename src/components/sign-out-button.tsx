@@ -27,7 +27,10 @@ export default function SignOutButton({
   const supabase = createClient();
 
   async function handleSignOut() {
-    await supabase.auth.signOut();
+    // This browser only. supabase-js defaults to "global", which ends every
+    // session the member has — including the app on their phone, which then
+    // shows "Your session has expired" on its next change (Oct 2026).
+    await supabase.auth.signOut({ scope: "local" });
     onSignedOut?.();
     router.push("/");
     router.refresh();
