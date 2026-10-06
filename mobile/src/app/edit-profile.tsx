@@ -31,6 +31,7 @@ import { COUNTRY_NAMES, regionsFor, searchClubs, type ClubHit } from "@/lib/tee-
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 import { KeyboardDoneButton } from "@/components/keyboard";
 import { PHOTO_PICKER_OPTIONS, preparePhotoForUpload } from "@/lib/photo-picking";
+import { HeaderPill, headerButtons } from "@/components/header-actions";
 
 /**
  * Editing your own profile, natively.
@@ -247,17 +248,9 @@ export default function EditProfileScreen() {
         options={{
           title: "Edit profile",
           headerBackTitle: "Back",
-          headerRight: () => (
-            <Pressable
-              onPress={() => void save()}
-              disabled={saving}
-              hitSlop={12}
-              style={{ paddingHorizontal: spacing.md, opacity: saving ? 0.4 : 1 }}
-              accessibilityRole="button"
-            >
-              <Text style={styles.saveLabel}>{saving ? "Saving…" : "Save"}</Text>
-            </Pressable>
-          ),
+          ...headerButtons({
+            right: <HeaderPill label="Save" onPress={() => void save()} busy={saving} />,
+          }),
         }}
       />
 
@@ -517,7 +510,6 @@ const styles = StyleSheet.create({
 
   body: { padding: spacing.md, gap: spacing.lg, paddingBottom: spacing.xl },
 
-  saveLabel: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.green700 },
 
   error: {
     flexDirection: "row",

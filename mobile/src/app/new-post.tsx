@@ -18,6 +18,7 @@ import * as ImagePicker from "expo-image-picker";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { AchievementCard } from "@/components/achievement-card";
+import { HeaderPill, headerButtons } from "@/components/header-actions";
 import { coursePhoto } from "@/components/course-photos";
 import { PostDetailsForm } from "@/components/post-details-form";
 import { RoundRecapCard } from "@/components/round-recap-card";
@@ -430,20 +431,10 @@ export default function NewPostScreen() {
           // inside the screen arrive after the push — react-native-screens
           // treats that as a fatal error, which crashed the app the moment
           // Share a post was tapped. Pushed like List an item instead.
-          headerLeft: () => (
-            <Pressable onPress={cancel} hitSlop={12} accessibilityRole="button">
-              <Text style={styles.headerCancel}>Cancel</Text>
-            </Pressable>
-          ),
-          headerRight: () => (
-            <Pressable onPress={post} disabled={!canPost} hitSlop={12} accessibilityRole="button" accessibilityState={{ disabled: !canPost }}>
-              {posting ? (
-                <ActivityIndicator color={colors.green700} />
-              ) : (
-                <Text style={[styles.headerPost, !canPost && styles.headerPostDisabled]}>Post</Text>
-              )}
-            </Pressable>
-          ),
+          ...headerButtons({
+            left: <HeaderPill label="Cancel" variant="secondary" onPress={cancel} />,
+            right: <HeaderPill label="Post" onPress={post} disabled={!canPost} busy={posting} />,
+          }),
         }}
       />
 
@@ -677,9 +668,6 @@ const styles = StyleSheet.create({
   achievementPreviewLabel: { fontFamily: fonts.bodySemi, fontSize: 12, letterSpacing: 0.8, color: colors.ink500, textTransform: "uppercase" },
   fill: { flex: 1, backgroundColor: colors.cream50 },
   content: { padding: spacing.md, paddingBottom: spacing.xl * 2 },
-  headerCancel: { fontFamily: fonts.body, fontSize: type.body, color: colors.ink500 },
-  headerPost: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.green700 },
-  headerPostDisabled: { color: colors.ink500, opacity: 0.6 },
   body: {
     minHeight: 120,
     fontFamily: fonts.body,

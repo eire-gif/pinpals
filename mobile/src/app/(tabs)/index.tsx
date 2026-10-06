@@ -456,6 +456,10 @@ function PinPalsNearYou({
               <SuggestionCard key={p.id} person={p} />
             ))}
           </ScrollView>
+          {/* The strip shows who's here; this is for who isn't yet. */}
+          <View style={{ marginTop: spacing.sm }}>
+            <InviteBanner />
+          </View>
         </>
       ) : (
         <InviteBanner

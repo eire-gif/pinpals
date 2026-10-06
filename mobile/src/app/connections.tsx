@@ -14,6 +14,8 @@ import { Stack, router, useFocusEffect } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { Avatar } from "@/components/avatar";
+import { WithInvite } from "@/components/pinpals";
+import { INVITE_EVERY, inviteAfter } from "@/lib/invite-slots";
 import { ScreenHeader } from "@/components/screen-header";
 import { useAuth } from "@/lib/auth";
 import {
@@ -240,7 +242,13 @@ export default function ConnectionsScreen() {
               </View>
             )
           }
-          renderItem={({ item }) => (
+          renderItem={({ item, index, section }) => (
+            <WithInvite
+              show={inviteAfter(index, section.data.length, INVITE_EVERY.connections)}
+              gap={spacing.sm}
+              title="Know a golfer who'd fit in?"
+              body="Invite them — connections are what make PinPals work."
+            >
             <View style={[styles.card, item.kind === "outgoing" && styles.cardQuiet]}>
               <View style={styles.cardTop}>
                 {/* Photo and name open the member's page (tester feedback,
@@ -316,6 +324,7 @@ export default function ConnectionsScreen() {
                 </View>
               ) : null}
             </View>
+            </WithInvite>
           )}
         />
       )}

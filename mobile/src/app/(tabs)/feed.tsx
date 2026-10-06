@@ -15,6 +15,8 @@ import { router, useFocusEffect } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { Avatar } from "@/components/avatar";
+import { WithInvite } from "@/components/pinpals";
+import { INVITE_EVERY, inviteAfter } from "@/lib/invite-slots";
 import { PostCard, postCardWidth } from "@/components/post-card";
 import { RecapPrompt } from "@/components/recap-prompt";
 import { ScreenHeader, useCollapsingHeader } from "@/components/screen-header";
@@ -296,8 +298,14 @@ export default function FeedScreen() {
               />
             )
           }
-          renderItem={({ item }) =>
-            item.kind === "post" ? (
+          renderItem={({ item, index }) => (
+            <WithInvite
+              show={inviteAfter(index, entries.length, INVITE_EVERY.feed)}
+              gap={spacing.md}
+              title="Golf's better with your fourball"
+              body="Invite the friends you play with — their rounds land here too."
+            >
+            {item.kind === "post" ? (
               <PostCard
                 post={item.item}
                 width={cardWidth}
@@ -340,8 +348,9 @@ export default function FeedScreen() {
                   <Ionicons name="chevron-forward" size={18} color={colors.ink500} />
                 </View>
               </Pressable>
-            )
-          }
+            )}
+            </WithInvite>
+          )}
         />
       )}
     </View>
