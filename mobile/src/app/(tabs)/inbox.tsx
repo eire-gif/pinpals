@@ -307,8 +307,8 @@ export default function InboxScreen() {
       const older = direct.filter((c) => dayBucket(c.at) === "earlier");
       const out: InboxSection[] = [];
       if (groups.length) out.push({ key: "groups", title: "Group chats", data: groups, fresh: groups.filter(isUnread).length });
-      if (recent.length) out.push({ key: "recent", title: "Recent conversations", data: recent, fresh: recent.filter(isUnread).length });
-      if (older.length) out.push({ key: "older", title: "Older conversations", data: older, fresh: older.filter(isUnread).length });
+      if (recent.length) out.push({ key: "recent", title: "Recent chats", data: recent, fresh: recent.filter(isUnread).length });
+      if (older.length) out.push({ key: "older", title: "Older chats", data: older, fresh: older.filter(isUnread).length });
       return out;
     }
 
@@ -776,8 +776,8 @@ function Empty({
     filter === "messages"
       ? {
           icon: "chatbubbles-outline" as const,
-          title: "No messages yet",
-          body: "Start one with the pencil at the top, or message someone from a listing, a tee time or their profile.",
+          title: "No chats yet",
+          body: "Start a chat with the pencil at the top, or message someone from a listing, a tee time or their profile.",
         }
       : filter === "alerts"
         ? {

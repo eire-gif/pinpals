@@ -124,7 +124,9 @@ export type InboxFilter = (typeof INBOX_FILTERS)[number];
 
 export const INBOX_FILTER_LABELS: Record<InboxFilter, string> = {
   all: "All",
-  messages: "Messages",
+  // "Chat" for member-to-member conversations (Oct 2026): it says people
+  // talking, where "Messages" read as anything the app sends you.
+  messages: "Chat",
   alerts: "Alerts",
 };
 
