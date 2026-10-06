@@ -606,6 +606,53 @@ export async function loadMemberPosts(
   return { posts: await hydrate(viewerId, page, PREVIEW_COMMENTS), cursor: hasMore ? page[page.length - 1].created_at : null };
 }
 
+/**
+ * Home's "From the clubhouse" strip: the newest posts with at least one
+ * photo, of those the viewer may see (RLS decides, as everywhere). The
+ * `!inner` on post_images is what drops posts without a photo — it filters
+ * the parent rows, not just the embed. No comments: the strip shows a tile,
+ * and tapping it opens the post.
+ */
+export async function loadClubhousePhotos(viewerId: string, limit = 10): Promise<FeedPost[]> {
+  const { data, error } = await selectPosts<PostRow[]>((select) =>
+    supabase
+      .from("posts")
+      .select(select.replace("post_images (", "post_images!inner ("))
+      .is("hidden_at", null)
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
+      .limit(limit)
+      .overrideTypes<PostRow[]>()
+  );
+  if (error) throw new Error("Couldn't load photos.");
+  const posts = await hydrate(viewerId, (data ?? []) as PostRow[], 0);
+  return posts.filter((p) => p.photos.some((ph) => ph.url));
+}
+
+/**
+ * Home's "Most liked this week": the post with the most reactions from the
+ * last seven days, or null when nothing posted this week has any. Ties go to
+ * the newer post.
+ */
+export async function loadMostLikedThisWeek(viewerId: string, now: Date = new Date()): Promise<FeedPost | null> {
+  const since = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const { data, error } = await selectPosts<PostRow[]>((select) =>
+    supabase
+      .from("posts")
+      .select(select)
+      .is("hidden_at", null)
+      .gte("created_at", since)
+      .gt("like_count", 0)
+      .order("like_count", { ascending: false })
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .overrideTypes<PostRow[]>()
+  );
+  if (error) throw new Error("Couldn't load posts.");
+  const [post] = await hydrate(viewerId, (data ?? []) as PostRow[], PREVIEW_COMMENTS);
+  return post ?? null;
+}
+
 /** One post with all its comments. Null for "gone" and "not yours to see"
  *  alike — the two are deliberately indistinguishable. */
 export async function loadPost(viewerId: string, postId: number): Promise<FeedPost | null> {

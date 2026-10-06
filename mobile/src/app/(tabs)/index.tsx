@@ -12,12 +12,28 @@ import {
 import { useFocusEffect, useRouter } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
+import {
+  ClubhouseStrip,
+  LatestReviews,
+  MostLikedThisWeek,
+  RateYourCourses,
+  ShareComposer,
+} from "@/components/home-social";
 import { InviteBanner, SuggestionCard } from "@/components/pinpals";
 import { RecapPrompt } from "@/components/recap-prompt";
 import { useAuth } from "@/lib/auth";
 import { suggestedPinPals, type Suggestion } from "@/lib/onboarding";
 import { SITE_URL } from "@/lib/config";
+import type { Club } from "@/lib/courses";
+import { loadClubhousePhotos, loadMostLikedThisWeek, type FeedPost } from "@/lib/feed";
 import { loadHome, type HomeSummary } from "@/lib/home";
+import {
+  latestCourseReviews,
+  loadCoursesToRate,
+  loadMe,
+  type LatestReview,
+  type Me,
+} from "@/lib/home-social";
 import { dateLabel } from "@/lib/tee-times";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 import { describeUnread } from "@/lib/inbox";
@@ -49,8 +65,29 @@ export default function HomeScreen() {
 
   const [pinpals, setPinpals] = useState<Suggestion[] | null>(null);
 
+  // The social half of Home (Oct 2026). Loaded alongside the summary but not
+  // waited on by it: a slow photo query must never hold up "your next round".
+  // Each section stays hidden (null) if its read fails.
+  const [me, setMe] = useState<Me | null>(null);
+  const [photos, setPhotos] = useState<FeedPost[] | null>(null);
+  const [topPost, setTopPost] = useState<FeedPost | null>(null);
+  const [toRate, setToRate] = useState<Club[] | null>(null);
+  const [reviews, setReviews] = useState<LatestReview[] | null>(null);
+
+  const loadSocial = useCallback(async () => {
+    if (!userId) return;
+    await Promise.all([
+      loadMe(userId).then(setMe, () => undefined),
+      loadClubhousePhotos(userId).then(setPhotos, () => setPhotos(null)),
+      loadMostLikedThisWeek(userId).then(setTopPost, () => setTopPost(null)),
+      loadCoursesToRate(userId).then(setToRate, () => setToRate(null)),
+      latestCourseReviews().then(setReviews, () => setReviews(null)),
+    ]);
+  }, [userId]);
+
   const load = useCallback(async () => {
     if (!userId) return;
+    void loadSocial();
     try {
       const [home, people] = await Promise.all([loadHome(userId), suggestedPinPals(10)]);
       setSummary(home);
@@ -59,7 +96,7 @@ export default function HomeScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [userId]);
+  }, [userId, loadSocial]);
 
   // Re-read on focus. Same freshness story as the tee-times list: a round
   // confirmed on the website is reflected here next time the tab is looked
@@ -101,7 +138,7 @@ export default function HomeScreen() {
             build of the app for every member. Not worth it for a fade. */}
         <View style={styles.scrim} />
 
-        <View style={styles.heroBody}>
+        <View style={[styles.heroBody, styles.heroBodyUnderComposer]}>
           <View style={styles.eyebrowRow}>
             <View style={styles.rule} />
             <Text style={styles.eyebrow}>Golf community — Ireland &amp; the UK</Text>
@@ -171,15 +208,32 @@ export default function HomeScreen() {
                 not a style choice: white on this orange is 1.99:1, nowhere
                 near WCAG AA. */}
             <Pressable
-              style={[styles.cta, styles.ctaFull, styles.ctaBuy]}
+              style={[styles.cta, styles.ctaHalf, styles.ctaBuy]}
               onPress={() => router.push("/new-listing")}
               accessibilityRole="button"
             >
               <Text style={[styles.ctaLabel, styles.ctaBuyLabel]}>List an item</Text>
             </Pressable>
+
+            {/* The way into Social from the top of the app. Outlined glass
+                rather than a fifth colour: the hero already has four, and
+                this one should read as an invitation, not a task. White on
+                the scrimmed photo is well over 7:1. */}
+            <Pressable
+              style={[styles.cta, styles.ctaHalf, styles.ctaGlass]}
+              onPress={() => router.push({ pathname: "/new-post", params: { type: "photo" } })}
+              accessibilityRole="button"
+            >
+              <Text style={[styles.ctaLabel, styles.ctaGlassLabel]}>
+                <Ionicons name="camera-outline" size={18} color="#ffffff" /> Share a photo
+              </Text>
+            </Pressable>
           </View>
         </View>
       </ImageBackground>
+
+      {/* Overlaps the hero's bottom edge (the hero leaves room for it). */}
+      <ShareComposer me={me} />
 
       {loading ? (
         <ActivityIndicator color={colors.green700} style={styles.spinner} />
@@ -247,6 +301,14 @@ export default function HomeScreen() {
               onPress={() => router.push("/edit-profile")}
             />
           ) : null}
+
+          <ClubhouseStrip posts={photos} />
+
+          <MostLikedThisWeek post={topPost} />
+
+          <RateYourCourses clubs={toRate} />
+
+          <LatestReviews reviews={reviews} />
 
           <PinPalsNearYou
             people={pinpals}
@@ -569,6 +631,14 @@ const styles = StyleSheet.create({
     borderColor: colors.buy700,
   },
   ctaBuyLabel: { color: colors.ink900, fontFamily: fonts.bodyBold, fontSize: type.body },
+  ctaGlass: {
+    backgroundColor: "rgba(255,255,255,0.14)",
+    borderWidth: 1.5,
+    borderColor: "rgba(255,255,255,0.75)",
+  },
+  ctaGlassLabel: { color: "#ffffff", fontFamily: fonts.bodyBold, fontSize: type.body },
+  // Room for the composer card, which overlaps the hero by 22pt.
+  heroBodyUnderComposer: { paddingBottom: spacing.lg + 22 },
 
   spinner: { marginTop: spacing.xl },
   body: { padding: spacing.md, gap: spacing.md },
