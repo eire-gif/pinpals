@@ -56,11 +56,16 @@ function RootNavigator() {
     // latter looks equivalent until a signed-in route lives outside the tab
     // group — invite/[id] does — and then every push to it is immediately
     // bounced back to the tabs.
-    const onLogin = segments[0] === "login";
+    // Screens a signed-out visitor may be on: log in, sign up, and the
+    // landing for a sign-up confirmation link (which signs them in and then
+    // moves on by itself — so it is not bounced to the tabs here).
+    const first = segments[0] as string | undefined;
+    const onAuthForm = first === "login" || first === "signup";
+    const signedOutAllowed = onAuthForm || first === "auth-confirm";
 
-    if (!session && !onLogin) {
+    if (!session && !signedOutAllowed) {
       router.replace("/login");
-    } else if (session && onLogin) {
+    } else if (session && onAuthForm) {
       router.replace("/(tabs)");
     }
   }, [session, loading, fontsLoaded, segments, router]);
@@ -155,6 +160,8 @@ function RootNavigator() {
     >
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="login" options={{ headerShown: false }} />
+      <Stack.Screen name="signup" options={{ headerShown: false }} />
+      <Stack.Screen name="auth-confirm" options={{ headerShown: false, gestureEnabled: false }} />
       {/* The profile builder. No swipe-back: going "back" out of step one
           would land on a signed-in screen the member hasn't seen yet. */}
       <Stack.Screen name="onboarding" options={{ headerShown: false, gestureEnabled: false }} />

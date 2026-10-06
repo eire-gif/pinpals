@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as Linking from "expo-linking";
+import { useRouter } from "expo-router";
 
 import { useAuth } from "@/lib/auth";
 import { SITE_URL } from "@/lib/config";
@@ -20,6 +21,7 @@ import { KEYBOARD_DISMISS_MODE } from "@/components/keyboard";
 
 export default function LoginScreen() {
   const { signIn } = useAuth();
+  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -103,15 +105,17 @@ export default function LoginScreen() {
               )}
             </Pressable>
 
-            {/* Signing up and resetting a password both send email and both
-                already work well on the site. Sending members there rather
-                than rebuilding two flows natively is deliberate for v1. */}
+            {/* Resetting a password still happens on the website: the reset
+                link in the email opens the site's form either way. Signing
+                up is native (Oct 2026) — app/signup.tsx. */}
             <Pressable
+              style={styles.linkRow}
               onPress={() => void Linking.openURL(`${SITE_URL}/forgot-password`)}
+              accessibilityRole="link"
             >
               <Text style={styles.link}>Forgot password?</Text>
             </Pressable>
-            <Pressable onPress={() => void Linking.openURL(`${SITE_URL}/signup`)}>
+            <Pressable style={styles.linkRow} onPress={() => router.push("/signup")} accessibilityRole="link">
               <Text style={styles.link}>New here? Create an account</Text>
             </Pressable>
           </View>
@@ -176,6 +180,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     fontSize: type.body,
   },
+  linkRow: { minHeight: 44, justifyContent: "center" },
   link: {
     color: colors.green700,
     fontWeight: "700",
