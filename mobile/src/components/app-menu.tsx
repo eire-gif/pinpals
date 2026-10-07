@@ -20,7 +20,7 @@ import Constants from "expo-constants";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useAuth } from "@/lib/auth";
-import { MENU, contactMailto, type MenuItem } from "@/lib/menu";
+import { contactMailto, visibleMenu, type MenuItem } from "@/lib/menu";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 
 /**
@@ -158,7 +158,7 @@ export function AppMenu({ open, onClose }: { open: boolean; onClose: () => void 
               contentContainerStyle={styles.list}
               showsVerticalScrollIndicator={false}
             >
-              {MENU.map((section) => (
+              {visibleMenu().map((section) => (
                 <View key={section.title} style={styles.section}>
                   <Text style={styles.sectionTitle}>{section.title}</Text>
                   {section.items.map((item) => (

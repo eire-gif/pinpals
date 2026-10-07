@@ -33,6 +33,9 @@ export const FEATURES = {
    *  with expo-video — see native-capabilities.ts. Off: no video button;
    *  posted videos still show their poster. */
   video: true,
+  /** Live scoring (claude/live-scoring.md, needs 0103 — applied 7 Oct 2026).
+   *  Off hides the Home card and the menu entry; its screens say "on its way". */
+  liveScoring: true,
 
   // ---- Gates (unfinished, off) ----
   /** Groups (phase 11): model only — see claude/groups-architecture.md. */
@@ -41,6 +44,7 @@ export const FEATURES = {
   sharedRounds: false,
   /** Shot maps: nothing captures shot positions or hole geometry yet. */
   shotMaps: false,
+
 } as const;
 
 export type Feature = keyof typeof FEATURES;
