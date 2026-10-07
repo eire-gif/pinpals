@@ -115,18 +115,25 @@ export default function MatchDayBoard() {
 
         {day.teamNames ? (
           <>
-            <View style={styles.teams} accessibilityLabel={`${day.teamNames[0]} ${pointsLabel(totals.final[0])}, ${day.teamNames[1]} ${pointsLabel(totals.final[1])}`}>
+            {/* The big numbers are where the day stands now: finished matches
+                for what they won, live ones as they stand. Waiting for a
+                match to finish before anything moves read as broken. */}
+            <View
+              style={styles.teams}
+              accessibilityLabel={`${allDone ? "Final" : "As it stands"}: ${day.teamNames[0]} ${pointsLabel(totals.projected[0])}, ${day.teamNames[1]} ${pointsLabel(totals.projected[1])}`}
+            >
               {([0, 1] as const).map((n) => (
                 <View key={n} style={[styles.team, { backgroundColor: SIDE_COLORS[n] }, n === 1 && { alignItems: "flex-end" }]}>
                   <Text style={[styles.teamName, { color: SIDE_TEXT[n] }]}>{day.teamNames![n]}</Text>
-                  <Text style={[styles.teamPoints, { color: SIDE_TEXT[n] }]}>{pointsLabel(totals.final[n])}</Text>
+                  <Text style={[styles.teamPoints, { color: SIDE_TEXT[n] }]}>{pointsLabel(totals.projected[n])}</Text>
                 </View>
               ))}
             </View>
             <Text style={styles.heroSub}>
               {allDone
                 ? `Final score, ${matches.length} ${matches.length === 1 ? "match" : "matches"}.`
-                : `If every match ended as it stands: ${day.teamNames[0]} ${pointsLabel(totals.projected[0])} – ${day.teamNames[1]} ${pointsLabel(totals.projected[1])}`}
+                : `As it stands · ${totals.finishedCount} of ${matches.length} ${matches.length === 1 ? "match" : "matches"} finished` +
+                  (totals.finishedCount > 0 ? ` (${pointsLabel(totals.final[0])}–${pointsLabel(totals.final[1])} banked)` : "")}
             </Text>
           </>
         ) : null}
