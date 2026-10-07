@@ -319,12 +319,19 @@ describe("course cards", () => {
       // Same tees, different case: still the same card.
       await save(c, clubId, card(18, true), "white");
 
+      // Someone else's card for these tees, but a different one: refused.
+      const different = JSON.stringify(Array.from({ length: 18 }, (_, i) => ({ hole: i + 1, par: 4, stroke_index: 18 - i })));
       await as(c, STRANGER);
-      await rejects(c, "select public.course_card_save($1, 'White', 18::smallint, 72::smallint, null, null, $2::jsonb)", [clubId, card(18, true)], /already on file/);
+      await rejects(c, "select public.course_card_save($1, 'White', 18::smallint, 72::smallint, null, null, $2::jsonb)", [clubId, different], /different card .* already on file/);
+      // The same card again from someone else (0106, Adare Manor): a quiet yes, nothing changes hands.
+      const again = await c.query("select public.course_card_save($1, 'White', 18::smallint, 72::smallint, null, null, $2::jsonb) as id", [clubId, card(18, true)]);
+      expect(again.rows[0].id).toBe(rows[0].id);
+      const owner = await asService(c, () => c.query("select submitted_by, course_rating::text from public.course_cards where id = $1", [rows[0].id]));
+      expect(owner.rows[0]).toEqual({ submitted_by: ME, course_rating: "74.6" });
 
       await asService(c, () => c.query("update public.course_cards set verified_at = now() where id = $1", [rows[0].id]));
       await as(c, ME);
-      await rejects(c, "select public.course_card_save($1, 'White', 18::smallint, 72::smallint, null, null, $2::jsonb)", [clubId, card(18, true)], /already on file/);
+      await rejects(c, "select public.course_card_save($1, 'White', 18::smallint, 72::smallint, null, null, $2::jsonb)", [clubId, different], /already on file/);
     });
   });
 
