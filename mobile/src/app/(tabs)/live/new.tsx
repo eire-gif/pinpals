@@ -14,16 +14,14 @@ import {
 import { router } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
-import { CourseSearch } from "@/components/course-search";
-import { Chip, ChipGroup, Section } from "@/components/form-bits";
+import { CourseSection, useCourseSetup } from "@/components/live-course-section";
+import { Section } from "@/components/form-bits";
 import { StateMessage } from "@/components/state-message";
 import { useAuth } from "@/lib/auth";
-import { placeLabel, type Club } from "@/lib/courses";
 import { isOn } from "@/lib/features";
-import { createLiveRound, loadCourseCards, type CourseCard } from "@/lib/live-rounds";
+import { createLiveRound } from "@/lib/live-rounds";
 import {
   LIVE_FORMATS,
-  blankCard,
   courseHandicap,
   formatInfo,
   parseIndex,
@@ -55,12 +53,6 @@ type DraftPlayer = {
   isMe: boolean;
 };
 
-const parseNumber = (text: string): number | null => {
-  const t = text.trim().replace(",", ".");
-  if (t === "") return null;
-  const n = Number(t);
-  return Number.isFinite(n) ? n : null;
-};
 
 let keySeq = 0;
 const nextKey = () => `p${++keySeq}`;
@@ -69,14 +61,8 @@ export default function NewLiveRound() {
   const { session } = useAuth();
   const userId = session?.user?.id ?? null;
 
-  const [club, setClub] = useState<Club | null>(null);
-  const [cards, setCards] = useState<CourseCard[] | null>(null);
-  const [cardId, setCardId] = useState<number | null>(null);
-  const [teeName, setTeeName] = useState("");
-  const [holes, setHoles] = useState<9 | 18>(18);
-  const [ratingText, setRatingText] = useState("");
-  const [slopeText, setSlopeText] = useState("");
-  const [parText, setParText] = useState("72");
+  const course = useCourseSetup();
+  const { club, rating, slope, par, holes } = course;
   const [format, setFormat] = useState<LiveFormat>("stableford");
   const [players, setPlayers] = useState<DraftPlayer[]>([]);
   const [pals, setPals] = useState<Member[] | null>(null);
@@ -96,32 +82,6 @@ export default function NewLiveRound() {
     });
   }, [userId]);
 
-  // The cards on file for this course, if anyone has entered one.
-  useEffect(() => {
-    setCards(null);
-    setCardId(null);
-    if (!club) return;
-    void loadCourseCards(club.id)
-      .then(setCards)
-      .catch(() => setCards([]));
-  }, [club]);
-
-  const card = cards?.find((c) => c.id === cardId) ?? null;
-
-  const pickCard = (c: CourseCard | null) => {
-    setCardId(c?.id ?? null);
-    if (c) {
-      setTeeName(c.teeName);
-      setHoles(c.holes);
-      setRatingText(c.courseRating != null ? String(c.courseRating) : "");
-      setSlopeText(c.slope != null ? String(c.slope) : "");
-      setParText(String(c.parTotal ?? c.card.reduce((n, h) => n + h.par, 0)));
-    }
-  };
-
-  const rating = parseNumber(ratingText);
-  const slope = parseNumber(slopeText);
-  const par = parseNumber(parText);
   const info = formatInfo(format);
 
   // Plays-off for every row, recomputed as anything above changes.
@@ -137,13 +97,11 @@ export default function NewLiveRound() {
   );
 
   const problems: string[] = [];
-  if (!club) problems.push("Pick the course");
+  problems.push(...course.problems);
   if (players.length === 0) problems.push("Add at least one player");
   if (worked.some((w) => w == null)) problems.push("Every player needs a handicap index");
   if (players.some((p) => p.name.trim() === "")) problems.push("Every guest needs a name");
   if (format === "matchplay" && players.length !== 2) problems.push("Singles matchplay is two players");
-  if (ratingText.trim() !== "" && (rating == null || rating < 25 || rating > 85)) problems.push("Course rating looks wrong");
-  if (slopeText.trim() !== "" && (slope == null || slope < 55 || slope > 155)) problems.push("Slope must be 55–155");
 
   const update = (key: string, change: Partial<DraftPlayer>) =>
     setPlayers((ps) => ps.map((p) => (p.key === key ? { ...p, ...change } : p)));
@@ -172,17 +130,17 @@ export default function NewLiveRound() {
     if (!club || problems.length > 0) return;
     setSaving(true);
     try {
-      const holeCard = card && card.holes === holes ? card.card : blankCard(holes);
+      const holeCard = course.holeCard();
       const id = await createLiveRound(
         {
           courseName: club.name,
           clubId: club.id,
-          teeName: teeName.trim() || null,
+          teeName: course.teeName.trim() || null,
           format,
           holes,
           courseRating: rating,
-          slope: slope != null ? Math.round(slope) : null,
-          parTotal: par != null ? Math.round(par) : null,
+          slope,
+          parTotal: par,
           allowance: info.allowance,
         },
         players.map((p, i) => ({
@@ -212,54 +170,7 @@ export default function NewLiveRound() {
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined} keyboardVerticalOffset={90}>
       <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
-        <Section title="Course">
-          {club ? (
-            <View style={styles.card}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.cardTitle}>{club.name}</Text>
-                <Text style={styles.cardMeta}>{placeLabel(club)}</Text>
-              </View>
-              <Pressable onPress={() => setClub(null)} hitSlop={8} accessibilityRole="button">
-                <Text style={styles.link}>Change</Text>
-              </Pressable>
-            </View>
-          ) : (
-            <CourseSearch placeholder="Search for the course" onPick={setClub} />
-          )}
-        </Section>
-
-        {club ? (
-          <Section
-            title="Tees"
-            hint={
-              cards && cards.length > 0
-                ? "Cards already entered for this course. Pick yours, or enter other tees."
-                : "No card on file for this course yet. Enter the rating and slope from the card if you have them; you can add the stroke indexes as you play."
-            }
-          >
-            {cards == null ? (
-              <ActivityIndicator color={colors.green700} />
-            ) : cards.length > 0 ? (
-              <ChipGroup>
-                {cards.map((c) => (
-                  <Chip key={c.id} label={`${c.teeName}${c.verified ? " ✓" : ""}`} selected={cardId === c.id} onPress={() => pickCard(c)} />
-                ))}
-                <Chip label="Other tees" selected={cardId == null} onPress={() => pickCard(null)} />
-              </ChipGroup>
-            ) : null}
-
-            <View style={styles.fields}>
-              <Field label="Tee name" value={teeName} onChange={setTeeName} placeholder="e.g. White" wide />
-              <Field label="Rating" value={ratingText} onChange={setRatingText} placeholder="72.4" numeric />
-              <Field label="Slope" value={slopeText} onChange={setSlopeText} placeholder="130" numeric />
-              <Field label="Par" value={parText} onChange={setParText} placeholder="72" numeric />
-            </View>
-            <ChipGroup>
-              <Chip label="18 holes" selected={holes === 18} onPress={() => { setHoles(18); if (parText === "36") setParText("72"); }} />
-              <Chip label="9 holes" selected={holes === 9} onPress={() => { setHoles(9); if (parText === "72") setParText("36"); }} />
-            </ChipGroup>
-          </Section>
-        ) : null}
+        <CourseSection setup={course} />
 
         <Section title="Format">
           <View style={styles.formats}>
@@ -275,7 +186,7 @@ export default function NewLiveRound() {
                   accessibilityState={{ selected: on, disabled: !f.available }}
                 >
                   <Text style={[styles.formatLabel, !f.available && styles.muted]}>{f.label}</Text>
-                  <Text style={[styles.formatBlurb, on && styles.formatBlurbOn]}>{f.available ? f.blurb : "Coming soon"}</Text>
+                  <Text style={[styles.formatBlurb, on && styles.formatBlurbOn]}>{f.available ? f.blurb : f.matchDay ? "Use a match day" : "Coming soon"}</Text>
                 </Pressable>
               );
             })}
@@ -384,38 +295,6 @@ export default function NewLiveRound() {
         </Pressable>
       </ScrollView>
     </KeyboardAvoidingView>
-  );
-}
-
-function Field({
-  label,
-  value,
-  onChange,
-  placeholder,
-  numeric = false,
-  wide = false,
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  placeholder: string;
-  numeric?: boolean;
-  wide?: boolean;
-}) {
-  return (
-    <View style={[styles.field, wide && styles.fieldWide]}>
-      <Text style={styles.fieldLabel}>{label}</Text>
-      <TextInput
-        value={value}
-        onChangeText={onChange}
-        placeholder={placeholder}
-        placeholderTextColor={colors.ink500}
-        keyboardType={numeric ? "decimal-pad" : "default"}
-        style={styles.input}
-        maxLength={numeric ? 5 : 40}
-        accessibilityLabel={label}
-      />
-    </View>
   );
 }
 

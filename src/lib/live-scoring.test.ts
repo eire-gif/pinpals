@@ -7,7 +7,12 @@ import {
   courseHandicap,
   formatInfo,
   indexLabel,
+  matchCompetitors,
+  matchPoints,
   matchState,
+  pointsLabel,
+  teamMatchState,
+  type MatchPlayer,
   netScoreName,
   parseIndex,
   playingHandicap,
@@ -196,6 +201,94 @@ describe("live-scoring.ts singles matchplay", () => {
 
   it("can't score a match on a card without stroke indexes", () => {
     expect(matchState(blankCard(18), a, b, sheet({}))).toBeNull();
+  });
+});
+
+describe("live-scoring.ts team matches", () => {
+  // Course handicaps 19, 10, 26, 5 (Eire, Ciarán | Aoife, Seán).
+  const four: MatchPlayer[] = [
+    { id: 1, name: "Eire", playingHandicap: 0, courseHandicap: 19, side: 1, position: 1 },
+    { id: 2, name: "Ciarán", playingHandicap: 0, courseHandicap: 10, side: 1, position: 2 },
+    { id: 3, name: "Aoife", playingHandicap: 0, courseHandicap: 26, side: 2, position: 3 },
+    { id: 4, name: "Seán", playingHandicap: 0, courseHandicap: 5, side: 2, position: 4 },
+  ];
+
+  it("fourball: 90% each, shots off the lowest", () => {
+    // 17.1→17, 9, 23.4→23, 4.5→5. Off Seán's 5: 12, 4, 18, 0.
+    const c = matchCompetitors("fourball", four);
+    expect(c.map((x) => [x.key, x.matchHandicap, x.shots])).toEqual([
+      ["p1", 17, 12],
+      ["p2", 9, 4],
+      ["p3", 23, 18],
+      ["p4", 5, 0],
+    ]);
+  });
+
+  it("foursomes: half the pair's combined handicaps; greensomes: 60/40", () => {
+    // Blues (19+10)/2 = 14.5→15; Golds (26+5)/2 = 15.5→16. Golds get 1.
+    expect(matchCompetitors("foursomes", four).map((x) => [x.key, x.matchHandicap, x.shots])).toEqual([
+      ["side1", 15, 0],
+      ["side2", 16, 1],
+    ]);
+    // Blues 0.6×10 + 0.4×19 = 13.6→14; Golds 0.6×5 + 0.4×26 = 13.4→13.
+    expect(matchCompetitors("greensomes", four).map((x) => x.shots)).toEqual([1, 0]);
+  });
+
+  it("fourball counts the better net ball of each side, once all four have scored", () => {
+    // Hole 1 is SI 7: Eire (12 shots) and Aoife (18) get one, Ciarán (4) and Seán (0) don't.
+    let m = teamMatchState("fourball", card, four, sheet({ 1: { 1: 5 }, 2: { 1: 3 }, 3: { 1: 6 } }))!;
+    expect(m.holes).toEqual([]); // Seán hasn't scored yet
+    m = teamMatchState("fourball", card, four, sheet({ 1: { 1: 5 }, 2: { 1: 3 }, 3: { 1: 6 }, 4: { 1: 4 } }))!;
+    expect(m.holes[0]).toEqual({ hole: 1, result: "won", net: [3, 4], counting: [2, 4] });
+    expect([m.leader, m.margin]).toEqual([1, "1 UP"]);
+  });
+
+  it("a side that picks up on both balls loses the hole; both picking up halves it", () => {
+    const m = teamMatchState("fourball", card, four, sheet({
+      1: { 1: null, 2: null }, 2: { 1: null, 2: null }, 3: { 1: 7, 2: null }, 4: { 1: null, 2: null },
+    }))!;
+    expect(m.holes.map((h) => h.result)).toEqual(["lost", "halved"]);
+    expect([m.leader, m.margin]).toEqual([2, "1 UP"]);
+  });
+
+  it("foursomes reads the pair's one ball from its first player", () => {
+    // Hole 4 is SI 15: Golds' single shot (SI 1) doesn't apply.
+    const m = teamMatchState("foursomes", card.slice(0, 18), four, sheet({
+      1: { 1: 4 }, 3: { 1: 5 },
+    }))!;
+    expect(m.holes[0].result).toBe("won");
+    expect(m.holes[0].counting).toEqual([1, 2, 3, 4]); // each pair's one ball
+  });
+
+  it("finishes a match early and scores it 3&2, dormie on the way", () => {
+    const even = four.map((p) => ({ ...p, courseHandicap: 10 }));
+    const blue = (n: number) => Object.fromEntries(Array.from({ length: n }, (_, i) => [i + 1, 4]));
+    const gold = (n: number, lose: number) => Object.fromEntries(Array.from({ length: n }, (_, i) => [i + 1, i < lose ? 6 : 4]));
+    let m = teamMatchState("fourball", card, even, sheet({ 1: blue(16), 2: blue(16), 3: gold(16, 2), 4: gold(16, 2) }))!;
+    expect([m.margin, m.dormie, m.finished]).toEqual(["2 UP", true, false]);
+    m = teamMatchState("fourball", card, even, sheet({ 1: blue(16), 2: blue(16), 3: gold(16, 3), 4: gold(16, 3) }))!;
+    expect([m.margin, m.finished, m.leader]).toEqual(["3&2", true, 1]);
+    expect(matchPoints(m)).toEqual([1, 0]);
+  });
+
+  it("scores team points, projected and final", () => {
+    const even = four.map((p) => ({ ...p, courseHandicap: 10 }));
+    const live = teamMatchState("fourball", card, even, sheet({ 1: { 1: 4 }, 2: { 1: 4 }, 3: { 1: 5 }, 4: { 1: 5 } }))!;
+    expect(matchPoints(live)).toEqual([0, 0]);
+    expect(matchPoints(live, true)).toEqual([1, 0]);
+    const notStarted = teamMatchState("fourball", card, even, sheet({}))!;
+    expect(matchPoints(notStarted, true)).toEqual([0, 0]);
+    expect([pointsLabel(1.5), pointsLabel(0.5), pointsLabel(2), pointsLabel(0)]).toEqual(["1½", "½", "2", "0"]);
+  });
+
+  it("singles through the same path matches the singles function", () => {
+    const a = { id: 1, name: "Eire", playingHandicap: 19, courseHandicap: 19, side: 1, position: 1 };
+    const b = { id: 2, name: "Ciarán", playingHandicap: 10, courseHandicap: 10, side: 2, position: 2 };
+    const sc = sheet({ 1: { 1: 5, 2: 4, 3: 5 }, 2: { 1: 4, 2: 5, 3: 5 } });
+    const t = teamMatchState("matchplay", card, [a, b], sc)!;
+    const s = matchState(card, a, b, sc)!;
+    expect(t.holes.map((h) => h.result)).toEqual(s.results.map((r) => r.result));
+    expect(t.up).toBe(s.up);
   });
 });
 

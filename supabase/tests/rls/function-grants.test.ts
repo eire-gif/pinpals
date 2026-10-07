@@ -165,6 +165,10 @@ const EXPECTED: Record<string, Expectation> = {
   "live_round_set_hole(p_round_id bigint, p_hole smallint, p_par smallint, p_stroke_index smallint)": { anon: false, authenticated: true },
   "live_round_set_score(p_round_id bigint, p_player_id bigint, p_hole smallint, p_strokes smallint, p_clear boolean)": { anon: false, authenticated: true },
   "live_round_status_broadcast()": { anon: false, authenticated: false },
+  // 0104 match days. Same reasoning: each checks the caller itself.
+  "can_score_live_round(p_round_id bigint)": { anon: false, authenticated: true },
+  "can_view_match_day(p_day_id bigint)": { anon: false, authenticated: true },
+  "live_match_day_create(p_day jsonb, p_matches jsonb, p_card jsonb)": { anon: false, authenticated: true },
 
   // --- Service role / internal only. Everything below is either a trigger
   // --- function, a sweep, or a privileged write path that must never be

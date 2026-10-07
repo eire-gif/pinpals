@@ -57,7 +57,7 @@ export const NOTIFICATION_CATEGORY_LABELS: Record<NotificationCategory, string> 
   payments: "Payments",
   disputes_refunds: "Refunds & disputes",
   reviews: "Reviews",
-  tee_times: "Tee times",
+  tee_times: "Tee times & matches",
   feed: "Your posts",
 };
 
@@ -66,7 +66,7 @@ export const NOTIFICATION_CATEGORY_DESCRIPTIONS: Record<OptionalNotificationCate
   offers: "Offers you receive, and updates on offers you've made.",
   auctions: "Outbid alerts, auctions ending soon, and results.",
   reviews: "When you're able to leave a review after a completed order.",
-  tee_times: "When someone you've connected with posts a tee time.",
+  tee_times: "When someone you've connected with posts a tee time, adds you to a round or match day, or a match in it finishes.",
   feed: "When another member comments on something you posted, or replies to your comment.",
 };
 
@@ -126,6 +126,11 @@ export const NOTIFICATION_TYPES = [
   // 0097. Named with @ in a comment — delivered like a reply: someone is
   // talking to you.
   "post_comment_mentioned",
+  // Live scoring (0103/0104). Under tee_times: same people, same golf, and a
+  // member who finds round traffic noisy silences both in one switch.
+  "live_round_added",
+  "live_match_added",
+  "live_match_result",
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 
@@ -163,6 +168,9 @@ export const NOTIFICATION_TYPE_CATEGORY: Record<NotificationType, NotificationCa
   post_comment_replied: "feed",
   post_liked: "feed",
   post_comment_mentioned: "feed",
+  live_round_added: "tee_times",
+  live_match_added: "tee_times",
+  live_match_result: "tee_times",
 };
 
 /** Which preference category (if any) governs delivery for this notification
