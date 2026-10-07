@@ -47,6 +47,10 @@
 --   add up) but loses its link and its name: member_id is set null and a
 --   trigger renames it "Former member".
 --
+-- APPLIED to production on 7 Oct 2026 in parts (recorded as
+-- 0103a…0103h in supabase_migrations), because the Supabase tool cancels a
+-- single large statement batch. The parts add up to exactly this file.
+--
 -- Rollback:
 --   drop function if exists public.live_round_create(jsonb, jsonb, jsonb);
 --   drop function if exists public.live_round_set_score(bigint, bigint, smallint, smallint, boolean);
@@ -179,6 +183,8 @@ revoke insert, update, delete on public.live_rounds, public.live_round_players,
   public.live_round_holes, public.live_round_scores from anon, authenticated;
 revoke all on public.live_rounds, public.live_round_players,
   public.live_round_holes, public.live_round_scores from anon;
+revoke truncate, references, trigger on public.live_rounds, public.live_round_players,
+  public.live_round_holes, public.live_round_scores from authenticated;
 
 -- ---------------------------------------------------------------------------
 -- Deleted members lose their name on old leaderboards
@@ -210,6 +216,7 @@ returns bigint
 language sql
 immutable
 parallel safe
+set search_path = ''
 as $$
   select case
     when topic ~ '^live-round-[0-9]{1,18}$' then substring(topic from 12)::bigint
@@ -546,6 +553,7 @@ create policy "Members read course card holes" on public.course_card_holes for s
 
 revoke insert, update, delete on public.course_cards, public.course_card_holes from anon, authenticated;
 revoke all on public.course_cards, public.course_card_holes from anon;
+revoke truncate, references, trigger on public.course_cards, public.course_card_holes from authenticated;
 
 create or replace function public.course_card_save(
   p_club_id bigint,
@@ -563,8 +571,9 @@ set search_path = public
 as $$
 declare
   v_me uuid := (select auth.uid());
-  v_existing public.course_cards%rowtype;
   v_card_id bigint;
+  v_verified timestamptz;
+  v_by uuid;
 begin
   if v_me is null or not exists (select 1 from public.profiles where id = v_me and deleted_at is null) then
     raise exception 'Sign in to save a card' using errcode = '42501';
@@ -580,27 +589,28 @@ begin
     raise exception 'Each hole needs its own stroke index' using errcode = '22023';
   end if;
 
-  select * into v_existing from public.course_cards
+  select id, verified_at, submitted_by into v_card_id, v_verified, v_by
+    from public.course_cards
    where club_id = p_club_id and lower(btrim(tee_name)) = lower(btrim(p_tee_name)) and holes = p_holes;
 
-  if found then
-    if v_existing.verified_at is not null or v_existing.submitted_by is distinct from v_me then
+  if v_card_id is not null then
+    if v_verified is not null or v_by is distinct from v_me then
       raise exception 'A card for these tees is already on file' using errcode = 'P0001';
     end if;
     update public.course_cards
        set par_total = p_par_total, course_rating = p_course_rating, slope = p_slope, updated_at = now()
-     where id = v_existing.id;
-    v_card_id := v_existing.id;
-    delete from public.course_card_holes where card_id = v_card_id;
+     where id = v_card_id;
   else
     insert into public.course_cards (club_id, tee_name, holes, par_total, course_rating, slope, source, submitted_by)
     values (p_club_id, btrim(p_tee_name), p_holes, p_par_total, p_course_rating, p_slope, 'member', v_me)
     returning id into v_card_id;
   end if;
 
+  -- Same tees, same number of holes: every hole is replaced in place.
   insert into public.course_card_holes (card_id, hole, par, stroke_index)
   select v_card_id, (h ->> 'hole')::smallint, (h ->> 'par')::smallint, (h ->> 'stroke_index')::smallint
-    from jsonb_array_elements(p_card) h;
+    from jsonb_array_elements(p_card) h
+  on conflict (card_id, hole) do update set par = excluded.par, stroke_index = excluded.stroke_index;
 
   return v_card_id;
 end;

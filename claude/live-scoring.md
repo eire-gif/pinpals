@@ -1,6 +1,6 @@
 # Live scoring
 
-Oct 2026. **Status: built behind the `liveScoring` flag (off); migration 0103 not applied.**
+Oct 2026. **Status: migration 0103 applied to production (7 Oct 2026, in parts 0103a–h); `liveScoring` flag on in this branch, live once merged and published with `eas update`.**
 
 A group starts a round in the app, picks a format, adds players (themselves,
 their PinPals, guests by name) and scores hole by hole. Everyone in the round
@@ -83,17 +83,24 @@ import is ever built, and should be regenerated first (it was shared in chat).
 - Account deletion: a deleted member's player row stays (others' totals must
   add up) but loses its link and is renamed "Former member" by trigger.
 
-Checked so far: the SQL and all eight PL/pgSQL bodies parse with the Postgres
-parser. **Not yet run against a database**, and there is no RLS test file yet.
+Tested: `supabase/tests/rls/live-scoring.test.ts` (14 tests; confirmed to fail
+when `can_view_live_round` is loosened) and the function-grants register.
+Full RLS suite 612/612 on a fresh replay. Production checked after applying:
+RLS on all six tables, the realtime policy, function grants as registered,
+signed-in users read-only on the tables. Supabase's security advisor raises
+nothing new beyond the expected "signed-in users can call this function".
+
+Applying it: the Supabase tool cancels a batch that contains a `drop`
+statement (it waits for a confirmation that never arrives), so it went in as
+parts without the no-op `drop policy if exists`. The file is still the
+single source and replays cleanly.
 
 ## To ship
 
-1. Write `supabase/tests/rls/live-scoring.test.ts` and run
-   `npm run test:rls:replay` and `npm run test:rls`.
-2. Apply 0103 to production.
-3. Merge, then flip `liveScoring: true` in `mobile/src/lib/features.ts`
-   (update `features.test.ts`) and `eas update`. No native build needed:
-   nothing here adds a native module.
+1. ~~RLS tests~~ done. 2. ~~Apply 0103~~ done. 3. ~~Flag on~~ done in the branch.
+4. Merge PR #132, then in the Codespace: `git pull origin main`, then
+   `eas update` (check the Commit line). No native build needed: nothing here
+   adds a native module.
 
 ## Map
 

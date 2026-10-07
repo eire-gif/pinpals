@@ -10,17 +10,17 @@ describe("feature flags", () => {
       groups: FEATURES.groups,
       sharedRounds: FEATURES.sharedRounds,
       shotMaps: FEATURES.shotMaps,
-      liveScoring: FEATURES.liveScoring,
     }).toEqual({
       groups: false,
       sharedRounds: false,
       shotMaps: false,
-      liveScoring: false,
     });
   });
 
   it("shipped features are on", () => {
-    expect([FEATURES.recapPrompts, FEATURES.achievementClaims, FEATURES.profileSections, FEATURES.video]).toEqual([true, true, true, true]);
+    expect([FEATURES.recapPrompts, FEATURES.achievementClaims, FEATURES.profileSections, FEATURES.video, FEATURES.liveScoring]).toEqual([
+      true, true, true, true, true,
+    ]);
   });
 });
 
