@@ -8,6 +8,7 @@ import { useAuth } from "@/lib/auth";
 import { isOn } from "@/lib/features";
 import { SIDE_COLORS, SIDE_TEXT, asMatchPlayers, loadMatchDayHeader, type MatchDay } from "@/lib/live-match-days";
 import {
+  deleteLiveRound,
   finishLiveRound,
   loadLiveRound,
   saveCourseCard,
@@ -22,13 +23,14 @@ import {
   isOneBallPerSide,
   matchCompetitors,
   netScoreName,
-  shotsByHole,
+  shotsSoFar,
   stablefordPoints,
   teamMatchState,
   toParLabel,
   type MatchFormat,
 } from "@/lib/live-scoring";
 import { colors, creamAlpha, fonts, radii, spacing, type } from "@/lib/theme";
+import { useLiveRefresh } from "@/lib/use-live-refresh";
 
 /**
  * Scoring a round, and its leaderboard.
@@ -43,9 +45,11 @@ import { colors, creamAlpha, fonts, radii, spacing, type } from "@/lib/theme";
  * and says so — the database is the only copy that counts.
  *
  * The card can be incomplete: most Irish courses have no stroke indexes on
- * file, so the scorer enters them here, hole by hole, from the card. Until a
- * hole has one, nobody's shots can be counted (live-scoring.ts refuses to
- * guess) and the screen says so instead of showing wrong points.
+ * file, so the scorer enters them here, hole by hole, from the card. A
+ * hole's shots count as soon as its own index is in (shotsSoFar); a match
+ * plays on hole by hole and waits at the first hole that still needs one.
+ * Each index can be on one hole only — used ones are locked, and 0105
+ * refuses a duplicate from any client.
  */
 export default function LiveRoundScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -83,6 +87,7 @@ export default function LiveRoundScreen() {
     }, [load])
   );
   useEffect(() => subscribeToLiveRound(roundId, () => void load()), [roundId, load]);
+  useLiveRefresh(load, data?.round.status === "live");
 
   const board = useMemo(
     () => (data ? buildBoard(data.round.format, data.card, data.players, data.scores) : null),
@@ -112,10 +117,11 @@ export default function LiveRoundScreen() {
   const competitors = matchFormat ? matchCompetitors(matchFormat, asMatchPlayers(players)) : null;
   const shotsFor = (playerId: number): number | null => {
     const comp = competitors?.find((c) => c.playerIds.includes(playerId));
-    if (comp) return shotsByHole(comp.shots, card)?.get(h.hole) ?? null;
+    if (comp) return shotsSoFar(comp.shots, card).get(h.hole) ?? null;
     const p = players.find((x) => x.id === playerId);
-    return p ? (shotsByHole(p.playingHandicap, card)?.get(h.hole) ?? null) : null;
+    return p ? (shotsSoFar(p.playingHandicap, card).get(h.hole) ?? null) : null;
   };
+  const matchNow = matchFormat ? teamMatchState(matchFormat, card, asMatchPlayers(players), scores) : null;
   const sideName = (n: number) =>
     dayHeader?.teamNames?.[n - 1] ?? players.filter((p) => p.side === n).map((p) => p.name.split(" ")[0]).join(" & ");
 
@@ -186,7 +192,32 @@ export default function LiveRoundScreen() {
     }
   };
 
-  const usedSI = new Set(card.filter((c) => c.hole !== h.hole && c.strokeIndex != null).map((c) => c.strokeIndex));
+  // Which hole each index is already on, so it can't be picked twice.
+  const usedSI = new Map(card.filter((c) => c.hole !== h.hole && c.strokeIndex != null).map((c) => [c.strokeIndex!, c.hole]));
+
+  // Whoever started the round, or the match day's organiser, can delete it.
+  const canDelete = me != null && (round.createdBy === me || dayHeader?.createdBy === me);
+  const remove = () =>
+    Alert.alert(
+      matchFormat && round.matchDayId != null ? "Delete this match?" : "Delete this round?",
+      `The card and every score go for everyone in it${live ? ", even though it's still being played" : ""}. This can't be undone.`,
+      [
+        { text: "Keep it", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await deleteLiveRound(round.id);
+              if (dayHeader) router.replace({ pathname: "/live/day/[id]", params: { id: String(dayHeader.id) } });
+              else router.replace("/live");
+            } catch (e) {
+              Alert.alert("Couldn't delete it", e instanceof Error ? e.message : "Please try again.");
+            }
+          },
+        },
+      ]
+    );
 
   return (
     <View style={{ flex: 1 }}>
@@ -250,7 +281,7 @@ export default function LiveRoundScreen() {
             </View>
             <View style={styles.strip}>
               {card.map((c) => {
-                const done = players.every((p) => scores.get(p.id)?.has(c.hole));
+                const done = rows.every((p) => scores.get(p.id)?.has(c.hole));
                 return (
                   <Pressable
                     key={c.hole}
@@ -262,6 +293,17 @@ export default function LiveRoundScreen() {
                 );
               })}
             </View>
+            {matchNow ? (
+              <Pressable onPress={() => setView("board")} style={styles.matchLine} accessibilityRole="button" accessibilityLabel="See the match">
+                <Text style={styles.matchLineText}>
+                  {matchNow.leader === 0 ? matchNow.margin : `${sideName(matchNow.leader)} ${matchNow.margin}`}
+                  {matchNow.holes.length > 0 && !matchNow.finished ? ` · thru ${matchNow.holes.length}` : ""}
+                </Text>
+                {matchNow.waitingForIndex != null && matchNow.waitingForIndex !== h.hole && scores.size > 0 ? (
+                  <Text style={styles.matchLineWait}>Waiting on hole {matchNow.waitingForIndex}'s SI</Text>
+                ) : null}
+              </Pressable>
+            ) : null}
           </View>
 
           {editingCard || h.strokeIndex == null ? (
@@ -286,21 +328,27 @@ export default function LiveRoundScreen() {
                   <View style={styles.chips}>
                     {Array.from({ length: 18 }, (_, i) => i + 1).map((si) => {
                       const on = h.strokeIndex === si;
-                      const used = usedSI.has(si);
+                      const usedOn = usedSI.get(si);
+                      const used = usedOn != null;
                       return (
                         <Pressable
                           key={si}
-                          onPress={() => void editHole(h.par, si)}
+                          onPress={() => {
+                            if (used || on) return;
+                            void editHole(h.par, si);
+                          }}
+                          disabled={used}
                           style={[styles.chip, styles.chipSmall, on && styles.chipOn, used && !on && styles.chipUsed]}
                           accessibilityRole="button"
-                          accessibilityLabel={`Stroke index ${si}${used ? ", already used on another hole" : ""}`}
-                          accessibilityState={{ selected: on }}
+                          accessibilityLabel={`Stroke index ${si}${used ? `, already on hole ${usedOn}` : ""}`}
+                          accessibilityState={{ selected: on, disabled: used }}
                         >
                           <Text style={[styles.chipText, on && styles.chipTextOn, used && !on && styles.chipTextUsed]}>{si}</Text>
                         </Pressable>
                       );
                     })}
                   </View>
+                  {usedSI.size > 0 ? <Text style={styles.playerMeta}>Greyed numbers are already on another hole.</Text> : null}
                   {editingCard ? (
                     <Pressable onPress={() => setEditingCard(false)} hitSlop={8}>
                       <Text style={styles.link}>Done</Text>
@@ -397,7 +445,7 @@ export default function LiveRoundScreen() {
         </ScrollView>
       ) : (
         <ScrollView contentContainerStyle={styles.page}>
-          {board?.cardIncomplete ? (
+          {board?.cardIncomplete && !matchFormat ? (
             <Text style={styles.warn}>
               Some holes have no stroke index yet, so shots aren't counted there. Fill them in on the Score tab.
             </Text>
@@ -467,6 +515,12 @@ export default function LiveRoundScreen() {
               <Text style={styles.nextLabel}>{matchFormat ? "Finish match" : "Finish round"}</Text>
             </Pressable>
           ) : null}
+
+          {canDelete ? (
+            <Pressable onPress={remove} style={styles.delete} accessibilityRole="button">
+              <Text style={styles.deleteLabel}>{round.matchDayId != null ? "Delete this match" : "Delete round"}</Text>
+            </Pressable>
+          ) : null}
         </ScrollView>
       )}
     </View>
@@ -475,9 +529,8 @@ export default function LiveRoundScreen() {
 
 function MatchView({ data, format, sideName }: { data: LiveRoundData; format: MatchFormat; sideName: (n: number) => string }) {
   const m = teamMatchState(format, data.card, asMatchPlayers(data.players), data.scores);
-  if (!m) {
-    return <StateMessage icon="list-outline" body="Matchplay needs every hole's stroke index before shots can be given. Fill them in on the Score tab." />;
-  }
+  if (!m) return null;
+  const stuck = m.waitingForIndex != null && data.players.some((p) => data.scores.get(p.id)?.has(m.waitingForIndex!));
   const byHole = new Map(m.holes.map((r) => [r.hole, r.result]));
   const status = m.leader === 0 ? m.margin : `${sideName(m.leader)} ${m.margin}`;
   return (
@@ -507,6 +560,11 @@ function MatchView({ data, format, sideName }: { data: LiveRoundData; format: Ma
           );
         })}
       </View>
+      {stuck ? (
+        <Text style={styles.warn}>
+          Hole {m.waitingForIndex} has scores but no stroke index yet, so the match can't count it. Add it on the Score tab.
+        </Text>
+      ) : null}
       <Text style={styles.footNote}>Each hole is coloured by the side that won it; ½ is a halved hole.</Text>
     </View>
   );
@@ -614,6 +672,11 @@ const styles = StyleSheet.create({
   big: { fontFamily: fonts.display, fontSize: 22, color: colors.navy900 },
   handicaps: { gap: 4, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: radii.lg, padding: spacing.md },
 
+  matchLine: { borderTopWidth: 1, borderTopColor: creamAlpha(0.15), paddingTop: spacing.sm, alignItems: "center", gap: 2 },
+  matchLineText: { fontFamily: fonts.bodyBold, fontSize: type.small, color: colors.gold400 },
+  matchLineWait: { fontFamily: fonts.body, fontSize: 12, color: creamAlpha(0.75) },
+  delete: { minHeight: 48, borderRadius: radii.pill, borderWidth: 1, borderColor: colors.red600, alignItems: "center", justifyContent: "center" },
+  deleteLabel: { fontFamily: fonts.bodyBold, fontSize: type.small, color: colors.red600 },
   matchCard: { flexDirection: "row", alignItems: "center", backgroundColor: colors.navy900, borderRadius: radii.lg, padding: spacing.md, gap: spacing.sm },
   matchSide: { flex: 1, fontFamily: fonts.bodyBold, fontSize: type.small, color: colors.cream50 },
   matchStatus: { backgroundColor: colors.cream50, borderRadius: radii.md, paddingVertical: spacing.sm, paddingHorizontal: spacing.md, alignItems: "center" },

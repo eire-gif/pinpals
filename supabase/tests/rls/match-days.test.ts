@@ -230,3 +230,29 @@ describe("match days: seeing and scoring", () => {
     });
   });
 });
+
+// 0105 — deleting.
+describe("match days: deleting", () => {
+  it("the organiser deletes one match, or the whole day; players and strangers can't", async () => {
+    await withRole("authenticated", ME, async (c) => {
+      await setUp(c);
+      const { dayId, match1, match2 } = await createDay(c);
+
+      for (const who of [PAL, PAL2, STRANGER]) {
+        await as(c, who);
+        await rejects(c, "select public.live_match_day_delete($1)", [dayId], /Only the organiser/);
+        await rejects(c, "select public.live_round_delete($1)", [match2], /Only the person who started/);
+      }
+
+      await as(c, ME);
+      await c.query("select public.live_round_delete($1)", [match2]);
+      const count = (sql: string, id: string) => asService(c, () => c.query<{ n: number }>(sql, [id]));
+      expect((await count("select count(*)::int as n from public.live_rounds where match_day_id = $1", dayId)).rows[0].n).toBe(1);
+
+      await c.query("select public.live_match_day_delete($1)", [dayId]);
+      expect((await count("select count(*)::int as n from public.live_match_days where id = $1", dayId)).rows[0].n).toBe(0);
+      expect((await count("select count(*)::int as n from public.live_rounds where id = $1", match1)).rows[0].n).toBe(0);
+      expect((await count("select count(*)::int as n from public.live_round_players where round_id = $1", match1)).rows[0].n).toBe(0);
+    });
+  });
+});

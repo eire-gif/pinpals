@@ -17,6 +17,7 @@ import {
   parseIndex,
   playingHandicap,
   shotsByHole,
+  shotsSoFar,
   stablefordPoints,
   toParLabel,
   type CardHole,
@@ -279,6 +280,36 @@ describe("live-scoring.ts team matches", () => {
     const notStarted = teamMatchState("fourball", card, even, sheet({}))!;
     expect(matchPoints(notStarted, true)).toEqual([0, 0]);
     expect([pointsLabel(1.5), pointsLabel(0.5), pointsLabel(2), pointsLabel(0)]).toEqual(["1½", "½", "2", "0"]);
+  });
+
+  it("plays a match on a card that is still being filled in, up to the first hole without an index", () => {
+    // What testers did on 7 Oct: indexes entered hole by hole as they went.
+    const partial = card.map((h) => (h.hole <= 3 ? h : { ...h, strokeIndex: null }));
+    const sc = sheet({ 1: { 1: 5, 2: 4, 3: 4, 4: 3 }, 2: { 1: 3, 2: 4, 3: 4, 4: 3 }, 3: { 1: 6, 2: 5, 3: 4, 4: 3 }, 4: { 1: 4, 2: 4, 3: 5, 4: 3 } });
+    const m = teamMatchState("fourball", partial, four, sc)!;
+    const full = teamMatchState("fourball", card, four, sc)!;
+    expect(m.holes).toEqual(full.holes.slice(0, 3)); // same answer as the full card
+    expect(m.waitingForIndex).toBe(4);
+    expect(full.waitingForIndex).toBeNull();
+  });
+
+  it("needs no index at all when nobody gets a shot", () => {
+    const even = four.map((p) => ({ ...p, courseHandicap: 10 }));
+    const m = teamMatchState("fourball", blankCard(18), even, sheet({ 1: { 1: 4 }, 2: { 1: 4 }, 3: { 1: 5 }, 4: { 1: 5 } }))!;
+    expect([m.holes.length, m.margin, m.waitingForIndex]).toEqual([1, "1 UP", null]);
+  });
+
+  it("shotsSoFar reads a hole's index straight off the card, and matches the full card", () => {
+    const partial = card.map((h, i) => (i % 2 ? { ...h, strokeIndex: null } : h));
+    for (const hcp of [0, 5, 18, 22, -3]) {
+      const sofar = shotsSoFar(hcp, partial);
+      const full = shotsByHole(hcp, card)!;
+      for (const [hole, s] of sofar) expect([hole, s]).toEqual([hole, full.get(hole)]);
+    }
+    expect(shotsSoFar(5, partial).has(2)).toBe(false); // hole 2 has no index yet
+    // A 9-hole round marked from an 18-hole card can't be ranked until it's full.
+    const nine: CardHole[] = [{ hole: 1, par: 4, strokeIndex: 15 }, ...blankCard(9).slice(1)];
+    expect(shotsSoFar(4, nine).size).toBe(0);
   });
 
   it("singles through the same path matches the singles function", () => {

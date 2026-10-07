@@ -1,13 +1,13 @@
 import { useCallback, useState } from "react";
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { LoadError, StateMessage } from "@/components/state-message";
 import { useAuth } from "@/lib/auth";
 import { isOn } from "@/lib/features";
-import { loadMyMatchDays, type MatchDaySummary } from "@/lib/live-match-days";
-import { loadMyLiveRounds, type LiveRoundSummary } from "@/lib/live-rounds";
+import { deleteMatchDay, loadMyMatchDays, type MatchDaySummary } from "@/lib/live-match-days";
+import { deleteLiveRound, loadMyLiveRounds, type LiveRoundSummary } from "@/lib/live-rounds";
 import { formatInfo } from "@/lib/live-scoring";
 import { dateLabel } from "@/lib/tee-times";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
@@ -54,6 +54,31 @@ export default function LiveScoringHub() {
       />
     );
   }
+
+  /** Owner only (0105 checks too). Gone from the list at once; back if it fails. */
+  const confirmDelete = (kind: "round" | "day", id: number, name: string, inPlay: boolean) =>
+    Alert.alert(
+      kind === "day" ? "Delete this match day?" : "Delete this round?",
+      `${name}: the card and every score go for everyone in it${inPlay ? ", even though it's still in play" : ""}. This can't be undone.`,
+      [
+        { text: "Keep it", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            if (kind === "day") setDays((d) => (d ?? []).filter((x) => x.id !== id));
+            else setRounds((r) => (r ?? []).filter((x) => x.id !== id));
+            try {
+              if (kind === "day") await deleteMatchDay(id);
+              else await deleteLiveRound(id);
+            } catch (e) {
+              Alert.alert("Couldn't delete it", e instanceof Error ? e.message : "Please try again.");
+              void load();
+            }
+          },
+        },
+      ]
+    );
 
   const live = (rounds ?? []).filter((r) => r.status === "live");
   const finished = (rounds ?? []).filter((r) => r.status === "finished");
@@ -114,16 +139,22 @@ export default function LiveScoringHub() {
         />
       ) : (
         <>
-          {(days ?? []).length > 0 ? <DayList days={days!} /> : null}
-          {live.length > 0 ? <RoundList title="In play" rounds={live} /> : null}
-          {finished.length > 0 ? <RoundList title="Finished" rounds={finished} /> : null}
+          {(days ?? []).length > 0 ? (
+            <DayList days={days!} me={userId} onDelete={(d) => confirmDelete("day", d.id, d.title, d.live)} />
+          ) : null}
+          {live.length > 0 ? (
+            <RoundList title="In play" rounds={live} me={userId} onDelete={(r) => confirmDelete("round", r.id, r.courseName, true)} />
+          ) : null}
+          {finished.length > 0 ? (
+            <RoundList title="Finished" rounds={finished} me={userId} onDelete={(r) => confirmDelete("round", r.id, r.courseName, false)} />
+          ) : null}
         </>
       )}
     </ScrollView>
   );
 }
 
-function DayList({ days }: { days: MatchDaySummary[] }) {
+function DayList({ days, me, onDelete }: { days: MatchDaySummary[]; me: string | null; onDelete: (d: MatchDaySummary) => void }) {
   return (
     <View style={styles.section}>
       <Text style={styles.sectionTitle}>Match days</Text>
@@ -145,6 +176,7 @@ function DayList({ days }: { days: MatchDaySummary[] }) {
                 {d.courseName} · {dateLabel(d.playedOn)} · {d.matchCount} {d.matchCount === 1 ? "match" : "matches"}
               </Text>
             </View>
+            {me != null && d.createdBy === me ? <DeleteButton label={`Delete ${d.title}`} onPress={() => onDelete(d)} /> : null}
             <Ionicons name="chevron-forward" size={18} color={colors.ink500} />
           </Pressable>
         ))}
@@ -153,7 +185,17 @@ function DayList({ days }: { days: MatchDaySummary[] }) {
   );
 }
 
-function RoundList({ title, rounds }: { title: string; rounds: LiveRoundSummary[] }) {
+function RoundList({
+  title,
+  rounds,
+  me,
+  onDelete,
+}: {
+  title: string;
+  rounds: LiveRoundSummary[];
+  me: string | null;
+  onDelete: (r: LiveRoundSummary) => void;
+}) {
   return (
     <View style={styles.section}>
       <Text style={styles.sectionTitle}>{title}</Text>
@@ -176,6 +218,7 @@ function RoundList({ title, rounds }: { title: string; rounds: LiveRoundSummary[
                 {r.playerCount === 1 ? "player" : "players"}
               </Text>
             </View>
+            {me != null && r.createdBy === me ? <DeleteButton label={`Delete the round at ${r.courseName}`} onPress={() => onDelete(r)} /> : null}
             <Ionicons name="chevron-forward" size={18} color={colors.ink500} />
           </Pressable>
         ))}
@@ -184,7 +227,17 @@ function RoundList({ title, rounds }: { title: string; rounds: LiveRoundSummary[
   );
 }
 
+/** Its own press target inside the row, so deleting never opens the round. */
+function DeleteButton({ label, onPress }: { label: string; onPress: () => void }) {
+  return (
+    <Pressable onPress={onPress} hitSlop={6} style={styles.trash} accessibilityRole="button" accessibilityLabel={label}>
+      <Ionicons name="trash-outline" size={18} color={colors.ink500} />
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
+  trash: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
   page: { padding: spacing.md, gap: spacing.lg, paddingBottom: spacing.xl },
   hero: {
     backgroundColor: colors.navy900,
