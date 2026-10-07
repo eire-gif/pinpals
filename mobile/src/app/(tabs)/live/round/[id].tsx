@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { Stack, useFocusEffect, useLocalSearchParams } from "expo-router";
+import { Stack, router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { LoadError, StateMessage } from "@/components/state-message";
+import { useAuth } from "@/lib/auth";
 import { isOn } from "@/lib/features";
+import { SIDE_COLORS, SIDE_TEXT, asMatchPlayers, loadMatchDayHeader, type MatchDay } from "@/lib/live-match-days";
 import {
   finishLiveRound,
   loadLiveRound,
@@ -17,11 +19,14 @@ import {
 import {
   buildBoard,
   formatInfo,
-  matchState,
+  isOneBallPerSide,
+  matchCompetitors,
   netScoreName,
   shotsByHole,
   stablefordPoints,
+  teamMatchState,
   toParLabel,
+  type MatchFormat,
 } from "@/lib/live-scoring";
 import { colors, creamAlpha, fonts, radii, spacing, type } from "@/lib/theme";
 
@@ -50,6 +55,9 @@ export default function LiveRoundScreen() {
   const [view, setView] = useState<"score" | "board">("score");
   const [hole, setHole] = useState(1);
   const [editingCard, setEditingCard] = useState(false);
+  const [dayHeader, setDayHeader] = useState<Pick<MatchDay, "id" | "createdBy" | "title" | "teamNames"> | null>(null);
+  const { session } = useAuth();
+  const me = session?.user?.id ?? null;
   const started = useRef(false);
 
   const load = useCallback(async () => {
@@ -57,6 +65,7 @@ export default function LiveRoundScreen() {
       setFailed(false);
       const d = await loadLiveRound(roundId);
       setData(d);
+      if (d?.round.matchDayId != null) setDayHeader(await loadMatchDayHeader(d.round.matchDayId));
       // Open on the first hole anyone still has to score, once.
       if (d && !started.current) {
         started.current = true;
@@ -88,7 +97,38 @@ export default function LiveRoundScreen() {
   const { round, players, card, scores } = data;
   const live = round.status === "live";
   const h = card.find((c) => c.hole === hole) ?? card[0];
-  const info = formatInfo(round.format);
+  const matchFormat: MatchFormat | null = round.matchFormat;
+  const info = formatInfo(matchFormat ?? round.format);
+
+  // Who may enter scores: the round's own players, whoever started it, and a
+  // match day's organiser (0104). Everyone else in a match day can watch.
+  const canScore =
+    live &&
+    (round.createdBy === me || players.some((p) => p.memberId != null && p.memberId === me) || (dayHeader?.createdBy != null && dayHeader.createdBy === me));
+
+  // Shots on this hole. A match gives them out per competitor (a player, or a
+  // pair in foursomes), off the lowest in the match; a stroke or Stableford
+  // round from each player's own playing handicap.
+  const competitors = matchFormat ? matchCompetitors(matchFormat, asMatchPlayers(players)) : null;
+  const shotsFor = (playerId: number): number | null => {
+    const comp = competitors?.find((c) => c.playerIds.includes(playerId));
+    if (comp) return shotsByHole(comp.shots, card)?.get(h.hole) ?? null;
+    const p = players.find((x) => x.id === playerId);
+    return p ? (shotsByHole(p.playingHandicap, card)?.get(h.hole) ?? null) : null;
+  };
+  const sideName = (n: number) =>
+    dayHeader?.teamNames?.[n - 1] ?? players.filter((p) => p.side === n).map((p) => p.name.split(" ")[0]).join(" & ");
+
+  // The rows to score. One per player, except foursomes and greensomes:
+  // one per pair, written against the pair's first player.
+  type Row = { id: number; name: string; side: number | null };
+  const rows: Row[] =
+    matchFormat && isOneBallPerSide(matchFormat)
+      ? [1, 2].map((n) => {
+          const pair = players.filter((p) => p.side === n).sort((a, b) => a.position - b.position);
+          return { id: pair[0]?.id ?? -n, name: pair.map((p) => p.name.split(" ")[0]).join(" & "), side: n };
+        }).filter((r) => r.id > 0)
+      : [...players].sort((a, b) => (a.side ?? 0) - (b.side ?? 0) || a.position - b.position).map((p) => ({ id: p.id, name: p.name, side: p.side ?? null }));
 
   /** Optimistic: draw it now, write it, reload on failure. */
   const score = async (playerId: number, strokes: number | null, clear = false) => {
@@ -150,7 +190,18 @@ export default function LiveRoundScreen() {
 
   return (
     <View style={{ flex: 1 }}>
-      <Stack.Screen options={{ title: round.courseName }} />
+      <Stack.Screen options={{ title: round.matchNumber ? `Match ${round.matchNumber}` : round.courseName }} />
+      {dayHeader ? (
+        <Pressable
+          onPress={() => router.push({ pathname: "/live/day/[id]", params: { id: String(dayHeader.id) } })}
+          style={styles.dayLink}
+          accessibilityRole="button"
+        >
+          <Ionicons name="podium-outline" size={16} color={colors.green700} />
+          <Text style={styles.link}>{dayHeader.title}: all matches</Text>
+          <Ionicons name="chevron-forward" size={16} color={colors.green700} />
+        </Pressable>
+      ) : null}
 
       <View style={styles.tabs} accessibilityRole="tablist">
         {(["score", "board"] as const).map((v) => (
@@ -260,8 +311,9 @@ export default function LiveRoundScreen() {
             </View>
           ) : null}
 
-          {players.map((p) => {
-            const shots = shotsByHole(p.playingHandicap, card)?.get(h.hole) ?? null;
+          {rows.map((p, i) => {
+            const shots = shotsFor(p.id);
+            const sideHeader = matchFormat && p.side != null && (i === 0 || rows[i - 1].side !== p.side);
             const mine = scores.get(p.id);
             const entered = mine?.has(h.hole) ?? false;
             const strokes = entered ? (mine!.get(h.hole) ?? null) : null;
@@ -269,7 +321,13 @@ export default function LiveRoundScreen() {
             const pts = entered && shots != null ? stablefordPoints(strokes, h.par, shots) : null;
             const name = entered && strokes != null && shots != null ? netScoreName(strokes, h.par, shots) : entered && strokes == null ? "Picked up" : null;
             return (
-              <View key={p.id} style={styles.player}>
+              <View key={p.id} style={{ gap: spacing.sm }}>
+              {sideHeader ? (
+                <View style={[styles.sideTag, { backgroundColor: SIDE_COLORS[(p.side ?? 1) - 1] }]}>
+                  <Text style={[styles.sideTagText, { color: SIDE_TEXT[(p.side ?? 1) - 1] }]}>{sideName(p.side ?? 1)}</Text>
+                </View>
+              ) : null}
+              <View style={styles.player}>
                 <View style={{ flex: 1, gap: 6 }}>
                   <View style={styles.nameRow}>
                     <Text style={styles.playerName} numberOfLines={1}>
@@ -287,10 +345,10 @@ export default function LiveRoundScreen() {
                     {round.format === "stableford" && pts != null ? (
                       <Text style={[styles.badge, pts >= 3 ? styles.badgeGood : pts === 0 ? styles.badgeNil : null]}>{pts} pts</Text>
                     ) : null}
-                    <Text style={styles.playerMeta}>{name ?? (entered ? "" : `Plays off ${p.playingHandicap}`)}</Text>
+                    <Text style={styles.playerMeta}>{name ?? (entered ? "" : shots != null ? `${shots} ${Math.abs(shots) === 1 ? "shot" : "shots"} here` : "")}</Text>
                   </View>
                 </View>
-                {live ? (
+                {canScore ? (
                   <View style={styles.stepper}>
                     <StepButton label="−" a11y={`One fewer for ${p.name}`} onPress={() => void score(p.id, Math.max(1, (shown ?? h.par) - 1))} />
                     <Pressable
@@ -308,14 +366,18 @@ export default function LiveRoundScreen() {
                   <Text style={styles.strokes}>{entered ? (strokes ?? "P") : "–"}</Text>
                 )}
               </View>
+              </View>
             );
           })}
 
-          {live ? (
+          {!canScore && live ? (
+            <Text style={styles.footNote}>You're watching this match. Its own players score it.</Text>
+          ) : null}
+          {canScore ? (
             <View style={styles.footerRow}>
               <Text style={styles.footNote}>Tap the number to confirm it · hold it to clear</Text>
               <View style={styles.pickupRow}>
-                {players.map((p) => (
+                {rows.map((p) => (
                   <Pressable key={p.id} onPress={() => void score(p.id, null)} style={styles.pickup} accessibilityRole="button">
                     <Text style={styles.pickupText}>{p.name.split(" ")[0]} picked up</Text>
                   </Pressable>
@@ -341,9 +403,8 @@ export default function LiveRoundScreen() {
             </Text>
           ) : null}
 
-          {round.format === "matchplay" && players.length === 2 ? (
-            <MatchView data={data} />
-          ) : (
+          {matchFormat ? (
+            <MatchView data={data} format={matchFormat} sideName={sideName} />          ) : (
             <View style={styles.table}>
               <View style={[styles.tr, styles.th]}>
                 <Text style={[styles.thText, styles.cPos]}>Pos</Text>
@@ -366,7 +427,7 @@ export default function LiveRoundScreen() {
             </View>
           )}
 
-          {round.format !== "matchplay" ? (
+          {!matchFormat ? (
             <Text style={styles.footNote}>
               {round.format === "stroke"
                 ? "Net is against par for the holes played."
@@ -379,9 +440,19 @@ export default function LiveRoundScreen() {
             {players.map((p) => (
               <Text key={p.id} style={styles.playerMeta}>
                 {p.name}: index {p.handicapIndex}, course {p.courseHandicap}
-                {p.estimated ? " (estimated)" : ""}, plays off {p.playingHandicap}
+                {p.estimated ? " (estimated)" : ""}
+                {matchFormat ? "" : `, plays off ${p.playingHandicap}`}
               </Text>
             ))}
+            {competitors && competitors.some((c) => c.shots > 0) ? (
+              <Text style={styles.playerMeta}>
+                Shots in this match:{" "}
+                {competitors
+                  .filter((c) => c.shots > 0)
+                  .map((c) => `${c.playerIds.map((id) => players.find((p) => p.id === id)?.name.split(" ")[0]).join(" & ")} ${c.shots}`)
+                  .join(", ")}
+              </Text>
+            ) : null}
           </View>
 
           {cardComplete && round.clubId != null ? (
@@ -391,9 +462,9 @@ export default function LiveRoundScreen() {
             </Pressable>
           ) : null}
 
-          {live ? (
+          {canScore ? (
             <Pressable onPress={finish} style={styles.next} accessibilityRole="button">
-              <Text style={styles.nextLabel}>Finish round</Text>
+              <Text style={styles.nextLabel}>{matchFormat ? "Finish match" : "Finish round"}</Text>
             </Pressable>
           ) : null}
         </ScrollView>
@@ -402,42 +473,41 @@ export default function LiveRoundScreen() {
   );
 }
 
-function MatchView({ data }: { data: LiveRoundData }) {
-  const [a, b] = [...data.players].sort((x, y) => (x.side ?? x.position) - (y.side ?? y.position));
-  const m = matchState(data.card, a, b, data.scores);
+function MatchView({ data, format, sideName }: { data: LiveRoundData; format: MatchFormat; sideName: (n: number) => string }) {
+  const m = teamMatchState(format, data.card, asMatchPlayers(data.players), data.scores);
   if (!m) {
     return <StateMessage icon="list-outline" body="Matchplay needs every hole's stroke index before shots can be given. Fill them in on the Score tab." />;
   }
-  const byHole = new Map(m.results.map((r) => [r.hole, r.result]));
+  const byHole = new Map(m.holes.map((r) => [r.hole, r.result]));
+  const status = m.leader === 0 ? m.margin : `${sideName(m.leader)} ${m.margin}`;
   return (
     <View style={{ gap: spacing.md }}>
       <View style={styles.matchCard}>
-        <Text style={styles.matchSide}>{a.name}</Text>
+        <Text style={styles.matchSide}>{sideName(1)}</Text>
         <View style={styles.matchStatus}>
-          <Text style={styles.matchLabel}>{m.label}</Text>
-          <Text style={styles.matchSub}>{m.finished ? "Match over" : `thru ${m.results.length} · ${m.holesLeft} to play`}</Text>
+          <Text style={styles.matchLabel}>{status}</Text>
+          <Text style={styles.matchSub}>
+            {m.finished ? "Match over" : m.dormie ? `Dormie · ${m.holesLeft} to play` : `thru ${m.holes.length} · ${m.holesLeft} to play`}
+          </Text>
         </View>
-        <Text style={[styles.matchSide, { textAlign: "right" }]}>{b.name}</Text>
+        <Text style={[styles.matchSide, { textAlign: "right" }]}>{sideName(2)}</Text>
       </View>
       <View style={styles.grid}>
         {data.card.map((c) => {
           const r = byHole.get(c.hole);
+          const bg = r === "won" ? SIDE_COLORS[0] : r === "lost" ? SIDE_COLORS[1] : null;
+          const fg = r === "won" ? SIDE_TEXT[0] : r === "lost" ? SIDE_TEXT[1] : colors.ink900;
           return (
             <View key={c.hole} style={styles.gridCell}>
               <Text style={styles.gridHole}>{c.hole}</Text>
-              <View style={[styles.gridMark, r === "won" && styles.gWon, r === "lost" && styles.gLost, r === "halved" && styles.gHalf]}>
-                <Text style={[styles.gridText, (r === "won" || r === "lost") && { color: colors.cream50 }]}>
-                  {r === "won" ? "W" : r === "lost" ? "L" : r === "halved" ? "½" : ""}
-                </Text>
+              <View style={[styles.gridMark, bg ? { backgroundColor: bg, borderColor: bg, borderStyle: "solid" } : null, r === "halved" && styles.gHalf]}>
+                <Text style={[styles.gridText, { color: fg }]}>{r === "halved" ? "½" : r ? "●" : ""}</Text>
               </View>
             </View>
           );
         })}
       </View>
-      <Text style={styles.footNote}>
-        From {a.name}'s side. {m.shots[0] > 0 ? `${a.name} receives ${m.shots[0]}` : m.shots[1] > 0 ? `${b.name} receives ${m.shots[1]}` : "Level"}
-        {m.shots[0] > 0 || m.shots[1] > 0 ? " shots, by stroke index." : "."}
-      </Text>
+      <Text style={styles.footNote}>Each hole is coloured by the side that won it; ½ is a halved hole.</Text>
     </View>
   );
 }
@@ -465,6 +535,9 @@ function StepButton({ label, a11y, dark = false, onPress }: { label: string; a11
 }
 
 const styles = StyleSheet.create({
+  dayLink: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: spacing.md, paddingTop: spacing.sm, minHeight: 36 },
+  sideTag: { alignSelf: "flex-start", paddingHorizontal: 12, paddingVertical: 4, borderRadius: radii.pill, marginTop: spacing.xs },
+  sideTagText: { fontFamily: fonts.bodyBold, fontSize: 12, letterSpacing: 1, textTransform: "uppercase" },
   tabs: { flexDirection: "row", gap: spacing.sm, paddingHorizontal: spacing.md, paddingTop: spacing.sm },
   tab: { flex: 1, minHeight: 40, borderRadius: radii.pill, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface, alignItems: "center", justifyContent: "center" },
   tabOn: { backgroundColor: colors.navy900, borderColor: colors.navy900 },

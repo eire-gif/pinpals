@@ -87,6 +87,10 @@ const PATTERNS: { match: RegExp; to: (id: string) => string }[] = [
   { match: /^\/tee-times\/(\d+)$/, to: (id) => `/invite/${id}` },
   // The feed (0088). A like or comment alert points at the post.
   { match: /^\/feed\/(\d+)$/, to: (id) => `/post/${id}` },
+  // Live scoring (0103/0104): "you're in a match" opens the scorecard, a
+  // match result opens the match-day board.
+  { match: /^\/live\/rounds\/(\d+)$/, to: (id) => `/live/round/${id}` },
+  { match: /^\/live\/days\/(\d+)$/, to: (id) => `/live/day/${id}` },
   // A member's page is keyed by their uuid, not a number — the one pattern
   // here that is not `\d+`, and still exact: anything that is not a uuid
   // falls through to the web view rather than to a screen that would only

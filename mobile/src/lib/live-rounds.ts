@@ -1,6 +1,7 @@
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
-import type { CardHole, LiveFormat, LivePlayer, ScoreSheet } from "./live-scoring";
+import { postToSite } from "./api";
+import type { CardHole, LiveFormat, LivePlayer, MatchFormat, ScoreSheet } from "./live-scoring";
 import { supabase } from "./supabase";
 
 /**
@@ -37,6 +38,12 @@ export type LiveRound = {
   allowance: number;
   status: "live" | "finished";
   playedOn: string;
+  /** Set when this round is a match in a match day (0104). */
+  matchDayId: number | null;
+  matchNumber: number | null;
+  /** The match's format for the engine: "matchplay" is singles. */
+  matchFormat: MatchFormat | null;
+  teeTime: string | null;
 };
 
 export type LiveRoundPlayer = LivePlayer & {
@@ -68,10 +75,15 @@ type RoundRow = {
   allowance: number;
   status: "live" | "finished";
   played_on: string;
+  match_day_id: number | null;
+  match_number: number | null;
+  match_type: "singles" | "fourball" | "foursomes" | "greensomes" | null;
+  tee_time: string | null;
 };
 
 type PlayerRow = {
   id: number;
+  round_id: number;
   member_id: string | null;
   display_name: string;
   handicap_index: number;
@@ -82,10 +94,13 @@ type PlayerRow = {
   side: number | null;
 };
 
-const ROUND_SELECT =
-  "id, created_by, club_id, course_name, tee_name, format, holes, course_rating, slope, par_total, allowance, status, played_on";
+export const ROUND_SELECT =
+  "id, created_by, club_id, course_name, tee_name, format, holes, course_rating, slope, par_total, allowance, status, played_on, match_day_id, match_number, match_type, tee_time";
 
-const toRound = (r: RoundRow): LiveRound => ({
+export const toMatchFormat = (t: RoundRow["match_type"]): MatchFormat | null =>
+  t == null ? null : t === "singles" ? "matchplay" : t;
+
+export const toRound = (r: RoundRow): LiveRound => ({
   id: r.id,
   createdBy: r.created_by,
   clubId: r.club_id,
@@ -100,7 +115,13 @@ const toRound = (r: RoundRow): LiveRound => ({
   allowance: Number(r.allowance),
   status: r.status,
   playedOn: r.played_on,
+  matchDayId: r.match_day_id,
+  matchNumber: r.match_number,
+  matchFormat: toMatchFormat(r.match_type) ?? (r.format === "matchplay" ? "matchplay" : null),
+  teeTime: r.tee_time ? r.tee_time.slice(0, 5) : null,
 });
+
+export type { RoundRow };
 
 /** The rounds I started or am playing in, live ones first. */
 export async function loadMyLiveRounds(userId: string): Promise<LiveRoundSummary[]> {
@@ -116,6 +137,7 @@ export async function loadMyLiveRounds(userId: string): Promise<LiveRoundSummary
   let query = supabase
     .from("live_rounds")
     .select(`id, course_name, format, status, played_on, created_at, live_round_players (count)`)
+    .is("match_day_id", null) // matches are listed under their match day
     .order("created_at", { ascending: false })
     .limit(30);
   query = ids.length > 0 ? query.or(`created_by.eq.${userId},id.in.(${ids.join(",")})`) : query.eq("created_by", userId);
@@ -146,12 +168,29 @@ export async function loadMyLiveRounds(userId: string): Promise<LiveRoundSummary
 
 /** Everything a scoring screen draws, in four parallel reads. Null if the
  *  round doesn't exist or isn't mine to see — RLS makes those the same. */
+export const PLAYER_SELECT =
+  "id, round_id, member_id, display_name, handicap_index, course_handicap, playing_handicap, handicap_estimated, position, side";
+
+export const toPlayer = (p: PlayerRow): LiveRoundPlayer => ({
+  id: p.id,
+  name: p.display_name,
+  memberId: p.member_id,
+  handicapIndex: Number(p.handicap_index),
+  courseHandicap: p.course_handicap,
+  playingHandicap: p.playing_handicap,
+  estimated: p.handicap_estimated,
+  position: p.position,
+  side: p.side,
+});
+
+export type { PlayerRow };
+
 export async function loadLiveRound(id: number): Promise<LiveRoundData | null> {
   const [round, players, holes, scores] = await Promise.all([
     supabase.from("live_rounds").select(ROUND_SELECT).eq("id", id).maybeSingle<RoundRow>(),
     supabase
       .from("live_round_players")
-      .select("id, member_id, display_name, handicap_index, course_handicap, playing_handicap, handicap_estimated, position, side")
+      .select(PLAYER_SELECT)
       .eq("round_id", id)
       .order("position")
       .overrideTypes<PlayerRow[]>(),
@@ -179,17 +218,7 @@ export async function loadLiveRound(id: number): Promise<LiveRoundData | null> {
 
   return {
     round: toRound(round.data),
-    players: (players.data ?? []).map((p) => ({
-      id: p.id,
-      name: p.display_name,
-      memberId: p.member_id,
-      handicapIndex: Number(p.handicap_index),
-      courseHandicap: p.course_handicap,
-      playingHandicap: p.playing_handicap,
-      estimated: p.handicap_estimated,
-      position: p.position,
-      side: p.side,
-    })),
+    players: (players.data ?? []).map(toPlayer),
     card: (holes.data ?? []).map((h) => ({ hole: h.hole, par: h.par, strokeIndex: h.stroke_index })),
     scores: sheet,
   };
@@ -244,7 +273,10 @@ export async function createLiveRound(round: NewRound, players: NewPlayer[], car
     p_card: card.map((h) => ({ hole: h.hole, par: h.par, stroke_index: h.strokeIndex })),
   });
   if (error) throw error;
-  return data as number;
+  const id = data as number;
+  // Tell the PinPals in it. Best effort: the round exists either way.
+  void postToSite(`/api/app/live/rounds/${id}/notify`, {}).catch(() => undefined);
+  return id;
 }
 
 /** strokes null = picked up; clear removes the entry altogether. */
@@ -272,6 +304,9 @@ export async function setLiveHole(roundId: number, hole: number, par: number, st
 export async function finishLiveRound(roundId: number): Promise<void> {
   const { error } = await supabase.rpc("live_round_finish", { p_round_id: roundId });
   if (error) throw error;
+  // A match in a match day: everyone in the day hears the result. The site
+  // sends nothing for an ordinary round. Best effort.
+  void postToSite(`/api/app/live/rounds/${roundId}/finished`, {}).catch(() => undefined);
 }
 
 // ---------------------------------------------------------------------------

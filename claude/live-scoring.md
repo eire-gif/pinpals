@@ -110,3 +110,80 @@ single source and replays cleanly.
 - Entry points: `components/live-scoring-card.tsx` (Home), `lib/menu.ts`
   (`feature: "liveScoring"`, filtered by `visibleMenu()`)
 - Hidden tab: `Tabs.Screen name="live"` in `app/(tabs)/_layout.tsx`
+
+---
+
+# Match days (0104)
+
+Several matches at one course on one day, optionally between two teams
+(Blues v Golds, a point a match, a half for a halved one).
+
+## What a member does
+
+- **Organiser:** Live scoring → *Start a match day*: name, course and tees
+  (shared `components/live-course-section.tsx`), team names, then matches.
+  Each match has a format (singles, fourball, foursomes, greensomes), an
+  optional tee time, and players on each side: themselves, PinPals or guests.
+  Nobody plays two matches.
+- **Every PinPal on the card** gets a notification ("Saturday Society:
+  you're in Match 2 … tap to open your scorecard") that opens their own match.
+- **Players score their own match**; the organiser can score any (to fix a
+  group's mis-tap). Everyone else in the day can open any match and watch.
+- **The board** (`live/day/[id]`) shows the team score, a projection if every
+  match ended as it stands, and each match: who leads, by how much, thru
+  which hole, and an 18-cell strip coloured by who won each hole.
+- **When a match finishes**, everyone in the day is told the result and the
+  team score ("Match 3: Golds win 3&2 · Blues 1½ – Golds 1½, one match still out").
+
+## Scoring — `teamMatchState()` in live-scoring.ts
+
+| Format | Handicaps (WHS) | A side's score on a hole |
+|---|---|---|
+| Singles | 100%; the higher gets the difference | the player's net |
+| Fourball | 90% each, off the lowest of the four | the better net of the pair |
+| Foursomes | 50% of the pair's combined course handicaps | the pair's one ball |
+| Greensomes | 60% of the lower + 40% of the higher | the pair's one ball |
+
+One-ball pairs' scores are stored against the pair's first player. A hole
+counts once every ball has an entry (null = picked up); a match stops being
+counted once decided (3&2). Fourball was previously listed at 85%: that is
+the stroke-play figure, now corrected to 90%.
+
+## Database
+
+- `live_match_days`: title, course details, `team_names` (null or two).
+- Matches are `live_rounds` with `match_day_id`, `match_number`,
+  `match_type` (singles/fourball/foursomes/greensomes) and `tee_time`;
+  `format` stays `matchplay`. A new column rather than widening the
+  `format` CHECK, because that needs a `drop constraint` and the Supabase
+  tool cancels any batch containing a drop.
+- `can_view_live_round` now also lets anyone in the match day see a match;
+  `can_score_live_round` (new) limits writing to the match's own players, the
+  round's creator and the day's organiser. `live_round_set_score`,
+  `live_round_set_hole` and `live_round_finish` use it.
+- `live_match_day_create()` writes the day, every match, its players and a
+  copy of the card in one call, after checking every player (self, accepted
+  PinPal or guest; not blocked; nobody twice) and every match's shape.
+- Broadcasts also go to `live-day-<id>` (policy via `can_view_match_day`).
+- Tests: `supabase/tests/rls/match-days.test.ts` (7), verified to fail when
+  scoring is opened to every viewer. Function-grants register updated.
+
+## Notifications — website
+
+`src/lib/live-match-notifications.ts`, called by three app routes after the
+app has written the data:
+
+| Route | When | Type |
+|---|---|---|
+| `POST /api/app/live/rounds/[id]/notify` | a round is started (creator only) | `live_round_added` |
+| `POST /api/app/live/match-days/[id]/notify` | a match day is started (organiser only) | `live_match_added` |
+| `POST /api/app/live/rounds/[id]/finished` | a match is finished | `live_match_result` |
+
+All are in the **Tee times & matches** category (renamed; same switch), so a
+member can turn them off with tee-time alerts. Every one has a dedupe key per
+match and member, so retries never notify twice. Hrefs are `/live/rounds/<id>`
+and `/live/days/<id>`: the app routes them natively (`alert-routes.ts`), the
+AASA claims `/live/*`, and the website shows an "open in the app" page.
+
+Not built: a "you're on the tee" reminder at tee time. It would need a
+scheduled job; the tee time is stored, so it can be added later.

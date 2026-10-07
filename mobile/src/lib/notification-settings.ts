@@ -23,7 +23,7 @@ export const CATEGORY_LABELS: Record<Category, string> = {
   offers: "Offers",
   auctions: "Auctions & bids",
   reviews: "Reviews",
-  tee_times: "Tee times",
+  tee_times: "Tee times & matches",
   feed: "Your posts",
 };
 
@@ -32,7 +32,7 @@ export const CATEGORY_DESCRIPTIONS: Record<Category, string> = {
   offers: "Offers you receive, and updates on offers you've made.",
   auctions: "Outbid alerts, auctions ending soon, and results.",
   reviews: "When you're able to leave a review after a completed order.",
-  tee_times: "When someone you've connected with posts a tee time.",
+  tee_times: "When someone you've connected with posts a tee time, adds you to a round or match day, or a match in it finishes.",
   feed: "When another member comments on something you posted, or replies to your comment.",
 };
 

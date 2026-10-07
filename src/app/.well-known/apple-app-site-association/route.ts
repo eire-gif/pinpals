@@ -85,6 +85,7 @@ const ASSOCIATION = {
           { "/": "/members", comment: "Find PinPals." },
           { "/": "/members/*", comment: "A member's page." },
           { "/": "/community", comment: "Find PinPals." },
+          { "/": "/live/*", comment: "Live scoring: a scorecard or a match-day board." },
         ],
       },
     ],

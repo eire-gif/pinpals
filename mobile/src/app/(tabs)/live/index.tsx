@@ -6,6 +6,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { LoadError, StateMessage } from "@/components/state-message";
 import { useAuth } from "@/lib/auth";
 import { isOn } from "@/lib/features";
+import { loadMyMatchDays, type MatchDaySummary } from "@/lib/live-match-days";
 import { loadMyLiveRounds, type LiveRoundSummary } from "@/lib/live-rounds";
 import { formatInfo } from "@/lib/live-scoring";
 import { dateLabel } from "@/lib/tee-times";
@@ -21,6 +22,7 @@ export default function LiveScoringHub() {
   const { session } = useAuth();
   const userId = session?.user?.id ?? null;
   const [rounds, setRounds] = useState<LiveRoundSummary[] | null>(null);
+  const [days, setDays] = useState<MatchDaySummary[] | null>(null);
   const [failed, setFailed] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -28,7 +30,9 @@ export default function LiveScoringHub() {
     if (!userId || !isOn("liveScoring")) return;
     try {
       setFailed(false);
-      setRounds(await loadMyLiveRounds(userId));
+      const [r, d] = await Promise.all([loadMyLiveRounds(userId), loadMyMatchDays()]);
+      setRounds(r);
+      setDays(d);
     } catch {
       setFailed(true);
     }
@@ -87,24 +91,65 @@ export default function LiveScoringHub() {
           <Ionicons name="flag" size={18} color={colors.cream50} />
           <Text style={styles.startLabel}>Start a round</Text>
         </Pressable>
+        <Pressable
+          onPress={() => router.push("/live/day/new")}
+          style={({ pressed }) => [styles.startDay, pressed && styles.pressed]}
+          accessibilityRole="button"
+          accessibilityHint="Several matches at once, in teams if you like"
+        >
+          <Ionicons name="people" size={18} color={colors.navy900} />
+          <Text style={styles.startDayLabel}>Start a match day</Text>
+        </Pressable>
+        <Text style={styles.heroHint}>A match day is several matches at once: singles, fourball, foursomes or greensomes, with a team score.</Text>
       </View>
 
       {failed ? (
         <LoadError what="your rounds" onRetry={() => void load()} />
       ) : rounds == null ? (
         <ActivityIndicator color={colors.green700} style={{ marginTop: spacing.lg }} />
-      ) : rounds.length === 0 ? (
+      ) : rounds.length === 0 && (days ?? []).length === 0 ? (
         <StateMessage
           icon="golf-outline"
           body="Rounds you score, or are added to by your PinPals, will show here."
         />
       ) : (
         <>
+          {(days ?? []).length > 0 ? <DayList days={days!} /> : null}
           {live.length > 0 ? <RoundList title="In play" rounds={live} /> : null}
           {finished.length > 0 ? <RoundList title="Finished" rounds={finished} /> : null}
         </>
       )}
     </ScrollView>
+  );
+}
+
+function DayList({ days }: { days: MatchDaySummary[] }) {
+  return (
+    <View style={styles.section}>
+      <Text style={styles.sectionTitle}>Match days</Text>
+      <View style={styles.list}>
+        {days.map((d, i) => (
+          <Pressable
+            key={d.id}
+            onPress={() => router.push({ pathname: "/live/day/[id]", params: { id: String(d.id) } })}
+            style={({ pressed }) => [styles.row, i > 0 && styles.rowDivider, pressed && styles.rowPressed]}
+            accessibilityRole="button"
+            accessibilityLabel={`${d.title}, ${d.courseName}, ${d.live ? "in play" : "finished"}`}
+          >
+            <View style={[styles.dot, d.live ? styles.dotLive : styles.dotDone]} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.rowTitle} numberOfLines={1}>
+                {d.title}
+              </Text>
+              <Text style={styles.rowMeta}>
+                {d.courseName} · {dateLabel(d.playedOn)} · {d.matchCount} {d.matchCount === 1 ? "match" : "matches"}
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.ink500} />
+          </Pressable>
+        ))}
+      </View>
+    </View>
   );
 }
 
@@ -163,6 +208,17 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   startLabel: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.cream50 },
+  startDay: {
+    minHeight: 50,
+    borderRadius: radii.pill,
+    backgroundColor: colors.gold400,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.sm,
+  },
+  startDayLabel: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.navy900 },
+  heroHint: { fontFamily: fonts.body, fontSize: 12, lineHeight: 17, color: colors.cream100, textAlign: "center" },
   pressed: { opacity: 0.85 },
   section: { gap: spacing.sm },
   sectionTitle: { fontFamily: fonts.bodyBold, fontSize: 12, letterSpacing: 1.2, textTransform: "uppercase", color: colors.ink500 },

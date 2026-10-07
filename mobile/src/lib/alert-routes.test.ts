@@ -275,6 +275,9 @@ describe("every native destination is a screen that exists", () => {
 
   it("sends feed alerts to the native post, and member links to the native member page", () => {
     expect(appRouteFor("/feed/57")).toEqual({ kind: "native", path: "/post/57" });
+    expect(appRouteFor("/live/rounds/12")).toEqual({ kind: "native", path: "/live/round/12" });
+    expect(appRouteFor("/live/days/3")).toEqual({ kind: "native", path: "/live/day/3" });
+    expect(appRouteFor("/live/days/x").kind).toBe("web");
     expect(appRouteFor("/feed")).toEqual({ kind: "native", path: "/feed" });
     expect(appRouteFor("/members/0b6f1a3e-8c2d-4f5a-9e7b-1c2d3e4f5a6b")).toEqual({
       kind: "native",
