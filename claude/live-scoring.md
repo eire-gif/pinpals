@@ -187,3 +187,37 @@ AASA claims `/live/*`, and the website shows an "open in the app" page.
 
 Not built: a "you're on the tee" reminder at tee time. It would need a
 scheduled job; the tee time is stored, so it can be added later.
+
+---
+
+# Fixes from the first tester rounds (0105, PR #134)
+
+From the 7 Oct rounds in production:
+
+- **Matchplay board blank while playing.** `teamMatchState` needed all 18
+  stroke indexes before it counted anything. Groups enter them hole by hole,
+  and round 6 (a full fourball) reached 17, so its board never showed. Now
+  `shotsSoFar()` gives a hole its shots as soon as its own index is in. On a
+  full-length card SI n is the nth hardest hole, so the result matches the
+  full-card allocation exactly. Off scratch, no index is needed at all. A
+  match plays on hole by hole and stops at the first hole still missing an
+  index (`waitingForIndex`), and both screens name that hole. A 9-hole round
+  marked from an 18-hole card still waits for the full card.
+- **The same index on two holes** (round 6 had 13 and 4 twice each). Used
+  numbers were greyed out but tappable. They're now locked, and
+  `live_round_set_hole` refuses a duplicate. A hole that already had a
+  duplicate can still change its par.
+- **Delete.** `live_round_delete` (the round's starter, or its match day's
+  organiser) and `live_match_day_delete` (organiser). Live or finished; the
+  cascade removes players, card and scores, and a ping tells open screens.
+  Delete is available from the list (trash icon), the Leaderboard tab and
+  the match-day board.
+- **Catching up.** Pings were being sent (confirmed in `realtime.messages`),
+  but a phone locked between shots drops its connection.
+  `useLiveRefresh()` reloads when the app comes back to the front, and
+  every 20s while a round is live.
+
+Applying it: 0105a (the index check) went in normally. 0105b holds the two
+delete functions. The Supabase tool asks for confirmation because of the
+`delete` statements in their bodies, so it needs Eire's approval when
+it's applied.

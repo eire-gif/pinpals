@@ -67,6 +67,7 @@ export type MatchDaySummary = {
   playedOn: string;
   matchCount: number;
   live: boolean;
+  createdBy: string | null;
 };
 
 type DayRow = {
@@ -109,10 +110,10 @@ export const asMatchPlayers = (players: LiveRoundPlayer[]): MatchPlayer[] =>
 export async function loadMyMatchDays(): Promise<MatchDaySummary[]> {
   const { data, error } = await supabase
     .from("live_match_days")
-    .select("id, title, course_name, played_on, live_rounds (status)")
+    .select("id, created_by, title, course_name, played_on, live_rounds (status)")
     .order("created_at", { ascending: false })
     .limit(20)
-    .overrideTypes<{ id: number; title: string; course_name: string; played_on: string; live_rounds: { status: string }[] }[]>();
+    .overrideTypes<{ id: number; created_by: string | null; title: string; course_name: string; played_on: string; live_rounds: { status: string }[] }[]>();
   if (error) throw error;
   return (data ?? []).map((d) => ({
     id: d.id,
@@ -121,6 +122,7 @@ export async function loadMyMatchDays(): Promise<MatchDaySummary[]> {
     playedOn: d.played_on,
     matchCount: d.live_rounds?.length ?? 0,
     live: (d.live_rounds ?? []).some((r) => r.status === "live"),
+    createdBy: d.created_by,
   }));
 }
 
@@ -257,6 +259,12 @@ export async function createMatchDay(day: NewMatchDay, matches: NewMatch[], card
 // ---------------------------------------------------------------------------
 // Live
 // ---------------------------------------------------------------------------
+
+/** Deletes a whole match day and every match in it (0105). Organiser only. */
+export async function deleteMatchDay(dayId: number): Promise<void> {
+  const { error } = await supabase.rpc("live_match_day_delete", { p_day_id: dayId });
+  if (error) throw error;
+}
 
 /** "Something changed somewhere in this match day": re-fetch the board.
  *  Private channel, authorised by can_view_match_day (0104). */

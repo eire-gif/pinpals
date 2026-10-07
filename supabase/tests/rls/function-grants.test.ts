@@ -169,6 +169,9 @@ const EXPECTED: Record<string, Expectation> = {
   "can_score_live_round(p_round_id bigint)": { anon: false, authenticated: true },
   "can_view_match_day(p_day_id bigint)": { anon: false, authenticated: true },
   "live_match_day_create(p_day jsonb, p_matches jsonb, p_card jsonb)": { anon: false, authenticated: true },
+  // 0105 deleting. Each checks the caller started the round / organised the day.
+  "live_match_day_delete(p_day_id bigint)": { anon: false, authenticated: true },
+  "live_round_delete(p_round_id bigint)": { anon: false, authenticated: true },
 
   // --- Service role / internal only. Everything below is either a trigger
   // --- function, a sweep, or a privileged write path that must never be

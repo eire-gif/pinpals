@@ -158,6 +158,46 @@ export function shotsByHole(playingHcp: number, card: readonly CardHole[]): Map<
   return shots;
 }
 
+/**
+ * Shots on the holes whose share can be known so far, for a card that is
+ * still being filled in hole by hole on the course.
+ *
+ * With every index in, it is shotsByHole. Before that, a hole's index is
+ * its rank on a full-length card (SI 1 is the hardest of n), so a player
+ * off 10 on 18 holes gets a shot wherever SI ≤ 10 — exactly what a golfer
+ * reads off the card. That only holds when the index fits the round
+ * (≤ n holes); a 9-hole round marked from an 18-hole card has to wait for
+ * the full card to rank its holes. Holes that can't be known yet are
+ * missing from the map.
+ */
+export function shotsSoFar(playingHcp: number, card: readonly CardHole[]): Map<number, number> {
+  const full = shotsByHole(playingHcp, card);
+  if (full) return full;
+  const n = card.length;
+  const shots = new Map<number, number>();
+  if (n === 0) return shots;
+  const whole = Math.trunc(playingHcp / n) || 0;
+  const rest = Math.abs(playingHcp % n);
+  for (const h of card) {
+    const si = h.strokeIndex;
+    // Off scratch (or a whole multiple of the holes) every hole gets the
+    // same, so the index doesn't matter.
+    if (rest === 0) {
+      shots.set(h.hole, whole);
+      continue;
+    }
+    if (si == null || si < 1 || si > n) continue;
+    let s = whole;
+    if (playingHcp >= 0) {
+      if (si <= rest) s += 1;
+    } else if (si > n - rest) {
+      s -= 1;
+    }
+    shots.set(h.hole, s);
+  }
+  return shots;
+}
+
 // ---------------------------------------------------------------------------
 // Per hole
 // ---------------------------------------------------------------------------
@@ -238,9 +278,9 @@ export function buildBoard(
   const parOf = new Map(card.map((h) => [h.hole, h.par]));
   let cardIncomplete = false;
 
+  if (card.some((h) => h.strokeIndex == null)) cardIncomplete = true;
   const rows: BoardRow[] = players.map((p) => {
-    const shots = shotsByHole(p.playingHandicap, card);
-    if (!shots) cardIncomplete = true;
+    const shots = shotsSoFar(p.playingHandicap, card);
     const mine = scores.get(p.id) ?? new Map<number, number | null>();
     let thru = 0;
     let points = 0;
@@ -423,6 +463,9 @@ export type TeamMatchState = {
   margin: string;
   dormie: boolean;
   competitors: MatchCompetitor[];
+  /** The next hole the match can't be played past until its stroke index
+   *  is entered (someone gets or gives a shot there), or null. */
+  waitingForIndex: number | null;
 };
 
 /**
@@ -435,7 +478,10 @@ export type TeamMatchState = {
  * Holes are taken in order and the first unfinished one stops the count, so
  * a hole scored out of order doesn't make the match look further on than it is.
  *
- * Null when the card is missing a stroke index: shots can't be given fairly.
+ * The card can still be filling in: the match is played as far as the
+ * first hole whose shots can't be known yet (see shotsSoFar), and
+ * `waitingForIndex` names it. Never null; the null in the type is kept so
+ * older callers' checks still compile.
  */
 export function teamMatchState(
   format: MatchFormat,
@@ -445,17 +491,18 @@ export function teamMatchState(
 ): TeamMatchState | null {
   const competitors = matchCompetitors(format, players);
   const shotMaps = new Map<string, Map<number, number>>();
-  for (const c of competitors) {
-    const m = shotsByHole(c.shots, card);
-    if (!m) return null;
-    shotMaps.set(c.key, m);
-  }
+  for (const c of competitors) shotMaps.set(c.key, shotsSoFar(c.shots, card));
   const oneBall = isOneBallPerSide(format);
   const ordered = [...card].sort((a, b) => a.hole - b.hole);
   const holes: TeamHole[] = [];
   let up = 0;
+  let waitingForIndex: number | null = null;
 
   for (const h of ordered) {
+    if (competitors.some((c) => !shotMaps.get(c.key)!.has(h.hole))) {
+      waitingForIndex = h.hole;
+      break;
+    }
     const sideNet: (number | null)[] = [null, null];
     const counting: number[] = [];
     let complete = true;
@@ -503,7 +550,7 @@ export function teamMatchState(
   let margin: string;
   if (finished) margin = up === 0 ? "Halved" : holesLeft === 0 ? `${n} up` : `${n}&${holesLeft}`;
   else margin = up === 0 ? "All square" : `${n} UP`;
-  return { holes, up, holesLeft, finished, leader, margin, dormie: !finished && n > 0 && n === holesLeft, competitors };
+  return { holes, up, holesLeft, finished, leader, margin, dormie: !finished && n > 0 && n === holesLeft, competitors, waitingForIndex };
 }
 
 /** Points a match is worth to each side: 1 for a win, a half each for a

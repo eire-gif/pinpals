@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Stack, router, useFocusEffect, useLocalSearchParams } from "expo-router";
 
 import { LoadError, StateMessage } from "@/components/state-message";
 import { useAuth } from "@/lib/auth";
 import { isOn } from "@/lib/features";
-import { SIDE_COLORS, SIDE_TEXT, loadMatchDay, subscribeToMatchDay, type Match, type MatchDayData } from "@/lib/live-match-days";
+import { SIDE_COLORS, SIDE_TEXT, deleteMatchDay, loadMatchDay, subscribeToMatchDay, type Match, type MatchDayData } from "@/lib/live-match-days";
 import { formatInfo, pointsLabel } from "@/lib/live-scoring";
 import { dateLabel } from "@/lib/tee-times";
+import { useLiveRefresh } from "@/lib/use-live-refresh";
 import { colors, creamAlpha, fonts, radii, spacing, type } from "@/lib/theme";
 
 /**
@@ -42,6 +43,7 @@ export default function MatchDayBoard() {
     }, [load])
   );
   useEffect(() => subscribeToMatchDay(dayId, () => void load()), [dayId, load]);
+  useLiveRefresh(load, !!data && data.matches.some((m) => m.round.status === "live"));
 
   if (!isOn("liveScoring")) return <StateMessage size="screen" icon="podium-outline" title="Live scoring is on its way" />;
   if (failed) return <LoadError size="screen" what="this match day" onRetry={() => void load()} />;
@@ -55,6 +57,27 @@ export default function MatchDayBoard() {
     day.teamNames?.[n - 1] ?? m.players.filter((p) => p.side === n).map((p) => p.name.split(" ")[0]).join(" & ");
   const mine = (m: Match) => m.players.some((p) => p.memberId != null && p.memberId === me);
   // Your own match first, then in match order.
+  const isOrganiser = me != null && day.createdBy === me;
+  const remove = () =>
+    Alert.alert(
+      "Delete this match day?",
+      `${matches.length === 1 ? "Its match" : `All ${matches.length} matches`} and every score go for everyone in it. This can't be undone.`,
+      [
+        { text: "Keep it", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await deleteMatchDay(day.id);
+              router.replace("/live");
+            } catch (e) {
+              Alert.alert("Couldn't delete it", e instanceof Error ? e.message : "Please try again.");
+            }
+          },
+        },
+      ]
+    );
   const ordered = [...matches].sort((a, b) => Number(mine(b)) - Number(mine(a)) || (a.round.matchNumber ?? 0) - (b.round.matchNumber ?? 0));
 
   return (
@@ -126,6 +149,11 @@ export default function MatchDayBoard() {
               : st.dormie
                 ? `Dormie · thru ${st.holes.length}`
                 : `thru ${st.holes.length}`;
+        // Scores are in on a hole whose stroke index isn't: say why it's stuck.
+        const stuck =
+          !done && st?.waitingForIndex != null && m.players.some((p) => m.scores.get(p.id)?.has(st.waitingForIndex!))
+            ? `Hole ${st.waitingForIndex} needs its SI`
+            : null;
         const pill = !st || st.leader === 0 ? { bg: colors.cream100, fg: colors.ink900 } : { bg: SIDE_COLORS[st.leader - 1], fg: SIDE_TEXT[st.leader - 1] };
         const byHole = new Map((st?.holes ?? []).map((h) => [h.hole, h.result]));
         return (
@@ -152,6 +180,7 @@ export default function MatchDayBoard() {
               <View style={styles.statusCol}>
                 <Text style={[styles.pill, { backgroundColor: pill.bg, color: pill.fg }]}>{status}</Text>
                 <Text style={styles.sub}>{sub}</Text>
+                {stuck ? <Text style={[styles.sub, { color: colors.red600 }]}>{stuck}</Text> : null}
               </View>
               <View style={[styles.sideCol, { justifyContent: "flex-end" }]}>
                 <Text style={[styles.names, { textAlign: "right" }]}>{m.players.filter((p) => p.side === 2).map((p) => p.name.split(" ")[0]).join(" & ")}</Text>
@@ -170,6 +199,12 @@ export default function MatchDayBoard() {
       })}
 
       <Text style={styles.footNote}>Each hole is coloured by the side that won it. Tap a match to see or score it.</Text>
+
+      {isOrganiser ? (
+        <Pressable onPress={remove} style={styles.delete} accessibilityRole="button">
+          <Text style={styles.deleteLabel}>Delete match day</Text>
+        </Pressable>
+      ) : null}
     </ScrollView>
   );
 }
@@ -202,5 +237,7 @@ const styles = StyleSheet.create({
   sub: { fontFamily: fonts.body, fontSize: 12, color: colors.ink500, marginTop: 3 },
   strip: { flexDirection: "row", gap: 2 },
   cell: { flex: 1, height: 6, borderRadius: 3 },
+  delete: { minHeight: 48, borderRadius: 999, borderWidth: 1, borderColor: colors.red600, alignItems: "center", justifyContent: "center", marginTop: spacing.md },
+  deleteLabel: { fontFamily: fonts.bodyBold, fontSize: type.small, color: colors.red600 },
   footNote: { fontFamily: fonts.body, fontSize: 12, color: colors.ink500, textAlign: "center" },
 });

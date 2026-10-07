@@ -22,6 +22,7 @@ export type LiveRoundSummary = {
   status: "live" | "finished";
   playedOn: string;
   playerCount: number;
+  createdBy: string | null;
 };
 
 export type LiveRound = {
@@ -136,7 +137,7 @@ export async function loadMyLiveRounds(userId: string): Promise<LiveRoundSummary
 
   let query = supabase
     .from("live_rounds")
-    .select(`id, course_name, format, status, played_on, created_at, live_round_players (count)`)
+    .select(`id, created_by, course_name, format, status, played_on, created_at, live_round_players (count)`)
     .is("match_day_id", null) // matches are listed under their match day
     .order("created_at", { ascending: false })
     .limit(30);
@@ -145,6 +146,7 @@ export async function loadMyLiveRounds(userId: string): Promise<LiveRoundSummary
   const { data, error } = await query.overrideTypes<
     {
       id: number;
+      created_by: string | null;
       course_name: string;
       format: LiveFormat;
       status: "live" | "finished";
@@ -162,6 +164,7 @@ export async function loadMyLiveRounds(userId: string): Promise<LiveRoundSummary
       status: r.status,
       playedOn: r.played_on,
       playerCount: r.live_round_players?.[0]?.count ?? 0,
+      createdBy: r.created_by,
     }))
     .sort((a, b) => (a.status === b.status ? 0 : a.status === "live" ? -1 : 1));
 }
@@ -307,6 +310,13 @@ export async function finishLiveRound(roundId: number): Promise<void> {
   // A match in a match day: everyone in the day hears the result. The site
   // sends nothing for an ordinary round. Best effort.
   void postToSite(`/api/app/live/rounds/${roundId}/finished`, {}).catch(() => undefined);
+}
+
+/** Deletes a round, live or finished, with its card and scores (0105).
+ *  Only whoever started it — or its match day's organiser — may. */
+export async function deleteLiveRound(roundId: number): Promise<void> {
+  const { error } = await supabase.rpc("live_round_delete", { p_round_id: roundId });
+  if (error) throw error;
 }
 
 // ---------------------------------------------------------------------------

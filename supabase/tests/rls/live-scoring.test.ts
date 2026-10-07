@@ -336,3 +336,70 @@ describe("course cards", () => {
     });
   });
 });
+
+// 0105 — fixes from the first tester rounds.
+describe("live rounds: one hole per stroke index, and deleting", () => {
+  it("refuses a stroke index that's already on another hole; re-saving the same hole is fine", async () => {
+    await withRole("authenticated", ME, async (c) => {
+      await setUp(c);
+      const { roundId } = await createRound(c);
+      const setHole = "select public.live_round_set_hole($1, $2::smallint, 4::smallint, $3::smallint)";
+      await c.query(setHole, [roundId, 1, 13]);
+      await c.query(setHole, [roundId, 1, 13]); // same hole again
+      await rejects(c, setHole, [roundId, 2, 13], /Stroke index 13 is already on hole 1/);
+      await c.query(setHole, [roundId, 1, 7]); // move hole 1 off 13…
+      await c.query(setHole, [roundId, 2, 13]); // …and 13 is free for hole 2
+      await c.query("select public.live_round_set_hole($1, 3::smallint, 4::smallint, null)", [roundId]); // clearing is fine
+    });
+  });
+
+  it("the starter deletes a round, live or finished, with its players, card and scores; nobody else can", async () => {
+    await withRole("authenticated", ME, async (c) => {
+      await setUp(c);
+      const live = await createRound(c);
+      await c.query("select public.live_round_set_score($1, $2, 1::smallint, 5::smallint)", [live.roundId, live.players[0]]);
+      const done = await createRound(c);
+      await c.query("select public.live_round_finish($1)", [done.roundId]);
+
+      for (const who of [PAL, STRANGER]) {
+        await as(c, who);
+        await rejects(c, "select public.live_round_delete($1)", [live.roundId], /Only the person who started/);
+      }
+
+      await as(c, ME);
+      for (const id of [live.roundId, done.roundId]) {
+        await c.query("select public.live_round_delete($1)", [id]);
+        const left = await asService(c, () =>
+          c.query(
+            `select (select count(*) from public.live_rounds where id = $1)::int
+                  + (select count(*) from public.live_round_players where round_id = $1)::int
+                  + (select count(*) from public.live_round_holes where round_id = $1)::int
+                  + (select count(*) from public.live_round_scores where round_id = $1)::int as n`,
+            [id],
+          ),
+        );
+        expect(left.rows[0].n).toBe(0);
+      }
+      // Deleting something already gone is a quiet no-op (a double tap).
+      await c.query("select public.live_round_delete($1)", [live.roundId]);
+    });
+  });
+
+  it("anon can't delete", async () => {
+    await withRole("anon", null, async (c) => {
+      await rejects(c, "select public.live_round_delete(1)", [], /permission denied/);
+    });
+  });
+});
+
+describe("live rounds: a card that already had a duplicate (before 0105)", () => {
+  it("can still change that hole's par without re-picking its index", async () => {
+    await withRole("authenticated", ME, async (c) => {
+      await setUp(c);
+      const { roundId } = await createRound(c);
+      await asService(c, () => c.query("update public.live_round_holes set stroke_index = 4 where round_id = $1 and hole in (1, 3)", [roundId]));
+      await as(c, ME);
+      await c.query("select public.live_round_set_hole($1, 1::smallint, 5::smallint, 4::smallint)", [roundId]);
+    });
+  });
+});
