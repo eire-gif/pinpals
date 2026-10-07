@@ -28,7 +28,10 @@
 // Formats
 // ---------------------------------------------------------------------------
 
-export type LiveFormat = "stableford" | "stroke" | "matchplay" | "fourball" | "foursomes" | "scramble";
+export type LiveFormat = "stableford" | "stroke" | "matchplay" | "fourball" | "foursomes" | "greensomes" | "scramble";
+
+/** The formats a match in a match day can be played in. */
+export type MatchFormat = "matchplay" | "fourball" | "foursomes" | "greensomes";
 
 export type FormatInfo = {
   id: LiveFormat;
@@ -37,19 +40,34 @@ export type FormatInfo = {
   blurb: string;
   /** Share of the course handicap that is played off (WHS recommendations). */
   allowance: number;
-  /** Scored by this file today. The others are listed, and shown as
-   *  "coming soon", so the picker reads as the whole plan. */
+  /** Can be picked when setting up a single round. */
   available: boolean;
+  /** Can be picked for a match in a match day. */
+  matchDay: boolean;
+  /** Players per side in a match (match formats only). */
+  perSide?: 1 | 2;
 };
 
 export const LIVE_FORMATS: readonly FormatInfo[] = [
-  { id: "stableford", label: "Stableford", blurb: "Points per hole", allowance: 0.95, available: true },
-  { id: "stroke", label: "Stroke play", blurb: "Gross and net", allowance: 0.95, available: true },
-  { id: "matchplay", label: "Matchplay", blurb: "Singles, hole by hole", allowance: 1, available: true },
-  { id: "fourball", label: "Fourball", blurb: "Better-ball pairs", allowance: 0.85, available: false },
-  { id: "foursomes", label: "Foursomes", blurb: "Scotch, alternate shot", allowance: 0.5, available: false },
-  { id: "scramble", label: "Scramble", blurb: "Texas, 2 or 4", allowance: 0.25, available: false },
+  { id: "stableford", label: "Stableford", blurb: "Points per hole", allowance: 0.95, available: true, matchDay: false },
+  { id: "stroke", label: "Stroke play", blurb: "Gross and net", allowance: 0.95, available: true, matchDay: false },
+  { id: "matchplay", label: "Singles", blurb: "One v one, hole by hole", allowance: 1, available: true, matchDay: true, perSide: 1 },
+  // WHS: four-ball MATCH play is 90% (85% is the stroke-play figure).
+  { id: "fourball", label: "Fourball", blurb: "Better ball of each pair", allowance: 0.9, available: false, matchDay: true, perSide: 2 },
+  // Foursomes: 50% of the pair's combined course handicaps.
+  { id: "foursomes", label: "Foursomes", blurb: "Scotch, alternate shot", allowance: 0.5, available: false, matchDay: true, perSide: 2 },
+  // Greensomes: 60% of the lower plus 40% of the higher course handicap.
+  { id: "greensomes", label: "Greensomes", blurb: "Both drive, pick one", allowance: 0.6, available: false, matchDay: true, perSide: 2 },
+  { id: "scramble", label: "Scramble", blurb: "Texas, 2 or 4", allowance: 0.25, available: false, matchDay: false },
 ];
+
+export const MATCH_FORMATS = LIVE_FORMATS.filter((f) => f.matchDay);
+
+export const isMatchFormat = (id: LiveFormat): id is MatchFormat =>
+  id === "matchplay" || id === "fourball" || id === "foursomes" || id === "greensomes";
+
+/** Foursomes and greensomes: one ball per pair, so one score per side. */
+export const isOneBallPerSide = (id: LiveFormat): boolean => id === "foursomes" || id === "greensomes";
 
 export function formatInfo(id: LiveFormat): FormatInfo {
   return LIVE_FORMATS.find((f) => f.id === id) ?? LIVE_FORMATS[0];
@@ -329,6 +347,180 @@ export function matchState(card: readonly CardHole[], a: LivePlayer, b: LivePlay
     label = up > 0 ? `${up} UP` : `${-up} DOWN`;
   }
   return { results, up, holesLeft, finished, label, shots: [Math.max(0, diff), Math.max(0, -diff)] };
+}
+
+// ---------------------------------------------------------------------------
+// Matches between sides: singles, fourball, foursomes, greensomes
+// ---------------------------------------------------------------------------
+
+export type MatchPlayer = LivePlayer & {
+  /** Course handicap: the team formats work from it, not the stored
+   *  playing handicap (a fourball player's allowance depends on the format). */
+  courseHandicap: number;
+  /** 1 or 2. */
+  side: number;
+  /** Playing order within the round; for one-ball formats the side's score
+   *  lives on its first player. */
+  position: number;
+};
+
+/** Who gets shots in a match, and how many. A "competitor" is a player in
+ *  singles and fourball, and a pair in foursomes and greensomes. */
+export type MatchCompetitor = {
+  key: string;
+  side: 1 | 2;
+  playerIds: number[];
+  /** Handicap for this match before taking off the lowest. */
+  matchHandicap: number;
+  /** Shots received in the match: matchHandicap minus the lowest. */
+  shots: number;
+};
+
+export function matchCompetitors(format: MatchFormat, players: readonly MatchPlayer[]): MatchCompetitor[] {
+  const bySide = (n: number) => [...players].filter((p) => p.side === n).sort((a, b) => a.position - b.position);
+  let list: Omit<MatchCompetitor, "shots">[];
+  if (format === "foursomes" || format === "greensomes") {
+    list = [1, 2].map((n) => {
+      const pair = bySide(n);
+      const chs = pair.map((p) => p.courseHandicap).sort((a, b) => a - b);
+      const hcp =
+        format === "foursomes"
+          ? roundHalfUp(0.5 * chs.reduce((t, c) => t + c, 0))
+          : roundHalfUp(0.6 * (chs[0] ?? 0) + 0.4 * (chs[chs.length - 1] ?? 0));
+      return { key: `side${n}`, side: n as 1 | 2, playerIds: pair.map((p) => p.id), matchHandicap: hcp };
+    });
+  } else {
+    const allowance = format === "fourball" ? 0.9 : 1;
+    list = players.map((p) => ({
+      key: `p${p.id}`,
+      side: (p.side === 2 ? 2 : 1) as 1 | 2,
+      playerIds: [p.id],
+      matchHandicap: playingHandicap(p.courseHandicap, allowance),
+    }));
+  }
+  const low = Math.min(...list.map((c) => c.matchHandicap));
+  return list.map((c) => ({ ...c, shots: c.matchHandicap - low }));
+}
+
+export type TeamHole = {
+  hole: number;
+  result: HoleResult;
+  /** Best net of each side on the hole; null = the side picked up. */
+  net: [number | null, number | null];
+  /** The players whose score counted (fourball's better ball). */
+  counting: number[];
+};
+
+export type TeamMatchState = {
+  /** From side 1's point of view, for every hole both sides have finished. */
+  holes: TeamHole[];
+  up: number;
+  holesLeft: number;
+  finished: boolean;
+  /** 1 or 2 when a side is ahead (or won), 0 when level (or halved). */
+  leader: 0 | 1 | 2;
+  /** "2 UP", "All square", "3&2", "1 up", "Halved". Who leads is `leader`. */
+  margin: string;
+  dormie: boolean;
+  competitors: MatchCompetitor[];
+};
+
+/**
+ * Plays a match hole by hole.
+ *
+ * Singles and fourball: every player plays their own ball; a side's score on
+ * a hole is its best net. Foursomes and greensomes: one ball per pair, whose
+ * score is entered against the pair's first player. A hole counts once
+ * every player who plays a ball has an entry; a null entry is a pick-up.
+ * Holes are taken in order and the first unfinished one stops the count, so
+ * a hole scored out of order doesn't make the match look further on than it is.
+ *
+ * Null when the card is missing a stroke index: shots can't be given fairly.
+ */
+export function teamMatchState(
+  format: MatchFormat,
+  card: readonly CardHole[],
+  players: readonly MatchPlayer[],
+  scores: ScoreSheet
+): TeamMatchState | null {
+  const competitors = matchCompetitors(format, players);
+  const shotMaps = new Map<string, Map<number, number>>();
+  for (const c of competitors) {
+    const m = shotsByHole(c.shots, card);
+    if (!m) return null;
+    shotMaps.set(c.key, m);
+  }
+  const oneBall = isOneBallPerSide(format);
+  const ordered = [...card].sort((a, b) => a.hole - b.hole);
+  const holes: TeamHole[] = [];
+  let up = 0;
+
+  for (const h of ordered) {
+    const sideNet: (number | null)[] = [null, null];
+    const counting: number[] = [];
+    let complete = true;
+    for (const n of [1, 2]) {
+      const comps = competitors.filter((c) => c.side === n);
+      let best: number | null = null;
+      let bestIds: number[] = [];
+      for (const c of comps) {
+        // The ball(s) this competitor plays: one per player, or the pair's one.
+        const ballIds = oneBall ? c.playerIds.slice(0, 1) : c.playerIds;
+        for (const id of ballIds) {
+          const mine = scores.get(id);
+          if (!mine || !mine.has(h.hole)) {
+            complete = false;
+            continue;
+          }
+          const gross = mine.get(h.hole) ?? null;
+          if (gross == null) continue;
+          const net = gross - (shotMaps.get(c.key)!.get(h.hole) ?? 0);
+          if (best == null || net < best) {
+            best = net;
+            bestIds = oneBall ? [...c.playerIds] : [id];
+          } else if (net === best && !oneBall) {
+            bestIds.push(id);
+          }
+        }
+      }
+      sideNet[n - 1] = best;
+      counting.push(...bestIds);
+    }
+    if (!complete) break;
+    const [a, b] = sideNet;
+    const result: HoleResult =
+      a == null && b == null ? "halved" : a == null ? "lost" : b == null ? "won" : a < b ? "won" : a > b ? "lost" : "halved";
+    holes.push({ hole: h.hole, result, net: [a, b], counting });
+    if (result === "won") up += 1;
+    if (result === "lost") up -= 1;
+    if (Math.abs(up) > ordered.length - holes.length) break; // decided
+  }
+
+  const holesLeft = ordered.length - holes.length;
+  const finished = holesLeft === 0 || Math.abs(up) > holesLeft;
+  const leader: 0 | 1 | 2 = up > 0 ? 1 : up < 0 ? 2 : 0;
+  const n = Math.abs(up);
+  let margin: string;
+  if (finished) margin = up === 0 ? "Halved" : holesLeft === 0 ? `${n} up` : `${n}&${holesLeft}`;
+  else margin = up === 0 ? "All square" : `${n} UP`;
+  return { holes, up, holesLeft, finished, leader, margin, dormie: !finished && n > 0 && n === holesLeft, competitors };
+}
+
+/** Points a match is worth to each side: 1 for a win, a half each for a
+ *  halved match. `projected` scores an unfinished match as it stands. */
+export function matchPoints(state: TeamMatchState | null, projected = false): [number, number] {
+  if (!state || (!state.finished && !projected)) return [0, 0];
+  if (state.leader === 1) return [1, 0];
+  if (state.leader === 2) return [0, 1];
+  return state.holes.length > 0 || state.finished ? [0.5, 0.5] : [0, 0];
+}
+
+/** "1½", "2", "½". */
+export function pointsLabel(n: number): string {
+  const whole = Math.floor(n);
+  const half = n - whole >= 0.5;
+  if (whole === 0 && half) return "½";
+  return `${whole}${half ? "½" : ""}`;
 }
 
 // ---------------------------------------------------------------------------

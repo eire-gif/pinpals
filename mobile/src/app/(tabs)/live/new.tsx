@@ -275,7 +275,7 @@ export default function NewLiveRound() {
                   accessibilityState={{ selected: on, disabled: !f.available }}
                 >
                   <Text style={[styles.formatLabel, !f.available && styles.muted]}>{f.label}</Text>
-                  <Text style={[styles.formatBlurb, on && styles.formatBlurbOn]}>{f.available ? f.blurb : "Coming soon"}</Text>
+                  <Text style={[styles.formatBlurb, on && styles.formatBlurbOn]}>{f.available ? f.blurb : f.matchDay ? "Use a match day" : "Coming soon"}</Text>
                 </Pressable>
               );
             })}
