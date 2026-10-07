@@ -10,6 +10,7 @@ import { SIDE_COLORS, SIDE_TEXT, asMatchPlayers, loadMatchDayHeader, type MatchD
 import {
   deleteLiveRound,
   finishLiveRound,
+  loadCourseCards,
   loadLiveRound,
   saveCourseCard,
   setLiveHole,
@@ -59,6 +60,9 @@ export default function LiveRoundScreen() {
   const [view, setView] = useState<"score" | "board">("score");
   const [hole, setHole] = useState(1);
   const [editingCard, setEditingCard] = useState(false);
+  // Is this round's card already saved for the course? "same" hides the
+  // save button: a second player tapping it used to get an error (0106).
+  const [cardOnFile, setCardOnFile] = useState<"same" | "different" | "none" | null>(null);
   const [dayHeader, setDayHeader] = useState<Pick<MatchDay, "id" | "createdBy" | "title" | "teamNames"> | null>(null);
   const { session } = useAuth();
   const me = session?.user?.id ?? null;
@@ -69,6 +73,20 @@ export default function LiveRoundScreen() {
       setFailed(false);
       const d = await loadLiveRound(roundId);
       setData(d);
+      if (d && d.round.clubId != null && d.card.every((c) => c.strokeIndex != null)) {
+        const tee = (d.round.teeName ?? "Standard").trim().toLowerCase();
+        const saved = (await loadCourseCards(d.round.clubId).catch(() => [])).find(
+          (c) => c.teeName.trim().toLowerCase() === tee && c.holes === d.round.holes
+        );
+        setCardOnFile(
+          !saved
+            ? "none"
+            : saved.card.length === d.card.length &&
+                d.card.every((h) => saved.card.some((s) => s.hole === h.hole && s.par === h.par && s.strokeIndex === h.strokeIndex))
+              ? "same"
+              : "different"
+        );
+      }
       if (d?.round.matchDayId != null) setDayHeader(await loadMatchDayHeader(d.round.matchDayId));
       // Open on the first hole anyone still has to score, once.
       if (d && !started.current) {
@@ -186,9 +204,12 @@ export default function LiveRoundScreen() {
   const saveCard = async () => {
     try {
       await saveCourseCard(round, card);
+      setCardOnFile("same");
       Alert.alert("Card saved", `The next round at ${round.courseName} will start with these stroke indexes.`);
     } catch (e) {
-      Alert.alert("Couldn't save the card", e instanceof Error ? e.message : "Please try again.");
+      // Supabase's errors aren't Error instances; their message is the reason.
+      const msg = (e as { message?: unknown } | null)?.message;
+      Alert.alert("Couldn't save the card", typeof msg === "string" && msg ? msg : "Please try again.");
     }
   };
 
@@ -503,7 +524,15 @@ export default function LiveRoundScreen() {
             ) : null}
           </View>
 
-          {cardComplete && round.clubId != null ? (
+          {cardComplete && round.clubId != null && cardOnFile === "same" ? (
+            <View style={styles.cardSaved} accessibilityRole="text">
+              <Ionicons name="bookmark" size={18} color={colors.green700} />
+              <Text style={styles.cardSavedText}>
+                Card saved for {round.courseName}
+                {round.teeName ? ` · ${round.teeName} tees` : ""}. The next round there starts filled in.
+              </Text>
+            </View>
+          ) : cardComplete && round.clubId != null && cardOnFile !== null ? (
             <Pressable onPress={() => void saveCard()} style={styles.secondary} accessibilityRole="button">
               <Ionicons name="bookmark-outline" size={18} color={colors.green700} />
               <Text style={styles.link}>Save this card for {round.courseName}</Text>
@@ -658,6 +687,8 @@ const styles = StyleSheet.create({
   next: { minHeight: 54, borderRadius: radii.pill, backgroundColor: colors.green700, alignItems: "center", justifyContent: "center" },
   nextLabel: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.cream50 },
   secondary: { flexDirection: "row", gap: spacing.sm, minHeight: 48, borderRadius: radii.pill, borderWidth: 1, borderColor: colors.green700, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.md },
+  cardSaved: { flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: colors.green100, borderRadius: radii.lg, padding: spacing.md },
+  cardSavedText: { flex: 1, fontFamily: fonts.bodySemi, fontSize: type.small, lineHeight: 20, color: colors.green800 },
   warn: { fontFamily: fonts.body, fontSize: 13, lineHeight: 19, color: colors.ink900, backgroundColor: colors.cream100, borderRadius: radii.md, padding: spacing.md },
 
   table: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: radii.lg, overflow: "hidden" },
