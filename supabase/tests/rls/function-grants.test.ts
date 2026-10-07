@@ -154,6 +154,17 @@ const EXPECTED: Record<string, Expectation> = {
   "can_view_post(target_post_id bigint)": { anon: false, authenticated: true },
   // 0101. A number, never who; null across a block.
   "member_pinpal_count(target_member_id uuid)": { anon: false, authenticated: true },
+  // 0103 live scoring. Each write function checks the caller is in the
+  // round (or, for cards, signed in) itself; none is for anon. The two
+  // broadcast triggers are callable by no one.
+  "can_view_live_round(p_round_id bigint)": { anon: false, authenticated: true },
+  "course_card_save(p_club_id bigint, p_tee_name text, p_holes smallint, p_par_total smallint, p_course_rating numeric, p_slope smallint, p_card jsonb)": { anon: false, authenticated: true },
+  "live_round_broadcast()": { anon: false, authenticated: false },
+  "live_round_create(p_round jsonb, p_players jsonb, p_card jsonb)": { anon: false, authenticated: true },
+  "live_round_finish(p_round_id bigint)": { anon: false, authenticated: true },
+  "live_round_set_hole(p_round_id bigint, p_hole smallint, p_par smallint, p_stroke_index smallint)": { anon: false, authenticated: true },
+  "live_round_set_score(p_round_id bigint, p_player_id bigint, p_hole smallint, p_strokes smallint, p_clear boolean)": { anon: false, authenticated: true },
+  "live_round_status_broadcast()": { anon: false, authenticated: false },
 
   // --- Service role / internal only. Everything below is either a trigger
   // --- function, a sweep, or a privileged write path that must never be
