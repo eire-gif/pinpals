@@ -43,6 +43,10 @@
 -- after the app starts a day or finishes a match, because push and email
 -- delivery and notification preferences live in TypeScript (notifyUser).
 --
+-- APPLIED to production on 7 Oct 2026 in five parts (0104a…0104e in
+-- supabase_migrations), comment-free, as 0103 was. The parts add up to
+-- exactly this file.
+--
 -- Rollback (nothing here drops anything; to undo):
 --   drop function if exists public.live_match_day_create(jsonb, jsonb, jsonb);
 --   drop policy if exists "Players receive their match day broadcasts" on realtime.messages;
