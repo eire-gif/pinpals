@@ -22,6 +22,11 @@ import { colors, fonts, radii } from "@/lib/theme";
  * the round. Right: a photograph with the spaces left on it. Underneath: who
  * is hosting, and the faces of whoever has already confirmed.
  *
+ * Your own part in a round comes first, as a green band across the top:
+ * "You're playing" once your place is confirmed, "Your round" on one you're
+ * hosting — so the list answers "am I in this?" without a tap. Spaces left
+ * sit on a band across the foot of the photo, big enough to read at a glance.
+ *
  * The photograph is decoration — no club in the directory has one of its
  * own yet — picked steadily per club so a club always looks the same. See
  * tools/prep-tee-time-images.py.
@@ -35,10 +40,13 @@ const FACES = 3;
 export function TeeTimeCard({
   invite,
   players,
+  me = null,
   onPress,
 }: {
   invite: Invite;
   players: CardPlayer[];
+  /** The signed-in member, to mark rounds they're in or hosting. */
+  me?: string | null;
   onPress: () => void;
 }) {
   const host = hostName(invite);
@@ -48,16 +56,26 @@ export function TeeTimeCard({
   const place = distance ?? invite.county ?? invite.club?.region ?? null;
   const faces = players.slice(0, FACES);
   const extra = players.length - faces.length;
+  const playing = me != null && players.some((p) => p.id === me);
+  const hosting = me != null && invite.member_id === me;
+  const mine = playing ? "You're playing" : hosting ? "Your round" : null;
+  const spacesLabel = spaces <= 0 ? "Full" : `${spaces} ${spaces === 1 ? "space" : "spaces"} left`;
 
   return (
     <Pressable
-      style={({ pressed }) => [styles.card, pressed && styles.pressed]}
+      style={({ pressed }) => [styles.card, mine && styles.cardMine, pressed && styles.pressed]}
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={`${club}, ${dateLabel(invite.play_date)}, ${whenLabel(invite)}, ${spaces} ${
-        spaces === 1 ? "space" : "spaces"
-      } left${host ? `, hosted by ${host}` : ""}`}
+      accessibilityLabel={`${mine ? `${mine}. ` : ""}${club}, ${dateLabel(invite.play_date)}, ${whenLabel(invite)}, ${spacesLabel}${
+        host && !hosting ? `, hosted by ${host}` : ""
+      }`}
     >
+      {mine ? (
+        <View style={styles.mineBand}>
+          <Ionicons name={playing ? "checkmark-circle" : "flag"} size={18} color={colors.cream50} />
+          <Text style={styles.mineText}>{mine}</Text>
+        </View>
+      ) : null}
       <View style={styles.top}>
         <View style={styles.left}>
           <View style={styles.datePill}>
@@ -96,10 +114,15 @@ export function TeeTimeCard({
         <View style={styles.photoCol}>
           <View style={styles.photoWrap}>
             <Image source={PHOTOS[coursePhotoIndex(invite, PHOTOS.length)]} style={styles.photo} />
-            <View style={styles.spaces}>
-              <Ionicons name="people" size={13} color={colors.ink900} />
-              <Text style={styles.spacesText}>
-                {spaces} {spaces === 1 ? "space" : "spaces"}
+            <View style={[styles.spaces, spaces <= 0 && styles.spacesFull]}>
+              <Ionicons name="people" size={16} color={spaces <= 0 ? colors.cream50 : colors.gold400} />
+              <Text
+                style={[styles.spacesText, spaces <= 0 && { color: colors.cream50 }]}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.8}
+              >
+                {spacesLabel}
               </Text>
             </View>
           </View>
@@ -193,6 +216,21 @@ const styles = StyleSheet.create({
     borderColor: "rgba(221,210,184,0.6)",
   },
   pressed: { opacity: 0.92, transform: [{ scale: 0.995 }] },
+  cardMine: { borderWidth: 2, borderColor: colors.green600 },
+  mineBand: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+    // Bleeds to the card's edges: the card's padding is 14.
+    marginTop: -14,
+    marginHorizontal: -14,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    backgroundColor: colors.green600,
+  },
+  mineText: { fontFamily: fonts.bodyBold, fontSize: 15, color: colors.cream50, letterSpacing: 0.2 },
 
   top: { flexDirection: "row", gap: 12 },
   left: { flex: 1, minWidth: 0, gap: 7 },
@@ -240,19 +278,23 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   photo: { width: "100%", height: "100%", backgroundColor: colors.cream100 },
+  // A band across the foot of the photo: dark behind light text reads on
+  // any picture, sea or sky, where a small pill on top didn't.
   spaces: {
     position: "absolute",
-    top: 8,
-    right: 8,
+    left: 0,
+    right: 0,
+    bottom: 0,
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 9,
-    paddingVertical: 5,
-    borderRadius: radii.pill,
-    backgroundColor: colors.gold400,
+    justifyContent: "center",
+    gap: 5,
+    paddingVertical: 8,
+    paddingHorizontal: 5,
+    backgroundColor: "rgba(12,32,56,0.82)",
   },
-  spacesText: { fontFamily: fonts.bodyBold, fontSize: 12, color: colors.ink900 },
+  spacesFull: { backgroundColor: "rgba(168,58,43,0.9)" },
+  spacesText: { fontFamily: fonts.bodyBold, fontSize: 15, color: colors.gold400, flexShrink: 1 },
   rating: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5 },
   ratingText: { fontFamily: fonts.bodyBold, fontSize: 12.5, color: colors.ink900 },
   ratingCount: { fontFamily: fonts.body, color: colors.ink500 },

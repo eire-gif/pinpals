@@ -21,6 +21,7 @@ import * as Linking from "expo-linking";
 import { WithInvite } from "@/components/pinpals";
 import { INVITE_EVERY, inviteAfter } from "@/lib/invite-slots";
 import { TeeTimeCard } from "@/components/tee-time-card";
+import { useAuth } from "@/lib/auth";
 import { useCollapsingHeader } from "@/components/screen-header";
 import { useCurrentLocation } from "@/lib/location";
 import {
@@ -74,6 +75,8 @@ export default function TeeTimesScreen() {
   const location = useCurrentLocation();
   const insets = useSafeAreaInsets();
 
+  const { session } = useAuth();
+  const me = session?.user?.id ?? null;
   const [scope, setScope] = useState<Scope>("all");
   const [invites, setInvites] = useState<Invite[]>([]);
   const [players, setPlayers] = useState<Map<number, CardPlayer[]>>(new Map());
@@ -257,6 +260,7 @@ export default function TeeTimesScreen() {
               <TeeTimeCard
                 invite={item}
                 players={players.get(item.id) ?? []}
+                me={me}
                 onPress={() => router.push(`/invite/${item.id}`)}
               />
             </WithInvite>
