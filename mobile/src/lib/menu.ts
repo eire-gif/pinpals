@@ -1,6 +1,8 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import type { Href } from "expo-router";
 
+import { isOn, type Feature } from "./features";
+
 /**
  * Every page in PinPals, written down once.
  *
@@ -21,7 +23,14 @@ export const CONTACT_EMAIL = "info@pinpals.ie";
 export type MenuItem =
   /** A native screen. Faster, keeps the back gesture, and never shows the
    *  site's own chrome. Preferred wherever the app has the screen. */
-  | { kind: "native"; label: string; icon: keyof typeof Ionicons.glyphMap; to: Href }
+  | {
+      kind: "native";
+      label: string;
+      icon: keyof typeof Ionicons.glyphMap;
+      to: Href;
+      /** Behind a feature flag: shown only while it's on. */
+      feature?: Feature;
+    }
   /** A site page, opened inside the app's web view as the signed-in member —
    *  never handed to Safari, where they would be a stranger again. */
   | { kind: "web"; label: string; icon: keyof typeof Ionicons.glyphMap; path: string; title: string }
@@ -48,6 +57,9 @@ export const MENU: MenuSection[] = [
     items: [
       { kind: "native", label: "Post a tee time", icon: "add-circle-outline", to: "/post-tee-time" },
       { kind: "native", label: "Browse tee times", icon: "golf-outline", to: "/tee-times" },
+      // Second in Play: it's for the day you're on the course, when "where
+      // do I put my score" is the question, not "find me a game".
+      { kind: "native", label: "Live scoring", icon: "podium-outline", to: "/live", feature: "liveScoring" },
       {
         kind: "native",
         label: "My confirmed tee times",
@@ -140,6 +152,13 @@ export const MENU: MenuSection[] = [
     ],
   },
 ];
+
+/** The menu as it should draw right now: flagged-off entries left out. */
+export const visibleMenu = (): MenuSection[] =>
+  MENU.map((section) => ({
+    ...section,
+    items: section.items.filter((item) => item.kind !== "native" || !item.feature || isOn(item.feature)),
+  }));
 
 /**
  * The mailto behind "Contact us".

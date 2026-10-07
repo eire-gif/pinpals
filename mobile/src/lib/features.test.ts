@@ -6,10 +6,16 @@ describe("feature flags", () => {
   it("unfinished features stay off until their backend ships", () => {
     // Switching one of these on? Its backend must exist first — see the
     // design docs named in features.ts — then update this test.
-    expect({ groups: FEATURES.groups, sharedRounds: FEATURES.sharedRounds, shotMaps: FEATURES.shotMaps }).toEqual({
+    expect({
+      groups: FEATURES.groups,
+      sharedRounds: FEATURES.sharedRounds,
+      shotMaps: FEATURES.shotMaps,
+      liveScoring: FEATURES.liveScoring,
+    }).toEqual({
       groups: false,
       sharedRounds: false,
       shotMaps: false,
+      liveScoring: false,
     });
   });
 

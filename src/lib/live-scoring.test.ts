@@ -9,6 +9,7 @@ import {
   indexLabel,
   matchState,
   netScoreName,
+  parseIndex,
   playingHandicap,
   shotsByHole,
   stablefordPoints,
@@ -42,6 +43,11 @@ describe("live-scoring.ts handicaps", () => {
     expect(playingHandicap(10, 0.95)).toBe(10); // 9.5
     expect(playingHandicap(26, 0.95)).toBe(25); // 24.7
     expect(playingHandicap(19, formatInfo("matchplay").allowance)).toBe(19);
+  });
+
+  it("reads what a member types as an index", () => {
+    expect([parseIndex("14.2"), parseIndex(" 8 "), parseIndex("+1.5"), parseIndex("14,2")]).toEqual([14.2, 8, -1.5, 14.2]);
+    expect([parseIndex(""), parseIndex("abc"), parseIndex("60"), parseIndex("+11"), parseIndex("14.25")]).toEqual([null, null, null, null, null]);
   });
 
   it("writes plus handicaps with a plus", () => {

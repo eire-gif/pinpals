@@ -19,6 +19,7 @@ import {
   RateYourCourses,
   ShareComposer,
 } from "@/components/home-social";
+import { LiveScoringCard } from "@/components/live-scoring-card";
 import { InviteBanner, SuggestionCard } from "@/components/pinpals";
 import { RecapPrompt } from "@/components/recap-prompt";
 import { useAuth } from "@/lib/auth";
@@ -234,6 +235,9 @@ export default function HomeScreen() {
 
       {/* Overlaps the hero's bottom edge (the hero leaves room for it). */}
       <ShareComposer me={me} />
+
+      {/* Right under the composer: both are "I'm playing / I've played". */}
+      <LiveScoringCard />
 
       {loading ? (
         <ActivityIndicator color={colors.green700} style={styles.spinner} />

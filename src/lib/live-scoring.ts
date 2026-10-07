@@ -86,6 +86,15 @@ export function playingHandicap(courseHcp: number, allowance: number): number {
   return roundHalfUp(courseHcp * allowance);
 }
 
+/** What a member typed → an index. "14.2" → 14.2, "+1.5" → -1.5 (a plus
+ *  handicap, as written on a card), "14,2" too. Null if it isn't one. */
+export function parseIndex(text: string): number | null {
+  const t = text.trim().replace(",", ".");
+  if (!/^\+?\d{1,2}(\.\d)?$/.test(t)) return null;
+  const n = t.startsWith("+") ? -Number(t.slice(1)) : Number(t);
+  return n >= MIN_INDEX && n <= MAX_INDEX ? n : null;
+}
+
 /** "14.2", "+1.5", "0". Plus handicaps are written with a plus, as on a card. */
 export function indexLabel(index: number): string {
   if (index < 0) return `+${Math.abs(index).toFixed(1)}`;

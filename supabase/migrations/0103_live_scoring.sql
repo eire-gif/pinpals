@@ -490,3 +490,122 @@ grant execute on function public.live_round_finish(bigint) to authenticated;
 revoke all on function public.live_round_broadcast() from public, anon, authenticated;
 revoke all on function public.live_round_status_broadcast() from public, anon, authenticated;
 revoke all on function public.live_round_player_forget_name() from public, anon, authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Course cards: enter a course's stroke indexes once, reuse them every round
+-- ---------------------------------------------------------------------------
+--
+-- No data source we have gives Irish stroke indexes (the GolfCourseAPI test
+-- in claude/live-scoring.md returned none for any of seven courses). So the
+-- first group to play a course fills the card in on the scoring screen, and
+-- can save it here; every later round at that course and tee starts from it.
+--
+-- `source` says where a card came from. 'member' today. When an official
+-- feed exists (Golf Ireland, a licensed provider), its import writes the same
+-- rows with its own source and verified_at set, and the screens need no
+-- change. A verified card can't be overwritten by a member; an unverified one
+-- can be corrected by the member who saved it.
+--
+-- Rollback (in addition to the above):
+--   drop function if exists public.course_card_save(bigint, text, smallint, smallint, numeric, smallint, jsonb);
+--   drop table if exists public.course_card_holes, public.course_cards;
+
+create table public.course_cards (
+  id bigint generated always as identity primary key,
+  club_id bigint not null references public.clubs (id) on delete cascade,
+  tee_name text not null check (char_length(btrim(tee_name)) between 1 and 40),
+  holes smallint not null check (holes in (9, 18)),
+  par_total smallint check (par_total is null or par_total between 27 and 80),
+  course_rating numeric(4, 1) check (course_rating is null or course_rating between 25 and 85),
+  slope smallint check (slope is null or slope between 55 and 155),
+  source text not null default 'member' check (source in ('member', 'admin', 'golf_ireland', 'provider')),
+  submitted_by uuid references public.profiles (id) on delete set null,
+  verified_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create unique index course_cards_one_per_tee_idx on public.course_cards (club_id, lower(btrim(tee_name)), holes);
+
+create table public.course_card_holes (
+  card_id bigint not null references public.course_cards (id) on delete cascade,
+  hole smallint not null check (hole between 1 and 18),
+  par smallint not null check (par between 3 and 6),
+  stroke_index smallint not null check (stroke_index between 1 and 18),
+  primary key (card_id, hole)
+);
+
+comment on table public.course_cards is 'A course''s card per tee: rating, slope and (in course_card_holes) par and stroke index per hole. Entered once by members from the live scoring screen, or imported from an official source. Written only via course_card_save().';
+
+alter table public.course_cards enable row level security;
+alter table public.course_card_holes enable row level security;
+
+-- A scorecard is public information printed on every card in the pro shop.
+create policy "Members read course cards" on public.course_cards for select to authenticated using (true);
+create policy "Members read course card holes" on public.course_card_holes for select to authenticated using (true);
+
+revoke insert, update, delete on public.course_cards, public.course_card_holes from anon, authenticated;
+revoke all on public.course_cards, public.course_card_holes from anon;
+
+create or replace function public.course_card_save(
+  p_club_id bigint,
+  p_tee_name text,
+  p_holes smallint,
+  p_par_total smallint,
+  p_course_rating numeric,
+  p_slope smallint,
+  p_card jsonb
+)
+returns bigint
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_me uuid := (select auth.uid());
+  v_existing public.course_cards%rowtype;
+  v_card_id bigint;
+begin
+  if v_me is null or not exists (select 1 from public.profiles where id = v_me and deleted_at is null) then
+    raise exception 'Sign in to save a card' using errcode = '42501';
+  end if;
+  if p_holes not in (9, 18) or jsonb_typeof(p_card) <> 'array' or jsonb_array_length(p_card) <> p_holes then
+    raise exception 'The card must have one entry for each hole' using errcode = '22023';
+  end if;
+  -- Every hole numbered once, every stroke index present and different.
+  if (select count(distinct (h ->> 'hole')::int) from jsonb_array_elements(p_card) h
+       where (h ->> 'hole')::int between 1 and p_holes) <> p_holes
+     or (select count(distinct (h ->> 'stroke_index')::int) from jsonb_array_elements(p_card) h
+          where (h ->> 'stroke_index')::int between 1 and 18) <> p_holes then
+    raise exception 'Each hole needs its own stroke index' using errcode = '22023';
+  end if;
+
+  select * into v_existing from public.course_cards
+   where club_id = p_club_id and lower(btrim(tee_name)) = lower(btrim(p_tee_name)) and holes = p_holes;
+
+  if found then
+    if v_existing.verified_at is not null or v_existing.submitted_by is distinct from v_me then
+      raise exception 'A card for these tees is already on file' using errcode = 'P0001';
+    end if;
+    update public.course_cards
+       set par_total = p_par_total, course_rating = p_course_rating, slope = p_slope, updated_at = now()
+     where id = v_existing.id;
+    v_card_id := v_existing.id;
+    delete from public.course_card_holes where card_id = v_card_id;
+  else
+    insert into public.course_cards (club_id, tee_name, holes, par_total, course_rating, slope, source, submitted_by)
+    values (p_club_id, btrim(p_tee_name), p_holes, p_par_total, p_course_rating, p_slope, 'member', v_me)
+    returning id into v_card_id;
+  end if;
+
+  insert into public.course_card_holes (card_id, hole, par, stroke_index)
+  select v_card_id, (h ->> 'hole')::smallint, (h ->> 'par')::smallint, (h ->> 'stroke_index')::smallint
+    from jsonb_array_elements(p_card) h;
+
+  return v_card_id;
+end;
+$$;
+
+revoke all on function public.course_card_save(bigint, text, smallint, smallint, numeric, smallint, jsonb) from public;
+revoke execute on function public.course_card_save(bigint, text, smallint, smallint, numeric, smallint, jsonb) from anon;
+grant execute on function public.course_card_save(bigint, text, smallint, smallint, numeric, smallint, jsonb) to authenticated;

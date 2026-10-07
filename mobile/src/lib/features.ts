@@ -41,6 +41,9 @@ export const FEATURES = {
   sharedRounds: false,
   /** Shot maps: nothing captures shot positions or hole geometry yet. */
   shotMaps: false,
+  /** Live scoring (claude/live-scoring.md): needs migration 0103. Off hides
+   *  the Home card and the menu entry, and its screens say "on its way". */
+  liveScoring: false,
 } as const;
 
 export type Feature = keyof typeof FEATURES;
