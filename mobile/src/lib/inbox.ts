@@ -1,6 +1,7 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { listInbox, type InboxRow } from "./messages";
+import { settledReason, todayInDublin, type InterestNow } from "./request-settled";
 import { supabase } from "./supabase";
 
 /**
@@ -38,6 +39,11 @@ export type InboxAlert = {
   /** Set on tee-time alerts about one request — lets the row offer the
    *  answer in place (View request / Decline, Confirm / Can't make it). */
   interestId: number | null;
+  /** Why that answer is no longer wanted ("You confirmed your place",
+   *  "This round was cancelled"), read from the request as it stands now.
+   *  Null while it is still waiting on you — or when its state couldn't be
+   *  read, in which case the buttons stay and the server has the last word. */
+  settled: string | null;
 };
 
 /**
@@ -306,6 +312,23 @@ type AlertRow = {
 
 export type LoadedInbox = { items: InboxItem[]; counts: InboxCounts };
 
+/** The two alerts that carry an answer on the row. */
+const ANSWERABLE = new Set(["tee_time_place_offered", "tee_time_interest_received"]);
+
+/** The current state of every request an answerable alert points at — one
+ *  read. RLS lets a member see their own requests and those on rounds they
+ *  host, which is exactly who gets these alerts. */
+async function interestsNow(ids: number[]): Promise<Map<number, InterestNow> | null> {
+  if (ids.length === 0) return new Map();
+  const { data, error } = await supabase
+    .from("tee_time_interests")
+    .select("id, status, tee_time_invites (status, play_date)")
+    .in("id", ids)
+    .overrideTypes<InterestNow[]>();
+  if (error) return null;
+  return new Map((data ?? []).map((r) => [r.id, r]));
+}
+
 /**
  * Everything the screen needs, in three round trips — two of which listInbox()
  * was already making.
@@ -326,6 +349,18 @@ export async function loadInbox(userId: string): Promise<LoadedInbox> {
     inboxCounts(),
   ]);
 
+  const alertRows = (alerts.data ?? []).filter((row) => !isDeliveryOnlyAlert(row.type));
+  const askIds = [
+    ...new Set(
+      alertRows
+        .filter((r) => ANSWERABLE.has(r.type) && typeof r.data?.interestId === "number")
+        .map((r) => r.data!.interestId!)
+    ),
+  ];
+  // Null when the read failed: keep the buttons rather than hide a real ask.
+  const now = await interestsNow(askIds).catch(() => null);
+  const today = todayInDublin();
+
   return {
     items: mergeInbox(
       conversations.map((row) => ({
@@ -333,9 +368,9 @@ export async function loadInbox(userId: string): Promise<LoadedInbox> {
         kind: "conversation" as const,
         at: row.lastMessageAt ?? new Date(0).toISOString(),
       })),
-      (alerts.data ?? [])
-        .filter((row) => !isDeliveryOnlyAlert(row.type))
-        .map((row) => ({
+      alertRows.map((row) => {
+        const interestId = typeof row.data?.interestId === "number" ? row.data.interestId : null;
+        return {
           kind: "alert" as const,
           id: row.id,
           at: row.created_at,
@@ -344,8 +379,13 @@ export async function loadInbox(userId: string): Promise<LoadedInbox> {
           body: row.body,
           href: row.data?.href ?? "/dashboard",
           unread: row.read_at === null,
-          interestId: typeof row.data?.interestId === "number" ? row.data.interestId : null,
-        }))
+          interestId,
+          settled:
+            interestId !== null && ANSWERABLE.has(row.type) && now
+              ? settledReason(row.type, now.get(interestId), today)
+              : null,
+        };
+      })
     ),
     counts,
   };

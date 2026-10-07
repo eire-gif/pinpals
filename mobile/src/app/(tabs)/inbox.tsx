@@ -584,9 +584,11 @@ function ConversationRow({
  *
  * "Geoff wants to join your round" and "You've been offered a place" are the
  * two alerts with a clock on them, and both used to need three taps to
- * answer. Now the buttons are on the row. Anything the server says has
- * already been answered (409) just collapses the buttons — the member has
- * answered elsewhere, which is fine.
+ * answer. Now the buttons are on the row — while the request still wants an
+ * answer. Once it doesn't (confirmed from the round itself, given back, the
+ * round cancelled or played), the row says so instead: `settled`, read from
+ * the request as it stands when the inbox loads. A 409 from the server, for
+ * a change since then, collapses the buttons the same way.
  */
 function AlertRow({
   row,
@@ -601,8 +603,8 @@ function AlertRow({
   const [state, setState] = useState<"idle" | "busy" | "done">("idle");
   const [doneText, setDoneText] = useState("");
 
-  const canAnswerRequest = row.type === "tee_time_interest_received" && row.interestId !== null;
-  const canAnswerOffer = row.type === "tee_time_place_offered" && row.interestId !== null;
+  const canAnswerRequest = row.type === "tee_time_interest_received" && row.interestId !== null && !row.settled;
+  const canAnswerOffer = row.type === "tee_time_place_offered" && row.interestId !== null && !row.settled;
 
   const answer = async (fn: () => Promise<unknown>, label: string) => {
     setState("busy");
@@ -706,7 +708,18 @@ function AlertRow({
         </View>
       ) : null}
 
-      {state === "done" ? <Text style={styles.doneText}>{doneText}</Text> : null}
+      {state === "done" ? (
+        <Text style={styles.doneText}>{doneText}</Text>
+      ) : row.settled ? (
+        <View style={styles.settledRow}>
+          <Ionicons
+            name={row.settled.startsWith("You confirmed") || row.settled.startsWith("You accepted") ? "checkmark-circle" : "information-circle-outline"}
+            size={16}
+            color={row.settled.startsWith("You confirmed") || row.settled.startsWith("You accepted") ? colors.green700 : colors.ink500}
+          />
+          <Text style={styles.settledText}>{row.settled}</Text>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -927,6 +940,8 @@ const styles = StyleSheet.create({
   inlineSecondary: { borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface },
   inlineSecondaryLabel: { fontFamily: fonts.bodyBold, fontSize: 14.5, color: colors.ink900 },
   doneText: { fontFamily: fonts.bodySemi, fontSize: 14, color: colors.green800, paddingLeft: 62 },
+  settledRow: { flexDirection: "row", alignItems: "center", gap: 6, paddingLeft: 62 },
+  settledText: { fontFamily: fonts.bodySemi, fontSize: 14, color: colors.ink500, flexShrink: 1 },
 
   hit: {
     flexDirection: "row",
