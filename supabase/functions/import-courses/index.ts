@@ -40,14 +40,25 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 // several independent mirrors, tried in turn, with a pause between attempts.
 // Without this the admin "refresh" button would fail often enough that
 // nobody would trust it.
+//
+// Order matters (Oct 2026): overpass-api.de answers 406 to requests from
+// Supabase's Edge Function servers and both kumi and private.coffee were
+// returning 500 for everything, so the mail.ru mirror — slow, but the one
+// that actually answered — goes first.
 const OVERPASS_ENDPOINTS = [
+  "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
   "https://overpass-api.de/api/interpreter",
   "https://overpass.kumi.systems/api/interpreter",
   "https://overpass.private.coffee/api/interpreter",
-  "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
 ];
 
-const RETRY_DELAYS_MS = [0, 3000, 8000, 15000, 20000];
+const RETRY_DELAYS_MS = [0, 2000, 4000, 6000];
+
+// Supabase shuts an Edge Function down a little after two minutes. Retries
+// stop once this much of a run has gone, so there is always time left to
+// write the batch and start the next one — a run killed mid-retry would
+// silently end the whole chain.
+const OVERPASS_BUDGET_MS = 125_000;
 
 type CountryCode = "ireland" | "northern-ireland" | "england" | "scotland" | "wales" | "spain" | "portugal";
 
@@ -286,7 +297,7 @@ function parseHoles(tags: Record<string, string>): number | null {
 // returns. Each batch is a small query that finishes comfortably inside the
 // limit, and a batch that fails costs only its own provinces — the admin can
 // simply run the country again, which is idempotent.
-const REGION_BATCH_SIZE = 8;
+const REGION_BATCH_SIZE = 2;
 
 function regionBatch(country: CountryCode, batch: number): Record<string, string> | null {
   const all = REGION_BY_ISO[country];
@@ -335,7 +346,7 @@ function regionalOverpassQuery(regionAreas: Record<string, string>): string {
   const areas = Object.keys(regionAreas)
     .map((code) => `  area["ISO3166-2"="${code}"];`)
     .join("\n");
-  return `[out:json][timeout:120];
+  return `[out:json][timeout:110];
 (
 ${areas}
 )->.regions;
@@ -364,10 +375,16 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
  */
 async function fetchOverpass(country: CountryCode, batch: number): Promise<OverpassElement[]> {
   const failures: string[] = [];
+  const deadline = Date.now() + OVERPASS_BUDGET_MS;
 
   for (let attempt = 0; attempt < RETRY_DELAYS_MS.length; attempt++) {
     const endpoint = OVERPASS_ENDPOINTS[attempt % OVERPASS_ENDPOINTS.length];
     if (RETRY_DELAYS_MS[attempt] > 0) await sleep(RETRY_DELAYS_MS[attempt]);
+    const remaining = deadline - Date.now();
+    if (remaining < 10_000) {
+      failures.push("out of time");
+      break;
+    }
 
     try {
       const response = await fetch(endpoint, {
@@ -384,7 +401,7 @@ async function fetchOverpass(country: CountryCode, batch: number): Promise<Overp
         body: new URLSearchParams({ data: overpassQuery(country, batch) }),
         // A mirror that never answers would otherwise hold the run until
         // Supabase shuts the function down, with no retry and no error.
-        signal: AbortSignal.timeout(110_000),
+        signal: AbortSignal.timeout(remaining),
       });
 
       const text = await response.text();
