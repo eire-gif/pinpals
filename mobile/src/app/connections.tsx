@@ -15,6 +15,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { Avatar } from "@/components/avatar";
 import { WithInvite } from "@/components/pinpals";
+import { inviteFriends } from "@/lib/invite-friends";
 import { INVITE_EVERY, inviteAfter } from "@/lib/invite-slots";
 import { ScreenHeader } from "@/components/screen-header";
 import { useAuth } from "@/lib/auth";
@@ -202,6 +203,23 @@ export default function ConnectionsScreen() {
               tintColor={colors.green700}
             />
           }
+          // Always at the top: the two ways to have more people here.
+          ListHeaderComponent={
+            <View style={styles.grow}>
+              <Pressable
+                style={styles.growButton}
+                onPress={() => router.push("/members")}
+                accessibilityRole="button"
+              >
+                <Ionicons name="search" size={16} color={colors.green700} />
+                <Text style={styles.growLabel}>Find golfers</Text>
+              </Pressable>
+              <Pressable style={styles.growButton} onPress={inviteFriends} accessibilityRole="button">
+                <Ionicons name="person-add" size={16} color={colors.green700} />
+                <Text style={styles.growLabel}>Invite friends</Text>
+              </Pressable>
+            </View>
+          }
           renderSectionHeader={({ section }) => (
             <Text style={styles.sectionTitle}>{section.title}</Text>
           )}
@@ -238,6 +256,9 @@ export default function ConnectionsScreen() {
                   accessibilityRole="button"
                 >
                   <Text style={styles.ctaLabel}>Browse members</Text>
+                </Pressable>
+                <Pressable style={styles.ctaQuiet} onPress={inviteFriends} accessibilityRole="button">
+                  <Text style={styles.ctaQuietLabel}>Invite friends to PinPals</Text>
                 </Pressable>
               </View>
             )
@@ -433,4 +454,20 @@ const styles = StyleSheet.create({
     backgroundColor: colors.green700,
   },
   ctaLabel: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.cream50 },
+  grow: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.sm },
+  growButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    minHeight: 44,
+    borderRadius: radii.pill,
+    borderWidth: 1.5,
+    borderColor: colors.green700,
+    backgroundColor: colors.surface,
+  },
+  growLabel: { fontFamily: fonts.bodyBold, fontSize: 14.5, color: colors.green700 },
+  ctaQuiet: { minHeight: 44, justifyContent: "center", alignItems: "center" },
+  ctaQuietLabel: { fontFamily: fonts.bodyBold, fontSize: 14.5, color: colors.green700 },
 });

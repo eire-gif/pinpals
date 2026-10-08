@@ -20,6 +20,7 @@ import Constants from "expo-constants";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useAuth } from "@/lib/auth";
+import { inviteFriends } from "@/lib/invite-friends";
 import { contactMailto, visibleMenu, type MenuItem } from "@/lib/menu";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 
@@ -81,6 +82,10 @@ export function AppMenu({ open, onClose }: { open: boolean; onClose: () => void 
 
       case "contact":
         closeThen(() => void openMail());
+        return;
+
+      case "invite":
+        closeThen(inviteFriends);
         return;
 
       case "signout":

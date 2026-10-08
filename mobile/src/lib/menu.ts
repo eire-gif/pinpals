@@ -35,6 +35,7 @@ export type MenuItem =
    *  never handed to Safari, where they would be a stranger again. */
   | { kind: "web"; label: string; icon: keyof typeof Ionicons.glyphMap; path: string; title: string }
   | { kind: "contact"; label: string; icon: keyof typeof Ionicons.glyphMap }
+  | { kind: "invite"; label: string; icon: keyof typeof Ionicons.glyphMap }
   | { kind: "signout"; label: string; icon: keyof typeof Ionicons.glyphMap };
 
 export type MenuSection = {
@@ -103,9 +104,11 @@ export const MENU: MenuSection[] = [
       {
         kind: "native",
         label: "My connections",
-        icon: "person-add-outline",
+        icon: "people-circle-outline",
         to: "/connections",
       },
+      // The share sheet, with a link to join (lib/invite-friends.ts).
+      { kind: "invite", label: "Invite friends to PinPals", icon: "person-add-outline" },
     ],
   },
   {
