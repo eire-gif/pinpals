@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { FEED_SCOPES, FEED_SCOPE_LABELS, ago, commentLine, draftProblem, handicapLabel, recentDays, previewComments, interleave, likeLine, photoHeight, threadComments } from "./feed-rules";
+import { FEED_SCOPES, FEED_SCOPE_LABELS, ago, commentLine, compactCount, draftProblem, handicapLabel, recentDays, previewComments, interleave, likeLine, photoHeight, threadComments } from "./feed-rules";
 
 describe("draftProblem", () => {
   it("needs a photo or some words", () => {
@@ -127,5 +127,19 @@ describe("recentDays", () => {
   });
   it("crosses a month boundary", () => {
     expect(recentDays(2, new Date(2026, 9, 1, 9, 0))[1]).toEqual({ iso: "2026-09-30", label: "Yesterday" });
+  });
+});
+
+describe("compactCount", () => {
+  it("shows nothing for zero and the number up to 999", () => {
+    expect(compactCount(0)).toBe("");
+    expect(compactCount(7)).toBe("7");
+    expect(compactCount(151)).toBe("151");
+  });
+
+  it("shortens thousands", () => {
+    expect(compactCount(1000)).toBe("1k");
+    expect(compactCount(1240)).toBe("1.2k");
+    expect(compactCount(12_400)).toBe("12k");
   });
 });

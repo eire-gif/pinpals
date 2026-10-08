@@ -25,8 +25,7 @@ import { PostVideo } from "@/components/post-video";
 import { ReactionDisc, ReactionPicker, ReactionStack } from "@/components/reactions";
 import { achievementOf } from "@/lib/achievements";
 import type { FeedAuthor, FeedClub, FeedComment, FeedPhoto, FeedPost } from "@/lib/feed";
-import { POST_VISIBILITY_SHORT, ago, handicapLabel, photoHeight, previewComments } from "@/lib/feed-rules";
-import { mentionSegments } from "@/lib/mentions";
+import { POST_VISIBILITY_SHORT, ago, compactCount, handicapLabel, photoHeight } from "@/lib/feed-rules";
 import { detailChips } from "@/lib/post-details";
 import { REACTION_INFO, topReactions, type ReactionKey } from "@/lib/reactions";
 import { colors, creamAlpha, fonts, navyAlpha, radii, spacing, type } from "@/lib/theme";
@@ -51,14 +50,15 @@ const MEDIA_INSET = 12;
  *   2. text
  *   3. media    — inset, rounded, never taller than 4:5; tap for full size
  *   4. golf     — a round, hole or shot's facts as chips (post-details.ts)
- *   5. proof    — the top reactions as discs, the total, comment count
- *   6. actions  — React · Comment · Share · Save, 44pt each. React: tap
+ *   5. actions  — one condensed row (Oct 2026, after Facebook's): React
+ *                 with its count, Comment with its count, Share; on the
+ *                 right the top reactions as discs, then Save. React: tap
  *                 for Great Shot (or to take yours away), long-press to
- *                 choose (phase 4, components/reactions.tsx)
- *   7. comments — at most two, flat, then "View all N comments"; every way
- *                 into the conversation opens the Comments sheet (phase 5).
- *                 On the post screen (standalone) the card shows no thread:
- *                 the screen draws the full one under it
+ *                 choose (components/reactions.tsx). The comment count is
+ *                 the way into the conversation — the card no longer lists
+ *                 comments under itself; the Comments sheet has them all.
+ *                 On the post screen (standalone) the screen draws the
+ *                 thread under the card
  *
  * Separators are hairlines and whitespace rather than boxes. Nothing here
  * needs a native module, so changes to this file ship over the air.
@@ -73,7 +73,6 @@ export function PostCard({
   onShare,
   onSave,
   onMenu,
-  onCommentOptions,
   currentMemberId,
 }: {
   post: FeedPost;
@@ -90,6 +89,8 @@ export function PostCard({
   onSave: (post: FeedPost) => void;
   onMenu: (post: FeedPost) => void;
   /** Long-press on a preview comment: edit, delete, report or block. */
+  /** Unused since the card stopped previewing comments (Oct 2026); the
+   *  Comments sheet has the options. Kept so callers need not change. */
   onCommentOptions?: (comment: FeedComment) => void;
   /** Set on a member's own page: tapping that member's name does nothing
    *  there, rather than stacking a second copy of the page you're on. */
@@ -111,16 +112,10 @@ export function PostCard({
   });
   const chips = achievement ? [] : detailChips(post);
 
-  // The feed shows two comments at most and never a thread; standalone (the
-  // post screen) shows none here — the screen draws the full thread.
-  const shownComments = standalone ? [] : previewComments(post.comments, 2);
-  const more = post.commentCount > shownComments.filter((c) => !c.hidden).length;
-
   const openMember = (id: string) => {
     if (id === currentMemberId) return;
     router.push({ pathname: "/member/[id]", params: { id } });
   };
-  const openComments = () => router.push({ pathname: "/comments/[id]", params: { id: String(post.id) } });
 
   return (
     <View style={styles.card}>
@@ -184,75 +179,39 @@ export function PostCard({
         </View>
       )}
 
-      {(post.likeCount > 0 || post.commentCount > 0) && (
-        <View style={styles.proof}>
-          {post.likeCount > 0 ? (
-            <View
-              style={styles.proofLeft}
-              accessible
-              accessibilityLabel={`${post.likeCount} ${post.likeCount === 1 ? "reaction" : "reactions"}: ${topReactions(post.reactionCounts)
-                .map((r) => REACTION_INFO[r].label)
-                .join(", ")}`}
-            >
-              <ReactionStack reactions={topReactions(post.reactionCounts)} />
-              <Text style={styles.proofText}>{post.likeCount}</Text>
-            </View>
-          ) : (
-            <View />
-          )}
-          {post.commentCount > 0 && (
-            <Text
-              style={styles.proofText}
-              onPress={standalone ? undefined : openComments}
-              accessibilityRole={standalone ? undefined : "link"}
-              suppressHighlighting
-            >
-              {post.commentCount} {post.commentCount === 1 ? "comment" : "comments"}
-            </Text>
-          )}
-        </View>
-      )}
-
       <View style={styles.actions}>
         <ReactButton post={post} onTap={() => onLike(post)} onReact={(r) => onReact(post, r)} />
-        <ActionButton icon="chatbubble-outline" label="Comment" onPress={() => onComment(post)} />
-        <ActionButton icon="arrow-redo-outline" label="Share" onPress={() => onShare(post)} />
+        <ActionButton
+          icon="chatbubble-outline"
+          count={post.commentCount}
+          onPress={() => onComment(post)}
+          accessibilityLabel={
+            post.commentCount > 0
+              ? `${post.commentCount} ${post.commentCount === 1 ? "comment" : "comments"}. Open comments`
+              : "Comment"
+          }
+        />
+        <ActionButton icon="arrow-redo-outline" onPress={() => onShare(post)} accessibilityLabel="Share" />
+        <View style={styles.actionsSpacer} />
+        {post.likeCount > 0 && (
+          <View
+            style={styles.topReactions}
+            accessible
+            accessibilityLabel={`Reactions: ${topReactions(post.reactionCounts)
+              .map((r) => REACTION_INFO[r].label)
+              .join(", ")}`}
+          >
+            <ReactionStack reactions={topReactions(post.reactionCounts)} size={20} />
+          </View>
+        )}
         <ActionButton
           icon={post.savedByMe ? "bookmark" : "bookmark-outline"}
-          label={post.savedByMe ? "Saved" : "Save"}
           active={post.savedByMe}
           activeColor={colors.green700}
           onPress={() => onSave(post)}
-          accessibilityLabel={post.savedByMe ? "Remove from saved" : "Save post"}
+          accessibilityLabel={post.savedByMe ? "Saved. Remove from saved" : "Save post"}
         />
       </View>
-
-      {!standalone && more && (
-        <Pressable onPress={openComments} style={styles.viewAll} accessibilityRole="link">
-          <Text style={styles.viewAllText}>
-            View all {post.commentCount} {post.commentCount === 1 ? "comment" : "comments"}
-          </Text>
-        </Pressable>
-      )}
-
-      {shownComments.length > 0 && (
-        <View style={styles.comments}>
-          {shownComments.map((c) => (
-            <CommentRow
-              key={c.id}
-              comment={c}
-              onAuthor={() => openMember(c.author.id)}
-              onLongPress={onCommentOptions && (() => onCommentOptions(c))}
-              onReply={() =>
-                router.push({
-                  pathname: "/comments/[id]",
-                  params: { id: String(post.id), reply: String(c.id), replyName: c.author.name },
-                })
-              }
-            />
-          ))}
-        </View>
-      )}
 
       <View style={styles.foot} />
 
@@ -383,7 +342,10 @@ function ReactButton({
         style={({ pressed }) => [styles.action, pressed && styles.actionPressed]}
         accessibilityRole="button"
         accessibilityState={mine ? { selected: true } : undefined}
-        accessibilityLabel={info ? `Your reaction: ${info.label}. Tap to remove` : "React, Great Shot"}
+        accessibilityLabel={
+          (post.likeCount > 0 ? `${post.likeCount} ${post.likeCount === 1 ? "reaction" : "reactions"}. ` : "") +
+          (info ? `Your reaction: ${info.label}. Tap to remove` : "React, Great Shot")
+        }
         accessibilityHint="Long-press to choose a reaction"
         accessibilityActions={[{ name: "longpress", label: "Choose a reaction" }]}
         onAccessibilityAction={(e) => {
@@ -392,14 +354,16 @@ function ReactButton({
       >
         <Animated.View style={{ transform: [{ scale }] }}>
           {mine ? (
-            <ReactionDisc reaction={mine} size={20} />
+            <ReactionDisc reaction={mine} size={22} />
           ) : (
-            <Ionicons name="golf-outline" size={20} color={colors.ink500} />
+            <Ionicons name="golf-outline" size={22} color={colors.ink500} />
           )}
         </Animated.View>
-        <Text style={[styles.actionLabel, { color: info ? info.color : colors.ink500 }]} numberOfLines={1}>
-          {info ? info.label : "React"}
-        </Text>
+        {post.likeCount > 0 ? (
+          <Text style={[styles.actionCount, { color: info ? info.color : colors.ink500 }]} numberOfLines={1}>
+            {compactCount(post.likeCount)}
+          </Text>
+        ) : null}
       </Pressable>
       <ReactionPicker
         visible={open}
@@ -416,22 +380,22 @@ function ReactButton({
   );
 }
 
-/** One of the other three actions: icon and label, the full quarter of the
- *  row as its tap target (never under 44pt). */
+/** Comment, Share or Save: an icon, and a count beside it when there is
+ *  one. The tap target is never under 44pt. */
 function ActionButton({
   icon,
-  label,
+  count = 0,
   onPress,
   active = false,
   activeColor,
   accessibilityLabel,
 }: {
   icon: ComponentProps<typeof Ionicons>["name"];
-  label: string;
+  count?: number;
   onPress: () => void;
   active?: boolean;
   activeColor?: string;
-  accessibilityLabel?: string;
+  accessibilityLabel: string;
 }) {
   const color = active && activeColor ? activeColor : colors.ink500;
   return (
@@ -440,78 +404,14 @@ function ActionButton({
       style={({ pressed }) => [styles.action, pressed && styles.actionPressed]}
       accessibilityRole="button"
       accessibilityState={active ? { selected: true } : undefined}
-      accessibilityLabel={accessibilityLabel ?? label}
+      accessibilityLabel={accessibilityLabel}
     >
-      <Ionicons name={icon} size={20} color={color} />
-      <Text style={[styles.actionLabel, { color }]} numberOfLines={1}>
-        {label}
-      </Text>
-    </Pressable>
-  );
-}
-
-/** One comment in the feed's collapsed preview: name and text on one line,
- *  @mentions highlighted, then the time and Reply. The full thread, with
- *  likes and every option, is the Comments sheet (comment-thread.tsx). */
-function CommentRow({
-  comment,
-  onAuthor,
-  onLongPress,
-  onReply,
-}: {
-  comment: FeedComment;
-  onAuthor: () => void;
-  onLongPress?: () => void;
-  onReply: () => void;
-}) {
-  return (
-    <Pressable
-      onLongPress={onLongPress}
-      style={styles.comment}
-      accessibilityHint={onLongPress ? "Long-press for options" : undefined}
-    >
-      <Pressable onPress={onAuthor} style={styles.commentAvatar}>
-        <Avatar url={comment.author.avatarUrl} color={comment.author.avatarColor} name={comment.author.name} size={24} />
-      </Pressable>
-      <View style={styles.commentBody}>
-        <Text style={styles.commentText} numberOfLines={3}>
-          <Text style={styles.commentName} onPress={onAuthor}>
-            {comment.author.name}
-          </Text>{" "}
-          {mentionSegments(comment.body, comment.mentions).map((seg, i) =>
-            seg.mention ? (
-              <Text key={i} style={styles.mention}>
-                {seg.text}
-              </Text>
-            ) : (
-              <Text key={i}>{seg.text}</Text>
-            )
-          )}
+      <Ionicons name={icon} size={22} color={color} />
+      {count > 0 ? (
+        <Text style={[styles.actionCount, { color }]} numberOfLines={1}>
+          {compactCount(count)}
         </Text>
-        {comment.hidden && <Text style={styles.hiddenNote}>Hidden by PinPals — only you can see this.</Text>}
-        <View style={styles.commentMetaRow}>
-          <Text style={styles.commentMeta}>
-            {ago(comment.createdAt)}
-            {comment.editedAt ? " · Edited" : ""}
-          </Text>
-          {comment.hidden ? null : (
-            <Text
-              style={styles.replyLink}
-              onPress={onReply}
-              accessibilityRole="button"
-              accessibilityLabel={`Reply to ${comment.author.name}`}
-              suppressHighlighting
-            >
-              Reply
-            </Text>
-          )}
-          {comment.likeCount > 0 && (
-            <Text style={styles.commentMeta}>
-              <Ionicons name="heart" size={11} color={colors.red600} /> {comment.likeCount}
-            </Text>
-          )}
-        </View>
-      </View>
+      ) : null}
     </Pressable>
   );
 }
@@ -811,20 +711,10 @@ const styles = StyleSheet.create({
   },
   chipText: { fontFamily: fonts.bodySemi, fontSize: 12.5, color: colors.ink900 },
 
-  // 5. Proof
-  proof: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: spacing.md,
-    paddingTop: spacing.sm + 4,
-  },
-  proofLeft: { flexDirection: "row", alignItems: "center", gap: 6 },
-  proofText: { fontFamily: fonts.body, fontSize: 13, color: colors.ink500 },
-
-  // 6. Actions
+  // 5. Actions — one condensed row
   actions: {
     flexDirection: "row",
+    alignItems: "center",
     marginHorizontal: spacing.sm,
     marginTop: spacing.sm,
     borderTopWidth: StyleSheet.hairlineWidth,
@@ -832,31 +722,19 @@ const styles = StyleSheet.create({
     paddingTop: 2,
   },
   action: {
-    flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    gap: 5,
+    gap: 6,
     minHeight: 44,
+    minWidth: 44,
+    paddingHorizontal: spacing.sm,
     borderRadius: radii.sm,
+    justifyContent: "center",
   },
   actionPressed: { backgroundColor: colors.surfaceTint },
-  actionLabel: { fontFamily: fonts.bodySemi, fontSize: 13 },
-
-  // 7. Comments
-  viewAll: { paddingHorizontal: spacing.md, minHeight: 32, justifyContent: "center" },
-  viewAllText: { fontFamily: fonts.bodySemi, fontSize: 13.5, color: colors.ink500 },
-  comments: { paddingHorizontal: spacing.md, gap: spacing.sm + 2, paddingTop: spacing.xs },
-  comment: { flexDirection: "row", gap: spacing.sm },
-  commentAvatar: { paddingTop: 1 },
-  commentBody: { flex: 1, minWidth: 0 },
-  commentName: { fontFamily: fonts.bodyBold, fontSize: 13.5, color: colors.ink900 },
-  commentText: { fontFamily: fonts.body, fontSize: 13.5, lineHeight: 19, color: colors.ink900 },
-  hiddenNote: { fontFamily: fonts.body, fontSize: 11.5, color: colors.ink500, marginTop: 4 },
-  commentMetaRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, marginTop: 2 },
-  mention: { fontFamily: fonts.bodySemi, color: colors.green700 },
-  commentMeta: { fontFamily: fonts.body, fontSize: 12, color: colors.ink500 },
-  replyLink: { fontFamily: fonts.bodySemi, fontSize: 12, color: colors.ink500, paddingVertical: 2 },
+  actionCount: { fontFamily: fonts.bodySemi, fontSize: 15 },
+  actionsSpacer: { flex: 1 },
+  topReactions: { paddingHorizontal: spacing.xs },
   foot: { height: spacing.md - 4 },
 
   viewer: { flex: 1, backgroundColor: navyAlpha(0.97) },

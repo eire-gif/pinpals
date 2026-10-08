@@ -220,15 +220,20 @@ export default function TabsLayout() {
           // Sharing a round is what this tab is for, so the button to do it
           // is in the header from the moment it opens — the same reasoning
           // as Post a tee time on the Tee Times tab.
+          // My connections beside it: Social is where you notice who you
+          // aren't following yet.
           headerRight: () => (
-            <Pressable
-              onPress={() => router.push("/compose")}
-              hitSlop={12}
-              style={{ paddingHorizontal: spacing.md }}
-              accessibilityLabel="Share a post"
-            >
-              <Ionicons name="add-circle" size={27} color={colors.green700} />
-            </Pressable>
+            <View style={{ flexDirection: "row", alignItems: "center" }}>
+              <ConnectionsButton />
+              <Pressable
+                onPress={() => router.push("/compose")}
+                hitSlop={12}
+                style={{ paddingLeft: spacing.sm, paddingRight: spacing.md }}
+                accessibilityLabel="Share a post"
+              >
+                <Ionicons name="add-circle" size={27} color={colors.green700} />
+              </Pressable>
+            </View>
           ),
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="images-outline" size={size} color={color} />
@@ -245,15 +250,18 @@ export default function TabsLayout() {
           // anyone has used puts a compose button here, top right, and the
           // absence of one reads as "you cannot start one from the inbox".
           headerRight: () => (
-            <Pressable
-              onPress={() => router.push("/new-chat")}
-              hitSlop={12}
-              style={{ paddingHorizontal: spacing.md }}
-              accessibilityRole="button"
-              accessibilityLabel="Start a new conversation"
-            >
-              <Ionicons name="create-outline" size={24} color={colors.green700} />
-            </Pressable>
+            <View style={{ flexDirection: "row", alignItems: "center" }}>
+              <ConnectionsButton />
+              <Pressable
+                onPress={() => router.push("/new-chat")}
+                hitSlop={12}
+                style={{ paddingLeft: spacing.sm, paddingRight: spacing.md }}
+                accessibilityRole="button"
+                accessibilityLabel="Start a new conversation"
+              >
+                <Ionicons name="create-outline" size={24} color={colors.green700} />
+              </Pressable>
+            </View>
           ),
           tabBarBadge:
             unread.total > 0 ? (unread.total > 99 ? "99+" : unread.total) : undefined,
@@ -280,5 +288,20 @@ export default function TabsLayout() {
 
     <AppMenu open={menuOpen} onClose={() => setMenuOpen(false)} />
     </>
+  );
+}
+
+/** My connections, from a tab's header (Social and Inbox, Oct 2026). */
+function ConnectionsButton() {
+  return (
+    <Pressable
+      onPress={() => router.push("/connections")}
+      hitSlop={8}
+      style={{ paddingHorizontal: spacing.sm }}
+      accessibilityRole="button"
+      accessibilityLabel="My connections"
+    >
+      <Ionicons name="people-outline" size={25} color={colors.green700} />
+    </Pressable>
   );
 }

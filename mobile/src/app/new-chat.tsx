@@ -12,6 +12,7 @@ import { Stack, router, useFocusEffect } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { Avatar } from "@/components/avatar";
+import { InviteBanner } from "@/components/pinpals";
 import { ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import {
@@ -169,6 +170,14 @@ export default function NewChatScreen() {
           keyboardDismissMode="on-drag"
           ListEmptyComponent={
             <Empty searching={query.trim().length > 0} any={people.length > 0} />
+          }
+          // Under the list: the people you'd message most may not be here yet.
+          ListFooterComponent={
+            query.trim() === "" ? (
+              <View style={styles.footer}>
+                <InviteBanner title="Friend not on PinPals yet?" body="Send them a link — it's free to join." />
+              </View>
+            ) : null
           }
           renderItem={({ item }) => (
             <Pressable
@@ -349,4 +358,5 @@ const styles = StyleSheet.create({
     fontSize: type.body,
     color: colors.cream50,
   },
+  footer: { marginTop: spacing.md },
 });

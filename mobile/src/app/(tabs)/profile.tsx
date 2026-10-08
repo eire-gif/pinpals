@@ -13,6 +13,7 @@ import { router, type Href } from "expo-router";
 import Constants from "expo-constants";
 
 import { useAuth } from "@/lib/auth";
+import { inviteFriends } from "@/lib/invite-friends";
 import { isSuperAdmin } from "@/lib/admin";
 import { supabase } from "@/lib/supabase";
 import {
@@ -161,6 +162,12 @@ export default function ProfileScreen() {
             to={{ pathname: "/member/[id]", params: { id: session.user.id } }}
           />
         ) : null}
+        <NativeLink icon="people-circle-outline" label="My connections" to="/connections" />
+        <Pressable style={styles.link} onPress={inviteFriends} accessibilityRole="button">
+          <Ionicons name="person-add-outline" size={20} color={colors.green700} />
+          <Text style={styles.linkLabel}>Invite friends to PinPals</Text>
+          <Ionicons name="share-outline" size={18} color={colors.ink500} />
+        </Pressable>
         <NativeLink icon="add-circle-outline" label="Post a tee time" to="/post-tee-time" />
         <NativeLink icon="people-outline" label="Requests to join" to="/tee-time-requests" />
         <NativeLink icon="chatbubbles-outline" label="Messages" to="/inbox" />

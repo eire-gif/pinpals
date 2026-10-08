@@ -193,3 +193,12 @@ export function threadComments<T extends { id: number; parentId: number | null; 
   }
   return out;
 }
+
+/** A count beside an action icon: 7, 151, 1.2k, 12k. Nothing for zero —
+ *  the icon on its own says "be the first". */
+export function compactCount(n: number): string {
+  if (n <= 0) return "";
+  if (n < 1000) return String(n);
+  if (n < 10_000) return `${(n / 1000).toFixed(1).replace(/\.0$/, "")}k`;
+  return `${Math.round(n / 1000)}k`;
+}

@@ -1,12 +1,12 @@
 import type { ReactNode } from "react";
 import { useState } from "react";
-import { Pressable, Share, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { Avatar } from "@/components/avatar";
 import { useAuth } from "@/lib/auth";
-import { SITE_URL } from "@/lib/config";
+import { inviteFriends } from "@/lib/invite-friends";
 import { requestConnection } from "@/lib/members";
 import { suggestionReason, type Suggestion } from "@/lib/onboarding";
 import { colors, fonts, radii } from "@/lib/theme";
@@ -131,10 +131,7 @@ export function InviteBanner({
   title?: string;
   body?: string;
 }) {
-  const invite = () =>
-    void Share.share({
-      message: `I've joined PinPals — golfers swapping tee times, at home and abroad, and selling gear. Join me: ${SITE_URL}/signup`,
-    });
+  const invite = inviteFriends;
 
   return (
     <View style={styles.invite}>
