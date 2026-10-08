@@ -13,13 +13,15 @@ import {
 } from "./regions";
 
 describe("countries", () => {
-  it("covers Ireland and the four UK countries", () => {
+  it("covers Ireland, the four UK countries, then Spain and Portugal", () => {
     expect(COUNTRY_CODES).toEqual([
       "ireland",
       "northern-ireland",
       "england",
       "scotland",
       "wales",
+      "spain",
+      "portugal",
     ]);
   });
 
@@ -55,6 +57,8 @@ describe("regions", () => {
     expect(REGIONS_BY_COUNTRY.england).toHaveLength(48);
     expect(REGIONS_BY_COUNTRY.scotland).toHaveLength(32);
     expect(REGIONS_BY_COUNTRY.wales).toHaveLength(22);
+    expect(REGIONS_BY_COUNTRY.spain).toHaveLength(50);
+    expect(REGIONS_BY_COUNTRY.portugal).toHaveLength(20);
   });
 
   it("lists every region alphabetically within its country", () => {
@@ -95,6 +99,8 @@ describe("regions", () => {
     expect(countryForRegion("Surrey")).toBe("england");
     expect(countryForRegion("Fife")).toBe("scotland");
     expect(countryForRegion("Gwynedd")).toBe("wales");
+    expect(countryForRegion("Málaga")).toBe("spain");
+    expect(countryForRegion("Algarve")).toBe("portugal");
     expect(countryForRegion("Nowhereshire")).toBeNull();
   });
 

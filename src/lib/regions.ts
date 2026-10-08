@@ -2,7 +2,7 @@
  * Countries and their administrative regions, for the Courses directory and
  * for every "where are you" field on the site.
  *
- * ============ Why five countries ============
+ * ============ Why these countries ============
  *
  * Northern Ireland is listed separately from Ireland. This cuts against how
  * the sport is organised on this island — Golf Ireland governs all 32
@@ -14,11 +14,12 @@
  * one who finds it listed apart from Ireland. The two pages cross-link.
  *
  * Ireland is first rather than alphabetical — it is where the site's members
- * are today — and the four UK countries follow.
+ * are today — and the four UK countries follow. Spain and Portugal come last:
+ * they are where those members travel to play, not where they live.
  *
  * ============ Why the region vocabularies differ ============
  *
- * There is no single administrative unit shared across these five countries,
+ * There is no single administrative unit shared across these countries,
  * so each gets the one people actually use for an address:
  *
  *   Ireland          26 traditional counties (the Republic's)
@@ -29,6 +30,13 @@
  *   Scotland         32 council areas — Scotland has no current county
  *                     tier, and council areas are what postal addresses use
  *   Wales            22 principal areas
+ *   Spain            50 provinces — what a Spanish address gives, and what
+ *                     golfers recognise ("Málaga", "Alicante"). English
+ *                     exonyms where one is in everyday use (Seville, Navarre,
+ *                     Biscay, Balearic Islands); otherwise the local name.
+ *   Portugal         18 districts plus the Azores and Madeira. Faro district
+ *                     is listed as "Algarve": the two cover exactly the same
+ *                     ground, and nobody books a golf trip to "Faro district".
  *
  * A region is therefore only meaningful alongside its country: "Down" and
  * "Durham" are both valid, in different lists. Nothing should offer a flat
@@ -41,6 +49,8 @@ export const COUNTRIES = [
   { code: "england", name: "England" },
   { code: "scotland", name: "Scotland" },
   { code: "wales", name: "Wales" },
+  { code: "spain", name: "Spain" },
+  { code: "portugal", name: "Portugal" },
 ] as const;
 
 export type CountryCode = (typeof COUNTRIES)[number]["code"];
@@ -94,16 +104,35 @@ const WALES_REGIONS = [
   "Torfaen", "Vale of Glamorgan", "Wrexham",
 ] as const;
 
+const SPAIN_REGIONS = [
+  "A Coruña", "Álava", "Albacete", "Alicante", "Almería", "Asturias", "Ávila",
+  "Badajoz", "Balearic Islands", "Barcelona", "Biscay", "Burgos", "Cáceres",
+  "Cádiz", "Cantabria", "Castellón", "Ciudad Real", "Córdoba", "Cuenca",
+  "Gipuzkoa", "Girona", "Granada", "Guadalajara", "Huelva", "Huesca", "Jaén",
+  "La Rioja", "Las Palmas", "León", "Lleida", "Lugo", "Madrid", "Málaga",
+  "Murcia", "Navarre", "Ourense", "Palencia", "Pontevedra", "Salamanca",
+  "Santa Cruz de Tenerife", "Segovia", "Seville", "Soria", "Tarragona",
+  "Teruel", "Toledo", "Valencia", "Valladolid", "Zamora", "Zaragoza",
+] as const;
+
+const PORTUGAL_REGIONS = [
+  "Algarve", "Aveiro", "Azores", "Beja", "Braga", "Bragança", "Castelo Branco",
+  "Coimbra", "Évora", "Guarda", "Leiria", "Lisbon", "Madeira", "Portalegre",
+  "Porto", "Santarém", "Setúbal", "Viana do Castelo", "Vila Real", "Viseu",
+] as const;
+
 export const REGIONS_BY_COUNTRY: Record<CountryCode, readonly string[]> = {
   ireland: IRELAND_REGIONS,
   "northern-ireland": NORTHERN_IRELAND_REGIONS,
   england: ENGLAND_REGIONS,
   scotland: SCOTLAND_REGIONS,
   wales: WALES_REGIONS,
+  spain: SPAIN_REGIONS,
+  portugal: PORTUGAL_REGIONS,
 };
 
 /**
- * Every region name across all five countries, de-duplicated and sorted.
+ * Every region name across every country, de-duplicated and sorted.
  *
  * For validating a value whose country isn't known — a legacy `county` saved
  * before countries existed, or a query string a user typed. Don't render it
@@ -140,7 +169,7 @@ export function isRegionInCountry(country: string, region: string): boolean {
 /**
  * The country a region name belongs to, or null if it's ambiguous or unknown.
  *
- * Every region name across the five lists happens to be unique today, which
+ * Every region name across the lists happens to be unique today, which
  * is what makes this possible at all — it's how a legacy `county` value with
  * no country beside it gets one. It returns null rather than guessing if
  * that ever stops being true.
@@ -157,8 +186,8 @@ export function countryForRegion(region: string): CountryCode | null {
  * Not every "where are you" field on the site can afford a country dropdown
  * beside it — the marketplace filter bar and the tee-time browse filters are
  * single controls in a crowded row. Rendering the regions as `<optgroup>`s
- * gives those one control the whole five-country vocabulary while keeping it
- * readable, and because every region name is unique across the five lists
+ * gives those one control the whole vocabulary while keeping it
+ * readable, and because every region name is unique across the lists
  * (asserted in regions.test.ts) the country can always be recovered from the
  * chosen value with countryForRegion(). That is what lets a listing store a
  * country without ever asking the seller for one.

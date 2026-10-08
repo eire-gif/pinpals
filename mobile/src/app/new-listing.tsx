@@ -68,6 +68,8 @@ const COUNTRY_CODES = [
   "england",
   "scotland",
   "wales",
+  "spain",
+  "portugal",
 ] as const;
 
 type OpenSection = "category" | "subcategory" | "brand" | "county" | null;
