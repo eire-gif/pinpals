@@ -5,7 +5,7 @@ import { requireStaff } from "@/lib/admin/authorization";
 import { recordAdminAction } from "@/lib/admin/audit";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { SUPABASE_URL } from "@/lib/supabase/config";
-import { isCountryCode, isRegionInCountry, countryName, COUNTRY_CODES } from "@/lib/regions";
+import { isCountryCode, isRegionInCountry, countryName } from "@/lib/regions";
 
 export type ClubEditState = { error?: string; saved?: boolean };
 export type ImportState = { error?: string; started?: string };
@@ -211,6 +211,3 @@ export async function runCourseImport(_prev: ImportState, formData: FormData): P
 
   return { started: countryName(country) };
 }
-
-/** Countries offered by the refresh control, in menu order. */
-export const IMPORTABLE_COUNTRIES = COUNTRY_CODES;
