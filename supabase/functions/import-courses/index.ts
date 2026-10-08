@@ -275,9 +275,33 @@ function parseHoles(tags: Record<string, string>): number | null {
   return Number.isFinite(n) && n > 0 && n <= 200 ? n : null;
 }
 
-function overpassQuery(country: CountryCode): string {
-  const regionAreas = REGION_BY_ISO[country];
-  if (regionAreas) return regionalOverpassQuery(country, regionAreas);
+// ============ Batches (Spain and Portugal) ============
+//
+// Walking every province in one Overpass query takes longer than Supabase
+// lets an Edge Function run: the first Spain runs were shut down after two
+// to three minutes with nothing written. So for these two countries one
+// invocation handles REGION_BATCH_SIZE region codes, writes them, and then
+// starts the next batch by calling this same function again before it
+// returns. Each batch is a small query that finishes comfortably inside the
+// limit, and a batch that fails costs only its own provinces — the admin can
+// simply run the country again, which is idempotent.
+const REGION_BATCH_SIZE = 8;
+
+function regionBatch(country: CountryCode, batch: number): Record<string, string> | null {
+  const all = REGION_BY_ISO[country];
+  if (!all) return null;
+  const codes = Object.keys(all).slice(batch * REGION_BATCH_SIZE, (batch + 1) * REGION_BATCH_SIZE);
+  return Object.fromEntries(codes.map((code) => [code, all[code]]));
+}
+
+function batchCount(country: CountryCode): number {
+  const all = REGION_BY_ISO[country];
+  return all ? Math.ceil(Object.keys(all).length / REGION_BATCH_SIZE) : 1;
+}
+
+function overpassQuery(country: CountryCode, batch = 0): string {
+  const regionAreas = regionBatch(country, batch);
+  if (regionAreas) return regionalOverpassQuery(regionAreas);
 
   // `out tags center` returns each way/relation's tags plus a single
   // representative point, instead of the full polygon geometry. A course
@@ -294,24 +318,23 @@ out tags center;`;
 }
 
 /**
- * The Spain/Portugal query: courses province by province, then the whole
- * country.
+ * The Spain/Portugal query: courses province by province, for one batch.
  *
  * Each region's area is printed (`.r out tags`) immediately before the
  * courses inside it, so the response reads as a sequence of
  * "area, its courses, next area, its courses…" and fetchCandidates can tag
- * each course with the area most recently seen. The final whole-country pass
- * is preceded by the country area itself, which resets the region to none:
- * it exists to catch anything that fell outside every listed boundary (a
- * course straddling a border, a boundary missing its code) so that a gap in
- * OSM's admin data costs a course its region, never its place in the
- * directory. Courses already seen inside a region are skipped there.
+ * each course with the area most recently seen.
+ *
+ * There is no whole-country catch-all pass: it rescans the entire country
+ * and alone pushed a run past the time limit. The single-province
+ * communities are listed under both codes (see REGION_BY_ISO), which covers
+ * the realistic way a province boundary goes missing.
  */
-function regionalOverpassQuery(country: CountryCode, regionAreas: Record<string, string>): string {
+function regionalOverpassQuery(regionAreas: Record<string, string>): string {
   const areas = Object.keys(regionAreas)
     .map((code) => `  area["ISO3166-2"="${code}"];`)
     .join("\n");
-  return `[out:json][timeout:240];
+  return `[out:json][timeout:120];
 (
 ${areas}
 )->.regions;
@@ -323,15 +346,7 @@ foreach.regions->.r(
     relation["leisure"="golf_course"]["name"](area.r);
   );
   out tags center;
-);
-${AREA_SELECTOR[country]}->.searchArea;
-.searchArea out tags;
-(
-  node["leisure"="golf_course"]["name"](area.searchArea);
-  way["leisure"="golf_course"]["name"](area.searchArea);
-  relation["leisure"="golf_course"]["name"](area.searchArea);
-);
-out tags center;`;
+);`;
 }
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -346,7 +361,7 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
  * indistinguishable from a genuinely empty country and would quietly wipe
  * nothing but also import nothing.
  */
-async function fetchOverpass(country: CountryCode): Promise<OverpassElement[]> {
+async function fetchOverpass(country: CountryCode, batch: number): Promise<OverpassElement[]> {
   const failures: string[] = [];
 
   for (let attempt = 0; attempt < RETRY_DELAYS_MS.length; attempt++) {
@@ -362,7 +377,10 @@ async function fetchOverpass(country: CountryCode): Promise<OverpassElement[]> {
           // query is the kind that gets an IP rate-limited.
           "User-Agent": "Pinpals course directory import (https://www.pinpals.ie)",
         },
-        body: new URLSearchParams({ data: overpassQuery(country) }),
+        body: new URLSearchParams({ data: overpassQuery(country, batch) }),
+        // A mirror that never answers would otherwise hold the run until
+        // Supabase shuts the function down, with no retry and no error.
+        signal: AbortSignal.timeout(110_000),
       });
 
       const text = await response.text();
@@ -385,14 +403,15 @@ async function fetchOverpass(country: CountryCode): Promise<OverpassElement[]> {
   throw new Error(`Overpass unavailable after ${RETRY_DELAYS_MS.length} attempts: ${failures.join("; ")}`);
 }
 
-async function fetchCandidates(country: CountryCode): Promise<Candidate[]> {
-  const elements = await fetchOverpass(country);
+async function fetchCandidates(country: CountryCode, batch: number): Promise<Candidate[]> {
+  const elements = await fetchOverpass(country, batch);
 
   const raw: Candidate[] = [];
   const regionAreas = REGION_BY_ISO[country];
   // Only meaningful for the regional query: the region of the area element
   // most recently seen in the response, and the courses already placed in
-  // one, so the closing whole-country pass doesn't add them a second time.
+  // one, so a course inside two listed areas (a province and its community)
+  // is only kept once.
   let currentRegion: string | null = null;
   const seen = new Set<string>();
 
@@ -547,12 +566,14 @@ Deno.serve(async (request) => {
   }
 
   let country: CountryCode;
+  let batch = 0;
   try {
-    const body = (await request.json()) as { country?: string };
+    const body = (await request.json()) as { country?: string; batch?: number };
     if (!body.country || !(body.country in AREA_SELECTOR)) {
       return json({ error: `country must be one of ${Object.keys(AREA_SELECTOR).join(", ")}` }, 400);
     }
     country = body.country as CountryCode;
+    if (Number.isInteger(body.batch) && body.batch! > 0) batch = body.batch!;
   } catch {
     return json({ error: "expected a JSON body with a country" }, 400);
   }
@@ -570,9 +591,11 @@ Deno.serve(async (request) => {
   // thing to hand a staff member who just pressed a button.
   let candidates: Candidate[];
   try {
-    candidates = await fetchCandidates(country);
+    candidates = await fetchCandidates(country, batch);
   } catch (cause) {
-    return json({ error: cause instanceof Error ? cause.message : String(cause), country }, 502);
+    const message = cause instanceof Error ? cause.message : String(cause);
+    console.error(`import ${country} batch ${batch} failed: ${message}`);
+    return json({ error: message, country, batch }, 502);
   }
 
   // Every row that could conceivably be the home of one of these candidates:
@@ -705,8 +728,31 @@ Deno.serve(async (request) => {
     }
   }
 
-  return json({
+  // Start the next batch before answering. Fire-and-forget with a short
+  // abort, exactly as the admin screen starts the first one: the next
+  // invocation carries on whether or not anyone is still listening.
+  const batches = batchCount(country);
+  if (batch + 1 < batches) {
+    const self = `${Deno.env.get("SUPABASE_URL")!.replace(/\/$/, "")}/functions/v1/import-courses`;
+    try {
+      await fetch(self, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: request.headers.get("Authorization") ?? `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+          ...(secret ? { "x-import-secret": secret } : {}),
+        },
+        body: JSON.stringify({ country, batch: batch + 1 }),
+        signal: AbortSignal.timeout(3000),
+      });
+    } catch {
+      // An abort here is the expected outcome — see above.
+    }
+  }
+
+  const result = {
     country,
+    batch: `${batch + 1} of ${batches}`,
     osmRecords: candidates.length,
     inserted: inserts.length,
     updated: fullUpdates.length + structuralUpdates.length,
@@ -717,7 +763,11 @@ Deno.serve(async (request) => {
     withRegion: candidates.filter((c) => c.region).length,
     withCoordinates: candidates.filter((c) => c.latitude != null).length,
     elapsedMs: Date.now() - started,
-  });
+  };
+  // Logged as well as returned: after the first batch nobody is listening
+  // for the response, and the function logs are the only record of a run.
+  console.log(`import ${JSON.stringify(result)}`);
+  return json(result);
 });
 
 function json(body: unknown, status = 200): Response {
