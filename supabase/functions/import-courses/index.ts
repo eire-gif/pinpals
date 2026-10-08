@@ -44,9 +44,10 @@ const OVERPASS_ENDPOINTS = [
   "https://overpass-api.de/api/interpreter",
   "https://overpass.kumi.systems/api/interpreter",
   "https://overpass.private.coffee/api/interpreter",
+  "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
 ];
 
-const RETRY_DELAYS_MS = [0, 3000, 8000, 15000];
+const RETRY_DELAYS_MS = [0, 3000, 8000, 15000, 20000];
 
 type CountryCode = "ireland" | "northern-ireland" | "england" | "scotland" | "wales" | "spain" | "portugal";
 
@@ -374,8 +375,11 @@ async function fetchOverpass(country: CountryCode, batch: number): Promise<Overp
         headers: {
           "Content-Type": "application/x-www-form-urlencoded",
           // Overpass asks callers to identify themselves; an anonymous bulk
-          // query is the kind that gets an IP rate-limited.
+          // query is the kind that gets an IP rate-limited. Since April 2026
+          // overpass-api.de also answers 406 to requests without a Referer,
+          // which is what broke the first Spain imports.
           "User-Agent": "Pinpals course directory import (https://www.pinpals.ie)",
+          Referer: "https://www.pinpals.ie/",
         },
         body: new URLSearchParams({ data: overpassQuery(country, batch) }),
         // A mirror that never answers would otherwise hold the run until
