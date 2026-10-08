@@ -39,6 +39,81 @@
             {
               "scheme": "https",
               "host": "www.pinpals.ie"
+            },
+            {
+              "path": "/feed"
+            },
+            {
+              "pathPrefix": "/feed/"
+            },
+            {
+              "pathPrefix": "/s/"
+            },
+            {
+              "pathPrefix": "/invite/"
+            },
+            {
+              "path": "/auth/confirm"
+            },
+            {
+              "path": "/inbox"
+            },
+            {
+              "path": "/conversations"
+            },
+            {
+              "pathPrefix": "/conversations/"
+            },
+            {
+              "path": "/tee-times"
+            },
+            {
+              "pathPrefix": "/tee-times/"
+            },
+            {
+              "path": "/marketplace"
+            },
+            {
+              "pathPrefix": "/marketplace/"
+            },
+            {
+              "path": "/dashboard"
+            },
+            {
+              "pathPrefix": "/dashboard/listings"
+            },
+            {
+              "pathPrefix": "/dashboard/selling"
+            },
+            {
+              "pathPrefix": "/dashboard/buying"
+            },
+            {
+              "path": "/dashboard/payouts"
+            },
+            {
+              "pathPrefix": "/dashboard/connections"
+            },
+            {
+              "pathPrefix": "/dashboard/profile"
+            },
+            {
+              "pathPrefix": "/dashboard/notifications"
+            },
+            {
+              "pathPrefix": "/dashboard/availability"
+            },
+            {
+              "path": "/members"
+            },
+            {
+              "pathPrefix": "/members/"
+            },
+            {
+              "path": "/community"
+            },
+            {
+              "pathPrefix": "/live/"
             }
           ],
           "category": [
