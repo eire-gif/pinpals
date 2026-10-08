@@ -92,6 +92,21 @@ export async function listInvites(limit = 50): Promise<Invite[]> {
   return data ?? [];
 }
 
+/** Open, upcoming tee times at one club — the course page's list. Same
+ *  rules as listInvites(), narrowed to the club. */
+export async function listInvitesAtClub(clubId: number, limit = 20): Promise<Invite[]> {
+  const { data, error } = await openAndUpcoming(
+    supabase.from("tee_time_invites").select(SELECT).eq("club_id", clubId)
+  )
+    .order("play_date", { ascending: true })
+    .order("time_from", { ascending: true, nullsFirst: false })
+    .limit(limit)
+    .overrideTypes<Invite[]>();
+
+  if (error) throw error;
+  return data ?? [];
+}
+
 /**
  * Tee times near a point.
  *

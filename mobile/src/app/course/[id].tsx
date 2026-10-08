@@ -5,19 +5,25 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { Avatar } from "@/components/avatar";
 import { STARS_GOLD, StarRow } from "@/components/stars";
+import { TeeTimeCard } from "@/components/tee-time-card";
 import { useAuth } from "@/lib/auth";
 import { countryName, placeLabel } from "@/lib/courses";
 import {
   REVIEW_TAGS,
   courseListCounts,
+  courseMembers,
   loadCourse,
   loadCourseReviews,
   myCourseState,
+  myHomeClub,
+  patchProfile,
   reportCourseReview,
   setCourse,
   type CourseDetail,
+  type CourseMember,
   type CourseReviewRow,
 } from "@/lib/onboarding";
+import { confirmedPlayersFor, listInvitesAtClub, type CardPlayer, type Invite } from "@/lib/tee-times";
 import { colors, fonts, radii, spacing } from "@/lib/theme";
 
 const TAG_LABEL = Object.fromEntries(REVIEW_TAGS.map((t) => [t.code, t.label])) as Record<string, string>;
@@ -27,9 +33,10 @@ const TAG_LABEL = Object.fromEntries(REVIEW_TAGS.map((t) => [t.code, t.label])) 
  *
  * Replaces opening the club's website page in a web view for the parts that
  * are about the course and the community: the rating, the reviews, who has
- * played it and who wants to, and the two buttons that put it on your lists.
- * The website page is still one tap away for the map, the members list and
- * "set as my home club", which have server logic behind them.
+ * played it and who wants to, the two buttons that put it on your lists, a
+ * Google Maps link, the members who play here, the tee times going, and
+ * "make this my home club" — all native, so nothing here hands over to the
+ * website.
  */
 export default function CourseScreen() {
   const router = useRouter();
@@ -42,6 +49,12 @@ export default function CourseScreen() {
   const [reviews, setReviews] = useState<CourseReviewRow[]>([]);
   const [counts, setCounts] = useState({ played: 0, bucket: 0, home: 0 });
   const [mine, setMine] = useState({ played: false, bucket: false });
+  const [members, setMembers] = useState<CourseMember[]>([]);
+  const [teeTimes, setTeeTimes] = useState<Invite[]>([]);
+  const [teePlayers, setTeePlayers] = useState<Map<number, CardPlayer[]>>(new Map());
+  const [homeClubId, setHomeClubId] = useState<number | null>(null);
+  const [myCountry, setMyCountry] = useState<string | null>(null);
+  const [settingHome, setSettingHome] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -58,6 +71,24 @@ export default function CourseScreen() {
     setCounts(n);
     setMine(m);
     setLoading(false);
+
+    // The members and tee times that used to need the website. Loaded after
+    // the course itself so the page appears at once and these fill in; a
+    // failure here is an empty section, never a broken page.
+    try {
+      const [people, rounds, home] = await Promise.all([
+        courseMembers(clubId),
+        listInvitesAtClub(clubId),
+        userId ? myHomeClub(userId) : Promise.resolve({ clubId: null, country: null }),
+      ]);
+      setMembers(people);
+      setTeeTimes(rounds);
+      setHomeClubId(home.clubId);
+      setMyCountry(home.country);
+      setTeePlayers(await confirmedPlayersFor(rounds.map((r) => r.id)));
+    } catch {
+      // Leave the sections empty.
+    }
     setRefreshing(false);
   }, [clubId, userId]);
 
@@ -67,6 +98,29 @@ export default function CourseScreen() {
       void load();
     }, [load])
   );
+
+  const makeHome = async () => {
+    if (!userId || !course) return;
+    setSettingHome(true);
+    try {
+      // Country follows the club, as the website's button does — the profile
+      // validator rejects a home club in another country. County follows the
+      // club's region when it has one; when it doesn't, the member's own
+      // county is kept, unless the country changed and it no longer fits.
+      const county = course.region
+        ? { county: course.region }
+        : myCountry !== course.country
+          ? { county: "" }
+          : {};
+      await patchProfile(userId, { homeClubId: clubId, country: course.country, ...county });
+      setHomeClubId(clubId);
+      void load();
+    } catch (error) {
+      Alert.alert("Couldn't set your home club", error instanceof Error ? error.message : "Please try again.");
+    } finally {
+      setSettingHome(false);
+    }
+  };
 
   const toggle = async (kind: "played" | "bucket") => {
     if (!userId) return;
@@ -218,14 +272,86 @@ export default function CourseScreen() {
           </Text>
         </View>
 
-        <Pressable
-          style={styles.webLink}
-          onPress={() => router.push({ pathname: "/web", params: { path: `/courses/${course.country}/${course.slug}`, title: course.name } })}
-          accessibilityRole="button"
-        >
-          <Text style={styles.webLinkLabel}>Members, map and tee times</Text>
-          <Ionicons name="arrow-forward" size={16} color={colors.green700} />
-        </Pressable>
+        {/* Members here — home club first, then who has played it. */}
+        <View style={styles.sectionHead}>
+          <Text style={styles.sectionTitle}>Members here</Text>
+          {members.length > 0 ? <Text style={styles.sectionCount}>{members.length}</Text> : null}
+        </View>
+        {members.length > 0 ? (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.memberRow}>
+            {members.map((m) => (
+              <Pressable
+                key={m.id}
+                style={({ pressed }) => [styles.memberCard, m.home && styles.memberCardHome, pressed && styles.pressed]}
+                onPress={() => router.push(`/member/${m.id}`)}
+                accessibilityRole="button"
+                accessibilityLabel={`${m.name}${m.home ? ", home club" : ", has played here"}`}
+              >
+                <Avatar url={m.avatarUrl} color={m.avatarColor} name={m.name} size={52} />
+                <Text style={styles.memberName} numberOfLines={2}>{m.id === userId ? "You" : m.name}</Text>
+                <View style={[styles.memberTag, m.home ? styles.memberTagHome : styles.memberTagPlayed]}>
+                  <Text style={[styles.memberTagText, m.home && styles.memberTagTextHome]}>{m.home ? "Home club" : "Played"}</Text>
+                </View>
+                {m.handicap !== null ? <Text style={styles.memberHcp}>Hcp {m.handicap}</Text> : null}
+              </Pressable>
+            ))}
+          </ScrollView>
+        ) : (
+          <Text style={styles.emptyLine}>No PinPals members have this as their home club or have played it yet.</Text>
+        )}
+        {userId && homeClubId !== clubId ? (
+          <Pressable
+            style={({ pressed }) => [styles.homeButton, pressed && styles.pressed, settingHome && styles.disabled]}
+            disabled={settingHome}
+            onPress={() => void makeHome()}
+            accessibilityRole="button"
+          >
+            {settingHome ? (
+              <ActivityIndicator color={colors.green700} />
+            ) : (
+              <>
+                <Ionicons name="home-outline" size={18} color={colors.green700} />
+                <Text style={styles.homeButtonLabel}>Make this my home club</Text>
+              </>
+            )}
+          </Pressable>
+        ) : userId && homeClubId === clubId ? (
+          <View style={styles.homeIs}>
+            <Ionicons name="home" size={16} color={colors.green700} />
+            <Text style={styles.homeIsText}>This is your home club</Text>
+          </View>
+        ) : null}
+
+        {/* Tee times here — the same cards as the Tee times tab. */}
+        <View style={styles.sectionHead}>
+          <Text style={styles.sectionTitle}>Tee times here</Text>
+          {teeTimes.length > 0 ? <Text style={styles.sectionCount}>{teeTimes.length}</Text> : null}
+        </View>
+        {teeTimes.length > 0 ? (
+          <View style={styles.teeList}>
+            {teeTimes.map((invite) => (
+              <TeeTimeCard
+                key={invite.id}
+                invite={invite}
+                players={teePlayers.get(invite.id) ?? []}
+                me={userId}
+                onPress={() => router.push(`/invite/${invite.id}`)}
+              />
+            ))}
+          </View>
+        ) : (
+          <View style={styles.teeEmpty}>
+            <Text style={styles.emptyLine}>No open tee times at {course.name} right now.</Text>
+            <Pressable
+              style={({ pressed }) => [styles.postButton, pressed && styles.pressed]}
+              onPress={() => router.push("/post-tee-time")}
+              accessibilityRole="button"
+            >
+              <Ionicons name="add-circle" size={20} color={colors.cream50} />
+              <Text style={styles.postButtonLabel}>Post a tee time</Text>
+            </Pressable>
+          </View>
+        )}
 
         <Text style={styles.sectionTitle}>Reviews</Text>
 
@@ -234,7 +360,7 @@ export default function CourseScreen() {
           <ReviewCard key={r.id} review={r} onReport={() => report(r)} />
         ))}
         {reviews.length === 0 ? (
-          <Text style={styles.small}>No written reviews yet.</Text>
+          <Text style={styles.emptyLine}>No written reviews yet.</Text>
         ) : null}
       </ScrollView>
     </>
@@ -383,8 +509,70 @@ const styles = StyleSheet.create({
   },
   communityText: { flex: 1, fontFamily: fonts.body, fontSize: 14, lineHeight: 20, color: colors.ink900 },
   strong: { fontFamily: fonts.bodyBold },
-  webLink: { flexDirection: "row", alignItems: "center", gap: 6, minHeight: 48, paddingHorizontal: 20 },
-  webLinkLabel: { fontFamily: fonts.bodyBold, fontSize: 14.5, color: colors.green700 },
+  pressed: { opacity: 0.85 },
+  disabled: { opacity: 0.6 },
+  sectionHead: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 18 },
+  sectionCount: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 12.5,
+    color: colors.green800,
+    backgroundColor: colors.green100,
+    paddingHorizontal: 9,
+    paddingVertical: 2,
+    borderRadius: radii.pill,
+    overflow: "hidden",
+    marginTop: 6,
+  },
+  emptyLine: { fontFamily: fonts.body, fontSize: 14, color: colors.ink500, paddingHorizontal: 20, marginTop: 4 },
+  memberRow: { paddingHorizontal: 20, gap: 10, paddingVertical: 6 },
+  memberCard: {
+    width: 104,
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.surface,
+  },
+  memberCardHome: { borderColor: colors.gold400, backgroundColor: "#fdf7e7" },
+  memberName: { fontFamily: fonts.bodyBold, fontSize: 13.5, color: colors.ink900, textAlign: "center" },
+  memberTag: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: radii.pill },
+  memberTagHome: { backgroundColor: colors.gold400 },
+  memberTagPlayed: { backgroundColor: colors.green100 },
+  memberTagText: { fontFamily: fonts.bodyBold, fontSize: 11, color: colors.green800 },
+  memberTagTextHome: { color: colors.ink900 },
+  memberHcp: { fontFamily: fonts.bodySemi, fontSize: 12, color: colors.green700 },
+  homeButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    marginHorizontal: 20,
+    marginTop: 10,
+    minHeight: 46,
+    borderRadius: radii.pill,
+    borderWidth: 1.5,
+    borderColor: colors.green700,
+    backgroundColor: colors.surface,
+  },
+  homeButtonLabel: { fontFamily: fonts.bodyBold, fontSize: 14.5, color: colors.green700 },
+  homeIs: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 20, marginTop: 8 },
+  homeIsText: { fontFamily: fonts.bodySemi, fontSize: 13.5, color: colors.green700 },
+  teeList: { paddingHorizontal: 20, gap: 14, marginTop: 6 },
+  teeEmpty: { gap: 10 },
+  postButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    marginHorizontal: 20,
+    minHeight: 48,
+    borderRadius: radii.pill,
+    backgroundColor: colors.green700,
+  },
+  postButtonLabel: { fontFamily: fonts.bodyBold, fontSize: 15, color: colors.cream50 },
   sectionTitle: { fontFamily: fonts.display, fontSize: 22, color: colors.ink900, paddingHorizontal: 20, marginTop: 8, marginBottom: 4 },
   review: { marginHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colors.cream100 },
   reviewHead: { flexDirection: "row", alignItems: "center", gap: 10 },

@@ -386,3 +386,97 @@ export async function myCourseState(userId: string, clubId: number): Promise<{ p
 /** Through the site: `reports` is not member-writable. */
 export const reportCourseReview = (reviewId: number, category: string) =>
   postToSite<{ ok: true }>("/api/app/course-reviews/report", { review_id: reviewId, category });
+
+// ===========================================================================
+// Who plays at a course — the course page's "Members here" strip
+// ===========================================================================
+
+export type CourseMember = {
+  id: string;
+  name: string;
+  avatarUrl: string | null;
+  avatarColor: string | null;
+  /** Null unless the member shows it. */
+  handicap: number | null;
+  /** This is their home club. */
+  home: boolean;
+  /** They've marked it played. */
+  played: boolean;
+};
+
+type CourseMemberProfile = {
+  id: string;
+  first_name: string | null;
+  last_name: string | null;
+  avatar_url: string | null;
+  avatar_color: string | null;
+  handicap: number | null;
+  handicap_visible: boolean | null;
+};
+
+const COURSE_MEMBER_SELECT = "id, first_name, last_name, avatar_url, avatar_color, handicap, handicap_visible";
+
+/**
+ * Members whose home club this is, then members who've played it — the
+ * native version of the website course page's members list, so the app no
+ * longer sends people to the website for it. Home-club members first: they
+ * are the ones who can actually get you a tee time there. Both lists are
+ * readable by any signed-in member (profiles; member_courses since 0093).
+ */
+export async function courseMembers(clubId: number, limit = 24): Promise<CourseMember[]> {
+  const [{ data: homeRows }, { data: playedRows }] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select(COURSE_MEMBER_SELECT)
+      .eq("home_club_id", clubId)
+      .limit(limit)
+      .overrideTypes<CourseMemberProfile[]>(),
+    supabase
+      .from("member_courses")
+      .select("member_id")
+      .eq("club_id", clubId)
+      .eq("kind", "played")
+      .order("created_at", { ascending: false })
+      .limit(limit)
+      .overrideTypes<{ member_id: string }[]>(),
+  ]);
+
+  const playedIds = new Set((playedRows ?? []).map((r) => r.member_id));
+  const out = new Map<string, CourseMember>();
+  const add = (row: CourseMemberProfile, home: boolean) => {
+    out.set(row.id, {
+      id: row.id,
+      name: [row.first_name, row.last_name].filter(Boolean).join(" ") || "A member",
+      avatarUrl: row.avatar_url,
+      avatarColor: row.avatar_color,
+      handicap: row.handicap_visible ? row.handicap : null,
+      home,
+      played: playedIds.has(row.id),
+    });
+  };
+  for (const row of homeRows ?? []) add(row, true);
+
+  const missing = [...playedIds].filter((id) => !out.has(id));
+  if (missing.length > 0) {
+    const { data: playedProfiles } = await supabase
+      .from("profiles")
+      .select(COURSE_MEMBER_SELECT)
+      .in("id", missing)
+      .overrideTypes<CourseMemberProfile[]>();
+    for (const row of playedProfiles ?? []) add(row, false);
+  }
+
+  return [...out.values()].slice(0, limit);
+}
+
+/** The signed-in member's home club and country, for the "make this my
+ *  home club" button. */
+export async function myHomeClub(userId: string): Promise<{ clubId: number | null; country: string | null }> {
+  const { data } = await supabase
+    .from("profiles")
+    .select("home_club_id, country")
+    .eq("id", userId)
+    .maybeSingle()
+    .overrideTypes<{ home_club_id: number | null; country: string | null }>();
+  return { clubId: data?.home_club_id ?? null, country: data?.country ?? null };
+}
