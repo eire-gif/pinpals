@@ -1,12 +1,12 @@
 import { useCallback, useState } from "react";
-import { ActionSheetIOS, ActivityIndicator, Alert, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActionSheetIOS, ActivityIndicator, Alert, Linking, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { Avatar } from "@/components/avatar";
 import { STARS_GOLD, StarRow } from "@/components/stars";
 import { useAuth } from "@/lib/auth";
-import { placeLabel } from "@/lib/courses";
+import { countryName, placeLabel } from "@/lib/courses";
 import {
   REVIEW_TAGS,
   courseListCounts,
@@ -183,6 +183,28 @@ export default function CourseScreen() {
           </Pressable>
         </View>
 
+        {/* Google Maps, searched by name rather than dropped as a pin on the
+            coordinates: a name search lands on the club's own Google listing,
+            with directions, opening hours, photos and Google reviews, where a
+            bare pin is just a point in a field. Town and country keep a common
+            name ("Woodbrook") from matching the wrong club. Opens the Google
+            Maps app when it's installed, the browser otherwise. */}
+        <Pressable
+          style={({ pressed }) => [styles.maps, pressed && styles.mapsPressed]}
+          onPress={() => void Linking.openURL(googleMapsUrl(course))}
+          accessibilityRole="link"
+          accessibilityLabel={`Open ${course.name} in Google Maps`}
+        >
+          <View style={styles.mapsIcon}>
+            <Ionicons name="map" size={22} color={colors.cream50} />
+          </View>
+          <View style={styles.mapsText}>
+            <Text style={styles.mapsTitle}>Open in Google Maps</Text>
+            <Text style={styles.mapsSub}>Directions, photos and Google reviews</Text>
+          </View>
+          <Ionicons name="open-outline" size={18} color={colors.green700} />
+        </Pressable>
+
         <View style={styles.community}>
           <Ionicons name="people-outline" size={22} color={colors.green700} />
           <Text style={styles.communityText}>
@@ -217,6 +239,11 @@ export default function CourseScreen() {
       </ScrollView>
     </>
   );
+}
+
+function googleMapsUrl(course: CourseDetail): string {
+  const query = [course.name, course.town, countryName(course.country)].filter(Boolean).join(", ");
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
 }
 
 function ActionButton({
@@ -318,6 +345,30 @@ const styles = StyleSheet.create({
   actionLabelOn: { color: colors.green800 },
   actionPrimary: { backgroundColor: colors.green700, borderColor: colors.green700 },
   actionPrimaryLabel: { fontFamily: fonts.bodySemi, fontSize: 13, color: colors.cream50 },
+  maps: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginHorizontal: 20,
+    marginTop: 14,
+    padding: 12,
+    borderRadius: radii.lg,
+    borderWidth: 1.5,
+    borderColor: colors.green700,
+    backgroundColor: colors.surface,
+  },
+  mapsPressed: { backgroundColor: colors.green100 },
+  mapsIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.green700,
+  },
+  mapsText: { flex: 1, gap: 2 },
+  mapsTitle: { fontFamily: fonts.bodyBold, fontSize: 15.5, color: colors.ink900 },
+  mapsSub: { fontFamily: fonts.body, fontSize: 13, color: colors.ink500 },
   community: {
     flexDirection: "row",
     alignItems: "center",
