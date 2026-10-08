@@ -586,6 +586,31 @@ Deno.serve(async (request) => {
 
   const started = Date.now();
 
+  // Start the next batch before answering. Fire-and-forget with a short
+  // abort, exactly as the admin screen starts the first one: the next
+  // invocation carries on whether or not anyone is still listening. Called
+  // on failure as well as success, so one province Overpass chokes on
+  // doesn't stop the rest of the country importing.
+  const batches = batchCount(country);
+  const startNextBatch = async () => {
+    if (batch + 1 >= batches) return;
+    const self = `${Deno.env.get("SUPABASE_URL")!.replace(/\/$/, "")}/functions/v1/import-courses`;
+    try {
+      await fetch(self, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: request.headers.get("Authorization") ?? `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+          ...(secret ? { "x-import-secret": secret } : {}),
+        },
+        body: JSON.stringify({ country, batch: batch + 1 }),
+        signal: AbortSignal.timeout(3000),
+      });
+    } catch {
+      // An abort here is the expected outcome — see above.
+    }
+  };
+
   // An uncaught throw here reaches the caller as a bare "Internal Server
   // Error" with the reason only in the function logs, which is a miserable
   // thing to hand a staff member who just pressed a button.
@@ -595,6 +620,7 @@ Deno.serve(async (request) => {
   } catch (cause) {
     const message = cause instanceof Error ? cause.message : String(cause);
     console.error(`import ${country} batch ${batch} failed: ${message}`);
+    await startNextBatch();
     return json({ error: message, country, batch }, 502);
   }
 
@@ -728,27 +754,7 @@ Deno.serve(async (request) => {
     }
   }
 
-  // Start the next batch before answering. Fire-and-forget with a short
-  // abort, exactly as the admin screen starts the first one: the next
-  // invocation carries on whether or not anyone is still listening.
-  const batches = batchCount(country);
-  if (batch + 1 < batches) {
-    const self = `${Deno.env.get("SUPABASE_URL")!.replace(/\/$/, "")}/functions/v1/import-courses`;
-    try {
-      await fetch(self, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: request.headers.get("Authorization") ?? `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-          ...(secret ? { "x-import-secret": secret } : {}),
-        },
-        body: JSON.stringify({ country, batch: batch + 1 }),
-        signal: AbortSignal.timeout(3000),
-      });
-    } catch {
-      // An abort here is the expected outcome — see above.
-    }
-  }
+  await startNextBatch();
 
   const result = {
     country,
