@@ -53,6 +53,8 @@ export const COUNTRY_CODES = [
   "england",
   "scotland",
   "wales",
+  "spain",
+  "portugal",
 ] as const;
 
 export const countryName = (code: string): string => COUNTRY_NAMES[code] ?? code;

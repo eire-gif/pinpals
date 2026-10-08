@@ -203,7 +203,11 @@ export default function EditProfileForm({
               ? "Council area you play in most"
               : country === "wales"
                 ? "Area you play in most"
-                : "County you play in most"}
+                : country === "spain"
+                  ? "Province you play in most"
+                  : country === "portugal"
+                    ? "Region you play in most"
+                    : "County you play in most"}
           </label>
           {/* Keyed on country so React rebuilds the select when the country
               changes — otherwise a defaultValue of "Kerry" would survive a
@@ -217,7 +221,13 @@ export default function EditProfileForm({
             className="w-full px-3.5 py-3 rounded-lg border-[1.5px] border-line focus:outline-none focus:border-green-600 bg-surface"
           >
             <option value="">
-              {country === "scotland" ? "Select a council area" : "Select a county"}
+              {country === "scotland"
+                ? "Select a council area"
+                : country === "spain"
+                  ? "Select a province"
+                  : country === "portugal"
+                    ? "Select a region"
+                    : "Select a county"}
             </option>
             {regions.map((c) => (
               <option key={c} value={c}>{c}</option>

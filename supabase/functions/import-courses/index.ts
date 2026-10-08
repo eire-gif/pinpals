@@ -48,7 +48,7 @@ const OVERPASS_ENDPOINTS = [
 
 const RETRY_DELAYS_MS = [0, 3000, 8000, 15000];
 
-type CountryCode = "ireland" | "northern-ireland" | "england" | "scotland" | "wales";
+type CountryCode = "ireland" | "northern-ireland" | "england" | "scotland" | "wales" | "spain" | "portugal";
 
 // Ireland is selected by ISO 3166-1; the four UK countries by ISO 3166-2,
 // which is how OSM tags the constituent-country boundaries. Using the
@@ -61,6 +61,59 @@ const AREA_SELECTOR: Record<CountryCode, string> = {
   england: 'area["ISO3166-2"="GB-ENG"]',
   scotland: 'area["ISO3166-2"="GB-SCT"]',
   wales: 'area["ISO3166-2"="GB-WLS"]',
+  spain: 'area["ISO3166-1"="ES"][admin_level=2]',
+  portugal: 'area["ISO3166-1"="PT"][admin_level=2]',
+};
+
+// ============ Regions from boundaries (Spain and Portugal) ============
+//
+// In Ireland and the UK a course's county comes from its OSM address tags,
+// which works badly enough there (see matchRegion). In Spain and Portugal it
+// would barely work at all: golf courses there almost never carry
+// addr:province or addr:district. So for these two countries the region is
+// taken from the administrative boundary the course actually sits inside —
+// the Overpass query walks each province/district and tags everything it
+// finds with that area's ISO 3166-2 code.
+//
+// Keyed by ISO 3166-2 rather than by name because OSM names these areas in
+// Spanish, Catalan, Basque, Galician and Portuguese ("Illes Balears",
+// "Bizkaia", "Sevilla", "Lisboa") and the site uses one fixed vocabulary
+// (src/lib/regions.ts). The code is the one spelling everyone agrees on.
+//
+// The seven single-province autonomous communities appear twice — once by
+// province code, once by community code — because in OSM the province
+// boundary for those is sometimes merged into the community's and the
+// province code is then missing. Whichever exists, the course lands in the
+// right region; a course found under both is only kept once.
+const REGION_BY_ISO: Partial<Record<CountryCode, Record<string, string>>> = {
+  spain: {
+    "ES-C": "A Coruña", "ES-VI": "Álava", "ES-AB": "Albacete", "ES-A": "Alicante",
+    "ES-AL": "Almería", "ES-O": "Asturias", "ES-AV": "Ávila", "ES-BA": "Badajoz",
+    "ES-PM": "Balearic Islands", "ES-B": "Barcelona", "ES-BI": "Biscay", "ES-BU": "Burgos",
+    "ES-CC": "Cáceres", "ES-CA": "Cádiz", "ES-S": "Cantabria", "ES-CS": "Castellón",
+    "ES-CR": "Ciudad Real", "ES-CO": "Córdoba", "ES-CU": "Cuenca", "ES-SS": "Gipuzkoa",
+    "ES-GI": "Girona", "ES-GR": "Granada", "ES-GU": "Guadalajara", "ES-H": "Huelva",
+    "ES-HU": "Huesca", "ES-J": "Jaén", "ES-LO": "La Rioja", "ES-GC": "Las Palmas",
+    "ES-LE": "León", "ES-L": "Lleida", "ES-LU": "Lugo", "ES-M": "Madrid",
+    "ES-MA": "Málaga", "ES-MU": "Murcia", "ES-NA": "Navarre", "ES-OR": "Ourense",
+    "ES-P": "Palencia", "ES-PO": "Pontevedra", "ES-SA": "Salamanca",
+    "ES-TF": "Santa Cruz de Tenerife", "ES-SG": "Segovia", "ES-SE": "Seville",
+    "ES-SO": "Soria", "ES-T": "Tarragona", "ES-TE": "Teruel", "ES-TO": "Toledo",
+    "ES-V": "Valencia", "ES-VA": "Valladolid", "ES-ZA": "Zamora", "ES-Z": "Zaragoza",
+    // Single-province communities, by community code (see above).
+    "ES-AS": "Asturias", "ES-CB": "Cantabria", "ES-MD": "Madrid", "ES-MC": "Murcia",
+    "ES-NC": "Navarre", "ES-RI": "La Rioja", "ES-IB": "Balearic Islands",
+  },
+  portugal: {
+    "PT-01": "Aveiro", "PT-02": "Beja", "PT-03": "Braga", "PT-04": "Bragança",
+    "PT-05": "Castelo Branco", "PT-06": "Coimbra", "PT-07": "Évora",
+    // Faro district and the Algarve are the same ground; the site calls it
+    // what golfers call it.
+    "PT-08": "Algarve",
+    "PT-09": "Guarda", "PT-10": "Leiria", "PT-11": "Lisbon", "PT-12": "Portalegre",
+    "PT-13": "Porto", "PT-14": "Santarém", "PT-15": "Setúbal", "PT-16": "Viana do Castelo",
+    "PT-17": "Vila Real", "PT-18": "Viseu", "PT-20": "Azores", "PT-30": "Madeira",
+  },
 };
 
 const REGIONS: Record<CountryCode, string[]> = {
@@ -68,6 +121,8 @@ const REGIONS: Record<CountryCode, string[]> = {
   "northern-ireland": ["Antrim", "Armagh", "Derry", "Down", "Fermanagh", "Tyrone"],
   england: ["Bedfordshire", "Berkshire", "Bristol", "Buckinghamshire", "Cambridgeshire", "Cheshire", "City of London", "Cornwall", "Cumbria", "Derbyshire", "Devon", "Dorset", "Durham", "East Riding of Yorkshire", "East Sussex", "Essex", "Gloucestershire", "Greater London", "Greater Manchester", "Hampshire", "Herefordshire", "Hertfordshire", "Isle of Wight", "Kent", "Lancashire", "Leicestershire", "Lincolnshire", "Merseyside", "Norfolk", "North Yorkshire", "Northamptonshire", "Northumberland", "Nottinghamshire", "Oxfordshire", "Rutland", "Shropshire", "Somerset", "South Yorkshire", "Staffordshire", "Suffolk", "Surrey", "Tyne and Wear", "Warwickshire", "West Midlands", "West Sussex", "West Yorkshire", "Wiltshire", "Worcestershire"],
   scotland: ["Aberdeen City", "Aberdeenshire", "Angus", "Argyll and Bute", "City of Edinburgh", "Clackmannanshire", "Dumfries and Galloway", "Dundee City", "East Ayrshire", "East Dunbartonshire", "East Lothian", "East Renfrewshire", "Falkirk", "Fife", "Glasgow City", "Highland", "Inverclyde", "Midlothian", "Moray", "Na h-Eileanan Siar", "North Ayrshire", "North Lanarkshire", "Orkney Islands", "Perth and Kinross", "Renfrewshire", "Scottish Borders", "Shetland Islands", "South Ayrshire", "South Lanarkshire", "Stirling", "West Dunbartonshire", "West Lothian"],
+  spain: [...new Set(Object.values(REGION_BY_ISO.spain!))],
+  portugal: [...new Set(Object.values(REGION_BY_ISO.portugal!))],
   wales: ["Blaenau Gwent", "Bridgend", "Caerphilly", "Cardiff", "Carmarthenshire", "Ceredigion", "Conwy", "Denbighshire", "Flintshire", "Gwynedd", "Isle of Anglesey", "Merthyr Tydfil", "Monmouthshire", "Neath Port Talbot", "Newport", "Pembrokeshire", "Powys", "Rhondda Cynon Taf", "Swansea", "Torfaen", "Vale of Glamorgan", "Wrexham"],
 };
 
@@ -76,10 +131,10 @@ const REGIONS: Record<CountryCode, string[]> = {
 // `golf=` tag is inconsistently applied — plenty of driving ranges are
 // tagged only `leisure=golf_course` with "Driving Range" in the name.
 const NOT_A_CLUB =
-  /(driving\s*range|pitch\s*(and|&|'?n'?)\s*putt|pitch-?and-?putt|crazy\s*golf|mini(ature)?\s*golf|adventure\s*golf|foot\s*golf|footgolf|disc\s*golf|frisbee|golf\s*range|indoor\s*golf|golf\s*simulator|putting\s*green)/i;
+  /(driving\s*range|pitch\s*(and|&|'?n'?)\s*putt|pitch-?and-?putt|crazy\s*golf|mini(ature)?\s*golf|adventure\s*golf|foot\s*golf|footgolf|disc\s*golf|frisbee|golf\s*range|indoor\s*golf|golf\s*simulator|putting\s*green|campo\s+de\s+pr[aá]cticas?|zona\s+de\s+pr[aá]cticas?|campo\s+de\s+treino|golf\s+urbano)/i;
 
 type OverpassElement = {
-  type: "node" | "way" | "relation";
+  type: "node" | "way" | "relation" | "area";
   id: number;
   lat?: number;
   lon?: number;
@@ -117,8 +172,8 @@ type ExistingRow = {
  * That last step is what lets the seeded Irish names match OSM's wording,
  * which differs on the suffix far more often than on the actual place name.
  */
-function normaliseName(input: string): string {
-  return input
+function normaliseName(input: string, country?: CountryCode): string {
+  let key = input
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
@@ -128,6 +183,19 @@ function normaliseName(input: string): string {
     .replace(/\s+(golf\s+(club|course|links|centre|center|resort)|golf|gc|g\s*c)$/, "")
     .replace(/^(the)\s+/, "")
     .trim();
+
+  // Spanish and Portuguese clubs put the generic part first — "Real Club de
+  // Golf Sotogrande", "Campo de Golfe da Quinta do Lago" — so the same club
+  // mapped as a clubhouse and a course polygon would otherwise fail to match
+  // on wording alone. Scoped to those two countries so a re-import of the UK
+  // or Ireland normalises exactly as it always has.
+  if (country === "spain" || country === "portugal") {
+    key = key
+      .replace(/^(real\s+)?(club\s+de\s+golfe?|campo\s+de\s+golfe?|golfe?\s+club|golfe?)\s+(de\s+|del\s+|da\s+|do\s+|la\s+|el\s+)?/, "")
+      .replace(/\s+(golfe?(\s+(club|resort))?|club\s+de\s+golfe?)$/, "")
+      .trim();
+  }
+  return key;
 }
 
 function slugify(input: string): string {
@@ -208,12 +276,56 @@ function parseHoles(tags: Record<string, string>): number | null {
 }
 
 function overpassQuery(country: CountryCode): string {
+  const regionAreas = REGION_BY_ISO[country];
+  if (regionAreas) return regionalOverpassQuery(country, regionAreas);
+
   // `out tags center` returns each way/relation's tags plus a single
   // representative point, instead of the full polygon geometry. A course
   // outline is dozens to hundreds of nodes and we only ever plot a pin, so
   // asking for geometry would multiply the response size for nothing.
   return `[out:json][timeout:180];
 ${AREA_SELECTOR[country]}->.searchArea;
+(
+  node["leisure"="golf_course"]["name"](area.searchArea);
+  way["leisure"="golf_course"]["name"](area.searchArea);
+  relation["leisure"="golf_course"]["name"](area.searchArea);
+);
+out tags center;`;
+}
+
+/**
+ * The Spain/Portugal query: courses province by province, then the whole
+ * country.
+ *
+ * Each region's area is printed (`.r out tags`) immediately before the
+ * courses inside it, so the response reads as a sequence of
+ * "area, its courses, next area, its courses…" and fetchCandidates can tag
+ * each course with the area most recently seen. The final whole-country pass
+ * is preceded by the country area itself, which resets the region to none:
+ * it exists to catch anything that fell outside every listed boundary (a
+ * course straddling a border, a boundary missing its code) so that a gap in
+ * OSM's admin data costs a course its region, never its place in the
+ * directory. Courses already seen inside a region are skipped there.
+ */
+function regionalOverpassQuery(country: CountryCode, regionAreas: Record<string, string>): string {
+  const areas = Object.keys(regionAreas)
+    .map((code) => `  area["ISO3166-2"="${code}"];`)
+    .join("\n");
+  return `[out:json][timeout:240];
+(
+${areas}
+)->.regions;
+foreach.regions->.r(
+  .r out tags;
+  (
+    node["leisure"="golf_course"]["name"](area.r);
+    way["leisure"="golf_course"]["name"](area.r);
+    relation["leisure"="golf_course"]["name"](area.r);
+  );
+  out tags center;
+);
+${AREA_SELECTOR[country]}->.searchArea;
+.searchArea out tags;
 (
   node["leisure"="golf_course"]["name"](area.searchArea);
   way["leisure"="golf_course"]["name"](area.searchArea);
@@ -277,24 +389,40 @@ async function fetchCandidates(country: CountryCode): Promise<Candidate[]> {
   const elements = await fetchOverpass(country);
 
   const raw: Candidate[] = [];
+  const regionAreas = REGION_BY_ISO[country];
+  // Only meaningful for the regional query: the region of the area element
+  // most recently seen in the response, and the courses already placed in
+  // one, so the closing whole-country pass doesn't add them a second time.
+  let currentRegion: string | null = null;
+  const seen = new Set<string>();
 
   for (const element of elements) {
     const tags = element.tags ?? {};
+
+    if (element.type === "area") {
+      currentRegion = regionAreas?.[tags["ISO3166-2"] ?? ""] ?? null;
+      continue;
+    }
+
+    const osmId = `${element.type}/${element.id}`;
+    if (seen.has(osmId)) continue;
+    seen.add(osmId);
+
     const name = (tags.name ?? "").replace(/\s+/g, " ").trim();
     if (!name || name.length > 200) continue;
     if (NOT_A_CLUB.test(name)) continue;
     if (tags.golf === "driving_range" || tags.golf === "pitch_and_putt") continue;
 
-    const normalised = normaliseName(name);
+    const normalised = normaliseName(name, country);
     if (!normalised) continue;
 
     const point = element.center ?? (element.lat != null && element.lon != null ? { lat: element.lat, lon: element.lon } : null);
 
     const candidate: Candidate = {
-      osmId: `${element.type}/${element.id}`,
+      osmId,
       name,
       normalised,
-      region: matchRegion(country, tags),
+      region: (regionAreas ? currentRegion : null) ?? matchRegion(country, tags),
       town: (tags["addr:city"] ?? tags["addr:town"] ?? tags["addr:village"] ?? tags["addr:suburb"] ?? "").trim() || null,
       website: cleanWebsite(tags.website ?? tags["contact:website"] ?? tags.url),
       latitude: point ? point.lat : null,
@@ -468,7 +596,7 @@ Deno.serve(async (request) => {
   const seedByNormalised = new Map(
     (existingRows ?? [])
       .filter((r) => r.source === "seed")
-      .map((r) => [normaliseName(r.name), r])
+      .map((r) => [normaliseName(r.name, country), r])
   );
 
   // Slugs already in use across the whole table, so a new English course

@@ -24,12 +24,14 @@ export const COUNTRY_NAMES: Record<string, string> = {
   england: "England",
   scotland: "Scotland",
   wales: "Wales",
+  spain: "Spain",
+  portugal: "Portugal",
 };
 
 /**
  * Club suggestions.
  *
- * Searched across all five countries at once rather than making the member
+ * Searched across every country at once rather than making the member
  * choose a country first, the way the website's picker does. On a phone that
  * is one fewer control, and the club's own row carries the country — so
  * picking "Portmarnock" settles the country question without asking it.
