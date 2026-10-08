@@ -57,12 +57,12 @@ const PLAIN = (photo: number): ShareCard => ({
   rich: false,
   kicker: "PINPALS",
   title: "Golf, together",
-  subtitle: "Tee times, rounds and kit from golfers across Ireland",
+  subtitle: "Tee times, rounds and kit from golfers at home and abroad",
   hero: null,
   stats: [],
   photo,
   pageTitle: "A post on PinPals",
-  pageDescription: "Join PinPals to see it — tee times, rounds and golf kit from golfers across Ireland.",
+  pageDescription: "Join PinPals to see it — tee times, rounds and golf kit from golfers at home and abroad.",
 });
 
 export function buildShareCard(post: ShareCardPost | null, sharerId: string): ShareCard {

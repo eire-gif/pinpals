@@ -142,7 +142,7 @@ export default function HomeScreen() {
         <View style={[styles.heroBody, styles.heroBodyUnderComposer]}>
           <View style={styles.eyebrowRow}>
             <View style={styles.rule} />
-            <Text style={styles.eyebrow}>Golf community — Ireland &amp; the UK</Text>
+            <Text style={styles.eyebrow}>Ireland · UK · Spain · Portugal</Text>
           </View>
 
           {/* Two lines by design, not by wrapping. Left to wrap, the line
@@ -157,8 +157,8 @@ export default function HomeScreen() {
 
           {courses ? (
             <Text style={styles.heroSub}>
-              {courses.toLocaleString("en-IE")} clubs, from Ballybunion to St
-              Andrews.
+              {courses.toLocaleString("en-IE")} clubs, from Ballybunion to the
+              Algarve.
             </Text>
           ) : null}
 

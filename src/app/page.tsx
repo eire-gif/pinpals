@@ -86,13 +86,13 @@ export default async function HomePage() {
         <div className="relative w-full max-w-6xl mx-auto px-6 pt-24 pb-28">
           <div className="max-w-[680px] [text-shadow:0_1px_18px_rgba(6,16,30,0.55)]">
             <span className="inline-flex items-center gap-2 text-xs font-bold tracking-widest uppercase text-gold-400">
-              <span className="w-5 h-0.5 bg-gold-400 inline-block" /> Golf community &mdash; Ireland &amp; the UK
+              <span className="w-5 h-0.5 bg-gold-400 inline-block" /> Golf community &mdash; Ireland, the UK, Spain &amp; Portugal
             </span>
             <h1 className="font-display font-bold text-4xl md:text-6xl leading-[1.05] mt-3">
-              Find your <em className="text-gold-400 italic">next four ball</em>, across Ireland &amp; the UK.
+              Find your <em className="text-gold-400 italic">next four ball</em>, at home and abroad.
             </h1>
             <p className="text-white/95 text-lg mt-5 max-w-[52ch]">
-              Pinpals connects golfers from Kerry to the Highlands so you can meet playing
+              Pinpals connects golfers from Kerry to the Highlands to the Algarve so you can meet playing
               partners, book rounds at each other&rsquo;s home clubs, and find your people in
               the game.
             </p>
@@ -163,7 +163,7 @@ export default async function HomePage() {
               <span className="w-5 h-0.5 bg-gold-500 inline-block" /> Every county, every links
             </span>
             <h2 className="font-display font-bold text-3xl md:text-4xl mt-2.5">
-              {courseCount} clubs on the books, from Ballybunion to St Andrews.
+              {courseCount} clubs on the books, from Ballybunion to St Andrews to the Costa del Sol.
             </h2>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
@@ -241,7 +241,7 @@ export default async function HomePage() {
             Your next round starts with one profile.
           </h2>
           <p className="text-white/85 mt-3">
-            Join golfers across Ireland and the UK building a community around the game.
+            Join golfers across Ireland, the UK, Spain and Portugal building a community around the game.
           </p>
           <Link href="/signup" className="inline-block mt-6 px-6 py-3.5 rounded-full font-bold bg-[#fbf8ef] text-navy-900 hover:bg-white transition">
             Create your profile
