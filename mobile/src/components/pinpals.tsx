@@ -133,7 +133,7 @@ export function InviteBanner({
 }) {
   const invite = () =>
     void Share.share({
-      message: `I've joined PinPals — golfers in Ireland swapping tee times and selling gear. Join me: ${SITE_URL}/signup`,
+      message: `I've joined PinPals — golfers swapping tee times, at home and abroad, and selling gear. Join me: ${SITE_URL}/signup`,
     });
 
   return (

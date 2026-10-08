@@ -18,7 +18,7 @@ const publicSans = Public_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "Pinpals | The golf community for Ireland and the UK",
+  title: "Pinpals | The golf community for Ireland, the UK, Spain & Portugal",
   description:
     "Find golfers near you, browse every club in Ireland, Northern Ireland, England, Scotland and Wales, and connect with playing partners.",
   // Installability (0075). Without the manifest, "Add to Home Screen" on

@@ -5,9 +5,9 @@ import { countCoursesByCountry } from "@/lib/courses";
 import OsmAttribution from "@/components/osm-attribution";
 
 export const metadata = {
-  title: "Golf courses in Ireland and the UK — Pinpals",
+  title: "Golf courses in Ireland, the UK, Spain and Portugal — Pinpals",
   description:
-    "Every golf club in Ireland, Northern Ireland, England, Scotland and Wales — with websites, locations and the Pinpals members who play there.",
+    "Every golf club in Ireland, Northern Ireland, England, Scotland, Wales, Spain and Portugal — with websites, locations and the Pinpals members who play there.",
 };
 
 /**
@@ -37,7 +37,7 @@ export default async function CoursesPage() {
             <span className="w-5 h-0.5 bg-gold-500 inline-block" /> Course directory
           </span>
           <h1 className="font-display font-bold text-4xl md:text-5xl mt-2.5">
-            {total.toLocaleString("en-IE")} clubs across Ireland and the UK.
+            {total.toLocaleString("en-IE")} clubs across Ireland, the UK, Spain and Portugal.
           </h1>
           <p className="text-white/80 mt-3 max-w-[54ch]">
             Pick a country to browse its clubs — then set one as your home club and find the

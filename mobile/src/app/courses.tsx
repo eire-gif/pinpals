@@ -213,11 +213,11 @@ export default function CoursesScreen() {
       {/* Pinned above the search box rather than scrolled with the list: the
           controls have to stay put, and a photograph under a search field
           reads as an advert. Old Head because this is the screen the whole
-          product is pitched on — every course in Ireland and the UK. */}
+          product is pitched on — every course in Ireland, the UK, Spain and Portugal. */}
       <ScreenHeader
         scene="oldHead"
         title="Courses"
-        subtitle="Every club in Ireland and the UK"
+        subtitle="Ireland, the UK, Spain & Portugal"
       />
 
       <View style={styles.controls}>
