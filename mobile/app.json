@@ -160,7 +160,20 @@
         }
       ],
       "@react-native-community/datetimepicker",
-      "expo-font",
+      [
+        "expo-font",
+        {
+          "android": {
+            "fonts": [
+              "./node_modules/@expo-google-fonts/playfair-display/700Bold/PlayfairDisplay_700Bold.ttf",
+              "./node_modules/@expo-google-fonts/playfair-display/700Bold_Italic/PlayfairDisplay_700Bold_Italic.ttf",
+              "./node_modules/@expo-google-fonts/public-sans/400Regular/PublicSans_400Regular.ttf",
+              "./node_modules/@expo-google-fonts/public-sans/600SemiBold/PublicSans_600SemiBold.ttf",
+              "./node_modules/@expo-google-fonts/public-sans/700Bold/PublicSans_700Bold.ttf"
+            ]
+          }
+        }
+      ],
       "expo-video"
     ],
     "experiments": {

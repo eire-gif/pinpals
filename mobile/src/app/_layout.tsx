@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { Platform } from "react-native";
 import { useFonts } from "expo-font";
 import {
   PlayfairDisplay_700Bold,
@@ -39,13 +40,25 @@ function RootNavigator() {
   // Held behind the splash alongside the session read. Rendering a screen in
   // the system font and then swapping it for Playfair a beat later is worse
   // than waiting — the whole layout shifts under the member.
-  const [fontsLoaded] = useFonts({
-    PlayfairDisplay_700Bold,
-    PlayfairDisplay_700Bold_Italic,
-    PublicSans_400Regular,
-    PublicSans_600SemiBold,
-    PublicSans_700Bold,
-  });
+  //
+  // Android (Oct 2026): the fonts are built into the app by the expo-font
+  // plugin in app.json, so nothing is loaded here. Loading them at runtime
+  // as well left Android measuring text in the system font and drawing it in
+  // Public Sans, which is wider — every label came out cut short ("Ho…",
+  // "Phot"). On Android the embedded file name is the family name, so
+  // fonts.* in lib/theme.ts resolves unchanged. iOS keeps loading at runtime:
+  // its embedded fonts would register under their PostScript names instead.
+  const [fontsLoaded] = useFonts(
+    Platform.OS === "android"
+      ? {}
+      : {
+          PlayfairDisplay_700Bold,
+          PlayfairDisplay_700Bold_Italic,
+          PublicSans_400Regular,
+          PublicSans_600SemiBold,
+          PublicSans_700Bold,
+        },
+  );
 
   useEffect(() => {
     if (loading || !fontsLoaded) return;
