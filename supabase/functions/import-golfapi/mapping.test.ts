@@ -18,7 +18,7 @@ const course = {
   parsWomen: PARS,
   indexesWomen: SI,
   tees: [
-    { teeName: "Blue", teeColor: "#0000ff", courseRatingMen: 74.6, slopeMen: 139, courseRatingWomen: null, slopeWomen: null },
+    { teeName: "Blue", teeColor: "#0000ff", courseRatingMen: 74.6, slopeMen: 139, courseRatingWomen: null, slopeWomen: null, length1: 417, length2: 411 },
     { teeName: "Red", teeColor: "#ff0000", courseRatingMen: 69.1, slopeMen: 124, courseRatingWomen: 74.8, slopeWomen: 137 },
   ],
 };
@@ -33,8 +33,14 @@ describe("mapCourse", () => {
     expect(blue.parTotal).toBe(72);
     expect(blue.courseRating).toBe(74.6);
     expect(blue.slope).toBe(139);
-    expect(blue.card?.[1]).toEqual({ hole: 2, par: 4, strokeIndex: 1 });
+    expect(blue.card?.[1]).toEqual({ hole: 2, par: 4, strokeIndex: 1, yards: 411 });
+    expect(blue.card?.[2].yards).toBeNull();
     expect(report.missing).toEqual([]);
+  });
+
+  it("converts metres to yards", () => {
+    const { course: c } = mapCourse({ ...course, measure: "m" }, 1);
+    expect(c?.tees[0].card?.[0].yards).toBe(456);
   });
 
   it("prefixes tees with the course when the club has several", () => {

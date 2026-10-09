@@ -274,7 +274,7 @@ async function write(db: SupabaseClient, club: ClubRow, course: MappedCourse, po
     }
     const { error: holesErr } = await db
       .from("course_card_holes")
-      .upsert(tee.card.map((h) => ({ card_id: cardId, hole: h.hole, par: h.par, stroke_index: h.strokeIndex })), { onConflict: "card_id,hole" });
+      .upsert(tee.card.map((h) => ({ card_id: cardId, hole: h.hole, par: h.par, stroke_index: h.strokeIndex, yards: h.yards })), { onConflict: "card_id,hole" });
     if (holesErr) throw holesErr;
     cards.push({ tee: tee.teeName, outcome: existing ? "updated" : "added" });
   }

@@ -16,8 +16,8 @@ describe("feature flags", () => {
   });
 
   it("shipped features are on", () => {
-    expect([FEATURES.recapPrompts, FEATURES.achievementClaims, FEATURES.profileSections, FEATURES.video, FEATURES.liveScoring, FEATURES.shotMaps]).toEqual([
-      true, true, true, true, true, true,
+    expect([FEATURES.recapPrompts, FEATURES.achievementClaims, FEATURES.profileSections, FEATURES.video, FEATURES.liveScoring, FEATURES.shotMaps, FEATURES.scorecards]).toEqual([
+      true, true, true, true, true, true, true,
     ]);
   });
 });

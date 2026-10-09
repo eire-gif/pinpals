@@ -31,6 +31,7 @@ import {
   type MatchFormat,
 } from "@/lib/live-scoring";
 import { colors, creamAlpha, fonts, radii, spacing, type } from "@/lib/theme";
+import { scorecardFromLiveRound } from "@/lib/scorecards";
 import { useLiveRefresh } from "@/lib/use-live-refresh";
 
 /**
@@ -199,6 +200,16 @@ export default function LiveRoundScreen() {
         },
       },
     ]);
+
+  const saveMyScorecard = async () => {
+    try {
+      const id = await scorecardFromLiveRound(round.id);
+      router.push({ pathname: "/scorecards/[id]", params: { id: String(id) } });
+    } catch (e) {
+      const msg = (e as { message?: unknown } | null)?.message;
+      Alert.alert("Couldn't save your card", typeof msg === "string" && msg ? msg : "Please try again.");
+    }
+  };
 
   const cardComplete = card.every((c) => c.strokeIndex != null);
   const saveCard = async () => {
@@ -549,6 +560,15 @@ export default function LiveRoundScreen() {
             <Pressable onPress={() => void saveCard()} style={styles.secondary} accessibilityRole="button">
               <Ionicons name="bookmark-outline" size={18} color={colors.green700} />
               <Text style={styles.link}>Save this card for {round.courseName}</Text>
+            </Pressable>
+          ) : null}
+
+          {/* Scorecards (0110): your own line as a card in your profile.
+              Saving again later refreshes the same card. */}
+          {isOn("scorecards") && me != null && players.some((p) => p.memberId === me) ? (
+            <Pressable onPress={() => void saveMyScorecard()} style={styles.secondary} accessibilityRole="button">
+              <Ionicons name="document-text-outline" size={18} color={colors.green700} />
+              <Text style={styles.link}>{live ? "Save my scorecard so far" : "Save my scorecard"}</Text>
             </Pressable>
           ) : null}
 

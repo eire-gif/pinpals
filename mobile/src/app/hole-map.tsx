@@ -46,9 +46,9 @@ import { colors, creamAlpha, fonts, radii, spacing, type } from "@/lib/theme";
  */
 type Fix = LatLng & { accuracyM: number | null };
 
-// Irish, Spanish and Portuguese courses are measured in metres; British in yards.
-const unitFor = (country: string | null | undefined): Unit =>
-  country === "england" || country === "scotland" || country === "wales" || country === "northern-ireland" ? "yards" : "metres";
+// Yards everywhere by default: it's what golfers here think in, even where
+// the club's own card is in metres. Metres are one tap away on the map.
+const unitFor = (_country: string | null | undefined): Unit => "yards";
 
 const HAZARD_NAMES: Partial<Record<PointKind, string>> = {
   green_bunker: "Greenside bunker",
@@ -76,7 +76,7 @@ export default function HoleMapScreen() {
   const [shots, setShots] = useState<Map<number, Shot[]>>(new Map());
   const [failed, setFailed] = useState(false);
   const [hole, setHole] = useState(Math.min(18, Math.max(1, Number(params.hole) || 1)));
-  const [unit, setUnit] = useState<Unit>(rememberedUnit ?? "metres");
+  const [unit, setUnit] = useState<Unit>(rememberedUnit ?? "yards");
   const [tap, setTap] = useState<LatLng | null>(null);
   const [playerId, setPlayerId] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);

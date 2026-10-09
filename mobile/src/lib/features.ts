@@ -40,6 +40,10 @@ export const FEATURES = {
    *  needs 0108 — applied 9 Oct 2026). Off hides the round's "Hole map"
    *  button and the course page's "Hole by hole"; the screen says "on its way". */
   shotMaps: true,
+  /** Scorecards (claude/scorecards.md, needs 0110 — applied 9 Oct 2026). Off
+   *  hides the menu entry, the live round's "Save my scorecard" and the
+   *  profile link; the screens say "on its way". */
+  scorecards: true,
 
   // ---- Gates (unfinished, off) ----
   /** Groups (phase 11): model only — see claude/groups-architecture.md. */
