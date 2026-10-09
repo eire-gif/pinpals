@@ -61,6 +61,7 @@ export const MENU: MenuSection[] = [
       // Second in Play: it's for the day you're on the course, when "where
       // do I put my score" is the question, not "find me a game".
       { kind: "native", label: "Live scoring", icon: "podium-outline", to: "/live", feature: "liveScoring" },
+      { kind: "native", label: "My scorecards", icon: "document-text-outline", to: "/scorecards", feature: "scorecards" },
       {
         kind: "native",
         label: "My confirmed tee times",

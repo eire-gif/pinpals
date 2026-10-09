@@ -34,8 +34,9 @@ export type MappedTee = {
   parTotal: number | null;
   courseRating: number | null;
   slope: number | null;
-  /** Par and stroke index per hole; null when the provider has no indexes. */
-  card: Array<{ hole: number; par: number; strokeIndex: number }> | null;
+  /** Par, stroke index and printed length (yards) per hole; null when the
+   *  provider has no indexes. */
+  card: Array<{ hole: number; par: number; strokeIndex: number; yards: number | null }> | null;
 };
 
 export type MappedCourse = {
@@ -91,16 +92,22 @@ function perHole(o: Json, arrayNames: readonly string[], prefix: string | null, 
 const clampName = (s: string, max: number) => (s.length > max ? s.slice(0, max - 1).trimEnd() + "…" : s);
 
 /** A whole card is only usable if every hole has a valid par and a unique index. */
-export function validCard(pars: Array<number | null>, indexes: Array<number | null> | null, holes: 9 | 18): MappedTee["card"] {
+export function validCard(
+  pars: Array<number | null>,
+  indexes: Array<number | null> | null,
+  holes: 9 | 18,
+  yards: Array<number | null> = []
+): MappedTee["card"] {
   if (!indexes || pars.length < holes || indexes.length < holes) return null;
-  const card: Array<{ hole: number; par: number; strokeIndex: number }> = [];
+  const card: Array<{ hole: number; par: number; strokeIndex: number; yards: number | null }> = [];
   const seen = new Set<number>();
   for (let i = 0; i < holes; i++) {
     const par = pars[i];
     const si = indexes[i];
     if (par == null || par < 3 || par > 6 || si == null || si < 1 || si > 18 || seen.has(si)) return null;
     seen.add(si);
-    card.push({ hole: i + 1, par, strokeIndex: si });
+    const y = yards[i];
+    card.push({ hole: i + 1, par, strokeIndex: si, yards: y != null && y >= 30 && y <= 800 ? y : null });
   }
   return card;
 }
@@ -137,6 +144,10 @@ export function mapCourse(
   const parsWomen = perHole(raw, ["parsWomen"], "parWomen", { found: [], missing: [] }, "pars (women)");
   const idxWomen = perHole(raw, ["indexesWomen"], "indexWomen", { found: [], missing: [] }, "stroke indexes (women)");
 
+  // Lengths are per tee as length1…length18, in the course's unit:
+  // measure "y" (yards) or "m" (metres, converted — PinPals stores yards).
+  const toYards = String(raw.measure ?? raw.measureUnit ?? "y").toLowerCase().startsWith("m") ? 1.0936133 : 1;
+
   const teesRaw = pick(raw, ["tees", "teeBoxes"], report, "tees");
   const tees: MappedTee[] = [];
   const prefix = clubCourseCount > 1 || opts.prefixTees ? `${clampName(name, 18)} · ` : "";
@@ -150,7 +161,11 @@ export function mapCourse(
     const ratingWomen = num(t.courseRatingWomen);
     const slopeWomen = num(t.slopeWomen);
 
-    const mensCard = validCard(parsMen, idxMen, holes);
+    const lengths: Array<number | null> = Array.from({ length: holes }, (_, i) => {
+      const v = num(t[`length${i + 1}`]);
+      return v == null || v <= 0 ? null : Math.round(v * toYards);
+    });
+    const mensCard = validCard(parsMen, idxMen, holes, lengths);
     tees.push({
       teeName: clampName(prefix + teeName, 40),
       holes,
@@ -172,7 +187,7 @@ export function mapCourse(
         parTotal: sumPar(wPars),
         courseRating: ratingWomen,
         slope: slopeWomen != null && slopeWomen >= 55 && slopeWomen <= 155 ? Math.round(slopeWomen) : null,
-        card: validCard(wPars, wIdx, holes),
+        card: validCard(wPars, wIdx, holes, lengths),
       });
     }
   }

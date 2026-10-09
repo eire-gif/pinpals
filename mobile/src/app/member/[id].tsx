@@ -426,10 +426,23 @@ export default function MemberScreen() {
   ) : sectionFailed === tab ? (
     <LoadError what={PROFILE_TAB_LABELS[tab].toLowerCase()} onRetry={() => setSectionFailed(null)} />
   ) : tab === "rounds" ? (
+    <>
+    {isOn("scorecards") ? (
+      <Pressable
+        onPress={() => router.push(isMe ? "/scorecards" : { pathname: "/scorecards", params: { member: id, name: first } })}
+        style={({ pressed }) => [scorecardLink.row, pressed && { opacity: 0.85 }]}
+        accessibilityRole="button"
+      >
+        <Ionicons name="document-text-outline" size={20} color={colors.green700} />
+        <Text style={scorecardLink.text}>{isMe ? "My scorecards" : `${first}'s scorecards`}</Text>
+        <Ionicons name="chevron-forward" size={18} color={colors.ink500} />
+      </Pressable>
+    ) : null}
     <RoundsSection
       rows={sections.rounds ?? []}
       empty={isMe ? "Rounds you share on Social are kept here, with your best and your average." : `${first} hasn't shared a round you can see yet.`}
     />
+    </>
   ) : tab === "courses" ? (
     <CoursesSection
       played={sections.courses?.played ?? []}
@@ -570,4 +583,9 @@ const styles = StyleSheet.create({
   listingPrice: { fontFamily: fonts.display, fontSize: 16, color: colors.green700, marginTop: 2 },
   section: { fontFamily: fonts.display, fontSize: type.heading, color: colors.ink900, marginTop: spacing.lg },
   empty: { fontFamily: fonts.body, fontSize: type.small, color: colors.ink500, textAlign: "center", marginTop: spacing.lg },
+});
+
+const scorecardLink = StyleSheet.create({
+  row: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginTop: spacing.md, padding: spacing.md, borderRadius: radii.lg, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
+  text: { flex: 1, fontFamily: fonts.bodyBold, fontSize: 15, color: colors.ink900 },
 });

@@ -37,6 +37,8 @@ import { POST_TYPE_INFO, isPostType, type PostKind, type PostType, type RoundDet
 import { achievementOf } from "@/lib/achievements";
 import { claimableAchievements, draftDetailsProblem, draftToDetails, emptyDraft, type DetailsDraft } from "@/lib/post-draft";
 import { recapCaption, recapSubtitle, type RecapSource } from "@/lib/round-recap";
+import { roundPostFields } from "@/lib/scorecard-math";
+import { loadScorecard } from "@/lib/scorecards";
 import { listConfirmedRounds } from "@/lib/rounds";
 import { todayIso } from "@/lib/tee-times";
 import { COUNTRY_NAMES, searchClubs, type ClubHit } from "@/lib/tee-time-post";
@@ -94,7 +96,7 @@ const PROMPTS: Record<PostKind | "photo", string> = {
  * no member can read.
  */
 export default function NewPostScreen() {
-  const params = useLocalSearchParams<{ type?: string; recap?: string }>();
+  const params = useLocalSearchParams<{ type?: string; recap?: string; scorecard?: string }>();
   const { session } = useAuth();
   const userId = session?.user?.id ?? null;
   // ?recap=<tee time id>: a round recap of a played tee time (phase 7).
@@ -139,6 +141,23 @@ export default function NewPostScreen() {
       live = false;
     };
   }, [recapId, userId]);
+  // ?scorecard=<id>: a round post filled from one of your scorecards (0110).
+  // Only the numbers the card knows; the member adds the rest and a caption.
+  const scorecardId = params.scorecard && Number.isInteger(Number(params.scorecard)) ? Number(params.scorecard) : null;
+  useEffect(() => {
+    if (!scorecardId) return;
+    let live = true;
+    loadScorecard(scorecardId)
+      .then((sc) => {
+        if (!live || !sc) return;
+        setDetails((d) => ({ ...d, ...roundPostFields(sc, sc.holeList) }) as DetailsDraft);
+        if (sc.clubId != null) setClub({ id: sc.clubId, name: sc.courseName, town: null, country: "" });
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [scorecardId]);
   const [query, setQuery] = useState("");
   const [hits, setHits] = useState<ClubHit[]>([]);
   const [searching, setSearching] = useState(false);

@@ -171,6 +171,9 @@ function RootNavigator() {
       {/* Hole maps (0108): no swipe-back — dragging the map from the left
           edge would otherwise leave the screen mid-pan. */}
       <Stack.Screen name="hole-map" options={{ title: "Hole map", headerBackTitle: "Back", gestureEnabled: false }} />
+      <Stack.Screen name="scorecards/index" options={{ title: "Scorecards", headerBackTitle: "Back" }} />
+      <Stack.Screen name="scorecards/new" options={{ title: "New scorecard", headerBackTitle: "Back" }} />
+      <Stack.Screen name="scorecards/[id]" options={{ title: "Scorecard", headerBackTitle: "Back" }} />
       {/* Comments open as a sheet over the feed (phase 5): the card stays
           collapsed and the conversation has a screen of its own. Set here,
           not in the screen — iOS can't change presentation after a push. */}
