@@ -42,7 +42,9 @@ export const FEATURES = {
   groups: false,
   /** Shared rounds (phase 9): model only — see claude/shared-round-model.md. */
   sharedRounds: false,
-  /** Shot maps: nothing captures shot positions or hole geometry yet. */
+  /** Hole maps: satellite view, GPS yardages, shot positions (claude/hole-maps.md).
+   *  Needs 0108. Off hides the round's "Hole map" button and the course
+   *  page's "Hole by hole"; the screen says "on its way". */
   shotMaps: false,
 
 } as const;

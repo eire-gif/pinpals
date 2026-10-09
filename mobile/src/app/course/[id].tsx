@@ -7,6 +7,9 @@ import { Avatar } from "@/components/avatar";
 import { STARS_GOLD, StarRow } from "@/components/stars";
 import { TeeTimeCard } from "@/components/tee-time-card";
 import { useAuth } from "@/lib/auth";
+import { isOn } from "@/lib/features";
+import { mappedHoles } from "@/lib/hole-geo";
+import { loadCourseLayouts, type CourseLayout } from "@/lib/hole-maps";
 import { countryName, placeLabel } from "@/lib/courses";
 import {
   REVIEW_TAGS,
@@ -55,6 +58,7 @@ export default function CourseScreen() {
   const [homeClubId, setHomeClubId] = useState<number | null>(null);
   const [myCountry, setMyCountry] = useState<string | null>(null);
   const [settingHome, setSettingHome] = useState(false);
+  const [layouts, setLayouts] = useState<CourseLayout[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -86,6 +90,7 @@ export default function CourseScreen() {
       setHomeClubId(home.clubId);
       setMyCountry(home.country);
       setTeePlayers(await confirmedPlayersFor(rounds.map((r) => r.id)));
+      if (isOn("shotMaps")) setLayouts(await loadCourseLayouts(clubId).catch(() => []));
     } catch {
       // Leave the sections empty.
     }
@@ -271,6 +276,52 @@ export default function CourseScreen() {
             ) : null}
           </Text>
         </View>
+
+        {/* Hole by hole (0108): satellite maps with GPS yardages. */}
+        {isOn("shotMaps") ? (
+          <>
+            <View style={styles.sectionHead}>
+              <Text style={styles.sectionTitle}>Hole by hole</Text>
+            </View>
+            {layouts.some((l) => mappedHoles(l.points).length > 0) ? (
+              layouts.map((l) => {
+                const holes = mappedHoles(l.points);
+                if (holes.length === 0) return null;
+                return (
+                  <View key={l.id} style={styles.holeGridWrap}>
+                    {layouts.length > 1 ? <Text style={styles.holeGridName}>{l.name}</Text> : null}
+                    <View style={styles.holeGrid}>
+                      {holes.map((h) => (
+                        <Pressable
+                          key={h}
+                          onPress={() => router.push({ pathname: "/hole-map", params: { clubId: String(clubId), hole: String(h), layoutId: String(l.id) } })}
+                          style={({ pressed }) => [styles.holeCell, pressed && styles.pressed]}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Hole ${h} map`}
+                        >
+                          <Text style={styles.holeCellText}>{h}</Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  </View>
+                );
+              })
+            ) : (
+              <Pressable
+                onPress={() => router.push({ pathname: "/hole-map", params: { clubId: String(clubId), hole: "1" } })}
+                style={({ pressed }) => [styles.holeEmpty, pressed && styles.pressed]}
+                accessibilityRole="button"
+              >
+                <Ionicons name="map-outline" size={20} color={colors.green700} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.holeEmptyTitle}>Satellite view</Text>
+                  <Text style={styles.holeEmptySub}>Hole-by-hole maps for this course are on their way. Measure to anything on the map meanwhile.</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={colors.ink500} />
+              </Pressable>
+            )}
+          </>
+        ) : null}
 
         {/* Members here — home club first, then who has played it. */}
         <View style={styles.sectionHead}>
@@ -574,6 +625,14 @@ const styles = StyleSheet.create({
   },
   postButtonLabel: { fontFamily: fonts.bodyBold, fontSize: 15, color: colors.cream50 },
   sectionTitle: { fontFamily: fonts.display, fontSize: 22, color: colors.ink900, paddingHorizontal: 20, marginTop: 8, marginBottom: 4 },
+  holeGridWrap: { paddingHorizontal: 20, marginTop: 4, gap: 6 },
+  holeGridName: { fontFamily: fonts.bodySemi, fontSize: 13.5, color: colors.ink500 },
+  holeGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  holeCell: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.green700, alignItems: "center", justifyContent: "center" },
+  holeCellText: { fontFamily: fonts.bodyBold, fontSize: 15, color: colors.cream50 },
+  holeEmpty: { flexDirection: "row", alignItems: "center", gap: 12, marginHorizontal: 20, marginTop: 4, padding: 14, borderRadius: radii.lg, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
+  holeEmptyTitle: { fontFamily: fonts.bodyBold, fontSize: 15, color: colors.ink900 },
+  holeEmptySub: { fontFamily: fonts.body, fontSize: 13, lineHeight: 18, color: colors.ink500, marginTop: 2 },
   review: { marginHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colors.cream100 },
   reviewHead: { flexDirection: "row", alignItems: "center", gap: 10 },
   reviewWho: { flex: 1 },

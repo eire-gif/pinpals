@@ -172,6 +172,11 @@ const EXPECTED: Record<string, Expectation> = {
   // 0105 deleting. Each checks the caller started the round / organised the day.
   "live_match_day_delete(p_day_id bigint)": { anon: false, authenticated: true },
   "live_round_delete(p_round_id bigint)": { anon: false, authenticated: true },
+  // 0108 hole maps
+  "course_layout_get(p_club_id bigint)": { anon: false, authenticated: true },
+  "live_round_shot_add(p_round_id bigint, p_player_id bigint, p_hole smallint, p_lat double precision, p_lng double precision, p_accuracy_m numeric)": { anon: false, authenticated: true },
+  "live_round_shot_undo(p_round_id bigint, p_player_id bigint, p_hole smallint)": { anon: false, authenticated: true },
+  "live_round_player_forget_shots()": { anon: false, authenticated: false },
 
   // --- Service role / internal only. Everything below is either a trigger
   // --- function, a sweep, or a privileged write path that must never be

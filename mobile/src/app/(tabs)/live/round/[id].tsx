@@ -297,6 +297,19 @@ export default function LiveRoundScreen() {
                     {live ? "  ✎" : ""}
                   </Text>
                 </Pressable>
+                {isOn("shotMaps") && round.clubId != null ? (
+                  <Pressable
+                    onPress={() =>
+                      router.push({ pathname: "/hole-map", params: { clubId: String(round.clubId), hole: String(h.hole), roundId: String(round.id) } })
+                    }
+                    style={styles.mapPill}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Hole ${h.hole} map and GPS yardages`}
+                  >
+                    <Ionicons name="map-outline" size={14} color={colors.navy900} />
+                    <Text style={styles.mapPillText}>Hole map</Text>
+                  </Pressable>
+                ) : null}
               </View>
               <RoundButton icon="chevron-forward" label="Next hole" disabled={hole >= card.length} onPress={() => setHole(hole + 1)} />
             </View>
@@ -642,6 +655,8 @@ const styles = StyleSheet.create({
   holeEyebrow: { fontFamily: fonts.bodyBold, fontSize: 11, letterSpacing: 1.6, textTransform: "uppercase", color: colors.gold400 },
   holeNumber: { fontFamily: fonts.display, fontSize: 48, lineHeight: 56, color: colors.cream50 },
   holeInfo: { fontFamily: fonts.body, fontSize: 13, color: creamAlpha(0.85), paddingVertical: 4 },
+  mapPill: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 4, paddingHorizontal: 12, minHeight: 30, borderRadius: radii.pill, backgroundColor: colors.gold400 },
+  mapPillText: { fontFamily: fonts.bodyBold, fontSize: 12.5, color: colors.navy900 },
   roundButton: { width: 44, height: 44, borderRadius: 22, borderWidth: 1, borderColor: creamAlpha(0.25), alignItems: "center", justifyContent: "center" },
   strip: { flexDirection: "row", gap: 3 },
   stripCell: { flex: 1, height: 6, borderRadius: 3, backgroundColor: creamAlpha(0.18) },

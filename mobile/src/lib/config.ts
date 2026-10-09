@@ -83,3 +83,20 @@ export const shellPath = (path: string): string => {
 };
 
 export const webUrl = (path: string): string => `${SITE_URL}${shellPath(path)}`;
+
+/**
+ * Satellite imagery for hole maps (claude/hole-maps.md).
+ *
+ * A raster tile URL template ({z}/{x}/{y}) and the credit the provider
+ * requires on screen. Esri World Imagery is the default because it needs no
+ * key to develop against; before public launch it must be licensed for an
+ * app — an ArcGIS Location Platform key appended as `?token=…`, or Mapbox
+ * satellite tiles instead — via EXPO_PUBLIC_MAP_TILE_URL and
+ * EXPO_PUBLIC_MAP_ATTRIBUTION. Changing provider is these two strings only.
+ */
+export const MAP_TILE_URL =
+  process.env.EXPO_PUBLIC_MAP_TILE_URL ??
+  "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
+
+export const MAP_ATTRIBUTION =
+  process.env.EXPO_PUBLIC_MAP_ATTRIBUTION ?? "Imagery © Esri, Maxar, Earthstar Geographics";

@@ -19,7 +19,7 @@ export default defineConfig({
           // with everything else. That script deletes Storage objects for a
           // living, and the helper deciding which ones is worth a regression
           // test even though the script itself is a one-off.
-          include: ["src/**/*.test.ts", "tools/**/*.test.ts"],
+          include: ["src/**/*.test.ts", "tools/**/*.test.ts", "supabase/functions/**/*.test.ts"],
         },
       },
       {
