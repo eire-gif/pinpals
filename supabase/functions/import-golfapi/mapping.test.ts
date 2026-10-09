@@ -42,6 +42,13 @@ describe("mapCourse", () => {
     expect(c?.tees[0].teeName).toBe("Championship · Blue");
   });
 
+  it("takes a name members use, and can put it on the tees", () => {
+    const { course: c } = mapCourse(course, 1, { name: "Old Course", prefixTees: true });
+    expect(c?.name).toBe("Old Course");
+    expect(c?.tees[0].teeName).toBe("Old Course · Blue");
+    expect(mapCourse(course, 1, { name: "Old Course" }).course?.tees[0].teeName).toBe("Blue");
+  });
+
   it("keeps the ratings but no card when the provider has no stroke indexes", () => {
     const { course: c, report } = mapCourse({ ...course, indexesMen: undefined, indexesWomen: undefined }, 1);
     expect(c?.tees[0].card).toBeNull();

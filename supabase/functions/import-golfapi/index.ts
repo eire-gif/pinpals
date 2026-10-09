@@ -68,6 +68,10 @@ type Body =
        *  a member's card from this year may be righter than the provider's. */
       overwrite_member_cards?: boolean;
       dry_run?: boolean;
+      /** One course only: what members call it ("Championship"). */
+      course_name?: string;
+      /** Put the course name on the tees ("Championship · Blue"). */
+      prefix_tees?: boolean;
     };
 
 const json = (body: unknown, status = 200) =>
@@ -198,12 +202,13 @@ async function runImport(db: SupabaseClient, api: Golfapi, body: Extract<Body, {
   const cap = body.max_calls ?? 10;
   if (cost > cap) throw new Error(`This would use ${cost} golfapi calls, over max_calls (${cap}). Raise max_calls to go ahead.`);
 
+  if (body.course_name && ids.length > 1) throw new Error("course_name names one course; import the others separately");
   const club = await loadClub(db, body.club_id);
   const results: unknown[] = [];
 
   for (const id of ids) {
     const raw = await api.get(`/courses/${encodeURIComponent(id)}`);
-    const { course, report } = mapCourse(raw, ids.length);
+    const { course, report } = mapCourse(raw, ids.length, { name: body.course_name, prefixTees: body.prefix_tees });
     if (!course) {
       results.push({ golfapi_course_id: id, error: "Couldn't read the course", report });
       continue;

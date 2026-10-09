@@ -114,4 +114,40 @@ club's saved cards, so stroke indexes stop needing to be typed in.
 
 - Nothing here has been run on a phone: the map page and orientation need
   a look on a device after the OTA. Distances and permissions are tested.
-- golfapi.io's response shape (see above).
+- ~~golfapi.io's response shape~~ verified 9 Oct 2026 on live data.
+
+## First import — 9 Oct 2026 (trial key, 25 calls)
+
+Base URL `https://www.golfapi.io/api/v2.3` and every field name confirmed.
+Cross-check: Portmarnock 1st, back tee to green centre by GPS ≈ 412 yds;
+golfapi's card says 417 (Blue).
+
+Imported (cards verified, so members can't overwrite them; GPS on all):
+
+| Club (id) | Course | Tee cards | Points |
+|---|---|---|---|
+| Portmarnock GC (605) | Championship (golfapi "Red + Blue") | 6 | 90 |
+| Portmarnock Links (606) | Links | 6 | 148 |
+| The Island (346) | The Island | 8 | 103 |
+| Royal Dublin (308) | Royal Dublin | 9 | 90 |
+| St Anne's (326) | St Anne's | 6 | 90 |
+| Howth (195) | Howth | 5 | 95 |
+| Sutton (336) | Sutton (9 holes; points cover both loops) | 4 | 110 |
+| Forrest Little (604) | Forrest Little | 5 | 97 |
+
+Not yet: **Malahide** and **Donabate** — golfapi lists each as nine 18-hole
+combinations of three loops (likewise Portmarnock). Import the combination
+members actually play, with `course_name` and, if a second one is added
+later, `prefix_tees: true` so the tee cards don't collide.
+
+Learned:
+- **Rate limit:** ten requests at once got HTTP 429s. Send one at a time.
+  A refused request wasn't charged.
+- Hazards vary: Portmarnock, Royal Dublin and St Anne's have tees and greens
+  only; Portmarnock Links has ~58 hazard points.
+- 5 trial calls left after this run.
+
+Still to apply by hand (the Supabase tool cancels any batch with a
+`delete from`, so it needs approval or the SQL editor): `live_round_shot_undo`,
+`live_round_player_forget_shots` + its trigger, and the shots broadcast on
+delete — all in 0108. Needed before `shotMaps` is switched on, not for imports.

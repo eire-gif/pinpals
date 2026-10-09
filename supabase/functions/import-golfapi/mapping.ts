@@ -1,16 +1,14 @@
 // golfapi.io responses → PinPals rows. Pure: no Deno, no network, no
 // Supabase, so vitest runs it (mapping.test.ts) alongside everything else.
 //
-// ============ The honest position on field names ============
+// ============ Field names ============
 //
-// golfapi.io's documentation (a Postman page) lists the endpoints and call
-// costs but no example responses, so the field names below are the ones
-// their API has used in the past, NOT verified against a live response from
-// PinPals' own key yet. Every read is therefore tolerant: it tries the known
-// names, accepts a few alternatives, and reports what it found and didn't
-// (`ShapeReport`). The first trial import should be run with
-// `"action": "inspect"`, and anything the report says is missing fixed here
-// before a paid pull. See claude/hole-maps.md.
+// Verified against live responses on 9 Oct 2026 (Portmarnock Championship
+// and seven other North Dublin courses): courseID, courseName (sometimes
+// absent), numHoles, parsMen/indexesMen arrays, tees[] with teeName,
+// courseRatingMen/slopeMen/courseRatingWomen/slopeWomen and length1…18 (yards),
+// coordinates[] with poi/location/sideFW/hole/latitude/longitude. Reads stay
+// tolerant and report what they found, in case the provider changes shape.
 
 export type PointKind =
   | "tee_front"
@@ -112,14 +110,25 @@ export function validCard(pars: Array<number | null>, indexes: Array<number | nu
  * with more than one, tee names are prefixed with the course ("Old · White")
  * because PinPals keeps one card per club and tee name.
  */
-export function mapCourse(raw: unknown, clubCourseCount: number): { course: MappedCourse | null; report: ShapeReport } {
+/**
+ * `opts.name` replaces the provider's course name ("Red + Blue" →
+ * "Championship"); `opts.prefixTees` forces the course name onto tee names
+ * even for a single-course import — needed at clubs like Portmarnock, which
+ * golfapi lists as nine nine-hole combinations sharing tee colours.
+ */
+export function mapCourse(
+  raw: unknown,
+  clubCourseCount: number,
+  opts: { name?: string; prefixTees?: boolean } = {}
+): { course: MappedCourse | null; report: ShapeReport } {
   const report: ShapeReport = { found: [], missing: [] };
   if (!isObj(raw)) {
     report.missing.push("course object");
     return { course: null, report };
   }
   const id = pick(raw, ["courseID", "courseId", "id"], report, "course id");
-  const name = String(pick(raw, ["courseName", "name"], report, "course name") ?? "Main course");
+  const providerName = String(pick(raw, ["courseName", "name"], report, "course name") ?? "Main course");
+  const name = opts.name?.trim() || providerName;
   const numHoles = num(pick(raw, ["numHoles", "holes"], report, "hole count"));
   const holes: 9 | 18 = numHoles === 9 ? 9 : 18;
 
@@ -130,7 +139,7 @@ export function mapCourse(raw: unknown, clubCourseCount: number): { course: Mapp
 
   const teesRaw = pick(raw, ["tees", "teeBoxes"], report, "tees");
   const tees: MappedTee[] = [];
-  const prefix = clubCourseCount > 1 ? `${clampName(name, 18)} · ` : "";
+  const prefix = clubCourseCount > 1 || opts.prefixTees ? `${clampName(name, 18)} · ` : "";
   const sumPar = (p: Array<number | null>) => (p.length >= holes && p.slice(0, holes).every((x) => x != null) ? p.slice(0, holes).reduce<number>((a, b) => a + (b ?? 0), 0) : null);
 
   for (const t of Array.isArray(teesRaw) ? teesRaw : []) {
