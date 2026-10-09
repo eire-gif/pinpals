@@ -1,6 +1,6 @@
 # Hole maps — GPS yardages and shot positions
 
-Oct 2026. **Status: built in branch, behind `shotMaps` (off). Needs migration 0108 applied, then the flag on and an `eas update`. No native build.**
+Oct 2026. **Status: 0108 and 0109 applied to production (9 Oct 2026; the `delete` parts by hand in the SQL editor); `shotMaps` on in the branch — live once PR #150 is merged and published with `eas update`. No native build.**
 
 A member opens any hole on satellite imagery, sees live distances to the
 front, centre and back of the green and to the hazards ahead, taps anywhere
@@ -147,7 +147,8 @@ Learned:
   only; Portmarnock Links has ~58 hazard points.
 - 5 trial calls left after this run.
 
-Still to apply by hand (the Supabase tool cancels any batch with a
-`delete from`, so it needs approval or the SQL editor): `live_round_shot_undo`,
-`live_round_player_forget_shots` + its trigger, and the shots broadcast on
-delete — all in 0108. Needed before `shotMaps` is switched on, not for imports.
+The parts of 0108 containing `delete from` (`live_round_shot_undo`,
+`live_round_player_forget_shots` + trigger, and the shots broadcast on delete
+— as `live_round_shots_broadcast_removed` in production) were run by hand in
+the SQL editor, because the Supabase tool cancels any batch containing one.
+Checked afterwards: grants as registered, triggers present.
