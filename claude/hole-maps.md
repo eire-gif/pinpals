@@ -94,6 +94,44 @@ secret from Vault (example at the top of `index.ts`). Optionally
 Provider cards flow straight into live scoring: set-up already offers a
 club's saved cards, so stroke indexes stop needing to be typed in.
 
+## OpenStreetMap shapes (Oct 2026)
+
+Volunteers have drawn most Irish courses in OpenStreetMap: greens,
+fairways, tees, bunkers, water, and a line per hole from tee to green
+(`golf=hole`, `ref=<n>`). The hole map now uses it two ways:
+
+- **Outlines** over the satellite photo — fairway, tee, green, bunker and
+  water shapes and the dashed line of each hole — like a yardage book.
+- **Yardages where golfapi has none:** `osmLayoutPoints` turns the shapes
+  into the same points golfapi supplies (tee, green front / centre / back,
+  bunkers and water within 40 m of the line; a bunker within 45 m of the
+  green centre counts as greenside). A golfapi-mapped hole always wins;
+  an OSM-derived hole says "Mapped by OpenStreetMap volunteers".
+
+Checked against golfapi at Portmarnock: OSM green centres within 1–4 m on
+all 18 holes, hole lengths within a few yards. So for courses OSM covers,
+golfapi is only needed for stroke indexes and ratings (1 call per course,
+no GPS call).
+
+| Piece | File |
+|---|---|
+| Parse Overpass, pick hole lines, derive points (pure) | `mobile/src/lib/osm-course.ts` (+ test, 9) |
+| Fetch | `mobile/src/lib/osm-fetch.ts` |
+
+- **Fetched by the phone**, not the server: the public Overpass mirrors are
+  unreliable from Supabase (timeouts, 500s) and fine from a phone. One query
+  per course per app session (2 km around the club), cached in memory;
+  failures aren't cached. Mirrors tried in order: overpass-api.de,
+  maps.mail.ru, kumi.systems. Overpass is a free shared service — only on
+  opening a hole map, never on a loop.
+- **27-hole clubs** have several "hole 1"s: hole 1 is the one nearest the
+  club, each next hole the one whose tee is nearest the last green.
+- **Licence:** ODbL. The map shows "© OpenStreetMap contributors" whenever
+  outlines are drawn. We don't store OSM data in our database, so there is
+  no share-alike obligation on it.
+- **Accuracy varies** by how carefully a course was drawn; a course with no
+  hole lines gets outlines only (if any), no OSM yardages.
+
 ## Before public launch
 
 - **Satellite tiles:** Esri World Imagery is the development default
@@ -112,6 +150,8 @@ club's saved cards, so stroke indexes stop needing to be typed in.
 
 ## Not verified
 
+- OSM outlines and OSM-derived yardages haven't been seen on a phone yet;
+  the parsing and geometry are tested, the drawing isn't.
 - Nothing here has been run on a phone: the map page and orientation need
   a look on a device after the OTA. Distances and permissions are tested.
 - ~~golfapi.io's response shape~~ verified 9 Oct 2026 on live data.

@@ -5,9 +5,12 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { CourseSearch } from "@/components/course-search";
 import { KEYBOARD_DISMISS_MODE, KeyboardDoneButton } from "@/components/keyboard";
+import { HeaderPill, headerButtons } from "@/components/header-actions";
 import { StateMessage } from "@/components/state-message";
+import { TeeChip } from "@/components/tee-chip";
 import { placeLabel, type Club } from "@/lib/courses";
 import { isOn } from "@/lib/features";
+import { goHome } from "@/lib/go-home";
 import { recentDays } from "@/lib/feed-rules";
 import { courseHandicap, indexLabel, parseIndex, playingHandicap } from "@/lib/live-scoring";
 import { blankScorecard, headline, scorecardTotals, shotsOnCard, vsParText, type ScorecardHole } from "@/lib/scorecard-math";
@@ -111,7 +114,8 @@ export default function ScorecardEditor() {
 
   const canSave = courseName.trim().length > 0 && holes.length > 0 && (indexText.trim() === "" || index != null);
 
-  const save = async () => {
+  /** Saves the card; then opens it, goes back (an edit), or goes Home. */
+  const save = async (then: "open" | "home" = "open") => {
     if (!canSave) return;
     setSaving(true);
     try {
@@ -132,14 +136,32 @@ export default function ScorecardEditor() {
         },
         putts ? holes : holes.map((h) => ({ ...h, putts: null }))
       );
-      if (editId != null) router.back();
-      else router.replace({ pathname: "/scorecards/[id]", params: { id: String(id) } });
+      if (then === "home") goHome();
+      else if (editId != null) router.back();
+      else router.replace({ pathname: "/scorecards/[id]", params: { id: String(id), saved: "1" } });
     } catch (e) {
       const msg = (e as { message?: unknown } | null)?.message;
       Alert.alert("That card didn't save", typeof msg === "string" && msg ? msg : "Please try again.");
     } finally {
       setSaving(false);
     }
+  };
+
+  // Home never loses a card: a card that can be saved is saved first; one
+  // that can't (no course yet, a bad index) asks before it's thrown away.
+  const leaveForHome = () => {
+    if (canSave) {
+      void save("home");
+      return;
+    }
+    if (!courseName.trim() && holes.length === 0) {
+      goHome();
+      return;
+    }
+    Alert.alert("Leave without saving?", indexText.trim() && index == null ? "The handicap index isn't valid, so this card can't be saved yet." : "This card isn't finished enough to save yet.", [
+      { text: "Stay", style: "cancel" },
+      { text: "Leave", style: "destructive", onPress: goHome },
+    ]);
   };
 
   if (!isOn("scorecards")) return <StateMessage size="screen" icon="document-text-outline" title="Scorecards are on their way" />;
@@ -149,7 +171,12 @@ export default function ScorecardEditor() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.cream50 }}>
-      <Stack.Screen options={{ title: editId != null ? "Edit scorecard" : "New scorecard" }} />
+      <Stack.Screen
+        options={{
+          title: editId != null ? "Edit scorecard" : "New scorecard",
+          ...headerButtons({ right: <HeaderPill label="Home" variant="secondary" busy={saving} onPress={leaveForHome} accessibilityLabel="Save and go Home" /> }),
+        }}
+      />
       <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled" keyboardDismissMode={KEYBOARD_DISMISS_MODE}>
         {/* 1. Course */}
         <Section title="Course">
@@ -200,23 +227,27 @@ export default function ScorecardEditor() {
         </Section>
 
         {/* 2. Tees, or a card typed in */}
-        {step2 && holes.length === 0 ? (
+        {step2 && (holes.length === 0 || (tees?.length ?? 0) > 0) ? (
           <Section title="Tees">
             {club && tees === null && !typedCourse ? <ActivityIndicator color={colors.green700} /> : null}
             {tees && tees.length > 0 ? (
               <View style={styles.chips}>
                 {tees.map((t) => (
-                  <Chip key={`${t.teeName}-${t.holes}`} label={`${t.teeName}${t.holes === 9 ? " (9)" : ""}`} on={tee?.teeName === t.teeName} onPress={() => chooseTee(t)} />
+                  <TeeChip key={`${t.teeName}-${t.holes}`} name={t.teeName} label={`${t.teeName}${t.holes === 9 ? " (9)" : ""}`} selected={tee?.teeName === t.teeName} onPress={() => chooseTee(t)} />
                 ))}
               </View>
             ) : null}
-            <Text style={styles.muted}>
-              {tees && tees.length > 0 ? "No card for your tees? Enter the pars yourself:" : "No card on file for this course yet. Enter the pars yourself:"}
-            </Text>
-            <View style={styles.chips}>
-              <Chip label="18 holes" on={false} onPress={() => setHoles(blankScorecard(18))} />
-              <Chip label="9 holes" on={false} onPress={() => setHoles(blankScorecard(9))} />
-            </View>
+            {holes.length === 0 ? (
+              <>
+                <Text style={styles.muted}>
+                  {tees && tees.length > 0 ? "No card for your tees? Enter the pars yourself:" : "No card on file for this course yet. Enter the pars yourself:"}
+                </Text>
+                <View style={styles.chips}>
+                  <Chip label="18 holes" on={false} onPress={() => setHoles(blankScorecard(18))} />
+                  <Chip label="9 holes" on={false} onPress={() => setHoles(blankScorecard(9))} />
+                </View>
+              </>
+            ) : null}
           </Section>
         ) : null}
 
@@ -298,7 +329,7 @@ export default function ScorecardEditor() {
             </Section>
 
             <Pressable
-              onPress={() => void save()}
+              onPress={() => void save("open")}
               disabled={!canSave || saving}
               style={({ pressed }) => [styles.saveButton, (!canSave || saving) && styles.disabled, pressed && styles.pressed]}
               accessibilityRole="button"

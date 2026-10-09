@@ -3,6 +3,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 
 
 import { CourseSearch } from "@/components/course-search";
 import { Chip, ChipGroup, Section } from "@/components/form-bits";
+import { TeeChip } from "@/components/tee-chip";
 import { placeLabel, type Club } from "@/lib/courses";
 import { loadCourseCards, type CourseCard } from "@/lib/live-rounds";
 import { blankCard, type CardHole } from "@/lib/live-scoring";
@@ -119,7 +120,7 @@ export function CourseSection({ setup }: { setup: CourseSetup }) {
           ) : s.cards.length > 0 ? (
             <ChipGroup>
               {s.cards.map((c) => (
-                <Chip key={c.id} label={`${c.teeName}${c.verified ? " ✓" : ""}`} selected={s.cardId === c.id} onPress={() => s.pickCard(c)} />
+                <TeeChip key={c.id} name={c.teeName} label={`${c.teeName}${c.verified ? " ✓" : ""}`} selected={s.cardId === c.id} onPress={() => s.pickCard(c)} />
               ))}
               <Chip label="Other tees" selected={s.cardId == null} onPress={() => s.pickCard(null)} />
             </ChipGroup>
