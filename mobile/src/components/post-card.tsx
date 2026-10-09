@@ -22,11 +22,12 @@ import { AchievementCard } from "@/components/achievement-card";
 import { Avatar } from "@/components/avatar";
 import { coursePhoto } from "@/components/course-photos";
 import { PostVideo } from "@/components/post-video";
+import { RoundCard } from "@/components/round-card";
 import { ReactionDisc, ReactionPicker, ReactionStack } from "@/components/reactions";
 import { achievementOf } from "@/lib/achievements";
 import type { FeedAuthor, FeedClub, FeedComment, FeedPhoto, FeedPost } from "@/lib/feed";
 import { POST_VISIBILITY_SHORT, ago, compactCount, handicapLabel, photoHeight } from "@/lib/feed-rules";
-import { detailChips } from "@/lib/post-details";
+import { detailChips, type RoundDetails } from "@/lib/post-details";
 import { REACTION_INFO, topReactions, type ReactionKey } from "@/lib/reactions";
 import { colors, creamAlpha, fonts, navyAlpha, radii, spacing, type } from "@/lib/theme";
 
@@ -110,7 +111,12 @@ export function PostCard({
     courseName: post.club?.name ?? null,
     createdAt: post.createdAt,
   });
-  const chips = achievement ? [] : detailChips(post);
+  // A round draws as a scorecard (round-card.tsx); holes and shots keep chips.
+  const round =
+    !achievement && post.kind === "round" && post.details && typeof post.details === "object" && typeof (post.details as RoundDetails).score === "number"
+      ? (post.details as RoundDetails)
+      : null;
+  const chips = achievement || round ? [] : detailChips(post);
 
   const openMember = (id: string) => {
     if (id === currentMemberId) return;
@@ -166,6 +172,12 @@ export function PostCard({
       {post.video ? (
         <View style={styles.media}>
           <PostVideo video={post.video} club={post.club} width={mediaWidth} />
+        </View>
+      ) : null}
+
+      {round ? (
+        <View style={styles.media}>
+          <RoundCard details={round} courseName={post.club?.name ?? null} width={mediaWidth} />
         </View>
       ) : null}
 

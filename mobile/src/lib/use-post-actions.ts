@@ -9,12 +9,13 @@ import {
   deleteComment,
   deletePost,
   report,
-  setCommentLike,
+  setCommentReaction,
   setLike,
   setSaved,
   type FeedComment,
   type FeedPost,
 } from "./feed";
+import { HEART, applyCommentReaction, type CommentEmoji } from "./comment-reactions";
 import { DEFAULT_REACTION, applyReaction, type ReactionKey } from "./reactions";
 import { supabase } from "./supabase";
 
@@ -243,29 +244,52 @@ export function usePostActions(handlers: {
   );
 
   /** A heart on a comment: optimistic, rolled back on failure. */
-  const likeComment = useCallback(
-    async (comment: FeedComment) => {
-      const next = !comment.likedByMe;
-      const patch = (liked: boolean, delta: number) =>
+  /** A comment's emoji (0111): `to` null takes the viewer's away. */
+  const reactToComment = useCallback(
+    async (comment: FeedComment, to: CommentEmoji | null) => {
+      const from = comment.myReaction;
+      if (from === to) return;
+      const patch = (mine: CommentEmoji | null, was: CommentEmoji | null) =>
         update(comment.postId, (p) => ({
           ...p,
           comments: p.comments.map((c) =>
-            c.id === comment.id ? { ...c, likedByMe: liked, likeCount: Math.max(0, c.likeCount + delta) } : c
+            c.id === comment.id
+              ? {
+                  ...c,
+                  myReaction: mine,
+                  likedByMe: mine !== null,
+                  likeCount: Math.max(0, c.likeCount + (mine && !was ? 1 : !mine && was ? -1 : 0)),
+                  emojiCounts: applyCommentReaction(c.emojiCounts, was, mine),
+                }
+              : c
           ),
         }));
-      patch(next, next ? 1 : -1);
+      patch(to, from);
       try {
         const { data } = await supabase.auth.getSession();
         const userId = data.session?.user?.id;
         if (!userId) throw new Error("Please sign in again.");
-        await setCommentLike(comment.id, userId, next);
+        const result = await setCommentReaction(comment.id, userId, to, from);
+        // It had a reaction already (another phone): it was changed, not
+        // added, so take back the +1 the screen showed.
+        if (result === "already")
+          update(comment.postId, (p) => ({
+            ...p,
+            comments: p.comments.map((c) => (c.id === comment.id ? { ...c, likeCount: Math.max(0, c.likeCount - 1) } : c)),
+          }));
       } catch (err) {
-        patch(!next, next ? -1 : 1);
+        patch(from, to);
         Alert.alert("Couldn't save that", err instanceof Error ? err.message : "Please try again.");
       }
     },
     [update]
   );
 
-  return { like, react, save, share, menu, commentOptions, likeComment };
+  /** "Like": a heart, or off if the viewer has any reaction on it. */
+  const likeComment = useCallback(
+    (comment: FeedComment) => reactToComment(comment, comment.myReaction ? null : HEART),
+    [reactToComment]
+  );
+
+  return { like, react, save, share, menu, commentOptions, likeComment, reactToComment };
 }

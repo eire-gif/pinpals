@@ -57,6 +57,19 @@ describe("detailsProblem", () => {
     ]);
   });
 
+  it("the card hole by hole (0111)", () => {
+    const pars = [4, 4, 3, 5, 4, 4, 3, 4, 5, 4, 4, 3, 5, 4, 4, 3, 4, 5];
+    const scores = pars.map((p, i) => (i === 2 ? p - 1 : i % 4 === 0 ? p + 1 : p));
+    const total = scores.reduce((a, b) => a + b, 0);
+    expect(detailsProblem("round", { score: total, course_par: 72, hole_pars: pars, hole_scores: scores })).toBeNull();
+    expect(detailsProblem("round", { score: total + 1, hole_pars: pars, hole_scores: scores })).toMatch(/add up to your score/);
+    expect(detailsProblem("round", { score: total, course_par: 71, hole_pars: pars, hole_scores: scores })).toMatch(/course par/);
+    expect(detailsProblem("round", { score: total, hole_pars: pars })).toMatch(/scorecard/);
+    expect(detailsProblem("round", { score: 40, holes: 9, hole_pars: pars.slice(0, 9), hole_scores: [4, 4, 3, 5, 4, 4, 3, 4, 9] })).toBeNull();
+    expect(detailsProblem("round", { score: 40, hole_pars: pars.slice(0, 9), hole_scores: [4, 4, 3, 5, 4, 4, 3, 4, 9] })).toMatch(/holes played/);
+    expect(detailsProblem("round", { score: total, hole_pars: pars, hole_scores: scores.map((x, i) => (i ? x : 0)) })).toMatch(/hole score/);
+  });
+
   it("refuses nonsense in a round", () => {
     expect(detailsProblem("round", { score: 12 })).toMatch(/score/);
     expect(detailsProblem("round", { score: 78.5 })).toMatch(/score/);
