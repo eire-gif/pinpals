@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  AIM_DRIVE_M,
   bearingDeg,
+  defaultAim,
   distanceM,
   fixIsUsable,
   greenDistancesM,
@@ -155,5 +157,26 @@ describe("framing", () => {
     // Includes the member only when they're on the hole.
     expect(holeFrame(g, north(100)).points.length).toBe(holeFrame(g, null).points.length + 1);
     expect(holeFrame(g, { lat: 53.35, lng: -6.26 }).points.length).toBe(holeFrame(g, null).points.length);
+  });
+});
+
+describe("the aim circle", () => {
+  it("starts a drive out on a long hole, on the line to the green", () => {
+    const g = holeGeometry(HOLE_1, 1);
+    const aim = defaultAim(g, TEE)!;
+    expect(distanceM(TEE, aim)).toBeCloseTo(AIM_DRIVE_M, -1);
+    expect(distanceM(aim, g.greenCentre!) + distanceM(TEE, aim)).toBeCloseTo(366, -1);
+  });
+
+  it("isn't there when the green is in reach, or unknown", () => {
+    const g = holeGeometry(HOLE_1, 1);
+    expect(defaultAim(g, north(150))).toBeNull();
+    expect(defaultAim(holeGeometry([], 1), TEE)).toBeNull();
+  });
+
+  it("never sits on top of the green", () => {
+    const g = holeGeometry(HOLE_1, 1);
+    const aim = defaultAim(g, north(80))!;
+    expect(distanceM(aim, g.greenCentre!)).toBeGreaterThanOrEqual(79);
   });
 });

@@ -17,6 +17,44 @@ marks where each shot was played from, so every shot's length appears.
 - Screen: `mobile/src/app/hole-map.tsx` (root stack, swipe-back off so a map
   pan from the left edge doesn't leave the screen).
 
+## The screen, after Hole19 (9 Oct 2026)
+
+Members compared it with Hole19 and found ours busy: half the screen was a
+panel, and every neighbouring hole's outlines competed with the one in play.
+Now:
+
+- **The photo is the whole screen.** No header: a back button, the course
+  name and the yds/m switch float at the top; recentre, outlines on/off and
+  "put the aim back" down the right.
+- **One sheet at the bottom**: Hole N, par, SI and length, then front /
+  centre / back, then "from you" or "from the tee". **Swipe it sideways** for
+  the next or previous hole (or the arrows). In a live round, Mark shot and
+  undo sit on it too.
+- **The aim circle.** On a hole longer than a drive, a white circle sits a
+  drive out (210 m ≈ 230 yds, `defaultAim` in hole-geo.ts) on the line to
+  the green, with the distance to it and from it to the green on the lines.
+  **Drag it**, or tap anywhere to move it. Within reach, one line straight
+  to the green with the centre distance. The page moves the lines while the
+  circle is dragged; the numbers come back from the app on release, so
+  every number is still worked out in one place. GPS updates arriving
+  mid-drag are held, not drawn.
+- **Quieter outlines**: fainter fills, and only the current hole's line of
+  play. The layers button turns them off (remembered while the app is open).
+- **Shots, hazards ahead, and the course's other loops** moved into a
+  pull-up list (the list button on the sheet).
+- Map page HTML moved to `mobile/src/components/hole-map-page.ts` so it can
+  be rendered in a browser for checks (Leaflet from npm, no tiles): drag,
+  a GPS tick mid-drag and the single hole line verified that way.
+
+### Where Hole19's imagery comes from
+
+Hole19 doesn't say publicly. Apps like it license commercial satellite
+imagery (Google, Apple, Mapbox, Maxar). The free route for us, at the next
+native build, is **Apple Maps satellite on iOS** (MapKit, no per-use fee)
+via react-native-maps; Google Maps SDK is free on Android. That would also
+settle the Esri licence question below — but it's a new store build and a
+rewrite of the drawing, so it isn't in the over-the-air update.
+
 ## How it's built
 
 | Piece | File |

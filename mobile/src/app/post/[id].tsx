@@ -151,6 +151,7 @@ export default function PostScreen() {
             <CommentList
               comments={post.comments}
               onLike={actions.likeComment}
+              onReact={actions.reactToComment}
               onReply={thread.startReply}
               onOptions={(c) => actions.commentOptions(c, { onEdit: thread.startEdit })}
             />

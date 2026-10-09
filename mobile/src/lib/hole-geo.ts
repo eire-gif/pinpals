@@ -181,6 +181,24 @@ export function tapDistancesM(g: HoleGeometry, from: LatLng, tap: LatLng): { toT
   return { toTap: distanceM(from, tap), tapToGreen: g.greenCentre ? distanceM(tap, g.greenCentre) : null };
 }
 
+/** How far out the aim circle starts: a good drive (~230 yds). */
+export const AIM_DRIVE_M = 210;
+
+/**
+ * Where the aim circle starts (Oct 2026, the Hole19-style map): a drive's
+ * length along the line to the green, so a par 4 opens showing "to the
+ * aim, then the aim to the green" with nothing tapped. Null when the green
+ * is within a drive (and a bit) — then the aim is the green itself. The
+ * member drags it or taps anywhere to move it.
+ */
+export function defaultAim(g: HoleGeometry, from: LatLng): LatLng | null {
+  if (!g.greenCentre) return null;
+  const d = distanceM(from, g.greenCentre);
+  if (d <= AIM_DRIVE_M + 30) return null;
+  const t = Math.min(AIM_DRIVE_M, d - 80) / d;
+  return { lat: from.lat + (g.greenCentre.lat - from.lat) * t, lng: from.lng + (g.greenCentre.lng - from.lng) * t };
+}
+
 // ---------------------------------------------------------------------------
 // Shots
 // ---------------------------------------------------------------------------

@@ -205,6 +205,8 @@ const EXPECTED: Record<string, Expectation> = {
   // no UPDATE on like_count). Triggers only — callable by nobody.
   "clean_post_comment_mentions()": { anon: false, authenticated: false },
   "bump_post_comment_like_count()": { anon: false, authenticated: false },
+  // 0111. Keeps post_comments.emoji_counts, called only by the trigger above.
+  "bump_post_comment_emoji(p_comment bigint, p_key text, p_delta integer)": { anon: false, authenticated: false },
   // 0084. The nightly sweep that closes rounds a clear day past their
   // play_date. SECURITY DEFINER so cron can run it without a session;
   // unreachable from a browser because a member closing other people's

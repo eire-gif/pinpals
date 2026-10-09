@@ -61,7 +61,8 @@ function RootNavigator() {
     // moves on by itself — so it is not bounced to the tabs here).
     const first = segments[0] as string | undefined;
     const onAuthForm = first === "login" || first === "signup";
-    const signedOutAllowed = onAuthForm || first === "auth-confirm";
+    // card-link: a shared scorecard (pinpals.ie/c/…) opens for anyone.
+    const signedOutAllowed = onAuthForm || first === "auth-confirm" || first === "card-link";
 
     if (!session && !signedOutAllowed) {
       router.replace("/login");

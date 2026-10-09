@@ -168,6 +168,11 @@ export type RoundDetails = {
   /** A claimed achievement (0100) — see achievements.ts for which the
    *  numbers must support. */
   achievement?: string;
+  /** Added in 0111: the card hole by hole, for the scorecard drawn on the
+   *  post. Always both, one entry per hole (9 or 18), scores adding up to
+   *  `score` and pars to `course_par`. Only a finished card is shared. */
+  hole_pars?: number[];
+  hole_scores?: number[];
 };
 
 export type HoleDetails = {
@@ -232,6 +237,7 @@ const ROUND_KEYS = [
   "score", "holes", "course_par", "tee", "played_on", "differential",
   "fairways_hit", "fairways_total", "gir", "putts", "birdies", "best_hole",
   "front_nine", "back_nine", "longest_drive", "tee_time_id", "achievement",
+  "hole_pars", "hole_scores",
 ] as const;
 const HOLE_KEYS = ["hole", "par", "yards", "score", "club", "achievement"] as const;
 const SHOT_KEYS = ["hole", "shot_number", "club", "distance_yards", "lie", "result"] as const;
@@ -273,6 +279,18 @@ export function detailsProblem(kind: PostKind, details: unknown): string | null 
     if (d.fairways_hit !== undefined && d.fairways_total !== undefined && (d.fairways_hit as number) > (d.fairways_total as number))
       return "Fairways hit can't be more than fairways played.";
     if (d.putts !== undefined && !inRange(d.putts, LIMITS.putts)) return "That putt count doesn't look right.";
+    if (d.hole_pars !== undefined || d.hole_scores !== undefined) {
+      const n = d.holes === 9 ? 9 : 18;
+      const pars = d.hole_pars;
+      const scores = d.hole_scores;
+      if (!Array.isArray(pars) || !Array.isArray(scores) || pars.length !== n || scores.length !== n)
+        return "The scorecard doesn't match the holes played — share it from the scorecard again.";
+      if (!pars.every((p) => inRange(p, LIMITS.par))) return "A hole is a par 3, 4, 5 or 6.";
+      if (!scores.every((x) => inRange(x, LIMITS.holeScore))) return "A hole score on the card doesn't look right.";
+      if (scores.reduce((a: number, b: number) => a + b, 0) !== d.score) return "The scorecard doesn't add up to your score.";
+      if (d.course_par !== undefined && pars.reduce((a: number, b: number) => a + b, 0) !== d.course_par)
+        return "The scorecard's pars don't add up to the course par.";
+    }
     if (d.best_hole !== undefined) {
       const b = d.best_hole;
       if (!isObject(b) || !onlyKeys(b, ["hole", "par", "score"])) return "Pick your best hole again.";

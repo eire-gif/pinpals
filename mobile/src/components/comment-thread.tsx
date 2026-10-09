@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -15,6 +17,7 @@ import { router } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { Avatar } from "@/components/avatar";
+import { COMMENT_EMOJI, topEmoji, type CommentEmoji } from "@/lib/comment-reactions";
 import { addComment, editComment, mentionCandidates, type FeedComment, type FeedPost } from "@/lib/feed";
 import { MAX_COMMENT_BODY, ago } from "@/lib/feed-rules";
 import {
@@ -193,12 +196,19 @@ export function CommentList({
   onLike,
   onReply,
   onOptions,
+  onReact,
 }: {
   comments: FeedComment[];
   onLike: (comment: FeedComment) => void;
   onReply: (comment: FeedComment) => void;
   onOptions: (comment: FeedComment) => void;
+  /** Long-press emoji (0111). Without it, a long press opens the options. */
+  onReact?: (comment: FeedComment, emoji: CommentEmoji | null) => void;
 }) {
+  const [picking, setPicking] = useState<FeedComment | null>(null);
+  // "More options" waits for the menu to finish closing: iOS drops an action
+  // sheet presented while a modal is still going away.
+  const moreAfter = useRef<FeedComment | null>(null);
   if (comments.length === 0) {
     return (
       <View style={styles.empty}>
@@ -211,9 +221,98 @@ export function CommentList({
   return (
     <View style={styles.list}>
       {comments.map((c) => (
-        <CommentItem key={c.id} comment={c} onLike={onLike} onReply={onReply} onOptions={onOptions} />
+        <CommentItem
+          key={c.id}
+          comment={c}
+          onLike={onLike}
+          onReply={onReply}
+          onOptions={onOptions}
+          onLongPress={onReact && !c.hidden ? setPicking : onOptions}
+        />
       ))}
+      {onReact ? (
+        <ReactionMenu
+          comment={picking}
+          onClose={() => setPicking(null)}
+          onPick={(c, e) => {
+            setPicking(null);
+            onReact(c, e === c.myReaction ? null : e);
+          }}
+          onReply={(c) => {
+            setPicking(null);
+            onReply(c);
+          }}
+          onMore={(c) => {
+            setPicking(null);
+            if (Platform.OS === "ios") moreAfter.current = c;
+            else setTimeout(() => onOptions(c), 150);
+          }}
+          onDismiss={() => {
+            const c = moreAfter.current;
+            moreAfter.current = null;
+            if (c) onOptions(c);
+          }}
+        />
+      ) : null}
     </View>
+  );
+}
+
+/**
+ * Long-press on a comment (0111): a row of emoji to react with — tap yours
+ * again to take it off — then Reply and the usual options.
+ */
+function ReactionMenu({
+  comment,
+  onClose,
+  onPick,
+  onReply,
+  onMore,
+  onDismiss,
+}: {
+  comment: FeedComment | null;
+  onDismiss: () => void;
+  onClose: () => void;
+  onPick: (comment: FeedComment, emoji: CommentEmoji) => void;
+  onReply: (comment: FeedComment) => void;
+  onMore: (comment: FeedComment) => void;
+}) {
+  return (
+    <Modal visible={comment !== null} transparent animationType="fade" onRequestClose={onClose} onDismiss={onDismiss}>
+      <Pressable style={styles.menuBackdrop} onPress={onClose} accessibilityRole="button" accessibilityLabel="Close">
+        {comment ? (
+          <Pressable style={styles.menu} onPress={() => undefined}>
+            <Text style={styles.menuQuote} numberOfLines={2}>
+              <Text style={styles.name}>{comment.author.name} </Text>
+              {comment.body}
+            </Text>
+            <View style={styles.emojiRow}>
+              {COMMENT_EMOJI.map((e) => (
+                <Pressable
+                  key={e}
+                  onPress={() => onPick(comment, e)}
+                  style={({ pressed }) => [styles.emojiButton, comment.myReaction === e && styles.emojiOn, pressed && styles.emojiPressed]}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: comment.myReaction === e }}
+                  accessibilityLabel={comment.myReaction === e ? `Remove ${e}` : `React with ${e}`}
+                  hitSlop={4}
+                >
+                  <Text style={styles.emoji}>{e}</Text>
+                </Pressable>
+              ))}
+            </View>
+            <Pressable onPress={() => onReply(comment)} style={styles.menuRow} accessibilityRole="button">
+              <Ionicons name="arrow-undo-outline" size={18} color={colors.ink900} />
+              <Text style={styles.menuText}>Reply</Text>
+            </Pressable>
+            <Pressable onPress={() => onMore(comment)} style={[styles.menuRow, styles.menuRowLast]} accessibilityRole="button">
+              <Ionicons name="ellipsis-horizontal" size={18} color={colors.ink900} />
+              <Text style={styles.menuText}>More options</Text>
+            </Pressable>
+          </Pressable>
+        ) : null}
+      </Pressable>
+    </Modal>
   );
 }
 
@@ -226,18 +325,22 @@ function CommentItem({
   onLike,
   onReply,
   onOptions,
+  onLongPress,
 }: {
   comment: FeedComment;
   onLike: (comment: FeedComment) => void;
   onReply: (comment: FeedComment) => void;
   onOptions: (comment: FeedComment) => void;
+  onLongPress: (comment: FeedComment) => void;
 }) {
   const segments = mentionSegments(comment.body, comment.mentions);
+  const top = topEmoji(comment.emojiCounts);
   return (
     <Pressable
-      onLongPress={() => onOptions(comment)}
-      style={[styles.item, comment.depth === 1 && styles.reply]}
-      accessibilityHint="Long-press for options"
+      onLongPress={() => onLongPress(comment)}
+      delayLongPress={300}
+      style={({ pressed }) => [styles.item, comment.depth === 1 && styles.reply, pressed && styles.itemPressed]}
+      accessibilityHint="Long-press to react"
     >
       <Pressable onPress={() => openMember(comment.author.id)} hitSlop={4} accessibilityRole="link" accessibilityLabel={comment.author.name}>
         <Avatar
@@ -279,12 +382,13 @@ function CommentItem({
               <Text
                 style={[styles.action, comment.likedByMe && styles.actionOn]}
                 onPress={() => onLike(comment)}
+                onLongPress={() => onLongPress(comment)}
                 accessibilityRole="button"
                 accessibilityState={{ selected: comment.likedByMe }}
-                accessibilityLabel={comment.likedByMe ? "Unlike comment" : "Like comment"}
+                accessibilityLabel={comment.likedByMe ? "Remove your reaction" : "Like comment"}
                 suppressHighlighting
               >
-                Like
+                {comment.myReaction && comment.myReaction !== "❤️" ? `${comment.myReaction} Reacted` : "Like"}
               </Text>
               <Text
                 style={styles.action}
@@ -301,10 +405,15 @@ function CommentItem({
             <Ionicons name="ellipsis-horizontal" size={16} color={colors.ink500} />
           </Pressable>
           {comment.likeCount > 0 && (
-            <View style={styles.likes} accessibilityLabel={`${comment.likeCount} ${comment.likeCount === 1 ? "like" : "likes"}`}>
-              <Ionicons name="heart" size={13} color={colors.red600} />
+            <Pressable
+              onPress={() => onLongPress(comment)}
+              style={styles.likes}
+              accessibilityRole="button"
+              accessibilityLabel={`${comment.likeCount} ${comment.likeCount === 1 ? "reaction" : "reactions"}: ${top.join(" ")}. React`}
+            >
+              {top.length > 0 ? <Text style={styles.likeEmoji}>{top.join("")}</Text> : <Ionicons name="heart" size={13} color={colors.red600} />}
               <Text style={styles.likesText}>{comment.likeCount}</Text>
-            </View>
+            </Pressable>
           )}
         </View>
       </View>
@@ -443,7 +552,31 @@ const styles = StyleSheet.create({
   },
   action: { fontFamily: fonts.bodySemi, fontSize: 12.5, color: colors.ink500, paddingVertical: 4 },
   actionOn: { color: colors.red600 },
-  likes: { marginLeft: "auto", flexDirection: "row", alignItems: "center", gap: 3 },
+  likes: {
+    marginLeft: "auto",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: colors.surface,
+    borderRadius: 999,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.line,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+  },
+  likeEmoji: { fontSize: 13, letterSpacing: -1 },
+  itemPressed: { opacity: 0.85 },
+  menuBackdrop: { flex: 1, backgroundColor: "rgba(14,21,32,0.45)", justifyContent: "center", padding: spacing.md },
+  menu: { backgroundColor: colors.surface, borderRadius: radii.lg, paddingTop: spacing.md, overflow: "hidden" },
+  menuQuote: { paddingHorizontal: spacing.md, fontFamily: fonts.body, fontSize: 14, color: colors.ink500 },
+  emojiRow: { flexDirection: "row", justifyContent: "space-between", paddingHorizontal: spacing.sm, paddingVertical: spacing.md },
+  emojiButton: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center" },
+  emojiOn: { backgroundColor: colors.green100, borderWidth: 1.5, borderColor: colors.green700 },
+  emojiPressed: { transform: [{ scale: 1.2 }] },
+  emoji: { fontSize: 27 },
+  menuRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: spacing.md, paddingVertical: 14, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line },
+  menuRowLast: { paddingBottom: 16 },
+  menuText: { fontFamily: fonts.bodySemi, fontSize: 15, color: colors.ink900 },
   likesText: { fontFamily: fonts.bodySemi, fontSize: 12.5, color: colors.ink500 },
 
   composer: {

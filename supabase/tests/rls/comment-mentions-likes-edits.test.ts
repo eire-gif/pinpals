@@ -132,6 +132,7 @@ describe("editing comments", () => {
     await withRole("authenticated", USERS.seller1, async (c) => {
       const id = await post(c);
       const mine = await comment(c, id, USERS.buyer1);
+      await as(c, USERS.seller1);
       await refused(c, "update public.post_comments set like_count = 99 where id = $1", [mine.id], /permission denied/);
       await refused(c, "update public.post_comments set edited_at = null where id = $1", [mine.id], /permission denied/);
       await asService(c, () => c.query("update public.post_comments set hidden_at = now() where id = $1", [mine.id]));
@@ -203,6 +204,58 @@ describe("comment likes", () => {
       await as(c, USERS.buyer2);
       const { rowCount } = await c.query("select 1 from public.post_comment_likes where comment_id = $1", [own.id]);
       expect(rowCount).toBe(0);
+    });
+  });
+
+  it("an emoji reaction (0111) is a like with an emoji, counted per emoji", async () => {
+    await withRole("authenticated", USERS.seller1, async (c) => {
+      const id = await post(c);
+      const mine = await comment(c, id, USERS.buyer1);
+      await as(c, USERS.seller1);
+      await c.query("insert into public.post_comment_likes (comment_id, user_id) values ($1, $2)", [mine.id, USERS.seller1]);
+      await as(c, USERS.buyer2);
+      await c.query("insert into public.post_comment_likes (comment_id, user_id, emoji) values ($1, $2, '😂')", [mine.id, USERS.buyer2]);
+      let { rows } = await c.query("select like_count, emoji_counts from public.post_comments where id = $1", [mine.id]);
+      expect(rows[0].like_count).toBe(2);
+      expect(rows[0].emoji_counts).toEqual({ "❤️": 1, "😂": 1 });
+
+      // Changing it moves the count; like_count stays put.
+      await c.query("update public.post_comment_likes set emoji = '🔥' where comment_id = $1 and user_id = $2", [mine.id, USERS.buyer2]);
+      ({ rows } = await c.query("select like_count, emoji_counts from public.post_comments where id = $1", [mine.id]));
+      expect(rows[0].like_count).toBe(2);
+      expect(rows[0].emoji_counts).toEqual({ "❤️": 1, "🔥": 1 });
+
+      await c.query("delete from public.post_comment_likes where comment_id = $1 and user_id = $2", [mine.id, USERS.buyer2]);
+      ({ rows } = await c.query("select like_count, emoji_counts from public.post_comments where id = $1", [mine.id]));
+      expect(rows[0].emoji_counts).toEqual({ "❤️": 1 });
+    });
+  });
+
+  it("only the listed emoji, only your own reaction, and nothing else changes", async () => {
+    await withRole("authenticated", USERS.seller1, async (c) => {
+      const id = await post(c);
+      const mine = await comment(c, id, USERS.buyer1);
+      await as(c, USERS.seller1);
+      await refused(
+        c,
+        "insert into public.post_comment_likes (comment_id, user_id, emoji) values ($1, $2, 'hello')",
+        [mine.id, USERS.seller1],
+        /post_comment_likes_emoji_ok/,
+      );
+      await c.query("insert into public.post_comment_likes (comment_id, user_id) values ($1, $2)", [mine.id, USERS.seller1]);
+      await as(c, USERS.buyer2);
+      const { rowCount } = await c.query(
+        "update public.post_comment_likes set emoji = '👍' where comment_id = $1 and user_id = $2",
+        [mine.id, USERS.seller1],
+      );
+      expect(rowCount).toBe(0);
+      await refused(
+        c,
+        "update public.post_comment_likes set user_id = $2 where comment_id = $1",
+        [mine.id, USERS.buyer2],
+        /permission denied/,
+      );
+      await refused(c, "select public.bump_post_comment_emoji($1, '❤️', 50)", [mine.id], /permission denied/);
     });
   });
 

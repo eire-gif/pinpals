@@ -27,6 +27,15 @@ describe("routeForIncomingUrl", () => {
     expect(routeForIncomingUrl("https://www.pinpals.ie/invite/9")).toBe("/invite/9");
   });
 
+  it("opens invite-friends links and shared scorecards in the app", () => {
+    expect(routeForIncomingUrl("https://www.pinpals.ie/signup")).toBe("/signup");
+    expect(routeForIncomingUrl("https://pinpals.ie/signup/")).toBe("/signup");
+    // {"c":42,"s":"abc","v":1} as base64url, then a signature.
+    const token = `${btoa(JSON.stringify({ c: 42, s: "abc", v: 1 })).replace(/=+$/, "").replace(/\+/g, "-").replace(/\//g, "_")}.c2ln`;
+    expect(routeForIncomingUrl(`https://www.pinpals.ie/c/${token}`)).toBe(`/card-link?token=${token}`);
+    expect(routeForIncomingUrl("https://www.pinpals.ie/c/not-a-token.x")).toBe("/web?path=%2Fc%2Fnot-a-token.x&title=PinPals");
+  });
+
   it("turns a sign-up confirmation into the app's confirm screen", () => {
     expect(routeForIncomingUrl("https://www.pinpals.ie/auth/confirm?token_hash=abc123&type=email")).toBe(
       "/auth-confirm?token_hash=abc123&type=email"

@@ -1,3 +1,4 @@
+import { HEART, isCommentEmoji, normaliseEmojiCounts, type CommentEmoji, type EmojiCounts } from "./comment-reactions";
 import {
   deleteFromSite,
   deleteFromSiteWithBody,
@@ -82,6 +83,10 @@ export type FeedComment = {
   mentions: MentionTarget[];
   likeCount: number;
   likedByMe: boolean;
+  /** The viewer's emoji on it (0111) — a heart for a plain like — or null. */
+  myReaction: CommentEmoji | null;
+  /** How many of each emoji (0111); every like counts once. */
+  emojiCounts: EmojiCounts;
   /** When the author last changed it (0097), or null. */
   editedAt: string | null;
 };
@@ -178,6 +183,8 @@ type CommentRow = {
   mentions?: string[] | null;
   like_count?: number;
   edited_at?: string | null;
+  /** 0111. */
+  emoji_counts?: unknown;
   author: ProfileEmbed | null;
 };
 
@@ -221,7 +228,7 @@ const COMMENT_SELECT_LEGACY = `
   author:profiles!post_comments_author_id_fkey ( id, first_name, last_name, avatar_url, avatar_color, home_club, handicap, handicap_visible )
 `;
 
-const COMMENT_SELECT = COMMENT_SELECT_LEGACY.replace("parent_id,", "parent_id, mentions, like_count, edited_at,");
+const COMMENT_SELECT = COMMENT_SELECT_LEGACY.replace("parent_id,", "parent_id, mentions, like_count, edited_at, emoji_counts,");
 
 /** selectPosts()'s fallback for comments: 0097's columns, or without them. */
 let legacyComments = false;
@@ -245,7 +252,7 @@ async function selectComments<T>(
 async function commentExtras(
   viewerId: string,
   rows: CommentRow[]
-): Promise<{ names: Map<string, string>; liked: Set<number> }> {
+): Promise<{ names: Map<string, string>; liked: Map<number, CommentEmoji> }> {
   const mentionIds = [...new Set(rows.flatMap((r) => r.mentions ?? []))];
   const commentIds = rows.map((r) => r.id);
   const [people, likes] = await Promise.all([
@@ -259,16 +266,19 @@ async function commentExtras(
     commentIds.length
       ? supabase
           .from("post_comment_likes")
-          .select("comment_id")
+          .select("comment_id, emoji")
           .eq("user_id", viewerId)
           .in("comment_id", commentIds)
-          .overrideTypes<{ comment_id: number }[]>()
-      : Promise.resolve({ data: [] as { comment_id: number }[] }),
+          .overrideTypes<{ comment_id: number; emoji: string | null }[]>()
+      : Promise.resolve({ data: [] as { comment_id: number; emoji: string | null }[] }),
   ]);
   const names = new Map(
     (people.data ?? []).map((p) => [p.id, [p.first_name, p.last_name].filter(Boolean).join(" ")] as const)
   );
-  return { names, liked: new Set((likes.data ?? []).map((l) => l.comment_id)) };
+  return {
+    names,
+    liked: new Map((likes.data ?? []).map((l) => [l.comment_id, isCommentEmoji(l.emoji) ? l.emoji : HEART] as const)),
+  };
 }
 
 const toAuthor = (row: ProfileEmbed | null, fallbackId: string): FeedAuthor =>
@@ -310,7 +320,7 @@ const toComment = (
   row: CommentRow,
   viewerId: string,
   postAuthorId: string | null,
-  extras: { names: Map<string, string>; liked: Set<number> } = { names: new Map(), liked: new Set() }
+  extras: { names: Map<string, string>; liked: Map<number, CommentEmoji> } = { names: new Map(), liked: new Map() }
 ): FeedComment => ({
   id: row.id,
   postId: row.post_id,
@@ -329,6 +339,8 @@ const toComment = (
     .filter((m) => m.name),
   likeCount: row.like_count ?? 0,
   likedByMe: extras.liked.has(row.id),
+  myReaction: extras.liked.get(row.id) ?? null,
+  emojiCounts: normaliseEmojiCounts(row.emoji_counts, row.like_count ?? 0),
   editedAt: row.edited_at ?? null,
 });
 
@@ -882,6 +894,37 @@ export const addComment = (
 /** Changes the text of your own comment (0097); the server marks it edited. */
 export const editComment = (postId: number, commentId: number, body: string): Promise<{ id: number; editedAt: string | null }> =>
   patchSite(`/api/app/posts/${postId}/comments/${commentId}`, { body });
+
+/**
+ * Sets the viewer's emoji on a comment (0111), or takes it away (null).
+ * Direct to Supabase, like comment likes: they notify nobody. Changing one
+ * emoji for another is an update of the member's own row (all they may
+ * update is the emoji, so no upsert).
+ */
+export async function setCommentReaction(
+  commentId: number,
+  userId: string,
+  to: CommentEmoji | null,
+  from: CommentEmoji | null
+): Promise<"done" | "already"> {
+  const table = supabase.from("post_comment_likes");
+  let already = false;
+  let error: { code?: string } | null = null;
+  if (to === null) {
+    ({ error } = await table.delete().eq("comment_id", commentId).eq("user_id", userId));
+  } else if (from === null) {
+    ({ error } = await table.insert({ comment_id: commentId, user_id: userId, emoji: to === HEART ? null : to }));
+    // Already reacted (another phone): change it instead.
+    if (error?.code === "23505") {
+      already = true;
+      ({ error } = await supabase.from("post_comment_likes").update({ emoji: to === HEART ? null : to }).eq("comment_id", commentId).eq("user_id", userId));
+    }
+  } else {
+    ({ error } = await table.update({ emoji: to === HEART ? null : to }).eq("comment_id", commentId).eq("user_id", userId));
+  }
+  if (error) throw new Error("Couldn't save that. Please try again.");
+  return already ? "already" : "done";
+}
 
 /**
  * Likes or unlikes a comment (0097). Direct to Supabase, like saving a

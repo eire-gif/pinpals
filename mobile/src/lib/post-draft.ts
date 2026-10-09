@@ -51,6 +51,10 @@ export type DetailsDraft = {
   /** A claimed achievement (phase 8), "" for none. Only kept while the
    *  numbers support it — see claimableAchievements(). */
   achievement: string;
+  /** The card hole by hole from a scorecard (0111), "pars|scores", or "".
+   *  Not a field the member edits — scorecard-math.ts roundPostFields fills
+   *  it, and it's dropped if the numbers above no longer agree with it. */
+  hole_card: string;
 };
 
 export function emptyDraft(today: string): DetailsDraft {
@@ -58,7 +62,7 @@ export function emptyDraft(today: string): DetailsDraft {
     score: "", holes: "18", course_par: "", tee: "", played_on: today, differential: "",
     fairways_hit: "", fairways_total: "", gir: "", putts: "", birdies: "", front_nine: "", back_nine: "", longest_drive: "", tee_time_id: "", best_hole: "", best_par: "", best_score: "",
     hole: "", par: "", yards: "", hole_score: "",
-    shot_number: "", club: "", distance_yards: "", lie: "", result: "", achievement: "",
+    shot_number: "", club: "", distance_yards: "", lie: "", result: "", achievement: "", hole_card: "",
   };
 }
 
@@ -69,6 +73,30 @@ function num(text: string): number | undefined {
   const t = text.trim();
   if (!t) return undefined;
   return /^-?\d+(\.\d+)?$/.test(t) ? Number(t) : Number.NaN;
+}
+
+/**
+ * hole_pars / hole_scores from a draft's hole_card, or nothing when they no
+ * longer match the round as the member left it (changed the score, the par
+ * or 9/18 after sharing from a scorecard) — the post then just goes without
+ * the card rather than being refused.
+ */
+export function holeCardDetails(
+  card: string,
+  holes: 9 | 18,
+  score: number | undefined,
+  coursePar: number | undefined
+): { hole_pars: number[]; hole_scores: number[] } | undefined {
+  const [p, s] = card.split("|");
+  if (!p || !s) return undefined;
+  const pars = p.split(",").map(Number);
+  const scores = s.split(",").map(Number);
+  const ints = (xs: number[], lo: number, hi: number) => xs.every((x) => Number.isInteger(x) && x >= lo && x <= hi);
+  if (pars.length !== holes || scores.length !== holes || !ints(pars, 3, 6) || !ints(scores, 1, 15)) return undefined;
+  const total = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
+  if (score === undefined || total(scores) !== score) return undefined;
+  if (coursePar !== undefined && total(pars) !== coursePar) return undefined;
+  return { hole_pars: pars, hole_scores: scores };
 }
 
 export function draftToDetails(kind: PostKind, d: DetailsDraft): RoundDetails | HoleDetails | ShotDetails | null {
@@ -82,6 +110,7 @@ export function draftToDetails(kind: PostKind, d: DetailsDraft): RoundDetails | 
     const back = d.holes === "9" ? undefined : num(d.back_nine);
     const score =
       num(d.score) ?? (front !== undefined && back !== undefined && !Number.isNaN(front + back) ? front + back : undefined);
+    const card = d.hole_card ? holeCardDetails(d.hole_card, d.holes === "9" ? 9 : 18, score, num(d.course_par)) : undefined;
     return cleanDetails({
       score,
       holes: d.holes === "9" ? 9 : undefined,
@@ -100,6 +129,8 @@ export function draftToDetails(kind: PostKind, d: DetailsDraft): RoundDetails | 
       tee_time_id: num(d.tee_time_id),
       best_hole: best,
       achievement: d.achievement || undefined,
+      hole_pars: card?.hole_pars,
+      hole_scores: card?.hole_scores,
     }) as unknown as RoundDetails;
   }
   if (kind === "hole") {

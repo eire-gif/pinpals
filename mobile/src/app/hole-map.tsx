@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { Stack, useFocusEffect, useLocalSearchParams } from "expo-router";
+import { ActivityIndicator, Alert, Modal, PanResponder, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Stack, router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { StatusBar } from "expo-status-bar";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import * as Location from "expo-location";
 
@@ -10,6 +11,7 @@ import { LoadError, StateMessage } from "@/components/state-message";
 import { useAuth } from "@/lib/auth";
 import { isOn } from "@/lib/features";
 import {
+  defaultAim,
   fixIsUsable,
   greenDistancesM,
   hazardsAheadM,
@@ -45,6 +47,14 @@ import { colors, creamAlpha, fonts, radii, spacing, type } from "@/lib/theme";
  * Works on a hole with no geometry yet (most courses until imported): the
  * map opens on the club, and a tap still measures from the member. Every
  * number on screen comes from hole-geo.ts.
+ *
+ * LAYOUT (Oct 2026, after Hole19): the photo is the whole screen. Floating
+ * over it, a back button and the course at the top, and one sheet at the
+ * bottom — the hole, par and SI, and front / centre / back — that you swipe
+ * sideways for the next hole. On the photo, an aim circle a drive out with
+ * the distance to it and from it to the green; drag it, or tap anywhere to
+ * move it. Shots, hazards and the course's other loops are one tap away in
+ * a pull-up list, not stacked under the map.
  */
 type Fix = LatLng & { accuracyM: number | null };
 
@@ -61,6 +71,7 @@ const HAZARD_NAMES: Partial<Record<PointKind, string>> = {
 };
 
 let rememberedUnit: Unit | null = null;
+let rememberedOutlines = true;
 
 export default function HoleMapScreen() {
   const params = useLocalSearchParams<{ clubId: string; hole?: string; roundId?: string; layoutId?: string }>();
@@ -85,6 +96,10 @@ export default function HoleMapScreen() {
   const [tap, setTap] = useState<LatLng | null>(null);
   const [playerId, setPlayerId] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
+  const [showOutlines, setShowOutlines] = useState(rememberedOutlines);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  // The bottom sheet's height, so the hole is fitted above it, not under it.
+  const [sheetH, setSheetH] = useState(220);
 
   // ---- Location: watched while the screen is open, only once allowed ----
   const [fix, setFix] = useState<Fix | null>(null);
@@ -164,7 +179,7 @@ export default function HoleMapScreen() {
     () => (roundId != null ? subscribeToLiveRound(roundId, () => void loadRoundShots(roundId).then(setShots).catch(() => {})) : undefined),
     [roundId]
   );
-  useEffect(() => setTap(null), [hole]);
+  useEffect(() => setTap(null), [hole, layoutId]);
 
   // ---- What's on this hole ----
   const layout = layouts?.find((l) => l.id === layoutId) ?? layouts?.[0] ?? null;
@@ -186,7 +201,9 @@ export default function HoleMapScreen() {
 
   const greens = origin ? greenDistancesM(geo, origin.point) : null;
   const ahead = origin && geo.mapped ? hazardsAheadM(geo, origin.point).slice(0, 4) : [];
-  const tapped = tap && origin ? tapDistancesM(geo, origin.point, tap) : null;
+  // The aim circle: where the member put it, else a drive out (Hole19-style).
+  const aim = tap ?? (origin && geo.mapped ? defaultAim(geo, origin.point) : null);
+  const tapped = aim && origin ? tapDistancesM(geo, origin.point, aim) : null;
   const length = holeLengthM(geo);
 
   const scene: MapScene = useMemo(() => {
@@ -202,22 +219,27 @@ export default function HoleMapScreen() {
       me: fix,
       shots: legs.map((l) => ({ lat: l.from.lat, lng: l.from.lng, n: l.shotNo, label: l.distance == null ? null : `${fmt(l.distance)} ${u}` })),
       tap:
-        tap && origin && tapped
+        aim && origin && tapped
           ? {
-              ...tap,
+              ...aim,
               origin: origin.point,
               toLabel: `${fmt(tapped.toTap)} ${u}`,
               onLabel: tapped.tapToGreen == null ? null : `${fmt(tapped.tapToGreen)} ${u}`,
               green: geo.greenCentre,
             }
           : null,
+      greenLine:
+        !aim && origin && geo.greenCentre && greens?.centre != null ? { origin: origin.point, label: `${fmt(greens.centre)} ${u}` } : null,
+      hole,
+      showOutlines,
+      inset: { top: insets.top + 80, bottom: sheetH + 30 },
       // The view moves when the hole or course changes, or the first time
       // the member's position arrives — never on every GPS tick.
       outlines: shapes ? outlinesNear(shapes, frame.points.length ? frame.points : clubAt ? [clubAt] : []) : [],
       frameKey: `${layout?.id ?? "none"}-${hole}-${fix ? "fix" : "nofix"}-${geo.mapped ? "m" : "u"}`,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [geo, fix, course, legs, tap, origin?.point, unit, layout?.id, hole, shapes]);
+  }, [geo, fix, course, legs, aim?.lat, aim?.lng, origin?.point, unit, layout?.id, hole, shapes, showOutlines, sheetH, insets.top]);
 
   // ---- Shots ----
   const player = round?.players.find((p) => p.id === playerId) ?? null;
@@ -249,6 +271,27 @@ export default function HoleMapScreen() {
     }
   };
 
+  const toggleOutlines = () => {
+    rememberedOutlines = !showOutlines;
+    setShowOutlines(!showOutlines);
+  };
+
+  // Swipe the bottom sheet sideways for the next or previous hole.
+  const holeRef = useRef({ hole, holeCount });
+  holeRef.current = { hole, holeCount };
+  const swipe = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_e, g) => Math.abs(g.dx) > 24 && Math.abs(g.dx) > Math.abs(g.dy) * 2,
+        onPanResponderRelease: (_e, g) => {
+          const { hole: h, holeCount: n } = holeRef.current;
+          if (g.dx < -60 && h < n) setHole(h + 1);
+          else if (g.dx > 60 && h > 1) setHole(h - 1);
+        },
+      }),
+    []
+  );
+
   const switchUnit = () => {
     const next = unit === "yards" ? "metres" : "yards";
     rememberedUnit = next;
@@ -270,63 +313,70 @@ export default function HoleMapScreen() {
         : locState === "denied"
           ? "Location is off for PinPals"
           : "Waiting for your position";
+  const holeMeta = [
+    card ? `Par ${card.par}` : null,
+    card?.strokeIndex != null ? `SI ${card.strokeIndex}` : null,
+    length != null ? `${fmt(length)} ${u}` : null,
+  ].filter(Boolean);
+  const hasDetails = layouts.length > 1 || ahead.length > 0 || round != null;
 
   return (
     <View style={styles.screen}>
-      <Stack.Screen options={{ title: course?.name ?? title }} />
+      <Stack.Screen options={{ title: course?.name ?? title, headerShown: false }} />
+      <StatusBar style="light" />
 
-      <View style={styles.mapWrap}>
+      <View style={StyleSheet.absoluteFill}>
         <HoleMapView ref={mapRef} scene={scene} onTap={setTap} />
-
-        {/* Hole switcher, over the map. */}
-        <View style={styles.topBar} pointerEvents="box-none">
-          <MapButton icon="chevron-back" label="Previous hole" disabled={hole <= 1} onPress={() => setHole(hole - 1)} />
-          <View style={styles.holeBadge}>
-            <Text style={styles.holeBadgeTop}>Hole</Text>
-            <Text style={styles.holeBadgeNumber}>{hole}</Text>
-            <Text style={styles.holeBadgeMeta}>
-              {card ? `Par ${card.par}${card.strokeIndex != null ? ` · SI ${card.strokeIndex}` : ""}` : length != null ? `${fmt(length)} ${u}` : " "}
-            </Text>
-          </View>
-          <MapButton icon="chevron-forward" label="Next hole" disabled={hole >= holeCount} onPress={() => setHole(hole + 1)} />
-        </View>
-
-        <View style={styles.sideButtons} pointerEvents="box-none">
-          <MapButton icon="scan-outline" label="Show the whole hole" onPress={() => mapRef.current?.recentre()} />
-          <Pressable onPress={switchUnit} style={styles.unitButton} accessibilityRole="button" accessibilityLabel={`Showing ${unit}. Switch.`}>
-            <Text style={styles.unitText}>{u}</Text>
-          </Pressable>
-        </View>
-
-        {!geo.mapped ? (
-          <View style={styles.notMapped} pointerEvents="none">
-            <Text style={styles.notMappedText}>
-              {shapes === null ? "Loading the course…" : layout || osmPoints.length ? "This hole isn't mapped yet." : "This course isn't mapped yet."} Tap anywhere to measure from where you are.
-            </Text>
-          </View>
-        ) : null}
       </View>
 
-      <ScrollView style={styles.panel} contentContainerStyle={[styles.panelContent, { paddingBottom: insets.bottom + spacing.md }]}>
-        {layouts.length > 1 ? (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
-            {layouts.map((l) => (
-              <Chip key={l.id} label={l.name} on={l.id === layout?.id} onPress={() => setLayoutId(l.id)} />
-            ))}
-          </ScrollView>
+      {/* Over the map, top: back, the course, and the map's own buttons. */}
+      <View style={[styles.topBar, { top: insets.top + 6 }]} pointerEvents="box-none">
+        <MapButton icon="chevron-back" label="Back" onPress={() => router.back()} />
+        <View style={styles.titlePill} pointerEvents="none">
+          <Text style={styles.titleText} numberOfLines={1}>
+            {course?.name ?? "Hole map"}
+          </Text>
+        </View>
+        <Pressable onPress={switchUnit} style={styles.unitButton} accessibilityRole="button" accessibilityLabel={`Showing ${unit}. Switch.`}>
+          <Text style={styles.unitText}>{u}</Text>
+        </Pressable>
+      </View>
+      <View style={[styles.sideButtons, { top: insets.top + 62 }]} pointerEvents="box-none">
+        <MapButton icon="scan-outline" label="Show the whole hole" onPress={() => mapRef.current?.recentre()} />
+        {shapes && shapes.length > 0 ? (
+          <MapButton icon={showOutlines ? "layers" : "layers-outline"} label={showOutlines ? "Hide course outlines" : "Show course outlines"} onPress={toggleOutlines} />
         ) : null}
+        {tap ? <MapButton icon="refresh" label="Put the aim back" onPress={() => setTap(null)} /> : null}
+      </View>
 
-        {/* The three numbers that matter. */}
+      {/* Over the map, bottom: the hole and the three numbers. Swipe for the next hole. */}
+      <View style={[styles.sheet, { paddingBottom: insets.bottom + 10 }]} onLayout={(e) => setSheetH(e.nativeEvent.layout.height)} {...swipe.panHandlers}>
+        {!geo.mapped ? (
+          <Text style={styles.notMappedText}>
+            {shapes === null ? "Loading the course… " : layout || osmPoints.length ? "This hole isn't mapped yet. " : "This course isn't mapped yet. "}
+            Tap anywhere to measure from where you are.
+          </Text>
+        ) : null}
+        <View style={styles.holeRow}>
+          <MapButton icon="chevron-back" label="Previous hole" disabled={hole <= 1} onPress={() => setHole(hole - 1)} flat />
+          <View style={styles.holeMid} accessible accessibilityLabel={`Hole ${hole}. ${holeMeta.join(", ")}`}>
+            <Text style={styles.holeNumber}>
+              <Text style={styles.holeWord}>HOLE </Text>
+              {hole}
+            </Text>
+            {holeMeta.length ? <Text style={styles.holeMeta}>{holeMeta.join(" · ")}</Text> : null}
+          </View>
+          <MapButton icon="chevron-forward" label="Next hole" disabled={hole >= holeCount} onPress={() => setHole(hole + 1)} flat />
+        </View>
+
         <View style={styles.greenRow}>
           <Yardage label="Front" value={geo.mapped && greens ? fmt(greens.front) : "–"} />
           <Yardage label="Centre" value={geo.mapped && greens ? fmt(greens.centre) : "–"} big />
           <Yardage label="Back" value={geo.mapped && greens ? fmt(greens.back) : "–"} />
         </View>
         <View style={styles.fixRow}>
-          <Ionicons name={origin?.from === "you" ? "navigate" : "golf-outline"} size={14} color={colors.cream100} />
-          <Text style={styles.fixText}>
-            {fixLine} · {u}
-          </Text>
+          <Ionicons name={origin?.from === "you" ? "navigate" : "golf-outline"} size={13} color={creamAlpha(0.75)} />
+          <Text style={styles.fixText}>{fixLine}</Text>
           {locState === "off" ? (
             <Pressable onPress={() => void startLocation()} hitSlop={8} accessibilityRole="button">
               <Text style={styles.fixLink}>Distances from me</Text>
@@ -334,100 +384,113 @@ export default function HoleMapScreen() {
           ) : null}
         </View>
 
-        {tapped ? (
-          <View style={styles.tapRow}>
-            <Text style={styles.tapText}>
-              To there <Text style={styles.strong}>{fmt(tapped.toTap)}</Text>
-              {tapped.tapToGreen != null ? (
-                <>
-                  {"  ·  "}then to the green <Text style={styles.strong}>{fmt(tapped.tapToGreen)}</Text>
-                </>
-              ) : null}{" "}
-              {u}
-            </Text>
-            <Pressable onPress={() => setTap(null)} hitSlop={10} accessibilityRole="button" accessibilityLabel="Clear the measurement">
-              <Ionicons name="close-circle" size={20} color={colors.cream100} />
-            </Pressable>
+        {canMark || hasDetails ? (
+          <View style={styles.actionRow}>
+            {canMark ? (
+              <Pressable
+                onPress={() => void markShot()}
+                disabled={busy || !fix || !fixIsUsable(fix.accuracyM)}
+                style={({ pressed }) => [styles.markButton, (busy || !fix || !fixIsUsable(fix.accuracyM)) && styles.disabled, pressed && styles.pressed]}
+                accessibilityRole="button"
+              >
+                {busy ? (
+                  <ActivityIndicator color={colors.navy900} />
+                ) : (
+                  <>
+                    <Ionicons name="locate" size={18} color={colors.navy900} />
+                    <Text style={styles.markLabel}>
+                      {!fix ? "Waiting for GPS" : !fixIsUsable(fix.accuracyM) ? "Weak GPS, hold on" : `Mark shot ${legs.length + 1}`}
+                    </Text>
+                  </>
+                )}
+              </Pressable>
+            ) : null}
+            {canMark && legs.length > 0 ? (
+              <Pressable onPress={() => void undo()} disabled={busy} style={({ pressed }) => [styles.roundButton, pressed && styles.pressed]} accessibilityRole="button" accessibilityLabel="Undo the last shot">
+                <Ionicons name="arrow-undo" size={18} color={colors.cream50} />
+              </Pressable>
+            ) : null}
+            {hasDetails ? (
+              <Pressable
+                onPress={() => setDetailsOpen(true)}
+                style={({ pressed }) => [canMark ? styles.roundButton : styles.detailsButton, pressed && styles.pressed]}
+                accessibilityRole="button"
+                accessibilityLabel="Shots, hazards and more"
+              >
+                <Ionicons name="list" size={18} color={colors.cream50} />
+                {!canMark ? <Text style={styles.detailsLabel}>{round ? "Shots and hazards" : "Hazards and more"}</Text> : null}
+              </Pressable>
+            ) : null}
           </View>
         ) : null}
+      </View>
 
-        {ahead.length > 0 ? (
-          <View style={styles.block}>
-            <Text style={styles.blockTitle}>Ahead of you</Text>
-            {ahead.map((h, i) => (
-              <View key={i} style={styles.hazardRow}>
-                <View style={[styles.hazardDot, { backgroundColor: hazardColour(h.kind) }]} />
-                <Text style={styles.hazardName}>{h.label ?? HAZARD_NAMES[h.kind] ?? "Hazard"}</Text>
-                <Text style={styles.hazardDist}>
-                  {fmt(h.distance)} {u}
-                </Text>
-              </View>
-            ))}
-          </View>
-        ) : null}
-
-        {round ? (
-          <View style={styles.block}>
-            <Text style={styles.blockTitle}>Shots on this hole</Text>
-            {round.players.length > 1 ? (
+      <Modal visible={detailsOpen} transparent animationType="slide" onRequestClose={() => setDetailsOpen(false)}>
+        <Pressable style={styles.backdrop} onPress={() => setDetailsOpen(false)} accessibilityRole="button" accessibilityLabel="Close" />
+        <View style={[styles.details, { paddingBottom: insets.bottom + spacing.md }]}>
+          <View style={styles.grabber} />
+          <ScrollView contentContainerStyle={styles.detailsContent}>
+            {layouts.length > 1 ? (
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
-                {round.players.map((p) => (
-                  <Chip key={p.id} label={p.memberId === me ? "You" : p.name.split(" ")[0]} on={p.id === playerId} onPress={() => setPlayerId(p.id)} />
+                {layouts.map((l) => (
+                  <Chip key={l.id} label={l.name} on={l.id === layout?.id} onPress={() => setLayoutId(l.id)} />
                 ))}
               </ScrollView>
             ) : null}
-            {legs.length === 0 ? (
-              <Text style={styles.muted}>Stand where the ball is and tap "Mark shot" before each one.</Text>
-            ) : (
-              legs.map((l) => (
-                <View key={l.shotNo} style={styles.shotRow}>
-                  <View style={styles.shotNo}>
-                    <Text style={styles.shotNoText}>{l.shotNo}</Text>
-                  </View>
-                  <Text style={styles.shotText}>
-                    {l.distance != null ? `${fmt(l.distance)} ${u}` : "Last marked"}
-                    {l.remaining != null ? <Text style={styles.muted}>{`  ·  ${fmt(l.remaining)} ${u} left from here`}</Text> : null}
-                  </Text>
-                </View>
-              ))
-            )}
-            {canMark ? (
-              <View style={styles.shotButtons}>
-                <Pressable
-                  onPress={() => void markShot()}
-                  disabled={busy || !fix || !fixIsUsable(fix.accuracyM)}
-                  style={({ pressed }) => [styles.markButton, (busy || !fix || !fixIsUsable(fix.accuracyM)) && styles.disabled, pressed && styles.pressed]}
-                  accessibilityRole="button"
-                >
-                  {busy ? (
-                    <ActivityIndicator color={colors.navy900} />
-                  ) : (
-                    <>
-                      <Ionicons name="locate" size={18} color={colors.navy900} />
-                      <Text style={styles.markLabel}>
-                        {!fix ? "Waiting for GPS" : !fixIsUsable(fix.accuracyM) ? "Weak GPS, hold on" : `Mark shot ${legs.length + 1}`}
-                      </Text>
-                    </>
-                  )}
-                </Pressable>
-                {legs.length > 0 ? (
-                  <Pressable onPress={() => void undo()} disabled={busy} style={({ pressed }) => [styles.undoButton, pressed && styles.pressed]} accessibilityRole="button" accessibilityLabel="Undo the last shot">
-                    <Ionicons name="arrow-undo" size={18} color={colors.cream50} />
-                  </Pressable>
+
+            {round ? (
+              <View style={styles.block}>
+                <Text style={styles.blockTitle}>Shots on hole {hole}</Text>
+                {round.players.length > 1 ? (
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
+                    {round.players.map((p) => (
+                      <Chip key={p.id} label={p.memberId === me ? "You" : p.name.split(" ")[0]} on={p.id === playerId} onPress={() => setPlayerId(p.id)} />
+                    ))}
+                  </ScrollView>
                 ) : null}
+                {legs.length === 0 ? (
+                  <Text style={styles.muted}>Stand where the ball is and tap "Mark shot" before each one.</Text>
+                ) : (
+                  legs.map((l) => (
+                    <View key={l.shotNo} style={styles.shotRow}>
+                      <View style={styles.shotNo}>
+                        <Text style={styles.shotNoText}>{l.shotNo}</Text>
+                      </View>
+                      <Text style={styles.shotText}>
+                        {l.distance != null ? `${fmt(l.distance)} ${u}` : "Last marked"}
+                        {l.remaining != null ? <Text style={styles.muted}>{`  ·  ${fmt(l.remaining)} ${u} left from here`}</Text> : null}
+                      </Text>
+                    </View>
+                  ))
+                )}
               </View>
             ) : null}
-          </View>
-        ) : null}
 
-        {fromOsm ? (
-          <Text style={styles.footnote}>This hole's map comes from OpenStreetMap volunteers. Distances are GPS estimates — check the course's markers before an important shot.</Text>
-        ) : !layout && !geo.mapped ? (
-          <Text style={styles.footnote}>Hole maps are being added course by course. Until this one is, you can still measure to anything you tap on the map.</Text>
-        ) : (
-          <Text style={styles.footnote}>Distances are GPS estimates. Check the course's own markers before an important shot.</Text>
-        )}
-      </ScrollView>
+            {ahead.length > 0 ? (
+              <View style={styles.block}>
+                <Text style={styles.blockTitle}>Ahead of you</Text>
+                {ahead.map((h, i) => (
+                  <View key={i} style={styles.hazardRow}>
+                    <View style={[styles.hazardDot, { backgroundColor: hazardColour(h.kind) }]} />
+                    <Text style={styles.hazardName}>{h.label ?? HAZARD_NAMES[h.kind] ?? "Hazard"}</Text>
+                    <Text style={styles.hazardDist}>
+                      {fmt(h.distance)} {u}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            ) : null}
+
+            <Text style={styles.footnote}>
+              {fromOsm
+                ? "This hole's map comes from OpenStreetMap volunteers. Distances are GPS estimates — check the course's markers before an important shot."
+                : !layout && !geo.mapped
+                  ? "Hole maps are being added course by course. Until this one is, you can still measure to anything you tap on the map."
+                  : "Distances are GPS estimates. Check the course's own markers before an important shot."}
+            </Text>
+          </ScrollView>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -456,12 +519,25 @@ function Chip({ label, on, onPress }: { label: string; on: boolean; onPress: () 
   );
 }
 
-function MapButton({ icon, label, onPress, disabled = false }: { icon: keyof typeof Ionicons.glyphMap; label: string; onPress: () => void; disabled?: boolean }) {
+function MapButton({
+  icon,
+  label,
+  onPress,
+  disabled = false,
+  flat = false,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  onPress: () => void;
+  disabled?: boolean;
+  /** On the sheet rather than the photo: no disc behind it. */
+  flat?: boolean;
+}) {
   return (
     <Pressable
       onPress={onPress}
       disabled={disabled}
-      style={({ pressed }) => [styles.mapButton, disabled && styles.disabled, pressed && styles.pressed]}
+      style={({ pressed }) => [styles.mapButton, flat && styles.flatButton, disabled && styles.disabled, pressed && styles.pressed]}
       accessibilityRole="button"
       accessibilityLabel={label}
       hitSlop={6}
@@ -471,41 +547,64 @@ function MapButton({ icon, label, onPress, disabled = false }: { icon: keyof typ
   );
 }
 
-const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.navy900 },
-  mapWrap: { flex: 1.35 },
-  topBar: { position: "absolute", top: spacing.sm, left: spacing.sm, right: spacing.sm, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  holeBadge: { alignItems: "center", backgroundColor: "rgba(12,32,56,0.82)", borderRadius: radii.lg, paddingHorizontal: spacing.md, paddingVertical: 6, minWidth: 110 },
-  holeBadgeTop: { fontFamily: fonts.bodyBold, fontSize: 10.5, letterSpacing: 1.2, textTransform: "uppercase", color: colors.gold400 },
-  holeBadgeNumber: { fontFamily: fonts.display, fontSize: 30, lineHeight: 34, color: colors.cream50 },
-  holeBadgeMeta: { fontFamily: fonts.body, fontSize: 12.5, color: creamAlpha(0.85) },
-  mapButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: "rgba(12,32,56,0.82)", alignItems: "center", justifyContent: "center" },
-  sideButtons: { position: "absolute", right: spacing.sm, bottom: spacing.lg, gap: spacing.sm, alignItems: "center" },
-  unitButton: { width: 44, height: 32, borderRadius: radii.pill, backgroundColor: "rgba(12,32,56,0.82)", alignItems: "center", justifyContent: "center" },
-  unitText: { fontFamily: fonts.bodyBold, fontSize: 12.5, color: colors.cream50 },
-  notMapped: { position: "absolute", left: spacing.md, right: 64, bottom: spacing.lg, backgroundColor: "rgba(12,32,56,0.82)", borderRadius: radii.md, padding: spacing.sm + 2 },
-  notMappedText: { fontFamily: fonts.body, fontSize: 13.5, lineHeight: 19, color: colors.cream50 },
+const SHEET = "rgba(12,32,56,0.93)";
+const ON_PHOTO = "rgba(12,32,56,0.78)";
 
-  panel: { flex: 1, backgroundColor: colors.navy900 },
-  panelContent: { padding: spacing.md, gap: spacing.sm + 2 },
+const styles = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: colors.green800 },
+  topBar: { position: "absolute", left: spacing.sm + 2, right: spacing.sm + 2, flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  titlePill: { flex: 1, minHeight: 36, borderRadius: radii.pill, backgroundColor: ON_PHOTO, justifyContent: "center", paddingHorizontal: 14 },
+  titleText: { fontFamily: fonts.display, fontSize: 15.5, color: colors.cream50, textAlign: "center" },
+  mapButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: ON_PHOTO, alignItems: "center", justifyContent: "center" },
+  flatButton: { backgroundColor: "transparent" },
+  sideButtons: { position: "absolute", right: spacing.sm + 2, gap: spacing.sm, alignItems: "center" },
+  unitButton: { minWidth: 48, height: 36, paddingHorizontal: 10, borderRadius: radii.pill, backgroundColor: ON_PHOTO, alignItems: "center", justifyContent: "center" },
+  unitText: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.cream50 },
+
+  sheet: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: SHEET,
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
+    paddingTop: 8,
+    paddingHorizontal: spacing.md,
+    gap: 6,
+  },
+  notMappedText: { fontFamily: fonts.body, fontSize: 13, lineHeight: 18, color: creamAlpha(0.85), textAlign: "center", paddingTop: 4 },
+  holeRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  holeMid: { alignItems: "center", flex: 1 },
+  holeWord: { fontFamily: fonts.bodyBold, fontSize: 12, letterSpacing: 1.4, color: colors.gold400 },
+  holeNumber: { fontFamily: fonts.display, fontSize: 26, lineHeight: 30, color: colors.cream50 },
+  holeMeta: { fontFamily: fonts.bodySemi, fontSize: 13, color: creamAlpha(0.8) },
+
+  greenRow: { flexDirection: "row", alignItems: "flex-end", justifyContent: "space-around" },
+  yardage: { alignItems: "center", minWidth: 80 },
+  yardageLabel: { fontFamily: fonts.bodyBold, fontSize: 10.5, letterSpacing: 1.2, textTransform: "uppercase", color: creamAlpha(0.65) },
+  yardageValue: { fontFamily: fonts.display, fontSize: 28, lineHeight: 34, color: colors.cream50 },
+  yardageBig: { fontSize: 50, lineHeight: 56, color: colors.gold400 },
+  fixRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 },
+  fixText: { fontFamily: fonts.body, fontSize: 12.5, color: creamAlpha(0.75) },
+  fixLink: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.gold400, marginLeft: spacing.sm },
+
+  actionRow: { flexDirection: "row", gap: spacing.sm, marginTop: 4 },
+  markButton: { flex: 1, minHeight: 48, borderRadius: radii.pill, backgroundColor: colors.gold400, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm },
+  markLabel: { fontFamily: fonts.bodyBold, fontSize: 15, color: colors.navy900 },
+  roundButton: { width: 48, height: 48, borderRadius: 24, borderWidth: 1, borderColor: creamAlpha(0.35), alignItems: "center", justifyContent: "center" },
+  detailsButton: { flex: 1, minHeight: 44, borderRadius: radii.pill, borderWidth: 1, borderColor: creamAlpha(0.3), flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm },
+  detailsLabel: { fontFamily: fonts.bodySemi, fontSize: 14, color: colors.cream50 },
+
+  backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.3)" },
+  details: { maxHeight: "70%", backgroundColor: colors.navy900, borderTopLeftRadius: 22, borderTopRightRadius: 22, paddingTop: 8 },
+  grabber: { alignSelf: "center", width: 40, height: 5, borderRadius: 3, backgroundColor: creamAlpha(0.3), marginBottom: 6 },
+  detailsContent: { padding: spacing.md, gap: spacing.sm + 2 },
   chips: { gap: spacing.sm, paddingBottom: 2 },
   chip: { paddingHorizontal: 14, minHeight: 34, borderRadius: radii.pill, borderWidth: 1, borderColor: creamAlpha(0.3), justifyContent: "center" },
   chipOn: { backgroundColor: colors.gold400, borderColor: colors.gold400 },
   chipText: { fontFamily: fonts.bodySemi, fontSize: 13.5, color: colors.cream50 },
   chipTextOn: { color: colors.navy900 },
-
-  greenRow: { flexDirection: "row", alignItems: "flex-end", justifyContent: "space-around" },
-  yardage: { alignItems: "center", minWidth: 80 },
-  yardageLabel: { fontFamily: fonts.bodyBold, fontSize: 11, letterSpacing: 1.2, textTransform: "uppercase", color: creamAlpha(0.7) },
-  yardageValue: { fontFamily: fonts.display, fontSize: 30, lineHeight: 36, color: colors.cream50 },
-  yardageBig: { fontSize: 52, lineHeight: 58, color: colors.gold400 },
-  fixRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 },
-  fixText: { fontFamily: fonts.body, fontSize: 13, color: colors.cream100 },
-  fixLink: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.gold400, marginLeft: spacing.sm },
-
-  tapRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: creamAlpha(0.08), borderRadius: radii.md, padding: spacing.sm + 2 },
-  tapText: { flex: 1, fontFamily: fonts.body, fontSize: 14, color: colors.cream50 },
-  strong: { fontFamily: fonts.bodyBold },
 
   block: { backgroundColor: creamAlpha(0.06), borderRadius: radii.lg, padding: spacing.md, gap: spacing.sm },
   blockTitle: { fontFamily: fonts.bodyBold, fontSize: 11, letterSpacing: 1.2, textTransform: "uppercase", color: colors.gold400 },
@@ -518,13 +617,9 @@ const styles = StyleSheet.create({
   shotNo: { width: 24, height: 24, borderRadius: 12, backgroundColor: colors.cream50, alignItems: "center", justifyContent: "center" },
   shotNoText: { fontFamily: fonts.bodyBold, fontSize: 12, color: colors.navy900 },
   shotText: { flex: 1, fontFamily: fonts.bodySemi, fontSize: type.small, color: colors.cream50 },
-  shotButtons: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.xs },
-  markButton: { flex: 1, minHeight: 48, borderRadius: radii.pill, backgroundColor: colors.gold400, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm },
-  markLabel: { fontFamily: fonts.bodyBold, fontSize: 15, color: colors.navy900 },
-  undoButton: { width: 48, height: 48, borderRadius: 24, borderWidth: 1, borderColor: creamAlpha(0.35), alignItems: "center", justifyContent: "center" },
 
   muted: { fontFamily: fonts.body, fontSize: 13, color: creamAlpha(0.7) },
   footnote: { fontFamily: fonts.body, fontSize: 12, lineHeight: 17, color: creamAlpha(0.6), textAlign: "center", marginTop: spacing.xs },
-  disabled: { opacity: 0.5 },
+  disabled: { opacity: 0.4 },
   pressed: { opacity: 0.85 },
 });

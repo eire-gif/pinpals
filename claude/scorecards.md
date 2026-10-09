@@ -42,6 +42,20 @@ A member keeps their own card for every round, and shares it.
   be saved, goes straight home if nothing was entered, and otherwise asks
   before leaving.
 
+- **Links open the app (9 Oct 2026):** `/c/<token>` is claimed in the
+  apple-app-site-association, so a shared card opens PinPals for a member
+  who has it (`app/card-link.tsx`: their scorecard screen when signed in —
+  falling back to the public card if it isn't shared with them — or the
+  public card with "Log in" when signed out). Before this it opened Safari.
+  Same fix for "Invite friends" (`/signup`).
+- **On Social (0111):** "Post to Social" now carries the card hole by hole
+  (`details.hole_pars` / `hole_scores`), and the feed draws round posts as a
+  scorecard (`components/round-card.tsx`): navy header with course, tee
+  colour, date and score; front and back nine with birdies ringed and
+  bogeys boxed; then the stats. If the member changes the score after
+  sharing, the post goes without the hole-by-hole rather than being refused.
+  Rounds typed in by hand show the header and stats.
+
 ## How it's built
 
 | Piece | File |

@@ -6,6 +6,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { KEYBOARD_DISMISS_MODE, KeyboardInset } from "@/components/keyboard";
 import { LoadError, StateMessage } from "@/components/state-message";
 import { CommentComposer, CommentList, useCommentThread } from "@/components/comment-thread";
+import { PostMediaPane } from "@/components/post-media-pane";
 import { useAuth } from "@/lib/auth";
 import { loadPost, type FeedPost } from "@/lib/feed";
 import { supabase } from "@/lib/supabase";
@@ -134,10 +135,12 @@ export default function CommentsScreen() {
         />
       ) : (
         <KeyboardInset style={styles.fill}>
+          <PostMediaPane post={post} />
           <ScrollView ref={scroller} style={styles.fill} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" keyboardDismissMode={KEYBOARD_DISMISS_MODE}>
             <CommentList
               comments={post.comments}
               onLike={actions.likeComment}
+              onReact={actions.reactToComment}
               onReply={thread.startReply}
               onOptions={(c) => actions.commentOptions(c, { onEdit: thread.startEdit })}
             />

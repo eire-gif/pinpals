@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { claimableAchievements, draftDetailsProblem, draftToDetails, emptyDraft } from "./post-draft";
+import { claimableAchievements, draftDetailsProblem, draftToDetails, emptyDraft, holeCardDetails } from "./post-draft";
 
 const today = "2026-10-04";
 
@@ -72,5 +72,25 @@ describe("draftDetailsProblem", () => {
   it("catches a half-typed best hole and a decimal score", () => {
     expect(draftDetailsProblem("round", { ...emptyDraft(today), score: "78", best_hole: "6" })).toMatch(/best hole/);
     expect(draftDetailsProblem("round", { ...emptyDraft(today), score: "78.5" })).toMatch(/score/);
+  });
+});
+
+describe("the card on a round post (0111)", () => {
+  const pars = [4, 4, 3, 5, 4, 4, 3, 4, 5];
+  const scores = [5, 4, 3, 6, 4, 4, 2, 5, 5];
+  const card = `${pars.join(",")}|${scores.join(",")}`;
+
+  it("goes with the post while it agrees with the round", () => {
+    const d = { ...emptyDraft(today), holes: "9" as const, score: "38", course_par: "36", hole_card: card };
+    expect(draftToDetails("round", d)).toMatchObject({ hole_pars: pars, hole_scores: scores });
+    expect(draftDetailsProblem("round", d)).toBeNull();
+  });
+
+  it("is dropped, not refused, once the member changes the numbers", () => {
+    const d = { ...emptyDraft(today), holes: "9" as const, score: "39", hole_card: card };
+    expect(draftToDetails("round", d)).not.toHaveProperty("hole_scores");
+    expect(holeCardDetails(card, 18, 38, undefined)).toBeUndefined();
+    expect(holeCardDetails(card, 9, 38, 35)).toBeUndefined();
+    expect(holeCardDetails("4,4|x,y", 9, 38, undefined)).toBeUndefined();
   });
 });

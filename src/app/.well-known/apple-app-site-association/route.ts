@@ -20,6 +20,10 @@
  * (mobile/src/lib/alert-routes.ts, applied to incoming links in
  * mobile/src/app/+native-intent.tsx), so they are claimed here too.
  *
+ * Added 9 Oct 2026: `/signup` (the "Invite friends" link) and `/c/*`
+ * (a shared scorecard) — both opened Safari for members who have the app.
+ * A friend without the app still gets the website, which is the point.
+ *
  * Still left to Safari: course pages (no native equivalent of the full page),
  * news, legal pages, admin, and the two Stripe returns — a Connect onboarding
  * return and a payment confirmation must finish where they started.
@@ -86,6 +90,8 @@ const ASSOCIATION = {
           { "/": "/members/*", comment: "A member's page." },
           { "/": "/community", comment: "Find PinPals." },
           { "/": "/live/*", comment: "Live scoring: a scorecard or a match-day board." },
+          { "/": "/signup", comment: "Invite friends — the app's sign-up, or Home if signed in." },
+          { "/": "/c/*", comment: "A shared scorecard." },
         ],
       },
     ],

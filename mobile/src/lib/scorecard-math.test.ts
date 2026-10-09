@@ -86,9 +86,11 @@ describe("sharing", () => {
     expect(roundPostFields(META, card(ROUND))).toEqual({
       holes: "18", course_par: "72", played_on: "2026-10-04", tee: "Blue", score: "73",
       front_nine: "37", back_nine: "36", birdies: "1", putts: "36",
+      hole_card: `${PARS.join(",")}|${ROUND.join(",")}`,
     });
     const partial = roundPostFields(META, card([...ROUND.slice(0, 5), ...Array(13).fill(null)]));
     expect(partial.score).toBeUndefined();
+    expect(partial.hole_card).toBeUndefined();
     expect(partial.front_nine).toBeUndefined();
   });
 });

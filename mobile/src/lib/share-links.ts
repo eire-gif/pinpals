@@ -33,6 +33,20 @@ export function postIdFromShareToken(token: string): number | null {
   }
 }
 
+/** The scorecard id inside a scorecard share token (/c/<token>, 0110),
+ *  without verifying it — the scorecard screen's RLS decides, and falls back
+ *  to the public page (which does verify) when the card isn't visible. */
+export function scorecardIdFromShareToken(token: string): number | null {
+  const payload = token.split(".")[0];
+  if (!payload || payload.length > 200) return null;
+  try {
+    const data = JSON.parse(decodeBase64Url(payload)) as { c?: unknown; v?: unknown };
+    return data.v === 1 && typeof data.c === "number" && Number.isInteger(data.c) && data.c > 0 ? data.c : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Where in the app a pinpals.ie path should open, or null to leave it alone. */
 export function routeForLink(path: string): string | null {
   const clean = path.replace(/^https?:\/\/[^/]+/, "").split(/[?#]/)[0];

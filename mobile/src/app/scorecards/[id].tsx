@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, Alert, Pressable, ScrollView, Share, StyleSheet, Text, View } from "react-native";
 import { Stack, router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -30,7 +30,8 @@ import { colors, creamAlpha, fonts, radii, spacing, type } from "@/lib/theme";
  * a birdie and boxed for a bogey — and what you can do with it.
  */
 export default function ScorecardScreen() {
-  const { id, saved } = useLocalSearchParams<{ id: string; saved?: string }>();
+  // token: opened from a shared link (/c/<token>, lib/incoming-links.ts).
+  const { id, saved, token } = useLocalSearchParams<{ id: string; saved?: string; token?: string }>();
   const cardId = Number(id);
   const { session } = useAuth();
   const me = session?.user?.id ?? null;
@@ -52,6 +53,15 @@ export default function ScorecardScreen() {
       void load();
     }, [load])
   );
+
+  // A shared card the member can't see in the app (Only me, or My PinPals
+  // and they aren't connected): the link still works — show the public page,
+  // which checks the link's signature, exactly as a friend without the app sees it.
+  useEffect(() => {
+    if (card === null && token && /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(token)) {
+      router.replace({ pathname: "/web", params: { path: `/c/${token}`, title: "Scorecard" } });
+    }
+  }, [card, token]);
 
   if (!isOn("scorecards")) return <StateMessage size="screen" icon="document-text-outline" title="Scorecards are on their way" />;
   if (failed) return <LoadError size="screen" what="this scorecard" onRetry={() => void load()} />;

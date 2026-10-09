@@ -1,5 +1,5 @@
 import { appRouteFor } from "./alert-routes";
-import { routeForLink } from "./share-links";
+import { routeForLink, scorecardIdFromShareToken } from "./share-links";
 
 /**
  * Where an incoming pinpals.ie link opens in the app (Oct 2026).
@@ -13,6 +13,11 @@ import { routeForLink } from "./share-links";
  *                                            signs the member in
  *   /feed/<id>, /s/<token>                 → the post screen (share-links.ts)
  *   /invite/<id>                           → unchanged; it is a screen here
+ *   /signup                                → the app's sign-up (a signed-in
+ *                                            member is moved on to Home)
+ *   /c/<token>                             → card-link: the scorecard if signed
+ *                                            in, else the public card (works
+ *                                            signed out, like /signup)
  *   anything else                          → appRouteFor(), the same table an
  *                                            in-app alert uses: a native screen,
  *                                            or the signed-in web view
@@ -44,6 +49,14 @@ export function routeForIncomingUrl(url: string): string | null {
   if (post) return post;
 
   if (/^\/invite\/\d+$/.test(path)) return path;
+
+  // "Invite friends" sends /signup (lib/invite-friends.ts).
+  if (path === "/signup") return "/signup";
+
+  const card = /^\/c\/([A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)$/.exec(path);
+  if (card) {
+    return scorecardIdFromShareToken(card[1]) ? `/card-link?token=${encodeURIComponent(card[1])}` : webView(path);
+  }
 
   const route = appRouteFor(query ? `${path}?${query}` : path);
   return route.kind === "native" ? route.path : webView(route.path);

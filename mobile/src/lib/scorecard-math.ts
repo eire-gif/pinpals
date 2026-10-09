@@ -201,5 +201,10 @@ export function roundPostFields(meta: ScorecardMeta, holes: readonly ScorecardHo
   const birdiesOrBetter = t.counts.birdie + t.counts.eagle + t.counts.albatross;
   if (t.played > 0) f.birdies = String(birdiesOrBetter);
   if (t.total.putts != null) f.putts = String(t.total.putts);
+  // The card hole by hole (0111), for the scorecard drawn on the post — only
+  // a finished one, "pars|scores" (post-draft.ts holeCardDetails reads it).
+  if (t.complete && holes.length === meta.holes) {
+    f.hole_card = `${holes.map((h) => h.par).join(",")}|${holes.map((h) => h.strokes).join(",")}`;
+  }
   return f;
 }
