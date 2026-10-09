@@ -177,6 +177,8 @@ const EXPECTED: Record<string, Expectation> = {
   "live_round_shot_add(p_round_id bigint, p_player_id bigint, p_hole smallint, p_lat double precision, p_lng double precision, p_accuracy_m numeric)": { anon: false, authenticated: true },
   "live_round_shot_undo(p_round_id bigint, p_player_id bigint, p_hole smallint)": { anon: false, authenticated: true },
   "live_round_player_forget_shots()": { anon: false, authenticated: false },
+  // 0109
+  "golfapi_import_secret_ok(p_secret text)": { anon: false, authenticated: false },
 
   // --- Service role / internal only. Everything below is either a trigger
   // --- function, a sweep, or a privileged write path that must never be

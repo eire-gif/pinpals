@@ -73,9 +73,12 @@ cancel. Plans: 50 / 500 / 2,000 / 4,000 calls a month at €29 / €99 / €199 
 
 ### The importer (`import-golfapi` Edge Function)
 
-Secrets: `GOLFAPI_KEY`, `GOLFAPI_IMPORT_SECRET` (required — the function
-refuses without it), optionally `GOLFAPI_BASE_URL`
-(default `https://www.golfapi.io/api/v2.3`, **unverified**).
+Secrets: `GOLFAPI_KEY` (Edge Function secret, entered in the Supabase
+dashboard), and `golfapi_import_secret` in **Vault** (0109) — every request
+must send it as `x-import-secret`, so the function runs with JWT checking
+off and imports can be started from SQL with `net.http_post`, reading the
+secret from Vault (example at the top of `index.ts`). Optionally
+`GOLFAPI_BASE_URL` (default `https://www.golfapi.io/api/v2.3`, **unverified**).
 
 1. `{"action":"search","club_id":N}` — candidates nearest first. 0.1 call.
 2. `{"action":"inspect","golfapi_course_id":"…"}` — raw responses and what

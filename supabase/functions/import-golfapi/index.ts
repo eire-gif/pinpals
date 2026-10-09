@@ -34,15 +34,19 @@
 //
 // ============ Calling it ============
 //
-//   curl -X POST "$SUPABASE_URL/functions/v1/import-golfapi" \
-//     -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
-//     -H "x-import-secret: $GOLFAPI_IMPORT_SECRET" \
-//     -H "Content-Type: application/json" \
-//     -d '{"action":"search","club_id":123}'
+// Every request needs x-import-secret matching the Vault secret
+// `golfapi_import_secret` (0109) — checked here, which is why the function
+// is deployed with JWT verification off. From SQL, without the value ever
+// being typed:
 //
-// GOLFAPI_IMPORT_SECRET is required (unlike COURSE_IMPORT_SECRET, which is
-// optional): the gateway accepts any signed-in member's token, and this
-// function spends money.
+//   select net.http_post(
+//     url := 'https://<project>.supabase.co/functions/v1/import-golfapi',
+//     headers := jsonb_build_object('Content-Type', 'application/json',
+//       'x-import-secret', (select decrypted_secret from vault.decrypted_secrets
+//                            where name = 'golfapi_import_secret')),
+//     body := '{"action":"search","club_id":605}'::jsonb,
+//     timeout_milliseconds := 60000);
+//   -- then: select content from net._http_response where id = <that id>;
 
 import { createClient, type SupabaseClient } from "jsr:@supabase/supabase-js@2";
 
@@ -98,12 +102,18 @@ class Golfapi {
 Deno.serve(async (request) => {
   if (request.method !== "POST") return json({ error: "POST only" }, 405);
 
-  const secret = Deno.env.get("GOLFAPI_IMPORT_SECRET");
-  if (!secret) return json({ error: "GOLFAPI_IMPORT_SECRET isn't set; refusing to spend golfapi calls without it" }, 503);
-  if (request.headers.get("x-import-secret") !== secret) return json({ error: "forbidden" }, 403);
+  const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+
+  // The caller must know the Vault secret golfapi_import_secret (0109). The
+  // function is deployed with JWT checking off, because this is its auth.
+  const { data: ok, error: secretErr } = await db.rpc("golfapi_import_secret_ok", { p_secret: request.headers.get("x-import-secret") ?? "" });
+  if (secretErr) return json({ error: `Couldn't check the import secret: ${secretErr.message}` }, 503);
+  if (ok !== true) return json({ error: "forbidden" }, 403);
 
   const key = Deno.env.get("GOLFAPI_KEY");
-  if (!key) return json({ error: "GOLFAPI_KEY isn't set (supabase secrets set GOLFAPI_KEY=…)" }, 503);
+  if (!key) return json({ error: "GOLFAPI_KEY isn't set (Supabase → Edge Functions → Secrets)" }, 503);
   const api = new Golfapi(Deno.env.get("GOLFAPI_BASE_URL") ?? DEFAULT_BASE, key);
 
   let body: Body;
@@ -112,10 +122,6 @@ Deno.serve(async (request) => {
   } catch {
     return json({ error: "expected a JSON body" }, 400);
   }
-
-  const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
 
   try {
     if (body.action === "search") return json({ ...(await search(db, api, body)), calls_used: api.used, calls_left: api.left });
@@ -159,6 +165,8 @@ async function search(db: SupabaseClient, api: Golfapi, body: Extract<Body, { ac
   return {
     club: { id: club.id, name: club.name, town: club.town },
     candidates,
+    // Nothing matched: show what came back, so a field-name mismatch is visible.
+    raw_search: candidates.length === 0 ? raw : undefined,
     next: "Pick the right club, then call import with its course ids. A match more than ~2 km away is probably a different club.",
   };
 }
