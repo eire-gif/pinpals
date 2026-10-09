@@ -4,6 +4,7 @@ import RNWebView, { type WebViewMessageEvent, type WebViewProps } from "react-na
 
 import { MAP_ATTRIBUTION, MAP_TILE_URL } from "@/lib/config";
 import type { LatLng, PointKind } from "@/lib/hole-geo";
+import type { OsmFeature } from "@/lib/osm-course";
 import { colors, fonts, spacing } from "@/lib/theme";
 
 /** See web-shell.tsx: react-native-webview 14's root types collapse to never. */
@@ -30,6 +31,9 @@ export type MapScene = {
   shots: Array<LatLng & { n: number; label: string | null }>;
   /** A point the member tapped, the lines to it and on to the green. */
   tap: (LatLng & { origin: LatLng; toLabel: string; onLabel: string | null; green: LatLng | null }) | null;
+  /** OpenStreetMap shapes near the hole: greens, fairways, bunkers, tees,
+   *  water and the hole lines. Drawn under everything else. */
+  outlines: OsmFeature[];
   /** Change it to move the view; leave it to keep the member's pan and zoom. */
   frameKey: string;
 };
@@ -152,7 +156,17 @@ function pageHtml(tileUrl: string, attribution: string): string {
   var map = L.map("map", { zoomControl:false, attributionControl:true, rotate:canRotate, touchRotate:false, rotateControl:false, bearing:0, maxZoom:20, zoomSnap:0.25 });
   L.tileLayer(${JSON.stringify(tileUrl)}, { maxZoom:20, maxNativeZoom:19, attribution:${JSON.stringify(attribution)} }).addTo(map);
   map.setView([53.4, -7.9], 7);
+  var shapes = L.layerGroup().addTo(map);
   var layer = L.layerGroup().addTo(map);
+  var osmCredited = false;
+  var STYLE = {
+    fairway: { color: "#9fd36f", weight: 1, fillColor: "#7cc456", fillOpacity: 0.28, opacity: 0.6 },
+    tee: { color: "#d7f0b8", weight: 1, fillColor: "#b8e08e", fillOpacity: 0.35, opacity: 0.7 },
+    green: { color: "#e9ffd9", weight: 1.5, fillColor: "#5fd068", fillOpacity: 0.45, opacity: 0.9 },
+    bunker: { color: "#fff6d6", weight: 1, fillColor: "#f1e2aa", fillOpacity: 0.75, opacity: 0.9 },
+    water: { color: "#9fd2f5", weight: 1, fillColor: "#3b8fd0", fillOpacity: 0.45, opacity: 0.8 }
+  };
+  var shapesKey = null;
   var last = null, lastKey = null;
 
   function icon(cls, text, size){ return L.divIcon({ className:"", html:'<div class="pin '+cls+'">'+(text||"")+'</div>', iconSize:[size,size], iconAnchor:[size/2,size/2] }); }
@@ -188,8 +202,26 @@ function pageHtml(tileUrl: string, attribution: string): string {
     }
   }
 
+  function drawShapes(list){
+    var key = (list||[]).length + ":" + ((list||[])[0] ? list[0].coords[0].lat : "");
+    if(key === shapesKey) return;
+    shapesKey = key;
+    shapes.clearLayers();
+    (list||[]).forEach(function(f){
+      var ll = f.coords.map(function(p){ return [p.lat,p.lng]; });
+      if(f.kind === "hole"){
+        L.polyline(ll, { color:"#ffffff", weight:1.5, opacity:0.55, dashArray:"2 6", interactive:false }).addTo(shapes);
+      } else if(STYLE[f.kind] && ll.length >= 3){
+        var st = STYLE[f.kind]; st.interactive = false;
+        L.polygon(ll, st).addTo(shapes);
+      }
+    });
+    if((list||[]).length && !osmCredited){ osmCredited = true; map.attributionControl.addAttribution("© OpenStreetMap contributors"); }
+  }
+
   function draw(s){
     last = s;
+    drawShapes(s.outlines);
     layer.clearLayers();
     var g = s.green || {};
     if(s.tap){

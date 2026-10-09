@@ -27,6 +27,8 @@ import {
   type Unit,
 } from "@/lib/hole-geo";
 import { addShot, loadCourseLayouts, loadRoundShots, shotKey, undoShot, type CourseLayout } from "@/lib/hole-maps";
+import { osmLayoutPoints, outlinesNear, type OsmFeature } from "@/lib/osm-course";
+import { loadCourseShapes } from "@/lib/osm-fetch";
 import { loadLiveRound, subscribeToLiveRound, type LiveRoundData } from "@/lib/live-rounds";
 import { loadCourse, type CourseDetail } from "@/lib/onboarding";
 import { colors, creamAlpha, fonts, radii, spacing, type } from "@/lib/theme";
@@ -71,6 +73,9 @@ export default function HoleMapScreen() {
 
   const [course, setCourse] = useState<CourseDetail | null>(null);
   const [layouts, setLayouts] = useState<CourseLayout[] | undefined>(undefined);
+  // OpenStreetMap shapes for the course: drawn on the map, and the hole
+  // geometry wherever golfapi.io has none. Null until loaded; [] if none.
+  const [shapes, setShapes] = useState<OsmFeature[] | null>(null);
   const [layoutId, setLayoutId] = useState<number | null>(params.layoutId ? Number(params.layoutId) : null);
   const [round, setRound] = useState<LiveRoundData | null>(null);
   const [shots, setShots] = useState<Map<number, Shot[]>>(new Map());
@@ -150,6 +155,11 @@ export default function HoleMapScreen() {
       void load();
     }, [load])
   );
+  useEffect(() => {
+    if (course?.latitude == null || course.longitude == null || shapes !== null) return;
+    void loadCourseShapes(clubId, { lat: course.latitude, lng: course.longitude }).then(setShapes);
+  }, [clubId, course?.latitude, course?.longitude, shapes]);
+
   useEffect(
     () => (roundId != null ? subscribeToLiveRound(roundId, () => void loadRoundShots(roundId).then(setShots).catch(() => {})) : undefined),
     [roundId]
@@ -159,7 +169,14 @@ export default function HoleMapScreen() {
   // ---- What's on this hole ----
   const layout = layouts?.find((l) => l.id === layoutId) ?? layouts?.[0] ?? null;
   const holeCount = round?.card.length ?? layout?.holes ?? 18;
-  const geo = useMemo(() => holeGeometry(layout?.points ?? [], hole), [layout, hole]);
+  const clubAt = course?.latitude != null && course.longitude != null ? { lat: course.latitude, lng: course.longitude } : null;
+  const osmPoints = useMemo(() => (shapes && shapes.length ? osmLayoutPoints(shapes, clubAt) : []), [shapes, clubAt?.lat, clubAt?.lng]); // eslint-disable-line react-hooks/exhaustive-deps
+  // golfapi.io's points when the hole has them; OpenStreetMap's otherwise.
+  const geo = useMemo(() => {
+    const fromLayout = holeGeometry(layout?.points ?? [], hole);
+    return fromLayout.mapped ? fromLayout : holeGeometry(osmPoints, hole);
+  }, [layout, hole, osmPoints]);
+  const fromOsm = !holeGeometry(layout?.points ?? [], hole).mapped && geo.mapped;
   const origin = measuringFrom(geo, fix);
   const card = round?.card.find((c) => c.hole === hole) ?? null;
   const myShots = playerId != null ? (shots.get(shotKey(playerId, hole)) ?? []) : [];
@@ -196,10 +213,11 @@ export default function HoleMapScreen() {
           : null,
       // The view moves when the hole or course changes, or the first time
       // the member's position arrives — never on every GPS tick.
-      frameKey: `${layout?.id ?? "none"}-${hole}-${fix ? "fix" : "nofix"}`,
+      outlines: shapes ? outlinesNear(shapes, frame.points.length ? frame.points : clubAt ? [clubAt] : []) : [],
+      frameKey: `${layout?.id ?? "none"}-${hole}-${fix ? "fix" : "nofix"}-${geo.mapped ? "m" : "u"}`,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [geo, fix, course, legs, tap, origin?.point, unit, layout?.id, hole]);
+  }, [geo, fix, course, legs, tap, origin?.point, unit, layout?.id, hole, shapes]);
 
   // ---- Shots ----
   const player = round?.players.find((p) => p.id === playerId) ?? null;
@@ -283,7 +301,7 @@ export default function HoleMapScreen() {
         {!geo.mapped ? (
           <View style={styles.notMapped} pointerEvents="none">
             <Text style={styles.notMappedText}>
-              {layout ? "This hole isn't mapped yet." : "This course isn't mapped yet."} Tap anywhere to measure from where you are.
+              {shapes === null ? "Loading the course…" : layout || osmPoints.length ? "This hole isn't mapped yet." : "This course isn't mapped yet."} Tap anywhere to measure from where you are.
             </Text>
           </View>
         ) : null}
@@ -402,7 +420,9 @@ export default function HoleMapScreen() {
           </View>
         ) : null}
 
-        {!layout ? (
+        {fromOsm ? (
+          <Text style={styles.footnote}>This hole's map comes from OpenStreetMap volunteers. Distances are GPS estimates — check the course's markers before an important shot.</Text>
+        ) : !layout && !geo.mapped ? (
           <Text style={styles.footnote}>Hole maps are being added course by course. Until this one is, you can still measure to anything you tap on the map.</Text>
         ) : (
           <Text style={styles.footnote}>Distances are GPS estimates. Check the course's own markers before an important shot.</Text>

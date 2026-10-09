@@ -31,6 +31,17 @@ A member keeps their own card for every round, and shares it.
   any time. Profiles: the Rounds tab has a "Scorecards" link; other members
   see only what that setting allows.
 
+- **Tee colours:** tee choices (here and in the live round set-up) are
+  chips in the tee's own colour — Yellow, Red, Blue, Green, White, Black,
+  Gold and so on, from the first colour word in the tee's name
+  (`mobile/src/lib/tee-colours.ts`, + test). A tee with no colour in its
+  name ("Championship") is navy. The card shows a dot in the tee colour.
+- **Home:** the card has a Home button (header) and "Done — back to Home".
+  A card is saved before it's shown, and a newly made one opens with
+  "Saved to My scorecards". In the editor, Home saves first if the card can
+  be saved, goes straight home if nothing was entered, and otherwise asks
+  before leaving.
+
 ## How it's built
 
 | Piece | File |

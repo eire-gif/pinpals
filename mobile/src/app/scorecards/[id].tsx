@@ -3,7 +3,10 @@ import { ActivityIndicator, Alert, Pressable, ScrollView, Share, StyleSheet, Tex
 import { Stack, router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
+import { HeaderPill, headerButtons } from "@/components/header-actions";
 import { LoadError, StateMessage } from "@/components/state-message";
+import { TeeDot } from "@/components/tee-chip";
+import { goHome } from "@/lib/go-home";
 import { useAuth } from "@/lib/auth";
 import { isOn } from "@/lib/features";
 import { indexLabel } from "@/lib/live-scoring";
@@ -27,7 +30,7 @@ import { colors, creamAlpha, fonts, radii, spacing, type } from "@/lib/theme";
  * a birdie and boxed for a bogey — and what you can do with it.
  */
 export default function ScorecardScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, saved } = useLocalSearchParams<{ id: string; saved?: string }>();
   const cardId = Number(id);
   const { session } = useAuth();
   const me = session?.user?.id ?? null;
@@ -126,16 +129,25 @@ export default function ScorecardScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.cream50 }}>
-      <Stack.Screen options={{ title: "Scorecard" }} />
+      <Stack.Screen options={{ title: "Scorecard", ...headerButtons({ right: <HeaderPill label="Home" variant="secondary" onPress={goHome} accessibilityLabel="Back to Home" /> }) }} />
       <ScrollView contentContainerStyle={styles.page}>
+        {mine && saved ? (
+          <View style={styles.savedBanner} accessibilityRole="text">
+            <Ionicons name="checkmark-circle" size={18} color={colors.green700} />
+            <Text style={styles.savedText}>Saved to My scorecards</Text>
+          </View>
+        ) : null}
         <View style={styles.hero}>
           <Text style={styles.heroEyebrow}>{playedLabel(card.playedOn)}</Text>
           <Text style={styles.heroTitle}>{card.courseName}</Text>
+          <View style={styles.heroSubRow}>
+          {card.teeName ? <TeeDot name={card.teeName} size={12} /> : null}
           <Text style={styles.heroSub}>
             {[card.teeName ? `${card.teeName} tees` : null, card.holes === 9 ? "9 holes" : "18 holes", card.handicapIndex != null ? `Index ${indexLabel(card.handicapIndex)}` : null, card.playingHandicap != null ? `plays off ${card.playingHandicap}` : null]
               .filter(Boolean)
               .join(" · ")}
           </Text>
+          </View>
           <View style={styles.tiles}>
             <Tile label={t.complete ? "Score" : `Thru ${t.played}`} value={t.complete && t.total.strokes != null ? String(t.total.strokes) : t.played > 0 ? vsParText(t.vsPar) : "—"} big />
             <Tile label="To par" value={vsParText(t.vsPar)} />
@@ -188,6 +200,10 @@ export default function ScorecardScreen() {
               </View>
               <Text style={styles.muted}>"Send" makes a link anyone you send it to can open, whoever this is set to.</Text>
             </View>
+            <Pressable onPress={goHome} style={({ pressed }) => [styles.homeButton, pressed && { opacity: 0.85 }]} accessibilityRole="button">
+              <Ionicons name="home-outline" size={18} color={colors.cream50} />
+              <Text style={styles.homeLabel}>Done — back to Home</Text>
+            </Pressable>
             <Pressable onPress={remove} style={styles.delete} accessibilityRole="button">
               <Text style={styles.deleteText}>Delete scorecard</Text>
             </Pressable>
@@ -339,6 +355,11 @@ const styles = StyleSheet.create({
   chipText: { fontFamily: fonts.bodySemi, fontSize: 13.5, color: colors.ink900 },
   chipTextOn: { color: colors.cream50 },
   muted: { fontFamily: fonts.body, fontSize: 12.5, lineHeight: 17, color: colors.ink500 },
+  savedBanner: { flexDirection: "row", alignItems: "center", gap: 8, padding: spacing.sm + 2, borderRadius: radii.md, backgroundColor: colors.green100 },
+  savedText: { fontFamily: fonts.bodyBold, fontSize: type.small, color: colors.green800 },
+  heroSubRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  homeButton: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, minHeight: 48, borderRadius: radii.pill, backgroundColor: colors.navy900 },
+  homeLabel: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.cream50 },
   delete: { alignItems: "center", paddingVertical: spacing.sm },
   deleteText: { fontFamily: fonts.bodyBold, fontSize: type.small, color: colors.red600 },
 });
