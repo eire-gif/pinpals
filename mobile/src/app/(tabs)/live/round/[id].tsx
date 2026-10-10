@@ -268,6 +268,21 @@ export default function LiveRoundScreen() {
   };
 
   const cardComplete = card.every((c) => c.strokeIndex != null);
+
+  // Oct 2026: once every hole is in (or the round is finished), a way back
+  // to the Live Scoring page — for a round, a match or a scramble alike.
+  const allScored = rows.length > 0 && card.every((c) => rows.every((p) => scores.get(p.id)?.has(c.hole)));
+  const showBackToLive = !live || allScored || !!matchNow?.finished;
+  const backToLive = () => {
+    if (router.canDismiss()) router.dismissAll();
+    router.navigate("/live");
+  };
+  const backToLiveButton = showBackToLive ? (
+    <Pressable onPress={backToLive} style={({ pressed }) => [styles.backLive, pressed && { opacity: 0.85 }]} accessibilityRole="button">
+      <Ionicons name="podium" size={18} color={colors.gold400} />
+      <Text style={styles.backLiveLabel}>Back to Live Scoring</Text>
+    </Pressable>
+  ) : null;
   const saveCard = async () => {
     try {
       await saveCourseCard(round, card);
@@ -573,6 +588,7 @@ export default function LiveRoundScreen() {
               )}
             </View>
           ) : null}
+          {backToLiveButton}
         </ScrollView>
       ) : (
         <ScrollView ref={boardScroll} contentContainerStyle={styles.page}>
@@ -666,6 +682,8 @@ export default function LiveRoundScreen() {
               <Text style={styles.nextLabel}>{matchFormat ? "Finish match" : "Finish round"}</Text>
             </Pressable>
           ) : null}
+
+          {backToLiveButton}
 
           {canDelete ? (
             <Pressable onPress={remove} style={styles.delete} accessibilityRole="button">
@@ -1037,6 +1055,8 @@ const styles = StyleSheet.create({
   pickup: { minHeight: 36, paddingHorizontal: 12, borderRadius: radii.pill, borderWidth: 1, borderColor: colors.line, justifyContent: "center", backgroundColor: colors.surface },
   pickupText: { fontFamily: fonts.body, fontSize: 13, color: colors.ink500 },
   next: { minHeight: 54, borderRadius: radii.pill, backgroundColor: colors.green700, alignItems: "center", justifyContent: "center" },
+  backLive: { flexDirection: "row", gap: 8, minHeight: 54, borderRadius: radii.pill, backgroundColor: colors.navy900, borderWidth: 1, borderColor: colors.gold500, alignItems: "center", justifyContent: "center" },
+  backLiveLabel: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.cream50 },
   nextLabel: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.cream50 },
   secondary: { flexDirection: "row", gap: spacing.sm, minHeight: 48, borderRadius: radii.pill, borderWidth: 1, borderColor: colors.green700, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.md },
   cardSaved: { flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: colors.green100, borderRadius: radii.lg, padding: spacing.md },
