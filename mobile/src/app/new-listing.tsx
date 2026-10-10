@@ -286,20 +286,15 @@ export default function NewListingScreen() {
         images: ready.map((photo) => photo.uploaded!),
       });
 
-      // Draft, not live. Sending them to the listing's own page is what puts
-      // Publish — and its payment-readiness check — in front of them.
-      router.replace({
-        pathname: "/web",
-        params: {
-          path: `/marketplace/${created.listingId}?draft=1`,
-          title: "Your listing",
-        },
-      });
+      // Draft, not live. The app's own listing screen shows it with "Put
+      // on sale" first — the same publish route, and payment-readiness
+      // check, as the website (lib/listings.ts publishListing()).
+      router.replace({ pathname: "/listing/[id]", params: { id: String(created.listingId) } });
 
       if (!created.imagesAttached) {
         Alert.alert(
           "Listing saved, photos didn't",
-          "The listing is there as a draft but the photos didn't attach. You can add them on this page before publishing."
+          "The listing is there as a draft but the photos didn't attach. Tap \"Edit details and photos\" to add them before you put it on sale."
         );
       }
     } catch (err) {
@@ -557,8 +552,8 @@ export default function NewListingScreen() {
         <View style={styles.footnote}>
           <Ionicons name="lock-closed-outline" size={14} color={colors.ink500} />
           <Text style={styles.footnoteLabel}>
-            Saved as a draft. Nothing goes live until you publish it on the
-            next screen.
+            Saved as a draft. Nothing goes live until you tap Put on sale on
+            the next screen.
           </Text>
         </View>
       </ScrollView>
