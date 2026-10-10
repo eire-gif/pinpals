@@ -2,7 +2,7 @@
 
 import { useActionState, useState } from "react";
 import ClubCombobox from "@/components/club-combobox";
-import { COUNTRIES, regionsForCountry } from "@/lib/regions";
+import { COUNTRIES } from "@/lib/regions";
 import {
   DEFAULT_VISIBILITY,
   LADIES_ONLY_DESCRIPTION,
@@ -26,7 +26,6 @@ export default function NewAvailabilityForm() {
   // skimmable once a country has narrowed it. Defaults to Ireland, where
   // almost every tee time posted so far has been.
   const [country, setCountry] = useState("ireland");
-  const regions = regionsForCountry(country);
 
   const today = new Date().toISOString().slice(0, 10);
 
@@ -50,18 +49,6 @@ export default function NewAvailabilityForm() {
       <div className="grid gap-1.5">
         <label htmlFor="club" className="text-[13.5px] font-bold">Golf course / club</label>
         <ClubCombobox name="club" country={country} required />
-      </div>
-
-      <div className="grid gap-1.5">
-        <label htmlFor="county" className="text-[13.5px] font-bold">County</label>
-        <select key={country} id="county" name="county" defaultValue="" required
-          className={SELECT_CLASS}>
-          <option value="" disabled>Select the county the course is in</option>
-          {regions.map((c) => (
-            <option key={c} value={c}>{c}</option>
-          ))}
-        </select>
-        <span className="text-xs text-ink-500">Lets other members filter tee-time invites by county.</span>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

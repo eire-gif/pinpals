@@ -41,7 +41,8 @@ export type Result<T> =
 export type InviteInput = {
   clubId: unknown;
   country: unknown;
-  county: unknown;
+  /** Optional since Oct 2026 — see createInvite. */
+  county?: unknown;
   playDate: unknown;
   timeFrom?: unknown;
   timeTo?: unknown;
@@ -78,6 +79,33 @@ function optionalNumber(value: unknown): number | null | undefined {
   if (value === undefined || value === null || value === "") return null;
   const n = typeof value === "number" ? value : Number(String(value).trim());
   return Number.isNaN(n) ? undefined : n;
+}
+
+/**
+ * Where a club is, as a county, when the member wasn't asked.
+ *
+ * The club row first — Spanish and Portuguese clubs carry a region, Irish
+ * ones never do. Failing that, the county the last invite at this club was
+ * posted under, from the years members picked one by hand. Null when neither
+ * says, which only costs the invite a place in the county filter.
+ */
+async function countyForClub(
+  supabase: SupabaseClient,
+  clubId: number,
+  country: string,
+  region: string | null | undefined
+): Promise<string | null> {
+  if (region && isRegionInCountry(country, region)) return region;
+  const { data } = await supabase
+    .from("tee_time_invites")
+    .select("county")
+    .eq("club_id", clubId)
+    .not("county", "is", null)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle<{ county: string | null }>();
+  const previous = data?.county ?? null;
+  return previous && isRegionInCountry(country, previous) ? previous : null;
 }
 
 export async function createInvite(
@@ -124,10 +152,17 @@ export async function createInvite(
     );
   }
 
-  const county = text(input.county);
-  if (!county || !isRegionInCountry(country, county)) {
-    return invalid("Please select the county the course is in.");
+  // County is no longer asked for (Oct 2026: "unnecessary for the booking" —
+  // the club already says where it is). An older app build still sends one,
+  // and a valid one is kept; otherwise it is filled in from what we know
+  // about the club, so the county filter on /tee-times keeps working where it
+  // can. Unknown is fine: the column is nullable and the nearby search uses
+  // the club's coordinates, not this.
+  const sentCounty = text(input.county);
+  if (sentCounty && !isRegionInCountry(country, sentCounty)) {
+    return invalid("That county isn't in the course's country.");
   }
+  const county = sentCounty || (await countyForClub(supabase, club.id, country, club.region));
 
   const playDate = text(input.playDate);
   if (!playDate || Number.isNaN(Date.parse(playDate))) {
