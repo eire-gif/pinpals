@@ -123,7 +123,7 @@ export default function LiveScoringHub() {
           marginTop={0}
           icon="flag"
           title="Start a Game"
-          subtitle="Stableford, stroke play or a match — your group, live"
+          subtitle="Stableford, stroke play, a match or a scramble"
           onPress={() => router.push("/live/new")}
         />
         <RaisedCard
@@ -166,7 +166,7 @@ export default function LiveScoringHub() {
 function DayList({ days, me, onDelete }: { days: MatchDaySummary[]; me: string | null; onDelete: (d: MatchDaySummary) => void }) {
   return (
     <View style={styles.section}>
-      <Text style={styles.sectionTitle}>Match days</Text>
+      <Text style={styles.sectionTitle}>Match days & scrambles</Text>
       <View style={styles.list}>
         {days.map((d, i) => (
           <Pressable
@@ -182,7 +182,8 @@ function DayList({ days, me, onDelete }: { days: MatchDaySummary[]; me: string |
                 {d.title}
               </Text>
               <Text style={styles.rowMeta}>
-                {d.courseName} · {dateLabel(d.playedOn)} · {d.matchCount} {d.matchCount === 1 ? "match" : "matches"}
+                {d.courseName} · {dateLabel(d.playedOn)} · {d.matchCount}{" "}
+                {d.kind === "scramble" ? (d.matchCount === 1 ? "team · Scramble" : "teams · Scramble") : d.matchCount === 1 ? "match" : "matches"}
               </Text>
             </View>
             {me != null && d.createdBy === me ? <DeleteButton label={`Delete ${d.title}`} onPress={() => onDelete(d)} /> : null}

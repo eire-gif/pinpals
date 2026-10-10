@@ -3,6 +3,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Stack, router, useFocusEffect, useLocalSearchParams } from "expo-router";
 
+import { ScrambleBoard } from "@/components/scramble-board";
 import { LoadError, StateMessage } from "@/components/state-message";
 import { useAuth } from "@/lib/auth";
 import { addToCalendar, offerCalendar } from "@/lib/calendar";
@@ -63,6 +64,7 @@ export default function MatchDayBoard() {
   if (data === null) return <StateMessage size="screen" icon="lock-closed-outline" title="This match day isn't available" body="It may have been removed, or you're not in it." />;
 
   const { day, matches, totals } = data;
+  const scramble = day.kind === "scramble";
   const allDone = matches.length > 0 && totals.finishedCount === matches.length;
   const anyLive = matches.some((m) => m.round.status === "live" && !m.state?.finished);
   const sideName = (m: Match, n: 1 | 2) =>
@@ -72,8 +74,10 @@ export default function MatchDayBoard() {
   const isOrganiser = me != null && day.createdBy === me;
   const remove = () =>
     Alert.alert(
-      "Delete this match day?",
-      `${matches.length === 1 ? "Its match" : `All ${matches.length} matches`} and every score go for everyone in it. This can't be undone.`,
+      scramble ? "Delete this scramble?" : "Delete this match day?",
+      scramble
+        ? `${matches.length === 1 ? "Its team" : `All ${matches.length} teams`} and every score go for everyone in it. This can't be undone.`
+        : `${matches.length === 1 ? "Its match" : `All ${matches.length} matches`} and every score go for everyone in it. This can't be undone.`,
       [
         { text: "Keep it", style: "cancel" },
         {
@@ -163,11 +167,15 @@ export default function MatchDayBoard() {
           accessibilityRole="button"
         >
           <Ionicons name="calendar-outline" size={18} color={colors.green700} />
-          <Text style={styles.calendarLabel}>{matches.some(mine) ? "Add my match to my calendar" : "Add the match day to my calendar"}</Text>
+          <Text style={styles.calendarLabel}>
+            {matches.some(mine) ? (scramble ? "Add my tee time to my calendar" : "Add my match to my calendar") : scramble ? "Add the scramble to my calendar" : "Add the match day to my calendar"}
+          </Text>
         </Pressable>
       ) : null}
 
-      {ordered.map((m) => {
+      {scramble ? <ScrambleBoard matches={matches} isMine={mine} /> : null}
+
+      {(scramble ? [] : ordered).map((m) => {
         const st = m.state;
         const done = m.round.status === "finished" || !!st?.finished;
         const status = !st ? "No card yet" : st.leader === 0 ? st.margin : `${sideName(m, st.leader)} ${st.margin}`;
@@ -233,11 +241,11 @@ export default function MatchDayBoard() {
         );
       })}
 
-      <Text style={styles.footNote}>Each hole is coloured by the side that won it. Tap a match to see or score it.</Text>
+      {scramble ? null : <Text style={styles.footNote}>Each hole is coloured by the side that won it. Tap a match to see or score it.</Text>}
 
       {isOrganiser ? (
         <Pressable onPress={remove} style={styles.delete} accessibilityRole="button">
-          <Text style={styles.deleteLabel}>Delete match day</Text>
+          <Text style={styles.deleteLabel}>{scramble ? "Delete scramble" : "Delete match day"}</Text>
         </Pressable>
       ) : null}
     </ScrollView>

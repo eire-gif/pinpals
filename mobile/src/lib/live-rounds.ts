@@ -1,7 +1,7 @@
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
 import { postToSite } from "./api";
-import type { CardHole, LiveFormat, LivePlayer, MatchFormat, ScoreSheet } from "./live-scoring";
+import type { CardHole, LiveFormat, LivePlayer, MatchFormat, ScoreSheet, ScrambleSize } from "./live-scoring";
 import { supabase } from "./supabase";
 
 /**
@@ -45,6 +45,17 @@ export type LiveRound = {
   /** The match's format for the engine: "matchplay" is singles. */
   matchFormat: MatchFormat | null;
   teeTime: string | null;
+  /** Set when this round is one scramble team (0113). */
+  scramble: ScrambleInfo | null;
+};
+
+export type ScrambleInfo = {
+  size: ScrambleSize;
+  teamName: string | null;
+  teamNumber: number | null;
+  /** The team's playing handicap (WHS allowances, summed then rounded). */
+  teamHandicap: number;
+  driveMinimum: number | null;
 };
 
 export type LiveRoundPlayer = LivePlayer & {
@@ -60,6 +71,8 @@ export type LiveRoundData = {
   players: LiveRoundPlayer[];
   card: CardHole[];
   scores: ScoreSheet;
+  /** Scramble: hole → position of the player whose drive was used. */
+  drives: Map<number, number>;
 };
 
 type RoundRow = {
@@ -80,6 +93,11 @@ type RoundRow = {
   match_number: number | null;
   match_type: "singles" | "fourball" | "foursomes" | "greensomes" | null;
   tee_time: string | null;
+  scramble_size: number | null;
+  team_name: string | null;
+  team_number: number | null;
+  team_handicap: number | null;
+  drive_minimum: number | null;
 };
 
 type PlayerRow = {
@@ -96,7 +114,7 @@ type PlayerRow = {
 };
 
 export const ROUND_SELECT =
-  "id, created_by, club_id, course_name, tee_name, format, holes, course_rating, slope, par_total, allowance, status, played_on, match_day_id, match_number, match_type, tee_time";
+  "id, created_by, club_id, course_name, tee_name, format, holes, course_rating, slope, par_total, allowance, status, played_on, match_day_id, match_number, match_type, tee_time, scramble_size, team_name, team_number, team_handicap, drive_minimum";
 
 export const toMatchFormat = (t: RoundRow["match_type"]): MatchFormat | null =>
   t == null ? null : t === "singles" ? "matchplay" : t;
@@ -107,7 +125,8 @@ export const toRound = (r: RoundRow): LiveRound => ({
   clubId: r.club_id,
   courseName: r.course_name,
   teeName: r.tee_name,
-  format: r.format,
+  // A scramble team is stored as stroke play (0113); the app knows it apart.
+  format: r.scramble_size != null ? "scramble" : r.format,
   holes: r.holes === 9 ? 9 : 18,
   // numeric columns arrive as strings from PostgREST when they carry a scale.
   courseRating: r.course_rating == null ? null : Number(r.course_rating),
@@ -120,6 +139,16 @@ export const toRound = (r: RoundRow): LiveRound => ({
   matchNumber: r.match_number,
   matchFormat: toMatchFormat(r.match_type) ?? (r.format === "matchplay" ? "matchplay" : null),
   teeTime: r.tee_time ? r.tee_time.slice(0, 5) : null,
+  scramble:
+    r.scramble_size != null
+      ? {
+          size: r.scramble_size === 2 ? 2 : 4,
+          teamName: r.team_name,
+          teamNumber: r.team_number,
+          teamHandicap: r.team_handicap ?? 0,
+          driveMinimum: r.drive_minimum,
+        }
+      : null,
 });
 
 export type { RoundRow };
@@ -137,7 +166,7 @@ export async function loadMyLiveRounds(userId: string): Promise<LiveRoundSummary
 
   let query = supabase
     .from("live_rounds")
-    .select(`id, created_by, course_name, format, status, played_on, created_at, live_round_players (count)`)
+    .select(`id, created_by, course_name, format, scramble_size, status, played_on, created_at, live_round_players (count)`)
     .is("match_day_id", null) // matches are listed under their match day
     .order("created_at", { ascending: false })
     .limit(30);
@@ -149,6 +178,7 @@ export async function loadMyLiveRounds(userId: string): Promise<LiveRoundSummary
       created_by: string | null;
       course_name: string;
       format: LiveFormat;
+      scramble_size: number | null;
       status: "live" | "finished";
       played_on: string;
       live_round_players: { count: number }[];
@@ -160,7 +190,7 @@ export async function loadMyLiveRounds(userId: string): Promise<LiveRoundSummary
     .map((r) => ({
       id: r.id,
       courseName: r.course_name,
-      format: r.format,
+      format: r.scramble_size != null ? ("scramble" as const) : r.format,
       status: r.status,
       playedOn: r.played_on,
       playerCount: r.live_round_players?.[0]?.count ?? 0,
@@ -189,7 +219,7 @@ export const toPlayer = (p: PlayerRow): LiveRoundPlayer => ({
 export type { PlayerRow };
 
 export async function loadLiveRound(id: number): Promise<LiveRoundData | null> {
-  const [round, players, holes, scores] = await Promise.all([
+  const [round, players, holes, scores, drives] = await Promise.all([
     supabase.from("live_rounds").select(ROUND_SELECT).eq("id", id).maybeSingle<RoundRow>(),
     supabase
       .from("live_round_players")
@@ -208,9 +238,16 @@ export async function loadLiveRound(id: number): Promise<LiveRoundData | null> {
       .select("player_id, hole, strokes")
       .eq("round_id", id)
       .overrideTypes<{ player_id: number; hole: number; strokes: number | null }[]>(),
+    supabase
+      .from("live_round_drives")
+      .select("hole, position")
+      .eq("round_id", id)
+      .overrideTypes<{ hole: number; position: number }[]>(),
   ]);
 
   for (const r of [round, players, holes, scores]) if (r.error) throw r.error;
+  // Drives are a nicety: an older database without the table (before 0113
+  // reaches it) must not stop the round loading.
   if (!round.data) return null;
 
   const sheet = new Map<number, Map<number, number | null>>();
@@ -224,6 +261,7 @@ export async function loadLiveRound(id: number): Promise<LiveRoundData | null> {
     players: (players.data ?? []).map(toPlayer),
     card: (holes.data ?? []).map((h) => ({ hole: h.hole, par: h.par, strokeIndex: h.stroke_index })),
     scores: sheet,
+    drives: new Map((drives.error ? [] : (drives.data ?? [])).map((d) => [d.hole, d.position])),
   };
 }
 
@@ -250,6 +288,8 @@ export type NewRound = {
   slope: number | null;
   parTotal: number | null;
   allowance: number;
+  /** A scramble team (0113). */
+  scramble?: { size: ScrambleSize; teamName: string | null; teamHandicap: number; driveMinimum: number | null };
 };
 
 export async function createLiveRound(round: NewRound, players: NewPlayer[], card: CardHole[]): Promise<number> {
@@ -264,6 +304,14 @@ export async function createLiveRound(round: NewRound, players: NewPlayer[], car
       slope: round.slope,
       par_total: round.parTotal,
       allowance: round.allowance,
+      ...(round.scramble
+        ? {
+            scramble_size: round.scramble.size,
+            team_name: round.scramble.teamName,
+            team_handicap: round.scramble.teamHandicap,
+            drive_minimum: round.scramble.driveMinimum,
+          }
+        : {}),
     },
     p_players: players.map((p) => ({
       member_id: p.memberId,
@@ -291,6 +339,12 @@ export async function setLiveScore(roundId: number, playerId: number, hole: numb
     p_strokes: strokes,
     p_clear: clear,
   });
+  if (error) throw error;
+}
+
+/** Scramble: whose drive the team used on a hole. Null clears it. */
+export async function setLiveDrive(roundId: number, hole: number, position: number | null): Promise<void> {
+  const { error } = await supabase.rpc("live_round_set_drive", { p_round_id: roundId, p_hole: hole, p_position: position });
   if (error) throw error;
 }
 

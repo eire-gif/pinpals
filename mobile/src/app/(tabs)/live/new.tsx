@@ -16,6 +16,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { CourseSection, useCourseSetup } from "@/components/live-course-section";
 import { Section } from "@/components/form-bits";
+import { ScrambleOptions } from "@/components/scramble-options";
 import { StateMessage } from "@/components/state-message";
 import { useAuth } from "@/lib/auth";
 import { isOn } from "@/lib/features";
@@ -26,7 +27,9 @@ import {
   formatInfo,
   parseIndex,
   playingHandicap,
+  scrambleHandicap,
   type LiveFormat,
+  type ScrambleSize,
 } from "@/lib/live-scoring";
 import { listConnections, type Member } from "@/lib/members";
 import { loadMyProfile } from "@/lib/profile";
@@ -68,6 +71,11 @@ export default function NewLiveRound() {
   const [pals, setPals] = useState<Member[] | null>(null);
   const [picking, setPicking] = useState(false);
   const [saving, setSaving] = useState(false);
+  // Scramble (0113): one team here; several teams is a scramble day.
+  const [size, setSize] = useState<ScrambleSize>(4);
+  const [teamName, setTeamName] = useState("");
+  const [driveMinimum, setDriveMinimum] = useState<number | null>(null);
+  const scramble = format === "scramble";
 
   // Me first, with the handicap from my profile if I've given one.
   useEffect(() => {
@@ -96,12 +104,20 @@ export default function NewLiveRound() {
     [players, slope, rating, par, info.allowance]
   );
 
+  // A scramble team's handicap: WHS shares of each course handicap, summed
+  // then rounded. Only once every player has an index and the team is full.
+  const team = useMemo(() => {
+    if (!scramble || players.length !== size || worked.some((w) => w == null)) return null;
+    return scrambleHandicap(worked.map((w) => w!.courseHandicap));
+  }, [scramble, players.length, size, worked]);
+
   const problems: string[] = [];
   problems.push(...course.problems);
   if (players.length === 0) problems.push("Add at least one player");
   if (worked.some((w) => w == null)) problems.push("Every player needs a handicap index");
   if (players.some((p) => p.name.trim() === "")) problems.push("Every guest needs a name");
   if (format === "matchplay" && players.length !== 2) problems.push("Singles matchplay is two players");
+  if (scramble && players.length !== size) problems.push(`A team of ${size} needs ${size} players`);
 
   const update = (key: string, change: Partial<DraftPlayer>) =>
     setPlayers((ps) => ps.map((p) => (p.key === key ? { ...p, ...change } : p)));
@@ -141,14 +157,16 @@ export default function NewLiveRound() {
           courseRating: rating,
           slope,
           parTotal: par,
-          allowance: info.allowance,
+          allowance: scramble ? (size === 4 ? 0.25 : 0.35) : info.allowance,
+          scramble: scramble && team ? { size, teamName: teamName.trim() || null, teamHandicap: team.team, driveMinimum } : undefined,
         },
         players.map((p, i) => ({
           memberId: p.memberId,
           name: p.name.trim(),
           handicapIndex: worked[i]!.index,
           courseHandicap: worked[i]!.courseHandicap,
-          playingHandicap: worked[i]!.playing,
+          // In a scramble, each player's share of the team handicap.
+          playingHandicap: scramble && team ? Math.round(team.shares[i]) : worked[i]!.playing,
           estimated: worked[i]!.estimated,
         })),
         holeCard
@@ -191,8 +209,37 @@ export default function NewLiveRound() {
               );
             })}
           </View>
-          <Text style={styles.hint}>Handicap allowance: {Math.round(info.allowance * 100)}%</Text>
+          {scramble ? null : <Text style={styles.hint}>Handicap allowance: {Math.round(info.allowance * 100)}%</Text>}
         </Section>
+
+        {scramble ? (
+          <>
+            <Pressable
+              onPress={() => router.push("/live/day/scramble")}
+              style={({ pressed }) => [styles.dayLink, pressed && { opacity: 0.85 }]}
+              accessibilityRole="button"
+            >
+              <Ionicons name="people" size={20} color={colors.gold400} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.dayLinkTitle}>Several teams?</Text>
+                <Text style={styles.dayLinkBody}>Start a scramble day — every team on one live leaderboard.</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={colors.gold400} />
+            </Pressable>
+            <Section title="Team name" hint="Optional. Shown on the leaderboard.">
+              <TextInput
+                value={teamName}
+                onChangeText={setTeamName}
+                placeholder="e.g. The Bandits"
+                placeholderTextColor={colors.ink500}
+                style={styles.input}
+                maxLength={30}
+                accessibilityLabel="Team name"
+              />
+            </Section>
+            <ScrambleOptions size={size} onSize={setSize} driveMinimum={driveMinimum} onDriveMinimum={setDriveMinimum} holes={holes} />
+          </>
+        ) : null}
 
         <Section title="Players" hint="Enter each player's handicap index. Plays-off is worked out for this course.">
           <View style={styles.players}>
@@ -233,8 +280,8 @@ export default function NewLiveRound() {
                     accessibilityLabel={`${p.name || "Guest"}'s handicap index`}
                   />
                   <View style={styles.playsOff}>
-                    <Text style={styles.playsOffNumber}>{w ? w.playing : "–"}</Text>
-                    <Text style={styles.playsOffLabel}>plays off</Text>
+                    <Text style={styles.playsOffNumber}>{scramble ? (team ? team.shares[i] : "–") : w ? w.playing : "–"}</Text>
+                    <Text style={styles.playsOffLabel}>{scramble ? "share" : "plays off"}</Text>
                   </View>
                   {!p.isMe ? (
                     <Pressable onPress={() => remove(p.key)} hitSlop={10} accessibilityRole="button" accessibilityLabel={`Remove ${p.name || "guest"}`}>
@@ -245,7 +292,14 @@ export default function NewLiveRound() {
               );
             })}
 
-            {players.length < 8 ? (
+            {scramble ? (
+              <View style={[styles.teamRow, styles.playerDivider]}>
+                <Text style={styles.playerName}>Team plays off</Text>
+                <Text style={styles.teamNumber}>{team ? team.team : "–"}</Text>
+              </View>
+            ) : null}
+
+            {players.length < (scramble ? size : 8) ? (
               <View style={[styles.addRow, players.length > 0 && styles.playerDivider]}>
                 <Pressable onPress={() => void openPals()} style={styles.addButton} accessibilityRole="button">
                   <Ionicons name="person-add-outline" size={18} color={colors.green700} />
@@ -388,6 +442,11 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   pickRow: { minHeight: 48, justifyContent: "center", borderBottomWidth: 1, borderBottomColor: colors.line },
+  dayLink: { flexDirection: "row", alignItems: "center", gap: spacing.md, backgroundColor: colors.navy900, borderRadius: radii.lg, padding: spacing.md, borderWidth: 1, borderColor: colors.gold500 },
+  dayLinkTitle: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.cream50 },
+  dayLinkBody: { fontFamily: fonts.body, fontSize: 13, lineHeight: 18, color: colors.cream100, marginTop: 2 },
+  teamRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: spacing.md, backgroundColor: colors.cream100 },
+  teamNumber: { fontFamily: fonts.display, fontSize: 26, color: colors.navy900 },
   problem: { fontFamily: fonts.bodySemi, fontSize: type.small, color: colors.red600, textAlign: "center" },
   start: {
     minHeight: 54,

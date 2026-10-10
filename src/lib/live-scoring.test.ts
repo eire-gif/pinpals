@@ -5,6 +5,9 @@ import {
   blankCard,
   buildBoard,
   courseHandicap,
+  driveCounts,
+  driveShortfall,
+  scrambleHandicap,
   formatInfo,
   indexLabel,
   matchCompetitors,
@@ -328,5 +331,37 @@ describe("live-scoring.ts is shared", () => {
     const site = readFileSync(join(process.cwd(), "src/lib/live-scoring.ts"), "utf8");
     const app = readFileSync(join(process.cwd(), "mobile/src/lib/live-scoring.ts"), "utf8");
     expect(app).toBe(site);
+  });
+});
+
+describe("scramble (0113)", () => {
+  it("four-person: 25/20/15/10 lowest first, summed then rounded once", () => {
+    // 4×.25 + 10×.2 + 18×.15 + 25×.1 = 1 + 2 + 2.7 + 2.5 = 8.2 → 8
+    expect(scrambleHandicap([18, 4, 25, 10])).toEqual({ team: 8, shares: [2.7, 1, 2.5, 2] });
+  });
+  it("two-person: 35% of the lower, 15% of the higher", () => {
+    // 6×.35 + 20×.15 = 2.1 + 3 = 5.1 → 5
+    expect(scrambleHandicap([20, 6]).team).toBe(5);
+    // 9×.35 + 12×.15 = 3.15 + 1.8 = 4.95 → 5 (half up)
+    expect(scrambleHandicap([9, 12]).team).toBe(5);
+  });
+  it("a plus handicapper is the lowest", () => {
+    // -2×.35 + 10×.15 = -0.7 + 1.5 = 0.8 → 1
+    expect(scrambleHandicap([10, -2]).team).toBe(1);
+  });
+  it("refuses other sizes", () => {
+    expect(() => scrambleHandicap([1, 2, 3])).toThrow();
+  });
+  it("counts drives and works out who still owes them", () => {
+    const counts = driveCounts(new Map([[1, 1], [2, 1], [3, 2], [4, 3]]), [1, 2, 3, 4]);
+    expect([...counts]).toEqual([[1, 2], [2, 1], [3, 1], [4, 0]]);
+    expect(driveShortfall(counts, 3, 14)).toEqual({
+      needs: [{ position: 1, needed: 1 }, { position: 2, needed: 2 }, { position: 3, needed: 2 }, { position: 4, needed: 3 }],
+      impossible: false,
+      tight: false,
+    });
+    expect(driveShortfall(counts, 3, 8).tight).toBe(true);
+    expect(driveShortfall(counts, 3, 7).impossible).toBe(true);
+    expect(driveShortfall(counts, null, 0).needs).toEqual([]);
   });
 });
