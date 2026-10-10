@@ -133,6 +133,37 @@ export function withTee(g: HoleGeometry, tee: LatLng | null): HoleGeometry {
   return { ...g, tee, teeBack: tee, mapped: g.greenCentre != null };
 }
 
+/** Where the flag is on the green, by thirds front to back. */
+export type PinZone = "front" | "middle" | "back";
+
+/**
+ * The flag colours most clubs use: red at the front of the green, yellow
+ * (the course's standard is sometimes blue) in the middle, white at the back.
+ */
+export const PIN_COLOURS: Record<PinZone, string> = { front: "#d7322b", middle: "#f6c915", back: "#ffffff" };
+
+/**
+ * Which third of the green the pin is in, measured along the line from the
+ * green's front edge to its back edge. Middle when the green has no front
+ * and back mapped (nothing to measure against).
+ */
+export function pinZone(g: HoleGeometry, pin: LatLng): PinZone {
+  if (!g.greenFront || !g.greenBack) return "middle";
+  const k = Math.cos((g.greenFront.lat * Math.PI) / 180);
+  const ax = (g.greenBack.lng - g.greenFront.lng) * k;
+  const ay = g.greenBack.lat - g.greenFront.lat;
+  const len2 = ax * ax + ay * ay;
+  if (len2 === 0) return "middle";
+  const t = (((pin.lng - g.greenFront.lng) * k) * ax + (pin.lat - g.greenFront.lat) * ay) / len2;
+  return t < 1 / 3 ? "front" : t > 2 / 3 ? "back" : "middle";
+}
+
+/** The hole with the flag where the member put it: "centre" becomes the pin. */
+export function withPin(g: HoleGeometry, pin: LatLng | null): HoleGeometry {
+  if (!pin || !g.greenCentre) return g;
+  return { ...g, greenCentre: pin };
+}
+
 /** Holes in the layout that can be drawn, in order. */
 export function mappedHoles(points: readonly LayoutPoint[]): number[] {
   return [...new Set(points.map((p) => p.hole))].sort((a, b) => a - b).filter((h) => holeGeometry(points, h).mapped);

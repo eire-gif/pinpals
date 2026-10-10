@@ -3,7 +3,7 @@ import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import RNWebView, { type WebViewMessageEvent, type WebViewProps } from "react-native-webview";
 
 import { MAP_ATTRIBUTION, MAP_TILE_URL } from "@/lib/config";
-import type { LatLng, PointKind } from "@/lib/hole-geo";
+import type { LatLng, PinZone, PointKind } from "@/lib/hole-geo";
 import type { OsmFeature } from "@/lib/osm-course";
 import { colors, fonts, spacing } from "@/lib/theme";
 import { pageHtml } from "./hole-map-page";
@@ -26,7 +26,10 @@ export type MapScene = {
   frame: LatLng[];
   tee: LatLng | null;
   teeFront: LatLng | null;
-  green: { front: LatLng | null; centre: LatLng | null; back: LatLng | null };
+  /** centre is the pin (moved or not); zone colours the flag. */
+  green: { front: LatLng | null; centre: LatLng | null; back: LatLng | null; zone: PinZone };
+  /** The flag can be dragged round the green (Oct 2026). */
+  pinMovable: boolean;
   /** dist: the distance to it from where you're measuring, drawn beside it. */
   hazards: Array<LatLng & { kind: PointKind; label: string; dist: string | null }>;
   /** The T can be dragged to the tee box being played (Oct 2026). */
@@ -60,6 +63,8 @@ type Props = {
   onTap: (at: LatLng) => void;
   /** The T was dragged here. */
   onTee: (at: LatLng) => void;
+  /** The flag was dragged here. */
+  onPin: (at: LatLng) => void;
 };
 
 /**
@@ -71,7 +76,7 @@ type Props = {
  * rotate plugin are pinned versions from jsDelivr; the tiles are whatever
  * MAP_TILE_URL says (config.ts — license before launch).
  */
-export const HoleMapView = forwardRef<HoleMapHandle, Props>(function HoleMapView({ scene, onTap, onTee }, ref) {
+export const HoleMapView = forwardRef<HoleMapHandle, Props>(function HoleMapView({ scene, onTap, onTee, onPin }, ref) {
   const web = useRef<WebViewHandle>(null);
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -96,6 +101,7 @@ export const HoleMapView = forwardRef<HoleMapHandle, Props>(function HoleMapView
     else if (msg.type === "failed") setFailed(true);
     else if (msg.type === "tap" && typeof msg.lat === "number" && typeof msg.lng === "number") onTap({ lat: msg.lat, lng: msg.lng });
     else if (msg.type === "tee" && typeof msg.lat === "number" && typeof msg.lng === "number") onTee({ lat: msg.lat, lng: msg.lng });
+    else if (msg.type === "pin" && typeof msg.lat === "number" && typeof msg.lng === "number") onPin({ lat: msg.lat, lng: msg.lng });
   };
 
   return (

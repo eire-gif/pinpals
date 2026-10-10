@@ -1,3 +1,4 @@
+import { PIN_COLOURS } from "@/lib/hole-geo";
 import { colors } from "@/lib/theme";
 
 /**
@@ -15,6 +16,7 @@ export function pageHtml(tileUrl: string, attribution: string): string {
   .leaflet-control-attribution a{color:#efe7d6!important;}
   .pin{display:flex;align-items:center;justify-content:center;border-radius:999px;font-weight:700;box-shadow:0 1px 4px rgba(0,0,0,.45);}
   .tee{width:22px;height:22px;background:${colors.cream50};color:${colors.navy900};font-size:11px;border:2px solid ${colors.navy900};}
+  .pinflag{width:44px;height:52px;filter:drop-shadow(0 1px 2px rgba(0,0,0,.45));}
   .flag{width:26px;height:26px;background:${colors.gold400};color:${colors.navy900};font-size:14px;border:2px solid ${colors.cream50};}
   .edge{width:8px;height:8px;background:${colors.cream50};border:1.5px solid ${colors.navy900};}
   .shot{width:20px;height:20px;background:${colors.navy900};color:${colors.cream50};font-size:11px;border:2px solid ${colors.cream50};}
@@ -71,6 +73,29 @@ export function pageHtml(tileUrl: string, attribution: string): string {
       + '<path d="M19.5 19.5h13a1 1 0 0 1 .8 1.6c-1.4 1.8-3.6 2.9-5.3 3.2v8.4l-2 3.6-2-3.6v-8.4c-1.7-.3-3.9-1.4-5.3-3.2a1 1 0 0 1 .8-1.6z" fill="${colors.navy900}"/>'
       + '</svg>';
     return L.divIcon({ className:"", html:'<div class="teemove">'+svg+'</div>', iconSize:[52,52], iconAnchor:[26,26] });
+  }
+
+  // The flag (Oct 2026): a pin and flag in the colour for where it is on
+  // the green — red front, yellow middle, white back — draggable.
+  var PIN = ${JSON.stringify(PIN_COLOURS)};
+  function flagIcon(colour){
+    var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="44" height="52" viewBox="0 0 44 52">'
+      + '<ellipse cx="14" cy="47" rx="7" ry="3" fill="rgba(0,0,0,.35)"/>'
+      + '<rect x="12.6" y="6" width="2.8" height="41" rx="1.4" fill="#ffffff" stroke="rgba(12,32,56,.6)" stroke-width="0.8"/>'
+      + '<path class="cloth" d="M15.4 6.5l22 8.2-22 8.2z" fill="'+colour+'" stroke="rgba(12,32,56,.75)" stroke-width="1.2" stroke-linejoin="round"/>'
+      + '<circle cx="14" cy="47" r="3" fill="#ffffff" stroke="rgba(12,32,56,.7)" stroke-width="1"/>'
+      + '</svg>';
+    return L.divIcon({ className:"", html:'<div class="pinflag">'+svg+'</div>', iconSize:[44,52], iconAnchor:[14,47] });
+  }
+  function zoneAt(g, p){
+    if(!g.front || !g.back) return "middle";
+    var f = map.latLngToContainerPoint([g.front.lat,g.front.lng]);
+    var b = map.latLngToContainerPoint([g.back.lat,g.back.lng]);
+    var q = map.latLngToContainerPoint([p.lat,p.lng]);
+    var ax = b.x-f.x, ay = b.y-f.y, l2 = ax*ax+ay*ay;
+    if(!l2) return "middle";
+    var t = ((q.x-f.x)*ax + (q.y-f.y)*ay) / l2;
+    return t < 1/3 ? "front" : t > 2/3 ? "back" : "middle";
   }
 
   function label(at, text, gold, big){ return L.marker([at.lat,at.lng], { interactive:false, icon:L.divIcon({ className:"", html:'<span class="label'+(gold?' gold':'')+(big?' big':'')+'">'+text+'</span>', iconSize:[0,0] }) }); }
@@ -229,7 +254,23 @@ export function pageHtml(tileUrl: string, attribution: string): string {
     } else if(s.tee) L.marker([s.tee.lat,s.tee.lng], { interactive:false, icon:icon("tee","T",22) }).addTo(layer);
     if(g.front) L.marker([g.front.lat,g.front.lng], { interactive:false, icon:icon("edge","",8) }).addTo(layer);
     if(g.back) L.marker([g.back.lat,g.back.lng], { interactive:false, icon:icon("edge","",8) }).addTo(layer);
-    if(g.centre) L.marker([g.centre.lat,g.centre.lng], { interactive:false, icon:icon("flag","⚑",26) }).addTo(layer);
+    if(g.centre && s.pinMovable){
+      var flag = L.marker([g.centre.lat,g.centre.lng], { draggable:true, autoPan:false, icon:flagIcon(PIN[g.zone||"middle"]) }).addTo(layer);
+      flag.on("dragstart", function(){ dragging = true; if(onLabel) layer.removeLayer(onLabel); if(greenLabel) layer.removeLayer(greenLabel); });
+      flag.on("drag", function(e){
+        var p = e.target.getLatLng();
+        if(onLine && s.tap) onLine.setLatLngs([[s.tap.lat,s.tap.lng],[p.lat,p.lng]]);
+        if(greenLine && s.greenLine) greenLine.setLatLngs([[s.greenLine.origin.lat,s.greenLine.origin.lng],[p.lat,p.lng]]);
+        var cloth = e.target.getElement() && e.target.getElement().querySelector(".cloth");
+        if(cloth) cloth.setAttribute("fill", PIN[zoneAt(g, p)]);
+      });
+      flag.on("dragend", function(e){
+        var p = e.target.getLatLng();
+        dragging = false;
+        pending = null;
+        post({ type:"pin", lat:p.lat, lng:p.lng });
+      });
+    } else if(g.centre) L.marker([g.centre.lat,g.centre.lng], { interactive:false, icon:icon("flag","⚑",26) }).addTo(layer);
     if(s.me){
       if(s.me.accuracyM) L.circle([s.me.lat,s.me.lng], { radius:s.me.accuracyM, color:"#4aa3df", weight:1, fillOpacity:.12, interactive:false }).addTo(layer);
       L.circleMarker([s.me.lat,s.me.lng], { radius:7, color:"#ffffff", weight:2.5, fillColor:"#1d8cf8", fillOpacity:1, interactive:false }).addTo(layer);

@@ -65,6 +65,16 @@ Now:
   Links 4). The page now measures the turned hole and zooms/centres it
   inside the clear area (`fitTurned`). Checked in Chromium with a 40° hole.
 
+- **Drag the flag** to today's pin position (10 Oct 2026). It's a pin and
+  flag in the colour clubs use for where it sits on the green — **red front,
+  yellow middle, white back** (thirds along the line from the green's front
+  edge to its back edge; `pinZone` in hole-geo.ts, `PIN_COLOURS`). The colour
+  changes live as it's dragged. Once moved, the middle number at the bottom
+  reads "Pin" with a flag in that colour, and every line to the green ends
+  at the flag; front and back stay the green's edges (`withPin`). Kept per
+  loop and hole while the screen is open; the refresh button resets it with
+  the tee and aim.
+
 ### Where Hole19's imagery comes from
 
 Hole19 doesn't say publicly. Apps like it license commercial satellite
