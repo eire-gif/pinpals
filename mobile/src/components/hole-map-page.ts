@@ -24,7 +24,7 @@ export function pageHtml(tileUrl: string, attribution: string): string {
   .label{white-space:nowrap;padding:3px 9px;border-radius:999px;background:rgba(12,32,56,.85);color:${colors.cream50};font-size:13px;font-weight:700;transform:translate(-50%,-50%);display:inline-block;}
   .label.gold{background:${colors.gold400};color:${colors.navy900};}
   .label.big{font-size:18px;padding:5px 12px;box-shadow:0 2px 6px rgba(0,0,0,.35);}
-  .tee.move{width:30px;height:30px;font-size:13px;border-width:2.5px;box-shadow:0 0 0 4px rgba(255,255,255,.25),0 1px 4px rgba(0,0,0,.45);}
+  .teemove{width:52px;height:52px;filter:drop-shadow(0 1px 3px rgba(0,0,0,.5));}
   .hzw{position:relative;width:10px;height:10px;}
   .hzd{position:absolute;left:12px;top:-4px;white-space:nowrap;font-size:10.5px;font-weight:700;color:#fff;text-shadow:0 0 2px rgba(0,0,0,.95),0 0 4px rgba(0,0,0,.8);}
   .hz{width:10px;height:10px;border:1.5px solid rgba(0,0,0,.5);}
@@ -60,6 +60,19 @@ export function pageHtml(tileUrl: string, attribution: string): string {
   var last = null, lastKey = null;
 
   function icon(cls, text, size){ return L.divIcon({ className:"", html:'<div class="pin '+cls+'">'+(text||"")+'</div>', iconSize:[size,size], iconAnchor:[size/2,size/2] }); }
+  // The movable tee: a golf tee on a white disc with four small arrows round
+  // it, so it reads as "drag me" (Oct 2026). 52 px: easy to get a thumb on.
+  function teeMoveIcon(){
+    var a = function(r){ return '<path transform="rotate('+r+' 26 26)" d="M26 2.5l5 5.5h-10z" fill="#ffffff" stroke="rgba(12,32,56,.55)" stroke-width="1"/>'; };
+    var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="52" height="52" viewBox="0 0 52 52">'
+      + a(0) + a(90) + a(180) + a(270)
+      + '<circle cx="26" cy="26" r="14" fill="${colors.cream50}" stroke="${colors.navy900}" stroke-width="2.5"/>'
+      // a golf tee: cup on top, tapering peg
+      + '<path d="M19.5 19.5h13a1 1 0 0 1 .8 1.6c-1.4 1.8-3.6 2.9-5.3 3.2v8.4l-2 3.6-2-3.6v-8.4c-1.7-.3-3.9-1.4-5.3-3.2a1 1 0 0 1 .8-1.6z" fill="${colors.navy900}"/>'
+      + '</svg>';
+    return L.divIcon({ className:"", html:'<div class="teemove">'+svg+'</div>', iconSize:[52,52], iconAnchor:[26,26] });
+  }
+
   function label(at, text, gold, big){ return L.marker([at.lat,at.lng], { interactive:false, icon:L.divIcon({ className:"", html:'<span class="label'+(gold?' gold':'')+(big?' big':'')+'">'+text+'</span>', iconSize:[0,0] }) }); }
   function mid(a,b){ return { lat:(a.lat+b.lat)/2, lng:(a.lng+b.lng)/2 }; }
   function esc(s){ return String(s).replace(/[&<>"]/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]; }); }
@@ -199,7 +212,7 @@ export function pageHtml(tileUrl: string, attribution: string): string {
     if(s.tee && s.teeMovable){
       // Drag the T to the tee box you're playing from (Oct 2026): lines that
       // start at the tee follow it; the numbers come back from the app.
-      var tee = L.marker([s.tee.lat,s.tee.lng], { draggable:true, autoPan:false, icon:icon("tee move","T",30) }).addTo(layer);
+      var tee = L.marker([s.tee.lat,s.tee.lng], { draggable:true, autoPan:false, icon:teeMoveIcon() }).addTo(layer);
       tee.on("dragstart", function(){ dragging = true; if(s.originIsTee){ if(toLabel) layer.removeLayer(toLabel); if(greenLabel) layer.removeLayer(greenLabel); } });
       tee.on("drag", function(e){
         if(!s.originIsTee) return;
