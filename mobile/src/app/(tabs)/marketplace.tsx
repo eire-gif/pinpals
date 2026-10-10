@@ -151,11 +151,12 @@ export default function MarketplaceScreen() {
         return;
       }
 
-      const [page, f, c, fr] = await Promise.all([
+      const [page, f, c, fr, ub] = await Promise.all([
         searchListings(effective, null, userId),
         browsing ? loadFeatured(userId) : Promise.resolve([]),
         browsing && me.clubId ? loadAtClubs([me.clubId], userId, 10) : Promise.resolve([]),
         browsing ? loadFresh(userId) : Promise.resolve([]),
+        browsing ? loadBanner("used_gear") : Promise.resolve(null),
       ]);
       const pageCards = chips.has("left") ? page.cards.filter((x) => x.dexterity === "Left-handed") : page.cards;
       const [grid, featuredD, clubD, freshD] = await Promise.all([decorateCards(pageCards, here), decorateCards(f, here), decorateCards(c, here), decorateCards(fr, here)]);
@@ -165,6 +166,7 @@ export default function MarketplaceScreen() {
       setFeatured(featuredD);
       setAtClub(clubD);
       setFresh(freshD);
+      setBanner(ub);
     } catch (err) {
       if (mine === token.current) setError(err instanceof Error ? err.message : "Couldn't load the marketplace.");
     } finally {
@@ -229,6 +231,20 @@ export default function MarketplaceScreen() {
   const open = (card: Card) => router.push(`/listing/${card.id}`);
   const activeCount = activeFilterCount(filters);
 
+  // Sponsored banner (0115): New Gear's own, or Used Gear's while browsing.
+  const bannerCard = banner ? (
+            <Pressable onPress={() => void openBanner(banner.id)} style={styles.bannerOuter} accessibilityRole="link" accessibilityLabel={`${banner.title}. Sponsored by ${banner.sponsor}`}>
+              <View style={styles.banner}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.bannerEyebrow}>{banner.eyebrow ? `${banner.eyebrow.toUpperCase()} · ` : ""}SPONSORED BY {banner.sponsor.toUpperCase()}</Text>
+                  <Text style={styles.bannerTitle}>{banner.title}</Text>
+                  {banner.subtitle ? <Text style={styles.bannerSub}>{banner.subtitle}</Text> : null}
+                </View>
+                {banner.imageUrl ? <Image source={{ uri: banner.imageUrl }} style={styles.bannerImage} /> : <MaterialCommunityIcons name="golf" size={54} color={colors.gold400} />}
+              </View>
+            </Pressable>
+          ) : null;
+
   const header = (
     <View>
       <ImageBackground source={mode === "new" ? require("../../../assets/images/scenes/dunes-gold.jpg") : require("../../../assets/images/scenes/links-sunset.jpg")} style={styles.hero}>
@@ -290,6 +306,7 @@ export default function MarketplaceScreen() {
 
           {browsing ? (
             <>
+              {bannerCard}
               <SectionHead title="Shop by category" />
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.cats}>
                 {CATEGORY_TILES.map((t) => (
@@ -315,18 +332,7 @@ export default function MarketplaceScreen() {
         </>
       ) : (
         <>
-          {banner ? (
-            <Pressable onPress={() => void openBanner(banner.id)} style={styles.bannerOuter} accessibilityRole="link" accessibilityLabel={`${banner.title}. Sponsored by ${banner.sponsor}`}>
-              <View style={styles.banner}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.bannerEyebrow}>{(banner.eyebrow ?? "New season").toUpperCase()} · SPONSORED</Text>
-                  <Text style={styles.bannerTitle}>{banner.title}</Text>
-                  {banner.subtitle ? <Text style={styles.bannerSub}>{banner.subtitle}</Text> : null}
-                </View>
-                {banner.imageUrl ? <Image source={{ uri: banner.imageUrl }} style={styles.bannerImage} /> : <MaterialCommunityIcons name="golf" size={54} color={colors.gold400} />}
-              </View>
-            </Pressable>
-          ) : null}
+          {bannerCard}
 
           <SectionHead title="Pro shops near you" />
           {stores.length === 0 ? (
