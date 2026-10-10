@@ -11,6 +11,7 @@ import { computeRefundableAmountEur, isOrderRefundable, mapStripeRefundStatus, r
 import { notifyUser } from "@/lib/notifications-server";
 import { formatPrice } from "@/lib/format";
 import type { Order, Refund } from "@/lib/types";
+import { releaseOrder } from "@/lib/marketplace-release";
 
 export type RefundActionState = { error?: string; success?: boolean };
 
@@ -164,7 +165,12 @@ export async function requestOrderRefund(_prev: RefundActionState, formData: For
         // the platform that created the destination charge, which this
         // action always is (stripe.refunds.create() below runs only
         // server-side, under the platform's own secret key).
-        reverse_transfer: true,
+        //
+        // Buyer Protection (0114): while the money is still HELD there is no
+        // transfer to reverse — the whole payment is on the platform — so
+        // reverse_transfer is only sent once the seller has been paid
+        // (payout_reference holds the transfer id).
+        ...(order.payout_reference ? { reverse_transfer: true } : {}),
         metadata: { pinpals_order_id: String(orderId), pinpals_refund_id: String(refund.id) },
       },
       { idempotencyKey }
@@ -243,5 +249,51 @@ export async function requestOrderRefund(_prev: RefundActionState, formData: For
   }
 
   revalidateOrder(orderId);
+  return { success: true };
+}
+
+/**
+ * Buyer Protection (0114) — staff overrides for a held sale.
+ *
+ *   release — pay the seller now (a problem resolved in their favour, or a
+ *             handover the code couldn't confirm, e.g. after a lockout)
+ *   hold    — freeze an automatic release while staff look into something
+ *
+ * Finance roles only, audited like refunds.
+ */
+export async function adminHandoverAction(_prev: RefundActionState, formData: FormData): Promise<RefundActionState> {
+  const { user, staff } = await requireStaff({ roles: FINANCE_ROLES });
+  const orderId = Number(formData.get("orderId"));
+  const action = String(formData.get("action") ?? "");
+  const reason = String(formData.get("reason") ?? "").trim();
+  if (!orderId) return { error: "Missing order." };
+  if (!reason) return { error: "Give a reason — it goes in the audit log." };
+
+  const admin = createAdminClient();
+  const { data: order } = await admin.from("orders").select("*").eq("id", orderId).maybeSingle<Order>();
+  if (!order) return { error: "Order not found." };
+  if (order.payout_status !== "held") return { error: "This order's payment isn't held." };
+
+  if (action === "hold") {
+    await admin.from("orders").update({ fulfilment_status: "problem", problem_at: new Date().toISOString(), release_due_at: null }).eq("id", orderId);
+  } else if (action === "release") {
+    const outcome = await releaseOrder(admin, order);
+    if (outcome !== "released") {
+      return { error: outcome === "no_account" ? "The seller has no payout account." : "Stripe refused the transfer — see the server log." };
+    }
+  } else {
+    return { error: "Unknown action." };
+  }
+
+  await recordAdminAction({
+    actor: { id: user.id, role: staff.role },
+    action: action === "hold" ? "order.hold" : "order.release",
+    targetType: "order",
+    targetId: orderId,
+    reason,
+    outcome: "success",
+    metadata: {},
+  });
+  revalidatePath(`/admin/orders/${orderId}`);
   return { success: true };
 }

@@ -16,6 +16,7 @@ import { useAuth } from "@/lib/auth";
 import { deadlineLabel, euro } from "@/lib/buying";
 import { DISPUTE_STATUS_LABELS, ORDER_STATUS_LABELS, PAYMENT_STATUS_LABELS, shortDate } from "@/lib/selling";
 import { loadOrder, type OrderDetail } from "@/lib/orders";
+import { HandoverPanel } from "@/components/handover-panel";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 
 /**
@@ -194,6 +195,11 @@ export default function OrderScreen() {
         </View>
       ) : null}
 
+      {/* Buyer Protection (0114): the handover, once paid. */}
+      {order.paymentStatus === "paid" && order.fulfilmentStatus ? (
+        <HandoverPanel order={order} isBuyer={isBuyer} onChanged={() => void load()} />
+      ) : null}
+
       <Section title="Delivery">
         <Line
           label={order.deliveryMethod === "post" ? "By post" : "Collection"}
@@ -203,7 +209,7 @@ export default function OrderScreen() {
 
       <Section title="What it came to">
         <Line label="Item" value={euro(order.amountEur)} />
-        <Line label="Service fee" value={euro(order.platformFeeEur)} />
+        <Line label="Buyer Protection" value={euro(order.platformFeeEur)} />
         <Line label="Total" value={euro(order.totalEur)} strong />
         {order.refundedAmountEur !== null ? (
           <Line label="Refunded" value={euro(order.refundedAmountEur)} />

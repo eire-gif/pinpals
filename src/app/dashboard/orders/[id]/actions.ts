@@ -10,6 +10,8 @@ import { isSellerPaymentReady, sellerOnboardingStatus } from "@/lib/stripe/conne
 import { ORDER_REPORT_CATEGORIES, parseEvidenceRefs, type ReportCategory } from "@/lib/admin/reports";
 import { checkRateLimit, rateLimitMessage } from "@/lib/rate-limit";
 import type { Order, StripeConnectedAccount } from "@/lib/types";
+import { runHandoverStep, type HandoverStep } from "@/lib/order-handover";
+import { zonedToUtc } from "@/lib/calendar-ics";
 
 export type CheckoutState = { error?: string; clientSecret?: string };
 export type OrderActionState = { error?: string; success?: boolean };
@@ -126,10 +128,16 @@ export async function createOrderPaymentIntent(
       {
         amount: centsFromEur(order.total_eur),
         currency: "eur",
-        application_fee_amount: centsFromEur(order.platform_fee_eur),
-        transfer_data: { destination: sellerAccount.stripe_account_id },
+        // Buyer Protection (0114): separate charges and transfers. The
+        // money lands on the platform and is HELD; the seller's share
+        // (item + postage) is transferred only when the order is released
+        // — handover code, "it arrived", or the automatic release
+        // (src/lib/marketplace-release.ts). PinPals' fee is simply what
+        // isn't transferred. transfer_group ties the later transfer to
+        // this payment in Stripe's dashboard.
+        transfer_group: `pinpals-order-${order.id}`,
         automatic_payment_methods: { enabled: true },
-        metadata: { pinpals_order_id: String(order.id) },
+        metadata: { pinpals_order_id: String(order.id), pinpals_seller_account: sellerAccount.stripe_account_id },
       },
       // Stable per-order key (order.total_eur/platform_fee_eur are immutable
       // snapshots, so the request body is guaranteed identical on a retry) —
@@ -139,7 +147,7 @@ export async function createOrderPaymentIntent(
       // branch get back the SAME PaymentIntent from Stripe instead of two,
       // same idempotency discipline already used for refunds
       // (src/app/admin/orders/[id]/actions.ts).
-      { idempotencyKey: `pinpals-order-${order.id}-create-pi` }
+      { idempotencyKey: `pinpals-order-${order.id}-create-pi-held` }
     );
   } catch {
     return { error: GENERIC_ERROR };
@@ -246,4 +254,46 @@ export async function getOrderDisputeStatus(orderId: number): Promise<string | n
   const { data, error } = await supabase.rpc("get_order_dispute_status", { p_order_id: orderId });
   if (error) return null;
   return data ?? null;
+}
+
+/**
+ * Buyer Protection steps from the order page (0114): arrange the meet-up,
+ * enter the handover code, mark posted, confirm it arrived, report a
+ * problem. One action, the step named in the form; runHandoverStep()
+ * (src/lib/order-handover.ts) is shared with the app's API route.
+ */
+export async function handoverAction(orderId: number, _prev: OrderActionState, formData: FormData): Promise<OrderActionState> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const text = (k: string) => String(formData.get(k) ?? "").trim();
+  const stepName = text("step");
+  let step: HandoverStep;
+  if (stepName === "meetup") {
+    const local = text("at");
+    const place = text("place");
+    // datetime-local has no zone: it is Irish time.
+    const at = local ? zonedToUtc(local.slice(0, 10), local.slice(11, 16), "Europe/Dublin").toISOString() : "";
+    if (!at || !place) return { error: "Choose a time and say where you'll meet." };
+    step = { kind: "meetup", at, place };
+  } else if (stepName === "code") {
+    const code = text("code");
+    if (!/^\d{4}$/.test(code)) return { error: "The code is 4 digits." };
+    step = { kind: "code", code };
+  } else if (stepName === "posted") {
+    step = { kind: "posted", tracking: text("tracking") || null };
+  } else if (stepName === "received") {
+    step = { kind: "received" };
+  } else if (stepName === "problem") {
+    step = { kind: "problem", category: text("category") || null, description: text("description") || null };
+  } else {
+    return { error: "Unknown step." };
+  }
+
+  const result = await runHandoverStep(supabase, user.id, orderId, step);
+  revalidatePath(`/dashboard/orders/${orderId}`);
+  return result.ok ? { success: true } : { error: result.message };
 }

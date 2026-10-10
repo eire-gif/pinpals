@@ -107,10 +107,19 @@ export function auctionWindowError(startsAt: Date, endsAt: Date): string | null 
 // Keep this literal in sync with platform_fee_rate()'s SQL body by hand —
 // same manual-mirror discipline used throughout this codebase (see e.g.
 // src/lib/orders.ts's own header comment).
-export const PLATFORM_FEE_RATE = 0.07;
+//
+// Oct 2026 (0114): Buyer Protection — €0.70 + 5% of the item price, mirroring
+// public.platform_fee_eur(). Sellers list free and receive the full price.
+export const PLATFORM_FEE_RATE = 0.05;
+export const PLATFORM_FEE_FIXED_EUR = 0.7;
+export const BUYER_PROTECTION_LABEL = "Buyer Protection";
+
+export function buyerProtectionFee(amountEur: number): number {
+  return Math.round((PLATFORM_FEE_FIXED_EUR + amountEur * PLATFORM_FEE_RATE) * 100) / 100;
+}
 
 export function computeOfferTotal(amountEur: number) {
-  const fee = Math.round(amountEur * PLATFORM_FEE_RATE * 100) / 100;
+  const fee = buyerProtectionFee(amountEur);
   const total = Math.round((amountEur + fee) * 100) / 100;
   return { amount: amountEur, fee, total };
 }

@@ -381,9 +381,9 @@ describe("create_purchase_order(): the Buy Now checkout transaction", () => {
       expect(order.buyer_id).toBe(USERS.buyer1);
       expect(order.seller_id).toBe(USERS.seller1);
       expect(Number(order.amount_eur)).toBe(150);
-      expect(Number(order.platform_fee_eur)).toBe(10.5); // 7% of 150
+      expect(Number(order.platform_fee_eur)).toBe(8.2); // Buyer Protection (0114): €0.70 + 5% of 150
       expect(order.delivery_fee_cents).toBe(0);
-      expect(Number(order.total_eur)).toBe(160.5);
+      expect(Number(order.total_eur)).toBe(158.2);
       expect(order.delivery_method).toBe("collection");
       expect(order.delivery_detail).toBe("Collect from the clubhouse");
       expect(order.checkout_completed_at).not.toBeNull();

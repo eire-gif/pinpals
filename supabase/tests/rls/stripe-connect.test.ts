@@ -10,9 +10,9 @@ import { USERS } from "./fixtures";
 afterAll(closePool);
 
 describe("platform_fee_rate()", () => {
-  it("returns the current 7% platform fee rate", async () => {
+  it("returns the percentage part of Buyer Protection (5%, 0114)", async () => {
     const { rows } = await pool.query<{ platform_fee_rate: string }>("select public.platform_fee_rate()");
-    expect(Number(rows[0].platform_fee_rate)).toBe(0.07);
+    expect(Number(rows[0].platform_fee_rate)).toBe(0.05);
   });
 
   it("neither anon nor an authenticated caller can call it directly", async () => {
@@ -47,7 +47,7 @@ describe("offer_action() and create_purchase_order() still derive platform_fee_e
     await pool.query("delete from public.listings where id = $1", [listingId]);
   }
 
-  it("offer_action(): a 200 EUR accepted offer snapshots a 14.00 EUR (7%) platform fee", async () => {
+  it("offer_action(): a 200 EUR accepted offer snapshots a 10.70 EUR Buyer Protection fee (€0.70 + 5%, 0114)", async () => {
     const listingId = await freshListing(USERS.seller1, 200);
     try {
       const { rows: offerRows } = await pool.query<{ id: string }>(
@@ -62,13 +62,13 @@ describe("offer_action() and create_purchase_order() still derive platform_fee_e
         "select platform_fee_eur from public.orders where listing_id = $1",
         [listingId],
       );
-      expect(Number(orderRows[0].platform_fee_eur)).toBe(14);
+      expect(Number(orderRows[0].platform_fee_eur)).toBe(10.7);
     } finally {
       await dropListing(listingId);
     }
   });
 
-  it("create_purchase_order(): a 300 EUR Buy Now snapshots a 21.00 EUR (7%) platform fee", async () => {
+  it("create_purchase_order(): a 300 EUR Buy Now snapshots a 15.70 EUR Buyer Protection fee (€0.70 + 5%, 0114)", async () => {
     const listingId = await freshListing(USERS.seller1, 300, "fixed_price");
     try {
       const { rows } = await pool.query<{ create_purchase_order: string }>(
@@ -79,7 +79,7 @@ describe("offer_action() and create_purchase_order() still derive platform_fee_e
       const { rows: orderRows } = await pool.query("select platform_fee_eur from public.orders where id = $1", [
         orderId,
       ]);
-      expect(Number(orderRows[0].platform_fee_eur)).toBe(21);
+      expect(Number(orderRows[0].platform_fee_eur)).toBe(15.7);
     } finally {
       await dropListing(listingId);
     }

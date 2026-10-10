@@ -1,3 +1,4 @@
+import { postToSite } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
 import type { OrderStatus, PaymentStatus } from "@/lib/selling";
 
@@ -40,7 +41,21 @@ export type OrderDetail = {
    * news and the website already labels them separately.
    */
   disputeStatus: string | null;
+  /** Buyer Protection and the handover (0114). */
+  fulfilmentStatus: FulfilmentStatus | null;
+  payoutStatus: string;
+  meetupAt: string | null;
+  meetupPlace: string | null;
+  trackingRef: string | null;
+  releaseDueAt: string | null;
+  releasedAt: string | null;
+  /** The buyer's 4-digit code — only ever readable by the buyer (RLS). */
+  handoverCode: string | null;
+  /** The seller's home club, suggested as the meeting place. */
+  sellerClub: string | null;
 };
+
+export type FulfilmentStatus = "awaiting_handover" | "awaiting_post" | "posted" | "received" | "completed" | "problem";
 
 type Row = {
   id: number;
@@ -61,10 +76,17 @@ type Row = {
   created_at: string;
   checkout_completed_at: string | null;
   reservation_expires_at: string | null;
+  fulfilment_status: FulfilmentStatus | null;
+  payout_status: string;
+  meetup_at: string | null;
+  meetup_place: string | null;
+  tracking_ref: string | null;
+  release_due_at: string | null;
+  released_at: string | null;
 };
 
 const COLUMNS =
-  "id, buyer_id, seller_id, listing_title, listing_category, listing_condition, listing_image_url, amount_eur, platform_fee_eur, total_eur, refunded_amount_eur, status, payment_status, delivery_method, delivery_detail, created_at, checkout_completed_at, reservation_expires_at";
+  "id, buyer_id, seller_id, listing_title, listing_category, listing_condition, listing_image_url, amount_eur, platform_fee_eur, total_eur, refunded_amount_eur, status, payment_status, delivery_method, delivery_detail, created_at, checkout_completed_at, reservation_expires_at, fulfilment_status, payout_status, meetup_at, meetup_place, tracking_ref, release_due_at, released_at";
 
 export async function loadOrder(orderId: number): Promise<OrderDetail | null> {
   const { data } = await supabase
@@ -74,6 +96,15 @@ export async function loadOrder(orderId: number): Promise<OrderDetail | null> {
     .maybeSingle<Row>();
 
   if (!data) return null;
+
+  const [code, seller] = await Promise.all([
+    data.fulfilment_status === "awaiting_handover"
+      ? supabase.from("order_handover_codes").select("code").eq("order_id", orderId).maybeSingle<{ code: string }>()
+      : Promise.resolve({ data: null }),
+    data.fulfilment_status === "awaiting_handover"
+      ? supabase.from("profiles").select("home_club").eq("id", data.seller_id).maybeSingle<{ home_club: string | null }>()
+      : Promise.resolve({ data: null }),
+  ]);
 
   return {
     id: data.id,
@@ -95,6 +126,15 @@ export async function loadOrder(orderId: number): Promise<OrderDetail | null> {
     checkoutCompletedAt: data.checkout_completed_at,
     reservationExpiresAt: data.reservation_expires_at,
     disputeStatus: data.payment_status === "paid" ? await disputeStatusFor(orderId) : null,
+    fulfilmentStatus: data.fulfilment_status,
+    payoutStatus: data.payout_status,
+    meetupAt: data.meetup_at,
+    meetupPlace: data.meetup_place,
+    trackingRef: data.tracking_ref,
+    releaseDueAt: data.release_due_at,
+    releasedAt: data.released_at,
+    handoverCode: code.data?.code ?? null,
+    sellerClub: seller.data?.home_club ?? null,
   };
 }
 
@@ -114,4 +154,20 @@ async function disputeStatusFor(orderId: number): Promise<string | null> {
 
   if (error) return null;
   return typeof data === "string" && data.length > 0 ? data : null;
+}
+
+/**
+ * A Buyer Protection step (0114), through the site: arrange the meet-up,
+ * enter the handover code, mark posted, confirm it arrived, report a
+ * problem. The database decides who may take each one.
+ */
+export type HandoverStep =
+  | { step: "meetup"; at: string; place: string }
+  | { step: "code"; code: string }
+  | { step: "posted"; tracking?: string | null }
+  | { step: "received" }
+  | { step: "problem"; category?: string; description?: string };
+
+export function handoverStep(orderId: number, body: HandoverStep): Promise<{ ok: boolean; released: boolean }> {
+  return postToSite(`/api/app/orders/${orderId}/handover`, body);
 }

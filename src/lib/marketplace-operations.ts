@@ -4,6 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { checkRateLimit, rateLimitMessage } from "@/lib/rate-limit";
 import { linkConversationToOrder } from "@/lib/conversations-server";
+import { releaseDueOrders } from "@/lib/marketplace-release";
 import { DEFAULT_CHECKOUT_WINDOW_MINUTES, MIN_OFFER_AMOUNT_CENTS, centsToEur, eurToCents } from "@/lib/marketplace";
 import type { DeliveryOption, Offer, Order } from "@/lib/types";
 
@@ -63,6 +64,9 @@ export async function sweepMarketplace(): Promise<void> {
   if (reservations.error) console.error("release_expired_offer_reservations failed:", reservations.error.message);
   if (offers.error) console.error("expire_stale_offers failed:", offers.error.message);
   if (auctions.error) console.error("run_auction_sweeps failed:", auctions.error.message);
+  // Buyer Protection (0114): pay sellers whose held money is now due.
+  // Best effort — a Stripe hiccup leaves the order held for the next sweep.
+  await releaseDueOrders(admin).catch((e) => console.error("releaseDueOrders failed:", e));
 }
 
 // ===========================================================================

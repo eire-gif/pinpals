@@ -173,6 +173,12 @@ const EXPECTED: Record<string, Expectation> = {
   "live_match_day_delete(p_day_id bigint)": { anon: false, authenticated: true },
   "live_round_set_drive(p_round_id bigint, p_hole smallint, p_position smallint)": { anon: false, authenticated: true },
   "live_scramble_day_create(p_day jsonb, p_teams jsonb, p_card jsonb)": { anon: false, authenticated: true },
+  "order_set_meetup(p_order_id bigint, p_at timestamp with time zone, p_place text)": { anon: false, authenticated: true },
+  "order_confirm_handover(p_order_id bigint, p_code text)": { anon: false, authenticated: true },
+  "order_mark_posted(p_order_id bigint, p_tracking text)": { anon: false, authenticated: true },
+  "order_confirm_received(p_order_id bigint)": { anon: false, authenticated: true },
+  "order_flag_problem(p_order_id bigint)": { anon: false, authenticated: true },
+  "orders_handover_code_on_paid()": { anon: false, authenticated: false },
   "live_round_delete(p_round_id bigint)": { anon: false, authenticated: true },
   // 0108 hole maps
   "course_layout_get(p_club_id bigint)": { anon: false, authenticated: true },

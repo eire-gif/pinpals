@@ -376,6 +376,8 @@ export type OrderStatus = "pending" | "completed" | "cancelled" | "refunded";
 export type PaymentStatus = "unpaid" | "pending" | "paid" | "failed" | "refunded";
 export type PayoutStatus = "not_started" | "pending" | "paid_out" | "held" | "failed";
 
+export type FulfilmentStatus = "awaiting_handover" | "awaiting_post" | "posted" | "received" | "completed" | "problem";
+
 export type Order = {
   id: number;
   listing_id: number | null;
@@ -443,6 +445,17 @@ export type Order = {
    * notes (collection) — see formatAddress()/create_purchase_order()'s
    * snapshot logic (0050). Null only for a pre-0050 historical row. */
   delivery_detail: string | null;
+  /** Buyer Protection and the handover (0114). Null until paid. */
+  fulfilment_status: FulfilmentStatus | null;
+  meetup_at: string | null;
+  meetup_place: string | null;
+  posted_at: string | null;
+  tracking_ref: string | null;
+  received_at: string | null;
+  /** When the held money goes to the seller if nobody acts. */
+  release_due_at: string | null;
+  released_at: string | null;
+  problem_at: string | null;
   completed_at: string | null;
   cancelled_at: string | null;
   refunded_at: string | null;

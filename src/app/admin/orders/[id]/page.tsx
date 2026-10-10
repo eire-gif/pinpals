@@ -26,7 +26,9 @@ import { stripePayoutDashboardUrl } from "@/lib/stripe/payouts";
 import AdminAvatar from "@/components/admin/avatar";
 import StatusBadge from "@/components/admin/status-badge";
 import RefundForm from "@/components/admin/refund-form";
-import { requestOrderRefund } from "./actions";
+import HandoverAdminForm from "@/components/admin/handover-admin-form";
+import { adminHandoverAction, requestOrderRefund } from "./actions";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export default async function AdminOrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { staff } = await requireStaff({ roles: FINANCE_ROLES });
@@ -53,6 +55,12 @@ export default async function AdminOrderDetailPage({ params }: { params: Promise
   const buyerName = buyer ? `${buyer.first_name} ${buyer.last_name}`.trim() : "Unknown buyer";
   const sellerName = seller ? `${seller.first_name} ${seller.last_name}`.trim() : "Unknown seller";
 
+  // Wrong handover-code attempts (0114) — the count, never the code.
+  const { data: codeRow } = order.fulfilment_status
+    ? await createAdminClient().from("order_handover_codes").select("failed_attempts").eq("order_id", order.id).maybeSingle<{ failed_attempts: number }>()
+    : { data: null };
+  const handoverAttempts = codeRow?.failed_attempts ?? null;
+
   const refundableEur = computeRefundableAmountEur(order, refunds);
   const canRefund = isOrderRefundable(order) && refundableEur > 0;
 
@@ -63,7 +71,11 @@ export default async function AdminOrderDetailPage({ params }: { params: Promise
   // "Order placed" — the timeline is built to grow into whichever of the
   // three actually gets recorded once a later phase's actions exist.
   const timeline: { label: string; at: string }[] = [{ label: "Order placed", at: order.created_at }];
-  if (order.completed_at) timeline.push({ label: "Completed", at: order.completed_at });
+  if (order.completed_at) timeline.push({ label: "Paid", at: order.completed_at });
+  if (order.posted_at) timeline.push({ label: "Posted", at: order.posted_at });
+  if (order.received_at) timeline.push({ label: "Handed over", at: order.received_at });
+  if (order.problem_at) timeline.push({ label: "Problem reported", at: order.problem_at });
+  if (order.released_at) timeline.push({ label: "Seller paid", at: order.released_at });
   if (order.cancelled_at) timeline.push({ label: "Cancelled", at: order.cancelled_at });
   if (order.refunded_at) timeline.push({ label: "Refunded", at: order.refunded_at });
   timeline.sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime());
@@ -168,7 +180,7 @@ export default async function AdminOrderDetailPage({ params }: { params: Promise
       <Section title="Amount">
         <div className="p-5 grid gap-2 text-sm max-w-sm">
           <Row label="Agreed price" value={formatPrice(order.amount_eur)} />
-          <Row label="Platform fee" value={formatPrice(order.platform_fee_eur)} />
+          <Row label="Buyer Protection (PinPals fee)" value={formatPrice(order.platform_fee_eur)} />
           <Row label="Total" value={formatPrice(order.total_eur)} bold />
           {order.refunded_amount_eur != null && (
             <Row label="Refunded" value={formatPrice(order.refunded_amount_eur)} />
@@ -183,6 +195,28 @@ export default async function AdminOrderDetailPage({ params }: { params: Promise
           </div>
         )}
       </Section>
+
+      {order.fulfilment_status && (
+        <Section title="Buyer Protection & handover">
+          <div className="p-5 grid gap-2 text-sm max-w-lg">
+            <Row label="Delivery" value={order.delivery_method === "post" ? "Post" : "Meet-up collection"} />
+            <Row label="Handover" value={FULFILMENT_LABELS[order.fulfilment_status] ?? order.fulfilment_status} bold />
+            <Row label="Seller's money" value={order.payout_status === "held" ? "Held by PinPals" : order.payout_status === "pending" || order.payout_status === "paid_out" ? "Released to seller" : order.payout_status} />
+            {order.meetup_at && <Row label="Meet-up" value={`${formatDateTime(order.meetup_at)} · ${order.meetup_place ?? ""}`} />}
+            {order.posted_at && <Row label="Posted" value={`${formatDateTime(order.posted_at)}${order.tracking_ref ? ` · ${order.tracking_ref}` : ""}`} />}
+            {order.received_at && <Row label="Handed over / received" value={formatDateTime(order.received_at)} />}
+            {order.problem_at && <Row label="Problem reported" value={formatDateTime(order.problem_at)} />}
+            {order.release_due_at && order.payout_status === "held" && <Row label="Automatic release" value={formatDateTime(order.release_due_at)} />}
+            {order.released_at && <Row label="Released" value={formatDateTime(order.released_at)} />}
+            {handoverAttempts != null && handoverAttempts > 0 && <Row label="Wrong code attempts" value={`${handoverAttempts}${handoverAttempts >= 5 ? " (locked)" : ""}`} />}
+          </div>
+          {order.payout_status === "held" && (
+            <div className="px-5 pb-5">
+              <HandoverAdminForm orderId={order.id} action={adminHandoverAction} />
+            </div>
+          )}
+        </Section>
+      )}
 
       {(order.payment_reference || order.payout_reference || order.payment_last_error) && (
         <Section title="Payment & payout references">
@@ -374,3 +408,12 @@ function Section({ title, children }: { title: React.ReactNode; children: React.
 function EmptyRow({ children }: { children: React.ReactNode }) {
   return <div className="text-center py-10 text-ink-500 text-sm">{children}</div>;
 }
+
+const FULFILMENT_LABELS: Record<string, string> = {
+  awaiting_handover: "Waiting for the meet-up",
+  awaiting_post: "Waiting to be posted",
+  posted: "Posted",
+  received: "Received by buyer",
+  completed: "Handed over (code given)",
+  problem: "Problem reported — on hold",
+};

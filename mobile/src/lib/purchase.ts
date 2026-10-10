@@ -25,8 +25,12 @@ import { supabase } from "./supabase";
 // Figures — mirrors of src/lib/marketplace.ts and src/lib/orders.ts
 // ---------------------------------------------------------------------------
 
-/** platform_fee_rate() (0051). Display only: the order snapshots the real one. */
-export const PLATFORM_FEE_RATE = 0.07;
+/** Buyer Protection, platform_fee_eur() (0114): €0.70 + 5%. Display only:
+ *  the order snapshots the real one. */
+export const PLATFORM_FEE_RATE = 0.05;
+export const PLATFORM_FEE_FIXED_EUR = 0.7;
+export const BUYER_PROTECTION_LABEL = "Buyer Protection";
+export const buyerProtectionFee = (amountEur: number) => round2(PLATFORM_FEE_FIXED_EUR + amountEur * PLATFORM_FEE_RATE);
 /** DELIVERY_FEE_EUR in src/lib/orders.ts. */
 export const DELIVERY_FEE_EUR = 6;
 /** prepare_and_validate_offer()'s floor (0048). */
@@ -42,13 +46,13 @@ export const DELIVERY_LABELS: Record<DeliveryMethod, string> = {
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
 export function checkoutTotal(priceEur: number, method: DeliveryMethod) {
-  const fee = round2(priceEur * PLATFORM_FEE_RATE);
+  const fee = buyerProtectionFee(priceEur);
   const delivery = method === "post" ? DELIVERY_FEE_EUR : 0;
   return { price: priceEur, fee, delivery, total: round2(priceEur + fee + delivery) };
 }
 
 export function offerTotal(amountEur: number) {
-  const fee = round2(amountEur * PLATFORM_FEE_RATE);
+  const fee = buyerProtectionFee(amountEur);
   return { amount: amountEur, fee, total: round2(amountEur + fee) };
 }
 

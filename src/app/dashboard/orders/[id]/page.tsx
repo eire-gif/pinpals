@@ -18,6 +18,7 @@ import type { Order } from "@/lib/types";
 import { offerHasExpired } from "@/lib/marketplace";
 import { runOfferSweeps } from "@/app/marketplace/[id]/actions";
 import PayForm from "./pay-form";
+import HandoverPanel from "./handover-panel";
 import ReportIssueForm from "./report-issue-form";
 import { getOrderDisputeStatus } from "./actions";
 
@@ -63,6 +64,16 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
   // this app — an ISO deadline plus a defaulted `now: Date = new Date()` —
   // reused here rather than a raw `Date.now()` comparison in the component
   // body itself.
+  // Buyer Protection (0114): the buyer's handover code (RLS: buyer only),
+  // and the seller's home club as the suggested meeting place.
+  const { data: codeRow } =
+    isBuyer && order.fulfilment_status === "awaiting_handover"
+      ? await supabase.from("order_handover_codes").select("code").eq("order_id", order.id).maybeSingle<{ code: string }>()
+      : { data: null };
+  const { data: sellerProfile } = order.fulfilment_status === "awaiting_handover"
+    ? await supabase.from("profiles").select("home_club").eq("id", order.seller_id).maybeSingle<{ home_club: string | null }>()
+    : { data: null };
+
   const checkoutDeadlinePassed = order.reservation_expires_at !== null && offerHasExpired(order.reservation_expires_at);
 
   return (
@@ -102,7 +113,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
 
         <dl className="grid gap-2 text-sm mb-2">
           <Row label="Agreed price" value={formatPrice(order.amount_eur)} />
-          <Row label="Platform fee" value={formatPrice(order.platform_fee_eur)} />
+          <Row label="Buyer Protection" value={formatPrice(order.platform_fee_eur)} />
           <Row label="Total" value={formatPrice(order.total_eur)} bold />
           {order.refunded_amount_eur != null && <Row label="Refunded" value={formatPrice(order.refunded_amount_eur)} />}
         </dl>
@@ -161,11 +172,16 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
         </div>
       )}
 
-      {isBuyer && order.payment_status === "paid" && (
-        <p className="text-sm text-green-700 bg-green-100 rounded-lg px-4 py-3">
-          Paid — thanks!
-        </p>
-      )}
+      {order.payment_status === "paid" && order.fulfilment_status ? (
+        <HandoverPanel
+          order={order}
+          role={isBuyer ? "buyer" : "seller"}
+          code={codeRow?.code ?? null}
+          defaultPlace={sellerProfile?.home_club ? `${sellerProfile.home_club} · clubhouse car park` : null}
+        />
+      ) : isBuyer && order.payment_status === "paid" ? (
+        <p className="text-sm text-green-700 bg-green-100 rounded-lg px-4 py-3">Paid — thanks!</p>
+      ) : null}
 
       {disputeStatus && (
         <div className="bg-surface border border-line rounded-2xl shadow-sm p-5 mt-6 flex items-center justify-between gap-3">
