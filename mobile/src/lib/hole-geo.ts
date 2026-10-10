@@ -123,6 +123,16 @@ export function holeGeometry(points: readonly LayoutPoint[], hole: number): Hole
   };
 }
 
+/**
+ * The hole measured from a tee the member dragged the T to (Oct 2026: the
+ * mapped tee is one box — often the back — and you may be playing another,
+ * or the map's tee may simply be in the wrong place).
+ */
+export function withTee(g: HoleGeometry, tee: LatLng | null): HoleGeometry {
+  if (!tee) return g;
+  return { ...g, tee, teeBack: tee, mapped: g.greenCentre != null };
+}
+
 /** Holes in the layout that can be drawn, in order. */
 export function mappedHoles(points: readonly LayoutPoint[]): number[] {
   return [...new Set(points.map((p) => p.hole))].sort((a, b) => a - b).filter((h) => holeGeometry(points, h).mapped);

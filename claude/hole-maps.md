@@ -46,6 +46,25 @@ Now:
   be rendered in a browser for checks (Leaflet from npm, no tiles): drag,
   a GPS tick mid-drag and the single hole line verified that way.
 
+### Tee, aim and bunker numbers (10 Oct 2026, from the first test on the course)
+
+- **Drag the T** to the tee box you're playing (the mapped tee is one box,
+  and on OSM courses sometimes in the wrong place — Portmarnock Links 4
+  started on a neighbouring green). The hole length, front / centre / back
+  and the lines all re-measure from it (`withTee` in hole-geo.ts). Kept per
+  loop and hole while the screen is open; the refresh button puts the tee
+  and the aim back. The view doesn't move when the T does.
+- **Move the aim circle and the three numbers follow it**: front / centre /
+  back become distances from the circle ("From the aim circle", with
+  Reset). Left alone, they're from you or the tee as before.
+- **Bigger aim-to-green number** on the map (gold, 18 px).
+- **Bunker and water distances** in small white numbers beside each hazard
+  still ahead of you (or the tee) — from where you're measuring.
+- **Fitting after turning:** the hole was fitted before the map rotated, so
+  a diagonal hole could end up under the course name (the green did on
+  Links 4). The page now measures the turned hole and zooms/centres it
+  inside the clear area (`fitTurned`). Checked in Chromium with a 40° hole.
+
 ### Where Hole19's imagery comes from
 
 Hole19 doesn't say publicly. Apps like it license commercial satellite

@@ -16,6 +16,7 @@ import {
   measuringFrom,
   shotLegs,
   tapDistancesM,
+  withTee,
   type LayoutPoint,
 } from "./hole-geo";
 
@@ -178,5 +179,14 @@ describe("the aim circle", () => {
     const g = holeGeometry(HOLE_1, 1);
     const aim = defaultAim(g, north(80))!;
     expect(distanceM(aim, g.greenCentre!)).toBeGreaterThanOrEqual(79);
+  });
+});
+
+describe("a tee the member moved", () => {
+  it("measures the hole and the green from there", () => {
+    const g = withTee(holeGeometry(HOLE_1, 1), north(40));
+    expect(holeLengthM(g)).toBeCloseTo(326, -1);
+    expect(measuringFrom(g, null)).toEqual({ from: "tee", point: north(40) });
+    expect(withTee(holeGeometry(HOLE_1, 1), null)).toEqual(holeGeometry(HOLE_1, 1));
   });
 });
