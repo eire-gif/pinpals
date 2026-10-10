@@ -7,10 +7,11 @@ import { HeaderPill, headerButtons } from "@/components/header-actions";
 import { LoadError, StateMessage } from "@/components/state-message";
 import { TeeDot } from "@/components/tee-chip";
 import { goHome } from "@/lib/go-home";
+import { ScoreMark as Mark } from "@/components/score-mark";
 import { useAuth } from "@/lib/auth";
 import { isOn } from "@/lib/features";
 import { indexLabel } from "@/lib/live-scoring";
-import { holeResult, playedLabel, scorecardTotals, shareText, shotsOnCard, vsParText, type ScorecardHole } from "@/lib/scorecard-math";
+import { playedLabel, scorecardTotals, shareText, shotsOnCard, vsParText, type ScorecardHole } from "@/lib/scorecard-math";
 import {
   VISIBILITY_LABELS,
   createScorecardShareLink,
@@ -278,22 +279,9 @@ function Row({ label, cells, total, head = false, small = false }: { label: stri
 /** Ringed for under par, boxed for over, the way a card is marked up. */
 function ScoreMark({ hole, shots }: { hole: ScorecardHole; shots: number }) {
   if (hole.strokes == null) return <Text style={styles.cellText}>–</Text>;
-  const r = holeResult(hole.strokes, hole.par);
-  const ring = r === "birdie" || r === "eagle" || r === "albatross";
-  const box = r === "bogey" || r === "double" || r === "worse";
   return (
     <View>
-      <View
-        style={[
-          styles.mark,
-          ring && styles.ring,
-          (r === "eagle" || r === "albatross") && styles.ringDouble,
-          box && styles.box,
-          (r === "double" || r === "worse") && styles.boxDouble,
-        ]}
-      >
-        <Text style={[styles.markText, ring && { color: colors.green800 }]}>{hole.strokes}</Text>
-      </View>
+      <Mark strokes={hole.strokes} par={hole.par} size={24} />
       {shots > 0 ? <Text style={styles.dot}>{"•".repeat(Math.min(shots, 2))}</Text> : null}
     </View>
   );
@@ -341,12 +329,6 @@ const styles = StyleSheet.create({
   smallText: { fontSize: 10.5, color: colors.ink500 },
   totalCell: { flex: 1.5, backgroundColor: colors.cream100 },
   scoreTotal: { fontFamily: fonts.display, fontSize: 16, color: colors.ink900 },
-  mark: { width: 24, height: 24, alignItems: "center", justifyContent: "center" },
-  ring: { borderRadius: 12, borderWidth: 1.5, borderColor: colors.green700 },
-  ringDouble: { borderWidth: 3 },
-  box: { borderWidth: 1.5, borderColor: colors.red600, borderRadius: 2 },
-  boxDouble: { borderWidth: 3 },
-  markText: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.ink900 },
   dot: { position: "absolute", top: -6, right: -4, fontSize: 10, color: colors.green700 },
   counts: { flexDirection: "row", justifyContent: "space-between", backgroundColor: colors.surface, borderRadius: radii.md, borderWidth: 1, borderColor: colors.line, paddingVertical: spacing.sm },
   count: { flex: 1, alignItems: "center" },

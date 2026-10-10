@@ -26,11 +26,45 @@ const RAISED = "#18375f";
 export function LiveScoringCard() {
   if (!isOn("liveScoring")) return null;
   return (
-    <Pressable
+    <RaisedCard
+      title="Live Scoring"
+      subtitle="Score with your group, watch the leaderboard move"
       onPress={() => router.push("/live")}
+      a11y="Live scoring. Score your round with your group and follow the leaderboard."
+    />
+  );
+}
+
+/**
+ * The raised navy-and-gold button itself, shared by Home's Live Scoring and
+ * the live hub's "Start a round" / "Start a match day" (Oct 2026: "like the
+ * live scoring button"). The disc shows the gold scoreboard by default, or an
+ * Ionicon in gold.
+ */
+export function RaisedCard({
+  title,
+  subtitle,
+  onPress,
+  a11y,
+  icon,
+  marginTop = spacing.md,
+  inset = true,
+}: {
+  title: string;
+  subtitle: string;
+  onPress: () => void;
+  a11y?: string;
+  icon?: keyof typeof Ionicons.glyphMap;
+  marginTop?: number;
+  /** Home insets the card from the screen edge; a padded screen doesn't. */
+  inset?: boolean;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel="Live scoring. Score your round with your group and follow the leaderboard."
-      style={styles.outer}
+      accessibilityLabel={a11y ?? `${title}. ${subtitle}`}
+      style={[styles.outer, { marginTop, marginHorizontal: inset ? spacing.md : 0 }]}
     >
       {({ pressed }) => (
         <View style={[styles.lip, pressed && styles.lipPressed]}>
@@ -46,19 +80,25 @@ export function LiveScoringCard() {
             ))}
             <View style={styles.topEdge} pointerEvents="none" />
 
-            <View style={styles.disc}>
+            <View style={[styles.disc, icon ? styles.discIcon : null]}>
               <View style={styles.glare} pointerEvents="none" />
-              <Bar height={14} />
-              <Bar height={21} />
-              <Bar height={11} />
+              {icon ? (
+                <Ionicons name={icon} size={24} color={colors.gold400} style={styles.iconShadow} />
+              ) : (
+                <>
+                  <Bar height={14} />
+                  <Bar height={21} />
+                  <Bar height={11} />
+                </>
+              )}
             </View>
 
             <View style={styles.middle}>
               <Text style={styles.title} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
-                Live Scoring
+                {title}
               </Text>
               <Text style={styles.body} numberOfLines={2}>
-                Score with your group, watch the leaderboard move
+                {subtitle}
               </Text>
             </View>
 
@@ -86,8 +126,6 @@ const R = 20;
 
 const styles = StyleSheet.create({
   outer: {
-    marginTop: spacing.md,
-    marginHorizontal: spacing.md,
     borderRadius: R,
     shadowColor: colors.navy900,
     shadowOpacity: 0.3,
@@ -155,6 +193,8 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     shadowOffset: { width: 0, height: 5 },
   },
+  discIcon: { alignItems: "center", paddingBottom: 0 },
+  iconShadow: { textShadowColor: "rgba(0,0,0,0.45)", textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 2 },
   glare: {
     position: "absolute",
     left: 6,

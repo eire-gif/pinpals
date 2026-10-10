@@ -234,8 +234,8 @@ export function RateYourCourses({ clubs }: { clubs: Club[] | null }) {
 }
 
 /** One course with five stars to tap. Also used by the Rate a course screen. */
-export function RateRow({ club, rating = 0, first = false }: { club: Club; rating?: number; first?: boolean }) {
-  const place = placeLabel(club, true);
+export function RateRow({ club, rating = 0, first = false, distance = null }: { club: Club; rating?: number; first?: boolean; distance?: string | null }) {
+  const place = [distance, placeLabel(club, true)].filter(Boolean).join(" · ");
   return (
     <View style={[styles.rateRow, !first && styles.rateRowRule]}>
       <Pressable

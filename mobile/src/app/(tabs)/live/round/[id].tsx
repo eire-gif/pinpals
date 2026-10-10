@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Stack, router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
+import { ScoreMark, ScoreMarkKey } from "@/components/score-mark";
 import { LoadError, StateMessage } from "@/components/state-message";
 import { useAuth } from "@/lib/auth";
 import { isOn } from "@/lib/features";
@@ -28,7 +29,9 @@ import {
   stablefordPoints,
   teamMatchState,
   toParLabel,
+  type CardHole,
   type MatchFormat,
+  type ScoreSheet,
 } from "@/lib/live-scoring";
 import { colors, creamAlpha, fonts, radii, spacing, type } from "@/lib/theme";
 import { scorecardFromLiveRound } from "@/lib/scorecards";
@@ -142,6 +145,12 @@ export default function LiveRoundScreen() {
     if (comp) return shotsSoFar(comp.shots, card).get(h.hole) ?? null;
     const p = players.find((x) => x.id === playerId);
     return p ? (shotsSoFar(p.playingHandicap, card).get(h.hole) ?? null) : null;
+  };
+  /** Shots for every player on every hole, for the card under the entry rows. */
+  const shotsAt = (playerId: number, holeNo: number): number | null => {
+    const comp = competitors?.find((c) => c.playerIds.includes(playerId));
+    const hcp = comp ? comp.shots : players.find((x) => x.id === playerId)?.playingHandicap;
+    return hcp == null ? null : (shotsSoFar(hcp, card).get(holeNo) ?? null);
   };
   const matchNow = matchFormat ? teamMatchState(matchFormat, card, asMatchPlayers(players), scores) : null;
   const sideName = (n: number) =>
@@ -460,12 +469,14 @@ export default function LiveRoundScreen() {
                       accessibilityRole="button"
                       accessibilityLabel={entered ? `${p.name}: ${strokes ?? "picked up"}. Hold to clear.` : `Confirm ${shown} for ${p.name}`}
                     >
-                      <Text style={[styles.strokes, !entered && styles.strokesGhost]}>{entered && strokes == null ? "P" : shown}</Text>
+                      {/* Marked against par (gross), like the card: circle for a
+                          birdie, square for a bogey. */}
+                      <ScoreMark strokes={entered ? strokes : shown} par={h.par} size={48} ghost={!entered} textStyle={[styles.strokesMark, !entered && styles.strokesGhost]} />
                     </Pressable>
                     <StepButton label="+" dark a11y={`One more for ${p.name}`} onPress={() => void score(p.id, Math.min(20, (shown ?? h.par) + 1))} />
                   </View>
                 ) : (
-                  <Text style={styles.strokes}>{entered ? (strokes ?? "P") : "–"}</Text>
+                  entered ? <ScoreMark strokes={strokes} par={h.par} size={48} textStyle={styles.strokesMark} /> : <Text style={styles.strokes}>–</Text>
                 )}
               </View>
               </View>
@@ -475,6 +486,16 @@ export default function LiveRoundScreen() {
           {!canScore && live ? (
             <Text style={styles.footNote}>You're watching this match. Its own players score it.</Text>
           ) : null}
+
+          <LiveCard
+            card={card}
+            rows={rows}
+            scores={scores}
+            hole={h.hole}
+            onPickHole={setHole}
+            shotsAt={shotsAt}
+            second={round.format === "stableford" && !matchFormat ? "points" : "net"}
+          />
           {canScore ? (
             <View style={styles.footerRow}>
               <Text style={styles.footNote}>Tap the number to confirm it · hold it to clear</Text>
@@ -641,6 +662,146 @@ function MatchView({ data, format, sideName }: { data: LiveRoundData; format: Ma
   );
 }
 
+// ---------------------------------------------------------------------------
+// The card under the entry rows (Oct 2026: "more options to view the
+// scorecard underneath when putting in the score").
+// ---------------------------------------------------------------------------
+
+type CardMode = "strokes" | "points" | "net";
+
+function Tot({ children, head = false, small = false, strong = false }: { children: ReactNode; head?: boolean; small?: boolean; strong?: boolean }) {
+  return (
+    <View style={[styles.lcTot, head && styles.lcTotHead]}>
+      <Text style={[styles.lcCellText, head && styles.lcHeadText, small && styles.lcSmall, strong && styles.lcTotVal]}>{children}</Text>
+    </View>
+  );
+}
+
+function LiveCard({
+  card,
+  rows,
+  scores,
+  hole,
+  onPickHole,
+  shotsAt,
+  second,
+}: {
+  card: CardHole[];
+  rows: { id: number; name: string }[];
+  scores: ScoreSheet;
+  hole: number;
+  onPickHole: (n: number) => void;
+  shotsAt: (playerId: number, hole: number) => number | null;
+  /** The second view: Stableford points, or net strokes for stroke and match play. */
+  second: "points" | "net";
+}) {
+  const eighteen = card.length > 9;
+  const [nine, setNine] = useState<"front" | "back" | null>(null);
+  const [mode, setMode] = useState<CardMode>("strokes");
+  // Follows the hole being scored until the member picks a nine themselves.
+  const showing = nine ?? (eighteen && hole > 9 ? "back" : "front");
+  const holes = eighteen ? card.filter((c) => (showing === "front" ? c.hole <= 9 : c.hole > 9)) : card;
+
+  const valueOn = (playerId: number, c: CardHole): number | null | undefined => {
+    const mine = scores.get(playerId);
+    if (!mine?.has(c.hole)) return undefined; // not played
+    const strokes = mine.get(c.hole) ?? null;
+    if (mode === "strokes") return strokes;
+    const shots = shotsAt(playerId, c.hole);
+    if (shots == null) return undefined;
+    if (mode === "points") return stablefordPoints(strokes, c.par, shots);
+    return strokes == null ? null : strokes - shots;
+  };
+  const sum = (playerId: number, list: CardHole[]): number | null => {
+    let total = 0;
+    let any = false;
+    for (const c of list) {
+      const v = valueOn(playerId, c);
+      if (v != null) {
+        total += v;
+        any = true;
+      }
+    }
+    return any ? total : null;
+  };
+  const totalLabel = eighteen ? (showing === "front" ? "Out" : "In") : "Tot";
+  const parOf = (list: CardHole[]) => list.reduce((n, c) => n + c.par, 0);
+
+  return (
+    <View style={styles.lc}>
+      <View style={styles.lcHead}>
+        <Text style={styles.lcTitle}>Scorecard</Text>
+        <View style={styles.lcToggles}>
+          {(["strokes", second] as const).map((m) => (
+            <Pressable key={m} onPress={() => setMode(m)} style={[styles.lcPill, mode === m && styles.lcPillOn]} accessibilityRole="button" accessibilityState={{ selected: mode === m }}>
+              <Text style={[styles.lcPillText, mode === m && styles.lcPillTextOn]}>{m === "strokes" ? "Strokes" : m === "points" ? "Points" : "Net"}</Text>
+            </Pressable>
+          ))}
+        </View>
+      </View>
+      {eighteen ? (
+        <View style={styles.lcNines}>
+          {(["front", "back"] as const).map((n) => (
+            <Pressable key={n} onPress={() => setNine(n)} style={[styles.lcNine, showing === n && styles.lcNineOn]} accessibilityRole="tab" accessibilityState={{ selected: showing === n }}>
+              <Text style={[styles.lcNineText, showing === n && styles.lcNineTextOn]}>{n === "front" ? "Front 9" : "Back 9"}</Text>
+            </Pressable>
+          ))}
+        </View>
+      ) : null}
+
+      <View style={styles.lcTable}>
+        <View style={[styles.lcRow, styles.lcHeadRow]}>
+          <Text style={[styles.lcName, styles.lcHeadText]}>Hole</Text>
+          {holes.map((c) => (
+            <Pressable key={c.hole} onPress={() => onPickHole(c.hole)} style={[styles.lcCell, c.hole === hole && styles.lcNowHead]} accessibilityRole="button" accessibilityLabel={`Go to hole ${c.hole}`}>
+              <Text style={[styles.lcCellText, styles.lcHeadText]}>{c.hole}</Text>
+            </Pressable>
+          ))}
+          <Tot head>{totalLabel}</Tot>
+          {eighteen && showing === "back" ? <Tot head>Tot</Tot> : null}
+        </View>
+        <View style={[styles.lcRow, styles.lcParRow]}>
+          <Text style={[styles.lcName, styles.lcSmall]}>Par</Text>
+          {holes.map((c) => (
+            <View key={c.hole} style={[styles.lcCell, c.hole === hole && styles.lcNow]}>
+              <Text style={[styles.lcCellText, styles.lcSmall]}>{c.par}</Text>
+            </View>
+          ))}
+          <Tot small>{parOf(holes)}</Tot>
+          {eighteen && showing === "back" ? <Tot small>{parOf(card)}</Tot> : null}
+        </View>
+        {rows.map((p) => (
+          <View key={p.id} style={styles.lcRow}>
+            <Text style={styles.lcName} numberOfLines={1}>
+              {p.name.split(" ")[0]}
+            </Text>
+            {holes.map((c) => {
+              const v = valueOn(p.id, c);
+              return (
+                <View key={c.hole} style={[styles.lcCell, c.hole === hole && styles.lcNow]}>
+                  {v === undefined ? (
+                    <Text style={[styles.lcCellText, styles.lcEmpty]}>·</Text>
+                  ) : mode === "strokes" ? (
+                    <ScoreMark strokes={v} par={c.par} size={22} />
+                  ) : (
+                    <Text style={styles.lcCellText}>{v ?? "P"}</Text>
+                  )}
+                </View>
+              );
+            })}
+            <Tot strong>{sum(p.id, holes) ?? "–"}</Tot>
+            {eighteen && showing === "back" ? <Tot strong>{sum(p.id, card) ?? "–"}</Tot> : null}
+          </View>
+        ))}
+      </View>
+      {mode === "strokes" ? <ScoreMarkKey /> : (
+        <Text style={styles.footNote}>{mode === "points" ? "Stableford points with each player's shots." : "Strokes less each player's shots on the hole."}</Text>
+      )}
+      <Text style={styles.footNote}>Tap a hole number to go to it.</Text>
+    </View>
+  );
+}
+
 function RoundButton({ icon, label, disabled, onPress }: { icon: "chevron-back" | "chevron-forward"; label: string; disabled: boolean; onPress: () => void }) {
   return (
     <Pressable
@@ -719,8 +880,9 @@ const styles = StyleSheet.create({
   step: { width: 44, height: 44, borderRadius: 22, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.cream50, alignItems: "center", justifyContent: "center" },
   stepDark: { backgroundColor: colors.navy900, borderColor: colors.navy900 },
   stepLabel: { fontFamily: fonts.bodySemi, fontSize: 22, color: colors.ink900, lineHeight: 26 },
-  strokesBox: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
+  strokesBox: { width: 52, height: 52, alignItems: "center", justifyContent: "center" },
   strokes: { fontFamily: fonts.display, fontSize: 28, color: colors.navy900 },
+  strokesMark: { fontFamily: fonts.display, color: colors.navy900 },
   strokesGhost: { color: colors.line },
 
   footerRow: { gap: spacing.sm },
@@ -764,5 +926,33 @@ const styles = StyleSheet.create({
   gWon: { backgroundColor: colors.green700, borderColor: colors.green700, borderStyle: "solid" },
   gLost: { backgroundColor: colors.red600, borderColor: colors.red600, borderStyle: "solid" },
   gHalf: { backgroundColor: colors.cream100, borderColor: colors.cream100, borderStyle: "solid" },
+  lc: { gap: spacing.sm, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: radii.lg, padding: spacing.md, paddingHorizontal: 10 },
+  lcHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 4 },
+  lcTitle: { fontFamily: fonts.display, fontSize: 20, color: colors.navy900 },
+  lcToggles: { flexDirection: "row", gap: 4, backgroundColor: colors.cream100, borderRadius: radii.pill, padding: 3 },
+  lcPill: { paddingHorizontal: 12, minHeight: 30, borderRadius: radii.pill, justifyContent: "center" },
+  lcPillOn: { backgroundColor: colors.navy900 },
+  lcPillText: { fontFamily: fonts.bodySemi, fontSize: 12.5, color: colors.ink900 },
+  lcPillTextOn: { color: colors.cream50 },
+  lcNines: { flexDirection: "row", gap: 6, paddingHorizontal: 4 },
+  lcNine: { flex: 1, minHeight: 34, borderRadius: radii.pill, borderWidth: 1, borderColor: colors.line, alignItems: "center", justifyContent: "center" },
+  lcNineOn: { borderColor: colors.gold500, backgroundColor: colors.gold400 },
+  lcNineText: { fontFamily: fonts.bodySemi, fontSize: 13, color: colors.ink500 },
+  lcNineTextOn: { color: colors.navy900, fontFamily: fonts.bodyBold },
+  lcTable: { borderRadius: radii.md, borderWidth: 1, borderColor: colors.line, overflow: "hidden" },
+  lcRow: { flexDirection: "row", alignItems: "center", minHeight: 34, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line },
+  lcHeadRow: { backgroundColor: colors.navy900, borderTopWidth: 0, minHeight: 30 },
+  lcParRow: { backgroundColor: colors.cream100, minHeight: 26 },
+  lcHeadText: { color: colors.cream50, fontFamily: fonts.bodyBold },
+  lcName: { width: 54, paddingLeft: 8, fontFamily: fonts.bodySemi, fontSize: 12, color: colors.ink900 },
+  lcCell: { flex: 1, alignSelf: "stretch", alignItems: "center", justifyContent: "center" },
+  lcNow: { backgroundColor: "rgba(232,196,107,0.22)" },
+  lcNowHead: { backgroundColor: colors.gold500 },
+  lcCellText: { fontFamily: fonts.bodySemi, fontSize: 12, color: colors.ink900, textAlign: "center" },
+  lcSmall: { fontSize: 11, color: colors.ink500 },
+  lcEmpty: { color: colors.line },
+  lcTot: { width: 32, alignSelf: "stretch", alignItems: "center", justifyContent: "center", backgroundColor: colors.cream100 },
+  lcTotHead: { backgroundColor: colors.navy800 },
+  lcTotVal: { fontFamily: fonts.bodyBold },
   gridText: { fontFamily: fonts.bodyBold, fontSize: 11, color: colors.ink900 },
 });
