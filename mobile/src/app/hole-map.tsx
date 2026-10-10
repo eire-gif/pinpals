@@ -29,6 +29,9 @@ import {
   type PointKind,
   type Shot,
   type Unit,
+  pinZone,
+  withPin,
+  PIN_COLOURS,
 } from "@/lib/hole-geo";
 import { addShot, loadCourseLayouts, loadRoundShots, shotKey, undoShot, type CourseLayout } from "@/lib/hole-maps";
 import { osmLayoutPoints, outlinesNear, type OsmFeature } from "@/lib/osm-course";
@@ -102,6 +105,8 @@ export default function HoleMapScreen() {
   const [detailsOpen, setDetailsOpen] = useState(false);
   // Tees the member dragged the T to, per loop and hole, while the screen is open.
   const [movedTees, setMovedTees] = useState<Map<string, LatLng>>(new Map());
+  // …and where they put the flag (today's pin position).
+  const [movedPins, setMovedPins] = useState<Map<string, LatLng>>(new Map());
   // The bottom sheet's height, so the hole is fitted above it, not under it.
   const [sheetH, setSheetH] = useState(220);
 
@@ -198,8 +203,15 @@ export default function HoleMapScreen() {
   const teeKey = `${layout?.id ?? "osm"}-${hole}`;
   const movedTee = movedTees.get(teeKey) ?? null;
   // Everything is measured from the tee the member put the T on, if they moved it.
-  const geo = useMemo(() => withTee(mappedGeo, mappedGeo.mapped ? movedTee : null), [mappedGeo, movedTee]);
+  const movedPin = movedPins.get(teeKey) ?? null;
+  // Everything is measured to the flag where the member put it, if they moved it.
+  const geo = useMemo(
+    () => withPin(withTee(mappedGeo, mappedGeo.mapped ? movedTee : null), mappedGeo.mapped ? movedPin : null),
+    [mappedGeo, movedTee, movedPin]
+  );
   const moveTee = (at: LatLng) => setMovedTees((m) => new Map(m).set(teeKey, at));
+  const movePin = (at: LatLng) => setMovedPins((m) => new Map(m).set(teeKey, at));
+  const zone = geo.greenCentre ? pinZone(geo, geo.greenCentre) : "middle";
   const fromOsm = !holeGeometry(layout?.points ?? [], hole).mapped && geo.mapped;
   const origin = measuringFrom(geo, fix);
   const card = round?.card.find((c) => c.hole === hole) ?? null;
@@ -229,7 +241,8 @@ export default function HoleMapScreen() {
       frame: frame.points,
       tee: geo.tee,
       teeFront: geo.teeBack && geo.teeFront ? geo.teeFront : null,
-      green: { front: geo.greenFront, centre: geo.greenCentre, back: geo.greenBack },
+      green: { front: geo.greenFront, centre: geo.greenCentre, back: geo.greenBack, zone },
+      pinMovable: geo.mapped,
       hazards: geo.hazards.map((h) => {
         // Distance beside each hazard still ahead of you (or the tee).
         const isAhead = allAhead.some((a) => a.lat === h.lat && a.lng === h.lng);
@@ -266,7 +279,7 @@ export default function HoleMapScreen() {
       frameKey: `${layout?.id ?? "none"}-${hole}-${fix ? "fix" : "nofix"}-${geo.mapped ? "m" : "u"}`,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [geo, mappedGeo, fix, course, legs, aim?.lat, aim?.lng, origin?.point, unit, layout?.id, hole, shapes, showOutlines, sheetH, insets.top]);
+  }, [geo, mappedGeo, zone, fix, course, legs, aim?.lat, aim?.lng, origin?.point, unit, layout?.id, hole, shapes, showOutlines, sheetH, insets.top]);
 
   // ---- Shots ----
   const player = round?.players.find((p) => p.id === playerId) ?? null;
@@ -356,7 +369,7 @@ export default function HoleMapScreen() {
       <StatusBar style="light" />
 
       <View style={StyleSheet.absoluteFill}>
-        <HoleMapView ref={mapRef} scene={scene} onTap={setTap} onTee={moveTee} />
+        <HoleMapView ref={mapRef} scene={scene} onTap={setTap} onTee={moveTee} onPin={movePin} />
       </View>
 
       {/* Over the map, top: back, the course, and the map's own buttons. */}
@@ -376,17 +389,19 @@ export default function HoleMapScreen() {
         {shapes && shapes.length > 0 ? (
           <MapButton icon={showOutlines ? "layers" : "layers-outline"} label={showOutlines ? "Hide course outlines" : "Show course outlines"} onPress={toggleOutlines} />
         ) : null}
-        {tap || movedTee ? (
+        {tap || movedTee || movedPin ? (
           <MapButton
             icon="refresh"
-            label="Put the tee and aim back"
+            label="Put the tee, flag and aim back"
             onPress={() => {
               setTap(null);
-              setMovedTees((m) => {
+              const drop = (m: Map<string, LatLng>) => {
                 const next = new Map(m);
                 next.delete(teeKey);
                 return next;
-              });
+              };
+              setMovedTees(drop);
+              setMovedPins(drop);
             }}
           />
         ) : null}
@@ -414,7 +429,12 @@ export default function HoleMapScreen() {
 
         <View style={styles.greenRow}>
           <Yardage label="Front" value={geo.mapped && greens ? fmt(greens.front) : "–"} />
-          <Yardage label="Centre" value={geo.mapped && greens ? fmt(greens.centre) : "–"} big />
+          <Yardage
+            label={movedPin ? "Pin" : "Centre"}
+            value={geo.mapped && greens ? fmt(greens.centre) : "–"}
+            big
+            flag={movedPin ? PIN_COLOURS[zone] : undefined}
+          />
           <Yardage label="Back" value={geo.mapped && greens ? fmt(greens.back) : "–"} />
         </View>
         <View style={styles.fixRow}>
@@ -549,10 +569,13 @@ function hazardColour(kind: PointKind): string {
   return "#c9c3b6";
 }
 
-function Yardage({ label, value, big = false }: { label: string; value: string; big?: boolean }) {
+function Yardage({ label, value, big = false, flag }: { label: string; value: string; big?: boolean; flag?: string }) {
   return (
-    <View style={styles.yardage} accessible accessibilityLabel={`${label} of the green, ${value}`}>
-      <Text style={styles.yardageLabel}>{label}</Text>
+    <View style={styles.yardage} accessible accessibilityLabel={label === "Pin" ? `To the pin, ${value}` : `${label} of the green, ${value}`}>
+      <View style={styles.yardageHead}>
+        {flag ? <Ionicons name="flag" size={12} color={flag} /> : null}
+        <Text style={styles.yardageLabel}>{label}</Text>
+      </View>
       <Text style={[styles.yardageValue, big && styles.yardageBig]}>{value}</Text>
     </View>
   );
@@ -629,6 +652,7 @@ const styles = StyleSheet.create({
 
   greenRow: { flexDirection: "row", alignItems: "flex-end", justifyContent: "space-around" },
   yardage: { alignItems: "center", minWidth: 80 },
+  yardageHead: { flexDirection: "row", alignItems: "center", gap: 4 },
   yardageLabel: { fontFamily: fonts.bodyBold, fontSize: 10.5, letterSpacing: 1.2, textTransform: "uppercase", color: creamAlpha(0.65) },
   yardageValue: { fontFamily: fonts.display, fontSize: 28, lineHeight: 34, color: colors.cream50 },
   yardageBig: { fontSize: 50, lineHeight: 56, color: colors.gold400 },

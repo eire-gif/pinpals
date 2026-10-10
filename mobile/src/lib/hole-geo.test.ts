@@ -17,6 +17,8 @@ import {
   shotLegs,
   tapDistancesM,
   withTee,
+  withPin,
+  pinZone,
   type LayoutPoint,
 } from "./hole-geo";
 
@@ -188,5 +190,23 @@ describe("a tee the member moved", () => {
     expect(holeLengthM(g)).toBeCloseTo(326, -1);
     expect(measuringFrom(g, null)).toEqual({ from: "tee", point: north(40) });
     expect(withTee(holeGeometry(HOLE_1, 1), null)).toEqual(holeGeometry(HOLE_1, 1));
+  });
+});
+
+describe("the flag", () => {
+  const g = holeGeometry(HOLE_1, 1); // green front 352 m, back 380 m
+
+  it("is red at the front, yellow in the middle, white at the back", () => {
+    expect(pinZone(g, north(354))).toBe("front");
+    expect(pinZone(g, north(366))).toBe("middle");
+    expect(pinZone(g, north(378))).toBe("back");
+    expect(pinZone(holeGeometry([p(1, "tee_back", TEE), p(1, "green_centre", north(300))], 1), north(300))).toBe("middle");
+  });
+
+  it("moving it changes the distance to the pin, not the front or back", () => {
+    const moved = withPin(g, north(377));
+    expect(greenDistancesM(moved, TEE).centre).toBeCloseTo(377, -1);
+    expect(greenDistancesM(moved, TEE).front).toBeCloseTo(352, -1);
+    expect(withPin(g, null)).toBe(g);
   });
 });
