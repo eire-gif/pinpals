@@ -536,6 +536,12 @@ function SellerControls({
 
   return (
     <View style={styles.sellerBox}>
+      {status === "draft" ? (
+        <View style={styles.draftNote}>
+          <Ionicons name="eye-off-outline" size={18} color={colors.navy900} />
+          <Text style={styles.draftNoteText}>Only you can see this draft. Check it over, then put it on sale.</Text>
+        </View>
+      ) : null}
       {error ? <Text style={styles.sellerError}>{error}</Text> : null}
 
       {actions.map((action, index) => (
@@ -720,6 +726,8 @@ const styles = StyleSheet.create({
   primaryLabel: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.gold400 },
 
   sellerBox: { gap: spacing.sm },
+  draftNote: { flexDirection: "row", alignItems: "center", gap: 8, padding: spacing.md, borderRadius: radii.lg, backgroundColor: "#f3ead2" },
+  draftNoteText: { flex: 1, fontFamily: fonts.bodySemi, fontSize: type.small, color: colors.navy900 },
   sellerBusy: { opacity: 0.45 },
   sellerError: {
     fontFamily: fonts.body,

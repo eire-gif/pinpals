@@ -16,6 +16,7 @@ import {
   loadListingsForCards,
   loadLiveBanner,
   shortClub,
+  type Banner,
 } from "@/lib/marketplace-growth";
 import { GOLD_BUTTON } from "@/components/marketplace/buy-styles";
 import MarketplaceControls from "./marketplace-controls";
@@ -131,11 +132,13 @@ async function UsedGear({ filters, userId }: { filters: MarketplaceFilters; user
   const supabase = await createClient();
   const browsing = marketplaceFiltersToSearchParams(filters).toString() === "";
 
-  const [{ listings, nextCursor }, brandFacets, featured] = await Promise.all([
+  const [{ listings, nextCursor }, brandFacets, featured, banner] = await Promise.all([
     fetchMarketplaceListings(supabase, filters, null, userId, RESULTS_PAGE_SIZE),
     fetchBrandFacets(supabase, filters),
     browsing ? loadListingsForCards(supabase, { featured: true }, userId, 4) : Promise.resolve([]),
+    browsing ? loadLiveBanner(supabase, "used_gear") : Promise.resolve(null),
   ]);
+  if (banner) await supabase.rpc("banner_seen", { p_banner_id: banner.id });
 
   return (
     <>
@@ -155,6 +158,12 @@ async function UsedGear({ filters, userId }: { filters: MarketplaceFilters; user
           );
         })}
       </div>
+
+      {banner ? (
+        <div className="mb-8">
+          <SponsoredBanner banner={banner} />
+        </div>
+      ) : null}
 
       {featured.length > 0 ? (
         <section className="mb-8">
@@ -194,27 +203,7 @@ async function NewGear({ userId }: { userId: string | null }) {
 
   return (
     <div className="space-y-10">
-      {banner ? (
-        <a
-          href={`/go/banner/${banner.id}`}
-          target="_blank"
-          rel="noopener sponsored"
-          className="flex items-center gap-6 rounded-3xl bg-navy-900 text-cream-50 p-7 shadow-[0_6px_24px_rgba(12,32,56,0.25)] hover:brightness-110 transition"
-        >
-          <div className="flex-1">
-            <p className="text-[11px] font-bold tracking-widest uppercase text-gold-400">
-              {(banner.eyebrow ?? "New season")} · Sponsored by {banner.sponsor}
-            </p>
-            <p className="font-display font-bold text-2xl sm:text-3xl mt-2">{banner.title}</p>
-            {banner.subtitle ? <p className="text-cream-50/80 mt-1">{banner.subtitle}</p> : null}
-          </div>
-          {banner.image_url ? (
-            <div className="relative w-36 h-28 shrink-0 hidden sm:block">
-              <Image src={banner.image_url} alt="" fill className="object-contain" unoptimized />
-            </div>
-          ) : null}
-        </a>
-      ) : null}
+      {banner ? <SponsoredBanner banner={banner} /> : null}
 
       <section>
         <h2 className="font-extrabold text-xl text-navy-900 mb-3">Pro shops</h2>
@@ -313,5 +302,30 @@ async function NewGear({ userId }: { userId: string | null }) {
         </span>
       </Link>
     </div>
+  );
+}
+
+/** A sponsored banner (0115). The tap goes through /go/banner so it's counted. */
+function SponsoredBanner({ banner }: { banner: Banner }) {
+  return (
+    <a
+      href={`/go/banner/${banner.id}`}
+      target="_blank"
+      rel="noopener sponsored"
+      className="flex items-center gap-6 rounded-3xl bg-navy-900 text-cream-50 p-7 shadow-[0_6px_24px_rgba(12,32,56,0.25)] hover:brightness-110 transition"
+    >
+      <div className="flex-1">
+        <p className="text-[11px] font-bold tracking-widest uppercase text-gold-400">
+          {banner.eyebrow ? `${banner.eyebrow} · ` : ""}Sponsored by {banner.sponsor}
+        </p>
+        <p className="font-display font-bold text-2xl sm:text-3xl mt-2">{banner.title}</p>
+        {banner.subtitle ? <p className="text-cream-50/80 mt-1">{banner.subtitle}</p> : null}
+      </div>
+      {banner.image_url ? (
+        <div className="relative w-36 h-28 shrink-0 hidden sm:block rounded-xl overflow-hidden">
+          <Image src={banner.image_url} alt="" fill className="object-cover" unoptimized />
+        </div>
+      ) : null}
+    </a>
   );
 }
