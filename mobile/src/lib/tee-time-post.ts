@@ -72,7 +72,6 @@ export async function regionsFor(country: string): Promise<string[]> {
 export type NewInvite = {
   clubId: number;
   country: string;
-  county: string;
   playDate: string;
   timeFrom: string | null;
   timeTo: string | null;
@@ -91,7 +90,6 @@ export async function postTeeTime(invite: NewInvite): Promise<number> {
     {
       club_id: invite.clubId,
       country: invite.country,
-      county: invite.county,
       play_date: invite.playDate,
       time_from: invite.timeFrom,
       time_to: invite.timeTo,

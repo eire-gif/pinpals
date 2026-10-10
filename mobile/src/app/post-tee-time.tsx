@@ -23,7 +23,6 @@ import {
   COUNTRY_NAMES,
   nextDays,
   postTeeTime,
-  regionsFor,
   searchClubs,
   type ClubHit,
 } from "@/lib/tee-time-post";
@@ -53,9 +52,6 @@ export default function PostTeeTimeScreen() {
   const [hits, setHits] = useState<ClubHit[]>([]);
   const [searching, setSearching] = useState(false);
   const [club, setClub] = useState<ClubHit | null>(null);
-
-  const [counties, setCounties] = useState<string[]>([]);
-  const [county, setCounty] = useState<string | null>(null);
 
   const [playDate, setPlayDate] = useState<string | null>(null);
   const [hasTeeTime, setHasTeeTime] = useState(false);
@@ -108,16 +104,7 @@ export default function PostTeeTimeScreen() {
     setClub(hit);
     setHits([]);
     setQuery("");
-    setCounty(null);
-    setCounties([]);
     Keyboard.dismiss();
-
-    // The club's own row almost never carries a county — `clubs.region` is
-    // null for every Irish club — so the member still has to say. Asking only
-    // the counties of the club's country keeps that to one tap in most cases.
-    regionsFor(hit.country)
-      .then(setCounties)
-      .catch(() => setCounties([]));
   }, []);
 
   const toggle = useCallback((which: Exclude<OpenPicker, null>) => {
@@ -137,10 +124,10 @@ export default function PostTeeTimeScreen() {
   }, []);
 
   const ready =
-    club !== null && county !== null && playDate !== null && spaces !== null;
+    club !== null && playDate !== null && spaces !== null;
 
   const submit = useCallback(async () => {
-    if (!ready || !club || !county || !playDate || spaces === null) return;
+    if (!ready || !club || !playDate || spaces === null) return;
 
     setPosting(true);
     setError(null);
@@ -149,7 +136,6 @@ export default function PostTeeTimeScreen() {
       const inviteId = await postTeeTime({
         clubId: club.id,
         country: club.country,
-        county,
         playDate,
         timeFrom: hasTeeTime ? null : timeFrom,
         timeTo: hasTeeTime ? null : timeTo,
@@ -177,7 +163,6 @@ export default function PostTeeTimeScreen() {
   }, [
     ready,
     club,
-    county,
     playDate,
     spaces,
     hasTeeTime,
@@ -250,28 +235,6 @@ export default function PostTeeTimeScreen() {
               </>
             )}
           </Section>
-
-          {club && (
-            <Section
-              title="Which county?"
-              hint="So members browsing their own area can find it."
-            >
-              {counties.length === 0 ? (
-                <ActivityIndicator color={colors.green700} />
-              ) : (
-                <ChipGroup>
-                  {counties.map((name) => (
-                    <Chip
-                      key={name}
-                      label={name}
-                      selected={county === name}
-                      onPress={() => setCounty(name)}
-                    />
-                  ))}
-                </ChipGroup>
-              )}
-            </Section>
-          )}
 
           <Section title="What day?">
             <DayChoice
@@ -427,7 +390,6 @@ export default function PostTeeTimeScreen() {
                 Still need{" "}
                 {[
                   !club && "a course",
-                  club && !county && "a county",
                   !playDate && "a day",
                   spaces === null && "the number of spaces",
                 ]
