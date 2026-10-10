@@ -27,7 +27,12 @@ export type MapScene = {
   tee: LatLng | null;
   teeFront: LatLng | null;
   green: { front: LatLng | null; centre: LatLng | null; back: LatLng | null };
-  hazards: Array<LatLng & { kind: PointKind; label: string }>;
+  /** dist: the distance to it from where you're measuring, drawn beside it. */
+  hazards: Array<LatLng & { kind: PointKind; label: string; dist: string | null }>;
+  /** The T can be dragged to the tee box being played (Oct 2026). */
+  teeMovable: boolean;
+  /** Distances start at the tee (not at you), so lines follow a dragged T. */
+  originIsTee: boolean;
   me: (LatLng & { accuracyM: number | null }) | null;
   shots: Array<LatLng & { n: number; label: string | null }>;
   /** The aim circle (Oct 2026): where the member tapped or dragged it, or
@@ -53,6 +58,8 @@ export type HoleMapHandle = { recentre: () => void };
 type Props = {
   scene: MapScene;
   onTap: (at: LatLng) => void;
+  /** The T was dragged here. */
+  onTee: (at: LatLng) => void;
 };
 
 /**
@@ -64,7 +71,7 @@ type Props = {
  * rotate plugin are pinned versions from jsDelivr; the tiles are whatever
  * MAP_TILE_URL says (config.ts — license before launch).
  */
-export const HoleMapView = forwardRef<HoleMapHandle, Props>(function HoleMapView({ scene, onTap }, ref) {
+export const HoleMapView = forwardRef<HoleMapHandle, Props>(function HoleMapView({ scene, onTap, onTee }, ref) {
   const web = useRef<WebViewHandle>(null);
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -88,6 +95,7 @@ export const HoleMapView = forwardRef<HoleMapHandle, Props>(function HoleMapView
     if (msg.type === "ready") setReady(true);
     else if (msg.type === "failed") setFailed(true);
     else if (msg.type === "tap" && typeof msg.lat === "number" && typeof msg.lng === "number") onTap({ lat: msg.lat, lng: msg.lng });
+    else if (msg.type === "tee" && typeof msg.lat === "number" && typeof msg.lng === "number") onTee({ lat: msg.lat, lng: msg.lng });
   };
 
   return (

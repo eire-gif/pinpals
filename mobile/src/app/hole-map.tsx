@@ -12,6 +12,7 @@ import { useAuth } from "@/lib/auth";
 import { isOn } from "@/lib/features";
 import {
   defaultAim,
+  distanceM,
   fixIsUsable,
   greenDistancesM,
   hazardsAheadM,
@@ -22,6 +23,7 @@ import {
   measuringFrom,
   shotLegs,
   tapDistancesM,
+  withTee,
   unitShort,
   type LatLng,
   type PointKind,
@@ -98,6 +100,8 @@ export default function HoleMapScreen() {
   const [busy, setBusy] = useState(false);
   const [showOutlines, setShowOutlines] = useState(rememberedOutlines);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  // Tees the member dragged the T to, per loop and hole, while the screen is open.
+  const [movedTees, setMovedTees] = useState<Map<string, LatLng>>(new Map());
   // The bottom sheet's height, so the hole is fitted above it, not under it.
   const [sheetH, setSheetH] = useState(220);
 
@@ -187,10 +191,15 @@ export default function HoleMapScreen() {
   const clubAt = course?.latitude != null && course.longitude != null ? { lat: course.latitude, lng: course.longitude } : null;
   const osmPoints = useMemo(() => (shapes && shapes.length ? osmLayoutPoints(shapes, clubAt) : []), [shapes, clubAt?.lat, clubAt?.lng]); // eslint-disable-line react-hooks/exhaustive-deps
   // golfapi.io's points when the hole has them; OpenStreetMap's otherwise.
-  const geo = useMemo(() => {
+  const mappedGeo = useMemo(() => {
     const fromLayout = holeGeometry(layout?.points ?? [], hole);
     return fromLayout.mapped ? fromLayout : holeGeometry(osmPoints, hole);
   }, [layout, hole, osmPoints]);
+  const teeKey = `${layout?.id ?? "osm"}-${hole}`;
+  const movedTee = movedTees.get(teeKey) ?? null;
+  // Everything is measured from the tee the member put the T on, if they moved it.
+  const geo = useMemo(() => withTee(mappedGeo, mappedGeo.mapped ? movedTee : null), [mappedGeo, movedTee]);
+  const moveTee = (at: LatLng) => setMovedTees((m) => new Map(m).set(teeKey, at));
   const fromOsm = !holeGeometry(layout?.points ?? [], hole).mapped && geo.mapped;
   const origin = measuringFrom(geo, fix);
   const card = round?.card.find((c) => c.hole === hole) ?? null;
@@ -199,15 +208,21 @@ export default function HoleMapScreen() {
   const u = unitShort(unit);
   const fmt = (m: number | null) => (m == null ? "–" : String(inUnit(m, unit)));
 
-  const greens = origin ? greenDistancesM(geo, origin.point) : null;
-  const ahead = origin && geo.mapped ? hazardsAheadM(geo, origin.point).slice(0, 4) : [];
+  // Front / centre / back: from you or the tee — or, once the member has put
+  // the aim circle somewhere, from there (the second shot, planned).
+  const fromAim = tap != null && geo.mapped;
+  const greens = fromAim ? greenDistancesM(geo, tap) : origin ? greenDistancesM(geo, origin.point) : null;
+  const toGreenFromOrigin = origin ? greenDistancesM(geo, origin.point) : null;
+  const allAhead = origin && geo.mapped ? hazardsAheadM(geo, origin.point) : [];
+  const ahead = allAhead.slice(0, 4);
   // The aim circle: where the member put it, else a drive out (Hole19-style).
   const aim = tap ?? (origin && geo.mapped ? defaultAim(geo, origin.point) : null);
   const tapped = aim && origin ? tapDistancesM(geo, origin.point, aim) : null;
   const length = holeLengthM(geo);
 
   const scene: MapScene = useMemo(() => {
-    const frame = holeFrame(geo, fix);
+    // Framed on the mapped hole, so dragging the T doesn't move the view.
+    const frame = holeFrame(mappedGeo, fix);
     return {
       fallbackCentre: fix ?? (course?.latitude != null && course.longitude != null ? { lat: course.latitude, lng: course.longitude } : null),
       rotation: frame.rotation,
@@ -215,7 +230,19 @@ export default function HoleMapScreen() {
       tee: geo.tee,
       teeFront: geo.teeBack && geo.teeFront ? geo.teeFront : null,
       green: { front: geo.greenFront, centre: geo.greenCentre, back: geo.greenBack },
-      hazards: geo.hazards.map((h) => ({ lat: h.lat, lng: h.lng, kind: h.kind, label: h.label ?? HAZARD_NAMES[h.kind] ?? "" })),
+      hazards: geo.hazards.map((h) => {
+        // Distance beside each hazard still ahead of you (or the tee).
+        const isAhead = allAhead.some((a) => a.lat === h.lat && a.lng === h.lng);
+        return {
+          lat: h.lat,
+          lng: h.lng,
+          kind: h.kind,
+          label: h.label ?? HAZARD_NAMES[h.kind] ?? "",
+          dist: isAhead && origin ? fmt(distanceM(origin.point, h)) : null,
+        };
+      }),
+      teeMovable: geo.mapped && geo.tee != null,
+      originIsTee: origin?.from === "tee",
       me: fix,
       shots: legs.map((l) => ({ lat: l.from.lat, lng: l.from.lng, n: l.shotNo, label: l.distance == null ? null : `${fmt(l.distance)} ${u}` })),
       tap:
@@ -229,7 +256,7 @@ export default function HoleMapScreen() {
             }
           : null,
       greenLine:
-        !aim && origin && geo.greenCentre && greens?.centre != null ? { origin: origin.point, label: `${fmt(greens.centre)} ${u}` } : null,
+        !aim && origin && geo.greenCentre && toGreenFromOrigin?.centre != null ? { origin: origin.point, label: `${fmt(toGreenFromOrigin.centre)} ${u}` } : null,
       hole,
       showOutlines,
       inset: { top: insets.top + 80, bottom: sheetH + 30 },
@@ -239,7 +266,7 @@ export default function HoleMapScreen() {
       frameKey: `${layout?.id ?? "none"}-${hole}-${fix ? "fix" : "nofix"}-${geo.mapped ? "m" : "u"}`,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [geo, fix, course, legs, aim?.lat, aim?.lng, origin?.point, unit, layout?.id, hole, shapes, showOutlines, sheetH, insets.top]);
+  }, [geo, mappedGeo, fix, course, legs, aim?.lat, aim?.lng, origin?.point, unit, layout?.id, hole, shapes, showOutlines, sheetH, insets.top]);
 
   // ---- Shots ----
   const player = round?.players.find((p) => p.id === playerId) ?? null;
@@ -305,11 +332,14 @@ export default function HoleMapScreen() {
   if (failed) return <LoadError size="screen" what="this hole" onRetry={() => void load()} />;
   if (layouts === undefined) return <ActivityIndicator color={colors.green700} style={{ marginTop: spacing.xl }} />;
 
-  const fixLine =
-    origin?.from === "you"
+  const fixLine = fromAim
+    ? "From the aim circle"
+    : origin?.from === "you"
       ? `From you${fix?.accuracyM != null ? ` · ±${Math.round(fix.accuracyM)} m` : ""}`
       : origin?.from === "tee"
-        ? "From the tee"
+        ? movedTee
+          ? "From your tee"
+          : "From the tee"
         : locState === "denied"
           ? "Location is off for PinPals"
           : "Waiting for your position";
@@ -326,7 +356,7 @@ export default function HoleMapScreen() {
       <StatusBar style="light" />
 
       <View style={StyleSheet.absoluteFill}>
-        <HoleMapView ref={mapRef} scene={scene} onTap={setTap} />
+        <HoleMapView ref={mapRef} scene={scene} onTap={setTap} onTee={moveTee} />
       </View>
 
       {/* Over the map, top: back, the course, and the map's own buttons. */}
@@ -346,7 +376,20 @@ export default function HoleMapScreen() {
         {shapes && shapes.length > 0 ? (
           <MapButton icon={showOutlines ? "layers" : "layers-outline"} label={showOutlines ? "Hide course outlines" : "Show course outlines"} onPress={toggleOutlines} />
         ) : null}
-        {tap ? <MapButton icon="refresh" label="Put the aim back" onPress={() => setTap(null)} /> : null}
+        {tap || movedTee ? (
+          <MapButton
+            icon="refresh"
+            label="Put the tee and aim back"
+            onPress={() => {
+              setTap(null);
+              setMovedTees((m) => {
+                const next = new Map(m);
+                next.delete(teeKey);
+                return next;
+              });
+            }}
+          />
+        ) : null}
       </View>
 
       {/* Over the map, bottom: the hole and the three numbers. Swipe for the next hole. */}
@@ -375,9 +418,13 @@ export default function HoleMapScreen() {
           <Yardage label="Back" value={geo.mapped && greens ? fmt(greens.back) : "–"} />
         </View>
         <View style={styles.fixRow}>
-          <Ionicons name={origin?.from === "you" ? "navigate" : "golf-outline"} size={13} color={creamAlpha(0.75)} />
+          <Ionicons name={fromAim ? "radio-button-off" : origin?.from === "you" ? "navigate" : "golf-outline"} size={13} color={creamAlpha(0.75)} />
           <Text style={styles.fixText}>{fixLine}</Text>
-          {locState === "off" ? (
+          {fromAim ? (
+            <Pressable onPress={() => setTap(null)} hitSlop={8} accessibilityRole="button">
+              <Text style={styles.fixLink}>Reset</Text>
+            </Pressable>
+          ) : locState === "off" ? (
             <Pressable onPress={() => void startLocation()} hitSlop={8} accessibilityRole="button">
               <Text style={styles.fixLink}>Distances from me</Text>
             </Pressable>

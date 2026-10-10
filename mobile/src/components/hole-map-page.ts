@@ -23,6 +23,10 @@ export function pageHtml(tileUrl: string, attribution: string): string {
   .aim:after{content:"";width:4px;height:4px;border-radius:2px;background:#fff;}
   .label{white-space:nowrap;padding:3px 9px;border-radius:999px;background:rgba(12,32,56,.85);color:${colors.cream50};font-size:13px;font-weight:700;transform:translate(-50%,-50%);display:inline-block;}
   .label.gold{background:${colors.gold400};color:${colors.navy900};}
+  .label.big{font-size:18px;padding:5px 12px;box-shadow:0 2px 6px rgba(0,0,0,.35);}
+  .teemove{width:52px;height:52px;filter:drop-shadow(0 1px 3px rgba(0,0,0,.5));}
+  .hzw{position:relative;width:10px;height:10px;}
+  .hzd{position:absolute;left:12px;top:-4px;white-space:nowrap;font-size:10.5px;font-weight:700;color:#fff;text-shadow:0 0 2px rgba(0,0,0,.95),0 0 4px rgba(0,0,0,.8);}
   .hz{width:10px;height:10px;border:1.5px solid rgba(0,0,0,.5);}
   .hz.green_bunker,.hz.fairway_bunker{background:#e9d9a6;}
   .hz.water{background:#4aa3df;}
@@ -56,7 +60,20 @@ export function pageHtml(tileUrl: string, attribution: string): string {
   var last = null, lastKey = null;
 
   function icon(cls, text, size){ return L.divIcon({ className:"", html:'<div class="pin '+cls+'">'+(text||"")+'</div>', iconSize:[size,size], iconAnchor:[size/2,size/2] }); }
-  function label(at, text, gold){ return L.marker([at.lat,at.lng], { interactive:false, icon:L.divIcon({ className:"", html:'<span class="label'+(gold?' gold':'')+'">'+text+'</span>', iconSize:[0,0] }) }); }
+  // The movable tee: a golf tee on a white disc with four small arrows round
+  // it, so it reads as "drag me" (Oct 2026). 52 px: easy to get a thumb on.
+  function teeMoveIcon(){
+    var a = function(r){ return '<path transform="rotate('+r+' 26 26)" d="M26 2.5l5 5.5h-10z" fill="#ffffff" stroke="rgba(12,32,56,.55)" stroke-width="1"/>'; };
+    var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="52" height="52" viewBox="0 0 52 52">'
+      + a(0) + a(90) + a(180) + a(270)
+      + '<circle cx="26" cy="26" r="14" fill="${colors.cream50}" stroke="${colors.navy900}" stroke-width="2.5"/>'
+      // a golf tee: cup on top, tapering peg
+      + '<path d="M19.5 19.5h13a1 1 0 0 1 .8 1.6c-1.4 1.8-3.6 2.9-5.3 3.2v8.4l-2 3.6-2-3.6v-8.4c-1.7-.3-3.9-1.4-5.3-3.2a1 1 0 0 1 .8-1.6z" fill="${colors.navy900}"/>'
+      + '</svg>';
+    return L.divIcon({ className:"", html:'<div class="teemove">'+svg+'</div>', iconSize:[52,52], iconAnchor:[26,26] });
+  }
+
+  function label(at, text, gold, big){ return L.marker([at.lat,at.lng], { interactive:false, icon:L.divIcon({ className:"", html:'<span class="label'+(gold?' gold':'')+(big?' big':'')+'">'+text+'</span>', iconSize:[0,0] }) }); }
   function mid(a,b){ return { lat:(a.lat+b.lat)/2, lng:(a.lng+b.lng)/2 }; }
   function esc(s){ return String(s).replace(/[&<>"]/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]; }); }
 
@@ -80,13 +97,42 @@ export function pageHtml(tileUrl: string, attribution: string): string {
     if(canRotate) map.setBearing(0);
     if(s.frame && s.frame.length >= 2){
       var ins = s.inset || { top:36, bottom:36 };
-      map.fitBounds(L.latLngBounds(s.frame.map(function(p){ return [p.lat,p.lng]; })), { paddingTopLeft:[40, ins.top], paddingBottomRight:[40, ins.bottom], maxZoom:19 });
+      map.fitBounds(L.latLngBounds(s.frame.map(function(p){ return [p.lat,p.lng]; })), { paddingTopLeft:[40, ins.top], paddingBottomRight:[40, ins.bottom], maxZoom:19, animate:false });
       orient(s);
+      fitTurned(s.frame, ins);
     } else if(s.frame && s.frame.length === 1){
       map.setView([s.frame[0].lat, s.frame[0].lng], 17);
     } else if(s.fallbackCentre){
       map.setView([s.fallbackCentre.lat, s.fallbackCentre.lng], 16);
     }
+  }
+
+  // fitBounds fits the hole before the map turns; once turned, a diagonal
+  // hole can run under the title or the sheet (the green hid behind the
+  // course name). Zoom out until the turned hole sits inside the clear
+  // area, in as close as it still fits, and centre it there.
+  function fitTurned(frame, ins){
+    var size = map.getSize();
+    // 24 px more each way: the frame is marker centres, and the T and flag are ~30 px across.
+    var box = { l:40, t:ins.top+24, r:size.x-40, b:size.y-ins.bottom-24 };
+    if(box.r - box.l < 50 || box.b - box.t < 50) return;
+    function measure(){
+      var xs = [], ys = [];
+      frame.forEach(function(p){ var c = map.latLngToContainerPoint([p.lat,p.lng]); xs.push(c.x); ys.push(c.y); });
+      return { l:Math.min.apply(null,xs), r:Math.max.apply(null,xs), t:Math.min.apply(null,ys), b:Math.max.apply(null,ys) };
+    }
+    function fits(m){ return (m.r-m.l) <= (box.r-box.l) && (m.b-m.t) <= (box.b-box.t); }
+    var i = 0;
+    while(!fits(measure()) && i++ < 16) map.setZoom(map.getZoom()-0.25, { animate:false });
+    i = 0;
+    while(map.getZoom() < 19 && i++ < 16){
+      map.setZoom(map.getZoom()+0.25, { animate:false });
+      if(!fits(measure())){ map.setZoom(map.getZoom()-0.25, { animate:false }); break; }
+    }
+    var m = measure();
+    var dx = (m.l+m.r)/2 - (box.l+box.r)/2, dy = (m.t+m.b)/2 - (box.t+box.b)/2;
+    var c = map.latLngToContainerPoint(map.getCenter());
+    map.setView(map.containerPointToLatLng([c.x+dx, c.y+dy]), map.getZoom(), { animate:false });
   }
 
   function drawShapes(list, hole, on){
@@ -116,19 +162,20 @@ export function pageHtml(tileUrl: string, attribution: string): string {
     drawShapes(s.outlines, s.hole, s.showOutlines !== false);
     layer.clearLayers();
     var g = s.green || {};
+    var greenLine = null, greenLabel = null, toLine = null, toLabel = null;
     if(s.greenLine && g.centre){
       var o = s.greenLine.origin;
-      L.polyline([[o.lat,o.lng],[g.centre.lat,g.centre.lng]], { color:"#ffffff", weight:2.5, opacity:.95, interactive:false }).addTo(layer);
-      label(mid(o,g.centre), esc(s.greenLine.label), true).addTo(layer);
+      greenLine = L.polyline([[o.lat,o.lng],[g.centre.lat,g.centre.lng]], { color:"#ffffff", weight:2.5, opacity:.95, interactive:false }).addTo(layer);
+      greenLabel = label(mid(o,g.centre), esc(s.greenLine.label), true, true).addTo(layer);
     }
     if(s.tap){
       var t = s.tap;
-      var toLine = L.polyline([[t.origin.lat,t.origin.lng],[t.lat,t.lng]], { color:"#ffffff", weight:2.5, opacity:.95, interactive:false }).addTo(layer);
-      var toLabel = label(mid(t.origin,t), esc(t.toLabel)).addTo(layer);
+      toLine = L.polyline([[t.origin.lat,t.origin.lng],[t.lat,t.lng]], { color:"#ffffff", weight:2.5, opacity:.95, interactive:false }).addTo(layer);
+      toLabel = label(mid(t.origin,t), esc(t.toLabel)).addTo(layer);
       var onLine = null, onLabel = null;
       if(t.green){
         onLine = L.polyline([[t.lat,t.lng],[t.green.lat,t.green.lng]], { color:"#ffffff", weight:2.5, opacity:.95, interactive:false }).addTo(layer);
-        if(t.onLabel) onLabel = label(mid(t,t.green), esc(t.onLabel), true).addTo(layer);
+        if(t.onLabel) onLabel = label(mid(t,t.green), esc(t.onLabel), true, true).addTo(layer);
       }
       // Drag the circle: the lines follow, the numbers come back from the
       // app on release (it does the sums, as for everything else here).
@@ -149,8 +196,9 @@ export function pageHtml(tileUrl: string, attribution: string): string {
       });
     }
     (s.hazards||[]).forEach(function(h){
-      var m = L.marker([h.lat,h.lng], { interactive:false, icon:icon("hz "+h.kind,"",10) }).addTo(layer);
-      if(h.label) m.bindTooltip(esc(h.label), { direction:"right", offset:[6,0], permanent:false });
+      // The distance to it, small, beside it (Oct 2026) — readable zoomed in.
+      var html = '<div class="hzw"><div class="pin hz '+h.kind+'" style="width:10px;height:10px;box-sizing:border-box"></div>'+(h.dist ? '<span class="hzd">'+esc(h.dist)+'</span>' : '')+'</div>';
+      L.marker([h.lat,h.lng], { interactive:false, icon:L.divIcon({ className:"", html:html, iconSize:[10,10], iconAnchor:[5,5] }) }).addTo(layer);
     });
     if(s.shots && s.shots.length){
       L.polyline(s.shots.map(function(p){ return [p.lat,p.lng]; }), { color:"${colors.navy900}", weight:3, opacity:.85, interactive:false }).addTo(layer);
@@ -161,7 +209,24 @@ export function pageHtml(tileUrl: string, attribution: string): string {
       });
     }
     if(s.teeFront) L.marker([s.teeFront.lat,s.teeFront.lng], { interactive:false, icon:icon("tee","F",22) }).addTo(layer);
-    if(s.tee) L.marker([s.tee.lat,s.tee.lng], { interactive:false, icon:icon("tee","T",22) }).addTo(layer);
+    if(s.tee && s.teeMovable){
+      // Drag the T to the tee box you're playing from (Oct 2026): lines that
+      // start at the tee follow it; the numbers come back from the app.
+      var tee = L.marker([s.tee.lat,s.tee.lng], { draggable:true, autoPan:false, icon:teeMoveIcon() }).addTo(layer);
+      tee.on("dragstart", function(){ dragging = true; if(s.originIsTee){ if(toLabel) layer.removeLayer(toLabel); if(greenLabel) layer.removeLayer(greenLabel); } });
+      tee.on("drag", function(e){
+        if(!s.originIsTee) return;
+        var p = e.target.getLatLng();
+        if(toLine && s.tap) toLine.setLatLngs([[p.lat,p.lng],[s.tap.lat,s.tap.lng]]);
+        if(greenLine && g.centre) greenLine.setLatLngs([[p.lat,p.lng],[g.centre.lat,g.centre.lng]]);
+      });
+      tee.on("dragend", function(e){
+        var p = e.target.getLatLng();
+        dragging = false;
+        pending = null;
+        post({ type:"tee", lat:p.lat, lng:p.lng });
+      });
+    } else if(s.tee) L.marker([s.tee.lat,s.tee.lng], { interactive:false, icon:icon("tee","T",22) }).addTo(layer);
     if(g.front) L.marker([g.front.lat,g.front.lng], { interactive:false, icon:icon("edge","",8) }).addTo(layer);
     if(g.back) L.marker([g.back.lat,g.back.lng], { interactive:false, icon:icon("edge","",8) }).addTo(layer);
     if(g.centre) L.marker([g.centre.lat,g.centre.lng], { interactive:false, icon:icon("flag","⚑",26) }).addTo(layer);
