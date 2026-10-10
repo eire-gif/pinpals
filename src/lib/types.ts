@@ -456,6 +456,9 @@ export type Order = {
   release_due_at: string | null;
   released_at: string | null;
   problem_at: string | null;
+  /** Pro shop sales (0115): the shop, and PinPals' commission kept back on release. */
+  store_id: number | null;
+  seller_commission_eur: number;
   completed_at: string | null;
   cancelled_at: string | null;
   refunded_at: string | null;
