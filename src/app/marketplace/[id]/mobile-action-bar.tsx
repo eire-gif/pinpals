@@ -23,7 +23,7 @@ export default function MobileActionBar({ listingId, state }: { listingId: numbe
 
       {state.kind === "fixed_price" && (
         <>
-          <span className="font-display font-bold text-lg text-gold-600 shrink-0">{formatPrice(state.priceEur)}</span>
+          <span className="font-extrabold text-lg text-navy-900 shrink-0">{formatPrice(state.priceEur)}</span>
           <div className="flex-1">
             <BuyNowButton listingId={listingId} />
           </div>
@@ -34,13 +34,13 @@ export default function MobileActionBar({ listingId, state }: { listingId: numbe
         <>
           <div className="shrink-0">
             <div className="text-[11px] text-ink-500 leading-none">{state.ended ? "Closed" : "Current bid"}</div>
-            <div className="font-display font-bold text-lg text-gold-600 leading-tight">
+            <div className="font-extrabold text-lg text-navy-900 leading-tight">
               {formatPriceCents(state.currentBidCents)}
             </div>
           </div>
           <Link
             href="#purchase-panel-mobile"
-            className="flex-1 text-center py-3 rounded-full font-bold text-sm bg-gold-600 text-navy-900 hover:bg-gold-500 transition"
+            className="flex-1 text-center py-3 rounded-full font-extrabold text-sm bg-gold-400 text-navy-900 shadow-[0_3px_0_#9c7a2c] hover:brightness-105 transition"
           >
             {state.ended ? "View auction" : "Place a bid"}
           </Link>

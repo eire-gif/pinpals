@@ -2,7 +2,9 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type Stripe from "stripe";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getStripeClient } from "./client";
 import { syncConnectedAccountFromStripe } from "./connect";
+import { activatePromotion, promotionIdFrom } from "@/lib/promotions-server";
 import { mapStripeRefundStatus } from "./refunds";
 import { orderPayoutStatusForPayout, reconcilePayoutTransfers, upsertPayout } from "./payouts";
 import { notifyUser } from "@/lib/notifications-server";
@@ -163,6 +165,22 @@ async function markWebhookEventTerminal(
   }
 }
 
+/** Was this PaymentIntent for a promotion? Asks Stripe when our row doesn't know yet. */
+async function isPromotionPayment(admin: SupabaseClient, paymentIntentId: string): Promise<boolean> {
+  const { data } = await admin
+    .from("listing_promotions")
+    .select("id")
+    .eq("stripe_payment_intent", paymentIntentId)
+    .maybeSingle();
+  if (data) return true;
+  try {
+    const pi = await getStripeClient().paymentIntents.retrieve(paymentIntentId);
+    return promotionIdFrom(pi) !== null;
+  } catch {
+    return false;
+  }
+}
+
 async function findOrderByPaymentReference(admin: SupabaseClient, paymentIntentId: string): Promise<Order | null> {
   const { data, error } = await admin
     .from("orders")
@@ -178,6 +196,19 @@ async function handlePaymentIntentSucceeded(
   ledgerRowId: number,
   paymentIntent: Stripe.PaymentIntent
 ): Promise<void> {
+  // A paid promotion (0115), not a sale: no order, no transfer.
+  const promotionId = promotionIdFrom(paymentIntent);
+  if (promotionId !== null) {
+    const result = await activatePromotion(admin, promotionId, paymentIntent);
+    await markWebhookEventTerminal(admin, {
+      eventRowId: ledgerRowId,
+      status: result.ok ? "processed" : "failed",
+      error: result.ok ? null : result.reason,
+      relatedOrderId: null,
+    });
+    return;
+  }
+
   const order = await findOrderByPaymentReference(admin, paymentIntent.id);
   if (!order) {
     await markWebhookEventTerminal(admin, {
@@ -252,6 +283,11 @@ async function handlePaymentIntentFailed(
   ledgerRowId: number,
   paymentIntent: Stripe.PaymentIntent
 ): Promise<void> {
+  // A promotion that wasn't paid stays pending; nothing to undo (0115).
+  if (promotionIdFrom(paymentIntent) !== null) {
+    await markWebhookEventTerminal(admin, { eventRowId: ledgerRowId, status: "ignored", error: null, relatedOrderId: null });
+    return;
+  }
   const order = await findOrderByPaymentReference(admin, paymentIntent.id);
   if (!order) {
     await markWebhookEventTerminal(admin, {
@@ -306,6 +342,11 @@ async function handlePaymentIntentCanceled(
   ledgerRowId: number,
   paymentIntent: Stripe.PaymentIntent
 ): Promise<void> {
+  // A promotion that wasn't paid stays pending; nothing to undo (0115).
+  if (promotionIdFrom(paymentIntent) !== null) {
+    await markWebhookEventTerminal(admin, { eventRowId: ledgerRowId, status: "ignored", error: null, relatedOrderId: null });
+    return;
+  }
   const order = await findOrderByPaymentReference(admin, paymentIntent.id);
   if (!order) {
     await markWebhookEventTerminal(admin, {
@@ -410,6 +451,12 @@ async function handleChargeSucceeded(admin: SupabaseClient, ledgerRowId: number,
 
   const order = await findOrderByPaymentReference(admin, paymentIntentId);
   if (!order) {
+    // A promotion's charge (0115) has no order and needs nothing doing —
+    // payment_intent.succeeded activates it.
+    if (await isPromotionPayment(admin, paymentIntentId)) {
+      await markWebhookEventTerminal(admin, { eventRowId: ledgerRowId, status: "ignored", error: null, relatedOrderId: null });
+      return;
+    }
     await markWebhookEventTerminal(admin, {
       eventRowId: ledgerRowId,
       status: "failed",

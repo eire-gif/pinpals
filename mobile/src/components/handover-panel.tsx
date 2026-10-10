@@ -3,6 +3,7 @@ import { ActivityIndicator, Alert, Linking, Platform, Pressable, StyleSheet, Tex
 import DateTimePicker from "@react-native-community/datetimepicker";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
+import { GoldButton } from "@/components/gold-button";
 import { handoverStep, type OrderDetail } from "@/lib/orders";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 
@@ -250,18 +251,6 @@ function nextMorning(): Date {
   return d;
 }
 
-function GoldButton({ label, busy, disabled, onPress }: { label: string; busy: boolean; disabled?: boolean; onPress: () => void }) {
-  return (
-    <Pressable onPress={onPress} disabled={busy || disabled} accessibilityRole="button" style={[styles.goldOuter, (busy || disabled) && { opacity: 0.6 }]}>
-      {({ pressed }) => (
-        <View style={[styles.goldLip, pressed && { paddingBottom: 0, marginTop: 3 }]}>
-          <View style={styles.goldFace}>{busy ? <ActivityIndicator color={colors.navy900} /> : <Text style={styles.goldLabel}>{label}</Text>}</View>
-        </View>
-      )}
-    </Pressable>
-  );
-}
-
 function Chip({ icon, label, onPress }: { icon: keyof typeof Ionicons.glyphMap; label: string; onPress: () => void }) {
   return (
     <Pressable onPress={onPress} style={({ pressed }) => [styles.chip, pressed && { opacity: 0.8 }]} accessibilityRole="button">
@@ -281,10 +270,6 @@ const styles = StyleSheet.create({
   fine: { fontFamily: fonts.body, fontSize: 12, color: colors.cream100, opacity: 0.8, textAlign: "center" },
   codeInput: { width: 170, textAlign: "center", fontSize: 34, fontWeight: "800", letterSpacing: 8, color: colors.navy900, backgroundColor: colors.cream50, borderRadius: radii.md, paddingVertical: 8, marginTop: 4 },
   trackInput: { alignSelf: "stretch", textAlign: "center", fontFamily: fonts.body, fontSize: type.body, color: colors.navy900, backgroundColor: colors.cream50, borderRadius: radii.md, paddingVertical: 12 },
-  goldOuter: { alignSelf: "stretch", marginTop: 6, borderRadius: radii.pill },
-  goldLip: { borderRadius: radii.pill, backgroundColor: LIP, paddingBottom: 3 },
-  goldFace: { minHeight: 50, borderRadius: radii.pill, backgroundColor: colors.gold400, alignItems: "center", justifyContent: "center" },
-  goldLabel: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.navy900 },
   meet: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: radii.lg, padding: spacing.md, gap: 2 },
   meetWhen: { fontFamily: fonts.bodyBold, fontSize: 17, color: colors.ink900 },
   meetWhere: { fontFamily: fonts.body, fontSize: 13.5, color: colors.ink500 },

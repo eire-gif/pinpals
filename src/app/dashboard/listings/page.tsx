@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { Listing, ListingStatus } from "@/lib/types";
 import { formatPrice, SELLER_LISTING_STATUS_LABELS, SELLER_LISTING_STATUS_STYLES } from "@/lib/format";
+import { isFeatured } from "@/lib/marketplace-growth";
 
 /** The five tabs the task spec asks for. `pending_review` and `expired`
  * exist in the DB enum (0035) but nothing in this codebase currently ever
@@ -129,6 +130,16 @@ export default async function MyListingsPage({
                   >
                     {SELLER_LISTING_STATUS_LABELS[listing.status]}
                   </span>
+                  {isFeatured(listing) ? (
+                    <span className="text-[10.5px] font-bold px-2 py-0.5 rounded-full shrink-0 bg-gold-400 text-navy-900">
+                      Featured
+                    </span>
+                  ) : null}
+                  {listing.store_id ? (
+                    <span className="text-[10.5px] font-bold px-2 py-0.5 rounded-full shrink-0 bg-green-700 text-cream-50">
+                      Shop stock{listing.stock_quantity != null ? ` · ${listing.stock_quantity} left` : ""}
+                    </span>
+                  ) : null}
                 </div>
                 <p className="text-sm text-ink-500 mt-0.5">
                   {listing.price_eur !== null ? formatPrice(listing.price_eur) : "Auction"} · {listing.category}
@@ -136,6 +147,14 @@ export default async function MyListingsPage({
               </div>
 
               <div className="flex gap-2 shrink-0">
+                {listing.status === "active" && !listing.store_id ? (
+                  <Link
+                    href={`/dashboard/listings/${listing.id}/promote`}
+                    className="px-3.5 py-2 rounded-full text-xs font-extrabold bg-gold-400 text-navy-900 shadow-[0_2px_0_#9c7a2c] hover:brightness-105 transition"
+                  >
+                    {isFeatured(listing) ? "Extend" : "Promote"}
+                  </Link>
+                ) : null}
                 <Link
                   href={`/marketplace/${listing.id}`}
                   className="px-3.5 py-2 rounded-full text-xs font-bold border-[1.5px] border-line text-ink-900 hover:bg-cream-100 transition"

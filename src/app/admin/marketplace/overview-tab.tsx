@@ -20,6 +20,8 @@ export default async function OverviewTab() {
     "webhookEventFailures",
     "ordersAwaitingPayment",
     "staleAuctions",
+    "salesWithProblem",
+    "storesAwaitingApproval",
   ]);
   const alerts = allAlerts.filter((a) => showFinance || !FINANCE_ALERT_KEYS.has(a.key));
 
@@ -46,7 +48,7 @@ export default async function OverviewTab() {
         )}
         {!showFinance && (
           <p className="text-xs text-ink-500 mt-4">
-            Finance-only alerts (payments, sellers, webhooks, auctions) aren&rsquo;t shown for your role.
+            Finance-only alerts (payments, sellers, webhooks, auctions, pro shops, problem sales) aren&rsquo;t shown for your role.
           </p>
         )}
       </Section>

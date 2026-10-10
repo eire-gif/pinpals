@@ -77,6 +77,25 @@ export const ADMIN_ACTIONS = [
   // Buyer Protection (0114): staff releasing or freezing a held sale.
   "order.release",
   "order.hold",
+  // Marketplace growth (0115) — /admin/marketplace's Pro shops, Promotions
+  // and Retail & ads tabs (src/app/admin/marketplace/growth-actions.ts).
+  // store.* are a finance decision on a pro shop row: approving it to sell,
+  // suspending it (existing listings are left as they are; the
+  // listings_check_store trigger stops new ones), reinstating it, and
+  // changing the commission PinPals keeps back (metadata carries the old
+  // and new rate). promotion.cancelled records a staff cancel of a paid
+  // bump/featured placement — any refund is issued in Stripe's dashboard,
+  // not here. affiliate.* / banner.* cover create and every edit, including
+  // an active on/off toggle (metadata.changed lists the fields).
+  "store.approve",
+  "store.suspend",
+  "store.reinstate",
+  "store.commission_changed",
+  "promotion.cancelled",
+  "affiliate.created",
+  "affiliate.updated",
+  "banner.created",
+  "banner.updated",
   "admin.role_changed",
   // /admin/staff (see src/app/admin/staff/actions.ts and
   // supabase/migrations/0027_staff_roles_lockdown.sql). "admin.role_changed"
@@ -235,6 +254,13 @@ export const AUDIT_TARGET_TYPES = [
   "report",
   "order",
   "seller_account",
+  // Marketplace growth (0115): the targets of store.*, promotion.cancelled,
+  // affiliate.* and banner.* above — rows in stores, listing_promotions,
+  // affiliate_products and marketplace_banners respectively.
+  "store",
+  "listing_promotion",
+  "affiliate_product",
+  "marketplace_banner",
   "webhook_event",
   "payout",
   // A privileged VIEW is always audited against the *conversation*

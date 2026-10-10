@@ -18,6 +18,8 @@ import ListingGallery from "./listing-gallery";
 import PurchasePanel from "./purchase-panel";
 import MobileActionBar from "./mobile-action-bar";
 import SellerCard from "./seller-card";
+import HowYoullGetIt from "./how-youll-get-it";
+import { STORE_COLUMNS, isFeatured, type Store } from "@/lib/marketplace-growth";
 import RelatedListings from "./related-listings";
 import SafetyGuidance from "./safety-guidance";
 import ReviewsSection from "./reviews-section";
@@ -232,6 +234,10 @@ export default async function ListingDetailPage({
   }
 
   const sellerProfile = sellerProfileResult.data;
+  // Pro shop stock (0115): who's really selling it.
+  const { data: shop } = listing.store_id
+    ? await supabase.from("stores").select(STORE_COLUMNS).eq("id", listing.store_id).maybeSingle<Store>()
+    : { data: null };
   const sellerName = sellerProfile ? `${sellerProfile.first_name} ${sellerProfile.last_name}` : "Pinpals member";
   const sellerVerified = isSellerPaymentReady(sellerOnboardingStatus(sellerAccountResult.data ?? null));
   const ratingSummaryRow = ratingSummaryResult.data as SellerRatingSummary | null;
@@ -320,6 +326,13 @@ export default async function ListingDetailPage({
               {listing.county && (
                 <span className="bg-cream-100 text-xs font-bold px-2.5 py-1 rounded-full">{listing.county}</span>
               )}
+              {shop ? (
+                <span className="bg-green-700 text-cream-50 text-xs font-bold px-2.5 py-1 rounded-full">
+                  New{listing.stock_quantity != null ? ` · ${listing.stock_quantity} in stock` : ""}
+                </span>
+              ) : isFeatured(listing) ? (
+                <span className="bg-gold-400 text-navy-900 text-xs font-bold px-2.5 py-1 rounded-full">Featured</span>
+              ) : null}
               {listing.status !== "active" && (
                 <span className="bg-navy-900 text-white text-xs font-bold px-2.5 py-1 rounded-full">
                   {listing.status === "draft" ? "Draft — not visible to buyers" : SELLER_LISTING_STATUS_LABELS[listing.status]}
@@ -360,19 +373,28 @@ export default async function ListingDetailPage({
 
             {listing.description && <p className="text-ink-700 mt-4">{listing.description}</p>}
 
-            {(listing.delivery_options.length > 0 || listing.collection_notes) && (
-              <div className="mt-4 text-sm text-ink-500">
-                {listing.delivery_options.length > 0 && (
-                  <p>
-                    Delivery:{" "}
-                    {listing.delivery_options
-                      .map((opt) => (opt === "post" ? "Postage" : "Local collection"))
-                      .join(", ")}
-                  </p>
-                )}
-                {listing.collection_notes && <p className="mt-1">{listing.collection_notes}</p>}
-              </div>
-            )}
+            <HowYoullGetIt
+              deliveryOptions={listing.delivery_options}
+              collectionNotes={listing.collection_notes}
+              meetAt={shop?.clubs?.name ?? sellerProfile?.home_club ?? null}
+              isShop={!!shop}
+              priceEur={listing.price_eur}
+              showProtection={!isSeller}
+            />
+
+            {isSeller && listing.status === "active" && !listing.store_id ? (
+              <Link
+                href={`/dashboard/listings/${listing.id}/promote`}
+                className="mt-4 flex items-center gap-4 rounded-2xl bg-navy-900 text-cream-50 p-5 hover:brightness-110 transition"
+              >
+                <span aria-hidden>🚀</span>
+                <span className="flex-1">
+                  <span className="block font-bold">{isFeatured(listing) ? "Featured — showing at the top" : "Sell it faster"}</span>
+                  <span className="block text-sm text-cream-50/75">Feature it for 7 days or bump it to the top of Fresh today.</span>
+                </span>
+                <span className="text-gold-400 font-bold" aria-hidden>→</span>
+              </Link>
+            ) : null}
           </div>
 
           {/* Full purchase panel + seller card, inline — the sticky column
@@ -389,6 +411,7 @@ export default async function ListingDetailPage({
               myOffers={myOffers}
               myOrder={myOrder}
             />
+            {shop ? <ShopCard shop={shop} /> : null}
             <SellerCard
               sellerId={listing.seller_id}
               listingId={listing.id}
@@ -435,6 +458,7 @@ export default async function ListingDetailPage({
               myOffers={myOffers}
               myOrder={myOrder}
             />
+            {shop ? <ShopCard shop={shop} /> : null}
             <SellerCard
               sellerId={listing.seller_id}
               listingId={listing.id}
@@ -516,5 +540,24 @@ function SafetyGuidanceOrManage({
       <h2 className="font-display font-bold text-xl mb-4">Offers on your listing</h2>
       <OffersList offers={sellerOffers} listingId={listingId} />
     </div>
+  );
+}
+
+function ShopCard({ shop }: { shop: Store }) {
+  return (
+    <Link
+      href={`/shops/${shop.slug}`}
+      className="flex items-center gap-4 bg-surface rounded-2xl p-5 shadow-[0_3px_14px_rgba(12,32,56,0.08)] hover:-translate-y-0.5 transition"
+    >
+      <span className="w-12 h-12 rounded-xl bg-navy-900 text-gold-400 flex items-center justify-center font-extrabold" aria-hidden>
+        {shop.name.slice(0, 1)}
+      </span>
+      <span className="flex-1 min-w-0">
+        <span className="block font-extrabold text-navy-900 truncate">{shop.name}</span>
+        <span className="block text-sm text-green-700 font-semibold">✓ PinPals approved pro shop</span>
+        {shop.clubs?.name ? <span className="block text-sm text-ink-500 truncate">{shop.clubs.name}</span> : null}
+      </span>
+      <span className="text-ink-500" aria-hidden>›</span>
+    </Link>
   );
 }

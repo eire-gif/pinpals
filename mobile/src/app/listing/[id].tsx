@@ -34,7 +34,8 @@ import {
 } from "@/lib/listings";
 import { ApiError } from "@/lib/api";
 import { PurchasePanel } from "@/components/purchase-panel";
-import { sweepMarketplace } from "@/lib/purchase";
+import { buyerProtectionFee, eur, sweepMarketplace } from "@/lib/purchase";
+import { shortClub } from "@/lib/used-gear";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 
 /**
@@ -135,12 +136,18 @@ export default function ListingScreen() {
 
   const auction = isAuction(listing.saleType);
   const price = auction ? listing.currentBidCents : listing.priceCents;
+  const shop = listing.store;
+  const featured = !!listing.featuredUntil && Date.parse(listing.featuredUntil) > Date.now();
+  const canMeet = listing.deliveryOptions.includes("collection");
+  const canPost = listing.deliveryOptions.includes("post");
+  const fee = price !== null ? buyerProtectionFee(price / 100) : null;
+  const meetAt = shop?.clubName ?? listing.seller?.homeClub ?? null;
 
   return (
     <>
       <Stack.Screen
         options={{
-          title: listing.title,
+          title: shop ? shop.name : "Used gear",
           headerBackTitle: "Back",
           headerRight: () =>
             userId ? (
@@ -155,7 +162,7 @@ export default function ListingScreen() {
                 <Ionicons
                   name={listing.isFavourited ? "heart" : "heart-outline"}
                   size={23}
-                  color={listing.isFavourited ? colors.red600 : colors.green700}
+                  color={listing.isFavourited ? colors.red600 : colors.navy900}
                 />
               </Pressable>
             ) : null,
@@ -191,6 +198,11 @@ export default function ListingScreen() {
             <Ionicons name="image-outline" size={34} color={colors.ink500} />
           </View>
         )}
+        {featured || shop ? (
+          <View style={[styles.badge, shop ? styles.badgeNew : styles.badgeFeatured]}>
+            <Text style={[styles.badgeText, shop ? styles.badgeTextNew : null]}>{shop ? "New" : "Featured"}</Text>
+          </View>
+        ) : null}
 
         <View style={styles.body}>
           <Text style={styles.eyebrow}>
@@ -215,11 +227,17 @@ export default function ListingScreen() {
           </View>
 
           <View style={styles.pills}>
-            {[listing.condition, listing.county].filter(Boolean).map((value) => (
-              <View key={String(value)} style={styles.pill}>
-                <Text style={styles.pillLabel}>{value}</Text>
-              </View>
-            ))}
+            {[
+              listing.condition,
+              listing.specs.find((x) => x.label === "Dexterity")?.value,
+              shop && listing.stockQuantity != null ? `${listing.stockQuantity} in stock` : null,
+            ]
+              .filter(Boolean)
+              .map((value) => (
+                <View key={String(value)} style={styles.pill}>
+                  <Text style={styles.pillLabel}>{value}</Text>
+                </View>
+              ))}
             {listing.status !== "active" && (
               <View style={[styles.pill, styles.pillWarn]}>
                 <Text style={[styles.pillLabel, styles.pillWarnLabel]}>{listing.status}</Text>
@@ -227,8 +245,43 @@ export default function ListingScreen() {
             )}
           </View>
 
+          {/* -------- How you'll get it (mock-up 3) -------- */}
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>How you&apos;ll get it</Text>
+            {canMeet ? (
+              <Way
+                icon="golf-outline"
+                title={shop ? "Collect from the pro shop" : "Meet at the club"}
+                body={
+                  meetAt
+                    ? `${shortClub(meetAt)} — ${shop ? "pick it up at the counter" : "hand over in person, show your code"}`
+                    : "Hand over in person and show your code"
+                }
+                tag="Free"
+              />
+            ) : null}
+            {canPost ? (
+              <Way icon="cube-outline" title="Tracked post" body="Seller posts it with tracking — pay postage at checkout" />
+            ) : null}
+            {listing.collectionNotes ? <Text style={styles.notes}>{listing.collectionNotes}</Text> : null}
+          </View>
+
+          {/* -------- Buyer Protection -------- */}
+          {!shop && !listing.isMine ? (
+            <View style={[styles.card, styles.protectCard]}>
+              <View style={styles.protectHead}>
+                <Ionicons name="shield-checkmark" size={22} color={colors.green700} />
+                <Text style={styles.cardTitle}>Buyer Protection{fee !== null ? ` · ${eur(fee)}` : ""}</Text>
+              </View>
+              <Tick text="Your money is held until you have the item" />
+              <Tick text="Meet-ups confirmed with a handover code" />
+              <Tick text="Refund if it isn't as described" />
+            </View>
+          ) : null}
+
           {listing.specs.length > 0 && (
-            <View style={styles.panel}>
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>Details</Text>
               {listing.specs.map((spec) => (
                 <View key={spec.label} style={styles.spec}>
                   <Text style={styles.specLabel}>{spec.label}</Text>
@@ -242,43 +295,61 @@ export default function ListingScreen() {
             <Text style={styles.description}>{listing.description}</Text>
           ) : null}
 
-          <View style={styles.panel}>
-            <Text style={styles.sectionLabel}>Delivery</Text>
-            {listing.deliveryOptions.includes("post") && (
-              <Row icon="cube-outline" label="Can be posted" />
-            )}
-            {listing.deliveryOptions.includes("collection") && (
-              <Row icon="walk-outline" label="Collection in person" />
-            )}
-            {listing.collectionNotes ? (
-              <Text style={styles.notes}>{listing.collectionNotes}</Text>
-            ) : null}
-          </View>
-
-          {listing.seller && (
-            <View style={styles.panel}>
-              <Text style={styles.sectionLabel}>Seller</Text>
+          {/* -------- Who's selling -------- */}
+          {shop ? (
+            <Pressable
+              style={({ pressed }) => [styles.card, pressed && { opacity: 0.9 }]}
+              onPress={() => router.push({ pathname: "/store/[id]", params: { id: shop.slug } })}
+              accessibilityRole="button"
+              accessibilityLabel={`Visit ${shop.name}`}
+            >
+              <View style={styles.seller}>
+                {shop.logoUrl ? (
+                  <Image source={{ uri: shop.logoUrl }} style={styles.shopLogo} />
+                ) : (
+                  <View style={[styles.shopLogo, styles.shopLogoNone]}>
+                    <Ionicons name="storefront" size={20} color={colors.gold400} />
+                  </View>
+                )}
+                <View style={styles.sellerBody}>
+                  <Text style={styles.sellerName}>{shop.name}</Text>
+                  <Text style={styles.sellerMeta}>✓ PinPals approved pro shop</Text>
+                  {shop.clubName ? <Text style={styles.sellerMeta}>{shop.clubName}</Text> : null}
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={colors.ink500} />
+              </View>
+            </Pressable>
+          ) : listing.seller ? (
+            <View style={styles.card}>
               <View style={styles.seller}>
                 <Avatar
                   url={null}
                   color={listing.seller.avatarColor}
                   name={listing.seller.name}
-                  size={44}
+                  size={48}
                 />
                 <View style={styles.sellerBody}>
                   <Text style={styles.sellerName}>{listing.seller.name}</Text>
                   <Text style={styles.sellerMeta} numberOfLines={1}>
                     {listing.seller.homeClub ?? "No club set"}
                   </Text>
-                  {listing.seller.reviewCount > 0 && listing.seller.rating !== null ? (
-                    <Text style={styles.sellerMeta}>
-                      ★ {listing.seller.rating.toFixed(1)} · {listing.seller.reviewCount}{" "}
-                      {listing.seller.reviewCount === 1 ? "review" : "reviews"}
-                    </Text>
-                  ) : (
-                    <Text style={styles.sellerMeta}>No reviews yet</Text>
-                  )}
                 </View>
+              </View>
+              <View style={styles.trust}>
+                <Trust
+                  value={
+                    listing.seller.reviewCount > 0 && listing.seller.rating !== null
+                      ? `★ ${listing.seller.rating.toFixed(1)}`
+                      : "New"
+                  }
+                  label={
+                    listing.seller.reviewCount > 0
+                      ? `${listing.seller.reviewCount} ${listing.seller.reviewCount === 1 ? "review" : "reviews"}`
+                      : "seller"
+                  }
+                />
+                <Trust value={memberSince(listing.seller.memberSince)} label="member since" />
+                <Trust value={listing.seller.homeClub ? "✓" : "—"} label="club member" />
               </View>
 
               {!listing.isMine && (
@@ -289,26 +360,46 @@ export default function ListingScreen() {
                   accessibilityRole="button"
                 >
                   {busy ? (
-                    <ActivityIndicator color={colors.green700} size="small" />
+                    <ActivityIndicator color={colors.navy900} size="small" />
                   ) : (
                     <>
-                      <Ionicons name="chatbubble-outline" size={17} color={colors.green700} />
-                      <Text style={styles.secondaryLabel}>Message the seller</Text>
+                      <Ionicons name="chatbubble-outline" size={17} color={colors.navy900} />
+                      <Text style={styles.secondaryLabel}>Message {listing.seller.name.split(" ")[0]}</Text>
                     </>
                   )}
                 </Pressable>
               )}
             </View>
-          )}
+          ) : null}
 
           {listing.isMine ? (
-            <SellerControls
-              listingId={listing.id}
-              status={listing.status}
-              userId={userId}
-              onChanged={load}
-              onEdit={openOnSite}
-            />
+            <>
+              {listing.status === "active" && !shop ? (
+                // Information only, no link: a promotion is a digital
+                // service, so under App Store rule 3.1.1 it is bought on the
+                // website, never inside the app (not even its web view).
+                <View style={styles.promote}>
+                  <Ionicons name="rocket-outline" size={20} color={colors.gold400} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.promoteTitle}>
+                      {featured ? "Featured — showing at the top" : "Want it seen first?"}
+                    </Text>
+                    <Text style={styles.promoteBody}>
+                      {featured
+                        ? `Until ${new Date(listing.featuredUntil ?? "").toLocaleDateString("en-IE", { day: "numeric", month: "short" })}.`
+                        : "Feature or bump it from My listings on the PinPals website."}
+                    </Text>
+                  </View>
+                </View>
+              ) : null}
+              <SellerControls
+                listingId={listing.id}
+                status={listing.status}
+                userId={userId}
+                onChanged={load}
+                onEdit={openOnSite}
+              />
+            </>
           ) : userId ? (
             // Buy now, offers and bids, native. See purchase-panel.tsx.
             <PurchasePanel listing={listing} userId={userId} onChanged={() => void load()} />
@@ -316,6 +407,44 @@ export default function ListingScreen() {
         </View>
       </ScrollView>
     </>
+  );
+}
+
+function memberSince(iso: string): string {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? "—" : d.toLocaleDateString("en-IE", { month: "short", year: "numeric" });
+}
+
+function Way({ icon, title, body, tag }: { icon: keyof typeof Ionicons.glyphMap; title: string; body: string; tag?: string }) {
+  return (
+    <View style={styles.way}>
+      <View style={styles.wayIcon}>
+        <Ionicons name={icon} size={20} color={colors.navy900} />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.wayTitle}>{title}</Text>
+        <Text style={styles.wayBody}>{body}</Text>
+      </View>
+      {tag ? <Text style={styles.wayTag}>{tag}</Text> : null}
+    </View>
+  );
+}
+
+function Tick({ text }: { text: string }) {
+  return (
+    <View style={styles.row}>
+      <Ionicons name="checkmark-circle" size={17} color={colors.green700} />
+      <Text style={styles.tickLabel}>{text}</Text>
+    </View>
+  );
+}
+
+function Trust({ value, label }: { value: string; label: string }) {
+  return (
+    <View style={styles.trustCell}>
+      <Text style={styles.trustValue}>{value}</Text>
+      <Text style={styles.trustLabel}>{label}</Text>
+    </View>
   );
 }
 
@@ -427,7 +556,7 @@ function SellerControls({
       ))}
 
       <Pressable style={styles.secondary} onPress={onEdit} accessibilityRole="button">
-        <Ionicons name="create-outline" size={17} color={colors.green700} />
+        <Ionicons name="create-outline" size={17} color={colors.navy900} />
         <Text style={styles.secondaryLabel}>Edit details and photos</Text>
       </Pressable>
 
@@ -436,15 +565,6 @@ function SellerControls({
           ? "Putting it on sale needs your Stripe payouts set up, so a buyer can actually pay you."
           : "Editing photos, price and auctions still opens the website."}
       </Text>
-    </View>
-  );
-}
-
-function Row({ icon, label }: { icon: keyof typeof Ionicons.glyphMap; label: string }) {
-  return (
-    <View style={styles.row}>
-      <Ionicons name={icon} size={18} color={colors.green700} />
-      <Text style={styles.rowLabel}>{label}</Text>
     </View>
   );
 }
@@ -487,14 +607,14 @@ const styles = StyleSheet.create({
 
   priceRow: { flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between" },
   priceLabel: { fontFamily: fonts.body, fontSize: type.small, color: colors.ink500 },
-  price: { fontFamily: fonts.display, fontSize: 30, color: colors.green700 },
+  price: { fontSize: 32, fontWeight: "800", color: colors.navy900 },
   saleTag: {
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: radii.pill,
-    backgroundColor: colors.green100,
+    backgroundColor: colors.navy900,
   },
-  saleTagLabel: { fontFamily: fonts.bodyBold, fontSize: type.label, color: colors.green700 },
+  saleTagLabel: { fontFamily: fonts.bodyBold, fontSize: type.label, color: colors.gold400 },
 
   pills: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
   pill: {
@@ -509,21 +629,52 @@ const styles = StyleSheet.create({
   pillWarn: { backgroundColor: colors.red100, borderColor: colors.red100 },
   pillWarnLabel: { color: colors.red600, textTransform: "capitalize" },
 
-  panel: {
+  card: {
     gap: spacing.sm,
     padding: spacing.md,
-    borderRadius: radii.md,
-    borderWidth: 1,
-    borderColor: colors.line,
+    borderRadius: radii.lg,
     backgroundColor: colors.surface,
+    shadowColor: colors.navy900,
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 2,
   },
-  sectionLabel: {
-    fontFamily: fonts.bodyBold,
-    fontSize: type.label,
-    letterSpacing: 1,
-    textTransform: "uppercase",
-    color: colors.ink500,
+  cardTitle: { fontSize: 17, fontWeight: "800", color: colors.navy900 },
+  protectCard: { backgroundColor: colors.green100 },
+  protectHead: { flexDirection: "row", alignItems: "center", gap: 8 },
+  tickLabel: { fontFamily: fonts.body, fontSize: type.small, color: colors.ink900, flex: 1 },
+
+  way: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingVertical: 4 },
+  wayIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: "#f3ead2", alignItems: "center", justifyContent: "center" },
+  wayTitle: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.ink900 },
+  wayBody: { fontFamily: fonts.body, fontSize: type.small, color: colors.ink500, marginTop: 1 },
+  wayTag: { fontFamily: fonts.bodyBold, fontSize: type.label, color: colors.green700 },
+
+  badge: { position: "absolute", top: 14, left: 14, paddingHorizontal: 10, paddingVertical: 4, borderRadius: radii.pill },
+  badgeFeatured: { backgroundColor: colors.gold400 },
+  badgeNew: { backgroundColor: colors.green700 },
+  badgeText: { fontFamily: fonts.bodyBold, fontSize: 11, letterSpacing: 0.8, textTransform: "uppercase", color: colors.navy900 },
+  badgeTextNew: { color: colors.cream50 },
+
+  shopLogo: { width: 48, height: 48, borderRadius: 12 },
+  shopLogoNone: { backgroundColor: colors.navy900, alignItems: "center", justifyContent: "center" },
+
+  trust: { flexDirection: "row", borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line, paddingTop: spacing.sm },
+  trustCell: { flex: 1, alignItems: "center" },
+  trustValue: { fontSize: 16, fontWeight: "800", color: colors.navy900 },
+  trustLabel: { fontFamily: fonts.body, fontSize: 11.5, color: colors.ink500, marginTop: 1 },
+
+  promote: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    padding: spacing.md,
+    borderRadius: radii.lg,
+    backgroundColor: colors.navy900,
   },
+  promoteTitle: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.cream50 },
+  promoteBody: { fontFamily: fonts.body, fontSize: type.small, color: "rgba(255,255,255,0.75)", marginTop: 1 },
 
   spec: { flexDirection: "row", justifyContent: "space-between", gap: spacing.sm },
   specLabel: { fontFamily: fonts.body, fontSize: type.small, color: colors.ink500 },
@@ -552,10 +703,10 @@ const styles = StyleSheet.create({
     gap: 7,
     paddingVertical: 12,
     borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: colors.green600,
+    borderWidth: 1.5,
+    borderColor: colors.navy900,
   },
-  secondaryLabel: { fontFamily: fonts.bodyBold, fontSize: type.small, color: colors.green700 },
+  secondaryLabel: { fontFamily: fonts.bodyBold, fontSize: type.small, color: colors.navy900 },
 
   primary: {
     flexDirection: "row",
@@ -564,9 +715,9 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingVertical: 16,
     borderRadius: radii.pill,
-    backgroundColor: colors.green700,
+    backgroundColor: colors.navy900,
   },
-  primaryLabel: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.cream50 },
+  primaryLabel: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.gold400 },
 
   sellerBox: { gap: spacing.sm },
   sellerBusy: { opacity: 0.45 },

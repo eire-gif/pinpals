@@ -115,6 +115,18 @@ export type Card = {
   /** The live high bid on an auction, or its starting price before anyone
    *  bids. Null for everything that is not an auction. */
   currentBidCents: number | null;
+  /** Marketplace growth (0115). Optional: older selects don't ask for them. */
+  sellerId?: string;
+  category?: string | null;
+  featured?: boolean;
+  storeId?: number | null;
+  stockQuantity?: number | null;
+  isNew?: boolean;
+  dexterity?: string | null;
+  deliveryOptions?: string[];
+  /** Filled in by decorateCards() (used-gear.ts): where it can be collected. */
+  clubName?: string | null;
+  distanceKm?: number | null;
 };
 
 /**
@@ -144,6 +156,14 @@ type ListingRow = {
   brand: string | null;
   model: string | null;
   created_at: string;
+  seller_id?: string;
+  category?: string | null;
+  featured_until?: string | null;
+  store_id?: number | null;
+  stock_quantity?: number | null;
+  is_new?: boolean;
+  dexterity?: string | null;
+  delivery_options?: string[] | null;
 };
 
 /** Anything not a letter, number, space, apostrophe or hyphen. The same
@@ -221,7 +241,24 @@ async function toCards(rows: ListingRow[], userId: string | null): Promise<Card[
     createdAt: row.created_at,
     isFavourited: favourites.has(row.id),
     currentBidCents: bids.get(row.id) ?? null,
+    sellerId: row.seller_id,
+    category: row.category ?? null,
+    featured: !!row.featured_until && new Date(row.featured_until).getTime() > Date.now(),
+    storeId: row.store_id ?? null,
+    stockQuantity: row.stock_quantity ?? null,
+    isNew: row.is_new ?? false,
+    dexterity: row.dexterity ?? null,
+    deliveryOptions: row.delivery_options ?? [],
   }));
+}
+
+/** The columns a marketplace card needs, for direct (non-RPC) selects. */
+export const CARD_COLUMNS =
+  "id, title, price_cents, image_url, county, condition, sale_type, brand, model, created_at, seller_id, category, featured_until, store_id, stock_quantity, is_new, dexterity, delivery_options";
+
+/** Rows straight from `listings` (CARD_COLUMNS) to cards. */
+export async function rowsToCards(rows: unknown[], userId: string | null): Promise<Card[]> {
+  return toCards(rows as ListingRow[], userId);
 }
 
 /** Matches the website's member page, which shows the same 24. */
@@ -341,6 +378,11 @@ export type ListingDetail = {
   isFavourited: boolean;
   currentBidCents: number | null;
   auctionEndsAt: string | null;
+  /** Pro shop stock (0115): sold new by a PinPals-approved shop. */
+  store: { id: number; slug: string; name: string; clubName: string | null; logoUrl: string | null } | null;
+  stockQuantity: number | null;
+  featuredUntil: string | null;
+  bumpedAt: string | null;
 };
 
 const SPEC_LABELS: Record<string, string> = {
@@ -374,6 +416,10 @@ type DetailRow = {
   shaft_material: string | null;
   loft: string | null;
   item_size: string | null;
+  store_id: number | null;
+  stock_quantity: number | null;
+  featured_until: string | null;
+  bumped_at: string | null;
 };
 
 /**
@@ -392,7 +438,7 @@ export async function getListingDetail(
   const { data: listing } = await supabase
     .from("listings")
     .select(
-      "id, seller_id, title, description, price_cents, status, sale_type, category, subcategory, condition, county, image_url, brand, brand_other, model, delivery_options, collection_notes, dexterity, shaft_flex, shaft_material, loft, item_size"
+      "id, seller_id, title, description, price_cents, status, sale_type, category, subcategory, condition, county, image_url, brand, brand_other, model, delivery_options, collection_notes, dexterity, shaft_flex, shaft_material, loft, item_size, store_id, stock_quantity, featured_until, bumped_at"
     )
     .eq("id", listingId)
     .maybeSingle()
@@ -432,10 +478,19 @@ export async function getListingDetail(
       .overrideTypes<{ average_rating: number | null; review_count: number | null }>(),
   ]);
 
-  const [favourites, auction] = await Promise.all([
+  const [favourites, auction, storeResult] = await Promise.all([
     favouritedIds([listingId], userId),
     auctionFor(listingId, listing.sale_type),
+    listing.store_id
+      ? supabase
+          .from("stores")
+          .select("id, slug, name, logo_url, clubs ( name )")
+          .eq("id", listing.store_id)
+          .maybeSingle()
+          .overrideTypes<{ id: number; slug: string; name: string; logo_url: string | null; clubs: { name: string } | null }>()
+      : Promise.resolve({ data: null }),
   ]);
+  const shop = storeResult.data;
 
   const gallery = (imagesResult.data ?? []).map((row) => row.image_url);
   const seller = sellerResult.data;
@@ -482,6 +537,10 @@ export async function getListingDetail(
     isFavourited: favourites.has(listingId),
     currentBidCents: auction?.currentBidCents ?? null,
     auctionEndsAt: auction?.endsAt ?? null,
+    store: shop ? { id: shop.id, slug: shop.slug, name: shop.name, clubName: shop.clubs?.name ?? null, logoUrl: shop.logo_url } : null,
+    stockQuantity: listing.stock_quantity,
+    featuredUntil: listing.featured_until,
+    bumpedAt: listing.bumped_at,
   };
 }
 

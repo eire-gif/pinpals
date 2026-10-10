@@ -3,6 +3,7 @@ import Link from "next/link";
 import type { MarketplaceListing } from "@/lib/marketplace-discovery";
 import { formatPrice, formatPriceCents, formatTimeRemaining, MARKETPLACE_BADGE_LABELS } from "@/lib/format";
 import { displayBrand } from "@/lib/marketplace-brands";
+import { isFeatured } from "@/lib/marketplace-growth";
 import FavouriteButton from "./favourite-button";
 
 const BADGE_STYLES: Record<MarketplaceListing["sale_type"], string> = {
@@ -31,7 +32,7 @@ export default function ListingCard({
   return (
     <Link
       href={`/marketplace/${listing.id}`}
-      className="group block bg-surface border border-line rounded-2xl overflow-hidden shadow-sm hover:shadow-md hover:-translate-y-0.5 transition"
+      className="group block bg-surface rounded-2xl overflow-hidden shadow-[0_3px_14px_rgba(12,32,56,0.08)] hover:shadow-[0_8px_24px_rgba(12,32,56,0.14)] hover:-translate-y-0.5 transition"
     >
       {/* Stable aspect ratio (this phase's spec) so the grid never reflows
        * as photos of very different native dimensions load in — every card
@@ -56,11 +57,22 @@ export default function ListingCard({
 
         <FavouriteButton listingId={listing.id} initialFavourited={listing.isFavourited} signedIn={signedIn} />
 
-        <span
-          className={`absolute top-3 right-3 text-[11px] font-bold px-2.5 py-1 rounded-full ${BADGE_STYLES[listing.sale_type]}`}
-        >
-          {MARKETPLACE_BADGE_LABELS[listing.sale_type]}
-        </span>
+        {/* Paid placement and shop stock outrank the sale type (0115). */}
+        {listing.store_id ? (
+          <span className="absolute top-3 right-3 text-[11px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-green-700 text-cream-50">
+            New
+          </span>
+        ) : isFeatured(listing) ? (
+          <span className="absolute top-3 right-3 text-[11px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-gold-400 text-navy-900">
+            Featured
+          </span>
+        ) : (
+          <span
+            className={`absolute top-3 right-3 text-[11px] font-bold px-2.5 py-1 rounded-full ${BADGE_STYLES[listing.sale_type]}`}
+          >
+            {MARKETPLACE_BADGE_LABELS[listing.sale_type]}
+          </span>
+        )}
       </div>
 
       <div className="p-4">
@@ -75,7 +87,7 @@ export default function ListingCard({
 
         {isAuction && listing.auction ? (
           <div className="mt-1.5">
-            <p className="font-display font-bold text-xl text-gold-600">
+            <p className="font-extrabold text-xl text-navy-900">
               {formatPriceCents(listing.currentBidCents ?? listing.auction.starting_price_cents)}
               <span className="text-xs font-semibold text-ink-500">
                 {" "}
@@ -87,7 +99,7 @@ export default function ListingCard({
             </p>
           </div>
         ) : (
-          <p className="font-display font-bold text-xl text-gold-600 mt-1.5">
+          <p className="font-extrabold text-xl text-navy-900 mt-1.5">
             {listing.price_eur !== null ? formatPrice(listing.price_eur) : ""}
           </p>
         )}
@@ -97,7 +109,11 @@ export default function ListingCard({
           {listing.county && (
             <span className="bg-cream-100 text-xs font-bold px-2.5 py-1 rounded-full">{listing.county}</span>
           )}
+          {listing.store_id && listing.stock_quantity != null && listing.stock_quantity > 1 ? (
+            <span className="bg-cream-100 text-xs font-bold px-2.5 py-1 rounded-full">{listing.stock_quantity} in stock</span>
+          ) : null}
         </div>
+        {!listing.store_id ? <p className="text-[11.5px] font-semibold text-green-700 mt-2">✓ Buyer Protection</p> : null}
       </div>
     </Link>
   );

@@ -57,6 +57,8 @@ export function buildMarketplaceAlerts(metrics: {
   ordersAwaitingPayment: number;
   staleAuctions: number;
   unresolvedMarketplaceSupportCases: number;
+  storesAwaitingApproval: number;
+  salesWithProblem: number;
 }): MarketplaceAlert[] {
   const candidates: MarketplaceAlert[] = [
     {
@@ -100,6 +102,18 @@ export function buildMarketplaceAlerts(metrics: {
       label: "Auctions stuck past their end time",
       count: metrics.staleAuctions,
       href: "/admin/marketplace?tab=offers",
+    },
+    {
+      key: "salesWithProblem",
+      label: "Sales with a problem reported",
+      count: metrics.salesWithProblem,
+      href: "/admin/marketplace?tab=revenue#problems",
+    },
+    {
+      key: "storesAwaitingApproval",
+      label: "Pro shops awaiting approval",
+      count: metrics.storesAwaitingApproval,
+      href: "/admin/marketplace?tab=shops",
     },
     {
       key: "unresolvedMarketplaceSupportCases",

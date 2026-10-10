@@ -161,6 +161,13 @@ export type Listing = {
   loft: string | null;
   /** Shoe/apparel size, as the seller writes it ("UK 9", "Medium"). */
   item_size: string | null;
+  /** Pro shop stock (0115): set when a PinPals-approved shop sells it new. */
+  store_id?: number | null;
+  is_new?: boolean;
+  stock_quantity?: number | null;
+  /** Paid placements (0115). */
+  featured_until?: string | null;
+  bumped_at?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -456,6 +463,9 @@ export type Order = {
   release_due_at: string | null;
   released_at: string | null;
   problem_at: string | null;
+  /** Pro shop sales (0115): the shop, and PinPals' commission kept back on release. */
+  store_id: number | null;
+  seller_commission_eur: number;
   completed_at: string | null;
   cancelled_at: string | null;
   refunded_at: string | null;

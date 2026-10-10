@@ -45,8 +45,9 @@ export const DELIVERY_LABELS: Record<DeliveryMethod, string> = {
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
-export function checkoutTotal(priceEur: number, method: DeliveryMethod) {
-  const fee = buyerProtectionFee(priceEur);
+/** Pro shop orders carry no Buyer Protection fee — the shop pays commission instead (0115). */
+export function checkoutTotal(priceEur: number, method: DeliveryMethod, isShop = false) {
+  const fee = isShop ? 0 : buyerProtectionFee(priceEur);
   const delivery = method === "post" ? DELIVERY_FEE_EUR : 0;
   return { price: priceEur, fee, delivery, total: round2(priceEur + fee + delivery) };
 }
@@ -279,6 +280,10 @@ export type CheckoutItem = {
   deliveryOptions: DeliveryMethod[];
   collectionNotes: string | null;
   reservationExpiresAt: string | null;
+  /** Sold new by a pro shop (0115). */
+  isShop: boolean;
+  /** Where a collection happens: the shop's club, or the seller's home club. */
+  meetAt: string | null;
 };
 
 type ListingRow = {
@@ -291,23 +296,37 @@ type ListingRow = {
   status: string;
   delivery_options: string[] | null;
   collection_notes: string | null;
+  store_id: number | null;
 };
 
-const LISTING_COLUMNS = "id, title, image_url, seller_id, price_eur, sale_type, status, delivery_options, collection_notes";
+const LISTING_COLUMNS = "id, title, image_url, seller_id, price_eur, sale_type, status, delivery_options, collection_notes, store_id";
 
 const asMethods = (values: string[] | null): DeliveryMethod[] => {
   const methods = (values ?? []).filter((v): v is DeliveryMethod => v === "post" || v === "collection");
   return methods.length > 0 ? methods : ["collection"];
 };
 
-async function sellerName(sellerId: string): Promise<string> {
+async function sellerInfo(listing: ListingRow): Promise<{ sellerName: string; meetAt: string | null; isShop: boolean }> {
+  if (listing.store_id) {
+    const { data } = await supabase
+      .from("stores")
+      .select("name, clubs ( name )")
+      .eq("id", listing.store_id)
+      .maybeSingle()
+      .overrideTypes<{ name: string; clubs: { name: string } | null }>();
+    return { sellerName: data?.name ?? "A PinPals pro shop", meetAt: data?.clubs?.name ?? null, isShop: true };
+  }
   const { data } = await supabase
     .from("profiles")
-    .select("first_name, last_name")
-    .eq("id", sellerId)
+    .select("first_name, last_name, home_club")
+    .eq("id", listing.seller_id)
     .maybeSingle()
-    .overrideTypes<{ first_name: string | null; last_name: string | null }>();
-  return [data?.first_name, data?.last_name].filter(Boolean).join(" ") || "A PinPals member";
+    .overrideTypes<{ first_name: string | null; last_name: string | null; home_club: string | null }>();
+  return {
+    sellerName: [data?.first_name, data?.last_name].filter(Boolean).join(" ") || "A PinPals member",
+    meetAt: data?.home_club ?? null,
+    isShop: false,
+  };
 }
 
 /** Buy now on a listing. Null when it cannot be bought right now. */
@@ -335,7 +354,7 @@ export async function loadBuyNowItem(listingId: number): Promise<CheckoutItem | 
     listingId: listing.id,
     title: listing.title,
     imageUrl: listing.image_url,
-    sellerName: await sellerName(listing.seller_id),
+    ...(await sellerInfo(listing)),
     priceEur: Number(priceEur),
     deliveryOptions: asMethods(listing.delivery_options),
     collectionNotes: listing.collection_notes,
@@ -373,7 +392,7 @@ export async function loadOfferOrderItem(orderId: number): Promise<CheckoutItem 
     listingId: listing.id,
     title: listing.title,
     imageUrl: listing.image_url,
-    sellerName: await sellerName(listing.seller_id),
+    ...(await sellerInfo(listing)),
     priceEur: Number(order.amount_eur),
     deliveryOptions: asMethods(listing.delivery_options),
     collectionNotes: listing.collection_notes,

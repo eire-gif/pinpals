@@ -13,6 +13,10 @@ import OffersTab from "./offers-tab";
 import DisputesTab from "./disputes-tab";
 import MessagesTab from "./messages-tab";
 import AuditTab from "./audit-tab";
+import RevenueTab from "./revenue-tab";
+import ShopsTab from "./shops-tab";
+import PromotionsTab from "./promotions-tab";
+import RetailTab from "./retail-tab";
 
 // /admin/marketplace — a consolidated marketplace console. Deliberately a
 // single route with a `?tab=` switch (same pattern as /dashboard/buying and
@@ -46,6 +50,10 @@ export type MarketplaceTabKey =
   | "offers"
   | "disputes"
   | "messages"
+  | "revenue"
+  | "shops"
+  | "promotions"
+  | "retail"
   | "audit";
 
 const TABS: { key: MarketplaceTabKey; label: string; roles?: readonly StaffRole[] }[] = [
@@ -57,6 +65,13 @@ const TABS: { key: MarketplaceTabKey; label: string; roles?: readonly StaffRole[
   { key: "offers", label: "Offers & auctions" },
   { key: "disputes", label: "Disputes & support", roles: FINANCE_ROLES },
   { key: "messages", label: "Reported messages", roles: MODERATION_ROLES },
+  // Marketplace growth (0114/0115). Pro shops is viewable by any staff
+  // member (actions inside re-check FINANCE_ROLES); the other three are
+  // money views and finance-only.
+  { key: "revenue", label: "Revenue", roles: FINANCE_ROLES },
+  { key: "shops", label: "Pro shops" },
+  { key: "promotions", label: "Promotions", roles: FINANCE_ROLES },
+  { key: "retail", label: "Retail & ads", roles: FINANCE_ROLES },
   { key: "audit", label: "Audit log", roles: ["super_admin"] },
 ];
 
@@ -77,7 +92,7 @@ export default async function AdminMarketplacePage({
     <div>
       <h1 className="font-display font-bold text-2xl mb-2">Marketplace</h1>
       <p className="text-ink-500 mb-6">
-        Listings, sellers, orders, payments, offers, auctions, disputes, and reported messages — one console for the
+        Listings, sellers, orders, payments, offers, auctions, disputes, reported messages, revenue, pro shops, promotions and retail ads — one console for the
         marketplace, most of it linking straight into the dedicated page for that data. Every mutation here (and
         everywhere it links to) is audited in{" "}
         <Link href="/admin/audit-log" className="underline">
@@ -108,6 +123,10 @@ export default async function AdminMarketplacePage({
       {tab === "offers" && <OffersTab searchParams={params} />}
       {tab === "disputes" && <DisputesTab searchParams={params} />}
       {tab === "messages" && <MessagesTab />}
+      {tab === "revenue" && <RevenueTab searchParams={params} />}
+      {tab === "shops" && <ShopsTab />}
+      {tab === "promotions" && <PromotionsTab searchParams={params} />}
+      {tab === "retail" && <RetailTab />}
       {tab === "audit" && <AuditTab />}
     </div>
   );

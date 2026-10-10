@@ -41,7 +41,9 @@ export async function releaseOrder(admin: SupabaseClient, order: Order): Promise
   if (!account) return "no_account";
 
   const stripe = getStripeClient();
-  const sellerEur = Math.round((Number(order.amount_eur) + (order.delivery_fee_cents ?? 0) / 100) * 100) / 100;
+  // Item + postage, less a pro shop's commission (0115; 0 for members).
+  const sellerEur =
+    Math.round((Number(order.amount_eur) + (order.delivery_fee_cents ?? 0) / 100 - Number(order.seller_commission_eur ?? 0)) * 100) / 100;
 
   let transferId: string;
   try {
