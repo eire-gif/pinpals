@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { FourballConnect } from "@/components/fourball-connect";
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Stack, router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -681,6 +682,12 @@ export default function LiveRoundScreen() {
             <Pressable onPress={finish} style={styles.next} accessibilityRole="button">
               <Text style={styles.nextLabel}>{matchFormat ? "Finish match" : "Finish round"}</Text>
             </Pressable>
+          ) : null}
+
+          {/* After the round (Find PinPals, mock-up 5): connect with the
+              fourball, send a guest their scorecard. */}
+          {!live && me != null && players.some((p) => p.memberId === me) ? (
+            <FourballConnect me={me} courseName={round.courseName} players={players.map((p) => ({ id: p.id, memberId: p.memberId, name: p.name }))} />
           ) : null}
 
           {backToLiveButton}

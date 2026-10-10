@@ -35,6 +35,9 @@ import { blockConfirmText, blockMember, unblockMember } from "@/lib/blocking";
 import { listMemberListings, priceLine, type Card } from "@/lib/marketplace";
 import { conversationWith, requestConnection, respondToConnection } from "@/lib/members";
 import { supabase } from "@/lib/supabase";
+import { AffinityCard } from "@/components/affinity-card";
+import { GoldButton } from "@/components/gold-button";
+import { loadAffinity, type Affinity } from "@/lib/find-pinpals";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 import { usePostActions } from "@/lib/use-post-actions";
 
@@ -73,6 +76,8 @@ export default function MemberScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [busy, setBusy] = useState(false);
+  // "Why you'd get on" (member_affinity(), 0118). Best-effort.
+  const [affinity, setAffinity] = useState<Affinity | null>(null);
   // Whether I have blocked this member. Only my own blocks are readable
   // (0049), which is all this screen needs to choose Block or Unblock.
   const [blocked, setBlocked] = useState(false);
@@ -136,6 +141,15 @@ export default function MemberScreen() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (!userId || !id || isMe) return;
+    let live = true;
+    void loadAffinity(String(id)).then((a) => live && setAffinity(a));
+    return () => {
+      live = false;
+    };
+  }, [userId, id, isMe, link?.status]);
 
   // Load the open section the first time it's needed (and after a refresh).
   useEffect(() => {
@@ -328,6 +342,12 @@ export default function MemberScreen() {
 
       {profile.bio ? <Text style={styles.bio}>{profile.bio}</Text> : null}
 
+      {!isMe && !blocked && affinity ? (
+        <View style={styles.affinity}>
+          <AffinityCard affinity={affinity} firstName={profile.firstName} />
+        </View>
+      ) : null}
+
       {blocked ? (
         <View style={styles.blockedBox}>
           <Text style={styles.blockedText}>
@@ -359,15 +379,13 @@ export default function MemberScreen() {
             <Text style={styles.buttonQuietLabel}>Request sent</Text>
           </View>
         ) : (
-          <Pressable style={[styles.button, styles.buttonSolid]} onPress={connect} disabled={busy}>
-            {busy ? (
-              <ActivityIndicator color={colors.cream50} />
-            ) : (
-              <Text style={styles.buttonSolidLabel}>
-                {link?.theirsToAnswer ? "Accept request" : link?.status === "declined" ? "Connect again" : "Connect"}
-              </Text>
-            )}
-          </Pressable>
+          // Gold, raised — the same Connect as Find PinPals (mock-up 3).
+          <GoldButton
+            style={{ flex: 1 }}
+            label={`${link?.theirsToAnswer ? "Accept request" : link?.status === "declined" ? "Connect again" : "Connect"} · ${profile.firstName}`}
+            onPress={connect}
+            busy={busy}
+          />
         )}
       </View>
       )}
@@ -529,6 +547,7 @@ export default function MemberScreen() {
 const MEMBER_COVER = require("../../../assets/images/scenes/links-sunset.jpg");
 
 const styles = StyleSheet.create({
+  affinity: { marginTop: spacing.md },
   cover: { height: 150, marginHorizontal: -spacing.md, marginTop: -spacing.md, backgroundColor: colors.navy900 },
   identityOnCover: { marginTop: -34, alignItems: "flex-start" },
   identityTextOnCover: { paddingTop: 40 },

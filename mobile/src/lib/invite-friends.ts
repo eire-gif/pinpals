@@ -1,4 +1,4 @@
-import { Share } from "react-native";
+import { router } from "expo-router";
 
 import { SITE_URL } from "@/lib/config";
 
@@ -16,6 +16,11 @@ import { SITE_URL } from "@/lib/config";
 export const INVITE_MESSAGE =
   "I've joined PinPals — golfers swapping tee times, at home and abroad, and selling gear. Join me:";
 
+/** Every invite button opens "Bring your fourball" (app/invite-friends.tsx):
+ *  the member's own link and QR code, so whoever joins is connected to them. */
 export function inviteFriends(): void {
-  void Share.share({ message: `${INVITE_MESSAGE} ${SITE_URL}/signup` });
+  router.push("/invite-friends");
 }
+
+/** The plain link to the sign-up page, for anywhere without a member code. */
+export const SIGNUP_URL = `${SITE_URL}/signup`;
