@@ -7,6 +7,7 @@ import { Avatar } from "@/components/avatar";
 import { STARS_GOLD, StarRow } from "@/components/stars";
 import { TeeTimeCard } from "@/components/tee-time-card";
 import { useAuth } from "@/lib/auth";
+import { favouriteClubIds, setFavouriteClub } from "@/lib/club-favourites";
 import { isOn } from "@/lib/features";
 import { mappedHoles } from "@/lib/hole-geo";
 import { loadCourseLayouts, type CourseLayout } from "@/lib/hole-maps";
@@ -49,6 +50,22 @@ export default function CourseScreen() {
   const userId = session?.user?.id ?? null;
 
   const [course, setCourseRow] = useState<CourseDetail | null>(null);
+  // Favourite (0112): the star in the header, the same one as in Courses.
+  const [favourite, setFavourite] = useState(false);
+  useFocusEffect(
+    useCallback(() => {
+      void favouriteClubIds().then((ids) => setFavourite(ids.has(clubId)));
+    }, [clubId])
+  );
+  const toggleFavourite = async () => {
+    const on = !favourite;
+    setFavourite(on);
+    try {
+      await setFavouriteClub(clubId, on);
+    } catch {
+      setFavourite(!on);
+    }
+  };
   const [reviews, setReviews] = useState<CourseReviewRow[]>([]);
   const [counts, setCounts] = useState({ played: 0, bucket: 0, home: 0 });
   const [mine, setMine] = useState({ played: false, bucket: false });
@@ -178,7 +195,23 @@ export default function CourseScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ title: course.name, headerBackTitle: "Back" }} />
+      <Stack.Screen
+        options={{
+          title: course.name,
+          headerBackTitle: "Back",
+          headerRight: () => (
+            <Pressable
+              onPress={() => void toggleFavourite()}
+              hitSlop={10}
+              accessibilityRole="button"
+              accessibilityState={{ selected: favourite }}
+              accessibilityLabel={favourite ? "Remove from favourites" : "Add to favourites"}
+            >
+              <Ionicons name={favourite ? "star" : "star-outline"} size={24} color={favourite ? colors.gold500 : colors.ink900} />
+            </Pressable>
+          ),
+        }}
+      />
       <ScrollView
         style={styles.fill}
         contentContainerStyle={styles.content}

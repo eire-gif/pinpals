@@ -757,6 +757,8 @@ export type MemberProfile = {
   bio: string | null;
   avatarUrl: string | null;
   avatarColor: string | null;
+  /** Their cover photograph (0112), or null for the PinPals one. */
+  coverUrl: string | null;
   ageBand: string | null;
   joined: string;
   postCount: number;
@@ -798,7 +800,13 @@ export async function loadMemberProfile(memberId: string, viewerId: string | nul
   const joined = new Date(row.created_at);
   const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
+  // Its own read: cover_url is 0112, and a database without it must still
+  // show the profile.
+  const cover = await supabase.from("profiles").select("cover_url").eq("id", memberId).maybeSingle<{ cover_url: string | null }>();
+  const coverUrl = cover.error ? null : (cover.data?.cover_url ?? null);
+
   return {
+    coverUrl,
     id: row.id,
     name: [row.first_name, row.last_name].filter(Boolean).join(" ") || "A member",
     firstName: row.first_name || "This member",

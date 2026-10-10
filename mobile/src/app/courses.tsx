@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
+  Image,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -10,7 +11,8 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { Stack, useRouter } from "expo-router";
+import { Stack, useFocusEffect, useRouter } from "expo-router";
+import { StatusBar } from "expo-status-bar";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import * as Linking from "expo-linking";
 
@@ -27,7 +29,10 @@ import {
   searchCourses,
   type Club,
 } from "@/lib/courses";
-import { ScreenHeader } from "@/components/screen-header";
+import { coursePhoto } from "@/components/course-photos";
+import { PhotoHero } from "@/components/photo-hero";
+import { useCollapsingHeader } from "@/components/screen-header";
+import { favouriteClubIds, favouriteClubs, setFavouriteClub } from "@/lib/club-favourites";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 
 /**
@@ -58,7 +63,9 @@ import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 
 const RADIUS_KM = 50;
 
-type Scope = { kind: "country"; code: string } | { kind: "near" };
+type Scope = { kind: "country"; code: string } | { kind: "near" } | { kind: "favourites" };
+
+const OLD_HEAD = require("../../assets/images/scenes/old-head.jpg");
 
 export default function CoursesScreen() {
   const router = useRouter();
@@ -80,6 +87,31 @@ export default function CoursesScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const searching = term.trim().length >= 2;
+  const { scrollY, scrollProps } = useCollapsingHeader();
+
+  // Favourite clubs (0112): the stars on every card, and the Favourites tab.
+  const [favourites, setFavourites] = useState<Set<number>>(new Set());
+  useFocusEffect(
+    useCallback(() => {
+      void favouriteClubIds().then(setFavourites);
+    }, [])
+  );
+  const toggleFavourite = useCallback(async (club: Club) => {
+    const on = !favourites.has(club.id);
+    const flip = (want: boolean) =>
+      setFavourites((prev) => {
+        const next = new Set(prev);
+        if (want) next.add(club.id);
+        else next.delete(club.id);
+        return next;
+      });
+    flip(on);
+    try {
+      await setFavouriteClub(club.id, on);
+    } catch {
+      flip(!on);
+    }
+  }, [favourites]);
 
   // A keystroke is not a query. 250ms is long enough that "Ballybunion" is
   // one request rather than eleven, and short enough that it still feels like
@@ -113,6 +145,9 @@ export default function CoursesScreen() {
 
       if (searching) {
         rows = await searchCourses(term);
+        count = rows.length;
+      } else if (scope.kind === "favourites") {
+        rows = await favouriteClubs();
         count = rows.length;
       } else if (scope.kind === "near") {
         // Reuse a fix we already have rather than waking the GPS again.
@@ -170,7 +205,7 @@ export default function CoursesScreen() {
   const loadMore = useCallback(async () => {
     // Search is capped at 60 and "near me" at the radius — neither pages.
     // Refine the search or widen nothing: there is no page two to fetch.
-    if (searching || scope.kind === "near") return;
+    if (searching || scope.kind !== "country") return;
     if (loading || loadingMore || !more) return;
 
     const id = requestId.current;
@@ -198,83 +233,78 @@ export default function CoursesScreen() {
   // scope rather than on the results, so it does NOT remount on every
   // keystroke of a search — only when you move between browsing and
   // searching, or between countries.
-  const listKey = searching
-    ? "search"
-    : scope.kind === "near"
-      ? "near"
-      : scope.code;
+  const listKey = searching ? "search" : scope.kind === "country" ? scope.code : scope.kind;
 
   return (
     <View style={styles.fill}>
-      {/* The band carries the screen's name, so the bar above it does
-          not need to carry it too. */}
-      <Stack.Screen options={{ headerTitle: "", headerBackTitle: "Back" }} />
-
-      {/* Pinned above the search box rather than scrolled with the list: the
-          controls have to stay put, and a photograph under a search field
-          reads as an advert. Old Head because this is the screen the whole
-          product is pitched on — every course in Ireland, the UK, Spain and Portugal. */}
-      <ScreenHeader
-        scene="oldHead"
-        title="Courses"
-        subtitle="Ireland, the UK, Spain & Portugal"
+      {/* Oct 2026: the Tee Times look — the photograph runs up behind a
+          see-through bar, the title on it, and the search and chips in a
+          white card overlapping its foot. */}
+      <Stack.Screen
+        options={{
+          headerTitle: "",
+          headerBackTitle: "Back",
+          headerTransparent: true,
+          headerTintColor: colors.cream50,
+          headerStyle: { backgroundColor: "transparent" },
+          headerShadowVisible: false,
+        }}
       />
+      <StatusBar style="light" />
 
-      <View style={styles.controls}>
-        <View style={styles.searchBox}>
-          <Ionicons name="search" size={17} color={colors.ink500} />
-          <TextInput
-            style={styles.searchInput}
-            value={query}
-            onChangeText={setQuery}
-            placeholder="Search a club or a town"
-            placeholderTextColor={colors.ink500}
-            autoCorrect={false}
-            autoCapitalize="words"
-            returnKeyType="search"
-            clearButtonMode="while-editing"
-            accessibilityLabel="Search courses"
-          />
-        </View>
-
-        {/* The chips are a browsing aid, not a filter on the search. While a
-            search is running they'd be lying about what's on screen, so they
-            make way for a line that tells the truth instead. */}
-        {searching ? (
-          <Pressable
-            style={styles.searchNote}
-            onPress={() => setQuery("")}
-            accessibilityRole="button"
-          >
-            <Ionicons name="globe-outline" size={14} color={colors.ink500} />
-            <Text style={styles.searchNoteText}>
-              Searching every country · tap to browse instead
-            </Text>
-          </Pressable>
-        ) : (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.chips}
-            keyboardShouldPersistTaps="handled"
-          >
-            <Chip
-              label="Near me"
-              icon="navigate-outline"
-              active={scope.kind === "near"}
-              onPress={() => setScope({ kind: "near" })}
+      <PhotoHero
+        source={OLD_HEAD}
+        title="Courses"
+        subtitle={favourites.size > 0 ? `${favourites.size} favourite${favourites.size === 1 ? "" : "s"} · Ireland, the UK, Spain & Portugal` : "Ireland, the UK, Spain & Portugal"}
+        scrollY={scrollY}
+        overlap={34}
+      >
+        <View style={styles.controls}>
+          <View style={styles.searchBox}>
+            <Ionicons name="search" size={17} color={colors.ink500} />
+            <TextInput
+              style={styles.searchInput}
+              value={query}
+              onChangeText={setQuery}
+              placeholder="Search a club or a town"
+              placeholderTextColor={colors.ink500}
+              autoCorrect={false}
+              autoCapitalize="words"
+              returnKeyType="search"
+              clearButtonMode="while-editing"
+              accessibilityLabel="Search courses"
             />
-            {COUNTRY_CODES.map((code) => (
+          </View>
+
+          {/* The chips are a browsing aid, not a filter on the search. While a
+              search is running they'd be lying about what's on screen, so they
+              make way for a line that tells the truth instead. */}
+          {searching ? (
+            <Pressable style={styles.searchNote} onPress={() => setQuery("")} accessibilityRole="button">
+              <Ionicons name="globe-outline" size={14} color={colors.ink500} />
+              <Text style={styles.searchNoteText}>Searching every country · tap to browse instead</Text>
+            </Pressable>
+          ) : (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips} keyboardShouldPersistTaps="handled">
               <Chip
-                key={code}
-                label={countryName(code)}
-                active={scope.kind === "country" && scope.code === code}
-                onPress={() => setScope({ kind: "country", code })}
+                label={favourites.size > 0 ? `Favourites · ${favourites.size}` : "Favourites"}
+                icon={scope.kind === "favourites" ? "star" : "star-outline"}
+                active={scope.kind === "favourites"}
+                onPress={() => setScope({ kind: "favourites" })}
               />
-            ))}
-          </ScrollView>
-        )}
-      </View>
+              <Chip label="Near me" icon="navigate-outline" active={scope.kind === "near"} onPress={() => setScope({ kind: "near" })} />
+              {COUNTRY_CODES.map((code) => (
+                <Chip
+                  key={code}
+                  label={countryName(code)}
+                  active={scope.kind === "country" && scope.code === code}
+                  onPress={() => setScope({ kind: "country", code })}
+                />
+              ))}
+            </ScrollView>
+          )}
+        </View>
+      </PhotoHero>
 
       {loading ? (
         <View style={styles.centre}>
@@ -282,8 +312,10 @@ export default function CoursesScreen() {
         </View>
       ) : (
         <FlatList
+          {...scrollProps}
           contentContainerStyle={styles.list}
-          data={clubs}
+          // On Favourites, a club unstarred here leaves the list at once.
+          data={scope.kind === "favourites" && !searching ? clubs.filter((c) => favourites.has(c.id)) : clubs}
           keyExtractor={(item) => String(item.id)}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
@@ -335,6 +367,8 @@ export default function CoursesScreen() {
               members={counts[item.id] ?? 0}
               // Browsing one country, its name on every card says nothing.
               hideCountry={!searching && scope.kind === "country"}
+              favourite={favourites.has(item.id)}
+              onFavourite={() => void toggleFavourite(item)}
               onPress={() => router.push(`/course/${item.id}`)}
             />
           )}
@@ -350,26 +384,34 @@ function CourseRow({
   club,
   members,
   hideCountry,
+  favourite,
+  onFavourite,
   onPress,
 }: {
   club: Club;
   members: number;
   hideCountry: boolean;
+  favourite: boolean;
+  onFavourite: () => void;
   onPress: () => void;
 }) {
   const distance = distanceLabel(club.distance_km);
   const place = placeLabel(club, hideCountry);
 
   return (
-    <Pressable style={styles.row} onPress={onPress} accessibilityRole="button">
+    <Pressable style={({ pressed }) => [styles.row, pressed && { opacity: 0.9 }]} onPress={onPress} accessibilityRole="button" accessibilityLabel={`${club.name}${place ? `, ${place}` : ""}`}>
+      <Image source={coursePhoto(club.id, club.name)} style={styles.thumb} />
       <View style={styles.rowBody}>
         <Text style={styles.rowName} numberOfLines={2}>
           {club.name}
         </Text>
         {place ? (
-          <Text style={styles.rowPlace} numberOfLines={1}>
-            {place}
-          </Text>
+          <View style={styles.placeRow}>
+            <Ionicons name="location-outline" size={13} color={colors.ink500} />
+            <Text style={styles.rowPlace} numberOfLines={1}>
+              {place}
+            </Text>
+          </View>
         ) : null}
 
         <RatingLine avg={club.rating_avg} count={club.rating_count} />
@@ -383,17 +425,25 @@ function CourseRow({
               </View>
             ) : null}
             {members > 0 ? (
-              <Text style={styles.members}>
-                {members === 1
-                  ? "1 member plays here"
-                  : `${members} members play here`}
-              </Text>
+              <View style={styles.membersPill}>
+                <Ionicons name="people" size={11} color={colors.green700} />
+                <Text style={styles.members}>{members === 1 ? "1 member" : `${members} members`}</Text>
+              </View>
             ) : null}
           </View>
         ) : null}
       </View>
 
-      <Ionicons name="chevron-forward" size={18} color={colors.ink500} />
+      <Pressable
+        onPress={onFavourite}
+        hitSlop={10}
+        style={({ pressed }) => [styles.star, favourite && styles.starOn, pressed && { transform: [{ scale: 0.92 }] }]}
+        accessibilityRole="button"
+        accessibilityState={{ selected: favourite }}
+        accessibilityLabel={favourite ? `Remove ${club.name} from favourites` : `Add ${club.name} to favourites`}
+      >
+        <Ionicons name={favourite ? "star" : "star-outline"} size={19} color={favourite ? colors.navy900 : colors.ink500} />
+      </Pressable>
     </Pressable>
   );
 }
@@ -418,6 +468,10 @@ function ResultLine({
         {total >= 60 ? " — showing the closest sixty" : ""}
       </Text>
     );
+  }
+
+  if (scope.kind === "favourites") {
+    return <Text style={styles.resultLine}>{total === 1 ? "1 favourite club" : `${total} favourite clubs`}</Text>;
   }
 
   if (scope.kind === "near") {
@@ -481,6 +535,16 @@ function EmptyState({
         title={`Nothing matching “${term.trim()}”`}
         body="Try the town instead of the club — or a shorter piece of the name."
         action={{ label: "Browse by country", onPress: onClearSearch }}
+      />
+    );
+  }
+
+  if (scope.kind === "favourites") {
+    return (
+      <Empty
+        icon="star-outline"
+        title="No favourites yet"
+        body="Tap the star on any course and it's kept here — your home club, the ones you play most, the trip you're planning."
       />
     );
   }
@@ -591,19 +655,25 @@ const styles = StyleSheet.create({
 
   controls: {
     gap: spacing.sm,
-    paddingTop: spacing.sm,
-    paddingBottom: 4,
+    marginHorizontal: 12,
+    paddingTop: 10,
+    paddingBottom: 10,
+    borderRadius: 26,
+    backgroundColor: colors.surface,
+    shadowColor: "#0c2038",
+    shadowOpacity: 0.12,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 4,
   },
   searchBox: {
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
-    marginHorizontal: spacing.md,
+    marginHorizontal: 10,
     paddingHorizontal: 14,
     borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: colors.line,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.cream50,
     minHeight: 44,
   },
   // 16pt is a floor, not a preference: iOS zooms the whole screen when an
@@ -616,7 +686,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
 
-  chips: { gap: spacing.sm, paddingHorizontal: spacing.md },
+  chips: { gap: spacing.sm, paddingHorizontal: 10 },
   chip: {
     flexDirection: "row",
     alignItems: "center",
@@ -653,7 +723,7 @@ const styles = StyleSheet.create({
     color: colors.ink500,
   },
 
-  list: { padding: spacing.md, gap: spacing.sm, flexGrow: 1 },
+  list: { padding: spacing.md, gap: spacing.sm + 2, flexGrow: 1 },
 
   resultBlock: { gap: 2, marginBottom: 2 },
   resultLine: {
@@ -672,21 +742,30 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: "row",
     alignItems: "center",
-    gap: spacing.sm,
-    padding: 14,
-    borderRadius: radii.md,
-    borderWidth: 1,
+    gap: 12,
+    padding: 10,
+    borderRadius: radii.lg + 2,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.line,
     backgroundColor: colors.surface,
+    shadowColor: colors.navy900,
+    shadowOpacity: 0.07,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
   },
-  rowBody: { flex: 1, gap: 3 },
+  thumb: { width: 86, height: 86, borderRadius: radii.md + 2, backgroundColor: colors.cream100 },
+  rowBody: { flex: 1, gap: 3, paddingVertical: 2 },
+  placeRow: { flexDirection: "row", alignItems: "center", gap: 3 },
+  star: { alignSelf: "flex-start", width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: colors.cream50 },
+  starOn: { backgroundColor: colors.gold400 },
+  membersPill: { flexDirection: "row", alignItems: "center", gap: 4, paddingVertical: 3, paddingHorizontal: 8, borderRadius: radii.pill, backgroundColor: colors.green100 },
   // Playfair, the same face that carries a club's name on the website and on
   // an invitation card. It is the whole reason a list of names reads as a
   // directory of golf clubs rather than a list of search results.
   rowName: {
     fontFamily: fonts.display,
-    fontSize: 18,
-    lineHeight: 23,
+    fontSize: 17,
+    lineHeight: 22,
     color: colors.ink900,
   },
   rowPlace: {
@@ -719,8 +798,8 @@ const styles = StyleSheet.create({
     color: colors.ink900,
   },
   members: {
-    fontFamily: fonts.bodySemi,
-    fontSize: type.label,
+    fontFamily: fonts.bodyBold,
+    fontSize: 11.5,
     color: colors.green700,
   },
 
