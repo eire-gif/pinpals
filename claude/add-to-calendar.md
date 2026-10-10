@@ -38,6 +38,14 @@ opens Safari rather than the app.
 Time zones by club country: Ireland Europe/Dublin; NI, England, Scotland,
 Wales Europe/London; Spain Europe/Madrid; Portugal Europe/Lisbon.
 
+## First test (10 Oct 2026)
+
+Safari saved `pinpals-round.ics` to Downloads instead of showing the event:
+the response had `Content-Disposition: inline; filename=…`. Removed (PR
+#159). If plain `text/calendar` still downloads on some iOS version, the
+dependable fix is `expo-calendar`'s system "New Event" sheet at the next
+native build (no calendar permission needed on iOS 17+).
+
 ## Not verified
 
 - Not yet tried on a phone (Safari's Add to Calendar sheet in particular).
