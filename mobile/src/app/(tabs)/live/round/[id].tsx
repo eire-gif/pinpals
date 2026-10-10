@@ -33,6 +33,7 @@ import {
 import { colors, creamAlpha, fonts, radii, spacing, type } from "@/lib/theme";
 import { scorecardFromLiveRound } from "@/lib/scorecards";
 import { useLiveRefresh } from "@/lib/use-live-refresh";
+import { goHome } from "@/lib/go-home";
 
 /**
  * Scoring a round, and its leaderboard.
@@ -68,6 +69,8 @@ export default function LiveRoundScreen() {
   const { session } = useAuth();
   const me = session?.user?.id ?? null;
   const started = useRef(false);
+  // The card view, so finishing can bring its top — the result — into view.
+  const boardScroll = useRef<ScrollView>(null);
 
   const load = useCallback(async () => {
     try {
@@ -193,7 +196,12 @@ export default function LiveRoundScreen() {
         onPress: async () => {
           try {
             await finishLiveRound(round.id);
-            void load();
+            // Oct 2026: finishing used to leave you at the bottom of the page
+            // with nothing seeming to happen. Now it takes you to this game's
+            // card, from the top, with the final scores on it.
+            setView("board");
+            await load();
+            boardScroll.current?.scrollTo({ y: 0, animated: true });
           } catch (e) {
             Alert.alert("Couldn't finish the round", e instanceof Error ? e.message : "Please try again.");
           }
@@ -241,8 +249,9 @@ export default function LiveRoundScreen() {
           onPress: async () => {
             try {
               await deleteLiveRound(round.id);
-              if (dayHeader) router.replace({ pathname: "/live/day/[id]", params: { id: String(dayHeader.id) } });
-              else router.replace("/live");
+              // Home, not the match day or the hub: the game is gone, and
+              // Back shouldn't lead to its empty screen either.
+              goHome();
             } catch (e) {
               Alert.alert("Couldn't delete it", e instanceof Error ? e.message : "Please try again.");
             }
@@ -489,7 +498,7 @@ export default function LiveRoundScreen() {
           ) : null}
         </ScrollView>
       ) : (
-        <ScrollView contentContainerStyle={styles.page}>
+        <ScrollView ref={boardScroll} contentContainerStyle={styles.page}>
           {board?.cardIncomplete && !matchFormat ? (
             <Text style={styles.warn}>
               Some holes have no stroke index yet, so shots aren't counted there. Fill them in on the Score tab.

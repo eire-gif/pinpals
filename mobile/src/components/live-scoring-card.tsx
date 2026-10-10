@@ -3,7 +3,7 @@ import { router } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { isOn } from "@/lib/features";
-import { colors, fonts, radii, spacing, type } from "@/lib/theme";
+import { colors, fonts, radii, spacing } from "@/lib/theme";
 
 /**
  * Home's way into live scoring, just below "How was golf today?".
@@ -22,7 +22,7 @@ export function LiveScoringCard() {
       accessibilityLabel="Live scoring. Score your round with your group and follow the leaderboard."
     >
       <View style={styles.icon}>
-        <Ionicons name="podium" size={20} color={colors.gold400} />
+        <Ionicons name="podium" size={22} color={colors.gold400} />
       </View>
       <View style={{ flex: 1 }}>
         <Text style={styles.title}>Live scoring</Text>
@@ -47,13 +47,15 @@ const styles = StyleSheet.create({
     backgroundColor: colors.navy900,
   },
   icon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 46,
+    height: 46,
+    borderRadius: 23,
     backgroundColor: colors.navy800,
     alignItems: "center",
     justifyContent: "center",
   },
-  title: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.cream50 },
+  // Oct 2026: big enough to spot at a glance on Home — the way into a round
+  // on the first tee shouldn't need looking for.
+  title: { fontFamily: fonts.display, fontSize: 26, lineHeight: 31, color: colors.cream50 },
   body: { fontFamily: fonts.body, fontSize: 13, color: colors.cream100, marginTop: 2 },
 });
