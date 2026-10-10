@@ -173,62 +173,35 @@ export default function HomeScreen() {
               Each label now stretches to its button's full width and centres
               itself, so there is nothing to truncate against — at worst a
               very large text size wraps onto a second line. */}
+          {/* Oct 2026 (option A): one gold button, then four matching glass
+              tiles with gold icons — one colour family on the photo instead
+              of five, so the hero sits with the navy-and-gold cards below. */}
           <View style={styles.heroButtons}>
             {/* First, and the only gold one: finding people to play with is
-                what PinPals is for, and the other three all assume you have
-                someone. Gold with ink-900 text is 9.6:1. */}
-            <Pressable
-              style={[styles.cta, styles.ctaFull, styles.ctaGold]}
-              onPress={() => router.push("/members")}
-              accessibilityRole="button"
-            >
-              {/* The icon sits inside the label (an Ionicon is itself a
-                  Text) so the whole line is measured as one string. */}
-              <Text style={[styles.ctaLabel, styles.ctaGoldLabel]}>
-                <Ionicons name="people" size={19} color={colors.ink900} /> Find PinPals
-              </Text>
+                what PinPals is for. A gold lip underneath makes it a raised
+                button, like Live Scoring. */}
+            <Pressable onPress={() => router.push("/members")} accessibilityRole="button" style={styles.goldOuter}>
+              {({ pressed }) => (
+                <View style={[styles.goldLip, pressed && styles.goldLipPressed]}>
+                  <View style={styles.goldFace}>
+                    {/* The icon sits inside the label so the line measures as
+                        one string (see the note on truncation above). */}
+                    <Text style={[styles.ctaLabel, styles.ctaGoldLabel]}>
+                      <Ionicons name="people" size={19} color={colors.navy900} /> Find PinPals
+                    </Text>
+                  </View>
+                </View>
+              )}
             </Pressable>
 
-            <Pressable
-              style={[styles.cta, styles.ctaHalf, styles.ctaGreen]}
-              onPress={() => router.push("/post-tee-time")}
-              accessibilityRole="button"
-            >
-              <Text style={[styles.ctaLabel, styles.ctaGreenLabel]}>Post a tee time</Text>
-            </Pressable>
-
-            <Pressable
-              style={[styles.cta, styles.ctaHalf, styles.ctaCream]}
-              onPress={() => router.push("/tee-times")}
-              accessibilityRole="button"
-            >
-              <Text style={[styles.ctaLabel, styles.ctaCreamLabel]}>Find a game</Text>
-            </Pressable>
-
-            {/* The marketplace accent from globals.css, and ink-900 on it is
-                not a style choice: white on this orange is 1.99:1, nowhere
-                near WCAG AA. */}
-            <Pressable
-              style={[styles.cta, styles.ctaHalf, styles.ctaBuy]}
-              onPress={() => router.push("/new-listing")}
-              accessibilityRole="button"
-            >
-              <Text style={[styles.ctaLabel, styles.ctaBuyLabel]}>List an item</Text>
-            </Pressable>
-
-            {/* The way into Social from the top of the app. Outlined glass
-                rather than a fifth colour: the hero already has four, and
-                this one should read as an invitation, not a task. White on
-                the scrimmed photo is well over 7:1. */}
-            <Pressable
-              style={[styles.cta, styles.ctaHalf, styles.ctaGlass]}
+            <HeroTile icon="flag" label="Post a tee time" onPress={() => router.push("/post-tee-time")} />
+            <HeroTile icon="search" label="Find a game" onPress={() => router.push("/tee-times")} />
+            <HeroTile icon="pricetag-outline" label="Sell an item" onPress={() => router.push("/new-listing")} />
+            <HeroTile
+              icon="camera-outline"
+              label="Share a photo"
               onPress={() => router.push({ pathname: "/new-post", params: { type: "photo" } })}
-              accessibilityRole="button"
-            >
-              <Text style={[styles.ctaLabel, styles.ctaGlassLabel]}>
-                <Ionicons name="camera-outline" size={18} color="#ffffff" /> Share a photo
-              </Text>
-            </Pressable>
+            />
           </View>
         </View>
       </ImageBackground>
@@ -560,6 +533,25 @@ function Band({
   );
 }
 
+/** A frosted tile on the hero photo: gold icon in a navy disc, white label. */
+function HeroTile({ icon, label, onPress }: { icon: keyof typeof Ionicons.glyphMap; label: string; onPress: () => void }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [styles.tile, pressed && styles.tilePressed]}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+    >
+      <View style={styles.tileDisc}>
+        <Ionicons name={icon} size={17} color={colors.gold400} />
+      </View>
+      {/* No numberOfLines, for the same reason as the old buttons: a long
+          label wraps onto a second line rather than being cut. */}
+      <Text style={styles.tileLabel}>{label}</Text>
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
   fill: { flex: 1, backgroundColor: colors.cream50 },
   content: { paddingBottom: spacing.xl },
@@ -616,35 +608,54 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
   },
 
-  cta: {
-    minHeight: 46,
+  ctaLabel: { alignSelf: "stretch", textAlign: "center" },
+  ctaGoldLabel: { color: colors.navy900, fontFamily: fonts.bodyBold, fontSize: 17 },
+  goldOuter: {
+    flexBasis: "100%",
+    borderRadius: radii.pill,
+    shadowColor: "#000",
+    shadowOpacity: 0.3,
+    shadowRadius: 7,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 5,
+  },
+  goldLip: { borderRadius: radii.pill, backgroundColor: "#9c7a2c", paddingBottom: 3 },
+  goldLipPressed: { paddingBottom: 0, marginTop: 3 },
+  goldFace: {
+    minHeight: 54,
+    borderRadius: radii.pill,
+    backgroundColor: colors.gold400,
+    borderWidth: 1,
+    borderColor: "#f6dc97",
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: spacing.sm,
-    borderRadius: radii.pill,
   },
-  // Two halves either side of an 8pt gap, then one across the whole row.
-  ctaHalf: { flexBasis: "47%", flexGrow: 1 },
-  ctaFull: { flexBasis: "100%" },
-  ctaGreen: { backgroundColor: colors.green600 },
-  ctaGreenLabel: { color: "#ffffff", fontFamily: fonts.bodyBold, fontSize: type.body },
-  ctaCream: { backgroundColor: "#fbf8ef" },
-  ctaCreamLabel: { color: colors.navy900, fontFamily: fonts.bodyBold, fontSize: type.body },
-  ctaGold: { backgroundColor: colors.gold400, minHeight: 52 },
-  ctaLabel: { alignSelf: "stretch", textAlign: "center" },
-  ctaGoldLabel: { color: colors.ink900, fontFamily: fonts.bodyBold, fontSize: 17 },
-  ctaBuy: {
-    backgroundColor: colors.buy500,
-    borderWidth: 1.5,
-    borderColor: colors.buy700,
+  // Two tiles a row either side of an 8pt gap.
+  tile: {
+    flexBasis: "47%",
+    flexGrow: 1,
+    minHeight: 62,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: radii.lg,
+    backgroundColor: "rgba(247,243,234,0.14)",
+    borderWidth: 1,
+    borderColor: "rgba(247,243,234,0.38)",
   },
-  ctaBuyLabel: { color: colors.ink900, fontFamily: fonts.bodyBold, fontSize: type.body },
-  ctaGlass: {
-    backgroundColor: "rgba(255,255,255,0.14)",
-    borderWidth: 1.5,
-    borderColor: "rgba(255,255,255,0.75)",
+  tilePressed: { backgroundColor: "rgba(247,243,234,0.26)" },
+  tileDisc: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: "rgba(12,32,56,0.6)",
+    alignItems: "center",
+    justifyContent: "center",
   },
-  ctaGlassLabel: { color: "#ffffff", fontFamily: fonts.bodyBold, fontSize: type.body },
+  tileLabel: { flex: 1, fontFamily: fonts.bodyBold, fontSize: 15, lineHeight: 19, color: "#ffffff" },
   // Room for the composer card, which overlaps the hero by 22pt.
   heroBodyUnderComposer: { paddingBottom: spacing.lg + 22 },
 

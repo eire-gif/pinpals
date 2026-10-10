@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, ImageBackground, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
@@ -12,6 +12,8 @@ import { deleteLiveRound, loadMyLiveRounds, type LiveRoundSummary } from "@/lib/
 import { formatInfo } from "@/lib/live-scoring";
 import { dateLabel } from "@/lib/tee-times";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
+
+const HERO = require("../../../../assets/images/scenes/links-dusk.jpg");
 
 /**
  * Live scoring hub: start a round, or go back to one in play.
@@ -99,17 +101,19 @@ export default function LiveScoringHub() {
         />
       }
     >
-      <View style={styles.hero}>
+      {/* Oct 2026 (option A): a course photograph behind a short title,
+          the same look as Tee Times and Courses. */}
+      <ImageBackground source={HERO} style={styles.hero} imageStyle={styles.heroImage}>
+        <View style={styles.scrim} />
         <View style={styles.eyebrowRow}>
           <View style={styles.rule} />
           <Text style={styles.eyebrow}>Live scoring</Text>
         </View>
-        <Text style={styles.heroTitle}>Score it together.</Text>
-        <Text style={styles.heroBody}>
-          Enter your handicap once. PinPals works out your shots on every hole, and the whole group sees the
-          leaderboard move as scores go in.
+        <Text style={styles.heroTitle} accessibilityRole="header">
+          Score it together.
         </Text>
-      </View>
+        <Text style={styles.heroBody}>Handicaps in once — shots worked out, leaderboard live.</Text>
+      </ImageBackground>
 
       {/* Oct 2026: the two ways in, as raised cards like Home's Live
           Scoring, so starting a game is the obvious thing on this screen. */}
@@ -244,13 +248,25 @@ function DeleteButton({ label, onPress }: { label: string; onPress: () => void }
 const styles = StyleSheet.create({
   trash: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
   page: { padding: spacing.md, gap: spacing.lg, paddingBottom: spacing.xl },
-  hero: { paddingHorizontal: 4, paddingTop: spacing.sm, gap: spacing.sm },
+  hero: {
+    marginHorizontal: -spacing.md,
+    marginTop: -spacing.md,
+    marginBottom: -spacing.sm,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.xl,
+    paddingBottom: spacing.lg,
+    gap: 6,
+    backgroundColor: colors.navy900,
+  },
+  heroImage: { resizeMode: "cover" },
+  // Navy over the photo so cream text reads on a bright sky.
+  scrim: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(12,32,56,0.5)" },
   starts: { gap: spacing.md + 2 },
   eyebrowRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   rule: { width: 18, height: 2, backgroundColor: colors.gold400 },
-  eyebrow: { fontFamily: fonts.bodyBold, fontSize: 12, letterSpacing: 1.6, textTransform: "uppercase", color: colors.gold500 },
-  heroTitle: { fontFamily: fonts.display, fontSize: 30, color: colors.navy900 },
-  heroBody: { fontFamily: fonts.body, fontSize: type.small, lineHeight: 21, color: colors.ink500 },
+  eyebrow: { fontFamily: fonts.bodyBold, fontSize: 12, letterSpacing: 1.6, textTransform: "uppercase", color: colors.gold400 },
+  heroTitle: { fontFamily: fonts.display, fontSize: 32, lineHeight: 38, color: colors.cream50 },
+  heroBody: { fontFamily: fonts.body, fontSize: type.small, lineHeight: 20, color: colors.cream100 },
   pressed: { opacity: 0.85 },
   section: { gap: spacing.sm },
   sectionTitle: { fontFamily: fonts.bodyBold, fontSize: 12, letterSpacing: 1.2, textTransform: "uppercase", color: colors.ink500 },
