@@ -14,46 +14,45 @@ describe("computeCheckoutTotal", () => {
   it("charges no delivery fee for collection", () => {
     expect(computeCheckoutTotal(150, "collection")).toEqual({
       itemPriceEur: 150,
-      fee: 10.5, // 7% of 150
+      fee: 8.2, // Buyer Protection (0114): €0.70 + 5% of 150
       delivery: 0,
-      total: 160.5,
+      total: 158.2,
     });
   });
 
   it("adds the flat delivery fee for post", () => {
     expect(computeCheckoutTotal(100, "post")).toEqual({
       itemPriceEur: 100,
-      fee: 7,
+      fee: 5.7,
       delivery: DELIVERY_FEE_EUR,
-      total: 113,
+      total: 111.7,
     });
   });
 
   it("rounds the fee and total to the nearest cent rather than accumulating float drift", () => {
     // 19.99 * 0.07 = 1.3993 in floating point — must land on 1.40, not 1.3993.
     const result = computeCheckoutTotal(19.99, "collection");
-    expect(result.fee).toBe(1.4);
-    expect(result.total).toBe(21.39);
+    expect(result.fee).toBe(1.7);
+    expect(result.total).toBe(21.69);
   });
 
   it("mirrors create_purchase_order()'s own math (0050) for a round-number case", () => {
-    // amount_eur = 250, fee = round(250 * 0.07, 2) = 17.5, delivery = 6.00,
-    // total = 250 + 17.5 + 6 = 273.5 — same figures that migration's
-    // auction_with_buy_now test case (checkout.test.ts) asserts server-side.
+    // amount_eur = 250, fee = platform_fee_eur(250) = 0.70 + 12.50 = 13.2
+    // (0114), delivery = 6.00, total = 250 + 13.2 + 6 = 269.2.
     expect(computeCheckoutTotal(250, "post")).toEqual({
       itemPriceEur: 250,
-      fee: 17.5,
+      fee: 13.2,
       delivery: 6,
-      total: 273.5,
+      total: 269.2,
     });
   });
 
   it("a zero item price still returns a well-formed breakdown, not NaN", () => {
     expect(computeCheckoutTotal(0, "post")).toEqual({
       itemPriceEur: 0,
-      fee: 0,
+      fee: 0.7,
       delivery: DELIVERY_FEE_EUR,
-      total: DELIVERY_FEE_EUR,
+      total: DELIVERY_FEE_EUR + 0.7,
     });
   });
 });

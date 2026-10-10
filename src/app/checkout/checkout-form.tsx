@@ -239,7 +239,7 @@ export default function CheckoutForm({
         <h4 className="text-xs font-bold uppercase tracking-wider text-ink-500 mb-3">Order summary</h4>
         <div className="grid gap-1.5 text-sm">
           <Row label="Item price" value={formatPrice(item.priceEur)} />
-          <Row label="Pinpals fee (7%)" value={formatPrice(fee)} />
+          <Row label="Buyer Protection" value={formatPrice(fee)} />
           <Row label="Delivery" value={delivery > 0 ? formatPrice(delivery) : "Free"} />
         </div>
         <div className="flex justify-between items-baseline mt-3 pt-3 border-t border-line">

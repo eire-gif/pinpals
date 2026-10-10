@@ -196,6 +196,7 @@ export default async function AdminOrdersPage({
                 <th className="px-5 py-3 font-semibold">Total</th>
                 <th className="px-5 py-3 font-semibold">Status</th>
                 <th className="px-5 py-3 font-semibold">Payment</th>
+                <th className="px-5 py-3 font-semibold">Handover</th>
                 <th className="px-5 py-3 font-semibold">Placed</th>
               </tr>
             </thead>
@@ -241,6 +242,23 @@ export default async function AdminOrdersPage({
                         labels={PAYMENT_STATUS_LABELS}
                         styles={PAYMENT_STATUS_STYLES}
                       />
+                    </td>
+                    <td className="px-5 py-3 text-xs">
+                      {o.fulfilment_status ? (
+                        <span
+                          className={`px-2 py-1 rounded-full font-semibold whitespace-nowrap ${
+                            o.fulfilment_status === "problem"
+                              ? "bg-red-100 text-red-600"
+                              : o.payout_status === "held"
+                                ? "bg-gold-500/20 text-ink-900"
+                                : "bg-green-100 text-green-800"
+                          }`}
+                        >
+                          {o.fulfilment_status === "problem" ? "Problem · held" : o.payout_status === "held" ? "Money held" : "Seller paid"}
+                        </span>
+                      ) : (
+                        <span className="text-ink-500">—</span>
+                      )}
                     </td>
                     <td className="px-5 py-3 text-ink-500">{formatDateTime(o.created_at)}</td>
                   </tr>

@@ -74,6 +74,9 @@ export const ADMIN_ACTIONS = [
   // reused as the "succeeded" outcome rather than renamed, since it already
   // existed forward-declared and unused before this phase.
   "refund.failed",
+  // Buyer Protection (0114): staff releasing or freezing a held sale.
+  "order.release",
+  "order.hold",
   "admin.role_changed",
   // /admin/staff (see src/app/admin/staff/actions.ts and
   // supabase/migrations/0027_staff_roles_lockdown.sql). "admin.role_changed"

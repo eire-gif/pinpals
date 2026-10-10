@@ -15,7 +15,7 @@ export default function PriceSummary({ amountEur }: { amountEur: number }) {
           <span>{formatPrice(amount)}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-ink-500">Pinpals fee (7%)</span>
+          <span className="text-ink-500">Buyer Protection</span>
           <span>{formatPrice(fee)}</span>
         </div>
       </div>

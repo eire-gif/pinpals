@@ -275,7 +275,7 @@ export function PurchasePanel({
             ? null
             : amount < MIN_OFFER_EUR
               ? `Offers start at ${eur(MIN_OFFER_EUR)}.`
-              : `If accepted you'd pay ${eur(offerTotal(amount).total)} including the ${eur(offerTotal(amount).fee)} PinPals fee, plus delivery if posted.`
+              : `If accepted you'd pay ${eur(offerTotal(amount).total)} including the ${eur(offerTotal(amount).fee)} Buyer Protection, plus delivery if posted.`
         }
         confirmLabel={(amount) => (amount === null ? "Send offer" : `Send offer of ${eur(amount)}`)}
         onClose={() => setSheet(null)}

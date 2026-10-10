@@ -1,4 +1,4 @@
-import { PLATFORM_FEE_RATE, offerHasExpired } from "./marketplace";
+import { buyerProtectionFee, offerHasExpired } from "./marketplace";
 import type { Address, DeliveryOption, Order } from "./types";
 
 // ============ Buy Now / accepted-offer checkout ============
@@ -48,7 +48,7 @@ export const TAX_TREATMENT = "not_applicable" as const;
  * delivery method, never what's actually charged; the DB functions re-derive
  * every figure from trusted data regardless of what a stale client sent. */
 export function computeCheckoutTotal(itemPriceEur: number, deliveryMethod: DeliveryOption) {
-  const fee = Math.round(itemPriceEur * PLATFORM_FEE_RATE * 100) / 100;
+  const fee = buyerProtectionFee(itemPriceEur);
   const delivery = deliveryMethod === "post" ? DELIVERY_FEE_EUR : 0;
   const total = Math.round((itemPriceEur + fee + delivery) * 100) / 100;
   return { itemPriceEur, fee, delivery, total };

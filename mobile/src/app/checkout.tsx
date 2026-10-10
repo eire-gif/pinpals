@@ -214,7 +214,7 @@ export default function CheckoutScreen() {
         {/* Total */}
         <View style={styles.card}>
           <Line label="Item" value={eur(totals.price)} />
-          <Line label="PinPals fee (7%)" value={eur(totals.fee)} />
+          <Line label="Buyer Protection" value={eur(totals.fee)} />
           {totals.delivery > 0 ? <Line label="Postage" value={eur(totals.delivery)} /> : null}
           <View style={styles.rule} />
           <Line label="Total" value={eur(totals.total)} strong />

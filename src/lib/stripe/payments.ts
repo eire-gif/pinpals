@@ -223,37 +223,27 @@ async function handlePaymentIntentSucceeded(
       userId: order.buyer_id,
       type: "payment_succeeded",
       title: "Payment received",
-      body: `Your payment of ${formatPrice(order.total_eur)} for "${order.listing_title}" was successful.`,
+      body: `Your payment of ${formatPrice(order.total_eur)} for "${order.listing_title}" was successful. It's held safely until the item is yours.`,
       href: `/dashboard/orders/${order.id}`,
       data: { orderId: order.id },
       dedupeKey: `stripe:${paymentIntent.id}:payment_succeeded:buyer`,
     });
+    // Buyer Protection (0114): the money is held until the item changes
+    // hands, so the seller's next step depends on how it's going.
+    const collection = updated.delivery_method !== "post";
     await notifyUser(admin, {
       userId: order.seller_id,
       type: "seller_action_required",
-      title: "Action required: arrange handover",
-      body: `The buyer paid for "${order.listing_title}" — arrange collection or delivery with them.`,
+      title: collection ? "Sold — arrange the meet-up" : "Sold — time to post it",
+      body: collection
+        ? `The buyer paid for "${order.listing_title}". Agree a time to meet; you're paid when they give you their handover code.`
+        : `The buyer paid for "${order.listing_title}". Post it and mark it posted; you're paid when it arrives.`,
       href: `/dashboard/orders/${order.id}`,
       data: { orderId: order.id },
       dedupeKey: `stripe:${paymentIntent.id}:seller_action_required`,
     });
-
-    if (wasPending && updated.status === "completed") {
-      for (const [userId, otherId] of [
-        [order.buyer_id, order.seller_id],
-        [order.seller_id, order.buyer_id],
-      ] as const) {
-        await notifyUser(admin, {
-          userId,
-          type: "review_available",
-          title: "Leave a review",
-          body: `Your order for "${order.listing_title}" is complete — you can now leave a review.`,
-          href: userId === order.buyer_id ? "/dashboard/buying?tab=delivery" : "/dashboard/selling?tab=sales",
-          data: { orderId: order.id, revieweeId: otherId },
-          dedupeKey: `order:${order.id}:review_available:${userId}`,
-        });
-      }
-    }
+    // Reviews now open when the money is released (src/lib/marketplace-release.ts).
+    void wasPending;
   }
 }
 
