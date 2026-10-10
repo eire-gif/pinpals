@@ -15,7 +15,8 @@ import { Stack, useRouter } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
-import { Chip, ChipGroup, Collapsible, Section, TileGrid, type Tile } from "@/components/form-bits";
+import { Chip, ChipGroup, Collapsible, Section, TileGrid } from "@/components/form-bits";
+import { CATEGORY_TILES } from "@/lib/listing-icons";
 import { PhotoStrip, type Photo } from "@/components/photo-strip";
 import { ApiError, type UploadFile } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
@@ -567,19 +568,6 @@ export default function NewListingScreen() {
   );
 }
 
-/** The categories as picture tiles (Oct 2026). Icons: Material Design Icons. */
-const CATEGORY_ICONS: Record<Category, Tile["icon"]> = {
-  Drivers: "golf",
-  "Woods & hybrids": "golf-tee",
-  Irons: "numeric-7-box-outline",
-  Wedges: "angle-acute",
-  Putters: "flag-variant",
-  "Full sets": "layers-triple",
-  "Bags & trolleys": "bag-personal",
-  "Shoes & apparel": "tshirt-crew",
-  "Balls & accessories": "circle-slice-8",
-};
-const CATEGORY_TILES: Tile[] = CATEGORIES.map((c) => ({ key: c, label: c, icon: CATEGORY_ICONS[c] }));
 
 const styles = StyleSheet.create({
   fill: { flex: 1, backgroundColor: colors.cream50 },

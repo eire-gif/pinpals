@@ -149,9 +149,20 @@ export function Collapsible({
  */
 export type Tile = { key: string; label: string; icon: keyof typeof MaterialCommunityIcons.glyphMap };
 
-export function TileGrid({ tiles, selected, onPick }: { tiles: readonly Tile[]; selected: string | null; onPick: (key: string) => void }) {
+export function TileGrid({
+  tiles,
+  selected,
+  onPick,
+  inset = 0,
+}: {
+  tiles: readonly Tile[];
+  selected: string | null;
+  onPick: (key: string) => void;
+  /** Extra horizontal padding around the grid (inside a card). */
+  inset?: number;
+}) {
   const { width } = useWindowDimensions();
-  const w = Math.floor((width - spacing.md * 2 - spacing.sm * 2) / 3);
+  const w = Math.floor((width - spacing.md * 2 - inset - spacing.sm * 2) / 3);
   return (
     <View style={styles.group}>
       {tiles.map((t) => {

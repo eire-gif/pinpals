@@ -279,6 +279,13 @@ export default function TabsLayout() {
         name="profile"
         options={{
           title: "Profile",
+          // Oct 2026: the member's cover photograph runs up behind a
+          // see-through bar, as on Tee Times (profile.tsx).
+          headerTitle: "",
+          headerTransparent: true,
+          headerStyle: { backgroundColor: "transparent" },
+          headerShadowVisible: false,
+          headerLeft: () => <MenuButton onPress={() => setMenuOpen(true)} color={colors.cream50} />,
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="person-outline" size={size} color={color} />
           ),

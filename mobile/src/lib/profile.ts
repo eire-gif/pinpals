@@ -147,3 +147,17 @@ export function looksLikeADate(value: string): boolean {
   const date = new Date(`${value}T00:00:00Z`);
   return !Number.isNaN(date.getTime()) && date.getTime() < Date.now();
 }
+
+/**
+ * The photograph across the top of the member's profile (0112). Through the
+ * website, which re-encodes it (no EXIF — no GPS) into the public bucket;
+ * returns the new URL, or null once removed.
+ */
+export async function uploadCover(file: UploadFile): Promise<string | null> {
+  const res = await postFormToSite<{ ok: true; coverUrl: string | null }>("/api/app/profile/cover", {}, { field: "cover", file });
+  return res.coverUrl;
+}
+
+export async function removeCover(): Promise<void> {
+  await postFormToSite<{ ok: true }>("/api/app/profile/cover", { remove: "on" });
+}

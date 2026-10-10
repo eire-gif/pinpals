@@ -293,11 +293,13 @@ export default function MemberScreen() {
 
   const header = (
     <View style={styles.profile}>
-      <View style={styles.identity}>
+      {/* Their cover photograph (0112) across the top, the face overlapping it. */}
+      <Image source={profile.coverUrl ? { uri: profile.coverUrl } : MEMBER_COVER} style={styles.cover} resizeMode="cover" />
+      <View style={[styles.identity, styles.identityOnCover]}>
         <View style={styles.avatarRing}>
           <Avatar url={profile.avatarUrl} color={profile.avatarColor} name={profile.name} size={80} />
         </View>
-        <View style={styles.identityText}>
+        <View style={[styles.identityText, styles.identityTextOnCover]}>
           <Text style={styles.name}>{profile.name}</Text>
           {profile.homeClub ? (
             <Pressable
@@ -524,13 +526,18 @@ export default function MemberScreen() {
   );
 }
 
+const MEMBER_COVER = require("../../../assets/images/scenes/links-sunset.jpg");
+
 const styles = StyleSheet.create({
+  cover: { height: 150, marginHorizontal: -spacing.md, marginTop: -spacing.md, backgroundColor: colors.navy900 },
+  identityOnCover: { marginTop: -34, alignItems: "flex-start" },
+  identityTextOnCover: { paddingTop: 40 },
   fill: { flex: 1, backgroundColor: colors.cream50 },
   list: { padding: spacing.md, paddingBottom: spacing.xl * 2 },
   missing: { fontFamily: fonts.body, fontSize: type.body, color: colors.ink500, textAlign: "center", marginTop: spacing.xl },
   profile: { marginBottom: spacing.sm },
   identity: { flexDirection: "row", alignItems: "center", gap: spacing.md },
-  avatarRing: { padding: 3, borderRadius: 46, borderWidth: 2, borderColor: colors.gold400 },
+  avatarRing: { padding: 3, borderRadius: 46, borderWidth: 2, borderColor: colors.gold400, backgroundColor: colors.cream50 },
   homeRow: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 3, minHeight: 24 },
   identityText: { flex: 1, minWidth: 0 },
   name: { fontFamily: fonts.display, fontSize: 26, color: colors.ink900 },
