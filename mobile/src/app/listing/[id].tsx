@@ -375,23 +375,22 @@ export default function ListingScreen() {
           {listing.isMine ? (
             <>
               {listing.status === "active" && !shop ? (
-                <Pressable
-                  style={({ pressed }) => [styles.promote, pressed && { opacity: 0.9 }]}
-                  onPress={() =>
-                    router.push({
-                      pathname: "/web",
-                      params: { path: `/dashboard/listings/${listing.id}/promote`, title: "Promote your listing" },
-                    })
-                  }
-                  accessibilityRole="button"
-                >
+                // Information only, no link: a promotion is a digital
+                // service, so under App Store rule 3.1.1 it is bought on the
+                // website, never inside the app (not even its web view).
+                <View style={styles.promote}>
                   <Ionicons name="rocket-outline" size={20} color={colors.gold400} />
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.promoteTitle}>{featured ? "Featured — showing at the top" : "Sell it faster"}</Text>
-                    <Text style={styles.promoteBody}>Feature it for 7 days or bump it to the top of Fresh today</Text>
+                    <Text style={styles.promoteTitle}>
+                      {featured ? "Featured — showing at the top" : "Want it seen first?"}
+                    </Text>
+                    <Text style={styles.promoteBody}>
+                      {featured
+                        ? `Until ${new Date(listing.featuredUntil ?? "").toLocaleDateString("en-IE", { day: "numeric", month: "short" })}.`
+                        : "Feature or bump it from My listings on the PinPals website."}
+                    </Text>
                   </View>
-                  <Ionicons name="chevron-forward" size={18} color={colors.gold400} />
-                </Pressable>
+                </View>
               ) : null}
               <SellerControls
                 listingId={listing.id}

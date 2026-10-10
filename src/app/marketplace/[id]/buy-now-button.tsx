@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+import { GOLD_BUTTON, NAVY_OUTLINE_BUTTON } from "@/components/marketplace/buy-styles";
+
 /**
  * One link, both Buy Now paths (fixed-price/offers-allowed, and the Buy It
  * Now price on an auction_with_buy_now listing) — both now lead to the same
@@ -21,21 +23,13 @@ export default function BuyNowButton({
   label?: string;
   variant?: "primary" | "secondary";
 }) {
-  // Orange, not the brand green every other primary button uses — see
-  // --buy-500's own comment in globals.css. Deliberately the ONLY control on
-  // a listing page in this colour, so "orange" reads as "this spends money
-  // now" rather than as a second brand accent. ink-900 text, never cream-50:
-  // white on #ffa41c is ~1.9:1 and fails WCAG AA outright.
-  const styles =
-    variant === "primary"
-      ? "bg-buy-500 text-ink-900 border-[1.5px] border-buy-700 hover:bg-buy-600"
-      : "border-[1.5px] border-buy-700 text-ink-900 hover:bg-buy-500/20";
+  // Gold on a darker gold lip — the one "this spends money" button, the
+  // same on the website and in the app (Oct 2026 redesign, mock-up 3).
+  // Navy text on gold-400 is well over WCAG AA.
+  const styles = variant === "primary" ? GOLD_BUTTON : NAVY_OUTLINE_BUTTON;
 
   return (
-    <Link
-      href={`/marketplace/${listingId}/checkout`}
-      className={`block w-full text-center py-3.5 rounded-full font-bold transition ${styles}`}
-    >
+    <Link href={`/marketplace/${listingId}/checkout`} className={`w-full ${styles}`}>
       {label}
     </Link>
   );

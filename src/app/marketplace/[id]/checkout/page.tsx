@@ -64,11 +64,16 @@ export default async function BuyNowCheckoutPage({ params }: { params: Promise<{
   if (priceEur === null) redirect(`/marketplace/${listingId}`);
 
   const [sellerResult, addressesResult] = await Promise.all([
-    supabase.from("profiles").select("first_name, last_name").eq("id", listing.seller_id).maybeSingle<{ first_name: string; last_name: string }>(),
+    supabase.from("profiles").select("first_name, last_name, home_club").eq("id", listing.seller_id).maybeSingle<{ first_name: string; last_name: string; home_club: string | null }>(),
     supabase.from("addresses").select("*").eq("user_id", user.id).order("created_at", { ascending: false }).returns<Address[]>(),
   ]);
 
-  const sellerName = sellerResult.data ? `${sellerResult.data.first_name} ${sellerResult.data.last_name}` : "Pinpals member";
+  // Pro shop stock (0115) is sold by the shop, collected at its club.
+  const { data: shop } = listing.store_id
+    ? await supabase.from("stores").select("name, clubs ( name )").eq("id", listing.store_id).maybeSingle<{ name: string; clubs: { name: string } | null }>()
+    : { data: null };
+  const sellerName = shop?.name ?? (sellerResult.data ? `${sellerResult.data.first_name} ${sellerResult.data.last_name}` : "Pinpals member");
+  const meetAt = shop ? (shop.clubs?.name ?? null) : (sellerResult.data?.home_club ?? null);
   const addresses = addressesResult.data ?? [];
 
   const submit = submitBuyNowCheckout.bind(null, listingId);
@@ -81,7 +86,7 @@ export default async function BuyNowCheckoutPage({ params }: { params: Promise<{
       <h1 className="font-display font-bold text-2xl mb-6">Checkout</h1>
 
       <CheckoutForm
-        item={{ title: listing.title, imageUrl: listing.image_url, sellerName, priceEur }}
+        item={{ title: listing.title, imageUrl: listing.image_url, sellerName, priceEur, isShop: !!shop, meetAt }}
         deliveryOptions={listing.delivery_options}
         collectionNotes={listing.collection_notes}
         addresses={addresses}

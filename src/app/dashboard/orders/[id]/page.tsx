@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { GOLD_BUTTON } from "@/components/marketplace/buy-styles";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { formatPrice, formatTimeRemaining } from "@/lib/format";
@@ -154,7 +155,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
       {canPay && !checkoutDeadlinePassed && !order.checkout_completed_at && (
         <Link
           href={`/dashboard/orders/${order.id}/checkout`}
-          className="block w-full text-center py-3.5 rounded-full font-bold bg-green-700 text-cream-50 hover:bg-green-600 transition"
+          className={`${GOLD_BUTTON} w-full`}
         >
           Finish checkout
         </Link>

@@ -1,5 +1,7 @@
 "use client";
 
+import { CARD_TITLE, GOLD_BUTTON, SOFT_CARD } from "@/components/marketplace/buy-styles";
+import { shortClub } from "@/lib/marketplace-growth";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { formatPrice } from "@/lib/format";
@@ -17,6 +19,10 @@ export type CheckoutItemSummary = {
   imageUrl: string | null;
   sellerName: string;
   priceEur: number;
+  /** Sold new by a pro shop (0115): no Buyer Protection fee, the shop pays commission. */
+  isShop?: boolean;
+  /** Where a collection happens — the shop's club or the seller's home club. */
+  meetAt?: string | null;
 };
 
 /**
@@ -81,7 +87,12 @@ export default function CheckoutForm({
   }
 
   const needsAddress = method === "post";
-  const { fee, delivery, total } = computeCheckoutTotal(item.priceEur, method);
+  const totals = computeCheckoutTotal(item.priceEur, method);
+  // A shop sale carries no fee; orders_store_pricing() (0115) recomputes the
+  // real total in the database either way — this is display only.
+  const fee = item.isShop ? 0 : totals.fee;
+  const delivery = totals.delivery;
+  const total = Math.round((item.priceEur + fee + delivery) * 100) / 100;
   const canSubmit = agreed && !pending && (!needsAddress || addressId !== null);
 
   function handleSubmit() {
@@ -96,7 +107,7 @@ export default function CheckoutForm({
 
   return (
     <div className="grid gap-6">
-      <div className="bg-surface border border-line rounded-2xl shadow-sm p-5 flex items-center gap-4">
+      <div className={`${SOFT_CARD} flex items-center gap-4`}>
         {item.imageUrl && (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={item.imageUrl} alt="" className="w-16 h-16 rounded-lg object-cover border border-line shrink-0" />
@@ -104,22 +115,31 @@ export default function CheckoutForm({
         <div className="min-w-0">
           <h2 className="font-display font-bold text-lg truncate">{item.title}</h2>
           <p className="text-sm text-ink-500">Sold by {item.sellerName}</p>
-          <p className="font-bold text-gold-600 mt-1">{formatPrice(item.priceEur)}</p>
+          <p className="font-extrabold text-navy-900 text-lg mt-1">{formatPrice(item.priceEur)}</p>
         </div>
       </div>
 
-      <div className="bg-surface border border-line rounded-2xl shadow-sm p-5">
-        <h3 className="font-bold text-sm mb-3">Delivery</h3>
+      <div className={SOFT_CARD}>
+        <h3 className={`${CARD_TITLE} mb-3`}>How you&rsquo;ll get it</h3>
         <div className="grid gap-2">
           {deliveryOptions.map((option) => (
             <label
               key={option}
               className={`flex items-center gap-3 rounded-xl border-[1.5px] px-4 py-3 cursor-pointer transition ${
-                method === option ? "border-green-700 bg-green-100/40" : "border-line"
+                method === option ? "border-navy-900 bg-[#f7f2e4]" : "border-line"
               }`}
             >
-              <input type="radio" name="deliveryMethod" checked={method === option} onChange={() => setMethod(option)} />
-              <span className="text-sm font-semibold">{DELIVERY_LABELS[option]}</span>
+              <input type="radio" name="deliveryMethod" checked={method === option} onChange={() => setMethod(option)} className="accent-navy-900" />
+              <span className="flex-1">
+                <span className="block text-sm font-bold">
+                  {option === "post" ? DELIVERY_LABELS.post.replace("Post", "Tracked post") : item.isShop ? "Collect from the pro shop" : "Meet at the club"}
+                </span>
+                <span className="block text-xs text-ink-500">
+                  {option === "post"
+                    ? "Posted with tracking. You confirm when it arrives."
+                    : `${item.meetAt ? `${shortClub(item.meetAt)} · ` : ""}free${item.isShop ? "" : " · you show a handover code"}`}
+                </span>
+              </span>
             </label>
           ))}
         </div>
@@ -235,17 +255,22 @@ export default function CheckoutForm({
         </div>
       )}
 
-      <div className="bg-surface-tint border border-line rounded-xl p-4">
-        <h4 className="text-xs font-bold uppercase tracking-wider text-ink-500 mb-3">Order summary</h4>
+      <div className={SOFT_CARD}>
+        <h4 className={`${CARD_TITLE} mb-3`}>Order summary</h4>
         <div className="grid gap-1.5 text-sm">
           <Row label="Item price" value={formatPrice(item.priceEur)} />
-          <Row label="Buyer Protection" value={formatPrice(fee)} />
+          {item.isShop ? null : <Row label="🛡️ Buyer Protection" value={formatPrice(fee)} />}
           <Row label="Delivery" value={delivery > 0 ? formatPrice(delivery) : "Free"} />
         </div>
         <div className="flex justify-between items-baseline mt-3 pt-3 border-t border-line">
           <span className="font-bold">Total</span>
-          <span className="font-display font-bold text-xl text-green-700">{formatPrice(total)}</span>
+          <span className="font-extrabold text-xl text-navy-900">{formatPrice(total)}</span>
         </div>
+        {item.isShop ? null : (
+          <p className="text-xs text-green-700 font-semibold mt-2">
+            Your money is held by PinPals and only released to the seller once you have the item.
+          </p>
+        )}
       </div>
 
       <label className="flex items-start gap-2.5 text-sm text-ink-700">
@@ -262,9 +287,9 @@ export default function CheckoutForm({
         type="button"
         onClick={handleSubmit}
         disabled={!canSubmit}
-        className="w-full py-3.5 rounded-full font-bold bg-green-700 text-cream-50 hover:bg-green-600 transition disabled:opacity-60"
+        className={`${GOLD_BUTTON} w-full`}
       >
-        {pending ? "Reserving…" : submitLabel}
+        {pending ? "Reserving…" : `${submitLabel} · ${formatPrice(total)}`}
       </button>
     </div>
   );

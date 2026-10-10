@@ -170,6 +170,23 @@ export async function createListing(
     return { error: `A listing may have at most ${MAX_LISTING_IMAGES} photos.` };
   }
 
+  // Listing as a pro shop (0115)? Only for the owner of an approved shop —
+  // listings_check_store() enforces the same in the database.
+  const storeId = Number(formData.get("storeId")) || null;
+  let stockQuantity: number | null = null;
+  if (storeId) {
+    const { data: store } = await supabase
+      .from("stores")
+      .select("id")
+      .eq("id", storeId)
+      .eq("owner_id", user.id)
+      .eq("status", "active")
+      .maybeSingle();
+    if (!store) return { error: "Your shop isn't approved to list stock yet." };
+    stockQuantity = Math.min(9999, Math.max(1, Math.floor(Number(formData.get("stockQuantity")) || 1)));
+    formData.set("condition", "New / unused");
+  }
+
   const parsed = createListingSchema.safeParse(readListingFields(formData));
   if (!parsed.success) {
     const fieldErrors: Record<string, string> = {};
@@ -197,6 +214,17 @@ export async function createListing(
 
   if (!result.ok) {
     return { error: result.message };
+  }
+
+  if (storeId) {
+    const { error: shopError } = await supabase
+      .from("listings")
+      .update({ store_id: storeId, is_new: true, stock_quantity: stockQuantity })
+      .eq("id", result.listingId);
+    if (shopError) {
+      console.error(`couldn't mark listing ${result.listingId} as shop stock:`, shopError.message);
+      return { error: "Saved as a draft, but it couldn't be marked as shop stock. Please try again from your shop page." };
+    }
   }
 
   revalidatePath("/marketplace");

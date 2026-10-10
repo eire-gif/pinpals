@@ -1,5 +1,6 @@
 "use client";
 
+import { GOLD_BUTTON } from "@/components/marketplace/buy-styles";
 import { useActionState, useMemo, useState, type FormEvent } from "react";
 import { loadStripe } from "@stripe/stripe-js";
 import { Elements, PaymentElement, useElements, useStripe } from "@stripe/react-stripe-js";
@@ -49,7 +50,7 @@ export default function PayForm({ orderId, returnPath }: { orderId: number; retu
       <button
         type="submit"
         disabled={pending}
-        className="self-start px-5 py-2.5 rounded-full font-bold text-sm bg-navy-900 text-cream-50 hover:bg-navy-800 transition disabled:opacity-60"
+        className={`${GOLD_BUTTON} w-full`}
       >
         {pending ? "Starting checkout…" : "Pay now"}
       </button>
@@ -94,7 +95,7 @@ function ConfirmForm({ returnPath }: { returnPath: string }) {
       <button
         type="submit"
         disabled={!stripe || submitting}
-        className="self-start px-5 py-2.5 rounded-full font-bold text-sm bg-navy-900 text-cream-50 hover:bg-navy-800 transition disabled:opacity-60"
+        className={`${GOLD_BUTTON} w-full`}
       >
         {submitting ? "Processing…" : "Confirm payment"}
       </button>

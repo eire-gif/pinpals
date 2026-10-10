@@ -53,7 +53,7 @@ export default function PurchasePanel({
   const myAcceptedOffer = myOffers.find((o) => o.status === "accepted") ?? null;
 
   return (
-    <div className="bg-surface border border-line rounded-2xl shadow-lg p-6">
+    <div className="bg-surface rounded-2xl p-6 shadow-[0_3px_14px_rgba(12,32,56,0.10)]">
       {state.kind === "seller" && (
         <>
           <p className="text-sm text-ink-500 mb-4">
@@ -98,7 +98,7 @@ export default function PurchasePanel({
 
       {state.kind === "fixed_price" && (
         <div className="grid gap-3">
-          <p className="font-display font-bold text-2xl text-gold-600">{formatPrice(state.priceEur)}</p>
+          <p className="font-extrabold text-3xl text-navy-900">{formatPrice(state.priceEur)}</p>
           <BuyNowButton listingId={listingId} />
           {state.offersAllowed && (
             <MyOfferStatus

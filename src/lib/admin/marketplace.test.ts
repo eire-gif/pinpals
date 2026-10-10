@@ -39,6 +39,8 @@ describe("buildMarketplaceAlerts", () => {
     ordersAwaitingPayment: 0,
     staleAuctions: 0,
     unresolvedMarketplaceSupportCases: 0,
+    storesAwaitingApproval: 0,
+    salesWithProblem: 0,
   };
 
   it("returns no alerts when every metric is zero", () => {
@@ -48,6 +50,23 @@ describe("buildMarketplaceAlerts", () => {
   it("includes only the metrics that are non-zero", () => {
     const alerts = buildMarketplaceAlerts({ ...zeroMetrics, openDisputes: 3, staleAuctions: 1 });
     expect(alerts.map((a) => a.key)).toEqual(["openDisputes", "staleAuctions"]);
+  });
+
+  it("orders the 0114/0115 alerts after stale auctions and before support cases", () => {
+    const alerts = buildMarketplaceAlerts({
+      ...zeroMetrics,
+      staleAuctions: 1,
+      salesWithProblem: 2,
+      storesAwaitingApproval: 3,
+      unresolvedMarketplaceSupportCases: 4,
+    });
+    expect(alerts.map((a) => a.key)).toEqual([
+      "staleAuctions",
+      "salesWithProblem",
+      "storesAwaitingApproval",
+      "unresolvedMarketplaceSupportCases",
+    ]);
+    expect(alerts.find((a) => a.key === "storesAwaitingApproval")?.href).toBe("/admin/marketplace?tab=shops");
   });
 
   it("carries the count and a working href through for each alert", () => {

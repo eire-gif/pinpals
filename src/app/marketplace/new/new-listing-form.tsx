@@ -26,7 +26,7 @@ function FieldError({ message }: { message?: string }) {
   return <p className="text-xs text-red-600 mt-1">{message}</p>;
 }
 
-export default function NewListingForm() {
+export default function NewListingForm({ shop = null }: { shop?: { id: number; name: string } | null } = {}) {
   const [state, formAction, pending] = useActionState(createListing, initialState);
 
   const [category, setCategory] = useState("");
@@ -75,6 +75,28 @@ export default function NewListingForm() {
       onSubmit={() => setDirty(false)}
       className="grid gap-4"
     >
+      {shop ? (
+        // Pro shop stock (0115): sold new, several of the same item, no
+        // Buyer Protection fee for the golfer — the shop pays commission.
+        <div className="rounded-2xl bg-navy-900 text-cream-50 p-4 grid gap-3">
+          <input type="hidden" name="storeId" value={shop.id} />
+          <p className="text-sm">
+            Listing as <span className="font-extrabold text-gold-400">{shop.name}</span> — new stock, click &amp; collect at the shop.
+          </p>
+          <label className="grid gap-1.5 text-sm font-bold">
+            How many in stock?
+            <input
+              name="stockQuantity"
+              type="number"
+              min={1}
+              max={9999}
+              defaultValue={1}
+              required
+              className="w-32 rounded-xl px-3 py-2 text-ink-900 bg-surface"
+            />
+          </label>
+        </div>
+      ) : null}
       <div className="grid gap-1.5">
         <label htmlFor="title" className="text-[13.5px] font-bold">Title</label>
         <input
@@ -138,7 +160,7 @@ export default function NewListingForm() {
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="grid gap-1.5">
           <label htmlFor="condition" className="text-[13.5px] font-bold">Condition</label>
-          <select id="condition" name="condition" required defaultValue="" className={SELECT_CLASS}>
+          <select id="condition" name="condition" required defaultValue={shop ? "New / unused" : ""} className={SELECT_CLASS}>
             <option value="" disabled>Select a condition</option>
             {CONDITIONS.map((c) => <option key={c} value={c}>{c}</option>)}
           </select>

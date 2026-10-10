@@ -41,7 +41,7 @@ export default function SellerCard({
   const location = [homeClub, county].filter(Boolean).join(" · ");
 
   return (
-    <div className="bg-surface border border-line rounded-2xl p-5">
+    <div className="bg-surface rounded-2xl p-5 shadow-[0_3px_14px_rgba(12,32,56,0.08)]">
       <div className="flex items-center gap-3">
         <div
           className="w-11 h-11 rounded-full flex items-center justify-center text-white font-display font-bold shrink-0"

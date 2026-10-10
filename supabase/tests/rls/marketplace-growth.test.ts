@@ -165,6 +165,26 @@ describe("promotions", () => {
   });
 });
 
+describe("promotions can't be self-served (0117)", () => {
+  it("a seller writing featured_until or bumped_at directly changes nothing", async () => {
+    await withRole("authenticated", OWNER, async (c) => {
+      const storeId = await shop(c);
+      const listing = await shopListing(c, storeId, 1);
+      await setIdentity(c, OWNER);
+      await c.query("update public.listings set featured_until = now() + interval '1 year', bumped_at = now() where id = $1", [listing]);
+      const row = (await asService(c, () => c.query("select featured_until, bumped_at from public.listings where id = $1", [listing]))).rows[0];
+      expect(row).toEqual({ featured_until: null, bumped_at: null });
+      // The webhook path still works.
+      await asService(c, () => c.query("update public.listings set bumped_at = now() where id = $1", [listing]));
+      expect((await asService(c, () => c.query("select bumped_at is not null as b from public.listings where id = $1", [listing]))).rows[0].b).toBe(true);
+      // ...and an ordinary edit by the seller keeps it.
+      await setIdentity(c, OWNER);
+      await c.query("update public.listings set title = 'Pro V1 dozen (2026)' where id = $1", [listing]);
+      expect((await asService(c, () => c.query("select bumped_at is not null as b from public.listings where id = $1", [listing]))).rows[0].b).toBe(true);
+    });
+  });
+});
+
 describe("affiliates and banners", () => {
   it("counters work for members; the tables take no direct writes", async () => {
     await withRole("authenticated", BUYER, async (c) => {

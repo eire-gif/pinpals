@@ -2843,6 +2843,13 @@ export type MarketplaceOverviewMetrics = {
    * — a narrower slice than getOverviewMetrics()'s unresolvedSupportCases,
    * which counts every open case regardless of what it's about. */
   unresolvedMarketplaceSupportCases: number;
+  /** stores with status 'pending' (0115) — pro shops waiting for PinPals'
+   * approval before they can list anything. */
+  storesAwaitingApproval: number;
+  /** paid orders a buyer has reported a problem on (problem_at set, 0114)
+   * that haven't been released — the held money is frozen until staff
+   * decide on /admin/orders/[id]. */
+  salesWithProblem: number;
 };
 
 const OPEN_REPORT_STATUSES = ["open", "claimed"] as const;
@@ -2869,6 +2876,8 @@ export async function getMarketplaceOverviewMetrics(): Promise<MarketplaceOvervi
     { count: ordersAwaitingPayment, error: ordersError },
     { count: staleAuctions, error: auctionsError },
     { count: unresolvedMarketplaceSupportCases, error: supportError },
+    { count: storesAwaitingApproval, error: storesError },
+    { count: salesWithProblem, error: problemError },
   ] = await Promise.all([
     admin
       .from("reports")
@@ -2901,6 +2910,12 @@ export async function getMarketplaceOverviewMetrics(): Promise<MarketplaceOvervi
       .select("*", { count: "exact", head: true })
       .in("status", OPEN_SUPPORT_CASE_STATUSES_MARKETPLACE)
       .in("category", MARKETPLACE_SUPPORT_CASE_CATEGORIES),
+    admin.from("stores").select("*", { count: "exact", head: true }).eq("status", "pending"),
+    admin
+      .from("orders")
+      .select("*", { count: "exact", head: true })
+      .not("problem_at", "is", null)
+      .is("released_at", null),
   ]);
 
   const error =
@@ -2911,7 +2926,9 @@ export async function getMarketplaceOverviewMetrics(): Promise<MarketplaceOvervi
     webhookError ??
     ordersError ??
     auctionsError ??
-    supportError;
+    supportError ??
+    storesError ??
+    problemError;
   if (error) throw new Error(`Failed to load marketplace overview metrics: ${error.message}`);
 
   return {
@@ -2923,6 +2940,8 @@ export async function getMarketplaceOverviewMetrics(): Promise<MarketplaceOvervi
     ordersAwaitingPayment: ordersAwaitingPayment ?? 0,
     staleAuctions: staleAuctions ?? 0,
     unresolvedMarketplaceSupportCases: unresolvedMarketplaceSupportCases ?? 0,
+    storesAwaitingApproval: storesAwaitingApproval ?? 0,
+    salesWithProblem: salesWithProblem ?? 0,
   };
 }
 
