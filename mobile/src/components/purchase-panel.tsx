@@ -4,6 +4,7 @@ import { router } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { AmountSheet } from "@/components/amount-sheet";
+import { GoldButton } from "@/components/gold-button";
 import type { ListingDetail } from "@/lib/marketplace";
 import {
   MIN_OFFER_EUR,
@@ -258,7 +259,7 @@ export function PurchasePanel({
       ) : null}
 
       <Text style={styles.footnote}>
-        Card payments are taken securely by Stripe.
+        {listing.store ? "Paid securely by Stripe · sold new by the pro shop" : "Paid securely by Stripe · covered by Buyer Protection"}
       </Text>
 
       <AmountSheet
@@ -310,17 +311,13 @@ export function PurchasePanel({
 }
 
 function Primary({ label, onPress, busy }: { label: string; onPress: () => void; busy?: boolean }) {
-  return (
-    <Pressable style={styles.primary} onPress={onPress} disabled={busy} accessibilityRole="button">
-      {busy ? <ActivityIndicator color={colors.cream50} /> : <Text style={styles.primaryLabel}>{label}</Text>}
-    </Pressable>
-  );
+  return <GoldButton label={label} onPress={onPress} busy={busy} />;
 }
 
 function Secondary({ label, onPress, busy }: { label: string; onPress: () => void; busy?: boolean }) {
   return (
     <Pressable style={styles.secondary} onPress={onPress} disabled={busy} accessibilityRole="button">
-      {busy ? <ActivityIndicator color={colors.green700} /> : <Text style={styles.secondaryLabel}>{label}</Text>}
+      {busy ? <ActivityIndicator color={colors.navy900} /> : <Text style={styles.secondaryLabel}>{label}</Text>}
     </Pressable>
   );
 }
@@ -347,27 +344,18 @@ function Notice({
 
 const styles = StyleSheet.create({
   panel: { gap: spacing.sm },
-  primary: {
-    minHeight: 50,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: radii.pill,
-    backgroundColor: colors.green700,
-    paddingHorizontal: spacing.md,
-  },
-  primaryLabel: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.cream50 },
   secondary: {
     minHeight: 48,
     alignItems: "center",
     justifyContent: "center",
     borderRadius: radii.pill,
     borderWidth: 1.5,
-    borderColor: colors.green700,
+    borderColor: colors.navy900,
     paddingHorizontal: spacing.md,
   },
-  secondaryLabel: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.green700 },
+  secondaryLabel: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.navy900 },
   small: { fontFamily: fonts.body, fontSize: type.small, color: colors.ink500 },
-  big: { fontFamily: fonts.display, fontSize: 26, color: colors.green700 },
+  big: { fontSize: 26, fontWeight: "800", color: colors.navy900 },
   auctionRow: { flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between" },
   clock: { flexDirection: "row", alignItems: "center", gap: 4 },
   offerBox: {

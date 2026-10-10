@@ -16,6 +16,7 @@ import { useAuth } from "@/lib/auth";
 import { deadlineLabel, euro } from "@/lib/buying";
 import { DISPUTE_STATUS_LABELS, ORDER_STATUS_LABELS, PAYMENT_STATUS_LABELS, shortDate } from "@/lib/selling";
 import { loadOrder, type OrderDetail } from "@/lib/orders";
+import { GoldButton } from "@/components/gold-button";
 import { HandoverPanel } from "@/components/handover-panel";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 
@@ -173,22 +174,14 @@ export default function OrderScreen() {
           ) : null}
           {/* Choosing delivery is native (app/checkout.tsx); paying is
               Stripe's card form on the site. */}
-          <Pressable
-            style={styles.cta}
+          <GoldButton
+            label={order.checkoutCompletedAt ? `Pay now · ${euro(order.totalEur)}` : "Finish checkout"}
             onPress={() =>
               order.checkoutCompletedAt
                 ? openSite(`/dashboard/orders/${order.id}`, "Pay securely")
                 : router.push({ pathname: "/checkout", params: { order: String(order.id) } })
             }
-            accessibilityRole="button"
-          >
-            <Text style={styles.ctaLabel}>
-              {order.checkoutCompletedAt ? "Pay now" : "Finish checkout"}
-            </Text>
-            {order.checkoutCompletedAt ? (
-              <Ionicons name="lock-closed-outline" size={15} color={colors.cream50} />
-            ) : null}
-          </Pressable>
+          />
           <Text style={styles.fine}>
             Card details are entered with Stripe, never in PinPals.
           </Text>
@@ -209,7 +202,7 @@ export default function OrderScreen() {
 
       <Section title="What it came to">
         <Line label="Item" value={euro(order.amountEur)} />
-        <Line label="Buyer Protection" value={euro(order.platformFeeEur)} />
+        {order.platformFeeEur > 0 ? <Line label="Buyer Protection" value={euro(order.platformFeeEur)} /> : null}
         <Line label="Total" value={euro(order.totalEur)} strong />
         {order.refundedAmountEur !== null ? (
           <Line label="Refunded" value={euro(order.refundedAmountEur)} />
@@ -279,6 +272,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.cream100,
   },
   badgeGreen: { backgroundColor: colors.green100 },
+  badgeNavy: { backgroundColor: colors.navy900 },
   badgeWarn: { backgroundColor: colors.gold400 },
   badgeLabel: { fontFamily: fonts.bodyBold, fontSize: 11, color: colors.ink900 },
 
@@ -286,22 +280,15 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     padding: spacing.md,
     borderRadius: radii.lg,
-    borderWidth: 1,
-    borderColor: colors.gold400,
     backgroundColor: colors.surface,
+    shadowColor: colors.navy900,
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 2,
   },
-  actionTitle: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.ink900 },
+  actionTitle: { fontSize: 17, fontWeight: "800", color: colors.navy900 },
   actionNote: { fontFamily: fonts.body, fontSize: type.small, color: colors.ink500 },
-  cta: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 7,
-    paddingVertical: 13,
-    borderRadius: radii.pill,
-    backgroundColor: colors.green700,
-  },
-  ctaLabel: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.cream50 },
   fine: { fontFamily: fonts.body, fontSize: type.label, color: colors.ink500 },
 
   section: { gap: 6 },
@@ -313,11 +300,14 @@ const styles = StyleSheet.create({
     color: colors.ink500,
   },
   sectionBody: {
-    borderRadius: radii.md,
-    borderWidth: 1,
-    borderColor: colors.line,
+    borderRadius: radii.lg,
     backgroundColor: colors.surface,
     paddingHorizontal: 14,
+    shadowColor: colors.navy900,
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 1,
   },
   line: {
     flexDirection: "row",
@@ -334,7 +324,7 @@ const styles = StyleSheet.create({
     fontSize: type.small,
     color: colors.ink900,
   },
-  lineValueStrong: { fontFamily: fonts.bodyBold, fontSize: type.body },
+  lineValueStrong: { fontSize: 16, fontWeight: "800", color: colors.navy900 },
 
   report: {
     flexDirection: "row",

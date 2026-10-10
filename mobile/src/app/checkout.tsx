@@ -34,6 +34,8 @@ import {
 } from "@/lib/purchase";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 import { KEYBOARD_DISMISS_MODE } from "@/components/keyboard";
+import { GoldButton } from "@/components/gold-button";
+import { shortClub } from "@/lib/used-gear";
 
 /**
  * Checkout, in the app.
@@ -119,7 +121,7 @@ export default function CheckoutScreen() {
   }
 
   const needsAddress = method === "post";
-  const totals = checkoutTotal(item.priceEur, method);
+  const totals = checkoutTotal(item.priceEur, method, item.isShop);
   const canSubmit = agreed && !busy && (!needsAddress || addressId !== null);
 
   async function submit() {
@@ -162,14 +164,28 @@ export default function CheckoutScreen() {
           </View>
         </View>
 
-        {/* Delivery */}
+        {/* How you'll get it — the same two choices the listing showed */}
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Delivery</Text>
+          <Text style={styles.cardTitle}>How you&apos;ll get it</Text>
           {item.deliveryOptions.map((option) => (
             <Radio
               key={option}
               selected={method === option}
-              label={DELIVERY_LABELS[option]}
+              icon={option === "post" ? "cube-outline" : "golf-outline"}
+              label={
+                option === "post"
+                  ? DELIVERY_LABELS.post.replace("Post", "Tracked post")
+                  : item.isShop
+                    ? "Collect from the pro shop"
+                    : "Meet at the club"
+              }
+              detail={
+                option === "post"
+                  ? "Posted with tracking. You confirm when it arrives."
+                  : item.meetAt
+                    ? `${shortClub(item.meetAt)} · free${item.isShop ? "" : " · you show a handover code"}`
+                    : "Free · hand over in person"
+              }
               onPress={() => setMethod(option)}
             />
           ))}
@@ -204,7 +220,7 @@ export default function CheckoutScreen() {
               />
             ) : (
               <Pressable onPress={() => setAdding(true)} accessibilityRole="button" style={styles.linkRow}>
-                <Ionicons name="add" size={18} color={colors.green700} />
+                <Ionicons name="add" size={18} color={colors.navy900} />
                 <Text style={styles.link}>Add a new address</Text>
               </Pressable>
             )}
@@ -214,10 +230,15 @@ export default function CheckoutScreen() {
         {/* Total */}
         <View style={styles.card}>
           <Line label="Item" value={eur(totals.price)} />
-          <Line label="Buyer Protection" value={eur(totals.fee)} />
+          {item.isShop ? null : <Line label="Buyer Protection" value={eur(totals.fee)} shield />}
           {totals.delivery > 0 ? <Line label="Postage" value={eur(totals.delivery)} /> : null}
           <View style={styles.rule} />
           <Line label="Total" value={eur(totals.total)} strong />
+          {item.isShop ? null : (
+            <Text style={styles.protectNote}>
+              Your money is held by PinPals and only released to {item.sellerName.split(" ")[0]} once you have the item.
+            </Text>
+          )}
         </View>
 
         <Pressable
@@ -229,28 +250,18 @@ export default function CheckoutScreen() {
           <Ionicons
             name={agreed ? "checkbox" : "square-outline"}
             size={22}
-            color={agreed ? colors.green700 : colors.ink500}
+            color={agreed ? colors.navy900 : colors.ink500}
           />
           <Text style={styles.agreeText}>
-            I agree to the PinPals Terms and Marketplace Rules. This item is sold by another member, not by
-            PinPals.
+            {item.isShop
+              ? "I agree to the PinPals Terms and Marketplace Rules. This item is sold new by the pro shop, not by PinPals."
+              : "I agree to the PinPals Terms and Marketplace Rules. This item is sold by another member, not by PinPals."}
           </Text>
         </Pressable>
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
-        <Pressable
-          style={[styles.primary, !canSubmit && styles.primaryOff]}
-          disabled={!canSubmit}
-          onPress={() => void submit()}
-          accessibilityRole="button"
-        >
-          {busy ? (
-            <ActivityIndicator color={colors.cream50} />
-          ) : (
-            <Text style={styles.primaryLabel}>Reserve and pay {eur(totals.total)}</Text>
-          )}
-        </Pressable>
+        <GoldButton label={`Reserve and pay ${eur(totals.total)}`} onPress={() => void submit()} busy={busy} disabled={!canSubmit} />
         <Text style={styles.footnote}>
           The item is held for you for 30 minutes while you pay. Card payment is taken securely by Stripe.
         </Text>
@@ -263,11 +274,13 @@ function Radio({
   selected,
   label,
   detail,
+  icon,
   onPress,
 }: {
   selected: boolean;
   label: string;
   detail?: string;
+  icon?: keyof typeof Ionicons.glyphMap;
   onPress: () => void;
 }) {
   return (
@@ -277,23 +290,31 @@ function Radio({
       accessibilityRole="radio"
       accessibilityState={{ selected }}
     >
-      <Ionicons
-        name={selected ? "radio-button-on" : "radio-button-off"}
-        size={20}
-        color={selected ? colors.green700 : colors.ink500}
-      />
+      {icon ? (
+        <View style={[styles.radioIcon, selected && styles.radioIconOn]}>
+          <Ionicons name={icon} size={19} color={selected ? colors.gold400 : colors.navy900} />
+        </View>
+      ) : null}
       <View style={{ flex: 1 }}>
         <Text style={styles.radioLabel}>{label}</Text>
         {detail ? <Text style={styles.muted}>{detail}</Text> : null}
       </View>
+      <Ionicons
+        name={selected ? "checkmark-circle" : "ellipse-outline"}
+        size={22}
+        color={selected ? colors.navy900 : colors.line}
+      />
     </Pressable>
   );
 }
 
-function Line({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
+function Line({ label, value, strong, shield }: { label: string; value: string; strong?: boolean; shield?: boolean }) {
   return (
     <View style={styles.line}>
-      <Text style={strong ? styles.lineStrong : styles.lineLabel}>{label}</Text>
+      <View style={styles.lineLeft}>
+        {shield ? <Ionicons name="shield-checkmark" size={15} color={colors.green700} /> : null}
+        <Text style={strong ? styles.lineStrong : styles.lineLabel}>{label}</Text>
+      </View>
       <Text style={strong ? styles.lineStrong : styles.lineValue}>{value}</Text>
     </View>
   );
@@ -392,16 +413,19 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     padding: spacing.md,
     borderRadius: radii.lg,
-    borderWidth: 1,
-    borderColor: colors.line,
     backgroundColor: colors.surface,
+    shadowColor: colors.navy900,
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 2,
   },
-  cardTitle: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.ink900 },
+  cardTitle: { fontSize: 17, fontWeight: "800", color: colors.navy900 },
   itemRow: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   thumb: { width: 64, height: 64, borderRadius: radii.md, backgroundColor: colors.cream100 },
   thumbNone: { alignItems: "center", justifyContent: "center" },
   itemTitle: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.ink900 },
-  itemPrice: { fontFamily: fonts.display, fontSize: 20, color: colors.green700, marginTop: 2 },
+  itemPrice: { fontSize: 20, fontWeight: "800", color: colors.navy900, marginTop: 2 },
   muted: { fontFamily: fonts.body, fontSize: type.small, color: colors.ink500 },
   note: {
     fontFamily: fonts.body,
@@ -421,10 +445,12 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: colors.line,
   },
-  radioOn: { borderColor: colors.green700, backgroundColor: colors.green100 },
+  radioOn: { borderColor: colors.navy900, backgroundColor: "#f7f2e4" },
+  radioIcon: { width: 38, height: 38, borderRadius: 19, backgroundColor: "#f3ead2", alignItems: "center", justifyContent: "center" },
+  radioIconOn: { backgroundColor: colors.navy900 },
   radioLabel: { fontFamily: fonts.bodySemi, fontSize: type.body, color: colors.ink900 },
   linkRow: { flexDirection: "row", alignItems: "center", gap: 4, paddingVertical: 4 },
-  link: { fontFamily: fonts.bodyBold, fontSize: type.small, color: colors.green700 },
+  link: { fontFamily: fonts.bodyBold, fontSize: type.small, color: colors.navy900 },
 
   form: { gap: spacing.sm, paddingTop: spacing.sm, borderTopWidth: 1, borderTopColor: colors.line },
   formButtons: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.xs },
@@ -441,10 +467,12 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
   },
 
-  line: { flexDirection: "row", justifyContent: "space-between" },
+  line: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  lineLeft: { flexDirection: "row", alignItems: "center", gap: 5 },
+  protectNote: { fontFamily: fonts.body, fontSize: type.small, color: colors.green700, marginTop: 2 },
   lineLabel: { fontFamily: fonts.body, fontSize: type.body, color: colors.ink500 },
   lineValue: { fontFamily: fonts.body, fontSize: type.body, color: colors.ink900 },
-  lineStrong: { fontFamily: fonts.bodyBold, fontSize: 17, color: colors.ink900 },
+  lineStrong: { fontSize: 18, fontWeight: "800", color: colors.navy900 },
   rule: { height: 1, backgroundColor: colors.line, marginVertical: 2 },
 
   agree: { flexDirection: "row", gap: spacing.sm, alignItems: "flex-start" },
@@ -456,11 +484,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderRadius: radii.pill,
-    backgroundColor: colors.green700,
+    backgroundColor: colors.navy900,
     paddingHorizontal: spacing.md,
   },
-  primaryOff: { opacity: 0.5 },
-  primaryLabel: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.cream50 },
+  primaryLabel: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.gold400 },
   secondary: {
     minHeight: 50,
     alignItems: "center",
