@@ -3,6 +3,7 @@ import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleS
 import { router, useFocusEffect } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
+import { RaisedCard } from "@/components/live-scoring-card";
 import { LoadError, StateMessage } from "@/components/state-message";
 import { useAuth } from "@/lib/auth";
 import { isOn } from "@/lib/features";
@@ -108,24 +109,28 @@ export default function LiveScoringHub() {
           Enter your handicap once. PinPals works out your shots on every hole, and the whole group sees the
           leaderboard move as scores go in.
         </Text>
-        <Pressable
+      </View>
+
+      {/* Oct 2026: the two ways in, as raised cards like Home's Live
+          Scoring, so starting a game is the obvious thing on this screen. */}
+      <View style={styles.starts}>
+        <RaisedCard
+          inset={false}
+          marginTop={0}
+          icon="flag"
+          title="Start a Game"
+          subtitle="Stableford, stroke play or a match — your group, live"
           onPress={() => router.push("/live/new")}
-          style={({ pressed }) => [styles.start, pressed && styles.pressed]}
-          accessibilityRole="button"
-        >
-          <Ionicons name="flag" size={18} color={colors.cream50} />
-          <Text style={styles.startLabel}>Start a round</Text>
-        </Pressable>
-        <Pressable
+        />
+        <RaisedCard
+          inset={false}
+          marginTop={0}
+          icon="people"
+          title="Match Day"
+          subtitle="Several matches at once, with a team score"
+          a11y="Start a match day. Several matches at once: singles, fourball, foursomes or greensomes, with a team score."
           onPress={() => router.push("/live/day/new")}
-          style={({ pressed }) => [styles.startDay, pressed && styles.pressed]}
-          accessibilityRole="button"
-          accessibilityHint="Several matches at once, in teams if you like"
-        >
-          <Ionicons name="people" size={18} color={colors.navy900} />
-          <Text style={styles.startDayLabel}>Start a match day</Text>
-        </Pressable>
-        <Text style={styles.heroHint}>A match day is several matches at once: singles, fourball, foursomes or greensomes, with a team score.</Text>
+        />
       </View>
 
       {failed ? (
@@ -239,39 +244,13 @@ function DeleteButton({ label, onPress }: { label: string; onPress: () => void }
 const styles = StyleSheet.create({
   trash: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
   page: { padding: spacing.md, gap: spacing.lg, paddingBottom: spacing.xl },
-  hero: {
-    backgroundColor: colors.navy900,
-    borderRadius: radii.lg,
-    padding: spacing.lg,
-    gap: spacing.sm,
-  },
+  hero: { paddingHorizontal: 4, paddingTop: spacing.sm, gap: spacing.sm },
+  starts: { gap: spacing.md + 2 },
   eyebrowRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   rule: { width: 18, height: 2, backgroundColor: colors.gold400 },
-  eyebrow: { fontFamily: fonts.bodyBold, fontSize: 12, letterSpacing: 1.6, textTransform: "uppercase", color: colors.gold400 },
-  heroTitle: { fontFamily: fonts.display, fontSize: 28, color: colors.cream50 },
-  heroBody: { fontFamily: fonts.body, fontSize: type.small, lineHeight: 21, color: colors.cream100 },
-  start: {
-    marginTop: spacing.sm,
-    minHeight: 50,
-    borderRadius: radii.pill,
-    backgroundColor: colors.green700,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: spacing.sm,
-  },
-  startLabel: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.cream50 },
-  startDay: {
-    minHeight: 50,
-    borderRadius: radii.pill,
-    backgroundColor: colors.gold400,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: spacing.sm,
-  },
-  startDayLabel: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.navy900 },
-  heroHint: { fontFamily: fonts.body, fontSize: 12, lineHeight: 17, color: colors.cream100, textAlign: "center" },
+  eyebrow: { fontFamily: fonts.bodyBold, fontSize: 12, letterSpacing: 1.6, textTransform: "uppercase", color: colors.gold500 },
+  heroTitle: { fontFamily: fonts.display, fontSize: 30, color: colors.navy900 },
+  heroBody: { fontFamily: fonts.body, fontSize: type.small, lineHeight: 21, color: colors.ink500 },
   pressed: { opacity: 0.85 },
   section: { gap: spacing.sm },
   sectionTitle: { fontFamily: fonts.bodyBold, fontSize: 12, letterSpacing: 1.2, textTransform: "uppercase", color: colors.ink500 },
