@@ -156,10 +156,13 @@ function RootNavigator() {
         headerStyle: { backgroundColor: colors.cream50 },
         headerTintColor: colors.ink900,
         headerTitleStyle: { fontFamily: fonts.display, fontSize: 19 },
+        // Every screen's back button says "Back". Without this, a screen
+        // opened from the tabs showed the route group's name: "(tabs)".
+        headerBackTitle: "Back",
         contentStyle: { backgroundColor: colors.cream50 },
       }}
     >
-      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen name="(tabs)" options={{ headerShown: false, title: "Back" }} />
       <Stack.Screen name="login" options={{ headerShown: false }} />
       <Stack.Screen name="signup" options={{ headerShown: false }} />
       <Stack.Screen name="auth-confirm" options={{ headerShown: false, gestureEnabled: false }} />

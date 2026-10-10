@@ -7,8 +7,9 @@ import {
   View,
 } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 
-import { colors, radii, spacing, type } from "@/lib/theme";
+import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 
 /**
  * The small pieces the post-a-tee-time form is built from.
@@ -88,6 +89,7 @@ export function Collapsible({
   disabled = false,
   open,
   onToggle,
+  icon,
   children,
 }: {
   label: string;
@@ -96,6 +98,8 @@ export function Collapsible({
   disabled?: boolean;
   open: boolean;
   onToggle: () => void;
+  /** An Ionicons name, drawn in a tinted disc at the start of the row. */
+  icon?: keyof typeof Ionicons.glyphMap;
   children: ReactNode;
 }) {
   return (
@@ -111,6 +115,11 @@ export function Collapsible({
           disabled && styles.summaryOff,
         ]}
       >
+        {icon ? (
+          <View style={[styles.iconDisc, value ? styles.iconDiscOn : null]}>
+            <Ionicons name={icon} size={17} color={value ? colors.cream50 : colors.green700} />
+          </View>
+        ) : null}
         <Text style={styles.summaryLabel}>{label}</Text>
         <Text
           style={[styles.summaryValue, !value && styles.summaryPlaceholder]}
@@ -125,6 +134,47 @@ export function Collapsible({
         />
       </Pressable>
       {open && !disabled ? <View style={styles.body}>{children}</View> : null}
+    </View>
+  );
+}
+
+// ===========================================================================
+// Picture tiles
+// ===========================================================================
+
+/**
+ * A choice shown as a grid of tiles with a picture on each (Oct 2026: the
+ * marketplace's categories — "Drivers", "Putters" — read faster as a club
+ * than as a word in a dropdown). Three across; the chosen one fills green.
+ */
+export type Tile = { key: string; label: string; icon: keyof typeof MaterialCommunityIcons.glyphMap };
+
+export function TileGrid({ tiles, selected, onPick }: { tiles: readonly Tile[]; selected: string | null; onPick: (key: string) => void }) {
+  const { width } = useWindowDimensions();
+  const w = Math.floor((width - spacing.md * 2 - spacing.sm * 2) / 3);
+  return (
+    <View style={styles.group}>
+      {tiles.map((t) => {
+        const on = t.key === selected;
+        return (
+          <Pressable
+            key={t.key}
+            onPress={() => onPick(t.key)}
+            style={({ pressed }) => [styles.tile, { width: w }, on && styles.tileOn, pressed && { opacity: 0.85 }]}
+            accessibilityRole="button"
+            accessibilityState={{ selected: on }}
+            accessibilityLabel={t.label}
+          >
+            <View style={[styles.tileDisc, on && styles.tileDiscOn]}>
+              <MaterialCommunityIcons name={t.icon} size={24} color={on ? colors.green700 : colors.green700} />
+            </View>
+            <Text style={[styles.tileLabel, on && styles.tileLabelOn]} numberOfLines={2}>
+              {t.label}
+            </Text>
+            {on ? <Ionicons name="checkmark-circle" size={18} color={colors.gold400} style={styles.tileTick} /> : null}
+          </Pressable>
+        );
+      })}
     </View>
   );
 }
@@ -239,15 +289,43 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
-    minHeight: 52,
+    minHeight: 56,
     paddingHorizontal: spacing.md,
     paddingVertical: 12,
-    borderRadius: radii.md,
+    borderRadius: radii.lg,
     borderWidth: 1,
     borderColor: colors.line,
     backgroundColor: colors.surface,
+    shadowColor: colors.navy900,
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
   },
-  summaryOpen: { borderColor: colors.green700 },
+  summaryOpen: { borderColor: colors.green700, borderWidth: 1.5 },
+  iconDisc: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.green100, alignItems: "center", justifyContent: "center" },
+  iconDiscOn: { backgroundColor: colors.green700 },
+  tile: {
+    minHeight: 96,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.surface,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 6,
+    paddingVertical: 10,
+    gap: 6,
+    shadowColor: colors.navy900,
+    shadowOpacity: 0.05,
+    shadowRadius: 5,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  tileOn: { backgroundColor: colors.green700, borderColor: colors.green700 },
+  tileDisc: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.green100, alignItems: "center", justifyContent: "center" },
+  tileDiscOn: { backgroundColor: colors.cream50 },
+  tileLabel: { fontFamily: fonts.bodySemi, fontSize: 13.5, lineHeight: 17, color: colors.ink900, textAlign: "center" },
+  tileLabelOn: { color: colors.cream50 },
+  tileTick: { position: "absolute", top: 6, right: 6 },
   summaryOff: { opacity: 0.5 },
   summaryLabel: {
     fontSize: type.body,

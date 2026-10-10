@@ -1,5 +1,7 @@
 import type { ReactElement } from "react";
 import { ActivityIndicator, Platform, Pressable, StyleSheet, Text } from "react-native";
+import { router } from "expo-router";
+import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { colors, fonts, radii } from "@/lib/theme";
 
@@ -64,6 +66,26 @@ export function HeaderPill({
   );
 }
 
+/**
+ * "‹ Back" for a screen that is the first in its own stack (Live scoring
+ * sits in a stack inside the tabs, so the system draws no back button).
+ * Goes back to wherever the member came from, else Home.
+ */
+export function BackPill() {
+  return (
+    <Pressable
+      onPress={() => (router.canGoBack() ? router.back() : router.navigate("/"))}
+      hitSlop={8}
+      accessibilityRole="button"
+      accessibilityLabel="Back"
+      style={({ pressed }) => [styles.pill, styles.back, pressed && styles.pressed]}
+    >
+      <Ionicons name="chevron-back" size={22} color={colors.ink900} style={{ marginLeft: -4 }} />
+      <Text style={styles.backLabel}>Back</Text>
+    </Pressable>
+  );
+}
+
 type HeaderOptions = {
   headerLeft?: () => ReactElement;
   headerRight?: () => ReactElement;
@@ -86,6 +108,16 @@ export function headerButtons({ left, right }: { left?: ReactElement; right?: Re
 }
 
 const styles = StyleSheet.create({
+  back: {
+    flexDirection: "row",
+    gap: 2,
+    minWidth: 0,
+    paddingHorizontal: 12,
+    backgroundColor: colors.surfaceTint,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.line,
+  },
+  backLabel: { fontFamily: fonts.body, fontSize: 17, color: colors.ink900 },
   pill: {
     minHeight: 36,
     minWidth: 76,

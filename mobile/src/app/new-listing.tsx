@@ -15,7 +15,7 @@ import { Stack, useRouter } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
-import { Chip, ChipGroup, Collapsible, Section } from "@/components/form-bits";
+import { Chip, ChipGroup, Collapsible, Section, TileGrid, type Tile } from "@/components/form-bits";
 import { PhotoStrip, type Photo } from "@/components/photo-strip";
 import { ApiError, type UploadFile } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
@@ -345,32 +345,22 @@ export default function NewListingScreen() {
           />
         </Section>
 
-        <Collapsible
-          label="Category"
-          value={category}
-          placeholder="Choose one"
-          open={open === "category"}
-          onToggle={() => toggle("category")}
-        >
-          <ChipGroup>
-            {CATEGORIES.map((item) => (
-              <Chip
-                key={item}
-                label={item}
-                selected={category === item}
-                onPress={() => {
-                  setCategory(item);
-                  setSubcategory(null);
-                  setBrand(null);
-                  setOpen(null);
-                }}
-              />
-            ))}
-          </ChipGroup>
-        </Collapsible>
+        <Section title="Category">
+          <TileGrid
+            tiles={CATEGORY_TILES}
+            selected={category}
+            onPick={(key) => {
+              setCategory(key as Category);
+              setSubcategory(null);
+              setBrand(null);
+              setOpen(null);
+            }}
+          />
+        </Section>
 
         <Collapsible
           label="Type"
+          icon="options-outline"
           value={subcategory}
           placeholder={category ? "Optional" : "Pick a category first"}
           disabled={!category}
@@ -394,6 +384,7 @@ export default function NewListingScreen() {
 
         <Collapsible
           label="Brand"
+          icon="ribbon-outline"
           value={brandLabel}
           placeholder={category ? "Optional" : "Pick a category first"}
           disabled={!category}
@@ -495,6 +486,7 @@ export default function NewListingScreen() {
 
         <Collapsible
           label="Where it is"
+          icon="location-outline"
           value={county}
           placeholder="Choose a county"
           open={open === "county"}
@@ -574,6 +566,20 @@ export default function NewListingScreen() {
     </View>
   );
 }
+
+/** The categories as picture tiles (Oct 2026). Icons: Material Design Icons. */
+const CATEGORY_ICONS: Record<Category, Tile["icon"]> = {
+  Drivers: "golf",
+  "Woods & hybrids": "golf-tee",
+  Irons: "numeric-7-box-outline",
+  Wedges: "angle-acute",
+  Putters: "flag-variant",
+  "Full sets": "layers-triple",
+  "Bags & trolleys": "bag-personal",
+  "Shoes & apparel": "tshirt-crew",
+  "Balls & accessories": "circle-slice-8",
+};
+const CATEGORY_TILES: Tile[] = CATEGORIES.map((c) => ({ key: c, label: c, icon: CATEGORY_ICONS[c] }));
 
 const styles = StyleSheet.create({
   fill: { flex: 1, backgroundColor: colors.cream50 },
