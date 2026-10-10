@@ -36,6 +36,11 @@ describe("routeForIncomingUrl", () => {
     expect(routeForIncomingUrl("https://www.pinpals.ie/c/not-a-token.x")).toBe("/web?path=%2Fc%2Fnot-a-token.x&title=PinPals");
   });
 
+  it("opens a member's invite link or QR code on the join screen", () => {
+    expect(routeForIncomingUrl("https://www.pinpals.ie/join/ab12cd34")).toBe("/join?code=ab12cd34");
+    expect(routeForIncomingUrl("https://pinpals.ie/join/AB12CD34/")).toBe("/join?code=ab12cd34");
+  });
+
   it("turns a sign-up confirmation into the app's confirm screen", () => {
     expect(routeForIncomingUrl("https://www.pinpals.ie/auth/confirm?token_hash=abc123&type=email")).toBe(
       "/auth-confirm?token_hash=abc123&type=email"

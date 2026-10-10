@@ -50,6 +50,10 @@ export function routeForIncomingUrl(url: string): string | null {
 
   if (/^\/invite\/\d+$/.test(path)) return path;
 
+  // A member's invite link or QR code (Find PinPals, 0118).
+  const join = /^\/join\/([a-z0-9]{8})$/i.exec(path);
+  if (join) return `/join?code=${join[1].toLowerCase()}`;
+
   // "Invite friends" sends /signup (lib/invite-friends.ts).
   if (path === "/signup") return "/signup";
 

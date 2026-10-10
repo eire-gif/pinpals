@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { consumePendingInvite } from "@/lib/find-pinpals";
 import { useFonts } from "expo-font";
 import {
   PlayfairDisplay_700Bold,
@@ -62,7 +63,8 @@ function RootNavigator() {
     const first = segments[0] as string | undefined;
     const onAuthForm = first === "login" || first === "signup";
     // card-link: a shared scorecard (pinpals.ie/c/…) opens for anyone.
-    const signedOutAllowed = onAuthForm || first === "auth-confirm" || first === "card-link";
+    // join: a member's invite link or QR code (Find PinPals, 0118).
+    const signedOutAllowed = onAuthForm || first === "auth-confirm" || first === "card-link" || first === "join";
 
     if (!session && !signedOutAllowed) {
       router.replace("/login");
@@ -90,6 +92,10 @@ function RootNavigator() {
     if (!userId || registeredFor.current === userId) return;
 
     registeredFor.current = userId;
+    // An invite link opened before signing in (app/join.tsx): connect now.
+    void consumePendingInvite().then((owner) => {
+      if (owner) router.push({ pathname: "/member/[id]", params: { id: owner } });
+    });
     void registerForPush().then((result) => {
       if (!result.ok) console.warn(`[push] not registered: ${result.reason}`);
     });
