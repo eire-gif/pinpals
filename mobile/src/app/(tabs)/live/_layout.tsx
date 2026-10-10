@@ -1,5 +1,6 @@
 import { Stack } from "expo-router";
 
+import { BackPill, headerButtons } from "@/components/header-actions";
 import { colors, fonts } from "@/lib/theme";
 
 /**
@@ -21,7 +22,8 @@ export default function LiveLayout() {
         contentStyle: { backgroundColor: colors.cream50 },
       }}
     >
-      <Stack.Screen name="index" options={{ title: "Live scoring" }} />
+      {/* First in its own stack, so iOS draws no back button: add one. */}
+      <Stack.Screen name="index" options={{ title: "Live scoring", ...headerButtons({ left: <BackPill /> }) }} />
       <Stack.Screen name="new" options={{ title: "Set up a round" }} />
       <Stack.Screen name="round/[id]" options={{ title: "Scoring" }} />
       <Stack.Screen name="day/new" options={{ title: "Set up a match day" }} />

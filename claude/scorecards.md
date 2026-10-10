@@ -56,6 +56,16 @@ A member keeps their own card for every round, and shares it.
   sharing, the post goes without the hole-by-hole rather than being refused.
   Rounds typed in by hand show the header and stats.
 
+- **My scorecards, dressed up (10 Oct 2026):** a photograph band like the
+  tee-time screens; the best 18 in a navy card (score, to par, course, date)
+  with average and rounds beside it; six tiles — eagles, birdies, pars,
+  par-or-better %, putts a round, best Stableford points
+  (`lib/scorecard-stats.ts`, + test); and richer rows (tee colour, points,
+  birdies, "In progress" / "Thru 7" for unfinished cards). **Longest drive
+  isn't recorded on a scorecard**, so it isn't shown — it would need a
+  drive field per card (a small migration) or the shot marks from live
+  scoring.
+
 ## How it's built
 
 | Piece | File |
