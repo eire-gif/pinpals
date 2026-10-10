@@ -16,6 +16,8 @@ import { router } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { Section } from "@/components/form-bits";
+import { TimeSheet } from "@/components/time-sheet";
+import { clockLabel } from "@/lib/tee-time-post";
 import { CourseSection, useCourseSetup } from "@/components/live-course-section";
 import { StateMessage } from "@/components/state-message";
 import { useAuth } from "@/lib/auth";
@@ -70,6 +72,14 @@ const emptySides = (f: MatchFormat): DraftMatch["sides"] => [Array(perSide(f)).f
 
 type Picking = { match: string; side: 0 | 1; index: number } | null;
 
+/** "09:20" + 10 → "09:30"; "" stays "" (no time to follow). */
+function addMinutes(time: string, minutes: number): string {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(time.trim());
+  if (!m) return "";
+  const total = (Number(m[1]) * 60 + Number(m[2]) + minutes) % (24 * 60);
+  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+}
+
 export default function NewMatchDay() {
   const { session } = useAuth();
   const userId = session?.user?.id ?? null;
@@ -78,6 +88,8 @@ export default function NewMatchDay() {
   const [title, setTitle] = useState("");
   const [teamsOn, setTeamsOn] = useState(true);
   const [teamNames, setTeamNames] = useState<[string, string]>(["Blues", "Golds"]);
+  // Which match's tee time the clock sheet is open for.
+  const [timeFor, setTimeFor] = useState<string | null>(null);
   const [matches, setMatches] = useState<DraftMatch[]>([{ key: nextKey("m"), format: "fourball", teeTime: "", sides: emptySides("fourball") }]);
   const [me, setMe] = useState<{ name: string; index: string } | null>(null);
   const [pals, setPals] = useState<Member[] | null>(null);
@@ -134,7 +146,16 @@ export default function NewMatchDay() {
     });
 
   const addMatch = () =>
-    setMatches((ms) => [...ms, { key: nextKey("m"), format: ms[ms.length - 1]?.format ?? "fourball", teeTime: "", sides: emptySides(ms[ms.length - 1]?.format ?? "fourball") }]);
+    // The next group goes off ten minutes after the last one, if it had a time.
+    setMatches((ms) => [
+      ...ms,
+      {
+        key: nextKey("m"),
+        format: ms[ms.length - 1]?.format ?? "fourball",
+        teeTime: addMinutes(ms[ms.length - 1]?.teeTime ?? "", 10),
+        sides: emptySides(ms[ms.length - 1]?.format ?? "fourball"),
+      },
+    ]);
 
   const ch = (indexText: string) => {
     const index = parseIndex(indexText);
@@ -190,7 +211,7 @@ export default function NewMatchDay() {
         payload,
         course.holeCard()
       );
-      router.replace({ pathname: "/live/day/[id]", params: { id: String(id) } });
+      router.replace({ pathname: "/live/day/[id]", params: { id: String(id), created: "1" } });
     } catch (e) {
       Alert.alert("Couldn't start the match day", e instanceof Error ? e.message : "Please try again.");
     } finally {
@@ -248,16 +269,18 @@ export default function NewMatchDay() {
             <View key={m.key} style={styles.match}>
               <View style={styles.matchTop}>
                 <Text style={styles.matchTitle}>Match {mi + 1}</Text>
-                <TextInput
-                  value={m.teeTime}
-                  onChangeText={(v) => updateMatch(m.key, (x) => ({ ...x, teeTime: v }))}
-                  placeholder="Tee time"
-                  placeholderTextColor={colors.ink500}
-                  keyboardType="numbers-and-punctuation"
-                  style={styles.timeInput}
-                  maxLength={5}
-                  accessibilityLabel={`Match ${mi + 1} tee time`}
-                />
+                {/* Oct 2026: a clock, not the punctuation keyboard. */}
+                <Pressable
+                  onPress={() => setTimeFor(m.key)}
+                  style={({ pressed }) => [styles.timeButton, m.teeTime ? styles.timeButtonSet : null, pressed && { opacity: 0.85 }]}
+                  accessibilityRole="button"
+                  accessibilityLabel={m.teeTime ? `Match ${mi + 1} tees off ${m.teeTime}. Change` : `Add match ${mi + 1}'s tee time`}
+                >
+                  <Ionicons name="time-outline" size={16} color={m.teeTime ? colors.cream50 : colors.green700} />
+                  <Text style={[styles.timeButtonText, m.teeTime ? styles.timeButtonTextSet : null]}>
+                    {m.teeTime ? clockLabel(m.teeTime) : "Tee time"}
+                  </Text>
+                </Pressable>
                 {matches.length > 1 ? (
                   <Pressable
                     onPress={() => setMatches((ms) => ms.filter((x) => x.key !== m.key))}
@@ -423,6 +446,24 @@ export default function NewMatchDay() {
           {saving ? <ActivityIndicator color={colors.cream50} /> : <Text style={styles.startLabel}>Start match day</Text>}
         </Pressable>
       </ScrollView>
+      {(() => {
+        const idx = matches.findIndex((x) => x.key === timeFor);
+        const cur = idx >= 0 ? matches[idx] : null;
+        const prev = idx > 0 ? matches[idx - 1].teeTime : "";
+        const suggestions = prev
+          ? [8, 10, 12].map((n) => ({ label: `+${n} min`, time: addMinutes(prev, n) }))
+          : [];
+        return (
+          <TimeSheet
+            open={cur != null}
+            title={cur ? `Match ${idx + 1} tees off` : ""}
+            value={cur?.teeTime ?? ""}
+            suggestions={suggestions}
+            onClose={() => setTimeFor(null)}
+            onChange={(t) => cur && updateMatch(cur.key, (x) => ({ ...x, teeTime: t }))}
+          />
+        );
+      })()}
     </KeyboardAvoidingView>
   );
 }
@@ -459,18 +500,10 @@ const styles = StyleSheet.create({
   match: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: radii.lg, padding: spacing.md, gap: spacing.sm },
   matchTop: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   matchTitle: { flex: 1, fontFamily: fonts.display, fontSize: 20, color: colors.navy900 },
-  timeInput: {
-    width: 92,
-    minHeight: 40,
-    borderWidth: 1,
-    borderColor: colors.line,
-    borderRadius: radii.md,
-    textAlign: "center",
-    fontFamily: fonts.body,
-    fontSize: type.body,
-    color: colors.ink900,
-    backgroundColor: colors.cream50,
-  },
+  timeButton: { flexDirection: "row", alignItems: "center", gap: 6, minHeight: 40, paddingHorizontal: 12, borderRadius: radii.pill, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.cream50 },
+  timeButtonSet: { backgroundColor: colors.green700, borderColor: colors.green700 },
+  timeButtonText: { fontFamily: fonts.bodySemi, fontSize: type.body, color: colors.green700 },
+  timeButtonTextSet: { fontFamily: fonts.bodyBold, color: colors.cream50 },
   formats: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
   format: { minHeight: 40, paddingHorizontal: 12, borderRadius: radii.pill, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.cream50, justifyContent: "center" },
   formatOn: { backgroundColor: colors.green700, borderColor: colors.green700 },
