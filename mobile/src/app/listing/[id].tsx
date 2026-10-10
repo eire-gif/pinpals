@@ -33,6 +33,7 @@ import {
   type ListingStatus,
 } from "@/lib/listings";
 import { ApiError } from "@/lib/api";
+import { GoldButton } from "@/components/gold-button";
 import { PurchasePanel } from "@/components/purchase-panel";
 import { buyerProtectionFee, eur, sweepMarketplace } from "@/lib/purchase";
 import { shortClub } from "@/lib/used-gear";
@@ -543,6 +544,10 @@ function SellerControls({
         </View>
       ) : null}
       {error ? <Text style={styles.sellerError}>{error}</Text> : null}
+      {error && /payout/i.test(error) ? (
+        // The fix for "can't be paid yet": Stripe's setup, from Payouts.
+        <GoldButton label="Set up payouts" onPress={() => router.push("/payouts")} />
+      ) : null}
 
       {actions.map((action, index) => (
         <Pressable
