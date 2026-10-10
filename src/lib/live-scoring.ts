@@ -58,7 +58,9 @@ export const LIVE_FORMATS: readonly FormatInfo[] = [
   { id: "foursomes", label: "Foursomes", blurb: "Scotch, alternate shot", allowance: 0.5, available: false, matchDay: true, perSide: 2 },
   // Greensomes: 60% of the lower plus 40% of the higher course handicap.
   { id: "greensomes", label: "Greensomes", blurb: "Both drive, pick one", allowance: 0.6, available: false, matchDay: true, perSide: 2 },
-  { id: "scramble", label: "Scramble", blurb: "Texas, 2 or 4", allowance: 0.25, available: false, matchDay: false },
+  // Scramble (0113): the allowance is per player and worked out by
+  // scrambleHandicap below; 0.25 is the lowest player's share in a four.
+  { id: "scramble", label: "Scramble", blurb: "Teams of 2 or 4, one ball", allowance: 0.25, available: true, matchDay: false },
 ];
 
 export const MATCH_FORMATS = LIVE_FORMATS.filter((f) => f.matchDay);
@@ -578,4 +580,70 @@ export function pointsLabel(n: number): string {
  *  course whose card isn't on file yet. The scorer corrects it as they go. */
 export function blankCard(holes: 9 | 18): CardHole[] {
   return Array.from({ length: holes }, (_, i) => ({ hole: i + 1, par: 4, strokeIndex: null }));
+}
+
+// ---------------------------------------------------------------------------
+// Scramble (0113)
+// ---------------------------------------------------------------------------
+
+export type ScrambleSize = 2 | 4;
+
+/** WHS recommended allowances, lowest course handicap first. */
+export const SCRAMBLE_WEIGHTS: Record<ScrambleSize, readonly number[]> = {
+  4: [0.25, 0.2, 0.15, 0.1],
+  2: [0.35, 0.15],
+};
+
+export type ScrambleHandicap = {
+  /** The team's playing handicap: the shares summed, then rounded. */
+  team: number;
+  /** Each player's share, in the order given, to one decimal — for showing
+   *  how the team figure was made. */
+  shares: number[];
+};
+
+/**
+ * A scramble team's handicap from its players' course handicaps.
+ *
+ * Lowest course handicap takes the biggest share (a plus handicap is the
+ * lowest of all). WHS sums the unrounded shares and rounds once, so
+ * 4, 10, 18, 25 → 1 + 2 + 2.7 + 2.5 = 8.2 → 8, not 1+2+3+3 = 9.
+ */
+export function scrambleHandicap(courseHandicaps: readonly number[]): ScrambleHandicap {
+  const size = courseHandicaps.length as ScrambleSize;
+  const weights = SCRAMBLE_WEIGHTS[size];
+  if (!weights) throw new Error("A scramble team is 2 or 4 players");
+  const order = courseHandicaps.map((ch, i) => ({ ch, i })).sort((a, b) => a.ch - b.ch || a.i - b.i);
+  const shares = new Array<number>(size).fill(0);
+  order.forEach(({ ch, i }, rank) => {
+    shares[i] = ch * weights[rank];
+  });
+  const sum = shares.reduce((a, b) => a + b, 0);
+  return { team: roundHalfUp(sum), shares: shares.map((x) => Math.round(x * 10) / 10) };
+}
+
+/** How many drives each player (by position) has had used. */
+export function driveCounts(drives: ReadonlyMap<number, number>, positions: readonly number[]): Map<number, number> {
+  const counts = new Map(positions.map((p) => [p, 0]));
+  for (const pos of drives.values()) counts.set(pos, (counts.get(pos) ?? 0) + 1);
+  return counts;
+}
+
+export type DriveNeed = { position: number; needed: number };
+
+/**
+ * Who still owes drives towards the minimum, and whether the team can still
+ * get everyone there in the holes left (each hole gives one drive).
+ */
+export function driveShortfall(
+  counts: ReadonlyMap<number, number>,
+  minimum: number | null,
+  holesLeft: number
+): { needs: DriveNeed[]; impossible: boolean; tight: boolean } {
+  if (!minimum) return { needs: [], impossible: false, tight: false };
+  const needs = [...counts.entries()]
+    .map(([position, n]) => ({ position, needed: Math.max(0, minimum - n) }))
+    .filter((x) => x.needed > 0);
+  const total = needs.reduce((a, b) => a + b.needed, 0);
+  return { needs, impossible: total > holesLeft, tight: total > 0 && total === holesLeft };
 }

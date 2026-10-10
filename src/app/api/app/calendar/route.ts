@@ -95,17 +95,18 @@ export async function POST(request: Request) {
     // The member's own match: its number and tee time.
     const { data: rows } = await auth.supabase
       .from("live_rounds")
-      .select("id, match_number, tee_time, match_type, live_round_players!inner ( member_id )")
+      .select("id, match_number, tee_time, match_type, team_name, live_round_players!inner ( member_id )")
       .eq("match_day_id", id)
       .eq("live_round_players.member_id", auth.user.id)
-      .overrideTypes<{ id: number; match_number: number | null; tee_time: string | null; match_type: string | null }[]>();
+      .overrideTypes<{ id: number; match_number: number | null; tee_time: string | null; match_type: string | null; team_name: string | null }[]>();
     const match = (rows ?? [])[0] ?? null;
     if (!match && day.created_by !== auth.user.id) return notYours();
 
     const vs = day.team_names?.length === 2 ? ` · ${day.team_names[0]} v ${day.team_names[1]}` : "";
     event = {
       uid: `match-day-${day.id}${match ? `-m${match.match_number ?? match.id}` : ""}`,
-      title: match?.match_number ? `⛳ ${day.title} — Match ${match.match_number}` : `⛳ ${day.title}`,
+      // A scramble team (0113) has a team name instead of a match number.
+      title: match?.match_number ? `⛳ ${day.title} — Match ${match.match_number}` : match?.team_name ? `⛳ ${day.title} — ${match.team_name}` : `⛳ ${day.title}`,
       date: day.played_on,
       time: HHMM(match?.tee_time),
       tz: tzForCountry(day.clubs?.country),

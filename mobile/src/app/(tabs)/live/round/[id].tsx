@@ -14,6 +14,7 @@ import {
   loadCourseCards,
   loadLiveRound,
   saveCourseCard,
+  setLiveDrive,
   setLiveHole,
   setLiveScore,
   subscribeToLiveRound,
@@ -21,6 +22,8 @@ import {
 } from "@/lib/live-rounds";
 import {
   buildBoard,
+  driveCounts,
+  driveShortfall,
   formatInfo,
   isOneBallPerSide,
   matchCompetitors,
@@ -115,7 +118,15 @@ export default function LiveRoundScreen() {
   useLiveRefresh(load, data?.round.status === "live");
 
   const board = useMemo(
-    () => (data ? buildBoard(data.round.format, data.card, data.players, data.scores) : null),
+    () => {
+      if (!data) return null;
+      const scr = data.round.scramble;
+      if (!scr) return buildBoard(data.round.format, data.card, data.players, data.scores);
+      // A scramble team is one "player": its first, off the team handicap.
+      const lead = [...data.players].sort((a, b) => a.position - b.position)[0];
+      if (!lead) return null;
+      return buildBoard("stroke", data.card, [{ id: lead.id, name: teamLabel(data), playingHandicap: scr.teamHandicap }], data.scores);
+    },
     [data]
   );
 
@@ -124,7 +135,10 @@ export default function LiveRoundScreen() {
   if (data === undefined) return <ActivityIndicator color={colors.green700} style={{ marginTop: spacing.xl }} />;
   if (data === null) return <StateMessage size="screen" icon="lock-closed-outline" title="This round isn't available" body="It may have been removed, or you're not in it." />;
 
-  const { round, players, card, scores } = data;
+  const { round, players, card, scores, drives } = data;
+  const scr = round.scramble;
+  // Scramble is net stroke play for the team (0113).
+  const strokeLike = round.format === "stroke" || scr != null;
   const live = round.status === "live";
   const h = card.find((c) => c.hole === hole) ?? card[0];
   const matchFormat: MatchFormat | null = round.matchFormat;
@@ -141,6 +155,7 @@ export default function LiveRoundScreen() {
   // round from each player's own playing handicap.
   const competitors = matchFormat ? matchCompetitors(matchFormat, asMatchPlayers(players)) : null;
   const shotsFor = (playerId: number): number | null => {
+    if (scr) return shotsSoFar(scr.teamHandicap, card).get(h.hole) ?? null;
     const comp = competitors?.find((c) => c.playerIds.includes(playerId));
     if (comp) return shotsSoFar(comp.shots, card).get(h.hole) ?? null;
     const p = players.find((x) => x.id === playerId);
@@ -148,6 +163,7 @@ export default function LiveRoundScreen() {
   };
   /** Shots for every player on every hole, for the card under the entry rows. */
   const shotsAt = (playerId: number, holeNo: number): number | null => {
+    if (scr) return shotsSoFar(scr.teamHandicap, card).get(holeNo) ?? null;
     const comp = competitors?.find((c) => c.playerIds.includes(playerId));
     const hcp = comp ? comp.shots : players.find((x) => x.id === playerId)?.playingHandicap;
     return hcp == null ? null : (shotsSoFar(hcp, card).get(holeNo) ?? null);
@@ -159,8 +175,12 @@ export default function LiveRoundScreen() {
   // The rows to score. One per player, except foursomes and greensomes:
   // one per pair, written against the pair's first player.
   type Row = { id: number; name: string; side: number | null };
-  const rows: Row[] =
-    matchFormat && isOneBallPerSide(matchFormat)
+  const lead = [...players].sort((a, b) => a.position - b.position)[0];
+  const rows: Row[] = scr
+    ? lead
+      ? [{ id: lead.id, name: teamLabel(data), side: null }]
+      : []
+    : matchFormat && isOneBallPerSide(matchFormat)
       ? [1, 2].map((n) => {
           const pair = players.filter((p) => p.side === n).sort((a, b) => a.position - b.position);
           return { id: pair[0]?.id ?? -n, name: pair.map((p) => p.name.split(" ")[0]).join(" & "), side: n };
@@ -183,6 +203,25 @@ export default function LiveRoundScreen() {
       await setLiveScore(round.id, playerId, h.hole, strokes, clear);
     } catch (e) {
       Alert.alert("That score didn't save", e instanceof Error ? e.message : "Check your signal and try again.");
+      void load();
+    }
+  };
+
+  /** Scramble: whose drive was used here. Tapping the chosen one clears it. */
+  const pickDrive = async (position: number) => {
+    if (!live || !canScore) return;
+    const next = drives.get(h.hole) === position ? null : position;
+    setData((d) => {
+      if (!d) return d;
+      const m = new Map(d.drives);
+      if (next == null) m.delete(h.hole);
+      else m.set(h.hole, next);
+      return { ...d, drives: m };
+    });
+    try {
+      await setLiveDrive(round.id, h.hole, next);
+    } catch (e) {
+      Alert.alert("That drive didn't save", e instanceof Error ? e.message : "Check your signal and try again.");
       void load();
     }
   };
@@ -452,6 +491,11 @@ export default function LiveRoundScreen() {
                       </View>
                     ) : null}
                   </View>
+                  {scr && scr.teamName ? (
+                    <Text style={styles.playerMeta} numberOfLines={1}>
+                      {[...players].sort((x, y) => x.position - y.position).map((x) => x.name.split(" ")[0]).join(" · ")}
+                    </Text>
+                  ) : null}
                   <View style={styles.nameRow}>
                     {round.format === "stableford" && pts != null ? (
                       <Text style={[styles.badge, pts >= 3 ? styles.badgeGood : pts === 0 ? styles.badgeNil : null]}>{pts} pts</Text>
@@ -483,8 +527,20 @@ export default function LiveRoundScreen() {
             );
           })}
 
+          {scr ? (
+            <DrivePicker
+              players={[...players].sort((a, b) => a.position - b.position)}
+              drives={drives}
+              hole={h.hole}
+              minimum={scr.driveMinimum}
+              holesLeft={card.filter((c) => !drives.has(c.hole)).length}
+              canScore={canScore}
+              onPick={(pos) => void pickDrive(pos)}
+            />
+          ) : null}
+
           {!canScore && live ? (
-            <Text style={styles.footNote}>You're watching this match. Its own players score it.</Text>
+            <Text style={styles.footNote}>{scr ? "You're watching this team. Its own players score it." : "You're watching this match. Its own players score it."}</Text>
           ) : null}
 
           <LiveCard
@@ -502,7 +558,7 @@ export default function LiveRoundScreen() {
               <View style={styles.pickupRow}>
                 {rows.map((p) => (
                   <Pressable key={p.id} onPress={() => void score(p.id, null)} style={styles.pickup} accessibilityRole="button">
-                    <Text style={styles.pickupText}>{p.name.split(" ")[0]} picked up</Text>
+                    <Text style={styles.pickupText}>{scr ? "Team picked up" : `${p.name.split(" ")[0]} picked up`}</Text>
                   </Pressable>
                 ))}
               </View>
@@ -533,8 +589,8 @@ export default function LiveRoundScreen() {
                 <Text style={[styles.thText, styles.cPos]}>Pos</Text>
                 <Text style={[styles.thText, { flex: 1 }]}>Player</Text>
                 <Text style={[styles.thText, styles.cNum]}>Thru</Text>
-                <Text style={[styles.thText, styles.cNum]}>{round.format === "stroke" ? "Gross" : "Pace"}</Text>
-                <Text style={[styles.thText, styles.cBig]}>{round.format === "stroke" ? "Net" : "Pts"}</Text>
+                <Text style={[styles.thText, styles.cNum]}>{strokeLike ? "Gross" : "Pace"}</Text>
+                <Text style={[styles.thText, styles.cBig]}>{strokeLike ? "Net" : "Pts"}</Text>
               </View>
               {board?.rows.map((r) => (
                 <View key={r.playerId} style={styles.tr}>
@@ -543,8 +599,8 @@ export default function LiveRoundScreen() {
                     {r.name}
                   </Text>
                   <Text style={[styles.cell, styles.cNum]}>{r.thru}</Text>
-                  <Text style={[styles.cell, styles.cNum]}>{round.format === "stroke" ? r.gross || "–" : r.thru ? toParLabel(r.pace).replace("E", "0") : "–"}</Text>
-                  <Text style={[styles.big, styles.cBig]}>{round.format === "stroke" ? (r.thru ? toParLabel(r.netToPar) : "–") : r.points}</Text>
+                  <Text style={[styles.cell, styles.cNum]}>{strokeLike ? r.gross || "–" : r.thru ? toParLabel(r.pace).replace("E", "0") : "–"}</Text>
+                  <Text style={[styles.big, styles.cBig]}>{strokeLike ? (r.thru ? toParLabel(r.netToPar) : "–") : r.points}</Text>
                 </View>
               ))}
             </View>
@@ -552,19 +608,22 @@ export default function LiveRoundScreen() {
 
           {!matchFormat ? (
             <Text style={styles.footNote}>
-              {round.format === "stroke"
+              {strokeLike
                 ? "Net is against par for the holes played."
                 : "Pace is points against two a hole, so groups on different holes compare fairly."}
             </Text>
           ) : null}
 
           <View style={styles.handicaps}>
-            <Text style={styles.editorLabel}>Handicaps · {Math.round(round.allowance * 100)}% allowance</Text>
+            <Text style={styles.editorLabel}>
+              {scr ? `Team handicap · ${scr.size}-person scramble` : `Handicaps · ${Math.round(round.allowance * 100)}% allowance`}
+            </Text>
+            {scr ? <Text style={styles.playerName}>{teamLabel(data)} plays off {scr.teamHandicap}</Text> : null}
             {players.map((p) => (
               <Text key={p.id} style={styles.playerMeta}>
                 {p.name}: index {p.handicapIndex}, course {p.courseHandicap}
                 {p.estimated ? " (estimated)" : ""}
-                {matchFormat ? "" : `, plays off ${p.playingHandicap}`}
+                {scr ? `, share ${p.playingHandicap}` : matchFormat ? "" : `, plays off ${p.playingHandicap}`}
               </Text>
             ))}
             {competitors && competitors.some((c) => c.shots > 0) ? (
@@ -595,7 +654,7 @@ export default function LiveRoundScreen() {
 
           {/* Scorecards (0110): your own line as a card in your profile.
               Saving again later refreshes the same card. */}
-          {isOn("scorecards") && me != null && players.some((p) => p.memberId === me) ? (
+          {isOn("scorecards") && !scr && me != null && players.some((p) => p.memberId === me) ? (
             <Pressable onPress={() => void saveMyScorecard()} style={styles.secondary} accessibilityRole="button">
               <Ionicons name="document-text-outline" size={18} color={colors.green700} />
               <Text style={styles.link}>{live ? "Save my scorecard so far" : "Save my scorecard"}</Text>
@@ -668,6 +727,93 @@ function MatchView({ data, format, sideName }: { data: LiveRoundData; format: Ma
 // ---------------------------------------------------------------------------
 
 type CardMode = "strokes" | "points" | "net";
+
+/** A scramble team's name: its own, or its players' first names. */
+function teamLabel(d: LiveRoundData): string {
+  return (
+    d.round.scramble?.teamName ??
+    [...d.players]
+      .sort((a, b) => a.position - b.position)
+      .map((p) => p.name.split(" ")[0])
+      .join(" & ")
+  );
+}
+
+/**
+ * Scramble: whose drive the team took on this hole, and the running count
+ * against the minimum. Warns when the holes left can't cover what's owed.
+ */
+function DrivePicker({
+  players,
+  drives,
+  hole,
+  minimum,
+  holesLeft,
+  canScore,
+  onPick,
+}: {
+  players: { position: number; name: string }[];
+  drives: ReadonlyMap<number, number>;
+  hole: number;
+  minimum: number | null;
+  holesLeft: number;
+  canScore: boolean;
+  onPick: (position: number) => void;
+}) {
+  const counts = driveCounts(drives, players.map((p) => p.position));
+  // The hole being scored isn't "left" once its drive is in.
+  const left = holesLeft;
+  const short = driveShortfall(counts, minimum, left);
+  const chosen = drives.get(hole) ?? null;
+  const first = (pos: number) => players.find((p) => p.position === pos)?.name.split(" ")[0] ?? "";
+  return (
+    <View style={styles.drives}>
+      <View style={styles.drivesHead}>
+        <Text style={styles.drivesTitle}>Whose drive?</Text>
+        {minimum ? <Text style={styles.playerMeta}>Minimum {minimum} each</Text> : null}
+      </View>
+      <View style={styles.driveChips}>
+        {players.map((p) => {
+          const on = chosen === p.position;
+          const n = counts.get(p.position) ?? 0;
+          const done = minimum != null && n >= minimum;
+          return (
+            <Pressable
+              key={p.position}
+              onPress={() => onPick(p.position)}
+              disabled={!canScore}
+              style={[styles.driveChip, on && styles.driveChipOn]}
+              accessibilityRole="button"
+              accessibilityState={{ selected: on, disabled: !canScore }}
+              accessibilityLabel={`${p.name}'s drive. ${n} used${minimum ? ` of ${minimum}` : ""}.`}
+            >
+              <Text style={[styles.driveName, on && styles.driveNameOn]} numberOfLines={1}>
+                {p.name.split(" ")[0]}
+              </Text>
+              <Text style={[styles.driveCount, on && styles.driveNameOn, done && !on && { color: colors.green700 }]}>
+                {minimum ? `${n}/${minimum}` : n}
+                {done ? " ✓" : ""}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+      {short.impossible ? (
+        <Text style={[styles.driveNote, { color: colors.red600 }]}>
+          Not enough holes left: {short.needs.map((x) => `${first(x.position)} needs ${x.needed}`).join(", ")}.
+        </Text>
+      ) : short.tight ? (
+        <Text style={[styles.driveNote, { color: colors.red600 }]}>
+          Every hole left must go to {short.needs.map((x) => first(x.position)).join(" or ")}.
+        </Text>
+      ) : short.needs.length > 0 ? (
+        <Text style={styles.driveNote}>Still owed: {short.needs.map((x) => `${first(x.position)} ${x.needed}`).join(" · ")}</Text>
+      ) : minimum ? (
+        <Text style={[styles.driveNote, { color: colors.green700 }]}>Everyone has their drives in.</Text>
+      ) : null}
+    </View>
+  );
+}
 
 function Tot({ children, head = false, small = false, strong = false }: { children: ReactNode; head?: boolean; small?: boolean; strong?: boolean }) {
   return (
@@ -926,6 +1072,16 @@ const styles = StyleSheet.create({
   gWon: { backgroundColor: colors.green700, borderColor: colors.green700, borderStyle: "solid" },
   gLost: { backgroundColor: colors.red600, borderColor: colors.red600, borderStyle: "solid" },
   gHalf: { backgroundColor: colors.cream100, borderColor: colors.cream100, borderStyle: "solid" },
+  drives: { gap: spacing.sm, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: radii.lg, padding: spacing.md },
+  drivesHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  drivesTitle: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.ink900 },
+  driveChips: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  driveChip: { flexGrow: 1, flexBasis: "22%", minHeight: 52, borderRadius: radii.md, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.cream50, alignItems: "center", justifyContent: "center", paddingHorizontal: 6 },
+  driveChipOn: { backgroundColor: colors.navy900, borderColor: colors.gold500 },
+  driveName: { fontFamily: fonts.bodySemi, fontSize: 14, color: colors.ink900 },
+  driveNameOn: { color: colors.cream50 },
+  driveCount: { fontFamily: fonts.bodyBold, fontSize: 12, color: colors.ink500, marginTop: 1 },
+  driveNote: { fontFamily: fonts.body, fontSize: 12.5, lineHeight: 18, color: colors.ink500 },
   lc: { gap: spacing.sm, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: radii.lg, padding: spacing.md, paddingHorizontal: 10 },
   lcHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 4 },
   lcTitle: { fontFamily: fonts.display, fontSize: 20, color: colors.navy900 },

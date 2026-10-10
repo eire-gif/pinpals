@@ -42,6 +42,8 @@ export type MatchDay = {
   playedOn: string;
   /** [side 1, side 2], or null when there are no team totals. */
   teamNames: [string, string] | null;
+  /** "scramble": one round per scramble team, one leaderboard (0113). */
+  kind: "match" | "scramble";
 };
 
 export type Match = {
@@ -68,6 +70,7 @@ export type MatchDaySummary = {
   matchCount: number;
   live: boolean;
   createdBy: string | null;
+  kind: "match" | "scramble";
 };
 
 type DayRow = {
@@ -80,9 +83,10 @@ type DayRow = {
   holes: number;
   played_on: string;
   team_names: string[] | null;
+  kind: "match" | "scramble" | null;
 };
 
-const DAY_SELECT = "id, created_by, title, club_id, course_name, tee_name, holes, played_on, team_names";
+const DAY_SELECT = "id, created_by, title, club_id, course_name, tee_name, holes, played_on, team_names, kind";
 
 const toDay = (d: DayRow): MatchDay => ({
   id: d.id,
@@ -94,6 +98,7 @@ const toDay = (d: DayRow): MatchDay => ({
   holes: d.holes === 9 ? 9 : 18,
   playedOn: d.played_on,
   teamNames: d.team_names && d.team_names.length === 2 ? [d.team_names[0], d.team_names[1]] : null,
+  kind: d.kind === "scramble" ? "scramble" : "match",
 });
 
 export const asMatchPlayers = (players: LiveRoundPlayer[]): MatchPlayer[] =>
@@ -110,10 +115,10 @@ export const asMatchPlayers = (players: LiveRoundPlayer[]): MatchPlayer[] =>
 export async function loadMyMatchDays(): Promise<MatchDaySummary[]> {
   const { data, error } = await supabase
     .from("live_match_days")
-    .select("id, created_by, title, course_name, played_on, live_rounds (status)")
+    .select("id, created_by, title, course_name, played_on, kind, live_rounds (status)")
     .order("created_at", { ascending: false })
     .limit(20)
-    .overrideTypes<{ id: number; created_by: string | null; title: string; course_name: string; played_on: string; live_rounds: { status: string }[] }[]>();
+    .overrideTypes<{ id: number; created_by: string | null; title: string; course_name: string; played_on: string; kind: string | null; live_rounds: { status: string }[] }[]>();
   if (error) throw error;
   return (data ?? []).map((d) => ({
     id: d.id,
@@ -123,6 +128,7 @@ export async function loadMyMatchDays(): Promise<MatchDaySummary[]> {
     matchCount: d.live_rounds?.length ?? 0,
     live: (d.live_rounds ?? []).some((r) => r.status === "live"),
     createdBy: d.created_by,
+    kind: d.kind === "scramble" ? ("scramble" as const) : ("match" as const),
   }));
 }
 
@@ -164,7 +170,9 @@ export async function loadMatchDay(id: number): Promise<MatchDayData | null> {
       sheet.get(s.player_id)!.set(s.hole, s.strokes);
     }
     const format = round.matchFormat ?? "matchplay";
-    return { round, players: ps, card, scores: sheet, format, state: teamMatchState(format, card, asMatchPlayers(ps), sheet) };
+    // A scramble team is not a match: no match state (the board ranks teams).
+    const state = round.scramble ? null : teamMatchState(format, card, asMatchPlayers(ps), sheet);
+    return { round, players: ps, card, scores: sheet, format, state };
   });
 
   const final: [number, number] = [0, 0];
@@ -252,6 +260,56 @@ export async function createMatchDay(day: NewMatchDay, matches: NewMatch[], card
   if (error) throw error;
   const id = data as number;
   // Every PinPal on the card hears which match they're in. Best effort.
+  void postToSite(`/api/app/live/match-days/${id}/notify`, {}).catch(() => undefined);
+  return id;
+}
+
+// ---------------------------------------------------------------------------
+// Starting a scramble day (0113)
+// ---------------------------------------------------------------------------
+
+export type NewScrambleTeam = {
+  name: string | null;
+  teeTime: string | null;
+  teamHandicap: number;
+  players: Omit<NewMatchPlayer, "side">[];
+};
+
+export async function createScrambleDay(
+  day: Omit<NewMatchDay, "teamNames"> & { size: 2 | 4; driveMinimum: number | null },
+  teams: NewScrambleTeam[],
+  card: CardHole[]
+): Promise<number> {
+  const { data, error } = await supabase.rpc("live_scramble_day_create", {
+    p_day: {
+      title: day.title,
+      course_name: day.courseName,
+      club_id: day.clubId,
+      tee_name: day.teeName,
+      holes: day.holes,
+      course_rating: day.courseRating,
+      slope: day.slope,
+      par_total: day.parTotal,
+      scramble_size: day.size,
+      drive_minimum: day.driveMinimum,
+    },
+    p_teams: teams.map((t) => ({
+      name: t.name,
+      tee_time: t.teeTime,
+      team_handicap: t.teamHandicap,
+      players: t.players.map((p) => ({
+        member_id: p.memberId,
+        name: p.name,
+        handicap_index: p.handicapIndex,
+        course_handicap: p.courseHandicap,
+        playing_handicap: p.playingHandicap,
+        handicap_estimated: p.estimated,
+      })),
+    })),
+    p_card: card.map((h) => ({ hole: h.hole, par: h.par, stroke_index: h.strokeIndex })),
+  });
+  if (error) throw error;
+  const id = data as number;
   void postToSite(`/api/app/live/match-days/${id}/notify`, {}).catch(() => undefined);
   return id;
 }
