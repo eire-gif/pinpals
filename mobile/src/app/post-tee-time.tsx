@@ -164,7 +164,7 @@ export default function PostTeeTimeScreen() {
 
       // Replaced rather than pushed: going "back" to a form that has already
       // been submitted is how you get two identical tee times.
-      router.replace(`/invite/${inviteId}`);
+      router.replace({ pathname: "/invite/[id]", params: { id: String(inviteId), posted: "1" } });
     } catch (err) {
       setError(
         err instanceof Error

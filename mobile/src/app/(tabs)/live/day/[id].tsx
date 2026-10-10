@@ -1,9 +1,12 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Stack, router, useFocusEffect, useLocalSearchParams } from "expo-router";
 
 import { LoadError, StateMessage } from "@/components/state-message";
 import { useAuth } from "@/lib/auth";
+import { addToCalendar, offerCalendar } from "@/lib/calendar";
+import { todayIso } from "@/lib/tee-times";
 import { isOn } from "@/lib/features";
 import { SIDE_COLORS, SIDE_TEXT, deleteMatchDay, loadMatchDay, subscribeToMatchDay, type Match, type MatchDayData } from "@/lib/live-match-days";
 import { formatInfo, pointsLabel } from "@/lib/live-scoring";
@@ -20,7 +23,8 @@ import { colors, creamAlpha, fonts, radii, spacing, type } from "@/lib/theme";
  * watch.
  */
 export default function MatchDayBoard() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  // created=1: just set up (day/new.tsx) — offer the calendar once.
+  const { id, created } = useLocalSearchParams<{ id: string; created?: string }>();
   const dayId = Number(id);
   const { session } = useAuth();
   const me = session?.user?.id ?? null;
@@ -44,6 +48,14 @@ export default function MatchDayBoard() {
   );
   useEffect(() => subscribeToMatchDay(dayId, () => void load()), [dayId, load]);
   useLiveRefresh(load, !!data && data.matches.some((m) => m.round.status === "live"));
+  const offered = useRef(false);
+  useEffect(() => {
+    if (created && data && !offered.current) {
+      offered.current = true;
+      offerCalendar("match_day", data.day.id, "Match day set up", "Add your match to your calendar?");
+    }
+  }, [created, data]);
+  const [calBusy, setCalBusy] = useState(false);
 
   if (!isOn("liveScoring")) return <StateMessage size="screen" icon="podium-outline" title="Live scoring is on its way" />;
   if (failed) return <LoadError size="screen" what="this match day" onRetry={() => void load()} />;
@@ -138,6 +150,22 @@ export default function MatchDayBoard() {
           </>
         ) : null}
       </View>
+
+      {(isOrganiser || matches.some(mine)) && day.playedOn >= todayIso() ? (
+        <Pressable
+          onPress={async () => {
+            setCalBusy(true);
+            await addToCalendar("match_day", day.id);
+            setCalBusy(false);
+          }}
+          disabled={calBusy}
+          style={({ pressed }) => [styles.calendar, pressed && { opacity: 0.85 }, calBusy && { opacity: 0.6 }]}
+          accessibilityRole="button"
+        >
+          <Ionicons name="calendar-outline" size={18} color={colors.green700} />
+          <Text style={styles.calendarLabel}>{matches.some(mine) ? "Add my match to my calendar" : "Add the match day to my calendar"}</Text>
+        </Pressable>
+      ) : null}
 
       {ordered.map((m) => {
         const st = m.state;
@@ -246,5 +274,7 @@ const styles = StyleSheet.create({
   cell: { flex: 1, height: 6, borderRadius: 3 },
   delete: { minHeight: 48, borderRadius: 999, borderWidth: 1, borderColor: colors.red600, alignItems: "center", justifyContent: "center", marginTop: spacing.md },
   deleteLabel: { fontFamily: fonts.bodyBold, fontSize: type.small, color: colors.red600 },
+  calendar: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, minHeight: 48, borderRadius: radii.pill, borderWidth: 1, borderColor: colors.green700, backgroundColor: colors.surface },
+  calendarLabel: { fontFamily: fonts.bodyBold, fontSize: type.small, color: colors.green700 },
   footNote: { fontFamily: fonts.body, fontSize: 12, color: colors.ink500, textAlign: "center" },
 });

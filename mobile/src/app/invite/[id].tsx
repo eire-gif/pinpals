@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -17,6 +17,7 @@ import { COURSE_PHOTOS } from "@/components/course-photos";
 import { InviteTags } from "@/components/invite-card";
 import { StarRow } from "@/components/stars";
 import { useAuth } from "@/lib/auth";
+import { addToCalendar, offerCalendar } from "@/lib/calendar";
 import {
   confirmedPlayersFor,
   coursePhotoIndex,
@@ -37,7 +38,8 @@ import {
 import { colors, creamAlpha, fonts, navyAlpha, radii, spacing, type } from "@/lib/theme";
 
 export default function InviteScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  // posted=1: just posted (post-tee-time.tsx) — offer the calendar once.
+  const { id, posted } = useLocalSearchParams<{ id: string; posted?: string }>();
   const { session } = useAuth();
   const memberId = session?.user.id ?? null;
 
@@ -50,6 +52,12 @@ export default function InviteScreen() {
 
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [calBusy, setCalBusy] = useState(false);
+  const addMine = useCallback(async (inviteId: number) => {
+    setCalBusy(true);
+    await addToCalendar("tee_time", inviteId);
+    setCalBusy(false);
+  }, []);
 
   const load = useCallback(async () => {
     const numeric = Number.parseInt(String(id), 10);
@@ -93,6 +101,24 @@ export default function InviteScreen() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // The moment the round becomes yours — just posted it, or just confirmed
+  // your place — offer to put it in the calendar. Once each.
+  const offeredPosted = useRef(false);
+  useEffect(() => {
+    if (posted && invite && !offeredPosted.current && invite.member_id === memberId) {
+      offeredPosted.current = true;
+      offerCalendar("tee_time", invite.id, "Tee time posted", "Add it to your calendar so the day's kept free?");
+    }
+  }, [posted, invite, memberId]);
+  const lastStatus = useRef<string | null>(null);
+  useEffect(() => {
+    const now = interest?.status ?? null;
+    if (lastStatus.current && lastStatus.current !== "confirmed" && now === "confirmed" && invite) {
+      offerCalendar("tee_time", invite.id, "You're playing", "Add the round to your calendar?");
+    }
+    lastStatus.current = now;
+  }, [interest?.status, invite]);
 
   /** One wrapper for both writes: nothing is optimistic, the screen only ever
    *  shows a status the server has actually returned. */
@@ -318,12 +344,17 @@ export default function InviteScreen() {
         {/* Answering interest is the host's job; accepting and declining
             golfers is native. */}
         {isMine ? (
-          <Action
-            icon="people"
-            label="Manage who's coming"
-            busy={false}
-            onPress={() => router.push("/tee-time-requests")}
-          />
+          <>
+            <Action
+              icon="people"
+              label="Manage who's coming"
+              busy={false}
+              onPress={() => router.push("/tee-time-requests")}
+            />
+            {invite.play_date >= todayIso() && (
+              <Secondary icon="calendar-outline" label="Add to my calendar" busy={calBusy} onPress={() => void addMine(inviteId)} />
+            )}
+          </>
         ) : (
           <>
             {interest === null && (
@@ -375,6 +406,9 @@ export default function InviteScreen() {
                   title="You're playing"
                   body={`Your place is confirmed. ${hostFirst} has your details.`}
                 />
+                {invite.play_date >= todayIso() && (
+                  <Secondary icon="calendar-outline" label="Add to my calendar" busy={calBusy} onPress={() => void addMine(inviteId)} />
+                )}
                 {/* Until the day itself, a confirmed golfer can hand the place
                     back: the host is told and the space reopens (0090). */}
                 {invite.play_date >= todayIso() && (
