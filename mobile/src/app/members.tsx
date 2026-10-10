@@ -15,6 +15,8 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Avatar } from "@/components/avatar";
+import { HeaderPill, headerButtons } from "@/components/header-actions";
+import { goHome } from "@/lib/go-home";
 import { KEYBOARD_DISMISS_MODE } from "@/components/keyboard";
 import { useAuth } from "@/lib/auth";
 import {
@@ -40,7 +42,8 @@ import { colors, fonts, radii, spacing } from "@/lib/theme";
  * common: member_suggestions(), 0118), bring your fourball, and who has a
  * place in a game this week.
  *
- * MY CLUB / NEARBY / CONNECTED: one list each.
+ * EVERYONE / MY CLUB / NEARBY / CONNECTED: one list each. Everyone is every
+ * member, newest first, as the old directory was.
  *
  * SEARCHING: results grouped Your PinPals, At your club, Everyone, with
  * filters (similar handicap, my county, has a game free), and an invite for
@@ -49,9 +52,10 @@ import { colors, fonts, radii, spacing } from "@/lib/theme";
  * /find-pinpals still forwards here.
  */
 
-type Tab = "for-you" | "club" | "nearby" | "connected";
+type Tab = "for-you" | "everyone" | "club" | "nearby" | "connected";
 const TABS: { key: Tab; label: string }[] = [
   { key: "for-you", label: "For you" },
+  { key: "everyone", label: "Everyone" },
   { key: "club", label: "My club" },
   { key: "nearby", label: "Nearby" },
   { key: "connected", label: "Connected" },
@@ -142,9 +146,11 @@ export default function MembersScreen() {
         setConnections(new Map());
         return;
       }
-      const dir = await listMembers(userId, tab === "club" ? "club" : "connections", "");
+      const dir = await listMembers(userId, tab === "everyone" ? "everyone" : tab === "club" ? "club" : "connections", "");
       if (mine !== token.current) return;
       setRows(dir.members.map((m) => ({ id: m.id, name: m.name, avatarUrl: m.avatarUrl, avatarColor: m.avatarColor, club: m.homeClub, handicap: m.handicap, reason: null })));
+      // Everyone: newest members first, every member on PinPals (up to the
+      // directory's 60 — search finds anyone beyond that).
       setConnections(dir.connections);
     } finally {
       if (mine === token.current) {
@@ -272,7 +278,7 @@ export default function MembersScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ headerTitle: "", headerBackTitle: "Back" }} />
+      <Stack.Screen options={{ headerTitle: "", headerBackTitle: "Back", ...headerButtons({ right: <HeaderPill label="Home" variant="secondary" onPress={goHome} accessibilityLabel="Back to Home" /> }) }} />
       <View style={styles.fill}>
         <View style={[styles.band, { paddingTop: spacing.md }]}>
           {!searching ? (
@@ -492,7 +498,9 @@ export default function MembersScreen() {
                     ? me?.homeClub
                       ? "Nobody else from your club yet — invite them."
                       : "Add your home club to your profile to see who plays there."
-                    : tab === "connected"
+                    : tab === "everyone"
+                      ? "No members to show. Pull down to try again."
+                      : tab === "connected"
                       ? "No connections yet. Connect with a few golfers and they'll show up here."
                       : "No golfers near your club yet."}
                 </Text>
