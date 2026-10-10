@@ -14,10 +14,13 @@ export async function GET(_request: Request, { params }: { params: Promise<{ tok
       headers: { "content-type": "text/plain; charset=utf-8" },
     });
   }
+  // No Content-Disposition. With one — even "inline" with a filename —
+  // Safari on iOS saves the file to Downloads instead of showing the event
+  // (first test, 10 Oct 2026). Plain text/calendar is shown as an event
+  // with "Add to Calendar".
   return new Response(buildIcs(event), {
     headers: {
       "content-type": "text/calendar; charset=utf-8",
-      "content-disposition": 'inline; filename="pinpals-round.ics"',
       "cache-control": "private, no-store",
     },
   });
