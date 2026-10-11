@@ -71,6 +71,10 @@ export async function notifyUser(
      * revealing to push. Set this explicitly only when push needs wording
      * that differs from both of the others. */
     pushBody?: string;
+    /** The PinPals app only: its Inbox and a push to members' phones —
+     *  no email and no browser push. For news that only matters in the
+     *  moment, on the course (a birdie in your game). */
+    appOnly?: boolean;
   }
 ): Promise<void> {
   const data = { ...(input.data ?? {}), href: input.href };
@@ -132,7 +136,7 @@ export async function notifyUser(
   // and vice versa. Both helpers already swallow their own failures; this
   // is belt and braces on a path that must never throw into its caller.
   await Promise.allSettled([
-    shouldSendEmail(input.type, emailEnabled) ? deliverEmail(admin, input) : Promise.resolve(),
+    !input.appOnly && shouldSendEmail(input.type, emailEnabled) ? deliverEmail(admin, input) : Promise.resolve(),
     shouldSendPush(input.type, pushEnabled) ? deliverPush(admin, input) : Promise.resolve(),
   ]);
 }
@@ -170,6 +174,7 @@ async function deliverPush(
     dedupeKey?: string;
     emailBody?: string;
     pushBody?: string;
+    appOnly?: boolean;
   }
 ): Promise<void> {
   // pushBody -> emailBody -> body. The middle step is the important one: a
@@ -190,6 +195,7 @@ async function deliverPush(
       body,
       href: input.href,
       dedupeKey: input.dedupeKey ?? null,
-    })
+    }),
+    { appOnly: input.appOnly }
   );
 }

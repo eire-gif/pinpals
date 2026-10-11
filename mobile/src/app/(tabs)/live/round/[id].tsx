@@ -18,6 +18,7 @@ import {
   saveCourseCard,
   setLiveDrive,
   setLiveHole,
+  queueHighlight,
   setLiveScore,
   subscribeToLiveRound,
   type LiveRoundData,
@@ -211,6 +212,9 @@ export default function LiveRoundScreen() {
     });
     try {
       await setLiveScore(round.id, playerId, h.hole, strokes, clear);
+      // A birdie or better: everyone in the game hears, a few seconds later
+      // (a correction in the meantime cancels it). See queueHighlight().
+      queueHighlight(round.id, playerId, h.hole, clear ? null : strokes, h.par);
     } catch (e) {
       Alert.alert("That score didn't save", e instanceof Error ? e.message : "Check your signal and try again.");
       void load();

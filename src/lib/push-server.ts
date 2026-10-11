@@ -309,7 +309,8 @@ async function sendNative(
 // ---------------------------------------------------------------------------
 
 /**
- * Sends one payload to every device a member has registered, web and native.
+ * Sends one payload to every device a member has registered, web and native
+ * (or, with `appOnly`, only their phones running the app).
  *
  * Requires a service-role client: the sender writes delivery health
  * (`last_success_at`, `failure_count`) and deletes dead rows, and
@@ -318,7 +319,9 @@ async function sendNative(
 export async function sendPushToUser(
   admin: SupabaseClient,
   userId: string,
-  payload: PushPayload
+  payload: PushPayload,
+  /** appOnly: phones running the PinPals app only, never a browser. */
+  options: { appOnly?: boolean } = {}
 ): Promise<PushDispatchResult> {
   if (isPushPayloadTooLarge(payload)) {
     // Refusing here beats letting every device reject it individually.
@@ -338,7 +341,7 @@ export async function sendPushToUser(
   }
   if (!subscriptions || subscriptions.length === 0) return NO_DEVICES;
 
-  const webRows = subscriptions.filter((row) => row.platform === "web");
+  const webRows = options.appOnly ? [] : subscriptions.filter((row) => row.platform === "web");
   const nativeRows = subscriptions.filter((row) => row.platform !== "web");
 
   const webUsable = webRows.length > 0 && configureVapid();

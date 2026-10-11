@@ -166,7 +166,7 @@ describe("shouldSendPush", () => {
 });
 
 describe("live scoring notifications (0103/0104)", () => {
-  const LIVE = ["live_round_added", "live_match_added", "live_match_result"] as const;
+  const LIVE = ["live_round_added", "live_match_added", "live_match_result", "live_highlight"] as const;
   it("are declared, filed under tee times, and can be switched off", () => {
     for (const type of LIVE) {
       expect(NOTIFICATION_TYPES).toContain(type);

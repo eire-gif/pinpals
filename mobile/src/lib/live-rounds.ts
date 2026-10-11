@@ -342,6 +342,31 @@ export async function setLiveScore(roundId: number, playerId: number, hole: numb
   if (error) throw error;
 }
 
+/**
+ * A birdie or better just went in (Oct 2026): after a short pause — so a
+ * mis-tap corrected straight away never alerts anyone — ask the website to
+ * tell everyone in the game. It re-reads the score itself and sends only to
+ * the PinPals app (Inbox + phone push), never email.
+ */
+const HIGHLIGHT_DELAY_MS = 12_000;
+const pendingHighlights = new Map<string, ReturnType<typeof setTimeout>>();
+
+export function queueHighlight(roundId: number, playerId: number, hole: number, strokes: number | null, par: number): void {
+  const key = `${roundId}:${playerId}:${hole}`;
+  const existing = pendingHighlights.get(key);
+  if (existing) clearTimeout(existing);
+  pendingHighlights.delete(key);
+  const great = strokes != null && strokes >= 1 && (strokes === 1 || strokes < par);
+  if (!great) return;
+  pendingHighlights.set(
+    key,
+    setTimeout(() => {
+      pendingHighlights.delete(key);
+      void postToSite(`/api/app/live/rounds/${roundId}/highlight`, { playerId, hole }).catch(() => undefined);
+    }, HIGHLIGHT_DELAY_MS)
+  );
+}
+
 /** Scramble: whose drive the team used on a hole. Null clears it. */
 export async function setLiveDrive(roundId: number, hole: number, position: number | null): Promise<void> {
   const { error } = await supabase.rpc("live_round_set_drive", { p_round_id: roundId, p_hole: hole, p_position: position });
