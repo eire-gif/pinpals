@@ -42,9 +42,15 @@ export type MatchDay = {
   playedOn: string;
   /** [side 1, side 2], or null when there are no team totals. */
   teamNames: [string, string] | null;
-  /** "scramble": one round per scramble team, one leaderboard (0113). */
-  kind: "match" | "scramble";
+  /** "scramble": one round per scramble team, one leaderboard (0113).
+   *  "fourballs": a society day — one round per tee group, individual
+   *  Stableford or stroke play on one leaderboard (0121). */
+  kind: DayKind;
 };
+
+export type DayKind = "match" | "scramble" | "fourballs";
+
+const asKind = (k: string | null): DayKind => (k === "scramble" || k === "fourballs" ? k : "match");
 
 export type Match = {
   round: LiveRound;
@@ -70,7 +76,7 @@ export type MatchDaySummary = {
   matchCount: number;
   live: boolean;
   createdBy: string | null;
-  kind: "match" | "scramble";
+  kind: DayKind;
 };
 
 type DayRow = {
@@ -83,7 +89,7 @@ type DayRow = {
   holes: number;
   played_on: string;
   team_names: string[] | null;
-  kind: "match" | "scramble" | null;
+  kind: string | null;
 };
 
 const DAY_SELECT = "id, created_by, title, club_id, course_name, tee_name, holes, played_on, team_names, kind";
@@ -98,7 +104,7 @@ const toDay = (d: DayRow): MatchDay => ({
   holes: d.holes === 9 ? 9 : 18,
   playedOn: d.played_on,
   teamNames: d.team_names && d.team_names.length === 2 ? [d.team_names[0], d.team_names[1]] : null,
-  kind: d.kind === "scramble" ? "scramble" : "match",
+  kind: asKind(d.kind),
 });
 
 export const asMatchPlayers = (players: LiveRoundPlayer[]): MatchPlayer[] =>
@@ -128,7 +134,7 @@ export async function loadMyMatchDays(): Promise<MatchDaySummary[]> {
     matchCount: d.live_rounds?.length ?? 0,
     live: (d.live_rounds ?? []).some((r) => r.status === "live"),
     createdBy: d.created_by,
-    kind: d.kind === "scramble" ? ("scramble" as const) : ("match" as const),
+    kind: asKind(d.kind),
   }));
 }
 
@@ -170,8 +176,9 @@ export async function loadMatchDay(id: number): Promise<MatchDayData | null> {
       sheet.get(s.player_id)!.set(s.hole, s.strokes);
     }
     const format = round.matchFormat ?? "matchplay";
-    // A scramble team is not a match: no match state (the board ranks teams).
-    const state = round.scramble ? null : teamMatchState(format, card, asMatchPlayers(ps), sheet);
+    // A scramble team or a society-day group is not a match: no match state
+    // (their boards rank teams and players instead).
+    const state = round.scramble || round.format !== "matchplay" ? null : teamMatchState(format, card, asMatchPlayers(ps), sheet);
     return { round, players: ps, card, scores: sheet, format, state };
   });
 
@@ -298,6 +305,53 @@ export async function createScrambleDay(
       tee_time: t.teeTime,
       team_handicap: t.teamHandicap,
       players: t.players.map((p) => ({
+        member_id: p.memberId,
+        name: p.name,
+        handicap_index: p.handicapIndex,
+        course_handicap: p.courseHandicap,
+        playing_handicap: p.playingHandicap,
+        handicap_estimated: p.estimated,
+      })),
+    })),
+    p_card: card.map((h) => ({ hole: h.hole, par: h.par, stroke_index: h.strokeIndex })),
+  });
+  if (error) throw error;
+  const id = data as number;
+  void postToSite(`/api/app/live/match-days/${id}/notify`, {}).catch(() => undefined);
+  return id;
+}
+
+// ---------------------------------------------------------------------------
+// Starting a society day (0121)
+// ---------------------------------------------------------------------------
+
+export type NewTeeGroup = {
+  teeTime: string | null;
+  players: Omit<NewMatchPlayer, "side">[];
+};
+
+/** One day, a round per tee group, everyone on one individual leaderboard. */
+export async function createFourballDay(
+  day: Omit<NewMatchDay, "teamNames"> & { format: "stableford" | "stroke"; allowance: number },
+  groups: NewTeeGroup[],
+  card: CardHole[]
+): Promise<number> {
+  const { data, error } = await supabase.rpc("live_fourball_day_create", {
+    p_day: {
+      title: day.title,
+      course_name: day.courseName,
+      club_id: day.clubId,
+      tee_name: day.teeName,
+      holes: day.holes,
+      course_rating: day.courseRating,
+      slope: day.slope,
+      par_total: day.parTotal,
+      format: day.format,
+      allowance: day.allowance,
+    },
+    p_groups: groups.map((g) => ({
+      tee_time: g.teeTime,
+      players: g.players.map((p) => ({
         member_id: p.memberId,
         name: p.name,
         handicap_index: p.handicapIndex,
