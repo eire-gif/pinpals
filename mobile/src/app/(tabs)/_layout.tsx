@@ -5,7 +5,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { AppMenu, MenuButton } from "@/components/app-menu";
 import { useAuth } from "@/lib/auth";
-import { colors, fonts, radii, spacing } from "@/lib/theme";
+import { colors, fonts, radii, spacing, headerTitleStyle } from "@/lib/theme";
 import { useInboxUnread } from "@/lib/unread";
 
 /**
@@ -64,7 +64,7 @@ export default function TabsLayout() {
       screenOptions={{
         headerStyle: { backgroundColor: colors.cream50 },
         headerTintColor: colors.ink900,
-        headerTitleStyle: { fontFamily: fonts.display, fontSize: 19 },
+        headerTitleStyle,
         tabBarActiveTintColor: colors.green700,
         tabBarLabelStyle: { fontFamily: fonts.bodySemi, fontSize: 11 },
         tabBarInactiveTintColor: colors.ink500,

@@ -1,7 +1,7 @@
 import { Stack } from "expo-router";
 
 import { BackPill, headerButtons } from "@/components/header-actions";
-import { colors, fonts } from "@/lib/theme";
+import { colors, fonts, headerTitleStyle } from "@/lib/theme";
 
 /**
  * Live scoring lives INSIDE the tab group, as a stack of its own, so the
@@ -17,7 +17,7 @@ export default function LiveLayout() {
       screenOptions={{
         headerStyle: { backgroundColor: colors.cream50 },
         headerTintColor: colors.ink900,
-        headerTitleStyle: { fontFamily: fonts.display, fontSize: 19 },
+        headerTitleStyle,
         headerBackTitle: "Back",
         contentStyle: { backgroundColor: colors.cream50 },
       }}
