@@ -82,3 +82,16 @@ installs. After that build, `eas update` works again as before.
 
 After Android ships, `eas update` needs `--platform all` (or no platform
 flag) instead of `--platform ios`.
+
+## Firebase / google-services.json (11 Oct 2026)
+
+`mobile/google-services.json` is committed and referenced statically from
+`app.json` (`android.googleServicesFile`). It was first supplied as an EAS
+file variable through `app.config.ts`, but `runtimeVersion: fingerprint`
+hashes that file's contents: the Codespace (which can't read the EAS
+variable) and the EAS build server computed different fingerprints, and the
+build failed at "Configure expo-updates" with "Runtime version calculated on
+local machine not equal to runtime version calculated during build".
+The file isn't a secret — Firebase ships it inside every APK. The FCM V1
+service-account key IS a secret and is held only by EAS (`eas credentials`).
+`app.config.ts` was removed. Firebase project: `pinpals-b2584`.
