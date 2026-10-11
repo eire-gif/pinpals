@@ -57,9 +57,12 @@ export type RegisterResult =
  * the server's notifyUser() follows.
  */
 export async function registerForPush(): Promise<RegisterResult> {
-  // A simulator has no APNs registration, so getExpoPushTokenAsync throws
-  // there rather than returning anything useful.
-  if (!Device.isDevice) return { ok: false, reason: "simulator" };
+  // An iOS simulator has no APNs registration, so getExpoPushTokenAsync
+  // throws there rather than returning anything useful. An Android emulator
+  // with Google Play services gets a real FCM token (Oct 2026: that's how
+  // Android push is tested — there's no Android phone on hand); one without
+  // Play services throws and lands in the catch below as "failed".
+  if (!Device.isDevice && Platform.OS === "ios") return { ok: false, reason: "simulator" };
 
   if (Platform.OS === "android") {
     // Android 8+ drops notifications that arrive with no channel. Harmless
