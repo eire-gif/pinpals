@@ -21,7 +21,7 @@ import {
   holeLengthM,
   inUnit,
   measuringFrom,
-  shotLegs,
+  shotEnds,
   tapDistancesM,
   withTee,
   unitShort,
@@ -95,8 +95,15 @@ export default function HoleMapScreen() {
   const [layoutId, setLayoutId] = useState<number | null>(params.layoutId ? Number(params.layoutId) : null);
   const [round, setRound] = useState<LiveRoundData | null>(null);
   const [shots, setShots] = useState<Map<number, Shot[]>>(new Map());
+  // The "how far did that go" card on the side of the map (Oct 2026).
+  const [shotCardOpen, setShotCardOpen] = useState(false);
+  const [shotCardHidden, setShotCardHidden] = useState(false);
   const [failed, setFailed] = useState(false);
   const [hole, setHole] = useState(Math.min(18, Math.max(1, Number(params.hole) || 1)));
+  useEffect(() => {
+    setShotCardOpen(false);
+    setShotCardHidden(false);
+  }, [hole]);
   const [unit, setUnit] = useState<Unit>(rememberedUnit ?? "yards");
   const [tap, setTap] = useState<LatLng | null>(null);
   const [playerId, setPlayerId] = useState<number | null>(null);
@@ -216,7 +223,9 @@ export default function HoleMapScreen() {
   const origin = measuringFrom(geo, fix);
   const card = round?.card.find((c) => c.hole === hole) ?? null;
   const myShots = playerId != null ? (shots.get(shotKey(playerId, hole)) ?? []) : [];
-  const legs = useMemo(() => shotLegs(myShots, geo.mapped ? geo : null), [myShots, geo]);
+  // Each mark is where a ball finished; shot 1 starts on the tee (hole-geo).
+  const ends = useMemo(() => shotEnds(myShots, geo.mapped ? geo : null), [myShots, geo]);
+  const lastEnd = ends.length ? ends[ends.length - 1] : null;
   const u = unitShort(unit);
   const fmt = (m: number | null) => (m == null ? "–" : String(inUnit(m, unit)));
 
@@ -257,7 +266,8 @@ export default function HoleMapScreen() {
       teeMovable: geo.mapped && geo.tee != null,
       originIsTee: origin?.from === "tee",
       me: fix,
-      shots: legs.map((l) => ({ lat: l.from.lat, lng: l.from.lng, n: l.shotNo, label: l.distance == null ? null : `${fmt(l.distance)} ${u}` })),
+      shots: ends.map((e) => ({ lat: e.at.lat, lng: e.at.lng, n: e.n, label: e.distance == null ? null : `${fmt(e.distance)} ${u}` })),
+      shotStart: ends[0]?.from ?? null,
       tap:
         aim && origin && tapped
           ? {
@@ -279,7 +289,7 @@ export default function HoleMapScreen() {
       frameKey: `${layout?.id ?? "none"}-${hole}-${fix ? "fix" : "nofix"}-${geo.mapped ? "m" : "u"}`,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [geo, mappedGeo, zone, fix, course, legs, aim?.lat, aim?.lng, origin?.point, unit, layout?.id, hole, shapes, showOutlines, sheetH, insets.top]);
+  }, [geo, mappedGeo, zone, fix, course, ends, aim?.lat, aim?.lng, origin?.point, unit, layout?.id, hole, shapes, showOutlines, sheetH, insets.top]);
 
   // ---- Shots ----
   const player = round?.players.find((p) => p.id === playerId) ?? null;
@@ -290,6 +300,9 @@ export default function HoleMapScreen() {
     try {
       await addShot(round.round.id, player.id, hole, fix);
       setShots(await loadRoundShots(round.round.id));
+      // Show how far it went, on the side of the map.
+      setShotCardHidden(false);
+      setShotCardOpen(false);
     } catch (e) {
       const msg = (e as { message?: unknown } | null)?.message;
       Alert.alert("That shot didn't save", typeof msg === "string" && msg ? msg : "Check your signal and try again.");
@@ -407,6 +420,33 @@ export default function HoleMapScreen() {
         ) : null}
       </View>
 
+      {/* Over the map, left: how far the last marked shot went. Tap for
+          the rest from that spot: from the tee, and to the green. */}
+      {lastEnd && !shotCardHidden ? (
+        <ShotCard
+          top={insets.top + 62}
+          n={lastEnd.n}
+          distance={lastEnd.distance != null ? fmt(lastEnd.distance) : null}
+          unit={u}
+          open={shotCardOpen}
+          onToggle={() => setShotCardOpen((o) => !o)}
+          onClose={() => setShotCardHidden(true)}
+          rows={[
+            { label: "From the tee", value: lastEnd.fromTee != null ? `${fmt(lastEnd.fromTee)} ${u}` : "–" },
+            ...(geo.mapped
+              ? (() => {
+                  const g = greenDistancesM(geo, lastEnd.at);
+                  return [
+                    { label: "To the front", value: g.front != null ? `${fmt(g.front)} ${u}` : "–" },
+                    { label: movedPin ? "To the pin" : "To the centre", value: g.centre != null ? `${fmt(g.centre)} ${u}` : "–" },
+                    { label: "To the back", value: g.back != null ? `${fmt(g.back)} ${u}` : "–" },
+                  ];
+                })()
+              : []),
+          ]}
+        />
+      ) : null}
+
       {/* Over the map, bottom: the hole and the three numbers. Swipe for the next hole. */}
       <View style={[styles.sheet, { paddingBottom: insets.bottom + 10 }]} onLayout={(e) => setSheetH(e.nativeEvent.layout.height)} {...swipe.panHandlers}>
         {!geo.mapped ? (
@@ -466,13 +506,13 @@ export default function HoleMapScreen() {
                   <>
                     <Ionicons name="locate" size={18} color={colors.navy900} />
                     <Text style={styles.markLabel}>
-                      {!fix ? "Waiting for GPS" : !fixIsUsable(fix.accuracyM) ? "Weak GPS, hold on" : `Mark shot ${legs.length + 1}`}
+                      {!fix ? "Waiting for GPS" : !fixIsUsable(fix.accuracyM) ? "Weak GPS, hold on" : `Mark shot ${ends.length + 1}`}
                     </Text>
                   </>
                 )}
               </Pressable>
             ) : null}
-            {canMark && legs.length > 0 ? (
+            {canMark && myShots.length > 0 ? (
               <Pressable onPress={() => void undo()} disabled={busy} style={({ pressed }) => [styles.roundButton, pressed && styles.pressed]} accessibilityRole="button" accessibilityLabel="Undo the last shot">
                 <Ionicons name="arrow-undo" size={18} color={colors.cream50} />
               </Pressable>
@@ -515,20 +555,23 @@ export default function HoleMapScreen() {
                     ))}
                   </ScrollView>
                 ) : null}
-                {legs.length === 0 ? (
-                  <Text style={styles.muted}>Stand where the ball is and tap "Mark shot" before each one.</Text>
+                {ends.length === 0 ? (
+                  <Text style={styles.muted}>Walk to your ball and tap "Mark shot": it shows how far that shot went.</Text>
                 ) : (
-                  legs.map((l) => (
-                    <View key={l.shotNo} style={styles.shotRow}>
-                      <View style={styles.shotNo}>
-                        <Text style={styles.shotNoText}>{l.shotNo}</Text>
+                  ends.map((e) => {
+                    const left = geo.mapped && geo.greenCentre ? distanceM(e.at, geo.greenCentre) : null;
+                    return (
+                      <View key={e.n} style={styles.shotRow}>
+                        <View style={styles.shotNo}>
+                          <Text style={styles.shotNoText}>{e.n}</Text>
+                        </View>
+                        <Text style={styles.shotText}>
+                          {e.distance != null ? `${fmt(e.distance)} ${u}` : "Marked"}
+                          {left != null ? <Text style={styles.muted}>{`  ·  ${fmt(left)} ${u} left`}</Text> : null}
+                        </Text>
                       </View>
-                      <Text style={styles.shotText}>
-                        {l.distance != null ? `${fmt(l.distance)} ${u}` : "Last marked"}
-                        {l.remaining != null ? <Text style={styles.muted}>{`  ·  ${fmt(l.remaining)} ${u} left from here`}</Text> : null}
-                      </Text>
-                    </View>
-                  ))
+                    );
+                  })
                 )}
               </View>
             ) : null}
@@ -589,6 +632,71 @@ function Chip({ label, on, onPress }: { label: string; on: boolean; onPress: () 
   );
 }
 
+/**
+ * How far the last marked shot went, floating on the left of the map. Tap
+ * it to open the rest from that spot (from the tee, to the green); × hides
+ * it until the next shot is marked.
+ */
+function ShotCard({
+  top,
+  n,
+  distance,
+  unit,
+  open,
+  onToggle,
+  onClose,
+  rows,
+}: {
+  top: number;
+  n: number;
+  distance: string | null;
+  unit: string;
+  open: boolean;
+  onToggle: () => void;
+  onClose: () => void;
+  rows: { label: string; value: string }[];
+}) {
+  return (
+    <View style={[styles.shotCard, { top }]}>
+      <Pressable
+        onPress={onToggle}
+        accessibilityRole="button"
+        accessibilityState={{ expanded: open }}
+        accessibilityLabel={`Shot ${n}${distance ? `, ${distance} ${unit}` : ""}. ${open ? "Hide" : "Show"} the other distances.`}
+        style={({ pressed }) => [pressed && { opacity: 0.85 }]}
+      >
+        <View style={styles.shotCardHead}>
+          <Text style={styles.shotCardEyebrow}>SHOT {n}</Text>
+          <Ionicons name={open ? "chevron-up" : "chevron-down"} size={14} color={colors.gold400} />
+        </View>
+        {distance ? (
+          <Text style={styles.shotCardBig}>
+            {distance}
+            <Text style={styles.shotCardUnit}> {unit}</Text>
+          </Text>
+        ) : (
+          <Text style={styles.shotCardMarked}>Marked</Text>
+        )}
+        {open ? (
+          <View style={styles.shotCardRows}>
+            {rows.map((r) => (
+              <View key={r.label} style={styles.shotCardRow}>
+                <Text style={styles.shotCardLabel}>{r.label}</Text>
+                <Text style={styles.shotCardValue}>{r.value}</Text>
+              </View>
+            ))}
+          </View>
+        ) : (
+          <Text style={styles.shotCardHint}>Tap for more</Text>
+        )}
+      </Pressable>
+      <Pressable onPress={onClose} hitSlop={10} style={styles.shotCardClose} accessibilityRole="button" accessibilityLabel="Hide the shot distance">
+        <Ionicons name="close" size={14} color={creamAlpha(0.7)} />
+      </Pressable>
+    </View>
+  );
+}
+
 function MapButton({
   icon,
   label,
@@ -627,6 +735,30 @@ const styles = StyleSheet.create({
   titleText: { fontFamily: fonts.display, fontSize: 15.5, color: colors.cream50, textAlign: "center" },
   mapButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: ON_PHOTO, alignItems: "center", justifyContent: "center" },
   flatButton: { backgroundColor: "transparent" },
+  shotCard: {
+    position: "absolute",
+    left: spacing.sm + 2,
+    minWidth: 128,
+    maxWidth: 210,
+    paddingVertical: 10,
+    paddingLeft: 14,
+    paddingRight: 28,
+    borderRadius: radii.lg,
+    backgroundColor: ON_PHOTO,
+    borderWidth: 1,
+    borderColor: colors.gold500,
+  },
+  shotCardHead: { flexDirection: "row", alignItems: "center", gap: 6 },
+  shotCardEyebrow: { fontFamily: fonts.bodyBold, fontSize: 11, letterSpacing: 1.2, color: colors.gold400 },
+  shotCardBig: { fontFamily: fonts.display, fontSize: 38, lineHeight: 44, color: colors.cream50 },
+  shotCardUnit: { fontFamily: fonts.bodySemi, fontSize: 15, color: creamAlpha(0.8) },
+  shotCardMarked: { fontFamily: fonts.display, fontSize: 22, lineHeight: 30, color: colors.cream50 },
+  shotCardHint: { fontFamily: fonts.body, fontSize: 11.5, color: creamAlpha(0.65) },
+  shotCardRows: { marginTop: 6, gap: 4 },
+  shotCardRow: { flexDirection: "row", justifyContent: "space-between", gap: spacing.md },
+  shotCardLabel: { fontFamily: fonts.body, fontSize: 12.5, color: creamAlpha(0.75) },
+  shotCardValue: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.cream50 },
+  shotCardClose: { position: "absolute", top: 8, right: 8 },
   sideButtons: { position: "absolute", right: spacing.sm + 2, gap: spacing.sm, alignItems: "center" },
   unitButton: { minWidth: 48, height: 36, paddingHorizontal: 10, borderRadius: radii.pill, backgroundColor: ON_PHOTO, alignItems: "center", justifyContent: "center" },
   unitText: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.cream50 },

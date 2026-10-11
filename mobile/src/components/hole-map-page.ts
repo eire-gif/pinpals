@@ -293,10 +293,13 @@ export function pageHtml(source: TileSource): string {
       L.marker([h.lat,h.lng], { interactive:false, icon:L.divIcon({ className:"", html:html, iconSize:[10,10], iconAnchor:[5,5] }) }).addTo(layer);
     });
     if(s.shots && s.shots.length){
-      L.polyline(s.shots.map(function(p){ return [p.lat,p.lng]; }), { color:"${colors.navy900}", weight:3, opacity:.85, interactive:false }).addTo(layer);
+      // Each dot is where a ball finished; its label sits on the line that
+      // got it there, from the previous dot or the start (the tee).
+      var path = (s.shotStart ? [s.shotStart] : []).concat(s.shots);
+      L.polyline(path.map(function(p){ return [p.lat,p.lng]; }), { color:"${colors.navy900}", weight:3, opacity:.85, interactive:false }).addTo(layer);
       s.shots.forEach(function(p,i){
-        var next = s.shots[i+1];
-        if(next && p.label) label(mid(p,next), esc(p.label)).addTo(layer);
+        var prev = i > 0 ? s.shots[i-1] : s.shotStart;
+        if(prev && p.label) label(mid(prev,p), esc(p.label)).addTo(layer);
         L.marker([p.lat,p.lng], { interactive:false, icon:icon("shot", p.n, 20) }).addTo(layer);
       });
     }

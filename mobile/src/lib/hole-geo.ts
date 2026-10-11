@@ -279,6 +279,54 @@ export function shotLegs(shots: readonly Shot[], g: HoleGeometry | null): ShotLe
 }
 
 /**
+ * Where the ball finished after each shot (Oct 2026): "walk to your ball,
+ * tap Mark shot, see how far you hit it".
+ *
+ * Each mark is where a ball came to rest. Shot 1 starts on the tee (the T,
+ * moved or not). A mark within TEE_MARK_M of the tee is the old habit of
+ * marking on the tee first: it becomes the start, not a shot. Each shot's
+ * length is from the previous mark (or the start); null when there's no
+ * start to measure from (no tee on file and nothing marked there).
+ */
+export type ShotEnd = {
+  /** The shot this mark ends: 1 for the tee shot. */
+  n: number;
+  at: LatLng;
+  from: LatLng | null;
+  /** How far that shot went. */
+  distance: number | null;
+  /** Measured from the tee to here, when there's a tee. */
+  fromTee: number | null;
+};
+
+export const TEE_MARK_M = 25;
+
+export function shotEnds(shots: readonly Shot[], g: HoleGeometry | null): ShotEnd[] {
+  const ordered = [...shots].sort((a, b) => a.shotNo - b.shotNo);
+  const tee = g?.tee ?? null;
+  let start: LatLng | null = tee;
+  let marks = ordered;
+  if (ordered.length > 0 && (tee == null ? false : distanceM(ordered[0], tee) <= TEE_MARK_M)) {
+    start = { lat: ordered[0].lat, lng: ordered[0].lng };
+    marks = ordered.slice(1);
+  }
+  const out: ShotEnd[] = [];
+  let prev: LatLng | null = start;
+  marks.forEach((m, i) => {
+    const at = { lat: m.lat, lng: m.lng };
+    out.push({
+      n: i + 1,
+      at,
+      from: prev,
+      distance: prev ? distanceM(prev, at) : null,
+      fromTee: start ? distanceM(start, at) : null,
+    });
+    prev = at;
+  });
+  return out;
+}
+
+/**
  * A fix this bad isn't worth marking a shot with: the dot could be in the
  * next fairway. The phone keeps refining its fix for a few seconds, so the
  * screen waits for one under this before enabling "Mark shot".

@@ -14,6 +14,7 @@ import {
   inUnit,
   mappedHoles,
   measuringFrom,
+  shotEnds,
   shotLegs,
   tapDistancesM,
   withTee,
@@ -143,6 +144,28 @@ describe("shots", () => {
     const legs = shotLegs([{ shotNo: 1, ...TEE, accuracyM: null }, { shotNo: 2, ...north(100), accuracyM: null }], null);
     expect(legs[0].distance).toBeCloseTo(100, 0);
     expect(legs[0].remaining).toBeNull();
+  });
+
+  it("a mark is where the ball finished: shot 1 is measured from the tee", () => {
+    const ends = shotEnds([{ shotNo: 1, ...north(245), accuracyM: 5 }, { shotNo: 2, ...north(355), accuracyM: 5 }], g);
+    expect(ends.map((e) => e.n)).toEqual([1, 2]);
+    expect(ends[0].distance).toBeCloseTo(245, 0);
+    expect(ends[1].distance).toBeCloseTo(110, 0);
+    expect(ends[1].fromTee).toBeCloseTo(355, 0);
+  });
+
+  it("a mark on the tee (the old habit) is the start, not a shot", () => {
+    const ends = shotEnds([{ shotNo: 1, ...north(10), accuracyM: 5 }, { shotNo: 2, ...north(250), accuracyM: 5 }], g);
+    expect(ends).toHaveLength(1);
+    expect(ends[0].n).toBe(1);
+    expect(ends[0].distance).toBeCloseTo(240, 0);
+  });
+
+  it("no tee on file: the first shot has no length, the rest do", () => {
+    const ends = shotEnds([{ shotNo: 1, ...north(245), accuracyM: 5 }, { shotNo: 2, ...north(345), accuracyM: 5 }], null);
+    expect(ends[0].distance).toBeNull();
+    expect(ends[1].distance).toBeCloseTo(100, 0);
+    expect(ends[1].fromTee).toBeNull();
   });
 
   it("won't mark a shot on a poor fix", () => {
