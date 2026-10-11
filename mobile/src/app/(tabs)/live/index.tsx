@@ -131,8 +131,8 @@ export default function LiveScoringHub() {
           marginTop={0}
           icon="people"
           title="Match Day"
-          subtitle="Several matches at once, with a team score"
-          a11y="Start a match day. Several matches at once: singles, fourball, foursomes or greensomes, with a team score."
+          subtitle="Societies, fourballs, foursomes and competitions"
+          a11y="Start a match day. For societies, fourballs, foursomes and competitions: several matches at once, with a team score."
           onPress={() => router.push("/live/day/new")}
         />
       </View>
