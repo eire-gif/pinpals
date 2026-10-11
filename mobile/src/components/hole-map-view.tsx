@@ -37,7 +37,10 @@ export type MapScene = {
   /** Distances start at the tee (not at you), so lines follow a dragged T. */
   originIsTee: boolean;
   me: (LatLng & { accuracyM: number | null }) | null;
+  /** Where each ball finished (Oct 2026); label = how far that shot went. */
   shots: Array<LatLng & { n: number; label: string | null }>;
+  /** Where shot 1 started: the tee, or a mark made on it. */
+  shotStart: LatLng | null;
   /** The aim circle (Oct 2026): where the member tapped or dragged it, or
    *  the default a drive out — with the lines to it and on to the green. */
   tap: (LatLng & { origin: LatLng; toLabel: string; onLabel: string | null; green: LatLng | null }) | null;
