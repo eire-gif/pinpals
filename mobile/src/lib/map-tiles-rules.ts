@@ -14,8 +14,9 @@ export type ServerTiles =
 
 export const esriSource = (url: string, attribution: string): TileSource => ({ provider: "esri", url, attribution });
 
-/** How long to keep using an Esri answer before asking again. */
-const ESRI_RECHECK_MS = 30 * 60 * 1000;
+/** How long to keep using an Esri answer before asking again: short, so
+ *  switching Google on (or back on) reaches a phone within minutes. */
+const ESRI_RECHECK_MS = 2 * 60 * 1000;
 
 /** The website's answer → what the map loads, and until when. */
 export function sourceFromServer(t: ServerTiles | null | undefined, esri: TileSource, now: number): { source: TileSource; until: number } {

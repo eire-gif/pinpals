@@ -75,6 +75,17 @@ export function parseSession(body: unknown, now: number): Session | null {
   return expiresAt - now > MIN_LIFE_MS ? { token: b.session, expiresAt } : null;
 }
 
+/**
+ * What we ask Google for, best first. highDpi + 2x gives 512-pixel images
+ * covering the same ground as a 256 tile (sharp on a phone, same tile count,
+ * billing is per tile). If Google answers 400 to that for satellite, the
+ * plain session is asked for instead.
+ */
+const SESSION_BODIES = [
+  { mapType: "satellite", language: "en-GB", region: "IE", scale: "scaleFactor2x", highDpi: true },
+  { mapType: "satellite", language: "en-GB", region: "IE" },
+];
+
 let cached: Session | null = null;
 
 /** Exposed for tests. */
@@ -97,24 +108,25 @@ export async function currentMapTiles(
 
   if (!cached || cached.expiresAt - now <= MIN_LIFE_MS) {
     try {
-      const res = await fetcher(`${TILE_BASE}/v1/createSession?key=${encodeURIComponent(key)}`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        // highDpi + 2x: 512-pixel images covering the same ground as a
-        // 256 tile, so the photo is sharp on a phone screen at no extra
-        // tile count (billing is per tile, not per pixel).
-        body: JSON.stringify({ mapType: "satellite", language: "en-GB", region: "IE", scale: "scaleFactor2x", highDpi: true }),
-        cache: "no-store",
-      });
-      if (!res.ok) {
-        console.error("map-tiles: createSession failed", res.status, (await res.text().catch(() => "")).slice(0, 300));
-        return { provider: "esri" };
+      let session: Session | null = null;
+      for (const body of SESSION_BODIES) {
+        const res = await fetcher(`${TILE_BASE}/v1/createSession?key=${encodeURIComponent(key)}`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(body),
+          cache: "no-store",
+        });
+        if (res.ok) {
+          session = parseSession(await res.json(), now);
+          break;
+        }
+        const reason = (await res.text().catch(() => "")).replace(/\s+/g, " ").slice(0, 500);
+        console.error("map-tiles: createSession failed", res.status, JSON.stringify(body), reason);
+        // 400 = Google didn't accept one of the options: try the plainer ask.
+        // Anything else (bad key, API off, quota) won't be fixed by that.
+        if (res.status !== 400) break;
       }
-      const session = parseSession(await res.json(), now);
-      if (!session) {
-        console.error("map-tiles: createSession returned no usable session");
-        return { provider: "esri" };
-      }
+      if (!session) return { provider: "esri" };
       cached = session;
     } catch (e) {
       console.error("map-tiles: createSession error", e);
