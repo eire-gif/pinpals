@@ -13,7 +13,8 @@ import { notifyUser } from "./notifications-server";
  *
  * Who hears: every member in the round — or, for a match day or scramble,
  * every member in every match or team of that day — except whoever made the
- * score and whoever typed it in (both already know). The app only: its Inbox
+ * score and whoever typed it in (both already know), and anyone who has
+ * turned "Match notifications" off for this game (0119). The app only: its Inbox
  * and a push to phones — never email, never a browser.
  * One alert per score: the dedupe key carries the round, player, hole and
  * kind, so a retry never buzzes twice and an eagle corrected from a birdie
@@ -92,8 +93,13 @@ export async function notifyHighlight(
   const msg = highlightMessage({ kind, who, hole: input.hole, par: holeRow.par, strokes: score.strokes!, course: round.course_name });
   const href = round.match_day_id != null ? `/live/days/${round.match_day_id}` : `/live/rounds/${round.id}`;
 
+  // "Match notifications" switched off for this game (0119): skip them.
+  const gameKey = round.match_day_id != null ? `day:${round.match_day_id}` : `round:${round.id}`;
+  const { data: mutes } = await admin.from("live_highlight_mutes").select("member_id").eq("game_key", gameKey).eq("muted", true);
+  const muted = new Set(((mutes ?? []) as { member_id: string }[]).map((m) => m.member_id));
+
   const recipients = [...new Set((players ?? []).map((p) => p.member_id).filter((m): m is string => !!m))].filter(
-    (m) => !makers.has(m) && m !== input.triggeredBy
+    (m) => !makers.has(m) && m !== input.triggeredBy && !muted.has(m)
   );
   for (const userId of recipients) {
     await notifyUser(admin, {

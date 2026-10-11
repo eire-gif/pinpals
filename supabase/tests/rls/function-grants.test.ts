@@ -164,6 +164,7 @@ const EXPECTED: Record<string, Expectation> = {
   "live_round_finish(p_round_id bigint)": { anon: false, authenticated: true },
   "live_round_set_hole(p_round_id bigint, p_hole smallint, p_par smallint, p_stroke_index smallint)": { anon: false, authenticated: true },
   "live_round_set_score(p_round_id bigint, p_player_id bigint, p_hole smallint, p_strokes smallint, p_clear boolean)": { anon: false, authenticated: true },
+  "live_highlight_set_muted(p_round_id bigint, p_muted boolean)": { anon: false, authenticated: true },
   "live_round_status_broadcast()": { anon: false, authenticated: false },
   // 0104 match days. Same reasoning: each checks the caller itself.
   "can_score_live_round(p_round_id bigint)": { anon: false, authenticated: true },

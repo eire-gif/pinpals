@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { FourballConnect } from "@/components/fourball-connect";
-import { ActivityIndicator, Alert, Pressable, ScrollView, Share, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Pressable, ScrollView, Share, StyleSheet, Switch, Text, View } from "react-native";
 import { Stack, router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
@@ -14,11 +14,13 @@ import {
   deleteLiveRound,
   finishLiveRound,
   loadCourseCards,
+  loadHighlightAlertsOn,
   loadLiveRound,
   saveCourseCard,
   setLiveDrive,
   setLiveHole,
   queueHighlight,
+  setHighlightAlertsOn,
   setLiveScore,
   subscribeToLiveRound,
   type LiveRoundData,
@@ -80,9 +82,12 @@ export default function LiveRoundScreen() {
   const [cardOnFile, setCardOnFile] = useState<"same" | "different" | "none" | null>(null);
   const [dayHeader, setDayHeader] = useState<Pick<MatchDay, "id" | "createdBy" | "title" | "teamNames"> | null>(null);
   const [sharing, setSharing] = useState(false);
+  // "Match notifications" (0119): birdie-or-better alerts from this game.
+  const [alertsOn, setAlertsOn] = useState<boolean | null>(null);
   const { session } = useAuth();
   const me = session?.user?.id ?? null;
   const started = useRef(false);
+  const alertsLoaded = useRef<number | null>(null);
   // The card view, so finishing can bring its top — the result — into view.
   const boardScroll = useRef<ScrollView>(null);
 
@@ -109,6 +114,12 @@ export default function LiveRoundScreen() {
         );
       }
       if (d?.round.matchDayId != null) setDayHeader(await loadMatchDayHeader(d.round.matchDayId));
+      if (d && alertsLoaded.current !== d.round.id) {
+        alertsLoaded.current = d.round.id;
+        void loadHighlightAlertsOn(d.round.id, d.round.matchDayId)
+          .then(setAlertsOn)
+          .catch(() => setAlertsOn(true));
+      }
       // Open on the first hole anyone still has to score, once.
       if (d && !started.current) {
         started.current = true;
@@ -353,6 +364,38 @@ export default function LiveRoundScreen() {
       { text: "Cancel", style: "cancel" },
     ]);
   };
+
+  const toggleAlerts = async (on: boolean) => {
+    const before = alertsOn;
+    setAlertsOn(on);
+    try {
+      await setHighlightAlertsOn(round.id, on);
+    } catch (e) {
+      setAlertsOn(before);
+      const msg = (e as { message?: unknown } | null)?.message;
+      Alert.alert("Couldn't change that", typeof msg === "string" && msg ? msg : "Please try again.");
+    }
+  };
+  const alertsSwitch =
+    me != null && alertsOn != null ? (
+      <View style={styles.alertsRow}>
+        <Ionicons name={alertsOn ? "notifications" : "notifications-off-outline"} size={20} color={alertsOn ? colors.green700 : colors.ink500} />
+        <View style={{ flex: 1 }}>
+          <Text style={styles.alertsTitle}>Match notifications</Text>
+          <Text style={styles.alertsSub}>
+            {alertsOn
+              ? `Birdies, eagles and holes in one from ${round.matchDayId != null ? "this match day" : "this round"}`
+              : `Off for ${round.matchDayId != null ? "this match day" : "this round"}. You can still see scores here.`}
+          </Text>
+        </View>
+        <Switch
+          value={alertsOn}
+          onValueChange={(v) => void toggleAlerts(v)}
+          trackColor={{ true: colors.green700, false: colors.line }}
+          accessibilityLabel="Match notifications"
+        />
+      </View>
+    ) : null;
 
   const cardComplete = card.every((c) => c.strokeIndex != null);
 
@@ -684,6 +727,7 @@ export default function LiveRoundScreen() {
             </View>
           ) : null}
           {backToLiveButton}
+          {alertsSwitch}
         </ScrollView>
       ) : (
         <ScrollView ref={boardScroll} contentContainerStyle={styles.page}>
@@ -1171,6 +1215,9 @@ const styles = StyleSheet.create({
   next: { minHeight: 54, borderRadius: radii.pill, backgroundColor: colors.green700, alignItems: "center", justifyContent: "center" },
   backLive: { flexDirection: "row", gap: 8, minHeight: 54, borderRadius: radii.pill, backgroundColor: colors.navy900, borderWidth: 1, borderColor: colors.gold500, alignItems: "center", justifyContent: "center" },
   backLiveLabel: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.cream50 },
+  alertsRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginTop: spacing.md, padding: spacing.md, borderRadius: radii.lg, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
+  alertsTitle: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.ink900 },
+  alertsSub: { fontFamily: fonts.body, fontSize: 12.5, lineHeight: 17, color: colors.ink500, marginTop: 2 },
   shareButton: { flexDirection: "row", gap: 8, minHeight: 52, borderRadius: radii.pill, backgroundColor: colors.gold400, borderWidth: 1, borderColor: colors.gold500, alignItems: "center", justifyContent: "center" },
   shareLabel: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.navy900 },
   nextLabel: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.cream50 },
