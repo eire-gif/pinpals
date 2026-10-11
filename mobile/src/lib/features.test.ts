@@ -7,17 +7,15 @@ describe("feature flags", () => {
     // Switching one of these on? Its backend must exist first — see the
     // design docs named in features.ts — then update this test.
     expect({
-      groups: FEATURES.groups,
       sharedRounds: FEATURES.sharedRounds,
     }).toEqual({
-      groups: false,
       sharedRounds: false,
     });
   });
 
   it("shipped features are on", () => {
-    expect([FEATURES.recapPrompts, FEATURES.achievementClaims, FEATURES.profileSections, FEATURES.video, FEATURES.liveScoring, FEATURES.shotMaps, FEATURES.scorecards]).toEqual([
-      true, true, true, true, true, true, true,
+    expect([FEATURES.recapPrompts, FEATURES.achievementClaims, FEATURES.profileSections, FEATURES.video, FEATURES.liveScoring, FEATURES.shotMaps, FEATURES.scorecards, FEATURES.groups]).toEqual([
+      true, true, true, true, true, true, true, true,
     ]);
   });
 });

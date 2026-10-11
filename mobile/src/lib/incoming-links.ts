@@ -13,6 +13,8 @@ import { routeForLink, scorecardIdFromShareToken } from "./share-links";
  *                                            signs the member in
  *   /feed/<id>, /s/<token>                 → the post screen (share-links.ts)
  *   /invite/<id>                           → unchanged; it is a screen here
+ *   /join/g/<code>                         → join-group: a group's invite link
+ *                                            (0120), works signed out too
  *   /signup                                → the app's sign-up (a signed-in
  *                                            member is moved on to Home)
  *   /c/<token>                             → card-link: the scorecard if signed
@@ -49,6 +51,11 @@ export function routeForIncomingUrl(url: string): string | null {
   if (post) return post;
 
   if (/^\/invite\/\d+$/.test(path)) return path;
+
+  // A group's invite link (0120). Before /join/<code>, which it would never
+  // match anyway (that one is exactly eight characters after /join/).
+  const groupJoin = /^\/join\/g\/([a-z0-9]{8})$/i.exec(path);
+  if (groupJoin) return `/join-group?code=${groupJoin[1].toLowerCase()}`;
 
   // A member's invite link or QR code (Find PinPals, 0118).
   const join = /^\/join\/([a-z0-9]{8})$/i.exec(path);

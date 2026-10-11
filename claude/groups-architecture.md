@@ -1,6 +1,6 @@
 # Groups — architecture
 
-Feed redesign, phase 11 (Oct 2026). **Status: model built, no tables yet.**
+Feed redesign, phase 11 (Oct 2026). **Status: step B built (0120, `claude/groups-step-b.md`): groups, members, invitations, requests and invite links, with societies as a fifth kind. Steps C–F to come.**
 
 Groups like *Saturday Golf Crew*, *Dublin Golfers*, *Portmarnock members* and
 *Algarve 2027*: standing communities with members, posts, events, polls, a
@@ -201,7 +201,7 @@ create table public.group_poll_votes (
 | Step | What | Risk | Undo |
 |---|---|---|---|
 | **A** ✅ | Model + tests (this phase) | None | Delete the file |
-| **B** | `groups`, `group_members`, `group_invitations`, membership functions, RLS. **No audience changes.** App: Groups screen, create a crew/trip, invite connections, members list, and chat via `create_group_conversation` | Low: new tables only | Drop them |
+| **B** ✅ | `groups`, `group_members`, `group_invitations`, membership functions, RLS. **No audience changes.** App: Groups screen, create a crew/trip, invite connections, members list, and chat via `create_group_conversation` | Low: new tables only | Drop them |
 | **C** | **Group posts.** Rewrite the three audience checks explicitly (above), add `posts.group_id`, a composer audience picker and a group feed. RLS tests for a connection outside the group, photos, comments and likes | **High: the privacy core.** Its own PR and review | Revert the policy and function bodies; group posts become author-only |
 | **D** | **Group tee times.** Same rewrite in `invite_is_visible_row` and the interest policy; notify group members | Medium | As C |
 | **E** | Events (+RSVP; "make tee times for this") and polls | Low | Drop the tables |

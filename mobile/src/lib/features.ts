@@ -44,10 +44,12 @@ export const FEATURES = {
    *  hides the menu entry, the live round's "Save my scorecard" and the
    *  profile link; the screens say "on its way". */
   scorecards: true,
+  /** Groups, step B (claude/groups-step-b.md, needs 0120): crews, trips and
+   *  societies — members, invitations, requests and invite links. Off hides
+   *  the menu entry and Home's strip; the screens say "on its way". */
+  groups: true,
 
   // ---- Gates (unfinished, off) ----
-  /** Groups (phase 11): model only — see claude/groups-architecture.md. */
-  groups: false,
   /** Shared rounds (phase 9): model only — see claude/shared-round-model.md. */
   sharedRounds: false,
 

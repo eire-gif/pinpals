@@ -58,4 +58,11 @@ describe("routeForIncomingUrl", () => {
       "/web?path=%2Fauth%2Fconfirm%3Ftype%3Drecovery%26token_hash%3Dx&title=PinPals"
     );
   });
+
+  it("opens a group's invite link on the join-group screen (0120)", () => {
+    expect(routeForIncomingUrl("https://www.pinpals.ie/join/g/AB12cd34")).toBe("/join-group?code=ab12cd34");
+    expect(routeForIncomingUrl("https://pinpals.ie/join/g/ab12cd34/")).toBe("/join-group?code=ab12cd34");
+    // A member's own invite link is unchanged.
+    expect(routeForIncomingUrl("https://www.pinpals.ie/join/ab12cd34")).toBe("/join?code=ab12cd34");
+  });
 });

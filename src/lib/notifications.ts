@@ -67,7 +67,7 @@ export const NOTIFICATION_CATEGORY_DESCRIPTIONS: Record<OptionalNotificationCate
   auctions: "Outbid alerts, auctions ending soon, and results.",
   reviews: "When you're able to leave a review after a completed order.",
   tee_times: "When someone you've connected with posts a tee time, adds you to a round or match day, a match in it finishes, or someone in your game makes a birdie or better.",
-  feed: "When another member comments on something you posted, or replies to your comment.",
+  feed: "When another member comments on something you posted, replies to your comment, or invites you to a group — and, if you run a group, when someone asks to join.",
 };
 
 // Every `type` value any part of this app writes to `notifications.type` —
@@ -134,6 +134,11 @@ export const NOTIFICATION_TYPES = [
   // Oct 2026: a birdie, eagle, albatross or hole in one, to everyone in the
   // game. The app only (Inbox + phone push) — never email or browser push.
   "live_highlight",
+  // Groups (0120). Under feed: they're the social side of PinPals, and a
+  // member who wants fewer social alerts silences them together.
+  "group_invited",
+  "group_join_request",
+  "group_request_approved",
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 
@@ -175,6 +180,9 @@ export const NOTIFICATION_TYPE_CATEGORY: Record<NotificationType, NotificationCa
   live_match_added: "tee_times",
   live_match_result: "tee_times",
   live_highlight: "tee_times",
+  group_invited: "feed",
+  group_join_request: "feed",
+  group_request_approved: "feed",
 };
 
 /** Which preference category (if any) governs delivery for this notification

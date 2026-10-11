@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  CREATABLE_GROUP_KINDS,
   GROUP_ACTIONS,
   GROUP_FEATURES,
   GROUP_KINDS,
@@ -9,7 +10,10 @@ import {
   chatAllowed,
   groupCan,
   groupNameProblem,
+  groupInvitePath,
   groupSlug,
+  isCreatableGroupKind,
+  isGroupInviteCode,
   isGroupKind,
   joinState,
   type GroupSettings,
@@ -24,15 +28,38 @@ describe("groups.ts", () => {
     expect(app).toBe(site);
   });
 
-  it("has the four kinds the brief names", () => {
+  it("has the four kinds the brief names, plus societies", () => {
     expect(GROUP_KINDS.map((k) => GROUP_KIND_INFO[k].example)).toEqual([
       "Saturday Golf Crew",
       "Dublin Golfers",
       "Portmarnock members",
       "Algarve 2027",
+      "Malahide Golf Society",
     ]);
     expect(isGroupKind("trip")).toBe(true);
+    expect(isGroupKind("society")).toBe(true);
     expect(isGroupKind("league")).toBe(false);
+  });
+
+  it("members can start crews, trips and societies; local and club groups wait for moderation", () => {
+    expect([...CREATABLE_GROUP_KINDS]).toEqual(["crew", "trip", "society"]);
+    expect(isCreatableGroupKind("society")).toBe(true);
+    expect(isCreatableGroupKind("area")).toBe(false);
+    expect(isCreatableGroupKind("club")).toBe(false);
+  });
+
+  it("a society is found in search and asked to join, with no group chat", () => {
+    const s = GROUP_KIND_INFO.society;
+    expect(s.privacy).toBe("request");
+    expect(s.features).not.toContain("chat");
+    expect(chatAllowed("society", 4)).toBe(false);
+  });
+
+  it("group invite links are eight letters and digits under /join/g/", () => {
+    expect(isGroupInviteCode("ab12cd34")).toBe(true);
+    expect(isGroupInviteCode("AB12CD34")).toBe(false);
+    expect(isGroupInviteCode("ab12cd3")).toBe(false);
+    expect(groupInvitePath("ab12cd34")).toBe("/join/g/ab12cd34");
   });
 
   it("chat is only ever on where the group fits in a group conversation", () => {

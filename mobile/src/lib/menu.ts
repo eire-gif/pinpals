@@ -96,6 +96,8 @@ export const MENU: MenuSection[] = [
       // people posted" should have an answer in it.
       { kind: "native", label: "Social", icon: "images-outline", to: "/feed" },
       { kind: "native", label: "Saved posts", icon: "bookmark-outline", to: "/saved" },
+      // Groups (0120): crews, trips and societies.
+      { kind: "native", label: "Groups", icon: "people-outline", to: "/groups", feature: "groups" },
       {
         kind: "native",
         label: "Browse all members",

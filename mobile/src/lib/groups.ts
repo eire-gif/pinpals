@@ -1,11 +1,12 @@
 /**
- * Groups — the model (Oct 2026 feed redesign, phase 11). Architecture only:
- * nothing reads this yet, and there are no group tables.
+ * Groups — the model (Oct 2026 feed redesign, phase 11; step B, 0120).
+ * The tables, functions and rules are in supabase/migrations/0120_groups.sql;
+ * this file is what the screens use to decide what to show.
  *
  * KEPT IDENTICAL in two places, like post-details.ts and shared-round.ts:
  *
- *   src/lib/groups.ts          (website: the future /api/app/groups routes)
- *   mobile/src/lib/groups.ts   (app: the future group screens)
+ *   src/lib/groups.ts          (website: /api/app/groups routes, /join/g pages)
+ *   mobile/src/lib/groups.ts   (app: the group screens)
  *
  * src/lib/groups.test.ts fails if they differ. No imports.
  *
@@ -31,8 +32,21 @@
 // Kinds
 // ---------------------------------------------------------------------------
 
-export const GROUP_KINDS = ["crew", "area", "club", "trip"] as const;
+export const GROUP_KINDS = ["crew", "area", "club", "trip", "society"] as const;
 export type GroupKind = (typeof GROUP_KINDS)[number];
+
+/**
+ * What a member can start today (decision, 11 Oct 2026). Local and club
+ * groups need staff moderation and one-per-county / one-per-club seeding
+ * before they open (claude/groups-architecture.md, step F). The database
+ * refuses the others too: create_group() checks the same list.
+ */
+export const CREATABLE_GROUP_KINDS = ["crew", "trip", "society"] as const satisfies readonly GroupKind[];
+export type CreatableGroupKind = (typeof CREATABLE_GROUP_KINDS)[number];
+
+export function isCreatableGroupKind(value: unknown): value is CreatableGroupKind {
+  return typeof value === "string" && (CREATABLE_GROUP_KINDS as readonly string[]).includes(value);
+}
 
 export const GROUP_FEATURES = ["posts", "events", "polls", "chat", "tee_times"] as const;
 export type GroupFeature = (typeof GROUP_FEATURES)[number];
@@ -98,6 +112,21 @@ export const GROUP_KIND_INFO: Record<GroupKind, GroupKindInfo> = {
     features: ["posts", "events", "polls", "chat", "tee_times"],
     anchor: "dates",
     maxMembers: 20,
+  },
+  society: {
+    label: "Society",
+    example: "Malahide Golf Society",
+    description: "A golf society: outings, a secretary and a committee.",
+    icon: "trophy",
+    // Decision, 11 Oct 2026: a society can be found in search and golfers
+    // ask to join; the secretary (owner) or committee (admins) approve. An
+    // invite link skips the queue, because the secretary sent it.
+    privacy: "request",
+    // Too big for a group chat (most societies are 30–60 golfers), and
+    // outings arrive as events in a later step.
+    features: ["posts", "events", "polls", "tee_times"],
+    anchor: "none",
+    maxMembers: 500,
   },
 };
 
@@ -227,6 +256,23 @@ export function joinState(v: {
   if (v.privacy === "request") return v.requested ? "requested" : "request";
   return "join";
 }
+
+// ---------------------------------------------------------------------------
+// Invite links
+// ---------------------------------------------------------------------------
+
+/**
+ * A group's share link is pinpals.ie/join/g/<code>: eight lower-case
+ * letters and digits, the same alphabet as a member's own invite code (0118)
+ * but under /join/g/ so the two can never be confused. The website's
+ * apple-app-site-association already claims /join/*, so the link opens the
+ * app where it's installed.
+ */
+export function isGroupInviteCode(value: unknown): value is string {
+  return typeof value === "string" && /^[a-z0-9]{8}$/.test(value);
+}
+
+export const groupInvitePath = (code: string) => `/join/g/${code}`;
 
 // ---------------------------------------------------------------------------
 // Names
