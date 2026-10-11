@@ -14,6 +14,7 @@ import { formatInfo, pointsLabel } from "@/lib/live-scoring";
 import { dateLabel } from "@/lib/tee-times";
 import { useLiveRefresh } from "@/lib/use-live-refresh";
 import { colors, creamAlpha, fonts, radii, spacing, type } from "@/lib/theme";
+import { refreshWidget } from "@/lib/widgets";
 
 /**
  * The match-day board: the team score, then every match with where it
@@ -37,6 +38,7 @@ export default function MatchDayBoard() {
     try {
       setFailed(false);
       setData(await loadMatchDay(dayId));
+      refreshWidget();
     } catch {
       setFailed(true);
     }

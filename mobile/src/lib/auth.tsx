@@ -9,6 +9,7 @@ import {
 import type { Session } from "@supabase/supabase-js";
 
 import { supabase } from "./supabase";
+import { disconnectWidget } from "./widgets";
 
 type AuthState = {
   session: Session | null;
@@ -38,8 +39,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     const { data: subscription } = supabase.auth.onAuthStateChange(
-      (_event, next) => {
+      (event, next) => {
         setSession(next);
+        // However the member ends up signed out (here, deleting the
+        // account, a revoked session), the Home Screen widget forgets them.
+        if (event === "SIGNED_OUT") disconnectWidget();
       }
     );
 
