@@ -1,11 +1,24 @@
 import { PIN_COLOURS } from "@/lib/hole-geo";
+import type { TileSource } from "@/lib/map-tiles-rules";
 import { colors } from "@/lib/theme";
+
+/** Google's own logo, served by Google and shown unmodified, as its Map
+ *  Tiles policies require (white outlined version: for busy imagery). */
+export const GOOGLE_LOGO_URL = "https://maps.gstatic.com/mapfiles/api-3/images/google_white5_hdpi.png";
 
 /**
  * The page. Plain JS, no build step. It never decides a number: it draws
  * what `draw(scene)` hands it and posts taps back.
+ *
+ * Imagery (Oct 2026): Esri, or Google 2D satellite (lib/map-tiles.ts).
+ * With Google the page also shows the Google Maps logo bottom left and
+ * Google's copyright line bottom right — both lifted clear of the bottom
+ * sheet — and asks the app for that line whenever the view settles
+ * ("view" message → window.pp.credit). OpenStreetMap's credit for the
+ * outlines sits in a box of its own, so it's plain which source is which.
  */
-export function pageHtml(tileUrl: string, attribution: string): string {
+export function pageHtml(source: TileSource): string {
+  const google = source.provider === "google";
   return `<!doctype html><html><head>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
@@ -14,6 +27,10 @@ export function pageHtml(tileUrl: string, attribution: string): string {
   .leaflet-container{font-family:-apple-system,system-ui,sans-serif;}
   .leaflet-control-attribution{font-size:9px;background:rgba(12,32,56,.55)!important;color:#efe7d6!important;}
   .leaflet-control-attribution a{color:#efe7d6!important;}
+  .leaflet-control-attribution{max-width:70vw;white-space:normal;line-height:1.35;}
+  .glogo{margin:0 0 5px 10px!important;pointer-events:none;}
+  .glogo img{height:18px;width:auto;display:block;}
+  .glogo span{font:700 12px -apple-system,system-ui,sans-serif;color:#fff;text-shadow:0 0 2px rgba(0,0,0,.9);}
   .pin{display:flex;align-items:center;justify-content:center;border-radius:999px;font-weight:700;box-shadow:0 1px 4px rgba(0,0,0,.45);}
   .tee{width:22px;height:22px;background:${colors.cream50};color:${colors.navy900};font-size:11px;border:2px solid ${colors.navy900};}
   .pinflag{width:44px;height:52px;filter:drop-shadow(0 1px 2px rgba(0,0,0,.45));}
@@ -43,8 +60,53 @@ export function pageHtml(tileUrl: string, attribution: string): string {
   function post(m){ try{ window.ReactNativeWebView.postMessage(JSON.stringify(m)); }catch(e){} }
   if(!window.L){ post({type:"failed"}); return; }
   var canRotate = typeof L.Map.prototype.setBearing === "function";
-  var map = L.map("map", { zoomControl:false, attributionControl:true, rotate:canRotate, touchRotate:false, rotateControl:false, bearing:0, maxZoom:20, zoomSnap:0.25 });
-  L.tileLayer(${JSON.stringify(tileUrl)}, { maxZoom:20, maxNativeZoom:19, attribution:${JSON.stringify(attribution)} }).addTo(map);
+  var GOOGLE = ${JSON.stringify(google)};
+  var map = L.map("map", { zoomControl:false, attributionControl:false, rotate:canRotate, touchRotate:false, rotateControl:false, bearing:0, maxZoom:20, zoomSnap:0.25 });
+  var tiles = L.tileLayer(${JSON.stringify(source.url)}, { maxZoom:20, maxNativeZoom:19 }).addTo(map);
+  // Imagery credit and the outlines' credit: two boxes, never one line.
+  var imageryCredit = L.control.attribution({ prefix:false, position:"bottomright" }).addTo(map);
+  var creditText = ${JSON.stringify(google ? "Google Maps" : source.attribution)};
+  imageryCredit.addAttribution(creditText);
+  var osmCredit = null;
+  if(GOOGLE){
+    var Logo = L.Control.extend({ options:{ position:"bottomleft" }, onAdd:function(){
+      var d = L.DomUtil.create("div", "glogo");
+      d.setAttribute("role", "img"); d.setAttribute("aria-label", "Google Maps");
+      var img = document.createElement("img");
+      img.alt = "Google Maps";
+      img.onerror = function(){ d.innerHTML = "<span>Google Maps</span>"; };
+      img.src = ${JSON.stringify(GOOGLE_LOGO_URL)};
+      d.appendChild(img);
+      return d;
+    }});
+    new Logo().addTo(map);
+    var viewTimer = null;
+    var askCredit = function(){
+      clearTimeout(viewTimer);
+      viewTimer = setTimeout(function(){
+        var b = map.getBounds(), c = map.getCenter();
+        var cl = function(v, lim){ return Math.max(-lim, Math.min(lim, v)); };
+        post({ type:"view", zoom:Math.round(map.getZoom()), north:cl(b.getNorth(),89.9), south:cl(b.getSouth(),89.9), east:cl(b.getEast(),179.9), west:cl(b.getWest(),179.9), lat:c.lat, lng:c.lng });
+      }, 350);
+    };
+    map.on("moveend", askCredit);
+  }
+  // The app's answer: Google's copyright line for this view, and how far in
+  // its photos go here (15–20).
+  function credit(text, nativeZoom){
+    if(typeof text === "string" && text){
+      var next = "Google Maps · " + text;
+      if(next !== creditText){ imageryCredit.removeAttribution(creditText); creditText = next; imageryCredit.addAttribution(creditText); }
+    }
+    if(typeof nativeZoom === "number" && nativeZoom >= 15 && nativeZoom <= 20){
+      if(tiles.options.maxNativeZoom !== nativeZoom){ tiles.options.maxNativeZoom = nativeZoom; tiles.redraw(); }
+    }
+  }
+  // Keep the logo and credits above the sheet that floats over the map.
+  function lift(bottom){
+    var els = document.querySelectorAll(".leaflet-bottom");
+    for(var i = 0; i < els.length; i++) els[i].style.bottom = Math.max(0, bottom) + "px";
+  }
   map.setView([53.4, -7.9], 7);
   var shapes = L.layerGroup().addTo(map);
   var layer = L.layerGroup().addTo(map);
@@ -175,7 +237,11 @@ export function pageHtml(tileUrl: string, attribution: string): string {
         L.polygon(ll, st).addTo(shapes);
       }
     });
-    if((list||[]).length && !osmCredited){ osmCredited = true; map.attributionControl.addAttribution("© OpenStreetMap contributors"); }
+    if((list||[]).length && !osmCredited){
+      osmCredited = true;
+      osmCredit = L.control.attribution({ position:"bottomright" }).addTo(map);
+      osmCredit.addAttribution("Outlines © OpenStreetMap contributors");
+    }
   }
 
   var dragging = false, pending = null;
@@ -184,6 +250,7 @@ export function pageHtml(tileUrl: string, attribution: string): string {
     // A GPS tick mid-drag would pull the circle from under the finger.
     if(dragging){ pending = s; return; }
     last = s;
+    lift(((s.inset && s.inset.bottom) || 36) - 24);
     drawShapes(s.outlines, s.hole, s.showOutlines !== false);
     layer.clearLayers();
     var g = s.green || {};
@@ -279,7 +346,7 @@ export function pageHtml(tileUrl: string, attribution: string): string {
   }
 
   map.on("click", function(e){ post({ type:"tap", lat:e.latlng.lat, lng:e.latlng.lng }); });
-  window.pp = { draw:draw, refit:refit };
+  window.pp = { draw:draw, refit:refit, credit:credit };
   post({ type:"ready" });
 })();
 </script></body></html>`;

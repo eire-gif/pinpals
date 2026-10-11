@@ -259,3 +259,15 @@ The parts of 0108 containing `delete from` (`live_round_shot_undo`,
 — as `live_round_shots_broadcast_removed` in production) were run by hand in
 the SQL editor, because the Supabase tool cancels any batch containing one.
 Checked afterwards: grants as registered, triggers present.
+
+## Google satellite imagery (Oct 2026)
+
+The photo under the hole map is now **Google Map Tiles API — 2D satellite**, with Esri as the fallback. Everything drawn on top (T, flag, aim circle, lines, hazards, shots, OSM outlines) is unchanged: Leaflet in the web view still draws it.
+
+- **Website decides** — `GET /api/app/map-tiles` (src/lib/map-tiles.ts) returns Google tile and viewport URLs with one shared session token (valid ~2 weeks, renewed a day early), or `{ provider: "esri" }`. Changing provider never needs an app update.
+- **Vercel settings** — `GOOGLE_MAP_TILES_KEY` (required for Google); optional `GOOGLE_MAP_TILES_BROWSER_KEY` (same project) used in tile URLs so it can carry a website restriction; `MAP_TILES_PROVIDER=esri` is the off switch.
+- **Google's attribution rules** — the official Google Maps logo bottom-left, and Google's copyright line for the current view bottom-right (the page posts its bounds, the app fetches `tile/v1/viewport`, the page shows "Google Maps · …"). Both sit above the bottom sheet. OSM's credit for the outlines is in its own separate box.
+- **Sharpness** — sessions ask for `scaleFactor2x` + `highDpi` (512 px images, same ground, same tile count). Max native zoom follows the viewport's `maxZoomRects` (15–20).
+- **Rules** — no pre-fetching or offline storage of Google tiles; the web view's normal HTTP cache honours Google's cache headers.
+- **Cost** — 100,000 tiles/month free, then $0.60 per 1,000; default quota 15,000 tiles/day per project. Set a daily quota cap and a budget alert in Google Cloud.
+- **App fallback** — if the website doesn't answer within 4 s, the map loads on Esri rather than waiting.

@@ -2,7 +2,7 @@ import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState, 
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import RNWebView, { type WebViewMessageEvent, type WebViewProps } from "react-native-webview";
 
-import { MAP_ATTRIBUTION, MAP_TILE_URL } from "@/lib/config";
+import { loadTileSource, nativeZoomAt, viewportQuery, type TileSource } from "@/lib/map-tiles";
 import type { LatLng, PinZone, PointKind } from "@/lib/hole-geo";
 import type { OsmFeature } from "@/lib/osm-course";
 import { colors, fonts, spacing } from "@/lib/theme";
@@ -73,14 +73,40 @@ type Props = {
  * A web view rather than react-native-maps because the web view is already
  * in the shipped binary: this reaches TestFlight testers as an over-the-air
  * update, where a maps SDK would need a new store build. Leaflet and the
- * rotate plugin are pinned versions from jsDelivr; the tiles are whatever
- * MAP_TILE_URL says (config.ts — license before launch).
+ * rotate plugin are pinned versions from jsDelivr. The photo underneath is
+ * Google 2D satellite or Esri, as the website says (lib/map-tiles.ts).
+ * With Google, the page tells us where it's looking and we fetch Google's
+ * copyright line for that view here (no CORS to worry about in the app).
  */
 export const HoleMapView = forwardRef<HoleMapHandle, Props>(function HoleMapView({ scene, onTap, onTee, onPin }, ref) {
   const web = useRef<WebViewHandle>(null);
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState(false);
-  const html = useMemo(() => pageHtml(MAP_TILE_URL, MAP_ATTRIBUTION), []);
+  const [source, setSource] = useState<TileSource | null>(null);
+  useEffect(() => {
+    let on = true;
+    void loadTileSource().then((t) => on && setSource(t));
+    return () => {
+      on = false;
+    };
+  }, []);
+  const html = useMemo(() => (source ? pageHtml(source) : null), [source]);
+  const creditAsk = useRef(0);
+  const askCredit = (v: { zoom: number; north: number; south: number; east: number; west: number; lat: number; lng: number }) => {
+    if (source?.provider !== "google") return;
+    const n = ++creditAsk.current;
+    void fetch(viewportQuery(source.viewportUrl, v))
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { copyright?: unknown; maxZoomRects?: unknown } | null) => {
+        if (!d || n !== creditAsk.current) return;
+        const text = typeof d.copyright === "string" ? d.copyright : "";
+        const z = nativeZoomAt(d.maxZoomRects, v.lat, v.lng);
+        web.current?.injectJavaScript(`window.pp && window.pp.credit(${JSON.stringify(text)}, ${z ?? "null"}); true;`);
+      })
+      .catch(() => {
+        // The logo and "Google Maps" stay; the next view asks again.
+      });
+  };
 
   useEffect(() => {
     if (ready) web.current?.injectJavaScript(`window.pp && window.pp.draw(${JSON.stringify(scene)}); true;`);
@@ -91,7 +117,7 @@ export const HoleMapView = forwardRef<HoleMapHandle, Props>(function HoleMapView
   }));
 
   const onMessage = (e: WebViewMessageEvent) => {
-    let msg: { type?: string; lat?: number; lng?: number } = {};
+    let msg: { type?: string; lat?: number; lng?: number; zoom?: number; north?: number; south?: number; east?: number; west?: number } = {};
     try {
       msg = JSON.parse(e.nativeEvent.data);
     } catch {
@@ -102,10 +128,16 @@ export const HoleMapView = forwardRef<HoleMapHandle, Props>(function HoleMapView
     else if (msg.type === "tap" && typeof msg.lat === "number" && typeof msg.lng === "number") onTap({ lat: msg.lat, lng: msg.lng });
     else if (msg.type === "tee" && typeof msg.lat === "number" && typeof msg.lng === "number") onTee({ lat: msg.lat, lng: msg.lng });
     else if (msg.type === "pin" && typeof msg.lat === "number" && typeof msg.lng === "number") onPin({ lat: msg.lat, lng: msg.lng });
+    else if (
+      msg.type === "view" &&
+      [msg.zoom, msg.north, msg.south, msg.east, msg.west, msg.lat, msg.lng].every((x) => typeof x === "number" && Number.isFinite(x))
+    )
+      askCredit(msg as Required<typeof msg>);
   };
 
   return (
     <View style={styles.fill}>
+      {html ? (
       <WebView
         ref={web}
         source={{ html, baseUrl: "https://pinpals.ie/" }}
@@ -122,6 +154,7 @@ export const HoleMapView = forwardRef<HoleMapHandle, Props>(function HoleMapView
         // The map is the whole screen; stop the page itself being zoomed.
         scalesPageToFit={false}
       />
+      ) : null}
       {!ready && !failed ? (
         <View style={styles.cover} pointerEvents="none">
           <ActivityIndicator color={colors.cream50} />
