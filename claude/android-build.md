@@ -62,5 +62,23 @@ Plan B: no CRO number by ~end of October → personal Play account and start
 the 12-tester, 14-day closed test; transfer the app to the Organization
 account later.
 
+## Fonts on Android (Oct 2026)
+
+First Android build showed every label cut short ("Ho…", "Phot",
+"Revie"). Cause: fonts loaded at runtime by `useFonts`, so Android measured
+text in the system font and drew it in Public Sans, which is wider. Fixed by
+embedding the five font files with the `expo-font` plugin (`android.fonts`
+in `mobile/app.json`) and skipping runtime loading on Android
+(`mobile/src/app/_layout.tsx`). Needs a new native Android build.
+
+## Fingerprint warning — iOS needs one new build
+
+`runtimeVersion` is `fingerprint`, and the fingerprint hashes the whole app
+config, Android sections included. These Android changes moved the **iOS**
+fingerprint too (19aac67… → new). So the next iOS change must go out as a new
+TestFlight build (`eas build -p ios --profile production`), not
+`eas update` — an update published now would never reach existing TestFlight
+installs. After that build, `eas update` works again as before.
+
 After Android ships, `eas update` needs `--platform all` (or no platform
 flag) instead of `--platform ios`.
