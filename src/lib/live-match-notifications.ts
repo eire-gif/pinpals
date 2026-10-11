@@ -110,13 +110,13 @@ export async function notifyRoundPlayers(admin: SupabaseClient, roundId: number)
   return sent;
 }
 
-type DayRow = { id: number; created_by: string | null; title: string; course_name: string; played_on: string; team_names: string[] | null };
+type DayRow = { id: number; created_by: string | null; title: string; course_name: string; played_on: string; team_names: string[] | null; kind?: string | null };
 
 /** "You're in Match 2": each member player, about their own match. */
 export async function notifyMatchDayPlayers(admin: SupabaseClient, dayId: number): Promise<number> {
   const { data: day } = await admin
     .from("live_match_days")
-    .select("id, created_by, title, course_name, played_on, team_names")
+    .select("id, created_by, title, course_name, played_on, team_names, kind")
     .eq("id", dayId)
     .maybeSingle<DayRow>();
   if (!day) return 0;
@@ -140,6 +140,22 @@ export async function notifyMatchDayPlayers(admin: SupabaseClient, dayId: number
     const inMatch = (players ?? []).filter((p) => p.round_id === r.id);
     for (const p of inMatch) {
       if (!p.member_id || p.member_id === day.created_by) continue;
+      if (day.kind === "fourballs") {
+        // A society day (0121): you're in a tee group, on one leaderboard.
+        const mates = inMatch.filter((o) => o.id !== p.id).map((o) => firstName(o.display_name));
+        const time = r.tee_time ? ` at ${r.tee_time.slice(0, 5)}` : "";
+        const withWho = mates.length ? ` with ${mates.join(", ").replace(/, ([^,]*)$/, " & $1")}` : "";
+        await notifyUser(admin, {
+          userId: p.member_id,
+          type: "live_match_added",
+          title: `${day.title}: you're in group ${r.match_number ?? ""}`.trim(),
+          body: `${by} drew you in group ${r.match_number ?? ""}${withWho} at ${day.course_name}, ${shortDate(day.played_on)}${time}. Tap to open your card and the leaderboard.`,
+          href: `/live/rounds/${r.id}`,
+          dedupeKey: `live_match_added:${r.id}:${p.member_id}`,
+        });
+        sent += 1;
+        continue;
+      }
       if (r.scramble_size) {
         // A scramble day: you're in a team, not a match.
         const mates = inMatch.filter((o) => o.id !== p.id).map((o) => firstName(o.display_name));
@@ -182,10 +198,13 @@ export async function notifyMatchResult(admin: SupabaseClient, roundId: number):
   if (!round || round.match_day_id == null || round.status !== "finished") return 0;
   const { data: day } = await admin
     .from("live_match_days")
-    .select("id, created_by, title, course_name, played_on, team_names")
+    .select("id, created_by, title, course_name, played_on, team_names, kind")
     .eq("id", round.match_day_id)
     .maybeSingle<DayRow>();
   if (!day) return 0;
+  // A society day (0121) has no match results: a group finishing isn't news
+  // to the other forty players, and the leaderboard already shows it.
+  if (day.kind === "fourballs") return 0;
 
   const { data: rounds } = await admin.from("live_rounds").select(ROUND_COLUMNS).eq("match_day_id", day.id).overrideTypes<RoundRow[]>();
   const ids = (rounds ?? []).map((r) => r.id);

@@ -235,6 +235,9 @@ const EXPECTED: Record<string, Expectation> = {
   "group_add_member(p_group_id bigint, p_user_id uuid)": { anon: false, authenticated: false },
   "group_sync_chat(p_group_id bigint)": { anon: false, authenticated: false },
   "group_members_after_change()": { anon: false, authenticated: false },
+  // 0121 rounds from a group and the society day
+  "live_can_add_player(p_me uuid, p_member uuid)": { anon: false, authenticated: false },
+  "live_fourball_day_create(p_day jsonb, p_groups jsonb, p_card jsonb)": { anon: false, authenticated: true },
 
   // --- Service role / internal only. Everything below is either a trigger
   // --- function, a sweep, or a privileged write path that must never be

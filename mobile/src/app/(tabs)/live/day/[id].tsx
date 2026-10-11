@@ -3,6 +3,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Stack, router, useFocusEffect, useLocalSearchParams } from "expo-router";
 
+import { DayBoard } from "@/components/day-board";
 import { ScrambleBoard } from "@/components/scramble-board";
 import { LoadError, StateMessage } from "@/components/state-message";
 import { useAuth } from "@/lib/auth";
@@ -67,6 +68,9 @@ export default function MatchDayBoard() {
 
   const { day, matches, totals } = data;
   const scramble = day.kind === "scramble";
+  // A society day (0121): tee groups, one individual leaderboard.
+  const fourballs = day.kind === "fourballs";
+  const what = scramble ? "scramble" : fourballs ? "society day" : "match day";
   const allDone = matches.length > 0 && totals.finishedCount === matches.length;
   const anyLive = matches.some((m) => m.round.status === "live" && !m.state?.finished);
   const sideName = (m: Match, n: 1 | 2) =>
@@ -76,9 +80,11 @@ export default function MatchDayBoard() {
   const isOrganiser = me != null && day.createdBy === me;
   const remove = () =>
     Alert.alert(
-      scramble ? "Delete this scramble?" : "Delete this match day?",
+      `Delete this ${what}?`,
       scramble
         ? `${matches.length === 1 ? "Its team" : `All ${matches.length} teams`} and every score go for everyone in it. This can't be undone.`
+        : fourballs
+          ? `${matches.length === 1 ? "Its group" : `All ${matches.length} groups`} and every score go for everyone in it. This can't be undone.`
         : `${matches.length === 1 ? "Its match" : `All ${matches.length} matches`} and every score go for everyone in it. This can't be undone.`,
       [
         { text: "Keep it", style: "cancel" },
@@ -130,6 +136,11 @@ export default function MatchDayBoard() {
           ) : null}
         </View>
         <Text style={styles.heroTitle}>{day.title}</Text>
+        {fourballs ? (
+          <Text style={styles.heroSub}>
+            {matches.length} {matches.length === 1 ? "group" : "groups"} · {matches[0]?.round.format === "stroke" ? "Stroke play" : "Stableford"} · {matches.reduce((n, m) => n + m.players.length, 0)} players
+          </Text>
+        ) : null}
 
         {day.teamNames ? (
           <>
@@ -170,14 +181,15 @@ export default function MatchDayBoard() {
         >
           <Ionicons name="calendar-outline" size={18} color={colors.green700} />
           <Text style={styles.calendarLabel}>
-            {matches.some(mine) ? (scramble ? "Add my tee time to my calendar" : "Add my match to my calendar") : scramble ? "Add the scramble to my calendar" : "Add the match day to my calendar"}
+            {matches.some(mine) ? (scramble || fourballs ? "Add my tee time to my calendar" : "Add my match to my calendar") : `Add the ${what} to my calendar`}
           </Text>
         </Pressable>
       ) : null}
 
       {scramble ? <ScrambleBoard matches={matches} isMine={mine} /> : null}
+      {fourballs ? <DayBoard matches={matches} me={me} /> : null}
 
-      {(scramble ? [] : ordered).map((m) => {
+      {(scramble || fourballs ? [] : ordered).map((m) => {
         const st = m.state;
         const done = m.round.status === "finished" || !!st?.finished;
         const status = !st ? "No card yet" : st.leader === 0 ? st.margin : `${sideName(m, st.leader)} ${st.margin}`;
@@ -243,11 +255,11 @@ export default function MatchDayBoard() {
         );
       })}
 
-      {scramble ? null : <Text style={styles.footNote}>Each hole is coloured by the side that won it. Tap a match to see or score it.</Text>}
+      {scramble || fourballs ? null : <Text style={styles.footNote}>Each hole is coloured by the side that won it. Tap a match to see or score it.</Text>}
 
       {isOrganiser ? (
         <Pressable onPress={remove} style={styles.delete} accessibilityRole="button">
-          <Text style={styles.deleteLabel}>{scramble ? "Delete scramble" : "Delete match day"}</Text>
+          <Text style={styles.deleteLabel}>{`Delete ${what}`}</Text>
         </Pressable>
       ) : null}
     </ScrollView>

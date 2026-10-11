@@ -28,7 +28,8 @@ export default function LiveLayout() {
       <Stack.Screen name="round/[id]" options={{ title: "Scoring" }} />
       <Stack.Screen name="day/new" options={{ title: "Set up a match day" }} />
       <Stack.Screen name="day/scramble" options={{ title: "Set up a scramble" }} />
-      <Stack.Screen name="day/[id]" options={{ title: "Match day" }} />
+      <Stack.Screen name="day/group" options={{ title: "From a group" }} />
+      <Stack.Screen name="day/[id]" options={{ title: "Leaderboard" }} />
     </Stack>
   );
 }

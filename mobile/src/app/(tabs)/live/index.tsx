@@ -135,6 +135,18 @@ export default function LiveScoringHub() {
           a11y="Start a match day. For societies, fourballs, foursomes and competitions: several matches at once, with a team score."
           onPress={() => router.push("/live/day/new")}
         />
+        {/* Groups (0121): draw a crew or society into tee groups or teams. */}
+        {isOn("groups") ? (
+          <RaisedCard
+            inset={false}
+            marginTop={0}
+            icon="shuffle"
+            title="From a Group"
+            subtitle="Draw your crew or society into groups or teams"
+            a11y="Start from a group. Pick your crew or society, tick who's playing, and draw them into tee groups or scramble teams at random or balanced by handicap."
+            onPress={() => router.push("/live/day/group")}
+          />
+        ) : null}
       </View>
 
       {failed ? (
@@ -165,7 +177,7 @@ export default function LiveScoringHub() {
 
 function DayList({ days, me, onDelete }: { days: MatchDaySummary[]; me: string | null; onDelete: (d: MatchDaySummary) => void }) {
   return (
-    <Section title="Match days & scrambles" count={days.length}>
+    <Section title="Society days, matches & scrambles" count={days.length}>
       {days.map((d, i) => (
         <GameRow
           key={d.id}
@@ -174,12 +186,14 @@ function DayList({ days, me, onDelete }: { days: MatchDaySummary[]; me: string |
           live={d.live}
           title={d.title}
           place={d.courseName}
-          tag={d.kind === "scramble" ? "Scramble" : "Match day"}
-          tagTone={d.kind === "scramble" ? "gold" : "navy"}
+          tag={d.kind === "scramble" ? "Scramble" : d.kind === "fourballs" ? "Society day" : "Match day"}
+          tagTone={d.kind === "match" ? "navy" : "gold"}
           count={
             d.kind === "scramble"
               ? `${d.matchCount} ${d.matchCount === 1 ? "team" : "teams"}`
-              : `${d.matchCount} ${d.matchCount === 1 ? "match" : "matches"}`
+              : d.kind === "fourballs"
+                ? `${d.matchCount} ${d.matchCount === 1 ? "group" : "groups"}`
+                : `${d.matchCount} ${d.matchCount === 1 ? "match" : "matches"}`
           }
           a11y={`${d.title}, ${d.courseName}, ${d.live ? "in play" : "finished"}`}
           onPress={() => router.push({ pathname: "/live/day/[id]", params: { id: String(d.id) } })}

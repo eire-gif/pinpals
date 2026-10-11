@@ -152,7 +152,7 @@ describe("scramble days", () => {
       await as(c, ME);
       const create = "select public.live_scramble_day_create($1::jsonb, $2::jsonb, $3::jsonb)";
       for (const who of [STRANGER, BLOCKED_PAL]) {
-        await rejects(c, create, [day(), JSON.stringify([{ team_handicap: 5, players: [p(ME, "Eire"), p(who, "X")] }]), card], /PinPals, or guests/);
+        await rejects(c, create, [day(), JSON.stringify([{ team_handicap: 5, players: [p(ME, "Eire"), p(who, "X")] }]), card], /PinPals, people in your group, or guests/);
       }
       await rejects(
         c,

@@ -133,7 +133,7 @@ describe("match days: creating", () => {
       await as(c, ME);
       const create = "select public.live_match_day_create($1::jsonb, $2::jsonb, $3::jsonb)";
       for (const who of [STRANGER, BLOCKED_PAL]) {
-        await rejects(c, create, [day, JSON.stringify([{ match_type: "singles", players: [p(ME, "Eire", 1), p(who, "X", 2)] }]), card], /PinPals, or guests/);
+        await rejects(c, create, [day, JSON.stringify([{ match_type: "singles", players: [p(ME, "Eire", 1), p(who, "X", 2)] }]), card], /PinPals, people in your group, or guests/);
       }
       await rejects(
         c,

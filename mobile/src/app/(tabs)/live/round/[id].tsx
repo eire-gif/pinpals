@@ -305,7 +305,7 @@ export default function LiveRoundScreen() {
       playedOn: round.playedOn,
       live,
       formatLabel: scr ? `${scr.size}-person scramble` : info.label,
-      heading: dayHeader && round.matchNumber ? `${dayHeader.title} · Match ${round.matchNumber}` : null,
+      heading: dayHeader && round.matchNumber ? `${dayHeader.title} · ${matchFormat ? "Match" : "Group"} ${round.matchNumber}` : null,
       card,
       rows: rows.map((r) => ({ id: r.id, name: r.name })),
       scores,
@@ -470,7 +470,7 @@ export default function LiveRoundScreen() {
           accessibilityRole="button"
         >
           <Ionicons name="podium-outline" size={16} color={colors.green700} />
-          <Text style={styles.link}>{dayHeader.title}: all matches</Text>
+          <Text style={styles.link}>{dayHeader.title}: {matchFormat ? "all matches" : "leaderboard"}</Text>
           <Ionicons name="chevron-forward" size={16} color={colors.green700} />
         </Pressable>
       ) : null}
@@ -837,7 +837,7 @@ export default function LiveRoundScreen() {
 
           {canDelete ? (
             <Pressable onPress={remove} style={styles.delete} accessibilityRole="button">
-              <Text style={styles.deleteLabel}>{round.matchDayId != null ? "Delete this match" : "Delete round"}</Text>
+              <Text style={styles.deleteLabel}>{round.matchDayId != null ? (matchFormat ? "Delete this match" : "Delete this card") : "Delete round"}</Text>
             </Pressable>
           ) : null}
         </ScrollView>

@@ -10,6 +10,7 @@ import { useAuth } from "@/lib/auth";
 import { isOn } from "@/lib/features";
 import { GROUP_KIND_INFO, groupCan, joinState, type GroupRole, type GroupSettings } from "@/lib/groups";
 import {
+  canDrawFrom,
   leaveGroup,
   loadGroupPage,
   removeMember,
@@ -270,6 +271,21 @@ export default function GroupScreen() {
                 </Pressable>
               ) : null}
             </View>
+            {myRole && canDrawFrom({ kind: group.kind, role: myRole }) && isOn("liveScoring") ? (
+              <Pressable
+                style={styles.play}
+                onPress={() => router.push({ pathname: "/live/day/group", params: { group: String(groupId) } })}
+                accessibilityRole="button"
+                accessibilityLabel="Start a round. Draw the group into tee groups or teams and score it live."
+              >
+                <Ionicons name="shuffle" size={20} color={colors.navy900} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.playTitle}>Start a round</Text>
+                  <Text style={styles.playHint}>Draw into groups or teams, scored live</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={colors.navy900} />
+              </Pressable>
+            ) : null}
             {group.features.includes("chat") && !group.conversationId ? (
               <Text style={styles.hint}>The group chat starts once three of you are in.</Text>
             ) : null}
@@ -373,6 +389,16 @@ const styles = StyleSheet.create({
   buttonMain: { backgroundColor: colors.green700, borderColor: colors.green700 },
   buttonText: { fontFamily: fonts.bodySemi, fontSize: type.body, color: colors.navy900 },
   buttonMainText: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.cream50 },
+  play: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    padding: 14,
+    borderRadius: radii.lg,
+    backgroundColor: colors.gold400,
+  },
+  playTitle: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.navy900 },
+  playHint: { fontFamily: fonts.body, fontSize: type.small, color: colors.navy900 },
   hint: { fontFamily: fonts.body, fontSize: type.small, color: colors.ink500, textAlign: "center" },
   note: {
     flexDirection: "row",

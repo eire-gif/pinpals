@@ -396,3 +396,55 @@ export async function consumePendingGroupInvite(): Promise<number | null> {
     return null;
   }
 }
+
+// ---------------------------------------------------------------------------
+// Playing together (0121): a group as a list of golfers for a draw
+// ---------------------------------------------------------------------------
+
+/** Whether you can put this group's members on cards (0121's
+ *  live_can_add_player): anyone in a crew or trip; only whoever runs a
+ *  society (owner or admin). The database applies the same rule. */
+export const canDrawFrom = (g: { kind: GroupKind; role: GroupRole }): boolean =>
+  g.kind === "crew" || g.kind === "trip" || g.role === "owner" || g.role === "admin";
+
+export type RosterPlayer = {
+  id: string;
+  name: string;
+  /** Their handicap index, when they've chosen to share it. */
+  index: number | null;
+  avatarUrl: string | null;
+  avatarColor: string | null;
+};
+
+/** Everyone in a group, with handicaps where shared, by name. Members only
+ *  (RLS): a non-member gets an empty list. */
+export async function loadGroupRoster(groupId: number): Promise<RosterPlayer[]> {
+  const { data, error } = await supabase
+    .from("group_members")
+    .select("member_id, profile:profiles(id, first_name, last_name, handicap, handicap_visible, avatar_url, avatar_color)")
+    .eq("group_id", groupId)
+    .overrideTypes<
+      {
+        member_id: string;
+        profile: {
+          id: string;
+          first_name: string | null;
+          last_name: string | null;
+          handicap: number | null;
+          handicap_visible: boolean | null;
+          avatar_url: string | null;
+          avatar_color: string | null;
+        } | null;
+      }[]
+    >();
+  if (error) fail(error, "Couldn't load the group's members.");
+  return (data ?? [])
+    .map((r) => ({
+      id: r.member_id,
+      name: [r.profile?.first_name, r.profile?.last_name].filter(Boolean).join(" ") || "A member",
+      index: r.profile?.handicap_visible && r.profile.handicap != null ? Number(r.profile.handicap) : null,
+      avatarUrl: r.profile?.avatar_url ?? null,
+      avatarColor: r.profile?.avatar_color ?? null,
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name, "en-IE"));
+}

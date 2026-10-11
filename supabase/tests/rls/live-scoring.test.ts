@@ -141,7 +141,7 @@ describe("live rounds: who can be added", () => {
           c,
           "select public.live_round_create($1::jsonb, $2::jsonb, $3::jsonb)",
           [round(), JSON.stringify([player(ME, "Eire"), player(who, "Someone")]), card(18)],
-          /yourself, your PinPals, or guests/,
+          /yourself, your PinPals, people in your group, or guests/,
         );
       }
     });
