@@ -76,6 +76,28 @@ describe("currentMapTiles", () => {
     expect(f).toHaveBeenCalledTimes(2);
   });
 
+  it("retries without the high-DPI options when Google answers 400", async () => {
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    const f = vi
+      .fn()
+      .mockResolvedValueOnce(new Response('{"error":{"code":400}}', { status: 400 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(sessionBody(14 * DAY, "PLAIN")), { status: 200 })) as unknown as typeof fetch;
+    const t = await currentMapTiles({ GOOGLE_MAP_TILES_KEY: "k" }, f, NOW);
+    expect(t.provider === "google" && t.tileUrl.includes("session=PLAIN")).toBe(true);
+    const bodies = (f as unknown as { mock: { calls: [string, RequestInit][] } }).mock.calls.map((c) => JSON.parse(String(c[1].body)));
+    expect(bodies[0].highDpi).toBe(true);
+    expect(bodies[1]).toEqual({ mapType: "satellite", language: "en-GB", region: "IE" });
+    errors.mockRestore();
+  });
+
+  it("doesn't retry a refusal the plainer ask can't fix", async () => {
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    const f = vi.fn(async () => new Response("forbidden", { status: 403 })) as unknown as typeof fetch;
+    expect(await currentMapTiles({ GOOGLE_MAP_TILES_KEY: "k" }, f, NOW)).toEqual({ provider: "esri" });
+    expect(f).toHaveBeenCalledTimes(1);
+    errors.mockRestore();
+  });
+
   it("falls back to Esri when Google refuses or can't be reached", async () => {
     const refused = vi.fn(async () => new Response("API key not valid", { status: 403 })) as unknown as typeof fetch;
     const broken = vi.fn(async () => {
