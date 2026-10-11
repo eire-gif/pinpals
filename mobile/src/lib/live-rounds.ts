@@ -367,6 +367,19 @@ export function queueHighlight(roundId: number, playerId: number, hole: number, 
   );
 }
 
+/** "Match notifications" (0119): are birdie alerts on for me in this game?
+ *  One switch per round, or per match day / scramble for a day's matches. */
+export async function loadHighlightAlertsOn(roundId: number, matchDayId: number | null): Promise<boolean> {
+  const key = matchDayId != null ? `day:${matchDayId}` : `round:${roundId}`;
+  const { data } = await supabase.from("live_highlight_mutes").select("muted").eq("game_key", key).maybeSingle<{ muted: boolean }>();
+  return !data?.muted;
+}
+
+export async function setHighlightAlertsOn(roundId: number, on: boolean): Promise<void> {
+  const { error } = await supabase.rpc("live_highlight_set_muted", { p_round_id: roundId, p_muted: !on });
+  if (error) throw error;
+}
+
 /** Scramble: whose drive the team used on a hole. Null clears it. */
 export async function setLiveDrive(roundId: number, hole: number, position: number | null): Promise<void> {
   const { error } = await supabase.rpc("live_round_set_drive", { p_round_id: roundId, p_hole: hole, p_position: position });
