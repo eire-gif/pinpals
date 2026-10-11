@@ -20,6 +20,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { appRouteFor } from "@/lib/alert-routes";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { hrefFromNotification, registerForPush } from "@/lib/push";
+import { connectWidget } from "@/lib/widgets";
 import { colors, fonts } from "@/lib/theme";
 
 void SplashScreen.preventAutoHideAsync();
@@ -99,6 +100,8 @@ function RootNavigator() {
     void registerForPush().then((result) => {
       if (!result.ok) console.warn(`[push] not registered: ${result.reason}`);
     });
+    // The Home Screen widget's key (lib/widgets.ts). iPhone only; a no-op elsewhere.
+    void connectWidget(userId);
   }, [session?.user?.id]);
 
   // ---------------------------------------------------------------------

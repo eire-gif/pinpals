@@ -45,3 +45,8 @@ example
 # local env files
 .env
 !.env.example
+
+# @bacons/apple-targets writes these into the widget's folder at prebuild
+# (from expo-target.config.js); they're regenerated every build.
+/targets/*/Info.plist
+/targets/*/Assets.xcassets

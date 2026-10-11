@@ -45,6 +45,7 @@ import { liveGameShareText } from "@/lib/live-share";
 import { SITE_URL } from "@/lib/config";
 import { useLiveRefresh } from "@/lib/use-live-refresh";
 import { goHome } from "@/lib/go-home";
+import { refreshWidget } from "@/lib/widgets";
 
 /**
  * Scoring a round, and its leaderboard.
@@ -89,6 +90,9 @@ export default function LiveRoundScreen() {
       setFailed(false);
       const d = await loadLiveRound(roundId);
       setData(d);
+      // Scores change here (ours, or the group's via the live ping): the
+      // Home Screen widget fetches again (throttled, lib/widgets.ts).
+      refreshWidget();
       if (d && d.round.clubId != null && d.card.every((c) => c.strokeIndex != null)) {
         const tee = (d.round.teeName ?? "Standard").trim().toLowerCase();
         const saved = (await loadCourseCards(d.round.clubId).catch(() => [])).find(
