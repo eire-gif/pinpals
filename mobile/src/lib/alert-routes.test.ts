@@ -287,4 +287,10 @@ describe("every native destination is a screen that exists", () => {
     expect(appRouteFor("/members/not-a-member").kind).toBe("web");
     expect(appRouteFor("/feed/abc").kind).toBe("web");
   });
+
+  it("opens groups natively (0120)", () => {
+    expect(appRouteFor("/groups")).toEqual({ kind: "native", path: "/groups" });
+    expect(appRouteFor("/groups/12")).toEqual({ kind: "native", path: "/group/12" });
+    expect(appRouteFor("/groups/twelve").kind).toBe("web");
+  });
 });

@@ -19,6 +19,7 @@ import {
   RateYourCourses,
   ShareComposer,
 } from "@/components/home-social";
+import { HomeGroups } from "@/components/home-groups";
 import { LiveScoringCard } from "@/components/live-scoring-card";
 import { InviteBanner, SuggestionCard } from "@/components/pinpals";
 import { RecapPrompt } from "@/components/recap-prompt";
@@ -217,6 +218,10 @@ export default function HomeScreen() {
 
       {/* Right under the composer: both are "I'm playing / I've played". */}
       <LiveScoringCard />
+
+      {/* Groups (0120): an invitation waiting, or the groups you're in.
+          Renders nothing for a member in no groups. */}
+      <HomeGroups />
 
       {loading ? (
         <ActivityIndicator color={colors.green700} style={styles.spinner} />

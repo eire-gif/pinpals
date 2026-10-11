@@ -432,6 +432,14 @@ async function purgePersonalRows(
   await admin.from("posts").delete().eq("author_id", userId);
   await admin.from("post_comments").delete().eq("author_id", userId);
 
+  // Groups (0120). The profile stays (as "Former member"), so memberships
+  // would otherwise stay too. Deleting the membership row runs 0120's
+  // trigger: an owner's group passes to the longest-serving admin, else
+  // member, and a group nobody is left in is deleted. Their group chats
+  // follow, through the same trigger.
+  await admin.from("group_members").delete().eq("member_id", userId);
+  await admin.from("group_invitations").delete().eq("member_id", userId);
+
   // Two-sided tables. Written as two statements rather than an `.or()` filter
   // because a malformed or-filter fails open in PostgREST — it returns rows
   // rather than an error — and "fails open" on a delete is the wrong way for

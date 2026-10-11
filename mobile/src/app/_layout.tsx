@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { Platform } from "react-native";
 import { consumePendingInvite } from "@/lib/find-pinpals";
+import { consumePendingGroupInvite } from "@/lib/groups-data";
 import { useFonts } from "expo-font";
 import {
   PlayfairDisplay_700Bold,
@@ -109,6 +110,10 @@ function RootNavigator() {
     // An invite link opened before signing in (app/join.tsx): connect now.
     void consumePendingInvite().then((owner) => {
       if (owner) router.push({ pathname: "/member/[id]", params: { id: owner } });
+    });
+    // A group's invite link opened before signing in (app/join-group.tsx).
+    void consumePendingGroupInvite().then((groupId) => {
+      if (groupId) router.push({ pathname: "/group/[id]", params: { id: String(groupId) } });
     });
     void registerForPush().then((result) => {
       if (!result.ok) console.warn(`[push] not registered: ${result.reason}`);

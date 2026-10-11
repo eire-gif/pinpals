@@ -66,6 +66,8 @@ const EXACT: Record<string, string> = {
   "/profile/edit": "/edit-profile",
 
   "/feed": "/feed",
+  // Groups (0120).
+  "/groups": "/groups",
 
   "/community": "/members",
   "/members": "/members",
@@ -91,6 +93,8 @@ const PATTERNS: { match: RegExp; to: (id: string) => string }[] = [
   // match result opens the match-day board.
   { match: /^\/live\/rounds\/(\d+)$/, to: (id) => `/live/round/${id}` },
   { match: /^\/live\/days\/(\d+)$/, to: (id) => `/live/day/${id}` },
+  // Groups (0120): an invitation, a join request or an approval opens the group.
+  { match: /^\/groups\/(\d+)$/, to: (id) => `/group/${id}` },
   // A member's page is keyed by their uuid, not a number — the one pattern
   // here that is not `\d+`, and still exact: anything that is not a uuid
   // falls through to the web view rather than to a screen that would only

@@ -2,6 +2,8 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config";
 import { GUEST_COOKIE, INVITE_COOKIE, isGuestToken, isInviteCode } from "@/lib/find-pinpals";
+import { GROUP_INVITE_COOKIE } from "@/lib/group-invites";
+import { isGroupInviteCode } from "@/lib/groups";
 
 // Refreshes the Supabase auth session on every request so server components
 // always see an up-to-date cookie. Wired up in proxy.ts at the project root.
@@ -39,11 +41,15 @@ export async function updateSession(request: NextRequest) {
   if (user) {
     const invite = request.cookies.get(INVITE_COOKIE)?.value;
     const guest = request.cookies.get(GUEST_COOKIE)?.value;
-    if (invite || guest) {
+    // Groups (0120): a group's invite link, opened before signing in.
+    const groupInvite = request.cookies.get(GROUP_INVITE_COOKIE)?.value;
+    if (invite || guest || groupInvite) {
       if (isInviteCode(invite)) await supabase.rpc("connect_by_invite", { p_code: invite });
       if (isGuestToken(guest)) await supabase.rpc("claim_round_guest", { p_token: guest });
+      if (isGroupInviteCode(groupInvite)) await supabase.rpc("join_group_by_code", { p_code: groupInvite });
       supabaseResponse.cookies.delete(INVITE_COOKIE);
       supabaseResponse.cookies.delete(GUEST_COOKIE);
+      supabaseResponse.cookies.delete(GROUP_INVITE_COOKIE);
     }
   }
 

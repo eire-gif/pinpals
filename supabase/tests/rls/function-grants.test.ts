@@ -210,6 +210,31 @@ const EXPECTED: Record<string, Expectation> = {
   "scorecard_visible_row(p_member uuid, p_visibility text)": { anon: false, authenticated: true },
   "scorecard_save(p_id bigint, p_card jsonb, p_holes jsonb)": { anon: false, authenticated: true },
   "scorecard_from_live_round(p_round_id bigint)": { anon: false, authenticated: true },
+  // 0120 groups (step B)
+  "is_group_member(p_group_id bigint, p_user_id uuid)": { anon: false, authenticated: true },
+  "group_role(p_group_id bigint, p_user_id uuid)": { anon: false, authenticated: true },
+  "create_group(p_kind text, p_name text, p_about text, p_club_id bigint, p_starts_on date, p_ends_on date)": { anon: false, authenticated: true },
+  "update_group(p_group_id bigint, p_name text, p_about text, p_members_can_invite boolean, p_club_id bigint, p_starts_on date, p_ends_on date)": { anon: false, authenticated: true },
+  "delete_group(p_group_id bigint)": { anon: false, authenticated: true },
+  "invite_to_group(p_group_id bigint, p_member_ids uuid[])": { anon: false, authenticated: true },
+  "respond_group_invitation(p_group_id bigint, p_accept boolean)": { anon: false, authenticated: true },
+  "request_to_join_group(p_group_id bigint)": { anon: false, authenticated: true },
+  "withdraw_group_request(p_group_id bigint)": { anon: false, authenticated: true },
+  "review_group_request(p_group_id bigint, p_member_id uuid, p_approve boolean)": { anon: false, authenticated: true },
+  "group_invite_code(p_group_id bigint)": { anon: false, authenticated: true },
+  "reset_group_invite_code(p_group_id bigint)": { anon: false, authenticated: true },
+  // The website's /join/g/<code> page shows this before anyone signs in.
+  "group_invite_preview(p_code text)": { anon: true, authenticated: true },
+  "join_group_by_code(p_code text)": { anon: false, authenticated: true },
+  "leave_group(p_group_id bigint)": { anon: false, authenticated: true },
+  "remove_group_member(p_group_id bigint, p_member_id uuid)": { anon: false, authenticated: true },
+  "set_group_role(p_group_id bigint, p_member_id uuid, p_role text)": { anon: false, authenticated: true },
+  "set_group_muted(p_group_id bigint, p_muted boolean)": { anon: false, authenticated: true },
+  // Internal steps of the functions above, and their trigger.
+  "group_blocked_by_admins(p_group_id bigint, p_user_id uuid)": { anon: false, authenticated: false },
+  "group_add_member(p_group_id bigint, p_user_id uuid)": { anon: false, authenticated: false },
+  "group_sync_chat(p_group_id bigint)": { anon: false, authenticated: false },
+  "group_members_after_change()": { anon: false, authenticated: false },
 
   // --- Service role / internal only. Everything below is either a trigger
   // --- function, a sweep, or a privileged write path that must never be
