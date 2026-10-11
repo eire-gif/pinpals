@@ -88,3 +88,16 @@ export const fonts = {
   bodySemi: "PublicSans_600SemiBold",
   bodyBold: "PublicSans_700Bold",
 } as const;
+
+/**
+ * The title in the navigation bar ("Home", "Live scoring", "Set up a
+ * round"). Oct 2026: Public Sans rather than Playfair — at 17–19pt in a
+ * bar, the serif's thin strokes read as fussy and blur on smaller phones;
+ * a bold sans is the clearer, more modern label. Playfair stays for the
+ * big headlines on the page itself, where it has room to look its best.
+ */
+export const headerTitleStyle = {
+  fontFamily: "PublicSans_700Bold",
+  fontSize: 17,
+  letterSpacing: -0.2,
+} as const;

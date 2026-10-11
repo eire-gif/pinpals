@@ -40,6 +40,12 @@ import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 import { describeUnread } from "@/lib/inbox";
 import { useInboxUnread } from "@/lib/unread";
 
+// Bundled course photographs for the two cards at the foot of Home. Both
+// already fade to navy along the bottom (tools/prep-scene-images.py); the
+// card adds a flat veil on top so the text reads anywhere on the frame.
+const BAND_COURSES = require("../../../assets/images/scenes/coast-aerial.jpg");
+const BAND_MARKET = require("../../../assets/images/scenes/parkland.jpg");
+
 /**
  * Home.
  *
@@ -297,13 +303,15 @@ export default function HomeScreen() {
               otherwise three taps away through the menu. */}
           <View style={styles.quickLinks}>
             <QuickLink
-              icon="people-circle-outline"
+              icon="people"
               label="My connections"
+              sub="Your PinPals"
               onPress={() => router.push("/connections")}
             />
             <QuickLink
-              icon="pricetags-outline"
+              icon="pricetags"
               label="My listings"
+              sub="What you're selling"
               onPress={() => router.push("/my-listings")}
             />
           </View>
@@ -317,6 +325,8 @@ export default function HomeScreen() {
             }
             body="From Kerry to the Highlands — find a club, see who plays there, and put yourself on its map."
             action="See the directory"
+            icon="map-outline"
+            photo={BAND_COURSES}
             onPress={() => router.push("/courses")}
           />
 
@@ -325,6 +335,8 @@ export default function HomeScreen() {
             title="Clearing out the garage?"
             body="Sell your old clubs to a fellow golfer, or see what other members have listed near you. No fees to list."
             action="Browse the marketplace"
+            icon="pricetag-outline"
+            photo={BAND_MARKET}
             onPress={() => router.push("/marketplace")}
           />
         </View>
@@ -368,15 +380,18 @@ function ProfileNudge({
   );
 }
 
-/** A shortcut tile. Deliberately plain: it competes with the waiting rows
- *  above it, and those are the ones that should win the eye. */
+/** A shortcut tile (Oct 2026 restyle): a navy disc with a gold icon, the
+ *  same mark as the hero's tiles, so the foot of Home reads as the same
+ *  family as its top. Still quieter than the waiting rows above it. */
 function QuickLink({
   icon,
   label,
+  sub,
   onPress,
 }: {
   icon: React.ComponentProps<typeof Ionicons>["name"];
   label: string;
+  sub: string;
   onPress: () => void;
 }) {
   return (
@@ -384,11 +399,18 @@ function QuickLink({
       style={({ pressed }) => [styles.quickLink, pressed && styles.quickLinkOn]}
       onPress={onPress}
       accessibilityRole="button"
+      accessibilityLabel={label}
     >
-      <Ionicons name={icon} size={21} color={colors.green700} />
-      <Text style={styles.quickLinkLabel} numberOfLines={1}>
-        {label}
-      </Text>
+      <View style={styles.quickDisc}>
+        <Ionicons name={icon} size={18} color={colors.gold400} />
+      </View>
+      {/* No numberOfLines: a long label or a large text size wraps rather
+          than being cut (see the hero's note on truncation). */}
+      <View>
+        <Text style={styles.quickLinkLabel}>{label}</Text>
+        <Text style={styles.quickLinkSub}>{sub}</Text>
+      </View>
+      <Ionicons name="arrow-forward" size={16} color={colors.green700} style={styles.quickArrow} />
     </Pressable>
   );
 }
@@ -504,32 +526,53 @@ function WaitingRow({
   );
 }
 
+/**
+ * A photographic card (Oct 2026 restyle): a course photograph under a navy
+ * veil, the gold rule and eyebrow, a Playfair headline and a gold button —
+ * the hero's language, so Home ends the way it starts. The whole card is
+ * the press target; the button just says where it goes.
+ */
 function Band({
   eyebrow,
   title,
   body,
   action,
+  icon,
+  photo,
   onPress,
 }: {
   eyebrow: string;
   title: string;
   body: string;
   action: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  photo: number;
   onPress: () => void;
 }) {
   return (
-    <View style={styles.band}>
-      <View style={styles.eyebrowRow}>
-        <View style={styles.ruleGold} />
-        <Text style={styles.bandEyebrow}>{eyebrow}</Text>
-      </View>
-      <Text style={styles.bandTitle}>{title}</Text>
-      <Text style={styles.bandBody}>{body}</Text>
-      <Pressable style={styles.bandAction} onPress={onPress}>
-        <Text style={styles.bandActionLabel}>{action}</Text>
-        <Ionicons name="arrow-forward" size={16} color={colors.green700} />
-      </Pressable>
-    </View>
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`${title}. ${action}`}
+      style={({ pressed }) => [styles.bandOuter, pressed && styles.bandPressed]}
+    >
+      <ImageBackground source={photo} style={styles.band} imageStyle={styles.bandImage}>
+        <View style={styles.bandVeil} />
+        <View style={styles.bandIcon}>
+          <Ionicons name={icon} size={18} color={colors.gold400} />
+        </View>
+        <View style={styles.eyebrowRow}>
+          <View style={styles.rule} />
+          <Text style={styles.bandEyebrow}>{eyebrow}</Text>
+        </View>
+        <Text style={styles.bandTitle}>{title}</Text>
+        <Text style={styles.bandBody}>{body}</Text>
+        <View style={styles.bandAction}>
+          <Text style={styles.bandActionLabel}>{action}</Text>
+          <Ionicons name="arrow-forward" size={16} color={colors.navy900} />
+        </View>
+      </ImageBackground>
+    </Pressable>
   );
 }
 
@@ -577,7 +620,6 @@ const styles = StyleSheet.create({
 
   eyebrowRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   rule: { width: 20, height: 2, backgroundColor: colors.gold400 },
-  ruleGold: { width: 20, height: 2, backgroundColor: colors.gold500 },
   eyebrow: {
     fontFamily: fonts.bodyBold,
     fontSize: 11,
@@ -737,55 +779,92 @@ const styles = StyleSheet.create({
   quickLinks: { flexDirection: "row", gap: spacing.sm },
   quickLink: {
     flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    paddingVertical: 13,
-    paddingHorizontal: 14,
-    borderRadius: radii.md,
+    gap: 10,
+    padding: 14,
+    borderRadius: radii.lg,
     borderWidth: 1,
     borderColor: colors.line,
     backgroundColor: colors.surface,
+    shadowColor: "#000",
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
   },
   quickLinkOn: { backgroundColor: colors.surfaceTint },
-  quickLinkLabel: {
-    flex: 1,
-    fontFamily: fonts.bodySemi,
-    fontSize: type.small,
-    color: colors.ink900,
+  quickDisc: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.navy900,
+    alignItems: "center",
+    justifyContent: "center",
   },
+  quickLinkLabel: { fontFamily: fonts.bodyBold, fontSize: type.small, color: colors.ink900 },
+  quickLinkSub: { fontFamily: fonts.body, fontSize: 12, color: colors.ink500, marginTop: 1 },
+  quickArrow: { position: "absolute", top: 16, right: 14 },
 
-  band: {
-    backgroundColor: colors.surfaceTint,
-    borderWidth: 1,
-    borderColor: colors.line,
+  bandOuter: {
     borderRadius: radii.lg,
+    backgroundColor: colors.navy900,
+    shadowColor: "#000",
+    shadowOpacity: 0.18,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
+  },
+  bandPressed: { opacity: 0.92 },
+  band: {
+    borderRadius: radii.lg,
+    overflow: "hidden",
     padding: spacing.md,
-    gap: 6,
+    paddingTop: 64,
+    gap: 8,
+    justifyContent: "flex-end",
+  },
+  bandImage: { resizeMode: "cover", borderRadius: radii.lg },
+  bandVeil: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(12,32,56,0.55)" },
+  bandIcon: {
+    position: "absolute",
+    top: spacing.md,
+    right: spacing.md,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(12,32,56,0.7)",
+    borderWidth: 1,
+    borderColor: "rgba(232,196,107,0.5)",
+    alignItems: "center",
+    justifyContent: "center",
   },
   bandEyebrow: {
     fontFamily: fonts.bodyBold,
     fontSize: 11,
-    letterSpacing: 1,
+    letterSpacing: 1.2,
     textTransform: "uppercase",
-    color: colors.green700,
+    color: colors.gold400,
   },
   bandTitle: {
     fontFamily: fonts.display,
-    fontSize: 20,
-    lineHeight: 25,
-    color: colors.ink900,
+    fontSize: 24,
+    lineHeight: 29,
+    color: "#ffffff",
   },
-  bandBody: { fontFamily: fonts.body, fontSize: type.small, color: colors.ink500 },
+  bandBody: { fontFamily: fonts.body, fontSize: type.small, lineHeight: 20, color: "rgba(255,255,255,0.9)", paddingRight: spacing.sm },
   bandAction: {
+    alignSelf: "flex-start",
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    minHeight: 44,
+    minHeight: 40,
+    marginTop: 6,
+    paddingHorizontal: 16,
+    borderRadius: radii.pill,
+    backgroundColor: colors.gold400,
   },
   bandActionLabel: {
     fontFamily: fonts.bodyBold,
     fontSize: type.small,
-    color: colors.green700,
+    color: colors.navy900,
   },
 });

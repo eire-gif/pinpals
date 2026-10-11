@@ -5,25 +5,33 @@ import { teeColour } from "@/lib/tee-colours";
 import { colors, fonts, radii } from "@/lib/theme";
 
 /**
- * A tee to choose, drawn in its marker's colour (tee-colours.ts): a swatch
- * when it isn't chosen, the whole chip in the colour when it is.
+ * A tee to choose, drawn as its marker looks on the tee (tee-colours.ts):
+ * Blue is a blue button, Red a red one, White a white one with an edge.
+ *
+ * Every chip is in its colour, chosen or not (Oct 2026 — members asked for
+ * the buttons to BE the colours, not carry a dot of them). The chosen one
+ * is marked twice, so it never depends on telling two shades apart: a tick,
+ * and a navy ring set off from the chip by a cream gap. The others sit a
+ * little quieter (no ring, a softer shadow).
  */
 export function TeeChip({ name, label, selected, onPress }: { name: string; label?: string; selected: boolean; onPress: () => void }) {
   const c = teeColour(name);
   return (
     <Pressable
       onPress={onPress}
-      style={[styles.chip, selected ? { backgroundColor: c.fill, borderColor: c.border, borderWidth: 2 } : null]}
+      style={({ pressed }) => [styles.ring, selected && styles.ringOn, pressed && styles.pressed]}
       accessibilityRole="button"
       accessibilityState={{ selected }}
       accessibilityLabel={`${label ?? name} tees`}
     >
-      {selected ? (
-        <Ionicons name="checkmark" size={16} color={c.text} />
-      ) : (
-        <View style={[styles.swatch, { backgroundColor: c.fill, borderColor: c.border }]} />
-      )}
-      <Text style={[styles.label, selected && { color: c.text }]}>{label ?? name}</Text>
+      <View style={[styles.chip, { backgroundColor: c.fill, borderColor: c.border }, selected && styles.chipOn]}>
+        {selected ? (
+          <View style={[styles.tick, { backgroundColor: c.text }]}>
+            <Ionicons name="checkmark" size={13} color={c.fill === "#ffffff" ? colors.ink900 : c.fill} />
+          </View>
+        ) : null}
+        <Text style={[styles.label, { color: c.text }]}>{label ?? name}</Text>
+      </View>
     </Pressable>
   );
 }
@@ -35,17 +43,26 @@ export function TeeDot({ name, size = 10 }: { name: string; size?: number }) {
 }
 
 const styles = StyleSheet.create({
+  // The ring is the outer Pressable: transparent until chosen, so chosen and
+  // unchosen chips are the same size and nothing shifts when you pick one.
+  ring: { borderRadius: radii.pill, borderWidth: 2, borderColor: "transparent", padding: 2 },
+  ringOn: { borderColor: colors.navy900 },
+  pressed: { opacity: 0.8 },
   chip: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-    minHeight: 44,
-    paddingHorizontal: 14,
+    gap: 7,
+    minHeight: 40,
+    paddingHorizontal: 16,
     borderRadius: radii.pill,
     borderWidth: 1,
-    borderColor: colors.line,
-    backgroundColor: colors.surface,
+    shadowColor: "#000",
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 1 },
+    elevation: 1,
   },
-  swatch: { width: 16, height: 16, borderRadius: 8, borderWidth: 1 },
-  label: { fontFamily: fonts.bodyBold, fontSize: 14, color: colors.ink900 },
+  chipOn: { shadowOpacity: 0.18, shadowRadius: 5, shadowOffset: { width: 0, height: 2 }, elevation: 3 },
+  tick: { width: 18, height: 18, borderRadius: 9, alignItems: "center", justifyContent: "center" },
+  label: { fontFamily: fonts.bodyBold, fontSize: 14 },
 });

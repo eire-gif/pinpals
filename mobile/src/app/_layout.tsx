@@ -22,7 +22,7 @@ import { appRouteFor } from "@/lib/alert-routes";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { hrefFromNotification, registerForPush } from "@/lib/push";
 import { connectWidget } from "@/lib/widgets";
-import { colors, fonts } from "@/lib/theme";
+import { colors, fonts, headerTitleStyle } from "@/lib/theme";
 
 void SplashScreen.preventAutoHideAsync();
 
@@ -177,7 +177,7 @@ function RootNavigator() {
       screenOptions={{
         headerStyle: { backgroundColor: colors.cream50 },
         headerTintColor: colors.ink900,
-        headerTitleStyle: { fontFamily: fonts.display, fontSize: 19 },
+        headerTitleStyle,
         // Every screen's back button says "Back". Without this, a screen
         // opened from the tabs showed the route group's name: "(tabs)".
         headerBackTitle: "Back",

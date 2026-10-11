@@ -165,33 +165,28 @@ export default function LiveScoringHub() {
 
 function DayList({ days, me, onDelete }: { days: MatchDaySummary[]; me: string | null; onDelete: (d: MatchDaySummary) => void }) {
   return (
-    <View style={styles.section}>
-      <Text style={styles.sectionTitle}>Match days & scrambles</Text>
-      <View style={styles.list}>
-        {days.map((d, i) => (
-          <Pressable
-            key={d.id}
-            onPress={() => router.push({ pathname: "/live/day/[id]", params: { id: String(d.id) } })}
-            style={({ pressed }) => [styles.row, i > 0 && styles.rowDivider, pressed && styles.rowPressed]}
-            accessibilityRole="button"
-            accessibilityLabel={`${d.title}, ${d.courseName}, ${d.live ? "in play" : "finished"}`}
-          >
-            <View style={[styles.dot, d.live ? styles.dotLive : styles.dotDone]} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.rowTitle} numberOfLines={1}>
-                {d.title}
-              </Text>
-              <Text style={styles.rowMeta}>
-                {d.courseName} · {dateLabel(d.playedOn)} · {d.matchCount}{" "}
-                {d.kind === "scramble" ? (d.matchCount === 1 ? "team · Scramble" : "teams · Scramble") : d.matchCount === 1 ? "match" : "matches"}
-              </Text>
-            </View>
-            {me != null && d.createdBy === me ? <DeleteButton label={`Delete ${d.title}`} onPress={() => onDelete(d)} /> : null}
-            <Ionicons name="chevron-forward" size={18} color={colors.ink500} />
-          </Pressable>
-        ))}
-      </View>
-    </View>
+    <Section title="Match days & scrambles" count={days.length}>
+      {days.map((d, i) => (
+        <GameRow
+          key={d.id}
+          first={i === 0}
+          date={d.playedOn}
+          live={d.live}
+          title={d.title}
+          place={d.courseName}
+          tag={d.kind === "scramble" ? "Scramble" : "Match day"}
+          tagTone={d.kind === "scramble" ? "gold" : "navy"}
+          count={
+            d.kind === "scramble"
+              ? `${d.matchCount} ${d.matchCount === 1 ? "team" : "teams"}`
+              : `${d.matchCount} ${d.matchCount === 1 ? "match" : "matches"}`
+          }
+          a11y={`${d.title}, ${d.courseName}, ${d.live ? "in play" : "finished"}`}
+          onPress={() => router.push({ pathname: "/live/day/[id]", params: { id: String(d.id) } })}
+          onDelete={me != null && d.createdBy === me ? { label: `Delete ${d.title}`, run: () => onDelete(d) } : null}
+        />
+      ))}
+    </Section>
   );
 }
 
@@ -207,33 +202,112 @@ function RoundList({
   onDelete: (r: LiveRoundSummary) => void;
 }) {
   return (
+    <Section title={title} count={rounds.length}>
+      {rounds.map((r, i) => (
+        <GameRow
+          key={r.id}
+          first={i === 0}
+          date={r.playedOn}
+          live={r.status === "live"}
+          title={r.courseName}
+          tag={formatInfo(r.format).label}
+          tagTone="green"
+          count={`${r.playerCount} ${r.playerCount === 1 ? "player" : "players"}`}
+          a11y={`${r.courseName}, ${formatInfo(r.format).label}, ${r.status === "live" ? "in play" : "finished"}`}
+          onPress={() => router.push({ pathname: "/live/round/[id]", params: { id: String(r.id) } })}
+          onDelete={me != null && r.createdBy === me ? { label: `Delete the round at ${r.courseName}`, run: () => onDelete(r) } : null}
+        />
+      ))}
+    </Section>
+  );
+}
+
+function Section({ title, count, children }: { title: string; count: number; children: React.ReactNode }) {
+  return (
     <View style={styles.section}>
-      <Text style={styles.sectionTitle}>{title}</Text>
-      <View style={styles.list}>
-        {rounds.map((r, i) => (
-          <Pressable
-            key={r.id}
-            onPress={() => router.push({ pathname: "/live/round/[id]", params: { id: String(r.id) } })}
-            style={({ pressed }) => [styles.row, i > 0 && styles.rowDivider, pressed && styles.rowPressed]}
-            accessibilityRole="button"
-            accessibilityLabel={`${r.courseName}, ${formatInfo(r.format).label}, ${r.status === "live" ? "in play" : "finished"}`}
-          >
-            <View style={[styles.dot, r.status === "live" ? styles.dotLive : styles.dotDone]} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.rowTitle} numberOfLines={1}>
-                {r.courseName}
-              </Text>
-              <Text style={styles.rowMeta}>
-                {formatInfo(r.format).label} · {dateLabel(r.playedOn)} · {r.playerCount}{" "}
-                {r.playerCount === 1 ? "player" : "players"}
-              </Text>
-            </View>
-            {me != null && r.createdBy === me ? <DeleteButton label={`Delete the round at ${r.courseName}`} onPress={() => onDelete(r)} /> : null}
-            <Ionicons name="chevron-forward" size={18} color={colors.ink500} />
-          </Pressable>
-        ))}
+      <View style={styles.sectionHead}>
+        <View style={styles.sectionRule} />
+        <Text style={styles.sectionTitle}>{title}</Text>
+        <Text style={styles.sectionCount}>{count}</Text>
       </View>
+      <View style={styles.list}>{children}</View>
     </View>
+  );
+}
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/**
+ * One game (Oct 2026 restyle): a calendar tile for the day it was played —
+ * navy, or green while it's in play — then the course, a coloured tag for
+ * the format and the head count. Live ones also say LIVE in words, so the
+ * green is never the only signal.
+ */
+function GameRow({
+  first,
+  date,
+  live,
+  title,
+  place,
+  tag,
+  tagTone,
+  count,
+  a11y,
+  onPress,
+  onDelete,
+}: {
+  first: boolean;
+  date: string;
+  live: boolean;
+  title: string;
+  place?: string;
+  tag: string;
+  tagTone: "green" | "gold" | "navy";
+  count: string;
+  a11y: string;
+  onPress: () => void;
+  onDelete: { label: string; run: () => void } | null;
+}) {
+  const [, m, d] = date.split("-").map(Number);
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [styles.row, !first && styles.rowDivider, live && styles.rowLive, pressed && styles.rowPressed]}
+      accessibilityRole="button"
+      accessibilityLabel={`${a11y}, ${dateLabel(date)}`}
+    >
+      <View style={[styles.dateTile, live && styles.dateTileLive]}>
+        <Text style={styles.dateDay}>{Number.isFinite(d) ? d : "–"}</Text>
+        <Text style={styles.dateMonth}>{MONTHS[(m ?? 1) - 1] ?? ""}</Text>
+      </View>
+      <View style={styles.rowBody}>
+        <View style={styles.titleLine}>
+          <Text style={styles.rowTitle} numberOfLines={1}>
+            {title}
+          </Text>
+          {live ? (
+            <View style={styles.livePill}>
+              <View style={styles.liveDot} />
+              <Text style={styles.livePillText}>Live</Text>
+            </View>
+          ) : null}
+        </View>
+        {place ? (
+          <Text style={styles.rowPlace} numberOfLines={1}>
+            {place}
+          </Text>
+        ) : null}
+        <View style={styles.metaLine}>
+          <View style={[styles.tag, TAGS[tagTone].box]}>
+            <Text style={[styles.tagText, TAGS[tagTone].text]}>{tag}</Text>
+          </View>
+          <Ionicons name="people-outline" size={13} color={colors.ink500} />
+          <Text style={styles.rowMeta}>{count}</Text>
+        </View>
+      </View>
+      {onDelete ? <DeleteButton label={onDelete.label} onPress={onDelete.run} /> : null}
+      <Ionicons name="chevron-forward" size={18} color={colors.ink500} />
+    </Pressable>
   );
 }
 
@@ -247,7 +321,7 @@ function DeleteButton({ label, onPress }: { label: string; onPress: () => void }
 }
 
 const styles = StyleSheet.create({
-  trash: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
+  trash: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: colors.cream50 },
   page: { padding: spacing.md, gap: spacing.lg, paddingBottom: spacing.xl },
   hero: {
     marginHorizontal: -spacing.md,
@@ -270,20 +344,60 @@ const styles = StyleSheet.create({
   heroBody: { fontFamily: fonts.body, fontSize: type.small, lineHeight: 20, color: colors.cream100 },
   pressed: { opacity: 0.85 },
   section: { gap: spacing.sm },
-  sectionTitle: { fontFamily: fonts.bodyBold, fontSize: 12, letterSpacing: 1.2, textTransform: "uppercase", color: colors.ink500 },
+  sectionHead: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  sectionRule: { width: 18, height: 2, backgroundColor: colors.gold500 },
+  sectionTitle: { flex: 1, fontFamily: fonts.bodyBold, fontSize: 12, letterSpacing: 1.2, textTransform: "uppercase", color: colors.navy900 },
+  sectionCount: { fontFamily: fonts.bodyBold, fontSize: 12, color: colors.ink500 },
   list: {
     backgroundColor: colors.surface,
     borderRadius: radii.lg,
     borderWidth: 1,
     borderColor: colors.line,
     overflow: "hidden",
+    shadowColor: "#000",
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 1,
   },
-  row: { flexDirection: "row", alignItems: "center", gap: spacing.md, paddingHorizontal: spacing.md, minHeight: 64 },
+  row: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 12, paddingVertical: 12, minHeight: 76 },
   rowDivider: { borderTopWidth: 1, borderTopColor: colors.line },
+  rowLive: { backgroundColor: "#f3f8f2" },
   rowPressed: { backgroundColor: colors.surfaceTint },
-  dot: { width: 10, height: 10, borderRadius: 5 },
-  dotLive: { backgroundColor: colors.green600 },
-  dotDone: { backgroundColor: colors.line },
-  rowTitle: { fontFamily: fonts.bodySemi, fontSize: type.body, color: colors.ink900 },
-  rowMeta: { fontFamily: fonts.body, fontSize: 13, color: colors.ink500, marginTop: 2 },
+  dateTile: {
+    width: 48,
+    height: 52,
+    borderRadius: radii.md,
+    backgroundColor: colors.navy900,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  dateTileLive: { backgroundColor: colors.green700 },
+  dateDay: { fontFamily: fonts.bodyBold, fontSize: 20, lineHeight: 23, color: colors.cream50 },
+  dateMonth: { fontFamily: fonts.bodyBold, fontSize: 10, letterSpacing: 1, textTransform: "uppercase", color: colors.gold400 },
+  rowBody: { flex: 1, gap: 3 },
+  titleLine: { flexDirection: "row", alignItems: "center", gap: 8 },
+  rowTitle: { flexShrink: 1, fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.ink900 },
+  rowPlace: { fontFamily: fonts.body, fontSize: 13, color: colors.ink500 },
+  metaLine: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 2 },
+  tag: { borderRadius: radii.pill, paddingHorizontal: 8, paddingVertical: 2, marginRight: 4 },
+  tagText: { fontFamily: fonts.bodyBold, fontSize: 11, letterSpacing: 0.3 },
+  rowMeta: { fontFamily: fonts.bodySemi, fontSize: 13, color: colors.ink500 },
+  livePill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    borderRadius: radii.pill,
+    backgroundColor: colors.green600,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+  },
+  liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.cream50 },
+  livePillText: { fontFamily: fonts.bodyBold, fontSize: 10, letterSpacing: 0.8, textTransform: "uppercase", color: colors.cream50 },
 });
+
+const TAGS = {
+  green: StyleSheet.create({ box: { backgroundColor: colors.green100 }, text: { color: colors.green800 } }),
+  gold: StyleSheet.create({ box: { backgroundColor: "#f7ecd0" }, text: { color: "#6b4f12" } }),
+  navy: StyleSheet.create({ box: { backgroundColor: "#e3e8f0" }, text: { color: colors.navy900 } }),
+};
