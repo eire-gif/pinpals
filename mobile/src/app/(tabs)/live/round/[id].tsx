@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { FourballConnect } from "@/components/fourball-connect";
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Pressable, ScrollView, Share, StyleSheet, Text, View } from "react-native";
 import { Stack, router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
+import { HeaderPill, headerButtons } from "@/components/header-actions";
 import { ScoreMark, ScoreMarkKey } from "@/components/score-mark";
 import { LoadError, StateMessage } from "@/components/state-message";
 import { useAuth } from "@/lib/auth";
@@ -38,7 +39,10 @@ import {
   type ScoreSheet,
 } from "@/lib/live-scoring";
 import { colors, creamAlpha, fonts, radii, spacing, type } from "@/lib/theme";
-import { scorecardFromLiveRound } from "@/lib/scorecards";
+import { createScorecardShareLink, loadScorecard, scorecardFromLiveRound } from "@/lib/scorecards";
+import { shareText } from "@/lib/scorecard-math";
+import { liveGameShareText } from "@/lib/live-share";
+import { SITE_URL } from "@/lib/config";
 import { useLiveRefresh } from "@/lib/use-live-refresh";
 import { goHome } from "@/lib/go-home";
 
@@ -73,6 +77,7 @@ export default function LiveRoundScreen() {
   // save button: a second player tapping it used to get an error (0106).
   const [cardOnFile, setCardOnFile] = useState<"same" | "different" | "none" | null>(null);
   const [dayHeader, setDayHeader] = useState<Pick<MatchDay, "id" | "createdBy" | "title" | "teamNames"> | null>(null);
+  const [sharing, setSharing] = useState(false);
   const { session } = useAuth();
   const me = session?.user?.id ?? null;
   const started = useRef(false);
@@ -268,6 +273,79 @@ export default function LiveRoundScreen() {
     }
   };
 
+  // Oct 2026: "Share scorecard". Two things to send: the whole game as a
+  // message (anyone watching can send it), or your own card with a link to
+  // its page — which needs it saved as a scorecard first (0110), so that
+  // one saves (or refreshes) it on the way.
+  const iPlay = me != null && players.some((p) => p.memberId === me);
+  const canShareMine = isOn("scorecards") && !scr && iPlay;
+  const shareGame = async () => {
+    const text = liveGameShareText({
+      courseName: round.courseName,
+      teeName: round.teeName,
+      playedOn: round.playedOn,
+      live,
+      formatLabel: scr ? `${scr.size}-person scramble` : info.label,
+      heading: dayHeader && round.matchNumber ? `${dayHeader.title} · Match ${round.matchNumber}` : null,
+      card,
+      rows: rows.map((r) => ({ id: r.id, name: r.name })),
+      scores,
+      board: matchFormat ? null : board,
+      strokeLike,
+      match: matchNow
+        ? {
+            status: matchNow.leader === 0 ? matchNow.margin : `${sideName(matchNow.leader)} ${matchNow.margin}`,
+            detail: matchNow.finished ? "Match over" : matchNow.holes.length > 0 ? `thru ${matchNow.holes.length} · ${matchNow.holesLeft} to play` : "",
+          }
+        : null,
+      siteUrl: SITE_URL,
+    });
+    try {
+      await Share.share({ message: text });
+    } catch {
+      // Dismissed.
+    }
+  };
+  const shareMine = async () => {
+    setSharing(true);
+    let message: string | null = null;
+    try {
+      const id = await scorecardFromLiveRound(round.id);
+      const saved = await loadScorecard(id);
+      if (!saved) throw new Error("Your card couldn't be found. Please try again.");
+      let link: string | null = null;
+      try {
+        link = (await createScorecardShareLink(saved.id)).url;
+      } catch {
+        // The card still goes as text; it just has no link.
+      }
+      message = shareText(saved, saved.holeList, link);
+    } catch (e) {
+      const msg = (e as { message?: unknown } | null)?.message;
+      Alert.alert("Couldn't share your card", typeof msg === "string" && msg ? msg : "Please try again.");
+    } finally {
+      setSharing(false);
+    }
+    if (!message) return;
+    try {
+      await Share.share({ message });
+    } catch {
+      // Dismissed.
+    }
+  };
+  const share = () => {
+    if (sharing) return;
+    if (!canShareMine) {
+      void shareGame();
+      return;
+    }
+    Alert.alert("Share scorecard", live ? "Send the card as it stands right now." : "Send the final card.", [
+      { text: rows.length > 1 ? "Everyone's card" : "This card", onPress: () => void shareGame() },
+      { text: "My card, with a link", onPress: () => void shareMine() },
+      { text: "Cancel", style: "cancel" },
+    ]);
+  };
+
   const cardComplete = card.every((c) => c.strokeIndex != null);
 
   // Oct 2026: once every hole is in (or the round is finished), a way back
@@ -326,7 +404,14 @@ export default function LiveRoundScreen() {
 
   return (
     <View style={{ flex: 1 }}>
-      <Stack.Screen options={{ title: round.matchNumber ? `Match ${round.matchNumber}` : round.courseName }} />
+      <Stack.Screen
+        options={{
+          title: round.matchNumber ? `Match ${round.matchNumber}` : round.courseName,
+          ...headerButtons({
+            right: <HeaderPill label="Share" variant="secondary" busy={sharing} onPress={share} accessibilityLabel="Share scorecard" />,
+          }),
+        }}
+      />
       {dayHeader ? (
         <Pressable
           onPress={() => router.push({ pathname: "/live/day/[id]", params: { id: String(dayHeader.id) } })}
@@ -567,6 +652,7 @@ export default function LiveRoundScreen() {
             onPickHole={setHole}
             shotsAt={shotsAt}
             second={round.format === "stableford" && !matchFormat ? "points" : "net"}
+            onShare={share}
           />
           {canScore ? (
             <View style={styles.footerRow}>
@@ -668,6 +754,11 @@ export default function LiveRoundScreen() {
               <Text style={styles.link}>Save this card for {round.courseName}</Text>
             </Pressable>
           ) : null}
+
+          <Pressable onPress={share} disabled={sharing} style={styles.shareButton} accessibilityRole="button" accessibilityLabel="Share scorecard">
+            {sharing ? <ActivityIndicator color={colors.navy900} /> : <Ionicons name="share-outline" size={18} color={colors.navy900} />}
+            <Text style={styles.shareLabel}>Share scorecard</Text>
+          </Pressable>
 
           {/* Scorecards (0110): your own line as a card in your profile.
               Saving again later refreshes the same card. */}
@@ -856,6 +947,7 @@ function LiveCard({
   onPickHole,
   shotsAt,
   second,
+  onShare,
 }: {
   card: CardHole[];
   rows: { id: number; name: string }[];
@@ -865,6 +957,7 @@ function LiveCard({
   shotsAt: (playerId: number, hole: number) => number | null;
   /** The second view: Stableford points, or net strokes for stroke and match play. */
   second: "points" | "net";
+  onShare: () => void;
 }) {
   const eighteen = card.length > 9;
   const [nine, setNine] = useState<"front" | "back" | null>(null);
@@ -901,7 +994,13 @@ function LiveCard({
   return (
     <View style={styles.lc}>
       <View style={styles.lcHead}>
-        <Text style={styles.lcTitle}>Scorecard</Text>
+        <View style={styles.lcTitleRow}>
+          <Text style={styles.lcTitle}>Scorecard</Text>
+          <Pressable onPress={onShare} hitSlop={8} style={styles.lcShare} accessibilityRole="button" accessibilityLabel="Share scorecard">
+            <Ionicons name="share-outline" size={15} color={colors.green700} />
+            <Text style={styles.lcShareText}>Share</Text>
+          </Pressable>
+        </View>
         <View style={styles.lcToggles}>
           {(["strokes", second] as const).map((m) => (
             <Pressable key={m} onPress={() => setMode(m)} style={[styles.lcPill, mode === m && styles.lcPillOn]} accessibilityRole="button" accessibilityState={{ selected: mode === m }}>
@@ -1064,6 +1163,8 @@ const styles = StyleSheet.create({
   next: { minHeight: 54, borderRadius: radii.pill, backgroundColor: colors.green700, alignItems: "center", justifyContent: "center" },
   backLive: { flexDirection: "row", gap: 8, minHeight: 54, borderRadius: radii.pill, backgroundColor: colors.navy900, borderWidth: 1, borderColor: colors.gold500, alignItems: "center", justifyContent: "center" },
   backLiveLabel: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.cream50 },
+  shareButton: { flexDirection: "row", gap: 8, minHeight: 52, borderRadius: radii.pill, backgroundColor: colors.gold400, borderWidth: 1, borderColor: colors.gold500, alignItems: "center", justifyContent: "center" },
+  shareLabel: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.navy900 },
   nextLabel: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.cream50 },
   secondary: { flexDirection: "row", gap: spacing.sm, minHeight: 48, borderRadius: radii.pill, borderWidth: 1, borderColor: colors.green700, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.md },
   cardSaved: { flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: colors.green100, borderRadius: radii.lg, padding: spacing.md },
@@ -1112,6 +1213,9 @@ const styles = StyleSheet.create({
   lc: { gap: spacing.sm, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: radii.lg, padding: spacing.md, paddingHorizontal: 10 },
   lcHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 4 },
   lcTitle: { fontFamily: fonts.display, fontSize: 20, color: colors.navy900 },
+  lcTitleRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  lcShare: { flexDirection: "row", alignItems: "center", gap: 4, minHeight: 30, paddingHorizontal: 10, borderRadius: radii.pill, borderWidth: 1, borderColor: colors.green700 },
+  lcShareText: { fontFamily: fonts.bodySemi, fontSize: 12.5, color: colors.green700 },
   lcToggles: { flexDirection: "row", gap: 4, backgroundColor: colors.cream100, borderRadius: radii.pill, padding: 3 },
   lcPill: { paddingHorizontal: 12, minHeight: 30, borderRadius: radii.pill, justifyContent: "center" },
   lcPillOn: { backgroundColor: colors.navy900 },
