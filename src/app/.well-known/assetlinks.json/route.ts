@@ -24,7 +24,11 @@
  * the browser, which is what happens today.
  */
 
-const SHA256_CERT_FINGERPRINTS: string[] = [];
+const SHA256_CERT_FINGERPRINTS: string[] = [
+  // EAS upload keystore (Build Credentials HxYoBt9jhL), added 11 Oct 2026.
+  // Signs the internal/preview builds installed from expo.dev.
+  "B2:5F:83:07:2B:31:66:63:0A:15:96:77:B0:E4:7D:30:03:21:2A:76:DA:2E:40:37:3E:F5:85:4F:A7:0E:52:74",
+];
 
 const ASSET_LINKS = SHA256_CERT_FINGERPRINTS.length
   ? [
