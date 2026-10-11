@@ -66,7 +66,7 @@ export const NOTIFICATION_CATEGORY_DESCRIPTIONS: Record<OptionalNotificationCate
   offers: "Offers you receive, and updates on offers you've made.",
   auctions: "Outbid alerts, auctions ending soon, and results.",
   reviews: "When you're able to leave a review after a completed order.",
-  tee_times: "When someone you've connected with posts a tee time, adds you to a round or match day, or a match in it finishes.",
+  tee_times: "When someone you've connected with posts a tee time, adds you to a round or match day, a match in it finishes, or someone in your game makes a birdie or better.",
   feed: "When another member comments on something you posted, or replies to your comment.",
 };
 
@@ -131,6 +131,9 @@ export const NOTIFICATION_TYPES = [
   "live_round_added",
   "live_match_added",
   "live_match_result",
+  // Oct 2026: a birdie, eagle, albatross or hole in one, to everyone in the
+  // game. The app only (Inbox + phone push) — never email or browser push.
+  "live_highlight",
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 
@@ -171,6 +174,7 @@ export const NOTIFICATION_TYPE_CATEGORY: Record<NotificationType, NotificationCa
   live_round_added: "tee_times",
   live_match_added: "tee_times",
   live_match_result: "tee_times",
+  live_highlight: "tee_times",
 };
 
 /** Which preference category (if any) governs delivery for this notification
