@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "375958318274",
+    "project_id": "pinpals-b2584",
+    "storage_bucket": "pinpals-b2584.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:375958318274:android:b482ab4a231ce3ecd41f5b",
+        "android_client_info": {
+          "package_name": "ie.pinpals.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC9ZyjD8KCZMwO_fLOwCbkhQCVuE2HKPx8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
