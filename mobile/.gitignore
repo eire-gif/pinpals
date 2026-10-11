@@ -50,3 +50,10 @@ example
 # (from expo-target.config.js); they're regenerated every build.
 /targets/*/Info.plist
 /targets/*/Assets.xcassets
+
+# Firebase (Android push). Held by EAS as secrets, never committed:
+# google-services.json is uploaded with `eas env:create`, and the FCM
+# service-account key with `eas credentials`.
+google-services.json
+*firebase-adminsdk*.json
+fcm-key.json
