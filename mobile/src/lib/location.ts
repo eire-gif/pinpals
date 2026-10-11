@@ -57,3 +57,19 @@ export function useCurrentLocation() {
 
   return { state, request, reset };
 }
+
+/**
+ * Whether the member has already said yes to location, without asking.
+ * Screens that would like a position up front (nearby courses when setting
+ * up a game, Oct 2026) use this to fetch one silently when they may, and
+ * otherwise wait for a tap — the rule above still holds: never prompt
+ * before the member has a reason in front of them.
+ */
+export async function locationAlreadyAllowed(): Promise<boolean> {
+  try {
+    const { status } = await Location.getForegroundPermissionsAsync();
+    return status === "granted";
+  } catch {
+    return false;
+  }
+}

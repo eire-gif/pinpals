@@ -1,10 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 
 import { CourseSearch } from "@/components/course-search";
 import { Chip, ChipGroup, Section } from "@/components/form-bits";
 import { TeeChip } from "@/components/tee-chip";
-import { placeLabel, type Club } from "@/lib/courses";
+import { coursesNear, distanceLabel, placeLabel, type Club } from "@/lib/courses";
+import { locationAlreadyAllowed, useCurrentLocation } from "@/lib/location";
 import { loadCourseCards, type CourseCard } from "@/lib/live-rounds";
 import { blankCard, type CardHole } from "@/lib/live-scoring";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
@@ -16,6 +18,10 @@ import { colors, fonts, radii, spacing, type } from "@/lib/theme";
  * (course_cards, 0103) its tees are offered and fill in rating, slope, par
  * and every hole's stroke index. Otherwise the organiser types the rating and
  * slope from the card, and stroke indexes are entered as the group plays.
+ *
+ * Oct 2026: "Nearby" under the search box — most games are set up in the
+ * car park, so the course is usually the nearest one. If the member has
+ * already allowed location the list fills itself; otherwise one tap asks.
  */
 
 const parseNumber = (text: string): number | null => {
@@ -102,7 +108,10 @@ export function CourseSection({ setup }: { setup: CourseSetup }) {
             </Pressable>
           </View>
         ) : (
-          <CourseSearch placeholder="Search for the course" onPick={s.setClub} />
+          <>
+            <CourseSearch placeholder="Search for the course" onPick={s.setClub} />
+            <NearbyCourses onPick={s.setClub} />
+          </>
         )}
       </Section>
 
@@ -139,6 +148,107 @@ export function CourseSection({ setup }: { setup: CourseSetup }) {
         </Section>
       ) : null}
     </>
+  );
+}
+
+const NEAR_RADIUS_KM = 40;
+const NEAR_FIRST = 5;
+const NEAR_MAX = 12;
+
+/** The courses around the member, nearest first, one tap to pick. */
+export function NearbyCourses({ onPick }: { onPick: (club: Club) => void }) {
+  const location = useCurrentLocation();
+  const [near, setNear] = useState<Club[] | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+  const [showAll, setShowAll] = useState(false);
+  const alive = useRef(true);
+  useEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
+    };
+  }, []);
+
+  const find = async (silent: boolean) => {
+    setBusy(true);
+    setNote(null);
+    try {
+      const coords = location.state.status === "ready" ? location.state.coords : await location.request();
+      if (!alive.current) return;
+      if (!coords) {
+        if (!silent) setNote("PinPals couldn't get your location. You can turn it on in Settings › PinPals › Location, or search above.");
+        return;
+      }
+      const { clubs } = await coursesNear(coords.lat, coords.lng, NEAR_RADIUS_KM, NEAR_MAX);
+      if (!alive.current) return;
+      setNear(clubs);
+      if (clubs.length === 0) setNote(`No courses on file within ${NEAR_RADIUS_KM} km. Search above to find yours.`);
+    } catch {
+      if (alive.current && !silent) setNote("Couldn't load nearby courses. Please try again.");
+    } finally {
+      if (alive.current) setBusy(false);
+    }
+  };
+
+  // Already allowed: fetch straight away, without a prompt.
+  useEffect(() => {
+    void locationAlreadyAllowed().then((ok) => {
+      if (ok && alive.current) void find(true);
+    });
+    // Once, on arrival.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  if (near && near.length > 0) {
+    const list = showAll ? near : near.slice(0, NEAR_FIRST);
+    return (
+      <View style={styles.near}>
+        <View style={styles.nearHead}>
+          <Ionicons name="navigate" size={14} color={colors.green700} />
+          <Text style={styles.nearTitle}>Nearby courses</Text>
+        </View>
+        <View style={styles.nearList}>
+          {list.map((club, i) => (
+            <Pressable
+              key={club.id}
+              onPress={() => onPick(club)}
+              style={({ pressed }) => [styles.nearRow, i > 0 && styles.nearRowLine, pressed && { opacity: 0.7 }]}
+              accessibilityRole="button"
+              accessibilityLabel={`${club.name}, ${distanceLabel(club.distance_km) ?? ""}`}
+            >
+              <View style={{ flex: 1 }}>
+                <Text style={styles.cardTitle} numberOfLines={1}>{club.name}</Text>
+                <Text style={styles.cardMeta} numberOfLines={1}>{placeLabel(club)}</Text>
+              </View>
+              <Text style={styles.nearDistance}>{distanceLabel(club.distance_km)}</Text>
+              <Ionicons name="chevron-forward" size={18} color={colors.ink500} />
+            </Pressable>
+          ))}
+        </View>
+        {near.length > NEAR_FIRST ? (
+          <Pressable onPress={() => setShowAll((v) => !v)} hitSlop={8} accessibilityRole="button" style={styles.nearMore}>
+            <Text style={styles.link}>{showAll ? "Show fewer" : `Show ${near.length - NEAR_FIRST} more nearby`}</Text>
+          </Pressable>
+        ) : null}
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.near}>
+      <Pressable
+        onPress={() => void find(false)}
+        disabled={busy}
+        style={({ pressed }) => [styles.nearButton, pressed && { opacity: 0.85 }]}
+        accessibilityRole="button"
+        accessibilityLabel="Show courses near me"
+      >
+        {busy ? <ActivityIndicator color={colors.navy900} /> : <Ionicons name="navigate" size={18} color={colors.navy900} />}
+        <Text style={styles.nearButtonLabel}>{busy ? "Finding courses near you…" : "Nearby courses"}</Text>
+      </Pressable>
+      {note ? <Text style={styles.nearNote}>{note}</Text> : null}
+    </View>
   );
 }
 
@@ -188,6 +298,27 @@ const styles = StyleSheet.create({
   cardTitle: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.ink900 },
   cardMeta: { fontFamily: fonts.body, fontSize: 13, color: colors.ink500, marginTop: 2 },
   link: { fontFamily: fonts.bodyBold, fontSize: type.small, color: colors.green700 },
+  near: { gap: spacing.sm, marginTop: spacing.sm },
+  nearHead: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 4 },
+  nearTitle: { fontFamily: fonts.bodyBold, fontSize: type.small, color: colors.green700, textTransform: "uppercase", letterSpacing: 0.6 },
+  nearList: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: radii.lg, overflow: "hidden" },
+  nearRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, minHeight: 56, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
+  nearRowLine: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line },
+  nearDistance: { fontFamily: fonts.bodySemi, fontSize: 12.5, color: colors.ink500 },
+  nearMore: { alignSelf: "center", paddingVertical: 4 },
+  nearButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    minHeight: 48,
+    borderRadius: radii.pill,
+    backgroundColor: colors.gold400,
+    borderWidth: 1,
+    borderColor: colors.gold500,
+  },
+  nearButtonLabel: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.navy900 },
+  nearNote: { fontFamily: fonts.body, fontSize: type.small, lineHeight: 20, color: colors.ink500 },
   fields: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   field: { flexBasis: "22%", flexGrow: 1, gap: 4 },
   fieldWide: { flexBasis: "100%" },
