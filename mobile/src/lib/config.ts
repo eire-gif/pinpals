@@ -87,12 +87,12 @@ export const webUrl = (path: string): string => `${SITE_URL}${shellPath(path)}`;
 /**
  * Satellite imagery for hole maps (claude/hole-maps.md).
  *
- * A raster tile URL template ({z}/{x}/{y}) and the credit the provider
- * requires on screen. Esri World Imagery is the default because it needs no
- * key to develop against; before public launch it must be licensed for an
- * app — an ArcGIS Location Platform key appended as `?token=…`, or Mapbox
- * satellite tiles instead — via EXPO_PUBLIC_MAP_TILE_URL and
- * EXPO_PUBLIC_MAP_ATTRIBUTION. Changing provider is these two strings only.
+ * Oct 2026: the main imagery is now Google 2D satellite, chosen by the
+ * website (GET /api/app/map-tiles, lib/map-tiles.ts). These two strings
+ * are the FALLBACK — used when Google isn't set up, is switched off
+ * (MAP_TILES_PROVIDER=esri on Vercel) or can't be reached. Esri World
+ * Imagery needs no key to develop against but isn't licensed for a public
+ * app, so Google should be on before launch.
  */
 export const MAP_TILE_URL =
   process.env.EXPO_PUBLIC_MAP_TILE_URL ??
