@@ -26,6 +26,9 @@ import { isSuperAdmin } from "@/lib/admin";
 import { supabase } from "@/lib/supabase";
 import { bestOfLabel, comparedWithOwn, indicatorLabel } from "@/lib/handicap-indicator";
 import { loadMyHandicapIndicator, type HandicapIndicator } from "@/lib/scorecards";
+import { listMyTrips, type MyTrip } from "@/lib/itinerary";
+import { countdownLabel, tripBadge, tripRangeLabel } from "@/lib/itinerary-rules";
+import { irishToday } from "@/lib/outing-rules";
 import {
   deletionDateLabel,
   getDeletionState,
@@ -57,6 +60,7 @@ export default function ProfileScreen() {
   const [superAdmin, setSuperAdmin] = useState(false);
   const [coverBusy, setCoverBusy] = useState(false);
   const [indicator, setIndicator] = useState<HandicapIndicator | null>(null);
+  const [trips, setTrips] = useState<MyTrip[]>([]);
 
   const load = useCallback(async () => {
     if (!session?.user.id) return;
@@ -82,6 +86,9 @@ export default function ProfileScreen() {
     // The handicap indicator (0122). A guide beside the member's own
     // handicap; a failure just leaves the row out.
     setIndicator(await loadMyHandicapIndicator().catch(() => null));
+
+    // Trips you're on (0126): the next few, straight into their itinerary.
+    setTrips(await listMyTrips(session.user.id, irishToday()).catch(() => []));
 
     setLoading(false);
   }, [session?.user.id]);
@@ -292,8 +299,40 @@ export default function ProfileScreen() {
           </Pressable>
         ) : null}
 
+        {trips.length > 0 ? (
+          <>
+            <GroupTitle text="My trips" />
+            {trips.slice(0, 3).map((t) => (
+              <Pressable
+                key={t.outingId}
+                style={({ pressed }) => [styles.trip, pressed && { opacity: 0.9 }]}
+                onPress={() => router.push({ pathname: "/group/[id]/itinerary/[outingId]", params: { id: String(t.groupId), outingId: String(t.outingId) } })}
+                accessibilityRole="button"
+                accessibilityLabel={`${t.title}, ${tripRangeLabel(t.playsOn, t.endsOn)}. Open the itinerary`}
+              >
+                <View style={styles.tripCount}>
+                  <Text style={styles.tripCountText} numberOfLines={2}>
+                    {countdownLabel(t.playsOn, t.endsOn, irishToday()).replace(" to go", "")}
+                  </Text>
+                </View>
+                <View style={{ flex: 1, gap: 2 }}>
+                  <Text style={styles.tripKicker}>{`${tripBadge(t.kind, t.playsOn, t.endsOn)}${t.organiser ? " · ORGANISER" : ""}`}</Text>
+                  <Text style={styles.tripTitle} numberOfLines={1}>
+                    {t.title}
+                  </Text>
+                  <Text style={styles.tripMeta} numberOfLines={1}>
+                    {[tripRangeLabel(t.playsOn, t.endsOn), t.location ?? t.groupName].filter(Boolean).join(" · ")}
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={colors.ink500} />
+              </Pressable>
+            ))}
+          </>
+        ) : null}
+
         <GroupTitle text="Golf" />
         <View style={styles.group}>
+          <NativeLink icon="airplane-outline" label="My trips" to="/my-trips" />
           <NativeLink icon="add-circle-outline" label="Post a tee time" to="/post-tee-time" />
           <NativeLink icon="golf-outline" label="My tee times" to="/my-rounds" />
           <NativeLink icon="people-outline" label="Requests to join" to="/tee-time-requests" />
@@ -415,6 +454,12 @@ const styles = StyleSheet.create({
   fill: { flex: 1, backgroundColor: colors.cream50 },
   scroll: { paddingBottom: spacing.xl },
   content: { padding: spacing.md, gap: spacing.sm + 2 },
+  trip: { flexDirection: "row", alignItems: "center", gap: 12, padding: 12, borderRadius: radii.lg, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
+  tripCount: { width: 64, minHeight: 60, borderRadius: radii.md, alignItems: "center", justifyContent: "center", paddingHorizontal: 4, backgroundColor: colors.navy900 },
+  tripCountText: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.gold400, textAlign: "center" },
+  tripKicker: { fontFamily: fonts.bodyBold, fontSize: 10.5, letterSpacing: 1.1, color: colors.green700 },
+  tripTitle: { fontFamily: fonts.bodyBold, fontSize: 16, color: colors.ink900 },
+  tripMeta: { fontFamily: fonts.body, fontSize: 13, color: colors.ink500 },
   indicator: {
     flexDirection: "row",
     alignItems: "center",

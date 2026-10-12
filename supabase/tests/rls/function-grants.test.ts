@@ -258,6 +258,12 @@ const EXPECTED: Record<string, Expectation> = {
   "publish_outing_draw(p_outing_id bigint, p_groups jsonb)": { anon: false, authenticated: true },
   "link_outing_match_day(p_outing_id bigint, p_match_day_id bigint)": { anon: false, authenticated: true },
   "mark_outing_paid(p_outing_id bigint, p_member uuid, p_status text)": { anon: false, authenticated: true },
+  // 0126 trip itineraries
+  "save_outing_item(p_outing_id bigint, p_id bigint, p jsonb)": { anon: false, authenticated: true },
+  "delete_outing_item(p_item_id bigint)": { anon: false, authenticated: true },
+  "set_outing_item_people(p_item_id bigint, p_people jsonb)": { anon: false, authenticated: true },
+  // A trigger: leaving a trip takes you off its flights, rooms and groups.
+  "outing_entry_left()": { anon: false, authenticated: false },
 
   // --- Service role / internal only. Everything below is either a trigger
   // --- function, a sweep, or a privileged write path that must never be

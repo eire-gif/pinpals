@@ -6,6 +6,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { LoadError, StateMessage } from "@/components/state-message";
 import { useAuth } from "@/lib/auth";
 import { loadGroupPage } from "@/lib/groups-data";
+import { countdownLabel, tripBadge, tripRangeLabel } from "@/lib/itinerary-rules";
 import { clock, closesLabel, entriesOpen, feeLabel, irishToday, outingDateLabel } from "@/lib/outing-rules";
 import { listOutings, setOutingEntry, type OutingSummary } from "@/lib/outings";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
@@ -13,8 +14,11 @@ import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 /**
  * A society's Events (0125): its upcoming outings, soonest first. Members
  * join or cancel from here until midnight at the start of the day; the
- * captain and secretary also get "New outing". Tap an outing for who's in,
+ * captain and secretary also get "New event". Tap an outing for who's in,
  * the tee times and (for officers) the draw and payments.
+ *
+ * Overnight and abroad trips (0126) get the bigger navy card, with the way
+ * into their itinerary.
  */
 export default function SocietyEventsScreen() {
   const { id: rawId } = useLocalSearchParams<{ id: string }>();
@@ -90,7 +94,7 @@ export default function SocietyEventsScreen() {
         {officer ? (
           <Pressable style={styles.new} onPress={() => router.push({ pathname: "/group/[id]/outing/new", params: { id: String(groupId) } })} accessibilityRole="button">
             <Ionicons name="add" size={20} color={colors.cream50} />
-            <Text style={styles.newText}>New outing</Text>
+            <Text style={styles.newText}>New event</Text>
           </Pressable>
         ) : null}
 
@@ -114,6 +118,55 @@ export default function SocietyEventsScreen() {
           />
         ) : (
           outings.map((o) => {
+            if (o.kind !== "day" && o.endsOn) {
+              const tripOpen = entriesOpen(o.playsOn) && o.status === "open";
+              const cancelledTrip = o.status === "cancelled";
+              return (
+                <Pressable
+                  key={o.id}
+                  style={styles.trip}
+                  onPress={() => router.push({ pathname: "/group/[id]/outing/[outingId]", params: { id: String(groupId), outingId: String(o.id) } })}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${o.title}, ${tripRangeLabel(o.playsOn, o.endsOn)}${o.mine ? ", you're going" : ""}`}
+                >
+                  <View style={styles.tripTop}>
+                    <Text style={styles.tripBadge}>{tripBadge(o.kind, o.playsOn, o.endsOn)}</Text>
+                    {o.mine ? <Text style={styles.tripGoing}>You&apos;re going</Text> : null}
+                  </View>
+                  <Text style={[styles.tripTitle, cancelledTrip && styles.struck]}>{o.title}</Text>
+                  <Text style={styles.tripMeta}>{[tripRangeLabel(o.playsOn, o.endsOn), o.location].filter(Boolean).join(" · ")}</Text>
+                  <Text style={styles.tripMeta}>
+                    {cancelledTrip
+                      ? "Cancelled"
+                      : [`${o.entered}${o.maxEntries ? ` of ${o.maxEntries}` : ""} going`, feeLabel(o.entryFeeCents), past ? null : countdownLabel(o.playsOn, o.endsOn, irishToday())].filter(Boolean).join(" · ")}
+                  </Text>
+                  {!cancelledTrip ? (
+                    <View style={styles.tripActions}>
+                      <Pressable
+                        style={styles.tripOpen}
+                        onPress={() => router.push({ pathname: "/group/[id]/itinerary/[outingId]", params: { id: String(groupId), outingId: String(o.id) } })}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Open the itinerary for ${o.title}`}
+                      >
+                        <Ionicons name="map-outline" size={17} color={colors.navy900} />
+                        <Text style={styles.tripOpenText}>Itinerary</Text>
+                      </Pressable>
+                      {!past && tripOpen ? (
+                        <Pressable
+                          style={[styles.tripJoin, o.mine && styles.tripJoinMine]}
+                          onPress={() => void toggle(o)}
+                          disabled={busy !== null}
+                          accessibilityRole="button"
+                          accessibilityLabel={o.mine ? `Cancel your place on ${o.title}` : `Join ${o.title}`}
+                        >
+                          {busy === o.id ? <ActivityIndicator size="small" color={colors.cream50} /> : <Text style={styles.tripJoinText}>{o.mine ? "Going · Cancel" : "Join"}</Text>}
+                        </Pressable>
+                      ) : null}
+                    </View>
+                  ) : null}
+                </Pressable>
+              );
+            }
             const open = entriesOpen(o.playsOn) && o.status === "open" && o.matchDayId == null;
             const cancelled = o.status === "cancelled";
             const facts = [o.courseName, o.firstTee ? `First tee ${clock(o.firstTee)}` : null, feeLabel(o.entryFeeCents)].filter(Boolean).join(" · ");
@@ -187,6 +240,18 @@ const styles = StyleSheet.create({
   tabOn: { backgroundColor: colors.navy900, borderColor: colors.navy900 },
   tabText: { fontFamily: fonts.bodySemi, fontSize: type.small, color: colors.ink900 },
   tabTextOn: { color: colors.cream50 },
+  trip: { gap: 4, padding: spacing.md, borderRadius: radii.lg, backgroundColor: colors.navy900 },
+  tripTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  tripBadge: { fontFamily: fonts.bodyBold, fontSize: 11, letterSpacing: 1.2, color: colors.navy900, backgroundColor: colors.gold400, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, overflow: "hidden" },
+  tripGoing: { fontFamily: fonts.bodySemi, fontSize: 12.5, color: colors.gold400 },
+  tripTitle: { fontFamily: fonts.display, fontSize: 24, color: colors.cream50, marginTop: 4 },
+  tripMeta: { fontFamily: fonts.body, fontSize: 13.5, color: colors.cream100 },
+  tripActions: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.sm },
+  tripOpen: { flex: 1, flexDirection: "row", gap: 6, height: 44, borderRadius: radii.md, alignItems: "center", justifyContent: "center", backgroundColor: colors.cream50 },
+  tripOpenText: { fontFamily: fonts.bodyBold, fontSize: type.small, color: colors.navy900 },
+  tripJoin: { flex: 1, height: 44, borderRadius: radii.md, alignItems: "center", justifyContent: "center", backgroundColor: colors.green700 },
+  tripJoinMine: { backgroundColor: colors.navy800, borderWidth: 1, borderColor: colors.gold400 },
+  tripJoinText: { fontFamily: fonts.bodyBold, fontSize: type.small, color: colors.cream50 },
   card: { flexDirection: "row", gap: spacing.sm + 4, padding: 12, borderRadius: radii.lg, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
   cardMine: { borderColor: colors.green600 },
   date: { width: 56, alignItems: "center", paddingVertical: 6, borderRadius: radii.md, backgroundColor: colors.navy900, alignSelf: "flex-start" },

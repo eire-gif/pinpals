@@ -8,7 +8,8 @@ import { SectionTitle } from "@/components/group-bits";
 import { LoadError, StateMessage } from "@/components/state-message";
 import { useAuth } from "@/lib/auth";
 import { loadGroupPage, type GroupMember } from "@/lib/groups-data";
-import { clock, closesLabel, entriesOpen, feeLabel, isOutingDay, outingDateLabel, outingPast, PAID_LABELS, type PaidStatus } from "@/lib/outing-rules";
+import { countdownLabel, isTrip, tripBadge, tripRangeLabel } from "@/lib/itinerary-rules";
+import { clock, closesLabel, entriesOpen, feeLabel, irishToday, isOutingDay, outingDateLabel, outingPast, PAID_LABELS, type PaidStatus } from "@/lib/outing-rules";
 import { cancelOuting, loadOuting, markOutingPaid, setOutingEntry, type OutingEntry, type OutingPage } from "@/lib/outings";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 
@@ -23,6 +24,9 @@ import { colors, fonts, radii, spacing, type } from "@/lib/theme";
  * people off at any time, mark who has paid, and make the draw (the From a
  * group screen, opened on this outing: publish the tee times beforehand,
  * start the round on the day). Only they can start it.
+ *
+ * A trip (overnight or abroad, 0126) has no single draw: its rounds, flights,
+ * rooms and notes are on its itinerary, which this page opens.
  */
 export default function OutingScreen() {
   const { id: rawId, outingId: rawOuting } = useLocalSearchParams<{ id: string; outingId: string }>();
@@ -107,7 +111,8 @@ export default function OutingScreen() {
   const me = entries.find((e) => e.memberId === userId) ?? null;
   const cancelled = outing.status === "cancelled";
   const started = outing.matchDayId != null;
-  const past = outingPast(outing.playsOn);
+  const trip = isTrip(outing.kind) && outing.endsOn != null;
+  const past = outingPast(outing.endsOn ?? outing.playsOn);
   const open = !cancelled && !started && entriesOpen(outing.playsOn);
   const today = isOutingDay(outing.playsOn);
   const myPaid = userId ? payments.get(userId) : undefined;
@@ -161,6 +166,7 @@ export default function OutingScreen() {
     ]);
   }
 
+  const openItinerary = () => router.push({ pathname: "/group/[id]/itinerary/[outingId]", params: { id: String(groupId), outingId: String(outingId) } });
   const openDraw = () => router.push({ pathname: "/live/day/group", params: { group: String(groupId), outing: String(outingId) } });
   const paidCount = entries.filter((e) => payments.has(e.memberId)).length;
 
@@ -205,17 +211,32 @@ export default function OutingScreen() {
         }
       >
         <View style={styles.hero}>
-          <Text style={styles.heroDate}>{outingDateLabel(outing.playsOn).toUpperCase()}</Text>
+          <Text style={styles.heroDate}>{trip ? `${tripBadge(outing.kind, outing.playsOn, outing.endsOn)} · ${tripRangeLabel(outing.playsOn, outing.endsOn!).toUpperCase()}` : outingDateLabel(outing.playsOn).toUpperCase()}</Text>
           <Text style={[styles.heroTitle, cancelled && styles.struck]}>{outing.title}</Text>
-          <Text style={styles.heroMeta}>{[outing.courseName, outing.firstTee ? `First tee ${clock(outing.firstTee)}` : null].filter(Boolean).join(" · ")}</Text>
+          <Text style={styles.heroMeta}>
+            {trip
+              ? [outing.location, cancelled ? null : countdownLabel(outing.playsOn, outing.endsOn!, irishToday())].filter(Boolean).join(" · ")
+              : [outing.courseName, outing.firstTee ? `First tee ${clock(outing.firstTee)}` : null].filter(Boolean).join(" · ")}
+          </Text>
           <View style={styles.heroFacts}>
-            {outing.entryFeeCents != null ? <Text style={styles.heroFact}>{`Entry ${feeLabel(outing.entryFeeCents)}`}</Text> : null}
+            {outing.entryFeeCents != null ? <Text style={styles.heroFact}>{`${trip ? "Cost" : "Entry"} ${feeLabel(outing.entryFeeCents)}`}</Text> : null}
             <Text style={styles.heroFact}>{`${entries.length}${outing.maxEntries ? ` of ${outing.maxEntries}` : ""} in`}</Text>
           </View>
           <Text style={styles.heroCloses}>{cancelled ? "This outing was cancelled" : started ? "The round is under way" : past ? "Played" : closesLabel(outing.playsOn)}</Text>
         </View>
 
         {outing.details ? <Text style={styles.details}>{outing.details}</Text> : null}
+
+        {trip ? (
+          <Pressable style={styles.itinerary} onPress={openItinerary} accessibilityRole="button">
+            <Ionicons name="map-outline" size={22} color={colors.gold400} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.itineraryTitle}>{officer && !cancelled ? "Itinerary · build and edit" : "The itinerary"}</Text>
+              <Text style={styles.itineraryBody}>{me ? "Your flights, room and tee times, day by day" : "Rounds, flights, where you're staying, day by day"}</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={colors.cream100} />
+          </Pressable>
+        ) : null}
 
         {/* You */}
         {myGroup ? (
@@ -249,7 +270,7 @@ export default function OutingScreen() {
           ) : (
             <Pressable style={styles.cta} onPress={join} disabled={busy !== null} accessibilityRole="button">
               {busy === "me" ? <ActivityIndicator color={colors.cream50} /> : <Ionicons name="add-circle-outline" size={18} color={colors.cream50} />}
-              <Text style={styles.ctaText}>Join this outing</Text>
+              <Text style={styles.ctaText}>{trip ? "Join this trip" : "Join this outing"}</Text>
             </Pressable>
           )
         ) : me ? (
@@ -267,14 +288,16 @@ export default function OutingScreen() {
         {officer && !cancelled ? (
           <View style={styles.officer}>
             <Text style={styles.officerTitle}>Captain &amp; secretary</Text>
-            {!started && !past ? (
+            {!started && !past && !trip ? (
               <Pressable style={[styles.cta, styles.ctaNavy]} onPress={openDraw} accessibilityRole="button">
                 <Ionicons name="shuffle" size={18} color={colors.cream50} />
                 <Text style={styles.ctaText}>{today ? "Draw and start the round" : outing.drawPublishedAt ? "Change the draw" : "Make the draw"}</Text>
               </Pressable>
             ) : null}
             <Text style={styles.officerHint}>
-              {started
+              {trip
+                ? "Add rounds, flights, rooms and notes on the itinerary; each round has its own groups and tee times."
+                : started
                 ? "The round has started."
                 : today
                   ? "It's the day: check the draw, choose the tees, then start the round."
@@ -360,6 +383,9 @@ const styles = StyleSheet.create({
   heroDate: { fontFamily: fonts.bodyBold, fontSize: 12.5, letterSpacing: 1.2, color: colors.gold400 },
   heroTitle: { fontFamily: fonts.display, fontSize: 26, color: colors.cream50 },
   struck: { textDecorationLine: "line-through" },
+  itinerary: { flexDirection: "row", alignItems: "center", gap: spacing.sm, padding: spacing.md, borderRadius: radii.lg, backgroundColor: colors.navy900 },
+  itineraryTitle: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.cream50 },
+  itineraryBody: { fontFamily: fonts.body, fontSize: 13, color: colors.cream100 },
   heroMeta: { fontFamily: fonts.bodySemi, fontSize: type.small, color: colors.cream100 },
   heroFacts: { flexDirection: "row", gap: spacing.sm, marginTop: 4 },
   heroFact: { fontFamily: fonts.bodySemi, fontSize: 13, color: colors.navy900, backgroundColor: colors.gold400, paddingHorizontal: 10, paddingVertical: 3, borderRadius: radii.pill, overflow: "hidden" },
