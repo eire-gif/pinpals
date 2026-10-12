@@ -1,0 +1,403 @@
+import { useCallback, useMemo, useState } from "react";
+import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Stack, router, useFocusEffect, useLocalSearchParams } from "expo-router";
+import Ionicons from "@expo/vector-icons/Ionicons";
+
+import { Avatar } from "@/components/avatar";
+import { SectionTitle } from "@/components/group-bits";
+import { LoadError, StateMessage } from "@/components/state-message";
+import { useAuth } from "@/lib/auth";
+import { loadGroupPage, type GroupMember } from "@/lib/groups-data";
+import { clock, closesLabel, entriesOpen, feeLabel, isOutingDay, outingDateLabel, outingPast, PAID_LABELS, type PaidStatus } from "@/lib/outing-rules";
+import { cancelOuting, loadOuting, markOutingPaid, setOutingEntry, type OutingEntry, type OutingPage } from "@/lib/outings";
+import { colors, fonts, radii, spacing, type } from "@/lib/theme";
+
+/**
+ * One society outing (0125).
+ *
+ * Everyone in the society: the details, Join / Cancel (until midnight at the
+ * start of the day), who's in, and — once the captain or secretary has
+ * published the draw — the tee groups, with your own tee time on top.
+ *
+ * The captain, secretary and owner also: edit or cancel it, add or take
+ * people off at any time, mark who has paid, and make the draw (the From a
+ * group screen, opened on this outing: publish the tee times beforehand,
+ * start the round on the day). Only they can start it.
+ */
+export default function OutingScreen() {
+  const { id: rawId, outingId: rawOuting } = useLocalSearchParams<{ id: string; outingId: string }>();
+  const groupId = Number(rawId);
+  const outingId = Number(rawOuting);
+  const { session } = useAuth();
+  const userId = session?.user?.id ?? null;
+
+  const [page, setPage] = useState<OutingPage | null | undefined>(undefined);
+  const [members, setMembers] = useState<GroupMember[]>([]);
+  const [officer, setOfficer] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const load = useCallback(async () => {
+    if (!userId) return;
+    try {
+      const [o, g] = await Promise.all([loadOuting(outingId), loadGroupPage(groupId, userId)]);
+      setPage(o);
+      setMembers(g?.members ?? []);
+      setOfficer(g?.myRole === "owner" || g?.myRole === "admin");
+      setFailed(false);
+    } catch {
+      setFailed(true);
+    }
+  }, [groupId, outingId, userId]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void load();
+    }, [load])
+  );
+
+  async function act(key: string, fn: () => Promise<unknown>) {
+    setBusy(key);
+    try {
+      await fn();
+      await load();
+    } catch (err) {
+      Alert.alert("Couldn't do that", err instanceof Error ? err.message : "Please try again.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  const groups = useMemo(() => {
+    const entries = page?.entries ?? [];
+    const drawn = new Map<number, OutingEntry[]>();
+    for (const e of entries) if (e.teeGroup) drawn.set(e.teeGroup, [...(drawn.get(e.teeGroup) ?? []), e]);
+    const ordered = [...drawn.entries()].sort((a, b) => a[0] - b[0]).map(([n, list]) => ({ n, time: list[0]?.teeTime ?? null, list: list.sort((a, b) => (a.teePosition ?? 0) - (b.teePosition ?? 0)) }));
+    return { ordered, undrawn: entries.filter((e) => !e.teeGroup) };
+  }, [page]);
+
+  if (page === undefined && !failed) {
+    return (
+      <View style={styles.fill}>
+        <Stack.Screen options={{ title: "Outing", headerBackTitle: "Back" }} />
+        <ActivityIndicator color={colors.green700} style={{ marginTop: spacing.xl }} />
+      </View>
+    );
+  }
+  if (failed && !page) {
+    return (
+      <View style={styles.fill}>
+        <Stack.Screen options={{ title: "Outing", headerBackTitle: "Back" }} />
+        <LoadError onRetry={() => void load()} what="this outing" size="screen" />
+      </View>
+    );
+  }
+  if (!page) {
+    return (
+      <View style={styles.fill}>
+        <Stack.Screen options={{ title: "Outing", headerBackTitle: "Back" }} />
+        <StateMessage icon="calendar-outline" title="This outing isn't available" body="It may have been removed, or you're not in the society." size="screen" />
+      </View>
+    );
+  }
+
+  const { outing, entries, payments } = page;
+  const me = entries.find((e) => e.memberId === userId) ?? null;
+  const cancelled = outing.status === "cancelled";
+  const started = outing.matchDayId != null;
+  const past = outingPast(outing.playsOn);
+  const open = !cancelled && !started && entriesOpen(outing.playsOn);
+  const today = isOutingDay(outing.playsOn);
+  const myPaid = userId ? payments.get(userId) : undefined;
+  const myGroup = me?.teeGroup ? groups.ordered.find((g) => g.n === me.teeGroup) : null;
+  const notIn = members.filter((m) => !entries.some((e) => e.memberId === m.id));
+
+  function join() {
+    void act("me", () => setOutingEntry(outingId, true));
+  }
+  function leave() {
+    Alert.alert(`Cancel your place at ${outing.title}?`, "You can join again until midnight before the day.", [
+      { text: "Keep my place", style: "cancel" },
+      { text: "Cancel my place", style: "destructive", onPress: () => void act("me", () => setOutingEntry(outingId, false)) },
+    ]);
+  }
+
+  function entrantMenu(e: OutingEntry) {
+    if (!officer) {
+      router.push({ pathname: "/member/[id]", params: { id: e.memberId } });
+      return;
+    }
+    const paid = payments.get(e.memberId);
+    const mark = (s: Exclude<PaidStatus, "card"> | null, label: string) => ({ text: label, onPress: () => void act(`pay-${e.memberId}`, () => markOutingPaid(outingId, e.memberId, s)) });
+    Alert.alert(e.name, paid ? PAID_LABELS[paid] : outing.entryFeeCents ? `Not paid yet · ${feeLabel(outing.entryFeeCents)}` : undefined, [
+      ...(paid !== "card"
+        ? [
+            ...(paid !== "cash" ? [mark("cash", "Paid cash")] : []),
+            ...(paid !== "transfer" ? [mark("transfer", "Paid by transfer")] : []),
+            ...(paid !== "waived" ? [mark("waived", "Waive the fee")] : []),
+            ...(paid ? [mark(null, "Not paid")] : []),
+          ]
+        : []),
+      ...(!started
+        ? [
+            {
+              text: "Take off the outing",
+              style: "destructive" as const,
+              onPress: () => void act(`off-${e.memberId}`, () => setOutingEntry(outingId, false, e.memberId)),
+            },
+          ]
+        : []),
+      { text: "View profile", onPress: () => router.push({ pathname: "/member/[id]", params: { id: e.memberId } }) },
+      { text: "Close", style: "cancel" as const },
+    ]);
+  }
+
+  function cancelIt() {
+    Alert.alert(`Cancel ${outing.title}?`, "It stays in the list marked as cancelled, and nobody can join it.", [
+      { text: "Keep it", style: "cancel" },
+      { text: "Cancel the outing", style: "destructive", onPress: () => void act("cancel", () => cancelOuting(outingId)) },
+    ]);
+  }
+
+  const openDraw = () => router.push({ pathname: "/live/day/group", params: { group: String(groupId), outing: String(outingId) } });
+  const paidCount = entries.filter((e) => payments.has(e.memberId)).length;
+
+  const person = (e: OutingEntry) => {
+    const paid = payments.get(e.memberId);
+    return (
+      <Pressable key={e.memberId} style={styles.person} onPress={() => entrantMenu(e)} accessibilityRole="button" accessibilityLabel={`${e.name}${officer && paid ? `, ${PAID_LABELS[paid]}` : ""}`}>
+        <Avatar url={e.avatarUrl} color={e.avatarColor} name={e.name} size={36} />
+        <View style={styles.personBody}>
+          <Text style={styles.personName} numberOfLines={1}>
+            {e.memberId === userId ? `${e.name} (you)` : e.name}
+          </Text>
+          {e.homeClub ? (
+            <Text style={styles.meta} numberOfLines={1}>
+              {e.homeClub}
+            </Text>
+          ) : null}
+        </View>
+        {officer && outing.entryFeeCents ? (
+          <View style={[styles.paid, paid ? styles.paidYes : styles.paidNo]}>
+            <Text style={[styles.paidText, paid ? styles.paidYesText : styles.paidNoText]}>{paid ? (paid === "waived" ? "Waived" : "Paid") : "Unpaid"}</Text>
+          </View>
+        ) : null}
+      </Pressable>
+    );
+  };
+
+  return (
+    <View style={styles.fill}>
+      <Stack.Screen options={{ title: outing.title, headerBackTitle: "Back" }} />
+      <ScrollView
+        contentContainerStyle={styles.body}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={async () => {
+              setRefreshing(true);
+              await load();
+              setRefreshing(false);
+            }}
+          />
+        }
+      >
+        <View style={styles.hero}>
+          <Text style={styles.heroDate}>{outingDateLabel(outing.playsOn).toUpperCase()}</Text>
+          <Text style={[styles.heroTitle, cancelled && styles.struck]}>{outing.title}</Text>
+          <Text style={styles.heroMeta}>{[outing.courseName, outing.firstTee ? `First tee ${clock(outing.firstTee)}` : null].filter(Boolean).join(" · ")}</Text>
+          <View style={styles.heroFacts}>
+            {outing.entryFeeCents != null ? <Text style={styles.heroFact}>{`Entry ${feeLabel(outing.entryFeeCents)}`}</Text> : null}
+            <Text style={styles.heroFact}>{`${entries.length}${outing.maxEntries ? ` of ${outing.maxEntries}` : ""} in`}</Text>
+          </View>
+          <Text style={styles.heroCloses}>{cancelled ? "This outing was cancelled" : started ? "The round is under way" : past ? "Played" : closesLabel(outing.playsOn)}</Text>
+        </View>
+
+        {outing.details ? <Text style={styles.details}>{outing.details}</Text> : null}
+
+        {/* You */}
+        {myGroup ? (
+          <View style={styles.teeCard}>
+            <Text style={styles.teeKicker}>YOUR TEE TIME</Text>
+            <Text style={styles.teeTime}>{clock(myGroup.time) ?? `Group ${myGroup.n}`}</Text>
+            <Text style={styles.teeWith}>
+              {myGroup.list.filter((p) => p.memberId !== userId).length > 0
+                ? `Group ${myGroup.n} · with ${myGroup.list
+                    .filter((p) => p.memberId !== userId)
+                    .map((p) => p.name)
+                    .join(", ")}`
+                : `Group ${myGroup.n}`}
+            </Text>
+          </View>
+        ) : me && outing.drawPublishedAt ? (
+          <Text style={styles.note}>You&apos;re in. The captain or secretary hasn&apos;t put you in a group yet.</Text>
+        ) : null}
+
+        {started ? (
+          <Pressable style={styles.cta} onPress={() => router.push({ pathname: "/live/day/[id]", params: { id: String(outing.matchDayId) } })} accessibilityRole="button">
+            <Ionicons name="podium-outline" size={18} color={colors.cream50} />
+            <Text style={styles.ctaText}>Leaderboard and cards</Text>
+          </Pressable>
+        ) : open ? (
+          me ? (
+            <Pressable style={[styles.cta, styles.ctaSoft]} onPress={leave} disabled={busy !== null} accessibilityRole="button">
+              {busy === "me" ? <ActivityIndicator color={colors.green800} /> : <Ionicons name="checkmark-circle" size={18} color={colors.green700} />}
+              <Text style={[styles.ctaText, styles.ctaSoftText]}>You&apos;re in · Cancel my place</Text>
+            </Pressable>
+          ) : (
+            <Pressable style={styles.cta} onPress={join} disabled={busy !== null} accessibilityRole="button">
+              {busy === "me" ? <ActivityIndicator color={colors.cream50} /> : <Ionicons name="add-circle-outline" size={18} color={colors.cream50} />}
+              <Text style={styles.ctaText}>Join this outing</Text>
+            </Pressable>
+          )
+        ) : me ? (
+          <Text style={styles.note}>You&apos;re in. Entries have closed — ask the captain or secretary to make any change.</Text>
+        ) : null}
+
+        {me && outing.entryFeeCents ? (
+          <View style={styles.payRow}>
+            <Ionicons name={myPaid ? "checkmark-done-circle" : "wallet-outline"} size={20} color={myPaid ? colors.green700 : colors.navy900} />
+            <Text style={styles.payText}>{myPaid ? PAID_LABELS[myPaid] : `Entry ${feeLabel(outing.entryFeeCents)} — not paid yet. Pay the secretary; they'll mark it here.`}</Text>
+          </View>
+        ) : null}
+
+        {/* The captain and secretary */}
+        {officer && !cancelled ? (
+          <View style={styles.officer}>
+            <Text style={styles.officerTitle}>Captain &amp; secretary</Text>
+            {!started && !past ? (
+              <Pressable style={[styles.cta, styles.ctaNavy]} onPress={openDraw} accessibilityRole="button">
+                <Ionicons name="shuffle" size={18} color={colors.cream50} />
+                <Text style={styles.ctaText}>{today ? "Draw and start the round" : outing.drawPublishedAt ? "Change the draw" : "Make the draw"}</Text>
+              </Pressable>
+            ) : null}
+            <Text style={styles.officerHint}>
+              {started
+                ? "The round has started."
+                : today
+                  ? "It's the day: check the draw, choose the tees, then start the round."
+                  : "Publish the tee times whenever you're ready; members see theirs straight away. You start the round on the day."}
+            </Text>
+            {outing.entryFeeCents ? <Text style={styles.officerHint}>{`${paidCount} of ${entries.length} paid or waived. Tap a name to mark it.`}</Text> : null}
+            <View style={styles.officerRow}>
+              {!started ? (
+                <Pressable
+                  style={styles.small}
+                  onPress={() => router.push({ pathname: "/group/[id]/outing/new", params: { id: String(groupId), edit: String(outingId) } })}
+                  accessibilityRole="button"
+                >
+                  <Ionicons name="create-outline" size={16} color={colors.navy900} />
+                  <Text style={styles.smallText}>Edit</Text>
+                </Pressable>
+              ) : null}
+              {!started ? (
+                <Pressable style={styles.small} onPress={() => setAdding((v) => !v)} accessibilityRole="button" accessibilityState={{ expanded: adding }}>
+                  <Ionicons name="person-add-outline" size={16} color={colors.navy900} />
+                  <Text style={styles.smallText}>Add members</Text>
+                </Pressable>
+              ) : null}
+              {!started ? (
+                <Pressable style={styles.small} onPress={cancelIt} accessibilityRole="button">
+                  <Ionicons name="close-circle-outline" size={16} color={colors.red600} />
+                  <Text style={[styles.smallText, { color: colors.red600 }]}>Cancel outing</Text>
+                </Pressable>
+              ) : null}
+            </View>
+            {adding ? (
+              notIn.length === 0 ? (
+                <Text style={styles.officerHint}>Everyone in the society is in.</Text>
+              ) : (
+                notIn.map((m) => (
+                  <View key={m.id} style={styles.addRow}>
+                    <Avatar url={m.avatarUrl} color={m.avatarColor} name={m.name} size={30} />
+                    <Text style={styles.addName} numberOfLines={1}>
+                      {m.name}
+                    </Text>
+                    <Pressable style={styles.addButton} onPress={() => void act(`add-${m.id}`, () => setOutingEntry(outingId, true, m.id))} disabled={busy !== null} accessibilityRole="button" accessibilityLabel={`Add ${m.name}`}>
+                      {busy === `add-${m.id}` ? <ActivityIndicator size="small" color={colors.cream50} /> : <Text style={styles.addButtonText}>Add</Text>}
+                    </Pressable>
+                  </View>
+                ))
+              )
+            ) : null}
+          </View>
+        ) : null}
+
+        {/* Who's in */}
+        {groups.ordered.length > 0 ? (
+          <>
+            <SectionTitle>Tee times</SectionTitle>
+            {groups.ordered.map((g) => (
+              <View key={g.n} style={[styles.group, g.n === me?.teeGroup && styles.groupMine]}>
+                <Text style={styles.groupTitle}>{`${clock(g.time) ?? ""}${g.time ? " · " : ""}Group ${g.n}`}</Text>
+                {g.list.map(person)}
+              </View>
+            ))}
+            {groups.undrawn.length > 0 ? (
+              <>
+                <SectionTitle>{`Not drawn yet (${groups.undrawn.length})`}</SectionTitle>
+                {groups.undrawn.map(person)}
+              </>
+            ) : null}
+          </>
+        ) : (
+          <>
+            <SectionTitle>{`Who's in (${entries.length})`}</SectionTitle>
+            {entries.length === 0 ? <Text style={styles.note}>Nobody yet{open ? " — be the first." : "."}</Text> : entries.map(person)}
+          </>
+        )}
+      </ScrollView>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  fill: { flex: 1, backgroundColor: colors.cream50 },
+  body: { padding: spacing.md, gap: spacing.sm, paddingBottom: spacing.xl * 2 },
+  hero: { gap: 4, padding: spacing.md, borderRadius: radii.lg, backgroundColor: colors.navy900 },
+  heroDate: { fontFamily: fonts.bodyBold, fontSize: 12.5, letterSpacing: 1.2, color: colors.gold400 },
+  heroTitle: { fontFamily: fonts.display, fontSize: 26, color: colors.cream50 },
+  struck: { textDecorationLine: "line-through" },
+  heroMeta: { fontFamily: fonts.bodySemi, fontSize: type.small, color: colors.cream100 },
+  heroFacts: { flexDirection: "row", gap: spacing.sm, marginTop: 4 },
+  heroFact: { fontFamily: fonts.bodySemi, fontSize: 13, color: colors.navy900, backgroundColor: colors.gold400, paddingHorizontal: 10, paddingVertical: 3, borderRadius: radii.pill, overflow: "hidden" },
+  heroCloses: { fontFamily: fonts.body, fontSize: 13, color: colors.cream100, marginTop: 4 },
+  details: { fontFamily: fonts.body, fontSize: type.body, color: colors.ink900, lineHeight: 22 },
+  teeCard: { alignItems: "center", gap: 2, padding: spacing.md, borderRadius: radii.lg, backgroundColor: colors.green100, borderWidth: 1, borderColor: colors.green600 },
+  teeKicker: { fontFamily: fonts.bodyBold, fontSize: 12, letterSpacing: 1.2, color: colors.green800 },
+  teeTime: { fontFamily: fonts.display, fontSize: 40, color: colors.green800 },
+  teeWith: { fontFamily: fonts.bodySemi, fontSize: type.small, color: colors.green800, textAlign: "center" },
+  note: { fontFamily: fonts.body, fontSize: type.small, color: colors.ink500, textAlign: "center", paddingVertical: 4 },
+  cta: { flexDirection: "row", gap: 8, minHeight: 50, borderRadius: radii.pill, alignItems: "center", justifyContent: "center", backgroundColor: colors.green700 },
+  ctaSoft: { backgroundColor: colors.green100, borderWidth: 1, borderColor: colors.green600 },
+  ctaNavy: { backgroundColor: colors.navy900 },
+  ctaText: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.cream50 },
+  ctaSoftText: { color: colors.green800 },
+  payRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, padding: 12, borderRadius: radii.md, backgroundColor: colors.cream100 },
+  payText: { flex: 1, fontFamily: fonts.bodySemi, fontSize: type.small, color: colors.ink900 },
+  officer: { gap: spacing.sm, padding: spacing.md, borderRadius: radii.lg, borderWidth: 1, borderColor: colors.gold400, backgroundColor: "#fbf3df" },
+  officerTitle: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.ink900 },
+  officerHint: { fontFamily: fonts.body, fontSize: 13, color: colors.ink900 },
+  officerRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
+  small: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, height: 36, borderRadius: radii.pill, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
+  smallText: { fontFamily: fonts.bodySemi, fontSize: 13, color: colors.navy900 },
+  addRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  addName: { flex: 1, fontFamily: fonts.bodySemi, fontSize: type.small, color: colors.ink900 },
+  addButton: { paddingHorizontal: 14, height: 32, borderRadius: radii.pill, justifyContent: "center", backgroundColor: colors.green700 },
+  addButtonText: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.cream50 },
+  group: { gap: 6, padding: spacing.sm, borderRadius: radii.lg, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surfaceTint },
+  groupMine: { borderColor: colors.green600, backgroundColor: colors.green100 },
+  groupTitle: { fontFamily: fonts.display, fontSize: 17, color: colors.navy900, paddingHorizontal: 4 },
+  person: { flexDirection: "row", alignItems: "center", gap: spacing.sm, padding: 10, borderRadius: radii.md, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
+  personBody: { flex: 1, gap: 1 },
+  personName: { fontFamily: fonts.bodySemi, fontSize: type.body, color: colors.ink900 },
+  meta: { fontFamily: fonts.body, fontSize: 12.5, color: colors.ink500 },
+  paid: { paddingHorizontal: 9, paddingVertical: 3, borderRadius: radii.pill },
+  paidYes: { backgroundColor: colors.green100 },
+  paidNo: { backgroundColor: colors.red100 },
+  paidText: { fontFamily: fonts.bodySemi, fontSize: 12 },
+  paidYesText: { color: colors.green800 },
+  paidNoText: { color: colors.red600 },
+});
