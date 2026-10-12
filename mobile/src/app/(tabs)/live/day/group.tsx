@@ -4,6 +4,8 @@ import { Stack, router, useFocusEffect, useLocalSearchParams } from "expo-router
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { Avatar } from "@/components/avatar";
+import { DateSheet, dayLabel } from "@/components/date-sheet";
+import { TimeSheet } from "@/components/time-sheet";
 import { Section } from "@/components/form-bits";
 import { GroupIcon } from "@/components/group-bits";
 import { CourseSection, useCourseSetup } from "@/components/live-course-section";
@@ -15,8 +17,9 @@ import { canDrawFrom, loadGroupRoster, loadMyGroups, type Group, type RosterPlay
 import type { GroupRole } from "@/lib/groups";
 import { createFourballDay, createScrambleDay } from "@/lib/live-match-days";
 import { courseHandicap, indexLabel, parseIndex, playingHandicap, scrambleHandicap } from "@/lib/live-scoring";
-import { isOutingDay, outingDateLabel } from "@/lib/outing-rules";
-import { linkOutingMatchDay, loadClub, loadOuting, publishOutingDraw, setOutingEntry, type OutingPage } from "@/lib/outings";
+import { irishToday, isOutingDay, outingDateLabel } from "@/lib/outing-rules";
+import { linkOutingMatchDay, loadClub, loadOuting, publishOutingDraw, saveOuting, setOutingEntry, type OutingPage } from "@/lib/outings";
+import { clockLabel } from "@/lib/tee-time-post";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 
 /**
@@ -40,6 +43,14 @@ import { colors, fonts, radii, spacing, type } from "@/lib/theme";
  * outing (anyone ticked who hadn't entered is entered); members see their
  * times at once. "Start the day" is offered only on the outing's date, and
  * the live day is linked back to the outing.
+ *
+ * A FUTURE DATE (Oct 2026): the date and first tee are picked on scroll
+ * wheels. Today → "Start the day" as before. A later date → "Save for
+ * <date>": it becomes one of the group's Events (an outing: name, course,
+ * date, first tee), everyone ticked is entered and the draw is published as
+ * their tee times. On the day, the organiser opens it from Events and
+ * starts it here, with the draw laid out again. Needs whoever runs the
+ * group (the outings rule), and no guests — they're added on the day.
  */
 
 type Format = "stableford" | "stroke" | "scramble2" | "scramble4";
@@ -87,10 +98,14 @@ export default function DrawFromGroup() {
   const [mode, setMode] = useState<DrawMode>("random");
   const [title, setTitle] = useState("");
   const [firstTee, setFirstTee] = useState("");
+  /** The day it's played (YYYY-MM-DD). Today unless a later date is picked, or the outing's. */
+  const [playsOn, setPlaysOn] = useState(() => irishToday());
+  const [sheet, setSheet] = useState<null | "date" | "time">(null);
   const [gap, setGap] = useState(10);
   const [drawn, setDrawn] = useState<Entrant[][] | null>(null);
   const [picked, setPicked] = useState<Seat | null>(null);
   const [saving, setSaving] = useState(false);
+  const [savingFuture, setSavingFuture] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -126,6 +141,7 @@ export default function DrawFromGroup() {
           const inIt = people.filter((p) => page.entries.some((e) => e.memberId === p.id));
           setTicked(new Map(inIt.map((p) => [p.id, label(p)])));
           setTitle(page.outing.title);
+          setPlaysOn(page.outing.playsOn);
           if (page.outing.firstTee) setFirstTee(page.outing.firstTee.slice(0, 5));
           const byGroup = new Map<number, Entrant[]>();
           for (const e of [...page.entries].sort((a, b) => (a.teePosition ?? 0) - (b.teePosition ?? 0))) {
@@ -336,6 +352,63 @@ export default function DrawFromGroup() {
   };
 
   const outingDay = outing ? isOutingDay(outing.outing.playsOn) : true;
+
+  // A later date, not from an existing outing: save it as an event instead of starting it.
+  const future = !outing && playsOn > irishToday();
+  const runsGroup = group?.role === "owner" || group?.role === "admin";
+  const futureProblems: string[] = [];
+  if (future) {
+    if (!group) futureProblems.push("Choose a group");
+    else if (!runsGroup) futureProblems.push("Only whoever runs the group can set up a round ahead — or pick today");
+    if (entrants.length === 0) futureProblems.push("Tick who's playing");
+    if (entrants.some((e) => !e.memberId)) futureProblems.push("Guests are added on the day — take them out for now");
+    if (!course.club) futureProblems.push("Choose the course");
+    if (title.trim() === "") futureProblems.push("Give the day a name");
+  }
+
+  const saveFuture = async () => {
+    if (!future || futureProblems.length > 0 || !group || !course.club) return;
+    setSavingFuture(true);
+    try {
+      const outingId = await saveOuting(group.id, null, {
+        kind: "day",
+        title: title.trim(),
+        clubId: course.club.id,
+        courseName: course.club.name,
+        playsOn,
+        endsOn: null,
+        location: null,
+        payRevtag: null,
+        payIban: null,
+        payAccountName: null,
+        payCash: true,
+        payNote: null,
+        firstTee: /^\d{2}:\d{2}$/.test(firstTee) ? firstTee : null,
+        details: null,
+        entryFeeCents: null,
+        maxEntries: null,
+      });
+      // Everyone ticked goes in; a draw made now becomes their tee times.
+      for (const e of entrants) if (e.memberId) await setOutingEntry(outingId, true, e.memberId);
+      if (drawnNow && drawnNow.every((g) => g.every((p) => p.memberId))) {
+        await publishOutingDraw(
+          outingId,
+          drawnNow.map((g, gi) => ({ teeTime: times[gi] || null, members: g.map((p) => p.memberId as string) }))
+        );
+      }
+      Alert.alert(
+        `Saved for ${dayLabel(playsOn)}`,
+        drawnNow
+          ? "Everyone in it can see the day, their tee time and who they're playing with, under the group's Events. On the day, open it there and start the round."
+          : "Everyone ticked is in it, under the group's Events. Make the draw there any time before; on the day, open it and start the round.",
+        [{ text: "OK", onPress: () => router.replace({ pathname: "/group/[id]/outing/[outingId]", params: { id: String(group.id), outingId: String(outingId) } }) }]
+      );
+    } catch (e) {
+      Alert.alert("Couldn't save it", e instanceof Error ? e.message : "Please try again.");
+    } finally {
+      setSavingFuture(false);
+    }
+  };
 
   if (!isOn("liveScoring") || !isOn("groups")) return <StateMessage size="screen" icon="podium-outline" title="This is on its way" />;
   if (groups === null) return <ActivityIndicator color={colors.green700} style={{ marginTop: spacing.xl }} />;
@@ -558,17 +631,37 @@ export default function DrawFromGroup() {
               </Pressable>
             ))}
           </View>
+          <View style={styles.whenRow}>
+            <Pressable
+              onPress={() => setSheet("date")}
+              disabled={!!outing}
+              style={({ pressed }) => [styles.whenField, pressed && { opacity: 0.85 }]}
+              accessibilityRole="button"
+              accessibilityLabel={`Date, ${dayLabel(playsOn)}${outing ? ", set by the event" : ". Tap to change"}`}
+            >
+              <Ionicons name="calendar-outline" size={20} color={colors.green700} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.whenLabel}>Date</Text>
+                <Text style={styles.whenValue} numberOfLines={1}>{dayLabel(playsOn)}</Text>
+              </View>
+              {outing ? null : <Ionicons name="chevron-down" size={16} color={colors.ink500} />}
+            </Pressable>
+            <Pressable
+              onPress={() => setSheet("time")}
+              style={({ pressed }) => [styles.whenField, pressed && { opacity: 0.85 }]}
+              accessibilityRole="button"
+              accessibilityLabel={`First tee, ${firstTee ? clockLabel(firstTee) : "not set"}. Tap to change`}
+            >
+              <Ionicons name="time-outline" size={20} color={colors.green700} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.whenLabel}>First tee</Text>
+                <Text style={[styles.whenValue, !firstTee && styles.whenEmpty]} numberOfLines={1}>{firstTee ? clockLabel(firstTee) : "Set time"}</Text>
+              </View>
+              <Ionicons name="chevron-down" size={16} color={colors.ink500} />
+            </Pressable>
+          </View>
           <View style={styles.timeRow}>
-            <TextInput
-              value={firstTee}
-              onChangeText={setFirstTee}
-              placeholder="First tee, e.g. 09:00"
-              placeholderTextColor={colors.ink500}
-              keyboardType="numbers-and-punctuation"
-              style={[styles.input, { flex: 1 }]}
-              maxLength={5}
-              accessibilityLabel="First tee time"
-            />
+            <Text style={[styles.meta, { flex: 1 }]}>Minutes between groups</Text>
             {GAPS.map((g) => (
               <Pressable key={g} onPress={() => setGap(g)} style={[styles.gap, gap === g && styles.pillOn]} accessibilityRole="radio" accessibilityState={{ checked: gap === g }} accessibilityLabel={`${g} minutes apart`}>
                 <Text style={[styles.pillText, gap === g && styles.pillTextOn]}>{g}′</Text>
@@ -632,7 +725,22 @@ export default function DrawFromGroup() {
             </Text>
           </>
         ) : null}
-        {outing && !outingDay ? null : (
+        {future ? (
+          <>
+            {futureProblems.length > 0 ? <Text style={styles.problem}>{futureProblems[0]}</Text> : null}
+            <Pressable
+              onPress={() => void saveFuture()}
+              disabled={futureProblems.length > 0 || savingFuture}
+              style={[styles.start, (futureProblems.length > 0 || savingFuture) && styles.startOff]}
+              accessibilityRole="button"
+            >
+              {savingFuture ? <ActivityIndicator color={colors.cream50} /> : <Text style={styles.startLabel}>{`Save for ${dayLabel(playsOn)}`}</Text>}
+            </Pressable>
+            <Text style={styles.footNote}>
+              It goes under the group&apos;s Events with everyone ticked in it{drawnNow ? " and the draw as their tee times" : ""}. Format and tees are chosen when you start it on the day.
+            </Text>
+          </>
+        ) : outing && !outingDay ? null : (
         <>
         {problems.length > 0 ? <Text style={styles.problem}>{problems[0]}</Text> : null}
         <Pressable onPress={() => void start()} disabled={problems.length > 0 || saving} style={[styles.start, (problems.length > 0 || saving) && styles.startOff]} accessibilityRole="button">
@@ -642,6 +750,8 @@ export default function DrawFromGroup() {
         </>
         )}
       </ScrollView>
+      <DateSheet open={sheet === "date"} title="Which day?" value={playsOn} onClose={() => setSheet(null)} onChange={setPlaysOn} />
+      <TimeSheet open={sheet === "time"} title="First tee" value={firstTee} onClose={() => setSheet(null)} onChange={setFirstTee} />
     </KeyboardAvoidingView>
   );
 }
@@ -678,6 +788,11 @@ const styles = StyleSheet.create({
   meta: { fontFamily: fonts.body, fontSize: 12.5, color: colors.ink500 },
   input: { minHeight: 48, borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.surface, paddingHorizontal: spacing.md, fontFamily: fonts.body, fontSize: type.body, color: colors.ink900 },
   timeRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  whenRow: { flexDirection: "row", gap: spacing.sm },
+  whenField: { flex: 1, flexDirection: "row", alignItems: "center", gap: 10, minHeight: 58, paddingHorizontal: 12, borderRadius: radii.md, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
+  whenLabel: { fontFamily: fonts.bodySemi, fontSize: 11.5, letterSpacing: 0.6, textTransform: "uppercase", color: colors.ink500 },
+  whenValue: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.ink900 },
+  whenEmpty: { color: colors.green700 },
   gap: { minHeight: 44, minWidth: 44, alignItems: "center", justifyContent: "center", borderRadius: radii.pill, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
   drawButton: { flexDirection: "row", gap: 8, minHeight: 50, borderRadius: radii.pill, backgroundColor: colors.navy900, alignItems: "center", justifyContent: "center" },
   drawn: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: radii.lg, padding: spacing.sm, gap: 6 },
