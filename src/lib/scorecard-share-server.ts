@@ -8,6 +8,8 @@ export type SharedScorecard = ScorecardMeta & {
   id: number;
   firstName: string | null;
   holeList: ScorecardHole[];
+  /** A playing partner certified it (0128): their first name, how and when. */
+  certified: { by: string; method: string; at: string } | null;
 };
 
 /**
@@ -42,6 +44,14 @@ export async function loadSharedScorecard(token: string): Promise<SharedScorecar
 
   if (!data || data.member_id !== payload.s || !data.owner || data.owner.deleted_at) return null;
 
+  // First name only: the page is public, and the certifier didn't send it.
+  const { data: cert } = await createAdminClient()
+    .from("scorecard_certifications")
+    .select("certifier_name, method, responded_at")
+    .eq("scorecard_id", data.id)
+    .eq("status", "certified")
+    .maybeSingle<{ certifier_name: string; method: string; responded_at: string }>();
+
   return {
     id: data.id,
     firstName: data.owner.first_name,
@@ -54,5 +64,6 @@ export async function loadSharedScorecard(token: string): Promise<SharedScorecar
     holeList: [...data.scorecard_holes]
       .sort((a, b) => a.hole - b.hole)
       .map((h) => ({ hole: h.hole, par: h.par, strokeIndex: h.stroke_index, yards: h.yards, strokes: h.strokes, putts: h.putts })),
+    certified: cert ? { by: cert.certifier_name.trim().split(/\s+/)[0] || "A PinPal", method: cert.method, at: cert.responded_at } : null,
   };
 }

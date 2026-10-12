@@ -27,6 +27,9 @@ export async function generateMetadata({ params }: { params: Promise<{ token: st
   };
 }
 
+/** How the playing partner certified the card (0128). */
+const CERTIFY_METHOD: Record<string, string> = { face_id: "Face ID", touch_id: "Touch ID", biometric: "fingerprint", in_app: "in the app" };
+
 const markClass = (h: ScorecardHole) => {
   if (h.strokes == null) return "";
   const r = holeResult(h.strokes, h.par);
@@ -126,6 +129,11 @@ export default async function SharedScorecardPage({ params }: { params: Promise<
         <p className="text-ink-500">
           {[card.teeName ? `${card.teeName} tees` : null, headline(t), card.playingHandicap != null ? `plays off ${card.playingHandicap}` : null].filter(Boolean).join(" · ")}
         </p>
+        {card.certified ? (
+          <p className="mt-1 inline-flex w-fit items-center gap-2 rounded-full bg-green-100 px-3 py-1 text-sm font-bold text-green-800">
+            ✓ Certified by {card.certified.by} · {CERTIFY_METHOD[card.certified.method] ?? "in the app"}
+          </p>
+        ) : null}
       </div>
       <Nine title={card.holes === 9 ? "Tot" : "Out"} holes={front} par={t.out.par} strokes={t.out.strokes} yards={t.out.yards} />
       {back.length > 0 && t.in ? <Nine title="In" holes={back} par={t.in.par} strokes={t.in.strokes} yards={t.in.yards} /> : null}

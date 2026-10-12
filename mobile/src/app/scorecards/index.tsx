@@ -3,6 +3,7 @@ import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Tex
 import { Stack, router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
+import { Avatar } from "@/components/avatar";
 import { ScreenHeader, useCollapsingHeader } from "@/components/screen-header";
 import { LoadError, StateMessage } from "@/components/state-message";
 import { TeeDot } from "@/components/tee-chip";
@@ -10,6 +11,7 @@ import { useAuth } from "@/lib/auth";
 import { isOn } from "@/lib/features";
 import { headline, playedLabel, scorecardTotals, vsParText } from "@/lib/scorecard-math";
 import { scorecardStats } from "@/lib/scorecard-stats";
+import { certifiedIds, loadWaitingRequests, type WaitingRequest } from "@/lib/scorecard-certifications";
 import { listScorecards, type Scorecard } from "@/lib/scorecards";
 import { dateBadge } from "@/lib/profile-sections";
 import { colors, creamAlpha, fonts, radii, spacing, type } from "@/lib/theme";
@@ -36,18 +38,28 @@ export default function ScorecardsScreen() {
   const [cards, setCards] = useState<Scorecard[] | undefined>(undefined);
   const [failed, setFailed] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  // Certification (0128): which cards carry a certificate, and — on your own
+  // list — cards other people have asked you to certify.
+  const [certified, setCertified] = useState<Set<number>>(new Set());
+  const [waiting, setWaiting] = useState<WaitingRequest[]>([]);
 
   const load = useCallback(async () => {
     if (!memberId) return;
     try {
       setFailed(false);
-      setCards(await listScorecards(memberId));
+      const list = await listScorecards(memberId);
+      setCards(list);
+      if (isOn("scorecardCertification")) {
+        const [ids, asks] = await Promise.all([certifiedIds(list.map((c) => c.id)), mine ? loadWaitingRequests() : Promise.resolve([])]);
+        setCertified(ids);
+        setWaiting(asks);
+      }
     } catch {
       setFailed(true);
     } finally {
       setRefreshing(false);
     }
-  }, [memberId]);
+  }, [memberId, mine]);
 
   useFocusEffect(
     useCallback(() => {
@@ -87,6 +99,34 @@ export default function ScorecardsScreen() {
         }
         ListHeaderComponent={
           <View style={{ gap: spacing.md, marginBottom: spacing.xs }}>
+            {mine && waiting.length > 0 ? (
+              <View style={styles.waiting}>
+                <Text style={styles.waitingTitle}>WAITING FOR YOU TO CERTIFY</Text>
+                {waiting.map((w) => (
+                  <Pressable
+                    key={w.id}
+                    onPress={() => router.push({ pathname: "/scorecards/certify/[id]", params: { id: String(w.id) } })}
+                    style={({ pressed }) => [styles.waitingRow, pressed && styles.pressed]}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Certify ${w.ownerName}'s card from ${w.courseName}`}
+                  >
+                    <Avatar url={w.avatarUrl} color={w.avatarColor} name={w.ownerName} size={36} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.course} numberOfLines={1}>
+                        {w.ownerName}
+                      </Text>
+                      <Text style={styles.sub} numberOfLines={1}>
+                        {w.courseName} · {playedLabel(w.playedOn)}
+                      </Text>
+                    </View>
+                    <View style={styles.certifyPill}>
+                      <Text style={styles.certifyPillText}>Certify</Text>
+                    </View>
+                  </Pressable>
+                ))}
+              </View>
+            ) : null}
+
             {mine ? (
               <Pressable
                 onPress={() => router.push("/scorecards/new")}
@@ -160,13 +200,13 @@ export default function ScorecardsScreen() {
             }
           />
         }
-        renderItem={({ item }) => <CardRow card={item} />}
+        renderItem={({ item }) => <CardRow card={item} certified={certified.has(item.id)} />}
       />
     </View>
   );
 }
 
-function CardRow({ card }: { card: Scorecard }) {
+function CardRow({ card, certified }: { card: Scorecard; certified: boolean }) {
   const t = scorecardTotals(card.holeList, card.playingHandicap);
   const d = dateBadge(card.playedOn);
   const finished = t.complete && t.total.strokes != null;
@@ -177,7 +217,7 @@ function CardRow({ card }: { card: Scorecard }) {
       onPress={() => router.push({ pathname: "/scorecards/[id]", params: { id: String(card.id) } })}
       style={({ pressed }) => [styles.row, pressed && styles.pressed]}
       accessibilityRole="button"
-      accessibilityLabel={`${card.courseName}, ${d.day} ${d.month}. ${headline(t)}`}
+      accessibilityLabel={`${card.courseName}, ${d.day} ${d.month}. ${headline(t)}${certified ? ". Certified" : ""}`}
     >
       <View style={styles.dateBadge}>
         <Text style={styles.dateDay}>{d.day}</Text>
@@ -197,6 +237,7 @@ function CardRow({ card }: { card: Scorecard }) {
           {t.points != null ? <MiniChip text={`${t.points} pts`} /> : null}
           {under > 0 ? <MiniChip text={`${under} ${under === 1 ? "birdie" : "birdies"}${t.counts.eagle + t.counts.albatross ? "+" : ""}`} tone="green" /> : null}
           {!finished && t.played > 0 ? <MiniChip text="In progress" tone="gold" /> : null}
+          {certified ? <MiniChip text="✓ Certified" tone="green" /> : null}
         </View>
       </View>
       <View style={styles.scoreCol}>
@@ -323,4 +364,10 @@ const styles = StyleSheet.create({
   relText: { fontFamily: fonts.bodyBold, fontSize: 12.5, color: colors.red600 },
   relTextUnder: { color: colors.green700 },
   pressed: { opacity: 0.88 },
+
+  waiting: { gap: spacing.sm, padding: spacing.md, borderRadius: radii.lg, backgroundColor: colors.green100, borderWidth: 1, borderColor: "#bfd6bd" },
+  waitingTitle: { fontFamily: fonts.bodyBold, fontSize: 12, letterSpacing: 1.4, color: colors.green800 },
+  waitingRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm + 2, padding: spacing.sm + 2, borderRadius: radii.md, backgroundColor: colors.surface },
+  certifyPill: { borderRadius: radii.pill, paddingHorizontal: 12, paddingVertical: 6, backgroundColor: colors.gold400 },
+  certifyPillText: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.navy900 },
 });

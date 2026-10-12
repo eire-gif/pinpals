@@ -33,6 +33,10 @@ export function alertLook(type: string): AlertLook {
     return { icon: "card", fg: "#123058", bg: "#e1e8f2" };
   }
   if (type === "review_available") return { icon: "star", fg: "#8a6212", bg: "#f8eccf" };
+  // Scorecard certification (0128).
+  if (type === "scorecard_certify_request" || type === "scorecard_certify_result") {
+    return { icon: "shield-checkmark", fg: "#1f5c2e", bg: "#e2ede1" };
+  }
   return { icon: "notifications", fg: "#1f5c2e", bg: "#e2ede1" };
 }
 

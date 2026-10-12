@@ -177,6 +177,17 @@ describe("live scoring notifications (0103/0104)", () => {
   });
 });
 
+describe("scorecard certification notifications (0128)", () => {
+  it("are declared, filed under tee times, and can be switched off", () => {
+    for (const type of ["scorecard_certify_request", "scorecard_certify_result"] as const) {
+      expect(NOTIFICATION_TYPES).toContain(type);
+      expect(categoryForType(type)).toBe("tee_times");
+      expect(shouldSendPush(type, false)).toBe(false);
+      expect(shouldSendPush(type, null)).toBe(true);
+    }
+  });
+});
+
 describe("the tee-time interest loop (0077)", () => {
   // Before 0077 the only tee-time notification was the broadcast. Every
   // one-to-one step — someone asks to join, the host offers a place, the
