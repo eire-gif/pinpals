@@ -467,7 +467,7 @@ export default function DrawFromGroup() {
         drawnNow
           ? "Everyone in it can see the day, their tee time and who they're playing with, under the group's Events. On the day, open it there and start the round."
           : "Everyone ticked is in it, under the group's Events. Make the draw there any time before; on the day, open it and start the round.",
-        [{ text: "OK", onPress: () => router.replace({ pathname: "/group/[id]/outing/[outingId]", params: { id: String(group.id), outingId: String(outingId) } }) }]
+        [{ text: "OK", onPress: () => router.replace({ pathname: "/group/[id]/outing/[outingId]", params: { id: String(group.id), outingId: String(outingId), saved: "1" } }) }]
       );
     } catch (e) {
       Alert.alert("Couldn't save it", e instanceof Error ? e.message : "Please try again.");

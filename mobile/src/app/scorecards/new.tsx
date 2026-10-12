@@ -360,7 +360,8 @@ function HoleRow({
   const s = hole.strokes;
   const diff = s == null ? null : s - hole.par;
   return (
-    <View style={styles.holeRow}>
+    <View style={styles.holeBlock}>
+    <View style={styles.holeRowInner}>
       <View style={styles.holeNo}>
         <Text style={styles.holeNoText}>{hole.hole}</Text>
       </View>
@@ -382,15 +383,6 @@ function HoleRow({
         )}
         {shots > 0 ? <Text style={styles.shots}>{"●".repeat(Math.min(shots, 3))} {shots === 1 ? "1 shot" : `${shots} shots`}</Text> : null}
       </View>
-      {showPutts ? (
-        <Stepper
-          value={hole.putts}
-          label="putts"
-          onMinus={() => onChange({ putts: hole.putts == null ? 2 : Math.max(0, hole.putts - 1) })}
-          onPlus={() => onChange({ putts: hole.putts == null ? 2 : Math.min(10, hole.putts + 1) })}
-          small
-        />
-      ) : null}
       <Stepper
         value={s}
         label="strokes"
@@ -399,6 +391,20 @@ function HoleRow({
         onPlus={() => onChange({ strokes: s == null ? hole.par : Math.min(20, s + 1) })}
         onTap={() => (s == null ? onChange({ strokes: hole.par }) : undefined)}
       />
+    </View>
+      {/* Putts on a line of their own, lined up under the score, so a row
+          with par chips never runs out of width (Oct 2026). */}
+      {showPutts ? (
+        <View style={styles.puttsRow}>
+          <Text style={styles.puttsLabel}>Putts</Text>
+          <Stepper
+            value={hole.putts}
+            label="putts"
+            onMinus={() => onChange({ putts: hole.putts == null ? 2 : Math.max(0, hole.putts - 1) })}
+            onPlus={() => onChange({ putts: hole.putts == null ? 2 : Math.min(10, hole.putts + 1) })}
+          />
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -472,7 +478,10 @@ const styles = StyleSheet.create({
   summary: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   summaryText: { fontFamily: fonts.display, fontSize: 22, color: colors.ink900 },
   puttsToggle: { flexDirection: "row", alignItems: "center", gap: 6 },
-  holeRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingVertical: 6, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line },
+  holeBlock: { gap: 4, paddingVertical: 6, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line },
+  holeRowInner: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  puttsRow: { flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: spacing.sm },
+  puttsLabel: { fontFamily: fonts.bodySemi, fontSize: 12.5, color: colors.ink500 },
   holeNo: { width: 30, height: 30, borderRadius: 15, backgroundColor: colors.navy900, alignItems: "center", justifyContent: "center" },
   holeNoText: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.cream50 },
   holeMeta: { fontFamily: fonts.bodySemi, fontSize: 13.5, color: colors.ink900 },

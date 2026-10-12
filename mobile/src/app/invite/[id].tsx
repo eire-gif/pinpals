@@ -12,6 +12,7 @@ import {
 import { Stack, router, useLocalSearchParams } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
+import { DoneHome } from "@/components/done-home";
 import { Avatar } from "@/components/avatar";
 import { COURSE_PHOTOS } from "@/components/course-photos";
 import { InviteTags } from "@/components/invite-card";
@@ -470,6 +471,7 @@ export default function InviteScreen() {
             {actionError ? <Text style={styles.error}>{actionError}</Text> : null}
           </>
         )}
+        {posted ? <DoneHome saved="Tee time posted — your PinPals can see it now" /> : null}
       </ScrollView>
     </>
   );

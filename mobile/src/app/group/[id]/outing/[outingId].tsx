@@ -3,6 +3,7 @@ import { ActivityIndicator, Alert, Platform, Pressable, RefreshControl, ScrollVi
 import { Stack, router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
+import { DoneHome } from "@/components/done-home";
 import { Avatar } from "@/components/avatar";
 import { OutingPayCard } from "@/components/outing-pay-card";
 import { SectionTitle } from "@/components/group-bits";
@@ -35,7 +36,8 @@ import { colors, fonts, radii, spacing, type } from "@/lib/theme";
  * rooms and notes are on its itinerary, which this page opens.
  */
 export default function OutingScreen() {
-  const { id: rawId, outingId: rawOuting } = useLocalSearchParams<{ id: string; outingId: string }>();
+  // saved=1: just set up or changed (outing/new.tsx).
+  const { id: rawId, outingId: rawOuting, saved } = useLocalSearchParams<{ id: string; outingId: string; saved?: string }>();
   const groupId = Number(rawId);
   const outingId = Number(rawOuting);
   const { session } = useAuth();
@@ -417,6 +419,7 @@ export default function OutingScreen() {
             {entries.length === 0 ? <Text style={styles.note}>Nobody yet{open ? " — be the first." : "."}</Text> : entries.map(person)}
           </>
         )}
+        <DoneHome saved={saved ? "Saved — everyone in the group can see it under Events" : null} />
       </ScrollView>
     </View>
   );

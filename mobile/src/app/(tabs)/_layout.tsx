@@ -83,6 +83,14 @@ export default function TabsLayout() {
         name="index"
         options={{
           title: "Home",
+          // Drawn by us rather than by the header: on iOS the bar measured
+          // "Home" before the brand font had loaded and kept that width, so it
+          // showed as "Ho…". A fixed minimum width can't be squeezed (Oct 2026).
+          headerTitle: () => (
+            <Text style={[headerTitleStyle, { color: colors.ink900, minWidth: 96, textAlign: "center" }]} numberOfLines={1} accessibilityRole="header">
+              Home
+            </Text>
+          ),
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="home-outline" size={size} color={color} />
           ),

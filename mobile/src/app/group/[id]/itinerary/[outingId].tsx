@@ -3,6 +3,7 @@ import { ActivityIndicator, Platform, Pressable, RefreshControl, ScrollView, Sha
 import { Stack, router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
+import { DoneHome } from "@/components/done-home";
 import { LoadError, StateMessage } from "@/components/state-message";
 import { SITE_URL } from "@/lib/config";
 import { outingShareText } from "@/lib/outing-share";
@@ -297,6 +298,7 @@ export default function ItineraryScreen() {
         ) : null}
 
         {!amIn && !cancelled ? <Text style={styles.empty}>You&apos;re not on this trip. Join it from the trip&apos;s page to be put on flights, rooms and groups.</Text> : null}
+        <DoneHome saved={officer && items.length > 0 ? "Everything here is saved as you add it — everyone on the trip sees it" : null} />
       </ScrollView>
     </View>
   );
