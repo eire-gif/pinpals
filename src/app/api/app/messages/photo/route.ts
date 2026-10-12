@@ -107,6 +107,8 @@ export async function POST(request: Request) {
     conversationId,
     body,
     imagePath,
+    // 0130: a photo can be a reply too.
+    replyToId: form.get("reply_to_id") ? asId(form.get("reply_to_id")) : null,
   });
 
   if (!result.ok) {

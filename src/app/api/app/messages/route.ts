@@ -47,6 +47,7 @@ export async function POST(request: Request) {
     // `body` has sent something this route does not understand, and turning
     // it into "[object Object]" would post that to a real conversation.
     body: typeof body.body === "string" ? body.body : "",
+    replyToId: body.reply_to_id == null ? null : asId(body.reply_to_id),
   });
 
   if (!result.ok) {

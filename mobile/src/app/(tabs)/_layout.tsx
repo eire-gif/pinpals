@@ -252,6 +252,11 @@ export default function TabsLayout() {
         name="inbox"
         options={{
           title: "Inbox",
+          // Oct 2026: navy, running into the navy summary at the top of the
+          // screen — the chat screens share it.
+          headerStyle: { backgroundColor: colors.navy900 },
+          headerTintColor: colors.cream50,
+          headerShadowVisible: false,
           // Starting a conversation had no entry point at all: a thread only
           // existed if you found the person in the directory or on your
           // connections screen and pressed Message there. Every messaging app
@@ -259,7 +264,7 @@ export default function TabsLayout() {
           // absence of one reads as "you cannot start one from the inbox".
           headerRight: () => (
             <View style={{ flexDirection: "row", alignItems: "center" }}>
-              <ConnectionsButton />
+              <ConnectionsButton tint={colors.cream50} />
               <Pressable
                 onPress={() => router.push("/new-chat")}
                 hitSlop={12}
@@ -267,7 +272,7 @@ export default function TabsLayout() {
                 accessibilityRole="button"
                 accessibilityLabel="Start a new conversation"
               >
-                <Ionicons name="create-outline" size={24} color={colors.green700} />
+                <Ionicons name="create-outline" size={24} color={colors.gold400} />
               </Pressable>
             </View>
           ),
@@ -307,7 +312,7 @@ export default function TabsLayout() {
 }
 
 /** My connections, from a tab's header (Social and Inbox, Oct 2026). */
-function ConnectionsButton() {
+function ConnectionsButton({ tint = colors.green700 }: { tint?: string }) {
   return (
     <Pressable
       onPress={() => router.push("/connections")}
@@ -316,7 +321,7 @@ function ConnectionsButton() {
       accessibilityRole="button"
       accessibilityLabel="My connections"
     >
-      <Ionicons name="people-outline" size={25} color={colors.green700} />
+      <Ionicons name="people-outline" size={25} color={tint} />
     </Pressable>
   );
 }

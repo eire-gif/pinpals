@@ -33,7 +33,28 @@ export type Message = {
   /** Moderation only. `body` is never rewritten when a message is hidden —
    *  the UI decides whether to render it. See hideMessage() on the site. */
   hidden_at: string | null;
+  /** 0130. What this message quotes, written by the database at send time —
+   *  never by the client. Null when it isn't a reply. */
+  reply_to_id?: number | null;
+  reply_snapshot?: MessageQuote | null;
+  /** 0130 "Delete for everyone". `body` is then "This message was deleted". */
+  deleted_at?: string | null;
 };
+
+/** The quote inside a reply. `group` is set on a private reply — the name of
+ *  the group the quoted message was sent in. Once the original is deleted or
+ *  removed, only `deleted` / `removed` remains. */
+export type MessageQuote = {
+  sender_id?: string;
+  body?: string;
+  photo?: boolean;
+  group?: string | null;
+  deleted?: boolean;
+  removed?: boolean;
+};
+
+/** One reaction on a message: who, and which emoji. */
+export type Reaction = { messageId: number; memberId: string; emoji: string };
 
 export type ConversationKind = "direct" | "group";
 
@@ -62,7 +83,16 @@ export type InboxRow = {
    * empty, or its last message sits beyond the preview window (see
    * listInbox) — the row then falls back to the listing title.
    */
-  lastMessage: { body: string; mine: boolean; senderFirstName: string | null; photo: boolean } | null;
+  lastMessage: {
+    body: string;
+    mine: boolean;
+    senderFirstName: string | null;
+    photo: boolean;
+    /** Deleted for everyone (0130). */
+    deleted: boolean;
+    /** Mine, and everyone else in the thread has read past it — the ✓✓. */
+    seen: boolean;
+  } | null;
 };
 
 /** One person in a conversation, as the thread screen needs them: a name and
@@ -73,6 +103,8 @@ export type ThreadMember = {
   avatarUrl: string | null;
   avatarColor: string | null;
   isOwner: boolean;
+  /** How far they have read — for ✓✓ and "Seen by" in Info. */
+  lastReadAt: string | null;
 };
 
 export type ConversationHeader = {
@@ -223,11 +255,17 @@ export async function listInbox(userId: string): Promise<InboxRow[]> {
           const m = previews.get(row.id);
           if (!m) return null;
           const sender = membersOf(row).find((x) => x.member_id === m.sender_id)?.profile ?? null;
+          const mine = m.sender_id === userId;
           return {
             body: m.body ?? "",
-            mine: m.sender_id === userId,
+            mine,
             senderFirstName: sender?.first_name ?? null,
             photo: Boolean(m.image_path),
+            deleted: Boolean(m.deleted_at),
+            seen:
+              mine &&
+              others.length > 0 &&
+              others.every((o) => o.last_read_at != null && Date.parse(o.last_read_at) >= Date.parse(m.created_at)),
           };
         })(),
       };
@@ -236,6 +274,8 @@ export async function listInbox(userId: string): Promise<InboxRow[]> {
 
 type PreviewRow = {
   conversation_id: number;
+  created_at: string;
+  deleted_at: string | null;
   sender_id: string;
   body: string | null;
   image_path: string | null;
@@ -257,7 +297,7 @@ async function latestMessages(conversationIds: number[]): Promise<Map<number, Pr
 
   const { data } = await supabase
     .from("messages")
-    .select("conversation_id, sender_id, body, image_path, hidden_at")
+    .select("conversation_id, sender_id, body, image_path, hidden_at, created_at, deleted_at")
     .in("conversation_id", conversationIds)
     .is("hidden_at", null)
     .order("created_at", { ascending: false })
@@ -302,12 +342,16 @@ export async function conversationHeader(
       avatarUrl: m.profile?.avatar_url ?? null,
       avatarColor: m.profile?.avatar_color ?? null,
       isOwner: m.role === "owner",
+      lastReadAt: m.last_read_at,
     })),
     iAmOwner: membersOf(data).some((m) => m.member_id === userId && m.role === "owner"),
   };
 }
 
 export type Cursor = { createdAt: string; id: number };
+
+const MESSAGE_COLUMNS =
+  "id, conversation_id, sender_id, body, created_at, image_path, hidden_at, reply_to_id, reply_snapshot, deleted_at";
 
 /**
  * One page of a thread, newest first.
@@ -324,7 +368,7 @@ export async function listMessages(
 ): Promise<{ messages: Message[]; next: Cursor | null }> {
   let request = supabase
     .from("messages")
-    .select("id, conversation_id, sender_id, body, created_at, image_path, hidden_at")
+    .select(MESSAGE_COLUMNS)
     .eq("conversation_id", conversationId);
 
   if (cursor) {
@@ -368,13 +412,93 @@ export async function listMessages(
  */
 export async function sendMessage(
   conversationId: number,
-  body: string
+  body: string,
+  replyToId: number | null = null
 ): Promise<Message> {
   const { message } = await postToSite<{ message: Message }>(
     "/api/app/messages",
-    { conversation_id: conversationId, body }
+    replyToId
+      ? { conversation_id: conversationId, body, reply_to_id: replyToId }
+      : { conversation_id: conversationId, body }
   );
   return message;
+}
+
+/** One message by id — for the quote above the box when "Reply privately"
+ *  opens a direct thread from a group. RLS returns it only to members of the
+ *  group it was sent in. */
+export async function getMessage(id: number): Promise<Message | null> {
+  const { data } = await supabase
+    .from("messages")
+    .select(MESSAGE_COLUMNS)
+    .eq("id", id)
+    .maybeSingle()
+    .overrideTypes<Message>();
+  return data ?? null;
+}
+
+// ---------------------------------------------------------------------------
+// Reactions, deleting, reporting (0130)
+// ---------------------------------------------------------------------------
+
+/** Every reaction on these messages, in one query. */
+export async function listReactions(messageIds: number[]): Promise<Reaction[]> {
+  if (messageIds.length === 0) return [];
+  const { data } = await supabase
+    .from("message_reactions")
+    .select("message_id, member_id, emoji")
+    .in("message_id", messageIds)
+    .order("created_at", { ascending: true })
+    .overrideTypes<{ message_id: number; member_id: string; emoji: string }[]>();
+  return (data ?? []).map((r) => ({ messageId: Number(r.message_id), memberId: r.member_id, emoji: r.emoji }));
+}
+
+/** Set, change, or — with the same emoji again — take off my reaction.
+ *  Returns what is now in place. */
+export async function reactToMessage(messageId: number, emoji: string | null): Promise<string | null> {
+  const { data, error } = await supabase.rpc("react_to_message", { p_message_id: messageId, p_emoji: emoji });
+  if (error) throw new Error(error.message);
+  return (data as string | null) ?? null;
+}
+
+/** Message ids I've deleted for myself in this thread. */
+export async function hiddenMessageIds(conversationId: number): Promise<Set<number>> {
+  const { data } = await supabase
+    .from("message_hides")
+    .select("message_id")
+    .eq("conversation_id", conversationId)
+    .overrideTypes<{ message_id: number }[]>();
+  return new Set((data ?? []).map((r) => Number(r.message_id)));
+}
+
+/** "Reply privately": the direct thread with whoever wrote this group
+ *  message — opened for that purpose only (0130 start_private_reply). */
+export async function startPrivateReply(messageId: number): Promise<number> {
+  const { data, error } = await supabase.rpc("start_private_reply", { p_message_id: messageId });
+  if (error) throw new Error(error.message);
+  return Number(data);
+}
+
+export async function deleteForMe(messageId: number): Promise<void> {
+  const { error } = await supabase.rpc("hide_message_for_me", { p_message_id: messageId });
+  if (error) throw new Error(error.message);
+}
+
+/** Through the site: it also removes the photo from Storage. */
+export async function deleteForEveryone(messageId: number): Promise<void> {
+  await postToSite<{ ok: true }>(`/api/app/messages/${messageId}/delete`, {});
+}
+
+export const MESSAGE_REPORT_REASONS = [
+  { category: "harassment", label: "Harassment or abuse" },
+  { category: "spam", label: "Spam" },
+  { category: "scam_fraud", label: "Scam or fraud" },
+  { category: "inappropriate_content", label: "Inappropriate" },
+  { category: "other", label: "Something else" },
+] as const;
+
+export async function reportMessage(messageId: number, category: string): Promise<void> {
+  await postToSite<{ ok: true }>("/api/app/messages/report", { message_id: messageId, category });
 }
 
 /**
@@ -394,11 +518,14 @@ export async function sendMessage(
 export async function sendPhotoMessage(
   conversationId: number,
   file: UploadFile,
-  body = ""
+  body = "",
+  replyToId: number | null = null
 ): Promise<Message> {
   const { message } = await postFormToSite<{ message: Message }>(
     "/api/app/messages/photo",
-    { conversation_id: String(conversationId), body },
+    replyToId
+      ? { conversation_id: String(conversationId), body, reply_to_id: String(replyToId) }
+      : { conversation_id: String(conversationId), body },
     { field: "file", file }
   );
   return message;
@@ -530,6 +657,11 @@ export async function markRead(
   // Straight at my own member row. No read-first to work out which of two
   // columns is mine — the UPDATE policy scopes this to member_id =
   // auth.uid(), so naming both keys IS the authorization.
+  // On the database's clock (0130), so ✓✓ isn't held back by a phone whose
+  // clock runs a few seconds slow. The direct update is the fallback for a
+  // database without that function yet.
+  const { error } = await supabase.rpc("mark_conversation_read", { p_conversation_id: conversationId });
+  if (!error) return;
   await supabase
     .from("conversation_members")
     .update({ last_read_at: new Date().toISOString() })
@@ -593,6 +725,17 @@ const clock = (then: Date): string =>
     })
     .toLowerCase()
     .replace(/\s/g, "");
+
+/** "9:41am" — the time inside a bubble. */
+export const messageTime = (iso: string): string => clock(new Date(iso));
+
+/** The phone's own calendar day of an instant, for grouping a thread by day.
+ *  Not created_at.slice(0, 10), which is the UTC date and splits an Irish
+ *  evening in summer across two headings. */
+export const localDayKey = (iso: string): string => {
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+};
 
 /** "9:41am", "Yesterday", "Sat", "12 Aug" — as much as is useful and no more,
  *  which is how every inbox anyone has used already behaves. */
