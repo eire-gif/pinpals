@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
 import { Stack, router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
@@ -15,8 +15,8 @@ import { isOn } from "@/lib/features";
 import { draw, indexTotal, swapPlayers, teamSizes, teeGroupSizes, teeTimes, type DrawMode, type DrawPlayer, type Seat } from "@/lib/group-draw";
 import { canDrawFrom, loadGroupRoster, loadMyGroups, type Group, type RosterPlayer } from "@/lib/groups-data";
 import type { GroupRole } from "@/lib/groups";
-import { createFourballDay, createScrambleDay } from "@/lib/live-match-days";
-import { courseHandicap, indexLabel, parseIndex, playingHandicap, scrambleHandicap } from "@/lib/live-scoring";
+import { SIDE_COLORS, createFourballDay, createMatchDay, createScrambleDay } from "@/lib/live-match-days";
+import { courseHandicap, formatInfo, indexLabel, parseIndex, playingHandicap, scrambleHandicap, type MatchFormat } from "@/lib/live-scoring";
 import { irishToday, isOutingDay, outingDateLabel } from "@/lib/outing-rules";
 import { linkOutingMatchDay, loadClub, loadOuting, publishOutingDraw, saveOuting, setOutingEntry, type OutingPage } from "@/lib/outings";
 import { loadItineraryItem, setItemPeople, type ItineraryItem } from "@/lib/itinerary";
@@ -31,6 +31,10 @@ import { colors, fonts, radii, spacing, type } from "@/lib/theme";
  *
  *   Stableford / Stroke play → a society day: one card per tee group, one
  *                              individual leaderboard (live_fourball_day_create)
+ *   Singles / Fourball /     → a match day (0104): the draw makes the
+ *   Foursomes / Greensomes     matches (2 or 4 a match, side v side), with an
+ *                              optional team score, Blues v Golds
+ *                              (live_match_day_create; Oct 2026)
  *   Scramble 2s / 4s         → a scramble day: one card per team, one team
  *                              leaderboard (live_scramble_day_create)
  *
@@ -61,7 +65,7 @@ import { colors, fonts, radii, spacing, type } from "@/lib/theme";
  * group (the outings rule), and no guests — they're added on the day.
  */
 
-type Format = "stableford" | "stroke" | "scramble2" | "scramble4";
+type Format = "stableford" | "stroke" | "scramble2" | "scramble4" | "singles" | "fourball" | "foursomes" | "greensomes";
 
 const FORMATS: { id: Format; label: string; hint: string }[] = [
   { id: "stableford", label: "Stableford", hint: "Tee groups, everyone on one points leaderboard" },
@@ -69,6 +73,19 @@ const FORMATS: { id: Format; label: string; hint: string }[] = [
   { id: "scramble4", label: "Scramble 4s", hint: "Teams of four, one ball per team" },
   { id: "scramble2", label: "Scramble 2s", hint: "Pairs, one ball per pair" },
 ];
+
+/** Matchplay: the draw makes the matches; each is scored hole by hole, side v side. */
+const MATCH_FORMATS_HERE: { id: Format; label: string; hint: string }[] = [
+  { id: "singles", label: "Singles", hint: "One v one" },
+  { id: "fourball", label: "Fourball", hint: "Pairs, better ball" },
+  { id: "foursomes", label: "Foursomes", hint: "Pairs, alternate shot" },
+  { id: "greensomes", label: "Greensomes", hint: "Both drive, pick one" },
+];
+
+const MATCH_FORMAT: Partial<Record<Format, MatchFormat>> = { singles: "matchplay", fourball: "fourball", foursomes: "foursomes", greensomes: "greensomes" };
+
+/** A match's side for each seat: singles 1 v 1; pairs, seats 0–1 v 2–3. */
+const sideOf = (position: number, size: number): 1 | 2 => (position < size / 2 ? 1 : 2);
 
 /** WHS individual stroke-play allowance, for Stableford and stroke play. */
 const ALLOWANCE = 0.95;
@@ -88,6 +105,9 @@ function teeGroupSummary(sizes: number[]): string {
 function formatFromTrip(f: PlayFormat | null): Format {
   if (f === "strokeplay") return "stroke";
   if (f === "scramble") return "scramble4";
+  if (f === "matchplay") return "singles";
+  if (f === "fourball") return "fourball";
+  if (f === "foursomes") return "foursomes";
   return "stableford";
 }
 
@@ -112,6 +132,8 @@ export default function DrawFromGroup() {
   const [guests, setGuests] = useState<Guest[]>([]);
   const [format, setFormat] = useState<Format>("stableford");
   const [perGroup, setPerGroup] = useState<3 | 4>(4);
+  const [teamsOn, setTeamsOn] = useState(true);
+  const [teamNames, setTeamNames] = useState<[string, string]>(["Blues", "Golds"]);
   const [mode, setMode] = useState<DrawMode>("random");
   const [title, setTitle] = useState("");
   const [firstTee, setFirstTee] = useState("");
@@ -236,8 +258,9 @@ export default function DrawFromGroup() {
   }, [roster, ticked, guests]);
 
   const scramble = format === "scramble2" || format === "scramble4";
-  const teamSize = format === "scramble2" ? 2 : 4;
-  const sizing = scramble ? teamSizes(entrants.length, teamSize) : { sizes: teeGroupSizes(entrants.length, perGroup), leftOver: 0 };
+  const matchFormat = MATCH_FORMAT[format] ?? null;
+  const teamSize = matchFormat ? (matchFormat === "matchplay" ? 2 : 4) : format === "scramble2" ? 2 : 4;
+  const sizing = scramble || matchFormat ? teamSizes(entrants.length, teamSize) : { sizes: teeGroupSizes(entrants.length, perGroup), leftOver: 0 };
 
   // Anything that changes who's in or how they're split clears the draw.
   const invalidate = () => {
@@ -257,7 +280,17 @@ export default function DrawFromGroup() {
 
   const makeDraw = () => {
     setPicked(null);
-    setDrawn(draw(entrants, sizing.sizes, mode));
+    let groupsNow = draw(entrants, sizing.sizes, mode);
+    // A pairs match, balanced: the best and the highest handicap of the four
+    // play together against the middle two.
+    if (matchFormat && matchFormat !== "matchplay" && mode === "balanced") {
+      groupsNow = groupsNow.map((g) => {
+        if (g.length !== 4) return g;
+        const by = [...g].sort((a, b) => (a.index ?? 99) - (b.index ?? 99));
+        return [by[0], by[3], by[1], by[2]];
+      });
+    }
+    setDrawn(groupsNow);
   };
 
   // Keep a drawn player's typed index or guest name current in the draw.
@@ -291,11 +324,16 @@ export default function DrawFromGroup() {
     else if (e.index == null) problems.push(`Add ${e.name.split(" ")[0]}'s handicap index`);
   }
   if (scramble && sizing.leftOver > 0) problems.push(`${sizing.leftOver} left over for teams of ${teamSize} — add ${teamSize - sizing.leftOver === 1 ? "a guest" : "guests"} or untick someone`);
+  if (matchFormat && sizing.leftOver > 0) problems.push(`${sizing.leftOver} left over — ${matchFormat === "matchplay" ? "singles need an even number" : "pairs matches need groups of four"}: add ${teamSize - sizing.leftOver === 1 ? "a guest" : "guests"} or untick someone`);
+  if (matchFormat && sizing.sizes.length > 40) problems.push("40 matches at most");
+  if (matchFormat && teamsOn && (teamNames[0].trim() === "" || teamNames[1].trim() === "")) problems.push("Name both teams");
   if (!scramble && sizing.sizes.length > 40) problems.push("40 groups at most");
   if (scramble && sizing.sizes.length > 60) problems.push("60 teams at most");
   problems.push(...course.problems);
   if (title.trim() === "") problems.push("Give the day a name");
   if (!drawnNow) problems.push("Make the draw");
+  // A draw saved for tee groups (an event, a trip round) doesn't fit matches of another size.
+  else if (matchFormat && drawnNow.some((g) => g.length !== teamSize)) problems.push(`Draw again — ${matchFormat === "matchplay" ? "singles are two to a match" : "pairs matches are four to a match"}`);
 
   const start = async (startAnyway = false) => {
     if (problems.length > 0 || !drawnNow || !course.club) return;
@@ -323,7 +361,29 @@ export default function DrawFromGroup() {
         parTotal: course.par,
       };
       let id: number;
-      if (scramble) {
+      if (matchFormat) {
+        const allowance = formatInfo(matchFormat).allowance;
+        id = await createMatchDay(
+          { ...day, teamNames: teamsOn ? [teamNames[0].trim(), teamNames[1].trim()] : null },
+          drawnNow.map((g, gi) => ({
+            format: matchFormat,
+            teeTime: times[gi] || null,
+            players: g.map((p, pi) => {
+              const w = handicaps(p)!;
+              return {
+                memberId: p.memberId,
+                name: p.name,
+                handicapIndex: w.index,
+                courseHandicap: w.courseHandicap,
+                playingHandicap: playingHandicap(w.courseHandicap, allowance),
+                estimated: w.estimated,
+                side: sideOf(pi, g.length),
+              };
+            }),
+          })),
+          course.holeCard()
+        );
+      } else if (scramble) {
         id = await createScrambleDay(
           { ...day, size: teamSize, driveMinimum: null },
           drawnNow.map((team, ti) => {
@@ -490,7 +550,7 @@ export default function DrawFromGroup() {
     );
   }
 
-  const unitWord = scramble ? "Team" : "Group";
+  const unitWord = matchFormat ? "Match" : scramble ? "Team" : "Group";
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined} keyboardVerticalOffset={90}>
@@ -658,7 +718,52 @@ export default function DrawFromGroup() {
               );
             })}
           </View>
-          {!scramble ? (
+          <Text style={styles.subhead}>Matchplay</Text>
+          <View style={styles.row}>
+            {MATCH_FORMATS_HERE.map((f) => {
+              const on = f.id === format;
+              return (
+                <Pressable
+                  key={f.id}
+                  onPress={() => {
+                    invalidate();
+                    setFormat(f.id);
+                  }}
+                  style={[styles.pill, on && styles.pillOn]}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: on }}
+                  accessibilityLabel={`${f.label}: ${f.hint}`}
+                >
+                  <Text style={[styles.pillText, on && styles.pillTextOn]}>{f.label}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+          {matchFormat ? (
+            <>
+              <View style={styles.teamToggle}>
+                <Text style={styles.teamToggleText}>Keep a team score</Text>
+                <Switch value={teamsOn} onValueChange={setTeamsOn} trackColor={{ true: colors.green600 }} />
+              </View>
+              {teamsOn ? (
+                <View style={styles.row}>
+                  {([0, 1] as const).map((i) => (
+                    <View key={i} style={[styles.teamField, { borderColor: SIDE_COLORS[i] }]}>
+                      <View style={[styles.teamDot, { backgroundColor: SIDE_COLORS[i] }]} />
+                      <TextInput
+                        value={teamNames[i]}
+                        onChangeText={(t) => setTeamNames((n) => (i === 0 ? [t, n[1]] : [n[0], t]))}
+                        style={styles.teamInput}
+                        maxLength={30}
+                        accessibilityLabel={`Team ${i + 1} name`}
+                      />
+                    </View>
+                  ))}
+                </View>
+              ) : null}
+            </>
+          ) : null}
+          {!scramble && !matchFormat ? (
             <View style={styles.row}>
               {([4, 3] as const).map((n) => (
                 <Pressable
@@ -679,6 +784,8 @@ export default function DrawFromGroup() {
           <Text style={styles.meta}>
             {entrants.length === 0
               ? "Tick who's playing to see the groups."
+              : matchFormat
+                ? `${sizing.sizes.length} ${sizing.sizes.length === 1 ? "match" : "matches"}${matchFormat === "matchplay" ? ", one v one" : ", pair v pair"}${sizing.leftOver ? ` · ${sizing.leftOver} left over` : ""} · ${Math.round(formatInfo(matchFormat).allowance * 100)}% handicap allowance`
               : scramble
                 ? `${sizing.sizes.length} ${sizing.sizes.length === 1 ? "team" : "teams"} of ${teamSize}${sizing.leftOver ? ` · ${sizing.leftOver} left over` : ""}`
                 : `${teeGroupSummary(sizing.sizes)} · ${Math.round(ALLOWANCE * 100)}% handicap allowance`}
@@ -763,8 +870,10 @@ export default function DrawFromGroup() {
                     accessibilityRole="button"
                     accessibilityLabel={`${p.name}, ${unitWord.toLowerCase()} ${gi + 1}. ${picked ? "Tap to swap with the player you picked" : "Tap to pick for a swap"}`}
                   >
+                    {matchFormat ? <View style={[styles.sideDot, { backgroundColor: SIDE_COLORS[sideOf(pi, g.length) - 1] }]} /> : null}
                     <Text style={[styles.drawnName, on && styles.drawnNameOn]} numberOfLines={1}>
                       {p.memberId === userId ? `${p.name} (you)` : p.name || "Guest"}
+                      {matchFormat && teamsOn ? <Text style={styles.sideName}>{`  ${teamNames[sideOf(pi, g.length) - 1]}`}</Text> : null}
                     </Text>
                     <Text style={[styles.meta, on && styles.drawnNameOn]}>{p.index != null ? indexLabel(p.index) : "no index"}</Text>
                     {on ? <Ionicons name="swap-vertical" size={18} color={colors.cream50} /> : null}
@@ -810,7 +919,7 @@ export default function DrawFromGroup() {
         <>
         {problems.length > 0 ? <Text style={styles.problem}>{problems[0]}</Text> : null}
         <Pressable onPress={() => void start()} disabled={problems.length > 0 || saving} style={[styles.start, (problems.length > 0 || saving) && styles.startOff]} accessibilityRole="button">
-          {saving ? <ActivityIndicator color={colors.cream50} /> : <Text style={styles.startLabel}>{tripRound ? "Start the round" : scramble ? "Start the scramble" : "Start the day"}</Text>}
+          {saving ? <ActivityIndicator color={colors.cream50} /> : <Text style={styles.startLabel}>{tripRound ? "Start the round" : matchFormat ? "Start the matches" : scramble ? "Start the scramble" : "Start the day"}</Text>}
         </Pressable>
         <Text style={styles.footNote}>Everyone on PinPals gets their card and the leaderboard on their phone. Guests are scored by their group.</Text>
         </>
@@ -855,6 +964,14 @@ const styles = StyleSheet.create({
   input: { minHeight: 48, borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.surface, paddingHorizontal: spacing.md, fontFamily: fonts.body, fontSize: type.body, color: colors.ink900 },
   timeRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   whenRow: { flexDirection: "row", gap: spacing.sm },
+  subhead: { fontFamily: fonts.bodyBold, fontSize: 12, letterSpacing: 1.2, textTransform: "uppercase", color: colors.green700, marginTop: spacing.xs },
+  teamToggle: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  teamToggleText: { fontFamily: fonts.bodySemi, fontSize: type.body, color: colors.ink900 },
+  teamField: { flex: 1, flexDirection: "row", alignItems: "center", gap: 8, minHeight: 48, paddingHorizontal: 12, borderRadius: radii.md, borderWidth: 2, backgroundColor: colors.surface },
+  teamDot: { width: 14, height: 14, borderRadius: 7 },
+  teamInput: { flex: 1, fontFamily: fonts.bodySemi, fontSize: type.body, color: colors.ink900 },
+  sideDot: { width: 10, height: 10, borderRadius: 5 },
+  sideName: { fontFamily: fonts.body, fontSize: 12.5, color: colors.ink500 },
   whenField: { flex: 1, flexDirection: "row", alignItems: "center", gap: 10, minHeight: 58, paddingHorizontal: 12, borderRadius: radii.md, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
   whenLabel: { fontFamily: fonts.bodySemi, fontSize: 11.5, letterSpacing: 0.6, textTransform: "uppercase", color: colors.ink500 },
   whenValue: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.ink900 },

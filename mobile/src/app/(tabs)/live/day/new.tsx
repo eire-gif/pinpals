@@ -31,7 +31,8 @@ import {
   playingHandicap,
   type MatchFormat,
 } from "@/lib/live-scoring";
-import { listConnections, type Member } from "@/lib/members";
+import { listConnections } from "@/lib/members";
+import { canDrawFrom, loadGroupRoster, loadMyGroups } from "@/lib/groups-data";
 import { loadMyProfile } from "@/lib/profile";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 
@@ -39,7 +40,9 @@ import { colors, fonts, radii, spacing, type } from "@/lib/theme";
  * Set up a match day: course, optional teams, then the matches — each with
  * its own format, tee time and players on each side.
  *
- * The organiser can put themselves, their PinPals and guests by name on the
+ * The organiser can put themselves, their PinPals, members of the groups
+ * they can draw from (anyone in a crew or trip; a society they run — the
+ * same rule as live_can_add_player, Oct 2026) and guests by name on the
  * card (live_match_day_create refuses anyone else), and nobody plays two
  * matches. When the day starts, every PinPal on it is notified with their
  * own match (src/lib/live-match-notifications.ts on the website).
@@ -56,6 +59,9 @@ type Slot = {
   name: string;
   indexText: string;
 };
+
+/** Someone who can be put on the card: a PinPal, or a member of one of your groups. */
+type Candidate = { id: string; name: string; handicap: number | null; from: string | null };
 
 type DraftMatch = {
   key: string;
@@ -92,7 +98,8 @@ export default function NewMatchDay() {
   const [timeFor, setTimeFor] = useState<string | null>(null);
   const [matches, setMatches] = useState<DraftMatch[]>([{ key: nextKey("m"), format: "fourball", teeTime: "", sides: emptySides("fourball") }]);
   const [me, setMe] = useState<{ name: string; index: string } | null>(null);
-  const [pals, setPals] = useState<Member[] | null>(null);
+  const [pals, setPals] = useState<Candidate[] | null>(null);
+  const [search, setSearch] = useState("");
   const [picking, setPicking] = useState<Picking>(null);
   const [saving, setSaving] = useState(false);
 
@@ -109,9 +116,27 @@ export default function NewMatchDay() {
           : ms
       );
     });
-    void listConnections(userId)
-      .then((c) => setPals(c.accepted))
-      .catch(() => setPals([]));
+    // PinPals first, then the members of every group you can draw from —
+    // a society's captain sees the whole society here.
+    void (async () => {
+      const byId = new Map<string, Candidate>();
+      const connections = await listConnections(userId).catch(() => null);
+      for (const p of connections?.accepted ?? []) byId.set(p.id, { id: p.id, name: p.name, handicap: p.handicap, from: null });
+      const groups = await loadMyGroups(userId).then((g) => g.groups.filter(canDrawFrom)).catch(() => []);
+      const rosters = await Promise.all(groups.map((g) => loadGroupRoster(g.id).then((r) => ({ g, r })).catch(() => ({ g, r: [] }))));
+      for (const { g, r } of rosters) {
+        for (const p of r) {
+          if (p.id === userId) continue;
+          const known = byId.get(p.id);
+          if (known) {
+            // A society's own index for someone beats what they share.
+            if (p.fromSociety && p.index != null) known.handicap = p.index;
+            known.from ??= g.name;
+          } else byId.set(p.id, { id: p.id, name: p.name, handicap: p.index, from: g.name });
+        }
+      }
+      setPals([...byId.values()].sort((a, b) => a.name.localeCompare(b.name)));
+    })();
   }, [userId]);
 
   const used = useMemo(() => {
@@ -342,19 +367,31 @@ export default function NewMatchDay() {
                                   }}
                                 />
                               ) : null}
+                              {pals != null && pals.length > 10 ? (
+                                <TextInput
+                                  value={search}
+                                  onChangeText={setSearch}
+                                  placeholder="Search by name"
+                                  placeholderTextColor={colors.ink500}
+                                  style={[styles.input, { marginTop: 6 }]}
+                                  autoCorrect={false}
+                                  accessibilityLabel="Search players"
+                                />
+                              ) : null}
                               {pals == null ? (
                                 <ActivityIndicator color={colors.green700} />
                               ) : (
                                 pals
-                                  .filter((p) => !used.has(p.id))
+                                  .filter((p) => !used.has(p.id) && (search.trim() === "" || p.name.toLowerCase().includes(search.trim().toLowerCase())))
                                   .map((p) => (
                                     <PickRow
                                       key={p.id}
                                       label={p.name}
-                                      meta={p.handicap != null ? `Index ${p.handicap}` : "Handicap not shared"}
+                                      meta={[p.handicap != null ? `Index ${p.handicap}` : "Handicap not shared", p.from].filter(Boolean).join(" · ")}
                                       onPress={() => {
                                         setSlot(here, { key: nextKey("s"), memberId: p.id, name: p.name, indexText: p.handicap != null ? String(p.handicap) : "" });
                                         setPicking(null);
+                                        setSearch("");
                                       }}
                                     />
                                   ))
@@ -433,7 +470,7 @@ export default function NewMatchDay() {
         <Text style={styles.footNote}>
           {memberCount > 0
             ? `${memberCount} PinPal${memberCount === 1 ? "" : "s"} will get a notification with their match.`
-            : "PinPals you add get a notification with their match."}
+            : "PinPals and group members you add get a notification with their match."}
         </Text>
 
         <Pressable
