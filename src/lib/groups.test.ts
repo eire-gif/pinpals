@@ -12,6 +12,8 @@ import {
   groupNameProblem,
   groupInvitePath,
   groupSlug,
+  isGroupOffice,
+  roleLabel,
   isCreatableGroupKind,
   isGroupInviteCode,
   isGroupKind,
@@ -149,5 +151,21 @@ describe("names", () => {
     expect(groupSlug("Saturday Golf Crew")).toBe("saturday-golf-crew");
     expect(groupSlug("  Dún Laoghaire & Dalkey Golfers!! ")).toBe("dun-laoghaire-and-dalkey-golfers");
     expect(groupSlug("Algarve 2027 ⛳")).toBe("algarve-2027");
+  });
+});
+
+describe("society offices (0122)", () => {
+  it("labels the owner, the officers and plain admins", () => {
+    expect(roleLabel("member", null)).toBeNull();
+    expect(roleLabel("owner", null)).toBe("Owner");
+    expect(roleLabel("admin", "captain")).toBe("Captain");
+    expect(roleLabel("owner", "secretary")).toBe("Owner · Secretary");
+    expect(roleLabel("admin", null)).toBe("Admin");
+  });
+
+  it("knows the two offices", () => {
+    expect(isGroupOffice("captain")).toBe(true);
+    expect(isGroupOffice("secretary")).toBe(true);
+    expect(isGroupOffice("treasurer")).toBe(false);
   });
 });

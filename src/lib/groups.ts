@@ -149,6 +149,31 @@ export function chatAllowed(kind: GroupKind, memberCount: number): boolean {
 export const GROUP_ROLES = ["owner", "admin", "member"] as const;
 export type GroupRole = (typeof GROUP_ROLES)[number];
 
+/**
+ * A society's officers (0122). The owner — whoever started it — appoints a
+ * captain and a secretary, one of each. An officer runs the society with the
+ * owner (role 'admin'): invites, the link, join requests, rounds and
+ * handicaps. In a society there are no other admins, and members never
+ * invite (members_can_invite is always off).
+ */
+export const GROUP_OFFICES = ["captain", "secretary"] as const;
+export type GroupOffice = (typeof GROUP_OFFICES)[number];
+
+export const GROUP_OFFICE_LABELS: Record<GroupOffice, string> = { captain: "Captain", secretary: "Secretary" };
+
+export function isGroupOffice(value: unknown): value is GroupOffice {
+  return typeof value === "string" && (GROUP_OFFICES as readonly string[]).includes(value);
+}
+
+/** What a member's badge says: "Owner", "Captain", "Owner · Secretary", "Admin", or nothing. */
+export function roleLabel(role: GroupRole, office: GroupOffice | null): string | null {
+  const parts: string[] = [];
+  if (role === "owner") parts.push("Owner");
+  if (office) parts.push(GROUP_OFFICE_LABELS[office]);
+  else if (role === "admin") parts.push("Admin");
+  return parts.length > 0 ? parts.join(" · ") : null;
+}
+
 export const GROUP_ACTIONS = [
   "view",
   "post",

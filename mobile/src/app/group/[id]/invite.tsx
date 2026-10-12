@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { Stack, router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -8,7 +8,7 @@ import { useAuth } from "@/lib/auth";
 import { shareVia, type ShareChannel } from "@/lib/find-pinpals";
 import { GROUP_KIND_INFO } from "@/lib/groups";
 import { getGroupInviteCode, groupInviteUrl, inviteToGroup, loadGroupPage, resetGroupInviteCode, type GroupPage } from "@/lib/groups-data";
-import { listConnections, memberPlace, type Member } from "@/lib/members";
+import { listConnections, listMembers, memberPlace, type Member } from "@/lib/members";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 
 /**
@@ -21,9 +21,13 @@ import { colors, fonts, radii, spacing, type } from "@/lib/theme";
  *   YOUR CONNECTIONS, below: tick them and they get an invitation to accept.
  *   Anyone already in the group isn't listed. invite_to_group() skips anyone
  *   it can't invite (blocked, gone) rather than failing the whole list.
+ *
+ *   FIND PINPALS (0122), for whoever runs the group: search every member,
+ *   not just connections, and invite them. They still have to accept. The
+ *   group page's "Find PinPals" button opens this screen on that tab.
  */
 export default function InviteToGroupScreen() {
-  const { id: rawId } = useLocalSearchParams<{ id: string }>();
+  const { id: rawId, find } = useLocalSearchParams<{ id: string; find?: string }>();
   const groupId = Number(rawId);
   const { session } = useAuth();
   const userId = session?.user?.id ?? null;
@@ -35,6 +39,9 @@ export default function InviteToGroupScreen() {
   const [code, setCode] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [mode, setMode] = useState<"connections" | "find">(find === "1" ? "find" : "connections");
+  const [found, setFound] = useState<Member[]>([]);
+  const [searching, setSearching] = useState(false);
 
   const load = useCallback(async () => {
     if (!userId) return;
@@ -55,14 +62,43 @@ export default function InviteToGroupScreen() {
     }, [load])
   );
 
+  const inGroup = useMemo(() => new Set((page?.members ?? []).map((m) => m.id)), [page]);
+  const canManage = page?.myRole === "owner" || page?.myRole === "admin";
+  const finding = mode === "find" && canManage;
+
+  // Find PinPals: the whole membership, searched as you type (newest first
+  // when the box is empty, like the directory).
+  useEffect(() => {
+    if (!finding || !userId) return;
+    let live = true;
+    setSearching(true);
+    const t = setTimeout(() => {
+      void listMembers(userId, "everyone", query)
+        .then((d) => {
+          if (live) setFound(d.members.filter((m) => !inGroup.has(m.id)));
+        })
+        .catch(() => {
+          if (live) setFound([]);
+        })
+        .finally(() => {
+          if (live) setSearching(false);
+        });
+    }, 300);
+    return () => {
+      live = false;
+      clearTimeout(t);
+    };
+  }, [finding, userId, query, inGroup]);
+
   const visible = useMemo(() => {
+    if (finding) return found;
     const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
     if (words.length === 0) return people;
     return people.filter((m) => {
       const haystack = [m.name, m.homeClub, m.county].filter(Boolean).join(" ").toLowerCase();
       return words.every((w) => haystack.includes(w));
     });
-  }, [people, query]);
+  }, [people, query, finding, found]);
 
   const groupName = page?.group.name ?? "our group";
   const kindWord = page ? GROUP_KIND_INFO[page.group.kind].label.toLowerCase() : "group";
@@ -104,7 +140,6 @@ export default function InviteToGroupScreen() {
     }
   }
 
-  const canManage = page?.myRole === "owner" || page?.myRole === "admin";
 
   return (
     <View style={styles.fill}>
@@ -149,26 +184,47 @@ export default function InviteToGroupScreen() {
                 </View>
               ) : null}
 
-              <Text style={styles.section}>Or invite your connections</Text>
+              {canManage ? (
+                <View style={styles.tabs} accessibilityRole="tablist">
+                  {(["connections", "find"] as const).map((m) => (
+                    <Pressable
+                      key={m}
+                      style={[styles.tab, mode === m && styles.tabOn]}
+                      onPress={() => {
+                        setMode(m);
+                        setQuery("");
+                      }}
+                      accessibilityRole="tab"
+                      accessibilityState={{ selected: mode === m }}
+                    >
+                      <Ionicons name={m === "find" ? "search" : "people-outline"} size={16} color={mode === m ? colors.cream50 : colors.navy900} />
+                      <Text style={[styles.tabText, mode === m && styles.tabTextOn]}>{m === "find" ? "Find PinPals" : "Your PinPals"}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              ) : (
+                <Text style={styles.section}>Or invite your connections</Text>
+              )}
+              {finding ? <Text style={styles.findHint}>Search every PinPals member by name or club. They get an invitation to accept.</Text> : null}
               <View style={styles.searchWrap}>
                 <Ionicons name="search" size={17} color={colors.ink500} />
                 <TextInput
                   style={styles.search}
                   value={query}
                   onChangeText={setQuery}
-                  placeholder="Search your connections"
+                  placeholder={finding ? "Search all members" : "Search your connections"}
                   placeholderTextColor={colors.ink500}
                   autoCorrect={false}
                   autoCapitalize="none"
                   clearButtonMode="while-editing"
-                  accessibilityLabel="Search your connections"
+                  accessibilityLabel={finding ? "Search all members" : "Search your connections"}
                 />
               </View>
             </View>
           }
           ListEmptyComponent={
             <Text style={styles.empty}>
-              {query.trim() ? "Nobody by that name." : people.length === 0 ? "Everyone you're connected with is already in, or you have no connections yet — the link above works for anyone." : ""}
+              {finding ? (searching ? "Searching…" : query.trim() ? "Nobody by that name — or they're already in." : "") : query.trim() ? "Nobody by that name." : people.length === 0 ? "Everyone you're connected with is already in, or you have no connections yet — the link above works for anyone." : ""}
             </Text>
           }
           renderItem={({ item }) => {
@@ -176,14 +232,14 @@ export default function InviteToGroupScreen() {
             return (
               <Pressable
                 style={[styles.row, on && styles.rowOn]}
-                onPress={() =>
+                onPress={() => {
                   setChosen((prev) => {
                     const next = new Set(prev);
                     if (next.has(item.id)) next.delete(item.id);
                     else if (next.size < 50) next.add(item.id);
                     return next;
-                  })
-                }
+                  });
+                }}
                 accessibilityRole="checkbox"
                 accessibilityState={{ checked: on }}
                 accessibilityLabel={item.name}
@@ -239,6 +295,23 @@ const styles = StyleSheet.create({
   shareText: { fontFamily: fonts.bodySemi, fontSize: type.small, color: colors.navy900 },
   shareMainText: { fontFamily: fonts.bodyBold, fontSize: type.small, color: "#ffffff" },
   reset: { fontFamily: fonts.bodySemi, fontSize: type.small, color: colors.cream100, textDecorationLine: "underline", textAlign: "center" },
+  tabs: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.sm },
+  tab: {
+    flex: 1,
+    height: 40,
+    borderRadius: radii.pill,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    borderWidth: 1,
+    borderColor: colors.navy900,
+    backgroundColor: colors.surface,
+  },
+  tabOn: { backgroundColor: colors.navy900 },
+  tabText: { fontFamily: fonts.bodySemi, fontSize: type.small, color: colors.navy900 },
+  tabTextOn: { color: colors.cream50 },
+  findHint: { fontFamily: fonts.body, fontSize: type.small, color: colors.ink500 },
   section: { fontFamily: fonts.bodyBold, fontSize: type.label, color: colors.ink500, textTransform: "uppercase", letterSpacing: 0.8, marginTop: spacing.sm },
   searchWrap: {
     flexDirection: "row",

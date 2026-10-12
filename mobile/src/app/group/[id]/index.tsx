@@ -8,7 +8,7 @@ import { GroupIcon, RoleBadge, SectionTitle, membersLabel } from "@/components/g
 import { LoadError, StateMessage } from "@/components/state-message";
 import { useAuth } from "@/lib/auth";
 import { isOn } from "@/lib/features";
-import { GROUP_KIND_INFO, groupCan, joinState, type GroupRole, type GroupSettings } from "@/lib/groups";
+import { GROUP_KIND_INFO, GROUP_OFFICE_LABELS, GROUP_OFFICES, groupCan, joinState, roleLabel, type GroupRole, type GroupSettings } from "@/lib/groups";
 import {
   canDrawFrom,
   leaveGroup,
@@ -18,6 +18,7 @@ import {
   respondToInvitation,
   reviewRequest,
   setGroupMuted,
+  setMemberOffice,
   setMemberRole,
   withdrawRequest,
   type GroupMember,
@@ -113,6 +114,9 @@ export default function GroupScreen() {
   }
 
   const { group, myRole, myPending, members, requests } = page;
+  const society = group.kind === "society";
+  /** Owner or admin — in a society, the owner, captain and secretary. */
+  const runsIt = myRole === "owner" || myRole === "admin";
   const info = GROUP_KIND_INFO[group.kind];
   const settings: GroupSettings = { privacy: group.privacy, features: group.features as GroupSettings["features"], membersCanPost: true, membersCanInvite: group.membersCanInvite };
   const can = (action: Parameters<typeof groupCan>[1]) => groupCan(myRole, action, settings);
@@ -127,15 +131,51 @@ export default function GroupScreen() {
   const detail = [info.label, membersLabel(group.memberCount), group.clubName].filter(Boolean).join(" · ");
 
   function memberMenu(m: GroupMember) {
-    if (m.id === userId) return;
+    if (m.id === userId) {
+      // The owner of a society can hold an office themselves.
+      if (myRole === "owner" && society) {
+        const mine = GROUP_OFFICES.filter((o) => o !== m.office).map((office) => ({
+          text: `Make me ${GROUP_OFFICE_LABELS[office].toLowerCase()}`,
+          onPress: () => void act(`office-${m.id}`, () => setMemberOffice(groupId, m.id, office)),
+        }));
+        const off = m.office ? [{ text: `Stand down as ${GROUP_OFFICE_LABELS[m.office].toLowerCase()}`, onPress: () => void act(`office-${m.id}`, () => setMemberOffice(groupId, m.id, null)) }] : [];
+        Alert.alert("You", undefined, [...mine, ...off, { text: "Cancel", style: "cancel" }]);
+      }
+      return;
+    }
     const profile = { text: "View profile", onPress: () => router.push({ pathname: "/member/[id]", params: { id: m.id } }) };
     const options: { text: string; style?: "destructive" | "cancel"; onPress?: () => void }[] = [profile];
     const set = (role: GroupRole, label: string) =>
       options.push({ text: label, onPress: () => void act(`role-${m.id}`, () => setMemberRole(groupId, m.id, role)) });
 
+    if (myRole === "owner" && society) {
+      // 0122: a society's owner appoints its captain and secretary (one of
+      // each — a new one stands the old one down).
+      for (const office of GROUP_OFFICES) {
+        if (m.office === office) continue;
+        const current = members.find((x) => x.office === office);
+        options.push({
+          text: `Make ${GROUP_OFFICE_LABELS[office].toLowerCase()}`,
+          onPress: () => {
+            const go = () => void act(`office-${m.id}`, () => setMemberOffice(groupId, m.id, office));
+            if (current) {
+              Alert.alert(`Make ${m.name} ${GROUP_OFFICE_LABELS[office].toLowerCase()}?`, `${current.id === userId ? "You stand" : `${current.name} stands`} down as ${GROUP_OFFICE_LABELS[office].toLowerCase()}.`, [
+                { text: "Cancel", style: "cancel" },
+                { text: "Appoint", onPress: go },
+              ]);
+            } else go();
+          },
+        });
+      }
+      if (m.office) {
+        options.push({ text: `Stand down as ${GROUP_OFFICE_LABELS[m.office].toLowerCase()}`, onPress: () => void act(`office-${m.id}`, () => setMemberOffice(groupId, m.id, null)) });
+      } else if (m.role === "admin") {
+        set("member", "Remove as admin");
+      }
+    }
     if (myRole === "owner") {
-      if (m.role === "member") set("admin", "Make admin");
-      if (m.role === "admin") set("member", "Remove as admin");
+      if (!society && m.role === "member") set("admin", "Make admin");
+      if (!society && m.role === "admin") set("member", "Remove as admin");
       options.push({
         text: "Hand the group to them",
         onPress: () =>
@@ -251,13 +291,29 @@ export default function GroupScreen() {
               </View>
             ) : null}
 
-            <View style={styles.row}>
-              {can("invite") ? (
+            {can("invite") ? (
+              <View style={styles.row}>
                 <Pressable style={[styles.button, styles.buttonMain]} onPress={() => router.push({ pathname: "/group/[id]/invite", params: { id: String(groupId) } })} accessibilityRole="button">
                   <Ionicons name="person-add-outline" size={18} color={colors.cream50} />
                   <Text style={styles.buttonMainText}>Invite</Text>
                 </Pressable>
-              ) : null}
+                {/* Find PinPals: whoever runs the group searches every member
+                    and invites them (0122); anyone else finds people to
+                    connect with first, in the members directory. */}
+                <Pressable
+                  style={styles.button}
+                  onPress={() => (runsIt ? router.push({ pathname: "/group/[id]/invite", params: { id: String(groupId), find: "1" } }) : router.push("/members"))}
+                  accessibilityRole="button"
+                  accessibilityLabel="Find PinPals to add to the group"
+                >
+                  <Ionicons name="search" size={18} color={colors.navy900} />
+                  <Text style={styles.buttonText}>Find PinPals</Text>
+                </Pressable>
+              </View>
+            ) : society ? (
+              <Text style={styles.hint}>The captain or secretary brings new members in — ask them, or share the society&apos;s name so golfers can find it.</Text>
+            ) : null}
+            <View style={styles.row}>
               {group.conversationId ? (
                 <Pressable style={styles.button} onPress={() => router.push(`/conversation/${group.conversationId}`)} accessibilityRole="button">
                   <Ionicons name="chatbubbles-outline" size={18} color={colors.navy900} />
@@ -268,6 +324,12 @@ export default function GroupScreen() {
                 <Pressable style={styles.button} onPress={() => router.push({ pathname: "/group/[id]/settings", params: { id: String(groupId) } })} accessibilityRole="button">
                   <Ionicons name="settings-outline" size={18} color={colors.navy900} />
                   <Text style={styles.buttonText}>Settings</Text>
+                </Pressable>
+              ) : null}
+              {society && runsIt ? (
+                <Pressable style={styles.button} onPress={() => router.push({ pathname: "/group/[id]/handicaps", params: { id: String(groupId) } })} accessibilityRole="button">
+                  <Ionicons name="stats-chart-outline" size={18} color={colors.navy900} />
+                  <Text style={styles.buttonText}>Handicaps</Text>
                 </Pressable>
               ) : null}
             </View>
@@ -331,7 +393,7 @@ export default function GroupScreen() {
 
             <SectionTitle>{`Members (${members.length})`}</SectionTitle>
             {members.map((m) => (
-              <Pressable key={m.id} style={styles.person} onPress={() => memberMenu(m)} accessibilityRole="button" accessibilityLabel={`${m.name}${m.role !== "member" ? `, ${m.role}` : ""}`}>
+              <Pressable key={m.id} style={styles.person} onPress={() => memberMenu(m)} accessibilityRole="button" accessibilityLabel={`${m.name}${roleLabel(m.role, m.office) ? `, ${roleLabel(m.role, m.office)}` : ""}`}>
                 <Avatar url={m.avatarUrl} color={m.avatarColor} name={m.name} size={40} />
                 <View style={styles.personBody}>
                   <Text style={styles.personName} numberOfLines={1}>
@@ -343,9 +405,15 @@ export default function GroupScreen() {
                     </Text>
                   ) : null}
                 </View>
-                <RoleBadge role={m.role} />
+                <RoleBadge role={m.role} office={m.office} />
               </Pressable>
             ))}
+
+            {society ? (
+              <Text style={[styles.hint, styles.privacy]}>
+                The society&apos;s owner, captain and secretary can see each member&apos;s handicap and PinPals handicap indicator, to set the handicaps the society plays off.
+              </Text>
+            ) : null}
 
             <View style={styles.setting}>
               <View style={styles.settingBody}>
@@ -400,6 +468,7 @@ const styles = StyleSheet.create({
   playTitle: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.navy900 },
   playHint: { fontFamily: fonts.body, fontSize: type.small, color: colors.navy900 },
   hint: { fontFamily: fonts.body, fontSize: type.small, color: colors.ink500, textAlign: "center" },
+  privacy: { marginTop: spacing.sm, paddingHorizontal: spacing.sm },
   note: {
     flexDirection: "row",
     alignItems: "center",

@@ -24,6 +24,8 @@ import { useAuth } from "@/lib/auth";
 import { inviteFriends } from "@/lib/invite-friends";
 import { isSuperAdmin } from "@/lib/admin";
 import { supabase } from "@/lib/supabase";
+import { bestOfLabel, comparedWithOwn, indicatorLabel } from "@/lib/handicap-indicator";
+import { loadMyHandicapIndicator, type HandicapIndicator } from "@/lib/scorecards";
 import {
   deletionDateLabel,
   getDeletionState,
@@ -54,6 +56,7 @@ export default function ProfileScreen() {
   const [deleting, setDeleting] = useState(false);
   const [superAdmin, setSuperAdmin] = useState(false);
   const [coverBusy, setCoverBusy] = useState(false);
+  const [indicator, setIndicator] = useState<HandicapIndicator | null>(null);
 
   const load = useCallback(async () => {
     if (!session?.user.id) return;
@@ -75,6 +78,10 @@ export default function ProfileScreen() {
     // Shows or hides the Admin row only. Not a security check: every admin
     // page is guarded on the server — see mobile/src/lib/admin.ts.
     setSuperAdmin(await isSuperAdmin());
+
+    // The handicap indicator (0122). A guide beside the member's own
+    // handicap; a failure just leaves the row out.
+    setIndicator(await loadMyHandicapIndicator().catch(() => null));
 
     setLoading(false);
   }, [session?.user.id]);
@@ -265,6 +272,26 @@ export default function ProfileScreen() {
       </PhotoHero>
 
       <View style={styles.content}>
+        {indicator ? (
+          <Pressable
+            onPress={() => router.push("/handicap-indicator")}
+            style={({ pressed }) => [styles.indicator, pressed && { opacity: 0.9 }]}
+            accessibilityRole="button"
+            accessibilityLabel={`Handicap indicator ${indicator.indicator != null ? indicatorLabel(indicator.indicator) : "not ready yet"}. ${bestOfLabel(indicator.rounds)}`}
+          >
+            <View style={styles.indicatorValueBox}>
+              <Text style={styles.indicatorValue}>{indicator.indicator != null ? indicatorLabel(indicator.indicator) : "—"}</Text>
+            </View>
+            <View style={styles.indicatorBody}>
+              <Text style={styles.indicatorTitle}>Handicap indicator</Text>
+              <Text style={styles.indicatorHint} numberOfLines={2}>
+                {[bestOfLabel(indicator.rounds), comparedWithOwn(indicator.indicator, profile?.handicap != null ? Number(profile.handicap) : null)].filter(Boolean).join(" · ")}
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.ink500} />
+          </Pressable>
+        ) : null}
+
         <GroupTitle text="Golf" />
         <View style={styles.group}>
           <NativeLink icon="add-circle-outline" label="Post a tee time" to="/post-tee-time" />
@@ -388,6 +415,21 @@ const styles = StyleSheet.create({
   fill: { flex: 1, backgroundColor: colors.cream50 },
   scroll: { paddingBottom: spacing.xl },
   content: { padding: spacing.md, gap: spacing.sm + 2 },
+  indicator: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm + 4,
+    padding: 12,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.surface,
+  },
+  indicatorValueBox: { minWidth: 62, height: 52, paddingHorizontal: 8, borderRadius: radii.md, backgroundColor: colors.navy900, alignItems: "center", justifyContent: "center" },
+  indicatorValue: { fontFamily: fonts.display, fontSize: 22, color: colors.gold400 },
+  indicatorBody: { flex: 1, gap: 2 },
+  indicatorTitle: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.ink900 },
+  indicatorHint: { fontFamily: fonts.body, fontSize: type.small, color: colors.ink500 },
   coverButton: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, height: 34, borderRadius: radii.pill, backgroundColor: "rgba(12,32,56,0.6)", borderWidth: 1, borderColor: creamAlpha(0.35) },
   coverLabel: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.cream50 },
   card: {

@@ -138,13 +138,25 @@ export default function GroupSettingsScreen() {
           </>
         ) : null}
 
-        <View style={[styles.card, styles.switchCard]}>
-          <View style={styles.cardBody}>
-            <Text style={styles.cardTitle}>Members can invite</Text>
-            <Text style={styles.cardHint}>Off: only you{page.myRole === "owner" ? " and your admins" : " and the other admins"} can invite and share the link.</Text>
+        {page.group.kind === "society" ? (
+          // 0122: a society's members never invite — its officers do.
+          <View style={styles.card}>
+            <View style={styles.cardBody}>
+              <Text style={styles.cardTitle}>Who brings people in</Text>
+              <Text style={styles.cardHint}>
+                Only the owner, the captain and the secretary invite, share the link and approve requests. The owner appoints the captain and secretary: tap a member on the society&apos;s page.
+              </Text>
+            </View>
           </View>
-          <Switch value={membersCanInvite} onValueChange={setMembersCanInvite} accessibilityLabel="Members can invite" />
-        </View>
+        ) : (
+          <View style={[styles.card, styles.switchCard]}>
+            <View style={styles.cardBody}>
+              <Text style={styles.cardTitle}>Members can invite</Text>
+              <Text style={styles.cardHint}>Off: only you{page.myRole === "owner" ? " and your admins" : " and the other admins"} can invite and share the link.</Text>
+            </View>
+            <Switch value={membersCanInvite} onValueChange={setMembersCanInvite} accessibilityLabel="Members can invite" />
+          </View>
+        )}
 
         <Pressable style={[styles.cta, (problem || saving) && styles.ctaOff]} onPress={() => void save()} disabled={!!problem || saving} accessibilityRole="button">
           <Text style={styles.ctaLabel}>{saving ? "Saving…" : "Save changes"}</Text>

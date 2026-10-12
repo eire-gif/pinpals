@@ -214,3 +214,63 @@ export async function loadTeeCards(clubId: number): Promise<TeeCard[]> {
       .map((h) => ({ hole: h.hole, par: h.par, strokeIndex: h.stroke_index, yards: h.yards ?? null, strokes: null, putts: null })),
   }));
 }
+
+// ---------------------------------------------------------------------------
+// The handicap indicator (0122): your own, from your last 20 scorecards
+// ---------------------------------------------------------------------------
+
+export type HandicapIndicator = {
+  /** Null with fewer than three eligible cards. */
+  indicator: number | null;
+  /** Eligible cards found (at most 20). */
+  rounds: number;
+  /** How many of them make the indicator. */
+  counting: number;
+};
+
+export type IndicatorCard = {
+  scorecardId: number;
+  playedOn: string;
+  courseName: string;
+  teeName: string | null;
+  adjustedGross: number;
+  differential: number;
+  /** One of the best N that make the indicator. */
+  counts: boolean;
+};
+
+export async function loadMyHandicapIndicator(): Promise<HandicapIndicator> {
+  const { data, error } = await supabase.rpc("my_handicap_indicator");
+  if (error) throw new Error(error.message || "Couldn't work out your indicator.");
+  const row = (data as { indicator: number | null; rounds: number | null; counting: number | null }[] | null)?.[0];
+  return {
+    indicator: row?.indicator != null ? Number(row.indicator) : null,
+    rounds: row?.rounds ?? 0,
+    counting: row?.counting ?? 0,
+  };
+}
+
+/** The cards behind it, newest first. */
+export async function loadMyIndicatorCards(): Promise<IndicatorCard[]> {
+  const { data, error } = await supabase.rpc("my_handicap_differentials");
+  if (error) throw new Error(error.message || "Couldn't load the cards.");
+  return (
+    (data ?? []) as {
+      scorecard_id: number;
+      played_on: string;
+      course_name: string;
+      tee_name: string | null;
+      adjusted_gross: number;
+      differential: number;
+      counts: boolean;
+    }[]
+  ).map((r) => ({
+    scorecardId: r.scorecard_id,
+    playedOn: r.played_on,
+    courseName: r.course_name,
+    teeName: r.tee_name,
+    adjustedGross: r.adjusted_gross,
+    differential: Number(r.differential),
+    counts: r.counts,
+  }));
+}
