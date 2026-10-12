@@ -170,10 +170,10 @@ export default function NewOutingScreen() {
       });
       if (trip && editId == null) {
         // Straight into building the itinerary, with the outing page behind it.
-        router.replace({ pathname: "/group/[id]/outing/[outingId]", params: { id: String(groupId), outingId: String(id) } });
-        router.push({ pathname: "/group/[id]/itinerary/[outingId]", params: { id: String(groupId), outingId: String(id) } });
+        router.replace({ pathname: "/group/[id]/outing/[outingId]", params: { id: String(groupId), outingId: String(id), saved: "1" } });
+        router.push({ pathname: "/group/[id]/itinerary/[outingId]", params: { id: String(groupId), outingId: String(id), saved: "1" } });
       } else {
-        router.replace({ pathname: "/group/[id]/outing/[outingId]", params: { id: String(groupId), outingId: String(id) } });
+        router.replace({ pathname: "/group/[id]/outing/[outingId]", params: { id: String(groupId), outingId: String(id), saved: "1" } });
       }
     } catch (err) {
       Alert.alert(`Couldn't save the ${trip ? "trip" : "outing"}`, err instanceof Error ? err.message : "Please try again.");
