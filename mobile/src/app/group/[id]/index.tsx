@@ -9,7 +9,7 @@ import { GroupIcon, RoleBadge, SectionTitle, membersLabel } from "@/components/g
 import { LoadError, StateMessage } from "@/components/state-message";
 import { useAuth } from "@/lib/auth";
 import { isOn } from "@/lib/features";
-import { GROUP_KIND_INFO, GROUP_OFFICE_LABELS, GROUP_OFFICES, canStyleGroup, groupCan, joinState, roleLabel, type GroupRole, type GroupSettings } from "@/lib/groups";
+import { GROUP_KIND_INFO, GROUP_OFFICE_LABELS, GROUP_OFFICES, canStyleGroup, groupCan, hasEvents, joinState, roleLabel, type GroupRole, type GroupSettings } from "@/lib/groups";
 import { PHOTO_PICKER_OPTIONS, preparePhotoForUpload } from "@/lib/photo-picking";
 import {
   canDrawFrom,
@@ -61,7 +61,7 @@ export default function GroupScreen() {
   const [failed, setFailed] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  /** A society's upcoming outings and your tee times among them (0125). */
+  /** Upcoming events and your tee times among them (0125; crews and trips since 0129). */
   const [outingCounts, setOutingCounts] = useState<{ upcoming: number; mine: number; teeTimes: number } | null>(null);
 
   const load = useCallback(async () => {
@@ -73,7 +73,7 @@ export default function GroupScreen() {
       const p = await loadGroupPage(groupId, userId);
       setPage(p);
       setFailed(false);
-      if (p?.group.kind === "society" && p.myRole) {
+      if (p && hasEvents(p.group.kind) && p.myRole) {
         const list = await listOutings(groupId, userId, { fromDate: irishToday() }).catch(() => null);
         const open = list?.filter((o) => o.status === "open") ?? null;
         setOutingCounts(
@@ -448,9 +448,9 @@ export default function GroupScreen() {
 
             <View style={styles.soon}>
               {COMING.map((c) => {
-                // A society's Tee times and Events are live (0125); posts
-                // (and crews' and trips' events) are still to come.
-                const liveTile = society && c.label !== "Posts";
+                // Tee times and Events are live for societies (0125) and,
+                // since 0129, crews and trips; posts are still to come.
+                const liveTile = hasEvents(group.kind) && c.label !== "Posts";
                 if (!liveTile) {
                   return (
                     <View key={c.label} style={styles.soonItem} accessibilityLabel={`${c.label}, coming soon`}>

@@ -51,7 +51,7 @@ export default function SocietyTeeTimesScreen() {
           <StateMessage
             icon="golf-outline"
             title="No tee times yet"
-            body="Join an outing under Events. When the captain or secretary publishes the draw, your tee time shows here."
+            body="Join an outing under Events. When the organisers publish the draw, your tee time shows here."
             action={{ label: "See events", onPress: () => router.replace({ pathname: "/group/[id]/events", params: { id: String(groupId) } }) }}
           />
         ) : (

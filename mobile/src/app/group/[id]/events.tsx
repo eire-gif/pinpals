@@ -6,13 +6,14 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { LoadError, StateMessage } from "@/components/state-message";
 import { useAuth } from "@/lib/auth";
 import { loadGroupPage } from "@/lib/groups-data";
+import { groupNoun, organisers, type GroupKind } from "@/lib/groups";
 import { countdownLabel, tripBadge, tripRangeLabel } from "@/lib/itinerary-rules";
 import { clock, closesLabel, entriesOpen, feeLabel, irishToday, outingDateLabel } from "@/lib/outing-rules";
 import { listOutings, setOutingEntry, type OutingSummary } from "@/lib/outings";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 
 /**
- * A society's Events (0125): its upcoming outings, soonest first. Members
+ * A group's Events (0125 for societies; crews and trips since 0129): its upcoming outings, soonest first. Members
  * join or cancel from here until midnight at the start of the day; the
  * captain and secretary also get "New event". Tap an outing for who's in,
  * the tee times and (for officers) the draw and payments.
@@ -30,6 +31,7 @@ export default function SocietyEventsScreen() {
   const [past, setPast] = useState(false);
   const [officer, setOfficer] = useState(false);
   const [groupName, setGroupName] = useState("");
+  const [kind, setKind] = useState<GroupKind | null>(null);
   const [failed, setFailed] = useState(false);
   const [busy, setBusy] = useState<number | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -40,6 +42,7 @@ export default function SocietyEventsScreen() {
       const [page, list] = await Promise.all([loadGroupPage(groupId, userId), listOutings(groupId, userId, { fromDate: irishToday(), past })]);
       setOfficer(page?.myRole === "owner" || page?.myRole === "admin");
       setGroupName(page?.group.name ?? "");
+      setKind(page?.group.kind ?? null);
       setOutings(list);
       setFailed(false);
     } catch {
@@ -114,7 +117,13 @@ export default function SocietyEventsScreen() {
           <StateMessage
             icon="calendar-outline"
             title={past ? "No past outings" : "No outings yet"}
-            body={past ? undefined : officer ? "Set up the society's next day out — members join it here." : "When the captain or secretary sets up a day out, it shows here and you can join."}
+            body={
+              past
+                ? undefined
+                : officer
+                  ? `Set up the ${groupNoun(kind)}'s next day out or trip — everyone joins it here.`
+                  : `When ${organisers(kind)} sets up a day out or trip, it shows here and you can join.`
+            }
           />
         ) : (
           outings.map((o) => {

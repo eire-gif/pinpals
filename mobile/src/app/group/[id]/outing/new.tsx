@@ -380,7 +380,7 @@ export default function NewOutingScreen() {
 
         <View style={styles.pay}>
           <Text style={styles.payTitle}>How members pay</Text>
-          <Text style={styles.payHint}>Members see these on the {noun}&apos;s page with a Pay button. Only people in the society can see them.</Text>
+          <Text style={styles.payHint}>Members see these on the {noun}&apos;s page with a Pay button. Only people in the group can see them.</Text>
           <Section title="Revolut username" hint="Optional. Your @name in Revolut — members tap to open Revolut and pay you.">
             <TextInput
               value={revtag}
@@ -432,7 +432,7 @@ export default function NewOutingScreen() {
           <TextInput
             value={details}
             onChangeText={setDetails}
-            placeholder={trip ? "Kitty €100 each to the captain by 1 May. Collared shirts. Bring your passport." : "Green fee, soup and sandwich, prizes for the top three"}
+            placeholder={trip ? "Kitty €100 each to the organiser by 1 May. Collared shirts. Bring your passport." : "Green fee, soup and sandwich, prizes for the top three"}
             placeholderTextColor={colors.ink500}
             style={[styles.input, styles.multi]}
             multiline
@@ -446,7 +446,7 @@ export default function NewOutingScreen() {
           {saving ? <ActivityIndicator color={colors.cream50} /> : <Text style={styles.ctaText}>{editId ? "Save changes" : trip ? "Build the itinerary" : "Create the outing"}</Text>}
         </Pressable>
         {!editId ? (
-          <Text style={styles.foot}>{trip ? "Members see it under Events and can join it straight away; the itinerary fills in as you add to it." : "It appears under Events for everyone in the society, and they can join it straight away."}</Text>
+          <Text style={styles.foot}>{trip ? "Members see it under Events and can join it straight away; the itinerary fills in as you add to it." : "It appears under Events for everyone in the group, and they can join it straight away."}</Text>
         ) : null}
       </ScrollView>
 
