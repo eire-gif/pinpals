@@ -99,6 +99,26 @@ export async function getConversationAccessWindow(params: {
   const { data: rows } = await query.returns<Message[]>();
   const messages = (rows ?? []).slice().reverse();
 
+  // A message its sender deleted for everyone (0130) reads "This message was
+  // deleted" to members; moderators reviewing a report see what it said, from
+  // the service-role-only archive.
+  const deletedIds = messages.filter((m) => m.deleted_at).map((m) => m.id);
+  if (deletedIds.length) {
+    const { data: originals } = await admin
+      .from("message_deletions")
+      .select("message_id, body, image_path")
+      .in("message_id", deletedIds)
+      .returns<{ message_id: number; body: string; image_path: string | null }[]>();
+    const byId = new Map((originals ?? []).map((o) => [Number(o.message_id), o]));
+    for (const m of messages) {
+      const o = byId.get(m.id);
+      if (o) {
+        m.body = o.body;
+        m.image_path = o.image_path;
+      }
+    }
+  }
+
   // From the membership table, so a reported group shows everyone in it
   // rather than two nulls. Still the admin client, still only reachable
   // through the audited, reason-required grantConversationAccess() — 0087

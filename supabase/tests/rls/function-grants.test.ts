@@ -268,6 +268,14 @@ const EXPECTED: Record<string, Expectation> = {
   "scorecard_certify(p_id bigint, p_key_id uuid, p_signature text, p_method text)": { anon: false, authenticated: true },
   "scorecard_certification_query(p_id bigint, p_hole smallint, p_note text)": { anon: false, authenticated: true },
   "scorecard_certification_decline(p_id bigint)": { anon: false, authenticated: true },
+  // 0130 chat reactions, replies, deletes
+  "react_to_message(p_message_id bigint, p_emoji text)": { anon: false, authenticated: true },
+  "hide_message_for_me(p_message_id bigint)": { anon: false, authenticated: true },
+  "delete_message_for_everyone(p_message_id bigint)": { anon: false, authenticated: true },
+  "start_private_reply(p_message_id bigint)": { anon: false, authenticated: true },
+  "message_reply_snapshot()": { anon: false, authenticated: false },
+  "message_scrub_quotes()": { anon: false, authenticated: false },
+  "conversation_read_ping()": { anon: false, authenticated: false },
   // Internal steps and triggers: nobody calls these directly.
   "scorecard_card_hash(p_scorecard_id bigint)": { anon: false, authenticated: false },
   "scorecard_certification_for_answer(p_id bigint)": { anon: false, authenticated: false },

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -9,6 +9,7 @@ import {
   Linking,
   Platform,
   Pressable,
+  Share,
   StyleSheet,
   Text,
   TextInput,
@@ -17,47 +18,71 @@ import {
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import Ionicons from "@expo/vector-icons/Ionicons";
+import ReanimatedSwipeable, { type SwipeableMethods } from "react-native-gesture-handler/ReanimatedSwipeable";
 
 import { Avatar } from "@/components/avatar";
 import { EmojiTray } from "@/components/emoji-tray";
+import { MessageActionsSheet, MessageInfoSheet, QuoteBlock, type MessageAction } from "@/components/chat-bits";
 import { ApiError, type UploadFile } from "@/lib/api";
 import { SharedPostCard } from "@/components/shared-post-card";
 import { useAuth } from "@/lib/auth";
 import { postIdsInText } from "@/lib/share-links";
 import {
+  canDeleteForEveryone,
+  draftQuote,
+  reactionChips,
+  reactionsByMessage,
+  senderColour,
+  tickState,
+  typingLine,
+} from "@/lib/chat-look";
+import {
   MESSAGE_MAX_LENGTH,
+  MESSAGE_REPORT_REASONS,
   conversationHeader,
   dayLabel,
+  deleteForEveryone,
+  deleteForMe,
+  getMessage,
+  hiddenMessageIds,
   listMessages,
+  listReactions,
+  localDayKey,
   markRead,
   leaveGroup,
+  messageTime,
+  reactToMessage,
+  reportMessage,
   sendMessage,
   sendPhotoMessage,
   signedImageUrls,
+  startPrivateReply,
   type ConversationHeader,
   type Cursor,
   type Message,
+  type MessageQuote,
+  type Reaction,
   type ThreadMember,
 } from "@/lib/messages";
-import { subscribeToConversation } from "@/lib/realtime";
-import { colors, fonts, radii, spacing, type } from "@/lib/theme";
+import { subscribeToConversation, subscribeToTyping } from "@/lib/realtime";
+import { colors, fonts, headerTitleStyle, radii, spacing, type } from "@/lib/theme";
 import { PHOTO_PICKER_OPTIONS, preparePhotoForUpload } from "@/lib/photo-picking";
 
 /**
- * One conversation.
+ * One conversation — redesigned Oct 2026 with what members expect from
+ * WhatsApp: day dividers, grouped bubbles with the time and ✓ / ✓✓ inside,
+ * names in colour in a group, "Seán is typing…", and a long-press on any
+ * message for reactions, Reply, Reply privately, Copy, Info, Report and
+ * Delete. Swipe a message right to reply.
  *
  * The list is inverted, which is the whole trick to a chat screen: newest at
  * index 0 rendered at the bottom, so "scroll to the latest" is the resting
- * position rather than something to chase after every layout pass, and
- * loading older messages is an ordinary onEndReached at the top.
- *
- * It means the data stays newest-first exactly as the query returns it. No
- * reversing, which is what makes appending a live message a one-line
- * prepend instead of a splice into the middle of an array.
+ * position, and loading older messages is an ordinary onEndReached at the
+ * top. The data stays newest-first exactly as the query returns it.
  */
 export default function ConversationScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
-  const conversationId = Number(id);
+  const params = useLocalSearchParams<{ id: string; replyTo?: string; group?: string }>();
+  const conversationId = Number(params.id);
   const router = useRouter();
   const { session } = useAuth();
   const userId = session?.user?.id ?? null;
@@ -74,20 +99,29 @@ export default function ConversationScreen() {
   const [sendError, setSendError] = useState<string | null>(null);
   const [emojiOpen, setEmojiOpen] = useState(false);
 
+  /** Reactions per message id, and the messages I've deleted for myself. */
+  const [reactions, setReactions] = useState<Map<number, Reaction[]>>(new Map());
+  const [hidden, setHidden] = useState<Set<number>>(new Set());
+
+  /** The message a reply is being written to, with the quote to show. */
+  const [replyTo, setReplyTo] = useState<{ id: number; quote: MessageQuote } | null>(null);
+  /** The long-pressed message, and the one whose Info is open. */
+  const [picked, setPicked] = useState<Message | null>(null);
+  const [infoFor, setInfoFor] = useState<Message | null>(null);
+  /** Who is typing, until when (ms). */
+  const [typing, setTyping] = useState<Map<string, number>>(new Map());
+  const [flash, setFlash] = useState<number | null>(null);
+
+  const listRef = useRef<FlatList<Message>>(null);
+  const inputRef = useRef<TextInput>(null);
+  const typingRef = useRef<{ ping: () => void; stop: () => void } | null>(null);
+
   /**
    * Signed URLs for the photos in this thread, keyed by storage path.
-   *
    * `message-images` is private (0086) and its URLs expire, so a message
-   * carries the PATH and the screen asks for a link when it needs one. The
-   * bucket's own SELECT policy is what grants it — a member who is not in
-   * this conversation is refused by the database, not by this screen
-   * choosing not to ask.
+   * carries the PATH and the screen asks for a link when it needs one.
    */
   const [imageUrls, setImageUrls] = useState<Map<string, string>>(new Map());
-
-  /** Signs whatever in this batch isn't signed already, and keeps the rest.
-   *  Called on load, on every page of older messages, and on each live
-   *  arrival — one place, so a photo can never appear without a link. */
   const signFor = useCallback(async (batch: Message[]) => {
     const needed = batch.filter((m) => m.image_path);
     if (needed.length === 0) return;
@@ -96,46 +130,103 @@ export default function ConversationScreen() {
     setImageUrls((prev) => new Map([...prev, ...signed]));
   }, []);
 
+  const loadReactionsFor = useCallback(async (ids: number[]) => {
+    if (ids.length === 0) return;
+    const rows = await listReactions(ids).catch(() => null);
+    if (!rows) return;
+    const grouped = reactionsByMessage(rows);
+    setReactions((prev) => {
+      const next = new Map(prev);
+      for (const id of ids) {
+        const list = grouped.get(id);
+        if (list) next.set(id, list);
+        else next.delete(id);
+      }
+      return next;
+    });
+  }, []);
+
+  // Marking read as messages arrive while the thread is open — throttled, so
+  // the sender's ✓✓ turns green without a write per line.
+  // At most one write per 4 seconds, with a trailing one so the last message
+  // of a burst is always marked.
+  const lastMark = useRef(0);
+  const markTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const markSoon = useCallback(() => {
+    if (!userId) return;
+    const wait = 4000 - (Date.now() - lastMark.current);
+    if (wait <= 0) {
+      lastMark.current = Date.now();
+      void markRead(conversationId, userId);
+      return;
+    }
+    if (markTimer.current) return;
+    markTimer.current = setTimeout(() => {
+      markTimer.current = null;
+      lastMark.current = Date.now();
+      void markRead(conversationId, userId);
+    }, wait);
+  }, [conversationId, userId]);
+  useEffect(() => () => {
+    if (markTimer.current) clearTimeout(markTimer.current);
+  }, []);
+
   // Guards against the same message arriving twice — once as the reply to our
-  // own POST, once over the broadcast channel — and against a duplicate
-  // broadcast, which is explicitly allowed to happen.
+  // own POST, once over the broadcast channel.
   const add = useCallback(
     (incoming: Message) => {
-      setMessages((prev) =>
-        prev.some((m) => m.id === incoming.id) ? prev : [incoming, ...prev]
-      );
+      setMessages((prev) => (prev.some((m) => m.id === incoming.id) ? prev : [incoming, ...prev]));
       void signFor([incoming]);
+      if (incoming.sender_id !== userId) {
+        markSoon();
+        // They sent it, so they've stopped typing.
+        setTyping((prev) => {
+          if (!prev.has(incoming.sender_id)) return prev;
+          const next = new Map(prev);
+          next.delete(incoming.sender_id);
+          return next;
+        });
+      }
     },
-    [signFor]
+    [signFor, userId, markSoon]
   );
 
   const load = useCallback(async () => {
     if (!Number.isInteger(conversationId) || !userId) return;
     try {
-      const [head, page] = await Promise.all([
+      const [head, page, hides] = await Promise.all([
         conversationHeader(conversationId, userId),
         listMessages(conversationId),
+        hiddenMessageIds(conversationId).catch(() => new Set<number>()),
       ]);
       setHeader(head);
       setMessages(page.messages);
       setCursor(page.next);
+      setHidden(hides);
       setError(null);
       void signFor(page.messages);
+      void loadReactionsFor(page.messages.map((m) => m.id));
     } catch {
       setError("Couldn't load this conversation.");
     } finally {
       setLoading(false);
     }
-  }, [conversationId, userId, signFor]);
+  }, [conversationId, userId, signFor, loadReactionsFor]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  // Opening a thread is reading it, and so is leaving one you sat in while
-  // replies arrived. Twice, not once per message: the cursor only has to end
-  // up at or past the newest message, and marking on every arrival would be
-  // a write for every line the other person types.
+  // "Reply privately" lands here with the group message to quote.
+  useEffect(() => {
+    const id = Number(params.replyTo);
+    if (!Number.isInteger(id) || id <= 0) return;
+    void getMessage(id).then((m) => {
+      if (m) setReplyTo({ id: m.id, quote: draftQuote(m, params.group ?? "a group") });
+    });
+  }, [params.replyTo, params.group]);
+
+  // Opening a thread is reading it, and so is leaving one you sat in.
   useEffect(() => {
     if (!userId || !Number.isInteger(conversationId)) return;
     void markRead(conversationId, userId);
@@ -146,8 +237,61 @@ export default function ConversationScreen() {
 
   useEffect(() => {
     if (!Number.isInteger(conversationId)) return;
-    return subscribeToConversation(conversationId, add);
-  }, [conversationId, add]);
+    return subscribeToConversation(conversationId, {
+      onMessage: add,
+      onMessageChanged: (messageId, what) => {
+        if (what === "reaction") {
+          void loadReactionsFor([messageId]);
+          return;
+        }
+        void getMessage(messageId).then((fresh) => {
+          if (!fresh) return;
+          // The message, and every loaded reply quoting it — its words must
+          // not linger in a quote on someone's open screen.
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === messageId ? fresh : m.reply_to_id === messageId ? { ...m, reply_snapshot: { deleted: true } } : m
+            )
+          );
+          setReactions((prev) => {
+            const next = new Map(prev);
+            next.delete(messageId);
+            return next;
+          });
+        });
+      },
+      onRead: (memberId, lastReadAt) => {
+        setHeader((h) =>
+          h ? { ...h, members: h.members.map((m) => (m.id === memberId ? { ...m, lastReadAt } : m)) } : h
+        );
+      },
+    });
+  }, [conversationId, add, loadReactionsFor]);
+
+  // Typing: listen, and let go of names after five quiet seconds.
+  useEffect(() => {
+    if (!Number.isInteger(conversationId) || !userId) return;
+    const sub = subscribeToTyping(conversationId, userId, (memberId) => {
+      setTyping((prev) => new Map(prev).set(memberId, Date.now() + 5000));
+    });
+    typingRef.current = sub;
+    return () => {
+      sub.stop();
+      typingRef.current = null;
+    };
+  }, [conversationId, userId]);
+
+  useEffect(() => {
+    if (typing.size === 0) return;
+    const t = setInterval(() => {
+      setTyping((prev) => {
+        const now = Date.now();
+        const next = new Map([...prev].filter(([, until]) => until > now));
+        return next.size === prev.size ? prev : next;
+      });
+    }, 1000);
+    return () => clearInterval(t);
+  }, [typing.size]);
 
   const loadOlder = useCallback(async () => {
     if (!cursor || loadingOlder || loading) return;
@@ -157,71 +301,56 @@ export default function ConversationScreen() {
       setMessages((prev) => [...prev, ...page.messages]);
       setCursor(page.next);
       void signFor(page.messages);
+      void loadReactionsFor(page.messages.map((m) => m.id));
     } catch {
-      // Stop paging rather than erroring — the thread they can already see
-      // is still perfectly usable.
       setCursor(null);
     } finally {
       setLoadingOlder(false);
     }
-  }, [conversationId, cursor, loading, loadingOlder, signFor]);
+  }, [conversationId, cursor, loading, loadingOlder, signFor, loadReactionsFor]);
 
   const send = async () => {
     const body = draft.trim();
     if (!body || sending) return;
-
     setSending(true);
     setSendError(null);
     try {
-      const sent = await sendMessage(conversationId, body);
-      // Cleared only on success. A message the server refused — a card
-      // number, a rate limit — stays in the box so it can be edited rather
-      // than retyped.
+      const sent = await sendMessage(conversationId, body, replyTo?.id ?? null);
+      // Cleared only on success. A message the server refused stays in the
+      // box so it can be edited rather than retyped.
       setDraft("");
+      setReplyTo(null);
       add(sent);
     } catch (err) {
-      setSendError(
-        err instanceof ApiError ? err.message : "Couldn't send that message."
-      );
+      setSendError(err instanceof ApiError ? err.message : "Couldn't send that message.");
     } finally {
       setSending(false);
     }
   };
 
   /**
-   * Sends a photo, with whatever is in the box as its caption.
-   *
-   * ONE REQUEST, not an upload then a send. /api/app/messages/photo does
-   * both, so a phone that drops signal part-way cannot leave a picture in
-   * Storage that no message points at — see the route's own comment.
-   *
-   * The app never touches Storage itself, here or anywhere. A phone photo
-   * carries EXIF, EXIF carries GPS, and the sharp pipeline on the server is
-   * the only thing that strips it; `message-images` gives members no insert
-   * policy at all precisely so there is no second path to forget.
+   * Sends a photo, with whatever is in the box as its caption. ONE REQUEST —
+   * the server uploads, strips EXIF (GPS) and sends together. The app never
+   * touches Storage itself.
    */
   const sendPhoto = async (asset: ImagePicker.ImagePickerAsset) => {
     if (sending) return;
-
     const file: UploadFile = {
       uri: asset.uri,
-      // A camera capture often has no filename of its own.
       name: asset.fileName ?? `photo-${Date.now()}.jpg`,
       type: asset.mimeType ?? "image/jpeg",
     };
-
     setSending(true);
     setSendError(null);
     try {
       const caption = draft.trim();
       const ready = await preparePhotoForUpload({ ...file, width: asset.width, height: asset.height });
-      const sent = await sendPhotoMessage(conversationId, ready, caption);
+      const sent = await sendPhotoMessage(conversationId, ready, caption, replyTo?.id ?? null);
       setDraft("");
+      setReplyTo(null);
       add(sent);
     } catch (err) {
-      setSendError(
-        err instanceof ApiError ? err.message : "Couldn't send that photo."
-      );
+      setSendError(err instanceof ApiError ? err.message : "Couldn't send that photo.");
     } finally {
       setSending(false);
     }
@@ -232,7 +361,6 @@ export default function ConversationScreen() {
       source === "camera"
         ? await ImagePicker.requestCameraPermissionsAsync()
         : await ImagePicker.requestMediaLibraryPermissionsAsync();
-
     if (!permission.granted) {
       Alert.alert(
         source === "camera" ? "Camera is off" : "Photos are off",
@@ -244,18 +372,10 @@ export default function ConversationScreen() {
       );
       return;
     }
-
     const result =
       source === "camera"
         ? await ImagePicker.launchCameraAsync(PHOTO_PICKER_OPTIONS)
-        : await ImagePicker.launchImageLibraryAsync({
-            ...PHOTO_PICKER_OPTIONS,
-            // One at a time. A photo here is a message, and five photos
-            // picked at once would be five messages sent without anyone
-            // deciding to send five messages.
-            allowsMultipleSelection: false,
-          });
-
+        : await ImagePicker.launchImageLibraryAsync({ ...PHOTO_PICKER_OPTIONS, allowsMultipleSelection: false });
     if (result.canceled || !result.assets[0]) return;
     await sendPhoto(result.assets[0]);
   };
@@ -269,14 +389,7 @@ export default function ConversationScreen() {
     ]);
   };
 
-  /**
-   * The tray and the keyboard are alternatives, never both.
-   *
-   * Opening the tray dismisses the keyboard, because otherwise the two stack
-   * and the message list is squeezed into a few lines. Tapping the box again
-   * closes the tray for the same reason, and that is handled on the input's
-   * own onFocus rather than here.
-   */
+  /** The tray and the keyboard are alternatives, never both. */
   const toggleEmoji = () => {
     setEmojiOpen((open) => {
       if (!open) Keyboard.dismiss();
@@ -284,25 +397,138 @@ export default function ConversationScreen() {
     });
   };
 
-  /** Sender id -> who they are, for a group's bubbles. Built once per header
-   *  rather than searched per message: a long thread renders hundreds of
-   *  bubbles and a linear scan of the member list for each is the kind of
-   *  thing that only shows up on somebody else's phone. */
-  const senders = useMemo(
-    () => new Map((header?.members ?? []).map((m) => [m.id, m])),
-    [header]
-  );
+  const onDraft = (text: string) => {
+    setDraft(text);
+    if (text.trim()) typingRef.current?.ping();
+  };
 
-  /**
-   * Leaving.
-   *
-   * A real delete of your own membership row, which takes the thread and its
-   * whole history out of your reach — so it asks first, and says plainly that
-   * it cannot be undone. There is deliberately no equivalent on a direct
-   * conversation: 0087 has no DELETE policy for one, because walking out of a
-   * two-person thread would leave the other person writing to somebody who
-   * can no longer read them. Hiding it from the inbox is what that is for.
-   */
+  const senders = useMemo(() => new Map((header?.members ?? []).map((m) => [m.id, m])), [header]);
+  const nameOf = useCallback((id: string) => senders.get(id)?.name ?? null, [senders]);
+  const isGroup = header?.kind === "group";
+
+  const startReply = (m: Message) => {
+    setReplyTo({ id: m.id, quote: draftQuote(m) });
+    setEmojiOpen(false);
+    setTimeout(() => inputRef.current?.focus(), 50);
+  };
+
+  const react = async (m: Message, emoji: string) => {
+    if (!userId) return;
+    // Optimistic — the chip appears as the sheet closes; the database is the
+    // judge and a refetch puts it right if it disagreed.
+    setReactions((prev) => {
+      const next = new Map(prev);
+      const list = (next.get(m.id) ?? []).filter((r) => r.memberId !== userId);
+      const had = (prev.get(m.id) ?? []).find((r) => r.memberId === userId)?.emoji;
+      if (had !== emoji) list.push({ messageId: m.id, memberId: userId, emoji });
+      if (list.length) next.set(m.id, list);
+      else next.delete(m.id);
+      return next;
+    });
+    try {
+      await reactToMessage(m.id, emoji);
+    } catch (e) {
+      void loadReactionsFor([m.id]);
+      setSendError(e instanceof Error ? e.message : "Couldn't add that reaction.");
+    }
+  };
+
+  const replyPrivately = async (m: Message) => {
+    try {
+      const id = await startPrivateReply(m.id);
+      router.push({
+        pathname: "/conversation/[id]",
+        params: { id: String(id), replyTo: String(m.id), group: header?.otherName ?? "a group" },
+      });
+    } catch (e) {
+      Alert.alert("Couldn't open a chat", e instanceof Error ? e.message : "Please try again.");
+    }
+  };
+
+  const copy = (m: Message) => {
+    // A share sheet rather than a clipboard: the clipboard needs a native
+    // module, and the share sheet's first option on iOS is Copy.
+    void Share.share({ message: m.body });
+  };
+
+  const report = (m: Message) => {
+    Alert.alert("Report this message?", "The PinPals team will look at it. They won't tell the sender who reported it.", [
+      ...MESSAGE_REPORT_REASONS.map((r) => ({
+        text: r.label,
+        onPress: () =>
+          void reportMessage(m.id, r.category)
+            .then(() => Alert.alert("Reported", "Thanks — we'll take a look."))
+            .catch((e: unknown) => Alert.alert("Couldn't report that", e instanceof ApiError ? e.message : "Please try again.")),
+      })),
+      { text: "Cancel", style: "cancel" as const },
+    ]);
+  };
+
+  const remove = (m: Message) => {
+    const everyone = canDeleteForEveryone(m, userId);
+    Alert.alert("Delete message?", everyone ? "Delete it for everyone in this chat, or just from your phone." : undefined, [
+      ...(everyone
+        ? [
+            {
+              text: "Delete for everyone",
+              style: "destructive" as const,
+              onPress: () =>
+                void deleteForEveryone(m.id)
+                  .then(() => getMessage(m.id))
+                  .then((fresh) => {
+                    if (fresh) {
+                      setMessages((prev) =>
+                        prev.map((x) =>
+                          x.id === m.id ? fresh : x.reply_to_id === m.id ? { ...x, reply_snapshot: { deleted: true } } : x
+                        )
+                      );
+                    }
+                  })
+                  .catch((e: unknown) => Alert.alert("Couldn't delete that", e instanceof ApiError ? e.message : "Please try again.")),
+            },
+          ]
+        : []),
+      {
+        text: "Delete for me",
+        style: "destructive" as const,
+        onPress: () => {
+          setHidden((prev) => new Set(prev).add(m.id));
+          void deleteForMe(m.id).catch(() =>
+            setHidden((prev) => {
+              const next = new Set(prev);
+              next.delete(m.id);
+              return next;
+            })
+          );
+        },
+      },
+      { text: "Cancel", style: "cancel" as const },
+    ]);
+  };
+
+  const actionsFor = (m: Message): MessageAction[] => {
+    const mine = m.sender_id === userId;
+    const live = !m.hidden_at && !m.deleted_at;
+    const out: MessageAction[] = [];
+    if (live) out.push({ key: "reply", label: "Reply", icon: "arrow-undo-outline", onPress: () => startReply(m) });
+    if (live && isGroup && !mine) {
+      out.push({ key: "private", label: "Reply privately", icon: "chatbubble-ellipses-outline", onPress: () => void replyPrivately(m) });
+    }
+    if (live && m.body.trim()) out.push({ key: "copy", label: "Copy", icon: "copy-outline", onPress: () => copy(m) });
+    if (mine && live) out.push({ key: "info", label: "Info", icon: "information-circle-outline", onPress: () => setInfoFor(m) });
+    if (!mine && live) out.push({ key: "report", label: "Report", icon: "flag-outline", destructive: true, onPress: () => report(m) });
+    out.push({ key: "delete", label: "Delete", icon: "trash-outline", destructive: true, onPress: () => remove(m) });
+    return out;
+  };
+
+  const jumpTo = (messageId: number) => {
+    const index = visible.findIndex((m) => m.id === messageId);
+    if (index < 0) return;
+    listRef.current?.scrollToIndex({ index, viewPosition: 0.5, animated: true });
+    setFlash(messageId);
+    setTimeout(() => setFlash((f) => (f === messageId ? null : f)), 1400);
+  };
+
   const confirmLeave = () => {
     Alert.alert(
       `Leave ${header?.otherName ?? "this group"}?`,
@@ -325,38 +551,57 @@ export default function ConversationScreen() {
     );
   };
 
+  const visible = useMemo(() => messages.filter((m) => !hidden.has(m.id)), [messages, hidden]);
+  const typingNames = [...typing.keys()].map((id) => nameOf(id) ?? "Someone");
+  const typingText = typingLine(typingNames);
   const over = draft.trim().length > MESSAGE_MAX_LENGTH;
+  const canSend = !!draft.trim() && !sending && !over;
+  const pickedReaction = picked && userId ? ((reactions.get(picked.id) ?? []).find((r) => r.memberId === userId)?.emoji ?? null) : null;
+
+  const subtitle = typingText ?? (isGroup ? `${header?.members.length ?? 0} members` : null);
 
   return (
     <KeyboardAvoidingView
       style={styles.fill}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
-      // The header is already offset by the safe area; without this the
-      // composer floats a header's height above the keyboard.
       keyboardVerticalOffset={Platform.OS === "ios" ? 96 : 0}
     >
       <Stack.Screen
         options={{
-          title: header?.otherName ?? "Message",
           headerBackTitle: "Back",
+          headerStyle: { backgroundColor: colors.navy900 },
+          headerTintColor: colors.cream50,
+          headerShadowVisible: false,
+          headerTitle: () => (
+            <View style={styles.headTitle}>
+              {isGroup ? (
+                <View style={styles.headGroup}>
+                  <Ionicons name="people" size={17} color={colors.navy900} />
+                </View>
+              ) : (
+                <Avatar url={header?.otherAvatarUrl} color={header?.otherAvatarColor} name={header?.otherName} size={34} />
+              )}
+              <View style={{ flexShrink: 1 }}>
+                <Text style={styles.headName} numberOfLines={1} accessibilityRole="header">
+                  {header?.otherName ?? "Message"}
+                </Text>
+                {subtitle ? (
+                  <Text style={[styles.headSub, typingText ? styles.headTyping : null]} numberOfLines={1}>
+                    {subtitle}
+                  </Text>
+                ) : null}
+              </View>
+            </View>
+          ),
         }}
       />
 
-      {/* Who is actually in here. A group you are talking into without
-          knowing who is listening is the thing this prevents, and it is one
-          line because the navigation bar already carries the name. */}
-      {header?.kind === "group" ? (
+      {isGroup && header ? (
         <View style={styles.groupBar}>
-          <Ionicons name="people-outline" size={14} color={colors.ink500} />
           <Text style={styles.groupBarLabel} numberOfLines={1}>
-            {header.members.map((m) => (m.id === userId ? "You" : m.name)).join(", ")}
+            {header.members.map((m) => (m.id === userId ? "You" : m.name.split(" ")[0])).join(", ")}
           </Text>
-          <Pressable
-            onPress={confirmLeave}
-            hitSlop={8}
-            accessibilityRole="button"
-            accessibilityLabel="Leave this group"
-          >
+          <Pressable onPress={confirmLeave} hitSlop={8} accessibilityRole="button" accessibilityLabel="Leave this group">
             <Text style={styles.leave}>Leave</Text>
           </Pressable>
         </View>
@@ -374,185 +619,220 @@ export default function ConversationScreen() {
               onPress={() =>
                 router.push({
                   pathname: "/web",
-                  params: {
-                    path: `/marketplace/${header.listingId}`,
-                    title: header.listingTitle ?? "Listing",
-                  },
+                  params: { path: `/marketplace/${header.listingId}`, title: header.listingTitle ?? "Listing" },
                 })
               }
               accessibilityRole="button"
             >
-              <Ionicons
-                name="pricetag-outline"
-                size={15}
-                color={colors.ink500}
-              />
+              <Ionicons name="pricetag" size={14} color={colors.green700} />
               <Text style={styles.contextLabel} numberOfLines={1}>
                 {header.listingTitle}
               </Text>
-              <Ionicons
-                name="chevron-forward"
-                size={15}
-                color={colors.ink500}
-              />
+              <Ionicons name="chevron-forward" size={15} color={colors.ink500} />
             </Pressable>
           ) : null}
 
           <FlatList
+            ref={listRef}
             inverted
             contentContainerStyle={styles.list}
-            data={messages}
+            data={visible}
             keyExtractor={(item) => String(item.id)}
             keyboardDismissMode="interactive"
             keyboardShouldPersistTaps="handled"
             onEndReached={() => void loadOlder()}
             onEndReachedThreshold={0.4}
-            ListEmptyComponent={
-              <View style={styles.empty}>
-                <Ionicons
-                  name={error ? "cloud-offline-outline" : "chatbubble-outline"}
-                  size={40}
-                  color={colors.ink500}
-                />
-                <Text style={styles.emptyTitle}>
-                  {error ?? "No messages yet"}
-                </Text>
-                <Text style={styles.emptyBody}>
-                  {error ? "Go back and try again." : "Say hello."}
-                </Text>
-              </View>
-            }
-            ListFooterComponent={
-              loadingOlder ? (
-                <ActivityIndicator
-                  color={colors.green700}
-                  style={styles.older}
-                />
+            onScrollToIndexFailed={(info) => {
+              listRef.current?.scrollToOffset({ offset: info.averageItemLength * info.index, animated: true });
+            }}
+            ListHeaderComponent={
+              typingText ? (
+                <View style={styles.typingRow}>
+                  <View style={styles.typingBubble}>
+                    <Text style={styles.typingDots}>•••</Text>
+                  </View>
+                  <Text style={styles.typingLabel}>{typingText}</Text>
+                </View>
               ) : null
             }
+            ListEmptyComponent={
+              <View style={styles.empty}>
+                <View style={styles.emptyIcon}>
+                  <Ionicons name={error ? "cloud-offline-outline" : "chatbubbles-outline"} size={30} color={colors.green700} />
+                </View>
+                <Text style={styles.emptyTitle}>{error ?? "No messages yet"}</Text>
+                <Text style={styles.emptyBody}>{error ? "Go back and try again." : "Say hello — long-press any message later for reactions and replies."}</Text>
+              </View>
+            }
+            ListFooterComponent={loadingOlder ? <ActivityIndicator color={colors.green700} style={styles.older} /> : null}
             renderItem={({ item, index }) => {
-              // Inverted, so the NEXT item in the array is the previous
-              // message in time — and a day heading belongs above the first
-              // message of each day, which is the last one we meet.
-              const older = messages[index + 1];
-              const newDay =
-                !older ||
-                older.created_at.slice(0, 10) !== item.created_at.slice(0, 10);
-
+              // Inverted: index + 1 is the message before this one in time.
+              const older = visible[index + 1];
+              const newer = visible[index - 1];
+              const day = localDayKey(item.created_at);
+              const newDay = !older || localDayKey(older.created_at) !== day;
+              const firstOfRun = newDay || older.sender_id !== item.sender_id;
+              const lastOfRun = !newer || newer.sender_id !== item.sender_id || localDayKey(newer.created_at) !== day;
+              const mine = item.sender_id === userId;
               return (
                 <>
                   {newDay ? (
-                    <Text style={styles.day}>{dayLabel(item.created_at)}</Text>
+                    <View style={styles.dayWrap}>
+                      <Text style={styles.day}>{dayLabel(item.created_at)}</Text>
+                    </View>
                   ) : null}
-                  <Bubble
-                    message={item}
-                    mine={item.sender_id === userId}
-                    viewerId={userId}
-                    imageUrl={
-                      item.image_path ? (imageUrls.get(item.image_path) ?? null) : null
-                    }
-                    sender={senders.get(item.sender_id) ?? null}
-                    // Only a group needs a name over each bubble. In a thread
-                    // with one other person, labelling every bubble with the
-                    // name already in the navigation bar is noise.
-                    showSenderName={header?.kind === "group"}
-                    // And only when the speaker changed: a run of four
-                    // messages from the same person is one name, not four.
-                    firstOfRun={
-                      !older || older.sender_id !== item.sender_id
-                    }
-                  />
+                  <SwipeToReply enabled={!item.hidden_at && !item.deleted_at} onReply={() => startReply(item)}>
+                    <Bubble
+                      message={item}
+                      mine={mine}
+                      viewerId={userId}
+                      imageUrl={item.image_path ? (imageUrls.get(item.image_path) ?? null) : null}
+                      sender={senders.get(item.sender_id) ?? null}
+                      group={isGroup}
+                      firstOfRun={firstOfRun}
+                      lastOfRun={lastOfRun}
+                      ticks={mine && header ? tickState(item, header.members) : null}
+                      chips={reactionChips(reactions.get(item.id) ?? [], userId)}
+                      flash={flash === item.id}
+                      nameOf={nameOf}
+                      onLongPress={() => {
+                        Keyboard.dismiss();
+                        setPicked(item);
+                      }}
+                      onChipPress={(emoji) => void react(item, emoji)}
+                      onQuotePress={item.reply_to_id ? () => jumpTo(item.reply_to_id!) : undefined}
+                    />
+                  </SwipeToReply>
                 </>
               );
             }}
           />
 
           <View style={styles.composer}>
-            {sendError ? (
-              <Text style={styles.sendError}>{sendError}</Text>
+            {sendError ? <Text style={styles.sendError}>{sendError}</Text> : null}
+
+            {replyTo ? (
+              <View style={styles.replyBar}>
+                <View style={{ flex: 1 }}>
+                  <QuoteBlock quote={replyTo.quote} me={userId} nameOf={nameOf} colourOf={senderColour} />
+                </View>
+                <Pressable onPress={() => setReplyTo(null)} hitSlop={10} accessibilityRole="button" accessibilityLabel="Cancel reply">
+                  <Ionicons name="close-circle" size={24} color={colors.ink500} />
+                </Pressable>
+              </View>
             ) : null}
 
             <View style={styles.composerRow}>
-              <Pressable
-                onPress={pickPhoto}
-                disabled={sending}
-                style={styles.tool}
-                hitSlop={6}
-                accessibilityRole="button"
-                accessibilityLabel="Send a photo"
-              >
-                <Ionicons
-                  name="camera-outline"
-                  size={23}
-                  color={sending ? colors.ink500 : colors.green700}
+              <View style={styles.inputPill}>
+                <Pressable
+                  onPress={toggleEmoji}
+                  style={styles.tool}
+                  hitSlop={6}
+                  accessibilityRole="button"
+                  accessibilityState={{ expanded: emojiOpen }}
+                  accessibilityLabel={emojiOpen ? "Hide emoji" : "Add an emoji"}
+                >
+                  <Ionicons name={emojiOpen ? "happy" : "happy-outline"} size={24} color={colors.ink500} />
+                </Pressable>
+                <TextInput
+                  ref={inputRef}
+                  style={styles.input}
+                  value={draft}
+                  onChangeText={onDraft}
+                  onFocus={() => setEmojiOpen(false)}
+                  placeholder={replyTo ? "Write a reply" : "Message"}
+                  placeholderTextColor={colors.ink500}
+                  multiline
+                  maxLength={MESSAGE_MAX_LENGTH + 200}
+                  accessibilityLabel="Message"
                 />
-              </Pressable>
-
-              <Pressable
-                onPress={toggleEmoji}
-                style={styles.tool}
-                hitSlop={6}
-                accessibilityRole="button"
-                accessibilityState={{ expanded: emojiOpen }}
-                accessibilityLabel={emojiOpen ? "Hide emoji" : "Add an emoji"}
-              >
-                <Ionicons
-                  name={emojiOpen ? "happy" : "happy-outline"}
-                  size={23}
-                  color={colors.green700}
-                />
-              </Pressable>
-
-              <TextInput
-                style={styles.input}
-                value={draft}
-                onChangeText={setDraft}
-                // The tray takes the keyboard's place, so returning to the
-                // box has to put the keyboard back.
-                onFocus={() => setEmojiOpen(false)}
-                placeholder="Write a message"
-                placeholderTextColor={colors.ink500}
-                multiline
-                // Four lines before it scrolls: enough for a real reply,
-                // short enough that it never swallows the conversation.
-                maxLength={MESSAGE_MAX_LENGTH + 200}
-                accessibilityLabel="Message"
-              />
+                <Pressable
+                  onPress={pickPhoto}
+                  disabled={sending}
+                  style={styles.tool}
+                  hitSlop={6}
+                  accessibilityRole="button"
+                  accessibilityLabel="Send a photo"
+                >
+                  <Ionicons name="camera-outline" size={24} color={sending ? colors.line : colors.ink500} />
+                </Pressable>
+              </View>
               <Pressable
                 onPress={() => void send()}
-                disabled={!draft.trim() || sending || over}
-                style={[
-                  styles.send,
-                  (!draft.trim() || sending || over) && styles.sendOff,
-                ]}
+                disabled={!canSend}
+                style={[styles.send, !canSend && styles.sendOff]}
                 accessibilityRole="button"
                 accessibilityLabel="Send"
               >
                 {sending ? (
                   <ActivityIndicator size="small" color={colors.cream50} />
                 ) : (
-                  <Ionicons name="arrow-up" size={20} color={colors.cream50} />
+                  <Ionicons name="send" size={18} color={colors.cream50} style={{ marginLeft: 2 }} />
                 )}
               </Pressable>
             </View>
 
             {over ? (
               <Text style={styles.sendError}>
-                That's longer than {MESSAGE_MAX_LENGTH.toLocaleString("en-IE")}{" "}
-                characters.
+                That&apos;s longer than {MESSAGE_MAX_LENGTH.toLocaleString("en-IE")} characters.
               </Text>
             ) : null}
           </View>
 
-          {/* Below the composer, where the keyboard would be. Appending
-              rather than replacing the draft, so an emoji can be added to a
-              sentence someone is part-way through writing. */}
-          {emojiOpen ? (
-            <EmojiTray onPick={(emoji) => setDraft((text) => text + emoji)} />
-          ) : null}
+          {emojiOpen ? <EmojiTray onPick={(emoji) => setDraft((text) => text + emoji)} /> : null}
         </>
       )}
+
+      <MessageActionsSheet
+        message={picked}
+        mine={picked?.sender_id === userId}
+        myReaction={pickedReaction}
+        canReact={!!picked && !picked.hidden_at && !picked.deleted_at}
+        preview={
+          picked
+            ? picked.hidden_at
+              ? "This message was removed."
+              : picked.deleted_at
+                ? "This message was deleted"
+                : picked.body.trim() || (picked.image_path ? "📷 Photo" : "")
+            : ""
+        }
+        actions={picked ? actionsFor(picked) : []}
+        onReact={(emoji) => {
+          if (picked) void react(picked, emoji);
+        }}
+        onClose={() => setPicked(null)}
+      />
+      <MessageInfoSheet message={infoFor} members={header?.members ?? []} onClose={() => setInfoFor(null)} />
     </KeyboardAvoidingView>
+  );
+}
+
+/** Swipe a message to the right to reply, as in WhatsApp. */
+function SwipeToReply({ enabled, onReply, children }: { enabled: boolean; onReply: () => void; children: React.ReactNode }) {
+  const ref = useRef<SwipeableMethods>(null);
+  if (!enabled) return <>{children}</>;
+  return (
+    <ReanimatedSwipeable
+      ref={ref}
+      friction={2.2}
+      leftThreshold={56}
+      overshootLeft={false}
+      dragOffsetFromLeftEdge={18}
+      renderLeftActions={() => (
+        <View style={styles.swipeReply}>
+          <View style={styles.swipeReplyIcon}>
+            <Ionicons name="arrow-undo" size={16} color={colors.green700} />
+          </View>
+        </View>
+      )}
+      onSwipeableWillOpen={() => {
+        onReply();
+        ref.current?.close();
+      }}
+    >
+      {children}
+    </ReanimatedSwipeable>
   );
 }
 
@@ -561,266 +841,332 @@ function Bubble({
   mine,
   imageUrl,
   sender,
-  showSenderName,
+  group,
   firstOfRun,
+  lastOfRun,
   viewerId,
+  ticks,
+  chips,
+  flash,
+  nameOf,
+  onLongPress,
+  onChipPress,
+  onQuotePress,
 }: {
   message: Message;
   mine: boolean;
-  /** For reading a shared post with the viewer's own session. */
   viewerId: string | null;
-  /** Signed, and short-lived. Null while it is still being signed, or if
-   *  signing failed — the placeholder below covers both. */
   imageUrl: string | null;
-  /** Who sent it. Null for someone who has since left the group — their
-   *  messages stay, because a conversation that loses lines reads as a bug. */
+  /** Null for someone who has since left the group — their messages stay. */
   sender: ThreadMember | null;
-  showSenderName: boolean;
+  group: boolean;
   firstOfRun: boolean;
+  lastOfRun: boolean;
+  ticks: "sent" | "seen" | null;
+  chips: { emoji: string; count: number; mine: boolean }[];
+  flash: boolean;
+  nameOf: (id: string) => string | null;
+  onLongPress: () => void;
+  onChipPress: (emoji: string) => void;
+  onQuotePress?: () => void;
 }) {
-  // A shared post (phase 6) arrives as its link; draw the first one as a
-  // card and drop the bare address from the text above it.
-  const sharedPostId = message.body ? (postIdsInText(message.body)[0] ?? null) : null;
+  const sharedPostId = message.body && !message.deleted_at ? (postIdsInText(message.body)[0] ?? null) : null;
   const shownBody = sharedPostId
     ? message.body.replace(/https?:\/\/(?:www\.)?pinpals\.ie\/(?:feed\/\d+|s\/[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)/g, "").trim()
     : message.body;
-  const avatarUrl = sender?.avatarUrl ?? null;
-  const avatarColor = sender?.avatarColor ?? null;
   const name = sender?.name ?? null;
-  // A hidden message keeps its row rather than vanishing. A conversation that
-  // silently loses a line reads as a bug; a line saying it was removed reads
-  // as moderation, which is what happened.
-  if (message.hidden_at) {
+  const showAvatarSlot = group && !mine;
+  const time = messageTime(message.created_at);
+
+  const rowStyle = [styles.bubbleRow, mine && styles.bubbleRowMine, firstOfRun ? styles.runStart : null];
+  const corner = mine
+    ? { borderTopRightRadius: firstOfRun ? 18 : 6, borderBottomRightRadius: lastOfRun ? 4 : 6 }
+    : { borderTopLeftRadius: firstOfRun ? 18 : 6, borderBottomLeftRadius: lastOfRun ? 4 : 6 };
+
+  // Removed by a moderator, or deleted by whoever sent it: the row stays — a
+  // thread that silently loses a line reads as a bug.
+  if (message.hidden_at || message.deleted_at) {
     return (
-      <View style={[styles.bubbleRow, mine && styles.bubbleRowMine]}>
-        <View style={[styles.bubble, styles.removed]}>
-          <Text style={styles.removedLabel}>This message was removed.</Text>
-        </View>
+      <View style={rowStyle}>
+        {showAvatarSlot ? <View style={styles.avatarSlot} /> : null}
+        <Pressable onLongPress={onLongPress} delayLongPress={300} style={[styles.bubble, styles.gone, corner]}>
+          <Ionicons name="ban-outline" size={14} color={colors.ink500} />
+          <Text style={styles.goneLabel}>
+            {message.hidden_at ? "This message was removed" : mine ? "You deleted this message" : "This message was deleted"}
+          </Text>
+          <Text style={styles.metaGone}>{time}</Text>
+        </Pressable>
       </View>
     );
   }
 
+  const colour = sender ? senderColour(sender.id) : colors.ink500;
+
   return (
-    <View style={[styles.bubbleRow, mine && styles.bubbleRowMine]}>
-      {mine ? null : (
-        // Held at the bottom of the run so a block of messages from one
-        // person has one avatar beside its last line, the way every chat
-        // does it. An invisible spacer keeps the rest aligned.
-        <Avatar url={avatarUrl} color={avatarColor} name={name} size={26} />
-      )}
-      <View
-        style={[
-          styles.bubble,
-          mine ? styles.mine : styles.theirs,
-          // A photo fills the bubble edge to edge; padding around it would
-          // frame it in green, which looks like a mistake rather than a
-          // choice.
-          message.image_path ? styles.bubblePhoto : null,
-        ]}
-      >
-        {message.image_path ? (
-          imageUrl ? (
-            <Image
-              source={{ uri: imageUrl }}
-              style={styles.photo}
-              // contain, not cover: this is somebody's photo of a club or a
-              // scorecard, and cropping it to a tidy rectangle is how the
-              // detail they were pointing at ends up off-screen.
-              resizeMode="contain"
-              accessibilityLabel="Photo"
-            />
-          ) : (
-            // Covers both "not signed yet" and "signing failed". A spinner
-            // that never resolves is worse than a still picture frame, and
-            // the difference between the two lasts a few hundred
-            // milliseconds.
-            <View style={[styles.photo, styles.photoWaiting]}>
-              <Ionicons name="image-outline" size={26} color={colors.ink500} />
+    <View style={rowStyle}>
+      {showAvatarSlot ? (
+        <View style={styles.avatarSlot}>
+          {lastOfRun ? <Avatar url={sender?.avatarUrl ?? null} color={sender?.avatarColor ?? null} name={name} size={28} /> : null}
+        </View>
+      ) : null}
+
+      <View style={[styles.bubbleCol, mine && styles.bubbleColMine]}>
+        <Pressable
+          onLongPress={onLongPress}
+          delayLongPress={300}
+          style={({ pressed }) => [
+            styles.bubble,
+            mine ? styles.mine : styles.theirs,
+            corner,
+            message.image_path ? styles.bubblePhoto : null,
+            sharedPostId ? styles.roomForMeta : null,
+            (pressed || flash) && (mine ? styles.minePressed : styles.theirsPressed),
+          ]}
+          accessibilityHint="Long-press for reactions, reply and more"
+        >
+          {group && !mine && firstOfRun ? (
+            <Text style={[styles.senderName, { color: colour }, message.image_path ? styles.pad : null]} numberOfLines={1}>
+              {name ?? "A member"}
+            </Text>
+          ) : null}
+
+          {message.reply_snapshot ? (
+            <View style={message.image_path ? styles.pad : styles.quoteGap}>
+              <QuoteBlock
+                quote={message.reply_snapshot}
+                me={viewerId}
+                nameOf={nameOf}
+                colourOf={senderColour}
+                onMine={mine}
+                onPress={message.reply_snapshot.group ? undefined : onQuotePress}
+              />
             </View>
-          )
-        ) : null}
+          ) : null}
 
-        {showSenderName && !mine && firstOfRun ? (
-          <Text style={[styles.senderName, message.image_path ? styles.caption : null]}>
-            {name ?? "A member"}
-          </Text>
-        ) : null}
+          {message.image_path ? (
+            imageUrl ? (
+              <Image source={{ uri: imageUrl }} style={styles.photo} resizeMode="contain" accessibilityLabel="Photo" />
+            ) : (
+              <View style={[styles.photo, styles.photoWaiting]}>
+                <Ionicons name="image-outline" size={26} color={colors.ink500} />
+              </View>
+            )
+          ) : null}
 
-        {shownBody ? (
-          <Text
-            style={[
-              styles.body,
-              mine && styles.bodyMine,
-              message.image_path ? styles.caption : null,
-            ]}
-          >
-            {shownBody}
-          </Text>
-        ) : null}
+          {shownBody ? (
+            <Text style={[styles.body, mine && styles.bodyMine, message.image_path ? styles.padCaption : null]}>
+              {shownBody}
+              {/* Room for the time, so it never sits on top of the last word. */}
+              <Text style={styles.metaSpacer}>{"  " + time + (ticks ? "    " : "")}</Text>
+            </Text>
+          ) : null}
 
-        {sharedPostId && viewerId ? <SharedPostCard postId={sharedPostId} viewerId={viewerId} mine={mine} /> : null}
+          {sharedPostId && viewerId ? <SharedPostCard postId={sharedPostId} viewerId={viewerId} mine={mine} /> : null}
+
+          <View style={[styles.meta, message.image_path && !shownBody ? styles.metaOnPhoto : null]}>
+            <Text style={[styles.metaTime, mine && styles.metaTimeMine, message.image_path && !shownBody ? styles.metaOnPhotoText : null]}>
+              {time}
+            </Text>
+            {ticks ? (
+              <Ionicons
+                name={ticks === "seen" ? "checkmark-done" : "checkmark"}
+                size={15}
+                color={ticks === "seen" ? colors.gold400 : "rgba(247,243,234,0.7)"}
+                accessibilityLabel={ticks === "seen" ? "Read" : "Sent"}
+              />
+            ) : null}
+          </View>
+        </Pressable>
+
+        {chips.length ? (
+          <View style={[styles.chips, mine ? styles.chipsMine : null]}>
+            {chips.map((c) => (
+              <Pressable
+                key={c.emoji}
+                onPress={() => onChipPress(c.emoji)}
+                style={[styles.chip, c.mine && styles.chipMine]}
+                accessibilityRole="button"
+                accessibilityLabel={`${c.emoji} ${c.count}${c.mine ? ", including you. Tap to remove yours" : ". Tap to add"}`}
+              >
+                <Text style={styles.chipEmoji}>{c.emoji}</Text>
+                {c.count > 1 ? <Text style={styles.chipCount}>{c.count}</Text> : null}
+              </Pressable>
+            ))}
+          </View>
+        ) : null}
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  fill: { flex: 1, backgroundColor: colors.cream50 },
+  fill: { flex: 1, backgroundColor: "#f3eee2" },
   centre: { flex: 1, alignItems: "center", justifyContent: "center" },
+
+  headTitle: { flexDirection: "row", alignItems: "center", gap: 10, maxWidth: 260 },
+  headGroup: { width: 34, height: 34, borderRadius: 17, backgroundColor: colors.gold400, alignItems: "center", justifyContent: "center" },
+  headName: { ...headerTitleStyle, color: colors.cream50 },
+  headSub: { fontFamily: fonts.body, fontSize: 12.5, color: "rgba(247,243,234,0.7)" },
+  headTyping: { color: colors.gold400, fontFamily: fonts.bodySemi },
 
   groupBar: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    gap: 8,
     paddingHorizontal: spacing.md,
-    paddingVertical: 8,
-    backgroundColor: colors.surfaceTint,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.line,
+    paddingVertical: 7,
+    backgroundColor: colors.navy800,
   },
-  groupBarLabel: {
-    flex: 1,
-    fontFamily: fonts.body,
-    fontSize: type.label,
-    color: colors.ink500,
-  },
-  leave: { fontFamily: fonts.bodyBold, fontSize: type.label, color: colors.red600 },
+  groupBarLabel: { flex: 1, fontFamily: fonts.body, fontSize: 13, color: "rgba(247,243,234,0.8)" },
+  leave: { fontFamily: fonts.bodyBold, fontSize: 13, color: "#f2b3a8" },
 
   context: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    paddingHorizontal: spacing.md,
+    gap: 8,
+    marginHorizontal: spacing.md,
+    marginTop: spacing.sm,
+    paddingHorizontal: 14,
     paddingVertical: 10,
-    backgroundColor: colors.surfaceTint,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.line,
-  },
-  contextLabel: {
-    flex: 1,
-    fontFamily: fonts.bodySemi,
-    fontSize: type.small,
-    color: colors.ink900,
-  },
-
-  list: { padding: spacing.md, gap: spacing.sm, flexGrow: 1 },
-  older: { paddingVertical: spacing.md },
-
-  day: {
-    alignSelf: "center",
-    fontFamily: fonts.bodySemi,
-    fontSize: type.label,
-    color: colors.ink500,
-    paddingVertical: spacing.sm,
-  },
-
-  bubbleRow: {
-    flexDirection: "row",
-    alignItems: "flex-end",
-    gap: 6,
-    maxWidth: "88%",
-  },
-  bubbleRowMine: { alignSelf: "flex-end", justifyContent: "flex-end" },
-  bubble: {
-    flexShrink: 1,
-    paddingHorizontal: 13,
-    paddingVertical: 9,
-    borderRadius: radii.lg,
-  },
-  theirs: {
+    borderRadius: radii.md,
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.line,
-    borderBottomLeftRadius: radii.sm,
   },
-  mine: {
-    backgroundColor: colors.green700,
-    borderBottomRightRadius: radii.sm,
-  },
-  body: {
-    fontFamily: fonts.body,
-    fontSize: type.body,
-    lineHeight: 22,
-    color: colors.ink900,
-  },
-  bodyMine: { color: colors.cream50 },
-  senderName: {
-    fontFamily: fonts.bodyBold,
-    fontSize: type.label,
-    color: colors.green700,
-    marginBottom: 2,
-  },
+  contextLabel: { flex: 1, fontFamily: fonts.bodySemi, fontSize: type.small, color: colors.ink900 },
 
-  bubblePhoto: { paddingHorizontal: 0, paddingTop: 0, overflow: "hidden" },
-  // 4:3 rather than a fixed height, so a portrait photo and a landscape one
-  // occupy the same slot and the list never has to guess a row height.
-  photo: {
-    width: 232,
-    aspectRatio: 4 / 3,
-    backgroundColor: colors.surfaceTint,
-  },
-  photoWaiting: { alignItems: "center", justifyContent: "center" },
-  caption: { paddingHorizontal: 13, paddingVertical: 8 },
+  list: { paddingHorizontal: 12, paddingVertical: spacing.sm, flexGrow: 1 },
+  older: { paddingVertical: spacing.md },
 
-  removed: {
-    backgroundColor: colors.surfaceTint,
-    borderWidth: 1,
-    borderColor: colors.line,
-    borderStyle: "dashed",
-  },
-  removedLabel: {
-    fontFamily: fonts.body,
-    fontSize: type.small,
+  dayWrap: { alignItems: "center", paddingVertical: 10 },
+  day: {
+    fontFamily: fonts.bodySemi,
+    fontSize: 12.5,
     color: colors.ink500,
+    backgroundColor: "rgba(255,255,255,0.85)",
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: radii.pill,
+    overflow: "hidden",
   },
+
+  bubbleRow: { flexDirection: "row", alignItems: "flex-end", gap: 6, marginTop: 2, maxWidth: "86%" },
+  bubbleRowMine: { alignSelf: "flex-end", justifyContent: "flex-end" },
+  runStart: { marginTop: 8 },
+  avatarSlot: { width: 28 },
+  bubbleCol: { flexShrink: 1, alignItems: "flex-start" },
+  bubbleColMine: { alignItems: "flex-end" },
+
+  bubble: {
+    paddingHorizontal: 12,
+    paddingTop: 7,
+    paddingBottom: 7,
+    borderRadius: 18,
+    shadowColor: "#0c2038",
+    shadowOpacity: 0.06,
+    shadowRadius: 2,
+    shadowOffset: { width: 0, height: 1 },
+    elevation: 1,
+  },
+  theirs: { backgroundColor: colors.surface },
+  theirsPressed: { backgroundColor: "#ebe5d6" },
+  mine: { backgroundColor: colors.green700 },
+  minePressed: { backgroundColor: colors.green800 },
+  body: { fontFamily: fonts.body, fontSize: type.body, lineHeight: 22, color: colors.ink900 },
+  bodyMine: { color: colors.cream50 },
+  senderName: { fontFamily: fonts.bodyBold, fontSize: 13.5, marginBottom: 2 },
+  quoteGap: { marginBottom: 5, minWidth: 160 },
+  pad: { paddingHorizontal: 12, paddingTop: 6 },
+  padCaption: { paddingHorizontal: 12, paddingTop: 6, paddingBottom: 7 },
+  roomForMeta: { paddingBottom: 22 },
+
+  // An invisible copy of the time at the end of the text keeps the last line
+  // clear of the real one, which sits in the bubble's bottom-right corner.
+  metaSpacer: { fontSize: 11.5, color: "transparent" },
+  meta: { position: "absolute", right: 10, bottom: 5, flexDirection: "row", alignItems: "center", gap: 3 },
+  metaTime: { fontFamily: fonts.body, fontSize: 11.5, color: colors.ink500 },
+  metaTimeMine: { color: "rgba(247,243,234,0.75)" },
+  metaOnPhoto: { backgroundColor: "rgba(12,32,56,0.55)", borderRadius: radii.pill, paddingHorizontal: 7, paddingVertical: 2 },
+  metaOnPhotoText: { color: colors.cream50 },
+
+  bubblePhoto: { paddingHorizontal: 0, paddingTop: 0, paddingBottom: 0, overflow: "hidden", minWidth: 232 },
+  photo: { width: 240, aspectRatio: 4 / 3, backgroundColor: colors.surfaceTint },
+  photoWaiting: { alignItems: "center", justifyContent: "center" },
+
+  gone: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "rgba(255,255,255,0.6)", borderWidth: 1, borderColor: colors.line, shadowOpacity: 0 },
+  goneLabel: { fontFamily: fonts.body, fontSize: type.small, fontStyle: "italic", color: colors.ink500 },
+  metaGone: { fontFamily: fonts.body, fontSize: 11, color: colors.ink500, marginLeft: 4 },
+
+  chips: { flexDirection: "row", flexWrap: "wrap", gap: 4, marginTop: -4, marginLeft: 8 },
+  chipsMine: { marginLeft: 0, marginRight: 8 },
+  chip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: radii.pill,
+    backgroundColor: colors.surface,
+    borderWidth: 1.5,
+    borderColor: "#f3eee2",
+  },
+  chipMine: { backgroundColor: colors.green100 },
+  chipEmoji: { fontSize: 15 },
+  chipCount: { fontFamily: fonts.bodySemi, fontSize: 12.5, color: colors.ink900 },
+
+  swipeReply: { width: 52, alignItems: "center", justifyContent: "center" },
+  swipeReplyIcon: { width: 30, height: 30, borderRadius: 15, backgroundColor: colors.surface, alignItems: "center", justifyContent: "center" },
+
+  typingRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingTop: 8, paddingLeft: 4 },
+  typingBubble: { backgroundColor: colors.surface, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6 },
+  typingDots: { fontSize: 16, letterSpacing: 2, color: colors.ink500 },
+  typingLabel: { fontFamily: fonts.body, fontSize: 13, color: colors.ink500 },
 
   composer: {
     gap: 6,
-    paddingHorizontal: spacing.md,
-    paddingTop: spacing.sm,
+    paddingHorizontal: 10,
+    paddingTop: 8,
     paddingBottom: spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: colors.line,
-    backgroundColor: colors.cream50,
+    backgroundColor: "#f3eee2",
   },
-  composerRow: { flexDirection: "row", alignItems: "flex-end", gap: 6 },
-  // 44pt square, the iOS minimum touch target, even though the glyph is 23.
-  tool: {
-    width: 40,
-    height: 44,
+  replyBar: {
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
+    gap: 8,
+    padding: 8,
+    borderRadius: radii.lg,
+    backgroundColor: colors.surface,
   },
+  composerRow: { flexDirection: "row", alignItems: "flex-end", gap: 8 },
+  inputPill: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "flex-end",
+    minHeight: 46,
+    borderRadius: 23,
+    backgroundColor: colors.surface,
+    paddingHorizontal: 4,
+    shadowColor: "#0c2038",
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 1 },
+    elevation: 1,
+  },
+  tool: { width: 40, height: 46, alignItems: "center", justifyContent: "center" },
   // 16pt floor — iOS zooms the screen when a smaller input takes focus.
   input: {
     flex: 1,
-    minHeight: 44,
+    minHeight: 46,
     maxHeight: 132,
-    paddingHorizontal: 14,
-    paddingTop: 11,
-    paddingBottom: 11,
-    borderRadius: radii.lg,
-    borderWidth: 1,
-    borderColor: colors.line,
-    backgroundColor: colors.surface,
+    paddingTop: 12,
+    paddingBottom: 12,
     fontFamily: fonts.body,
     fontSize: type.body,
     color: colors.ink900,
   },
-  send: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.green700,
-  },
-  sendOff: { backgroundColor: colors.ink500, opacity: 0.4 },
-  sendError: {
-    fontFamily: fonts.body,
-    fontSize: type.small,
-    color: colors.red600,
-  },
+  send: { width: 46, height: 46, borderRadius: 23, alignItems: "center", justifyContent: "center", backgroundColor: colors.green700 },
+  sendOff: { backgroundColor: colors.ink500, opacity: 0.35 },
+  sendError: { fontFamily: fonts.body, fontSize: type.small, color: colors.red600, paddingHorizontal: 6 },
 
   empty: {
     flex: 1,
@@ -831,16 +1177,7 @@ const styles = StyleSheet.create({
     // The list is inverted, so its children are too.
     transform: [{ scaleY: -1 }],
   },
-  emptyTitle: {
-    fontFamily: fonts.display,
-    fontSize: 20,
-    color: colors.ink900,
-    textAlign: "center",
-  },
-  emptyBody: {
-    fontFamily: fonts.body,
-    fontSize: type.body,
-    color: colors.ink500,
-    textAlign: "center",
-  },
+  emptyIcon: { width: 64, height: 64, borderRadius: 32, backgroundColor: colors.green100, alignItems: "center", justifyContent: "center" },
+  emptyTitle: { fontFamily: fonts.display, fontSize: 20, color: colors.ink900, textAlign: "center" },
+  emptyBody: { fontFamily: fonts.body, fontSize: type.small, color: colors.ink500, textAlign: "center", maxWidth: 280 },
 });

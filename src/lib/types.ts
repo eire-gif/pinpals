@@ -708,6 +708,22 @@ export type Message = {
   hidden_at: string | null;
   hidden_by: string | null;
   hidden_reason: string | null;
+  /** 0130. The quoted message, and the quote itself as the database wrote it
+   *  at send time: {sender_id, body, photo, group} — or {deleted: true} /
+   *  {removed: true} once the original is gone. */
+  reply_to_id?: number | null;
+  reply_snapshot?: MessageQuote | null;
+  /** 0130 delete for everyone. `body` is then "This message was deleted". */
+  deleted_at?: string | null;
+};
+
+export type MessageQuote = {
+  sender_id?: string;
+  body?: string;
+  photo?: boolean;
+  group?: string | null;
+  deleted?: boolean;
+  removed?: boolean;
 };
 
 // What a conversation list/thread shows about the other participant — same

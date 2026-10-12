@@ -312,14 +312,38 @@ export default function InboxScreen() {
       return out;
     }
 
+    // All (Oct 2026): chats first — the few most recent, with a way to the
+    // rest — then alerts by day. A chat is a person waiting on you; an
+    // alert is something that happened.
+    const head: InboxSection[] = [];
+    let rest = visible;
+    if (filter === "all") {
+      const convs = visible.filter((r): r is InboxConversation => r.kind === "conversation");
+      if (convs.length) {
+        head.push({
+          key: "chats",
+          title: "Chats",
+          data: convs.slice(0, ALL_CHATS_SHOWN),
+          fresh: convs.filter(isUnread).length,
+          more: Math.max(0, convs.length - ALL_CHATS_SHOWN),
+        });
+      }
+      rest = visible.filter((r) => r.kind !== "conversation");
+    }
+
     const order: DayBucket[] = ["today", "yesterday", "week", "earlier"];
-    return order
+    return head.concat(order
       .map((bucket) => {
-        const data = visible.filter((r) => dayBucket(r.at) === bucket);
+        const data = rest.filter((r) => dayBucket(r.at) === bucket);
         const fresh = data.filter((r) => r.kind !== "message" && isUnread(r)).length;
-        return { key: bucket, title: DAY_BUCKET_LABELS[bucket], data, fresh };
+        return {
+          key: bucket,
+          title: filter === "all" && head.length ? `Alerts · ${DAY_BUCKET_LABELS[bucket]}` : DAY_BUCKET_LABELS[bucket],
+          data,
+          fresh,
+        };
       })
-      .filter((section) => section.data.length > 0);
+      .filter((section) => section.data.length > 0));
   }, [visible, filter, searchingNow]);
 
   if (loading) {
@@ -332,10 +356,41 @@ export default function InboxScreen() {
 
   return (
     <View style={styles.fill}>
-      {/* Above the chips, not among them. Searching narrows by what a row
-          SAYS, the chips by what it IS; a field wedged into a row of pills
-          reads as a fourth pill. Bigger than before, because it is the
-          quickest way to anything in here. */}
+      {/* Oct 2026: a navy summary under the navy header — what's waiting, in
+          two tiles that double as shortcuts to Chat and Alerts — with search
+          on it. Searching narrows by what a row SAYS, the chips below by what
+          it IS. */}
+      <View style={styles.hero}>
+        <View style={styles.tiles}>
+          {(
+            [
+              { key: "messages", label: "Chats", icon: "chatbubbles", n: counts.messages },
+              { key: "alerts", label: "Alerts", icon: "notifications", n: counts.alerts },
+            ] as const
+          ).map((t) => {
+            const on = filter === t.key;
+            return (
+              <Pressable
+                key={t.key}
+                onPress={() => setFilter(on ? "all" : t.key)}
+                style={({ pressed }) => [styles.tile, on && styles.tileOn, pressed && { opacity: 0.85 }]}
+                accessibilityRole="button"
+                accessibilityState={{ selected: on }}
+                accessibilityLabel={`${t.label}, ${t.n} unread`}
+              >
+                <View style={[styles.tileIcon, on && styles.tileIconOn]}>
+                  <Ionicons name={t.icon} size={18} color={on ? colors.navy900 : colors.gold400} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.tileLabel, on && styles.tileLabelOn]}>{t.label}</Text>
+                  <Text style={[styles.tileCount, on && styles.tileCountOn]}>
+                    {t.n > 0 ? `${t.n > 99 ? "99+" : t.n} unread` : "All caught up"}
+                  </Text>
+                </View>
+              </Pressable>
+            );
+          })}
+        </View>
       <View style={styles.searchWrap}>
         <Ionicons name="search" size={20} color={colors.ink500} />
         <TextInput
@@ -351,6 +406,7 @@ export default function InboxScreen() {
           accessibilityLabel="Search messages and alerts"
         />
         {searching ? <ActivityIndicator size="small" color={colors.ink500} /> : null}
+      </View>
       </View>
 
       <View style={styles.chips}>
@@ -435,6 +491,18 @@ export default function InboxScreen() {
         ListEmptyComponent={
           <Empty filter={filter} query={searchingNow ? query : ""} unreadOnly={unreadOnly} />
         }
+        renderSectionFooter={({ section }) =>
+          section.more ? (
+            <Pressable
+              onPress={() => setFilter("messages")}
+              style={({ pressed }) => [styles.moreChats, pressed && { opacity: 0.7 }]}
+              accessibilityRole="button"
+            >
+              <Text style={styles.moreChatsLabel}>See all chats ({section.more + ALL_CHATS_SHOWN})</Text>
+              <Ionicons name="chevron-forward" size={16} color={colors.green700} />
+            </Pressable>
+          ) : null
+        }
         renderItem={({ item }) => {
           // A search hit is a view onto a message, not a row that belongs to
           // you — nothing to hide, nothing to delete, so no swipe.
@@ -465,7 +533,10 @@ export default function InboxScreen() {
   );
 }
 
-type InboxSection = { key: string; title: string; data: InboxRowItem[]; fresh: number };
+type InboxSection = { key: string; title: string; data: InboxRowItem[]; fresh: number; more?: number };
+
+/** How many chats "All" shows above the alerts before "See all chats". */
+const ALL_CHATS_SHOWN = 5;
 
 /**
  * The row, with an action behind it.
@@ -512,15 +583,21 @@ function SwipeRow({
 
 // ---------------------------------------------------------------------------
 
-/** "You: See you there", "Stephen: Lovely", or the photo / listing fallback. */
+/** "See you there" (mine, after its ticks), "Stephen: Lovely", or the photo / listing fallback. */
 function previewLine(row: InboxConversation): string {
   const m = row.lastMessage;
   if (!m) {
     if (row.conversationKind === "group") return `${row.memberCount ?? 0} people`;
     return row.listingTitle ?? "Direct message";
   }
-  const text = m.body.trim() || (m.photo ? "Sent a photo" : "");
-  if (m.mine) return `You: ${text}`;
+  const text = m.deleted
+    ? m.mine
+      ? "You deleted this message"
+      : "This message was deleted"
+    : m.body.trim() || (m.photo ? "📷 Photo" : "");
+  if (m.deleted) return text;
+  // Mine shows ✓ / ✓✓ in front instead of "You:", the WhatsApp way.
+  if (m.mine) return text;
   if (row.conversationKind === "group" && m.senderFirstName) return `${m.senderFirstName}: ${text}`;
   return text;
 }
@@ -563,9 +640,22 @@ function ConversationRow({
           <Text style={[styles.time, unread && styles.timeUnread]}>{inboxTime(row.lastMessageAt)}</Text>
         </View>
         {group ? <Text style={styles.subtle}>{row.memberCount ?? 0} people</Text> : null}
-        <Text style={[styles.preview, unread && styles.previewUnread]} numberOfLines={1}>
-          {previewLine(row)}
-        </Text>
+        <View style={styles.previewRow}>
+          {row.lastMessage?.mine && !row.lastMessage.deleted ? (
+            <Ionicons
+              name={row.lastMessage.seen ? "checkmark-done" : "checkmark"}
+              size={16}
+              color={row.lastMessage.seen ? colors.green600 : colors.ink500}
+              accessibilityLabel={row.lastMessage.seen ? "Read" : "Sent"}
+            />
+          ) : null}
+          <Text
+            style={[styles.preview, styles.previewFlex, unread && styles.previewUnread, row.lastMessage?.deleted && styles.previewGone]}
+            numberOfLines={1}
+          >
+            {previewLine(row)}
+          </Text>
+        </View>
       </View>
 
       {unread ? (
@@ -817,21 +907,45 @@ const styles = StyleSheet.create({
   fill: { flex: 1, backgroundColor: colors.cream50 },
   centre: { flex: 1, alignItems: "center", justifyContent: "center" },
 
+  hero: {
+    backgroundColor: colors.navy900,
+    paddingHorizontal: spacing.md,
+    paddingTop: 4,
+    paddingBottom: spacing.md,
+    gap: 12,
+    borderBottomLeftRadius: 22,
+    borderBottomRightRadius: 22,
+  },
+  tiles: { flexDirection: "row", gap: 10 },
+  tile: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    padding: 12,
+    borderRadius: radii.lg,
+    backgroundColor: "rgba(247,243,234,0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(247,243,234,0.14)",
+  },
+  tileOn: { backgroundColor: colors.gold400, borderColor: colors.gold400 },
+  tileIcon: { width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(232,196,107,0.16)" },
+  tileIconOn: { backgroundColor: "rgba(12,32,56,0.12)" },
+  tileLabel: { fontFamily: fonts.bodyBold, fontSize: 15.5, color: colors.cream50 },
+  tileLabelOn: { color: colors.navy900 },
+  tileCount: { fontFamily: fonts.body, fontSize: 12.5, color: "rgba(247,243,234,0.7)" },
+  tileCountOn: { color: colors.navy800 },
   searchWrap: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    marginHorizontal: spacing.md,
-    marginTop: spacing.md,
     paddingHorizontal: 16,
-    minHeight: 50,
+    minHeight: 48,
     borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: colors.line,
     backgroundColor: colors.surface,
   },
   // 16pt floor — iOS zooms the screen when a smaller input takes focus.
-  search: { flex: 1, height: 50, fontFamily: fonts.body, fontSize: type.body, color: colors.ink900 },
+  search: { flex: 1, height: 48, fontFamily: fonts.body, fontSize: type.body, color: colors.ink900 },
 
   chips: { flexDirection: "row", flexWrap: "wrap", gap: 8, paddingHorizontal: spacing.md, paddingTop: 12 },
   chip: {
@@ -895,6 +1009,11 @@ const styles = StyleSheet.create({
   subtle: { fontFamily: fonts.body, fontSize: 13, color: colors.ink500 },
   preview: { fontFamily: fonts.body, fontSize: 14.5, lineHeight: 20, color: "#4c5667" },
   previewUnread: { color: colors.ink900, fontFamily: fonts.bodySemi },
+  previewRow: { flexDirection: "row", alignItems: "center", gap: 4 },
+  previewFlex: { flex: 1 },
+  previewGone: { fontStyle: "italic", color: colors.ink500 },
+  moreChats: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, paddingVertical: 10 },
+  moreChatsLabel: { fontFamily: fonts.bodyBold, fontSize: 14.5, color: colors.green700 },
 
   iconCircle: {
     width: 50,

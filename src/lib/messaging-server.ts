@@ -60,9 +60,14 @@ export async function sendMessageTo(params: {
    *  that carries a photo. Never a URL — that bucket is private and its URLs
    *  expire (0086). */
   imagePath?: string | null;
+  /** The message this one quotes (0130) — in the same thread, or, for "Reply
+   *  privately", in a group the sender is in. The database checks which and
+   *  writes the quote itself; a bad id is refused with a sentence. */
+  replyToId?: number | null;
 }): Promise<SendMessageResult> {
   const { supabase, userId, conversationId } = params;
   const imagePath = params.imagePath ?? null;
+  const replyToId = params.replyToId ?? null;
 
   const rateLimit = await checkRateLimit({
     action: "send-message",
@@ -149,6 +154,7 @@ export async function sendMessageTo(params: {
       sender_id: userId,
       body,
       image_path: imagePath,
+      ...(replyToId ? { reply_to_id: replyToId } : {}),
     })
     .select("*")
     .single<Message>();
@@ -166,6 +172,11 @@ export async function sendMessageTo(params: {
       dbMessage.includes("verification")
     ) {
       return { ok: false, reason: "invalid", message: dbMessage };
+    }
+    // message_reply_snapshot() (0130): the quoted message was deleted,
+    // removed, or isn't one this sender can quote here.
+    if (dbMessage.includes("replied to")) {
+      return { ok: false, reason: "invalid", message: "That message can't be replied to any more." };
     }
     return {
       ok: false,

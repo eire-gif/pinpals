@@ -121,6 +121,7 @@ export default function ConversationAccessPanel({
                   <span className="font-semibold text-ink-900">{participantName(m.sender_id)}</span>
                   <span className="text-ink-500"> · {formatDateTime(m.created_at)}</span>
                   {m.hidden_at && <span className="text-red-600 font-semibold"> · Hidden</span>}
+                  {m.deleted_at && <span className="text-red-600 font-semibold"> · Deleted by sender</span>}
                 </div>
               </div>
               <p className="text-sm text-ink-900 whitespace-pre-wrap">{m.body}</p>

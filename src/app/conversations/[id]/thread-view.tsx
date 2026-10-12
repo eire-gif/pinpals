@@ -176,8 +176,33 @@ export default function ThreadView({
                       // Covers the photo too: a hidden message is hidden
                       // whichever part of it was the problem.
                       <span className="italic opacity-75">This message was removed by a moderator.</span>
+                    ) : m.deleted_at ? (
+                      <span className="italic opacity-75">This message was deleted</span>
                     ) : (
                       <>
+                        {m.reply_snapshot ? (
+                          <span
+                            className={`block border-l-4 rounded-md px-2.5 py-1.5 mb-1.5 text-xs ${
+                              mine ? "border-cream-50/60 bg-white/10" : "border-green-700 bg-white/70"
+                            } ${m.image_path ? "mx-3 mt-3" : ""}`}
+                          >
+                            <span className="block font-bold">
+                              {m.reply_snapshot.deleted || m.reply_snapshot.removed
+                                ? "Quoted message"
+                                : (m.reply_snapshot.sender_id === currentUserId
+                                    ? "You"
+                                    : participants[m.reply_snapshot.sender_id ?? ""]?.name ?? "A member") +
+                                  (m.reply_snapshot.group ? ` · ${m.reply_snapshot.group}` : "")}
+                            </span>
+                            <span className="block opacity-80 line-clamp-2">
+                              {m.reply_snapshot.deleted
+                                ? "This message was deleted"
+                                : m.reply_snapshot.removed
+                                  ? "This message was removed"
+                                  : m.reply_snapshot.body || (m.reply_snapshot.photo ? "📷 Photo" : "")}
+                            </span>
+                          </span>
+                        ) : null}
                         {m.image_path ? (
                           imageUrls.get(m.image_path) ? (
                             // Plain <img>, not next/image: the URL is signed
