@@ -28,7 +28,9 @@ export default function LiveLayout() {
       <Stack.Screen name="round/[id]" options={{ title: "Scoring" }} />
       <Stack.Screen name="day/new" options={{ title: "Set up a match day" }} />
       <Stack.Screen name="day/scramble" options={{ title: "Set up a scramble" }} />
-      <Stack.Screen name="day/group" options={{ title: "From a group" }} />
+      {/* Opened from a group's page it can be the first screen in this
+          stack, which leaves iOS nothing to go back to: always draw one. */}
+      <Stack.Screen name="day/group" options={{ title: "From a group", ...headerButtons({ left: <BackPill /> }) }} />
       <Stack.Screen name="day/[id]" options={{ title: "Leaderboard" }} />
     </Stack>
   );

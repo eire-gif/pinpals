@@ -63,7 +63,7 @@ async function setUp(c: PoolClient): Promise<{ society: string; crew: string }> 
     for (const m of [COMMITTEE, MEMBER, MEMBER2]) await c.query("select public.group_add_member($1, $2)", [society, m]);
     await c.query("select public.group_add_member($1, $2)", [crew, MEMBER]);
   });
-  await c.query("select public.set_group_role($1, $2, 'admin')", [society, COMMITTEE]);
+  await c.query("select public.set_group_office($1, $2, 'captain')", [society, COMMITTEE]);
   return { society, crew };
 }
 

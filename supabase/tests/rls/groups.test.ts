@@ -164,18 +164,20 @@ describe("who can see a group, and who is in it", () => {
 });
 
 describe("invitations", () => {
-  it("invites only the inviter's connections, and accepting puts them in", async () => {
+  it("whoever runs it can invite anyone (Find PinPals, 0122), and accepting puts them in", async () => {
     await withRole("authenticated", owner, async (c) => {
       await connect(c, owner, [friend]);
       const g = await createGroup(c, owner, "crew", "Crew");
       const { rows } = await c.query<{ n: number }>("select public.invite_to_group($1, $2::uuid[]) as n", [g, [friend, stranger]]);
-      expect(rows[0].n).toBe(1); // the stranger isn't a connection: skipped
+      expect(rows[0].n).toBe(2); // 0122: the owner can invite members they aren't connected with
 
       await setIdentity(c, friend);
       await c.query("select public.respond_group_invitation($1, true)", [g]);
       expect(await roleOf(c, g, friend)).toBe("member");
 
       await setIdentity(c, stranger);
+      await c.query("select public.respond_group_invitation($1, false)", [g]);
+      expect(await roleOf(c, g, stranger)).toBeNull();
       await refused(c, "select public.respond_group_invitation($1, true)", [g], /already been answered or withdrawn/);
     });
   });
@@ -275,6 +277,8 @@ describe("blocks and capacity", () => {
       await connect(c, friend, [golfer]);
       const g = await createGroup(c, owner, "society", "Malahide Golf Society");
       await addDirect(c, g, friend);
+      await setIdentity(c, owner);
+      await c.query("select public.set_group_office($1, $2, 'captain')", [g, friend]); // 0122: only officers invite
       const code = (await c.query<{ code: string }>("select public.group_invite_code($1) as code", [g])).rows[0].code;
       await block(c, owner, golfer);
 
@@ -303,8 +307,9 @@ describe("roles, leaving and succession", () => {
     await withRole("authenticated", owner, async (c) => {
       const g = await createGroup(c, owner, "society", "Society");
       for (const m of [friend, golfer, stranger]) await addDirect(c, g, m);
-      await c.query("select public.set_group_role($1, $2, 'admin')", [g, friend]);
-      await c.query("select public.set_group_role($1, $2, 'admin')", [g, golfer]);
+      // 0122: a society's admins are its captain and secretary.
+      await c.query("select public.set_group_office($1, $2, 'captain')", [g, friend]);
+      await c.query("select public.set_group_office($1, $2, 'secretary')", [g, golfer]);
 
       await setIdentity(c, friend);
       await refused(c, "select public.remove_group_member($1, $2)", [g, golfer], /can't remove that member/);
@@ -332,7 +337,7 @@ describe("roles, leaving and succession", () => {
       const g = await createGroup(c, owner, "society", "Society");
       await addDirect(c, g, friend);
       await addDirect(c, g, golfer);
-      await c.query("select public.set_group_role($1, $2, 'admin')", [g, golfer]);
+      await c.query("select public.set_group_office($1, $2, 'secretary')", [g, golfer]);
       await asService(c, () => c.query("delete from public.group_members where group_id = $1 and member_id = $2", [g, owner]));
       expect(await roleOf(c, g, golfer)).toBe("owner");
       expect(await roleOf(c, g, friend)).toBe("member");

@@ -2,7 +2,7 @@ import * as SecureStore from "expo-secure-store";
 
 import { postToSite } from "@/lib/api";
 import { SITE_URL } from "@/lib/config";
-import { groupInvitePath, isGroupKind, type GroupKind, type GroupPrivacy, type GroupRole } from "@/lib/groups";
+import { groupInvitePath, isGroupKind, isGroupOffice, type GroupKind, type GroupOffice, type GroupPrivacy, type GroupRole } from "@/lib/groups";
 import { supabase } from "@/lib/supabase";
 
 /**
@@ -163,13 +163,22 @@ export async function searchSocieties(query: string): Promise<Group[]> {
 // One group
 // ---------------------------------------------------------------------------
 
-export type GroupMember = Person & { role: GroupRole; joinedAt: string };
+export type GroupMember = Person & {
+  role: GroupRole;
+  /** A society's captain or secretary (0122). */
+  office: GroupOffice | null;
+  /** The index the society plays them off, when an officer has set one (0122). */
+  societyIndex: number | null;
+  joinedAt: string;
+};
 export type JoinRequest = Person & { askedAt: string };
 
 export type GroupPage = {
   group: Group;
   /** Null when you're not in it. */
   myRole: GroupRole | null;
+  /** Your office in a society, if you hold one (0122). */
+  myOffice: GroupOffice | null;
   /** Your own invitation or request to it, if any is waiting. */
   myPending: "invite" | "request" | null;
   muted: boolean;
@@ -180,6 +189,8 @@ export type GroupPage = {
 };
 
 const ROLE_ORDER: Record<GroupRole, number> = { owner: 0, admin: 1, member: 2 };
+/** Captain before secretary, both before everyone else. */
+const officeOrder = (o: GroupOffice | null) => (o === "captain" ? 0 : o === "secretary" ? 1 : 2);
 
 /** Null when the group doesn't exist or you can't see it. */
 export async function loadGroupPage(groupId: number, userId: string): Promise<GroupPage | null> {
@@ -204,13 +215,19 @@ export async function loadGroupPage(groupId: number, userId: string): Promise<Gr
   if (myRole) {
     const { data, error: membersError } = await supabase
       .from("group_members")
-      .select(`member_id, role, joined_at, profile:profiles(${PERSON})`)
+      .select(`member_id, role, office, society_index, joined_at, profile:profiles(${PERSON})`)
       .eq("group_id", groupId)
-      .overrideTypes<{ member_id: string; role: GroupRole; joined_at: string; profile: PersonRow | null }[]>();
+      .overrideTypes<{ member_id: string; role: GroupRole; office: string | null; society_index: number | null; joined_at: string; profile: PersonRow | null }[]>();
     if (membersError) fail(membersError, "Couldn't load the members.");
     members = (data ?? [])
-      .map((m) => ({ ...toPerson(m.profile, m.member_id), role: m.role, joinedAt: m.joined_at }))
-      .sort((a, b) => ROLE_ORDER[a.role] - ROLE_ORDER[b.role] || a.name.localeCompare(b.name, "en-IE"));
+      .map((m) => ({
+        ...toPerson(m.profile, m.member_id),
+        role: m.role,
+        office: isGroupOffice(m.office) ? m.office : null,
+        societyIndex: m.society_index != null ? Number(m.society_index) : null,
+        joinedAt: m.joined_at,
+      }))
+      .sort((a, b) => ROLE_ORDER[a.role] - ROLE_ORDER[b.role] || officeOrder(a.office) - officeOrder(b.office) || a.name.localeCompare(b.name, "en-IE"));
 
     if (myRole !== "member") {
       const { data: asks } = await supabase
@@ -228,6 +245,7 @@ export async function loadGroupPage(groupId: number, userId: string): Promise<Gr
   return {
     group: toGroup(row),
     myRole,
+    myOffice: members.find((m) => m.id === userId)?.office ?? null,
     myPending: myRole ? null : (pending.data?.direction ?? null),
     muted: me.data?.muted ?? false,
     members,
@@ -331,6 +349,13 @@ export async function setMemberRole(groupId: number, memberId: string, role: Gro
   if (error) fail(error, "Couldn't change their role.");
 }
 
+/** The owner appoints a society's captain or secretary, or (null) stands
+ *  them down. A new captain replaces the old one (0122). */
+export async function setMemberOffice(groupId: number, memberId: string, office: GroupOffice | null): Promise<void> {
+  const { error } = await supabase.rpc("set_group_office", { p_group_id: groupId, p_member_id: memberId, p_office: office });
+  if (error) fail(error, "Couldn't change that.");
+}
+
 export async function setGroupMuted(groupId: number, muted: boolean): Promise<void> {
   const { error } = await supabase.rpc("set_group_muted", { p_group_id: groupId, p_muted: muted });
   if (error) fail(error, "Couldn't change that setting.");
@@ -410,8 +435,11 @@ export const canDrawFrom = (g: { kind: GroupKind; role: GroupRole }): boolean =>
 export type RosterPlayer = {
   id: string;
   name: string;
-  /** Their handicap index, when they've chosen to share it. */
+  /** The society's index for them if it has set one, else their own when
+   *  they've chosen to share it. */
   index: number | null;
+  /** True when `index` is the society's figure. */
+  fromSociety: boolean;
   avatarUrl: string | null;
   avatarColor: string | null;
 };
@@ -421,11 +449,12 @@ export type RosterPlayer = {
 export async function loadGroupRoster(groupId: number): Promise<RosterPlayer[]> {
   const { data, error } = await supabase
     .from("group_members")
-    .select("member_id, profile:profiles(id, first_name, last_name, handicap, handicap_visible, avatar_url, avatar_color)")
+    .select("member_id, society_index, profile:profiles(id, first_name, last_name, handicap, handicap_visible, avatar_url, avatar_color)")
     .eq("group_id", groupId)
     .overrideTypes<
       {
         member_id: string;
+        society_index: number | null;
         profile: {
           id: string;
           first_name: string | null;
@@ -442,9 +471,68 @@ export async function loadGroupRoster(groupId: number): Promise<RosterPlayer[]> 
     .map((r) => ({
       id: r.member_id,
       name: [r.profile?.first_name, r.profile?.last_name].filter(Boolean).join(" ") || "A member",
-      index: r.profile?.handicap_visible && r.profile.handicap != null ? Number(r.profile.handicap) : null,
+      // A society's own figure first (set by its secretary, 0122), then the
+      // member's own index where they share it.
+      index:
+        r.society_index != null
+          ? Number(r.society_index)
+          : r.profile?.handicap_visible && r.profile.handicap != null
+            ? Number(r.profile.handicap)
+            : null,
+      fromSociety: r.society_index != null,
       avatarUrl: r.profile?.avatar_url ?? null,
       avatarColor: r.profile?.avatar_color ?? null,
     }))
     .sort((a, b) => a.name.localeCompare(b.name, "en-IE"));
+}
+
+// ---------------------------------------------------------------------------
+// Society handicaps (0122): the secretary's list
+// ---------------------------------------------------------------------------
+
+export type SocietyHandicap = {
+  memberId: string;
+  /** The handicap the member set on their own profile. */
+  ownIndex: number | null;
+  /** Worked out from their last 20 scorecards; null with fewer than 3. */
+  indicator: number | null;
+  /** How many eligible scorecards the indicator is from. */
+  rounds: number;
+  /** What the society plays them off, if an officer has set it. */
+  societyIndex: number | null;
+  societyIndexSetAt: string | null;
+};
+
+/** Owner, captain and secretary only; anyone else gets the database's refusal. */
+export async function loadSocietyHandicaps(groupId: number): Promise<Map<string, SocietyHandicap>> {
+  const { data, error } = await supabase.rpc("society_handicaps", { p_group_id: groupId });
+  if (error) fail(error, "Couldn't load the handicaps.");
+  const rows = (data ?? []) as {
+    member_id: string;
+    own_index: number | null;
+    indicator: number | null;
+    rounds: number | null;
+    society_index: number | null;
+    society_index_set_at: string | null;
+  }[];
+  const num = (v: number | null) => (v == null ? null : Number(v));
+  return new Map(
+    rows.map((r) => [
+      r.member_id,
+      {
+        memberId: r.member_id,
+        ownIndex: num(r.own_index),
+        indicator: num(r.indicator),
+        rounds: r.rounds ?? 0,
+        societyIndex: num(r.society_index),
+        societyIndexSetAt: r.society_index_set_at,
+      },
+    ])
+  );
+}
+
+/** Null clears it: the member plays off their own again. */
+export async function setSocietyHandicap(groupId: number, memberId: string, index: number | null): Promise<void> {
+  const { error } = await supabase.rpc("set_society_handicap", { p_group_id: groupId, p_member_id: memberId, p_index: index });
+  if (error) fail(error, "Couldn't save that handicap.");
 }

@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
-import { GROUP_KIND_INFO, type GroupKind, type GroupRole } from "@/lib/groups";
+import { GROUP_KIND_INFO, roleLabel, type GroupKind, type GroupOffice, type GroupRole } from "@/lib/groups";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 
 /**
@@ -60,12 +60,14 @@ export function GroupRow({
   );
 }
 
-export function RoleBadge({ role }: { role: GroupRole }) {
-  if (role === "member") return null;
+/** "Owner", "Captain", "Owner · Secretary" or "Admin"; nothing for a member. */
+export function RoleBadge({ role, office = null }: { role: GroupRole; office?: GroupOffice | null }) {
+  const label = roleLabel(role, office);
+  if (!label) return null;
   const owner = role === "owner";
   return (
     <View style={[styles.badge, owner ? styles.badgeOwner : styles.badgeAdmin]}>
-      <Text style={[styles.badgeText, owner ? styles.badgeOwnerText : styles.badgeAdminText]}>{owner ? "Owner" : "Admin"}</Text>
+      <Text style={[styles.badgeText, owner ? styles.badgeOwnerText : styles.badgeAdminText]}>{label}</Text>
     </View>
   );
 }

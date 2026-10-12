@@ -238,6 +238,15 @@ const EXPECTED: Record<string, Expectation> = {
   // 0121 rounds from a group and the society day
   "live_can_add_player(p_me uuid, p_member uuid)": { anon: false, authenticated: false },
   "live_fourball_day_create(p_day jsonb, p_groups jsonb, p_card jsonb)": { anon: false, authenticated: true },
+  // 0122 society officers and handicaps
+  "set_group_office(p_group_id bigint, p_member_id uuid, p_office text)": { anon: false, authenticated: true },
+  "my_handicap_indicator()": { anon: false, authenticated: true },
+  "my_handicap_differentials()": { anon: false, authenticated: true },
+  "society_handicaps(p_group_id bigint)": { anon: false, authenticated: true },
+  "set_society_handicap(p_group_id bigint, p_member_id uuid, p_index numeric)": { anon: false, authenticated: true },
+  // Read anyone's scorecards: only through the wrappers above, which decide whose.
+  "handicap_differentials_of(p_member uuid)": { anon: false, authenticated: false },
+  "handicap_indicator_of(p_member uuid)": { anon: false, authenticated: false },
 
   // --- Service role / internal only. Everything below is either a trigger
   // --- function, a sweep, or a privileged write path that must never be

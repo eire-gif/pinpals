@@ -49,6 +49,13 @@ const GAPS = [8, 9, 10, 12];
 type Entrant = DrawPlayer & { memberId: string | null; indexText: string };
 type Guest = { key: string; name: string; indexText: string };
 
+/** "1 tee group of 1 player", "3 tee groups — 4, 3 and 3 players". */
+function teeGroupSummary(sizes: number[]): string {
+  if (sizes.length === 1) return `1 tee group of ${sizes[0]} ${sizes[0] === 1 ? "player" : "players"}`;
+  const list = sizes.length > 1 ? `${sizes.slice(0, -1).join(", ")} and ${sizes[sizes.length - 1]}` : "";
+  return `${sizes.length} tee groups — ${list} players`;
+}
+
 let seq = 0;
 const nextKey = () => `g${++seq}`;
 
@@ -288,7 +295,11 @@ export default function DrawFromGroup() {
         </Section>
 
         {group ? (
-          <Section title={`Who's playing (${entrants.length})`} hint="Handicap index: filled in where a member shares it. Type any that are missing.">
+          <Section title={`Who's playing (${entrants.length})`} hint={
+              group.kind === "society"
+                ? "Handicap index: the society's, where the captain or secretary has set one (Handicaps on the society's page), else the member's own if they share it. Type any that are missing."
+                : "Handicap index: filled in where a member shares it. Type any that are missing."
+            }>
             {roster === null ? (
               <ActivityIndicator color={colors.green700} />
             ) : (
@@ -435,7 +446,7 @@ export default function DrawFromGroup() {
               ? "Tick who's playing to see the groups."
               : scramble
                 ? `${sizing.sizes.length} ${sizing.sizes.length === 1 ? "team" : "teams"} of ${teamSize}${sizing.leftOver ? ` · ${sizing.leftOver} left over` : ""}`
-                : `${sizing.sizes.length} ${sizing.sizes.length === 1 ? "group" : "groups"}: ${sizing.sizes.join(" · ")} · ${Math.round(ALLOWANCE * 100)}% handicap allowance`}
+                : `${teeGroupSummary(sizing.sizes)} · ${Math.round(ALLOWANCE * 100)}% handicap allowance`}
           </Text>
         </Section>
 
