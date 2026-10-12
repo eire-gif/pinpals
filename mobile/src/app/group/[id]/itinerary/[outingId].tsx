@@ -258,7 +258,21 @@ export default function ItineraryScreen() {
         {dayItems.length === 0 ? (
           <Text style={styles.empty}>{officer ? "Nothing on this day yet — add a round, travel or a dinner below." : "Nothing planned for this day yet."}</Text>
         ) : (
-          dayItems.map((i) => <ItemCard key={i.id} item={i} userId={userId} onPress={() => openItem(i)} />)
+          dayItems.map((i) => (
+            <ItemCard
+              key={i.id}
+              item={i}
+              userId={userId}
+              onPress={() => openItem(i)}
+              // The organisers start a round from here on the day: the draw
+              // screen opens with this round's course, groups and tee times.
+              onStart={
+                officer && !cancelled && i.kind === "round"
+                  ? () => router.push({ pathname: "/live/day/group", params: { group: String(groupId), round: String(i.id) } })
+                  : undefined
+              }
+            />
+          ))
         )}
 
         {officer && !cancelled && shown ? (
@@ -289,7 +303,7 @@ export default function ItineraryScreen() {
 }
 
 /** One thing on a day: kind, time, title, the useful line, and your place. */
-function ItemCard({ item, userId, onPress }: { item: ItineraryItem; userId: string | null; onPress: () => void }) {
+function ItemCard({ item, userId, onPress, onStart }: { item: ItineraryItem; userId: string | null; onPress: () => void; onStart?: () => void }) {
   const info = ITEM_INFO[item.kind];
   const me = item.people.find((p) => p.memberId === userId) ?? null;
   const partners = me ? item.people.filter((p) => p.memberId !== userId && (item.kind === "round" || item.kind === "stay" ? p.slot === me.slot : false)).map((p) => p.firstName) : [];
@@ -343,11 +357,19 @@ function ItemCard({ item, userId, onPress }: { item: ItineraryItem; userId: stri
           {item.details}
         </Text>
       ) : null}
+      {onStart ? (
+        <Pressable onPress={onStart} style={({ pressed }) => [styles.startRound, pressed && { opacity: 0.85 }]} accessibilityRole="button" accessibilityLabel={`Start the round at ${item.title}`}>
+          <Ionicons name="play" size={16} color={colors.navy900} />
+          <Text style={styles.startRoundText}>{groups.length > 0 ? "Start the round" : "Draw & start the round"}</Text>
+        </Pressable>
+      ) : null}
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
+  startRound: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, minHeight: 44, borderRadius: radii.pill, backgroundColor: colors.gold400 },
+  startRoundText: { fontFamily: fonts.bodyBold, fontSize: 15, color: colors.navy900 },
   fill: { flex: 1, backgroundColor: colors.cream50 },
   body: { padding: spacing.md, gap: spacing.sm + 2, paddingBottom: spacing.xl * 2 },
   hero: { gap: 4, padding: spacing.md, borderRadius: radii.lg, backgroundColor: colors.navy900 },
