@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
-import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
+import { Stack, router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { Avatar } from "@/components/avatar";
@@ -15,6 +15,8 @@ import { canDrawFrom, loadGroupRoster, loadMyGroups, type Group, type RosterPlay
 import type { GroupRole } from "@/lib/groups";
 import { createFourballDay, createScrambleDay } from "@/lib/live-match-days";
 import { courseHandicap, indexLabel, parseIndex, playingHandicap, scrambleHandicap } from "@/lib/live-scoring";
+import { isOutingDay, outingDateLabel } from "@/lib/outing-rules";
+import { linkOutingMatchDay, loadClub, loadOuting, publishOutingDraw, setOutingEntry, type OutingPage } from "@/lib/outings";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 
 /**
@@ -31,6 +33,13 @@ import { colors, fonts, radii, spacing, type } from "@/lib/theme";
  * crew or trip, or everyone in a society you run. Guests can be added by
  * name. Handicaps: a member's shared index is filled in; anyone else's is
  * typed here, and the course handicap follows from the course chosen.
+ *
+ * FROM A SOCIETY OUTING (?outing=<id>, 0125): the society, its entrants, the
+ * name, course and first tee come from the outing, and a draw already
+ * published is laid out again. "Publish tee times" saves the draw to the
+ * outing (anyone ticked who hadn't entered is entered); members see their
+ * times at once. "Start the day" is offered only on the outing's date, and
+ * the live day is linked back to the outing.
  */
 
 type Format = "stableford" | "stroke" | "scramble2" | "scramble4";
@@ -60,7 +69,10 @@ let seq = 0;
 const nextKey = () => `g${++seq}`;
 
 export default function DrawFromGroup() {
-  const { group: groupParam } = useLocalSearchParams<{ group?: string }>();
+  const { group: groupParam, outing: outingParam } = useLocalSearchParams<{ group?: string; outing?: string }>();
+  const outingId = outingParam ? Number(outingParam) : null;
+  const [outing, setOuting] = useState<OutingPage | null>(null);
+  const [publishing, setPublishing] = useState(false);
   const { session } = useAuth();
   const userId = session?.user?.id ?? null;
   const course = useCourseSetup();
@@ -103,14 +115,51 @@ export default function DrawFromGroup() {
     setDrawn(null);
     setGuests([]);
     setTitle((t) => t || groupName);
-    void loadGroupRoster(groupId)
-      .then((people) => {
+    void Promise.all([loadGroupRoster(groupId), outingId ? loadOuting(outingId) : Promise.resolve(null)])
+      .then(async ([people, page]) => {
         setRoster(people);
+        if (page && page.outing.groupId === groupId) {
+          // From an outing: its entrants are who's playing, and a published
+          // draw comes back as it was.
+          setOuting(page);
+          const label = (p: RosterPlayer) => (p.index != null ? indexLabel(p.index) : "");
+          const inIt = people.filter((p) => page.entries.some((e) => e.memberId === p.id));
+          setTicked(new Map(inIt.map((p) => [p.id, label(p)])));
+          setTitle(page.outing.title);
+          if (page.outing.firstTee) setFirstTee(page.outing.firstTee.slice(0, 5));
+          const byGroup = new Map<number, Entrant[]>();
+          for (const e of [...page.entries].sort((a, b) => (a.teePosition ?? 0) - (b.teePosition ?? 0))) {
+            const p = people.find((x) => x.id === e.memberId);
+            if (!e.teeGroup || !p) continue;
+            const indexText = label(p);
+            byGroup.set(e.teeGroup, [...(byGroup.get(e.teeGroup) ?? []), { key: `m:${p.id}`, memberId: p.id, name: p.name, indexText, index: parseIndex(indexText) }]);
+          }
+          const saved = [...byGroup.entries()].sort((a, b) => a[0] - b[0]).map(([, g]) => g);
+          if (saved.length > 0) {
+            setDrawn(saved);
+            const t = page.entries.filter((e) => e.teeGroup && e.teeTime).sort((a, b) => (a.teeGroup ?? 0) - (b.teeGroup ?? 0));
+            const first = t.find((e) => e.teeGroup === 1)?.teeTime;
+            const second = t.find((e) => e.teeGroup === 2)?.teeTime;
+            if (first) setFirstTee(first.slice(0, 5));
+            if (first && second) {
+              const mins = (x: string) => Number(x.slice(0, 2)) * 60 + Number(x.slice(3, 5));
+              const g = mins(second) - mins(first);
+              if (GAPS.includes(g)) setGap(g);
+            }
+          }
+          if (page.outing.clubId) {
+            const club = await loadClub(page.outing.clubId);
+            if (club) course.setClub(club);
+          }
+          return;
+        }
         const all = groupKind === "society" ? people.filter((p) => p.id === userId) : people;
         setTicked(new Map(all.map((p) => [p.id, p.index != null ? indexLabel(p.index) : ""])));
       })
       .catch(() => setRoster([]));
-  }, [groupId, groupKind, groupName, userId]);
+    // course.setClub is a state setter: stable.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [groupId, groupKind, groupName, userId, outingId]);
 
   const entrants: Entrant[] = useMemo(() => {
     const members = (roster ?? [])
@@ -242,6 +291,12 @@ export default function DrawFromGroup() {
           course.holeCard()
         );
       }
+      if (outing) {
+        // The final draw becomes the outing's tee times, and the outing
+        // remembers its live day. Neither may block the day itself.
+        if (drawnNow.every((g) => g.every((p) => p.memberId))) await publishDraw(drawnNow).catch(() => undefined);
+        await linkOutingMatchDay(outing.outing.id, id).catch(() => undefined);
+      }
       router.replace({ pathname: "/live/day/[id]", params: { id: String(id), created: "1" } });
     } catch (e) {
       Alert.alert("Couldn't start the day", e instanceof Error ? e.message : "Please try again.");
@@ -249,6 +304,38 @@ export default function DrawFromGroup() {
       setSaving(false);
     }
   };
+
+  /** Saves this draw as the outing's tee times; anyone ticked who hadn't
+   *  entered is entered first. */
+  const publishDraw = async (groupsNow: Entrant[][]) => {
+    if (!outing) return;
+    for (const p of groupsNow.flat()) {
+      if (p.memberId && !outing.entries.some((e) => e.memberId === p.memberId)) await setOutingEntry(outing.outing.id, true, p.memberId);
+    }
+    await publishOutingDraw(
+      outing.outing.id,
+      groupsNow.map((g, gi) => ({ teeTime: times[gi] || null, members: g.map((p) => p.memberId as string) }))
+    );
+  };
+
+  const publishProblem = !drawnNow ? "Make the draw" : drawnNow.some((g) => g.some((p) => !p.memberId)) ? "Guests can't go on published tee times — add them on the day" : null;
+
+  const publish = async () => {
+    if (!outing || !drawnNow || publishProblem) return;
+    setPublishing(true);
+    try {
+      await publishDraw(drawnNow);
+      Alert.alert("Tee times published", "Everyone in the draw can see their tee time and who they're playing with.", [
+        { text: "OK", onPress: () => router.back() },
+      ]);
+    } catch (e) {
+      Alert.alert("Couldn't publish", e instanceof Error ? e.message : "Please try again.");
+    } finally {
+      setPublishing(false);
+    }
+  };
+
+  const outingDay = outing ? isOutingDay(outing.outing.playsOn) : true;
 
   if (!isOn("liveScoring") || !isOn("groups")) return <StateMessage size="screen" icon="podium-outline" title="This is on its way" />;
   if (groups === null) return <ActivityIndicator color={colors.green700} style={{ marginTop: spacing.xl }} />;
@@ -269,6 +356,14 @@ export default function DrawFromGroup() {
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined} keyboardVerticalOffset={90}>
       <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
+        {outingId ? <Stack.Screen options={{ title: "The draw" }} /> : null}
+        {outing ? (
+          <View style={styles.outingBanner}>
+            <Ionicons name="calendar" size={18} color={colors.navy900} />
+            <Text style={styles.outingBannerText}>{`${outing.outing.title} · ${outingDateLabel(outing.outing.playsOn)}`}</Text>
+          </View>
+        ) : null}
+        {outing ? null : (
         <Section title="Group">
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
             {groups.map((g) => {
@@ -293,6 +388,7 @@ export default function DrawFromGroup() {
             })}
           </ScrollView>
         </Section>
+        )}
 
         {group ? (
           <Section title={`Who's playing (${entrants.length})`} hint={
@@ -520,11 +616,31 @@ export default function DrawFromGroup() {
           ))}
         </Section>
 
+        {outing ? (
+          <>
+            {publishProblem ? <Text style={styles.problem}>{publishProblem}</Text> : null}
+            <Pressable
+              onPress={() => void publish()}
+              disabled={!!publishProblem || publishing}
+              style={[styles.start, styles.publish, (!!publishProblem || publishing) && styles.startOff]}
+              accessibilityRole="button"
+            >
+              {publishing ? <ActivityIndicator color={colors.cream50} /> : <Text style={styles.startLabel}>{outing.outing.drawPublishedAt ? "Publish the new tee times" : "Publish tee times"}</Text>}
+            </Pressable>
+            <Text style={styles.footNote}>
+              {outingDay ? "Or, with the tees chosen above, start the round now:" : `You start the round on the day, ${outingDateLabel(outing.outing.playsOn)}. Members see their tee times as soon as you publish.`}
+            </Text>
+          </>
+        ) : null}
+        {outing && !outingDay ? null : (
+        <>
         {problems.length > 0 ? <Text style={styles.problem}>{problems[0]}</Text> : null}
         <Pressable onPress={() => void start()} disabled={problems.length > 0 || saving} style={[styles.start, (problems.length > 0 || saving) && styles.startOff]} accessibilityRole="button">
           {saving ? <ActivityIndicator color={colors.cream50} /> : <Text style={styles.startLabel}>{scramble ? "Start the scramble" : "Start the day"}</Text>}
         </Pressable>
         <Text style={styles.footNote}>Everyone on PinPals gets their card and the leaderboard on their phone. Guests are scored by their group.</Text>
+        </>
+        )}
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -575,5 +691,8 @@ const styles = StyleSheet.create({
   start: { minHeight: 54, borderRadius: radii.pill, backgroundColor: colors.green700, alignItems: "center", justifyContent: "center" },
   startOff: { backgroundColor: colors.ink500, opacity: 0.6 },
   startLabel: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.cream50 },
+  publish: { backgroundColor: colors.navy900 },
+  outingBanner: { flexDirection: "row", alignItems: "center", gap: spacing.sm, padding: 12, borderRadius: radii.md, backgroundColor: colors.gold400 },
+  outingBannerText: { flex: 1, fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.navy900 },
   footNote: { fontFamily: fonts.body, fontSize: 13, color: colors.ink500, textAlign: "center" },
 });

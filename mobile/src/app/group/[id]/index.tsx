@@ -29,6 +29,8 @@ import {
   type GroupMember,
   type GroupPage,
 } from "@/lib/groups-data";
+import { irishToday } from "@/lib/outing-rules";
+import { listOutings } from "@/lib/outings";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 
 /** What's on its way to a group's page, in the order it arrives (steps C–E). */
@@ -59,6 +61,8 @@ export default function GroupScreen() {
   const [failed, setFailed] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  /** A society's upcoming outings and your tee times among them (0125). */
+  const [outingCounts, setOutingCounts] = useState<{ upcoming: number; mine: number; teeTimes: number } | null>(null);
 
   const load = useCallback(async () => {
     if (!userId || !Number.isInteger(groupId) || groupId <= 0 || !isOn("groups")) {
@@ -66,8 +70,18 @@ export default function GroupScreen() {
       return;
     }
     try {
-      setPage(await loadGroupPage(groupId, userId));
+      const p = await loadGroupPage(groupId, userId);
+      setPage(p);
       setFailed(false);
+      if (p?.group.kind === "society" && p.myRole) {
+        const list = await listOutings(groupId, userId, { fromDate: irishToday() }).catch(() => null);
+        const open = list?.filter((o) => o.status === "open") ?? null;
+        setOutingCounts(
+          open
+            ? { upcoming: open.length, mine: open.filter((o) => o.mine).length, teeTimes: open.filter((o) => o.mine && o.myTeeGroup != null && o.drawPublishedAt).length }
+            : null
+        );
+      }
     } catch {
       setFailed(true);
     }
@@ -433,13 +447,46 @@ export default function GroupScreen() {
             ) : null}
 
             <View style={styles.soon}>
-              {COMING.map((c) => (
-                <View key={c.label} style={styles.soonItem} accessibilityLabel={`${c.label}, coming soon`}>
-                  <Ionicons name={c.icon} size={18} color={colors.ink500} />
-                  <Text style={styles.soonLabel}>{c.label}</Text>
-                  <Text style={styles.soonTag}>Soon</Text>
-                </View>
-              ))}
+              {COMING.map((c) => {
+                // A society's Tee times and Events are live (0125); posts
+                // (and crews' and trips' events) are still to come.
+                const liveTile = society && c.label !== "Posts";
+                if (!liveTile) {
+                  return (
+                    <View key={c.label} style={styles.soonItem} accessibilityLabel={`${c.label}, coming soon`}>
+                      <Ionicons name={c.icon} size={18} color={colors.ink500} />
+                      <Text style={styles.soonLabel}>{c.label}</Text>
+                      <Text style={styles.soonTag}>Soon</Text>
+                    </View>
+                  );
+                }
+                const events = c.label === "Events";
+                const sub = outingCounts
+                  ? events
+                    ? outingCounts.upcoming === 0
+                      ? "None yet"
+                      : `${outingCounts.upcoming} coming up`
+                    : outingCounts.teeTimes === 0
+                      ? outingCounts.mine > 0
+                        ? "Draw to come"
+                        : "None yet"
+                      : `${outingCounts.teeTimes} yours`
+                  : " ";
+                const hot = events ? (outingCounts?.upcoming ?? 0) > 0 : (outingCounts?.teeTimes ?? 0) > 0;
+                return (
+                  <Pressable
+                    key={c.label}
+                    style={[styles.soonItem, styles.liveItem, hot && styles.liveItemHot]}
+                    onPress={() => router.push({ pathname: events ? "/group/[id]/events" : "/group/[id]/tee-times", params: { id: String(groupId) } })}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${c.label}, ${sub}`}
+                  >
+                    <Ionicons name={c.icon} size={18} color={hot ? colors.green800 : colors.navy900} />
+                    <Text style={[styles.soonLabel, styles.liveLabel]}>{c.label}</Text>
+                    <Text style={[styles.soonTag, hot && styles.liveTagHot]}>{sub}</Text>
+                  </Pressable>
+                );
+              })}
             </View>
 
             {requests.length > 0 ? (
@@ -620,6 +667,10 @@ const styles = StyleSheet.create({
   },
   soonLabel: { fontFamily: fonts.bodySemi, fontSize: type.label, color: colors.ink500 },
   soonTag: { fontFamily: fonts.body, fontSize: 12, color: colors.ink500 },
+  liveItem: { borderStyle: "solid", backgroundColor: colors.surface },
+  liveItemHot: { borderColor: colors.green600, backgroundColor: colors.green100 },
+  liveLabel: { color: colors.navy900 },
+  liveTagHot: { color: colors.green800, fontFamily: fonts.bodySemi },
   person: {
     flexDirection: "row",
     alignItems: "center",
