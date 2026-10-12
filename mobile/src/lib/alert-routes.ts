@@ -93,6 +93,10 @@ const PATTERNS: { match: RegExp; to: (id: string) => string }[] = [
   // match result opens the match-day board.
   { match: /^\/live\/rounds\/(\d+)$/, to: (id) => `/live/round/${id}` },
   { match: /^\/live\/days\/(\d+)$/, to: (id) => `/live/day/${id}` },
+  // Scorecard certification (0128): "certify my card" opens the request; the
+  // answer opens your card. `certify` before the plain id, which is \d+ only.
+  { match: /^\/scorecards\/certify\/(\d+)$/, to: (id) => `/scorecards/certify/${id}` },
+  { match: /^\/scorecards\/(\d+)$/, to: (id) => `/scorecards/${id}` },
   // Groups (0120): an invitation, a join request or an approval opens the group.
   { match: /^\/groups\/(\d+)$/, to: (id) => `/group/${id}` },
   // A member's page is keyed by their uuid, not a number — the one pattern

@@ -48,6 +48,11 @@ export const FEATURES = {
    *  societies — members, invitations, requests and invite links. Off hides
    *  the menu entry and Home's strip; the screens say "on its way". */
   groups: true,
+  /** Scorecard certification (claude/scorecard-certification.md, needs 0128):
+   *  a playing partner certifies your card with Face ID / fingerprint. Off
+   *  hides the panel on cards, the certify prompt after a round and the
+   *  "waiting for you" list; the certify screen says "on its way". */
+  scorecardCertification: true,
 
   // ---- Gates (unfinished, off) ----
   /** Shared rounds (phase 9): model only — see claude/shared-round-model.md. */

@@ -139,6 +139,10 @@ export const NOTIFICATION_TYPES = [
   "group_invited",
   "group_join_request",
   "group_request_approved",
+  // Scorecard certification (0128): a playing partner is asked to certify
+  // your card, and you hear their answer. Under tee_times with live scoring.
+  "scorecard_certify_request",
+  "scorecard_certify_result",
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 
@@ -183,6 +187,8 @@ export const NOTIFICATION_TYPE_CATEGORY: Record<NotificationType, NotificationCa
   group_invited: "feed",
   group_join_request: "feed",
   group_request_approved: "feed",
+  scorecard_certify_request: "tee_times",
+  scorecard_certify_result: "tee_times",
 };
 
 /** Which preference category (if any) governs delivery for this notification

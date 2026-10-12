@@ -258,6 +258,21 @@ const EXPECTED: Record<string, Expectation> = {
   "publish_outing_draw(p_outing_id bigint, p_groups jsonb)": { anon: false, authenticated: true },
   "link_outing_match_day(p_outing_id bigint, p_match_day_id bigint)": { anon: false, authenticated: true },
   "mark_outing_paid(p_outing_id bigint, p_member uuid, p_status text)": { anon: false, authenticated: true },
+  // 0128 scorecard certification
+  "scorecard_certify_candidates(p_scorecard_id bigint)": { anon: false, authenticated: true },
+  "scorecard_certify_request(p_scorecard_id bigint, p_certifier uuid)": { anon: false, authenticated: true },
+  "scorecard_certification_open(p_id bigint)": { anon: false, authenticated: true },
+  "my_certification_requests()": { anon: false, authenticated: true },
+  "scorecard_certify_key_register(p_platform text)": { anon: false, authenticated: true },
+  "scorecard_certify_key_confirm(p_key_id uuid)": { anon: false, authenticated: true },
+  "scorecard_certify(p_id bigint, p_key_id uuid, p_signature text, p_method text)": { anon: false, authenticated: true },
+  "scorecard_certification_query(p_id bigint, p_hole smallint, p_note text)": { anon: false, authenticated: true },
+  "scorecard_certification_decline(p_id bigint)": { anon: false, authenticated: true },
+  // Internal steps and triggers: nobody calls these directly.
+  "scorecard_card_hash(p_scorecard_id bigint)": { anon: false, authenticated: false },
+  "scorecard_certification_for_answer(p_id bigint)": { anon: false, authenticated: false },
+  "scorecard_certifications_check_card()": { anon: false, authenticated: false },
+  "scorecard_certifications_former_member()": { anon: false, authenticated: false },
   // 0126 trip itineraries
   "save_outing_item(p_outing_id bigint, p_id bigint, p jsonb)": { anon: false, authenticated: true },
   "delete_outing_item(p_item_id bigint)": { anon: false, authenticated: true },

@@ -275,12 +275,36 @@ export default function LiveRoundScreen() {
             setView("board");
             await load();
             boardScroll.current?.scrollTo({ y: 0, animated: true });
+            offerCertification();
           } catch (e) {
             Alert.alert("Couldn't finish the round", e instanceof Error ? e.message : "Please try again.");
           }
         },
       },
     ]);
+
+  // Certification (0128): once the round is final, offer to have a playing
+  // partner certify your card — when you played, and someone else in the
+  // round is a member who could.
+  const offerCertification = () => {
+    if (!isOn("scorecards") || !isOn("scorecardCertification") || scr || me == null) return;
+    if (!players.some((p) => p.memberId === me) || !players.some((p) => p.memberId != null && p.memberId !== me)) return;
+    Alert.alert("Get your card certified?", "Ask someone you played with to confirm your scores with their Face ID or fingerprint. Your card will show who certified it.", [
+      { text: "Not now", style: "cancel" },
+      {
+        text: "Choose who",
+        onPress: async () => {
+          try {
+            const id = await scorecardFromLiveRound(round.id);
+            router.push({ pathname: "/scorecards/[id]", params: { id: String(id), certify: "1" } });
+          } catch (e) {
+            const msg = (e as { message?: unknown } | null)?.message;
+            Alert.alert("Couldn't save your card", typeof msg === "string" && msg ? msg : "Please try again.");
+          }
+        },
+      },
+    ]);
+  };
 
   const saveMyScorecard = async () => {
     try {
