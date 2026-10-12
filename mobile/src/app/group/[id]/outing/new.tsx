@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
 import { Stack, router, useLocalSearchParams } from "expo-router";
 import DateTimePicker, { type DateTimePickerEvent } from "@react-native-community/datetimepicker";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -10,8 +10,9 @@ import { Section } from "@/components/form-bits";
 import { TimeSheet } from "@/components/time-sheet";
 import { placeLabel, type Club } from "@/lib/courses";
 import { addDays, isTrip, OUTING_KINDS, tripLengthLabel, type OutingKind } from "@/lib/itinerary-rules";
+import { compactIban, formatIban, ibanIsValid, normaliseRevtag } from "@/lib/outing-payments";
 import { closesLabel, irishToday, outingDateLabel, parseFee } from "@/lib/outing-rules";
-import { loadClub, loadOuting, saveOuting } from "@/lib/outings";
+import { lastPaymentDetails, loadClub, loadOuting, saveOuting } from "@/lib/outings";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 
 /** "YYYY-MM-DD" ↔ a Date at local noon (noon: no time zone can tip it into another day). */
@@ -60,10 +61,31 @@ export default function NewOutingScreen() {
   const [feeText, setFeeText] = useState("");
   const [maxText, setMaxText] = useState("");
   const [details, setDetails] = useState("");
+  // How members pay (0127)
+  const [revtag, setRevtag] = useState("");
+  const [iban, setIban] = useState("");
+  const [accountName, setAccountName] = useState("");
+  const [payCash, setPayCash] = useState(true);
+  const [payNote, setPayNote] = useState("");
   const [dateOpen, setDateOpen] = useState<"start" | "end" | null>(null);
   const [draftDate, setDraftDate] = useState(() => toDate(playsOn));
   const [teeOpen, setTeeOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  // A new outing starts with the society's last payment details.
+  useEffect(() => {
+    if (editId != null) return;
+    void lastPaymentDetails(groupId)
+      .then((p) => {
+        if (!p) return;
+        setRevtag(p.payRevtag ? `@${p.payRevtag}` : "");
+        setIban(p.payIban ? formatIban(p.payIban) : "");
+        setAccountName(p.payAccountName ?? "");
+        setPayCash(p.payCash);
+        setPayNote(p.payNote ?? "");
+      })
+      .catch(() => undefined);
+  }, [editId, groupId]);
 
   useEffect(() => {
     if (editId == null) return;
@@ -81,6 +103,11 @@ export default function NewOutingScreen() {
         setFeeText(o.entryFeeCents != null ? (o.entryFeeCents / 100).toFixed(o.entryFeeCents % 100 ? 2 : 0) : "");
         setMaxText(o.maxEntries != null ? String(o.maxEntries) : "");
         setDetails(o.details ?? "");
+        setRevtag(o.payRevtag ? `@${o.payRevtag}` : "");
+        setIban(o.payIban ? formatIban(o.payIban) : "");
+        setAccountName(o.payAccountName ?? "");
+        setPayCash(o.payCash);
+        setPayNote(o.payNote ?? "");
         setCourseName(o.courseName);
         if (o.clubId) setClub(await loadClub(o.clubId));
       } finally {
@@ -93,6 +120,8 @@ export default function NewOutingScreen() {
   const fee = parseFee(feeText);
   const max = maxText.trim() === "" ? null : /^\d{1,3}$/.test(maxText.trim()) ? Number(maxText.trim()) : undefined;
   const course = club?.name ?? courseName;
+  const tag = normaliseRevtag(revtag);
+  const ibanCompact = compactIban(iban);
 
   const problem =
     title.trim() === ""
@@ -109,7 +138,13 @@ export default function NewOutingScreen() {
                 ? "The cost should be an amount, like 60"
                 : max === undefined || max === 0
                   ? "Places should be a number"
-                  : null;
+                  : tag === undefined
+                    ? "The Revolut username is the @name in Revolut, no spaces"
+                    : ibanCompact && !ibanIsValid(ibanCompact)
+                      ? "That IBAN doesn't look right — check the numbers"
+                      : ibanCompact && !accountName.trim()
+                        ? "Add the name on the bank account"
+                        : null;
 
   async function save() {
     if (problem) return;
@@ -127,6 +162,11 @@ export default function NewOutingScreen() {
         details: details.trim() || null,
         entryFeeCents: fee ?? null,
         maxEntries: max ?? null,
+        payRevtag: tag ?? null,
+        payIban: ibanCompact,
+        payAccountName: ibanCompact ? accountName.trim() : null,
+        payCash,
+        payNote: payNote.trim() || null,
       });
       if (trip && editId == null) {
         // Straight into building the itinerary, with the outing page behind it.
@@ -338,6 +378,56 @@ export default function NewOutingScreen() {
           </View>
         </View>
 
+        <View style={styles.pay}>
+          <Text style={styles.payTitle}>How members pay</Text>
+          <Text style={styles.payHint}>Members see these on the {noun}&apos;s page with a Pay button. Only people in the society can see them.</Text>
+          <Section title="Revolut username" hint="Optional. Your @name in Revolut — members tap to open Revolut and pay you.">
+            <TextInput
+              value={revtag}
+              onChangeText={setRevtag}
+              placeholder="@yourname"
+              placeholderTextColor={colors.ink500}
+              autoCapitalize="none"
+              autoCorrect={false}
+              style={[styles.input, tag === undefined && styles.inputBad]}
+              maxLength={41}
+              accessibilityLabel="Revolut username"
+            />
+          </Section>
+          <Section title="Bank transfer" hint="Optional. IBAN and the name on the account.">
+            <TextInput
+              value={iban}
+              onChangeText={setIban}
+              placeholder="IE29 AIBK 9311 5212 3456 78"
+              placeholderTextColor={colors.ink500}
+              autoCapitalize="characters"
+              autoCorrect={false}
+              style={[styles.input, ibanCompact != null && !ibanIsValid(ibanCompact) && styles.inputBad]}
+              maxLength={42}
+              accessibilityLabel="IBAN"
+            />
+            <TextInput
+              value={accountName}
+              onChangeText={setAccountName}
+              placeholder="Name on the account"
+              placeholderTextColor={colors.ink500}
+              style={styles.input}
+              maxLength={70}
+              accessibilityLabel="Name on the bank account"
+            />
+          </Section>
+          <View style={styles.cashRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.cashTitle}>Cash is fine</Text>
+              <Text style={styles.payHint}>Members can pay you in person.</Text>
+            </View>
+            <Switch value={payCash} onValueChange={setPayCash} trackColor={{ true: colors.green600, false: colors.line }} accessibilityLabel="Cash is fine" />
+          </View>
+          <Section title="Payment note" hint="Optional, e.g. a deadline.">
+            <TextInput value={payNote} onChangeText={setPayNote} placeholder="By 1 May, please" placeholderTextColor={colors.ink500} style={styles.input} maxLength={200} accessibilityLabel="Payment note" />
+          </Section>
+        </View>
+
         <Section title={trip ? "Trip notes" : "Details"} hint={trip ? "For every day: kitty, dress code, what to pack." : "What the fee covers, dress code, dinner, prizes — anything members should know."}>
           <TextInput
             value={details}
@@ -421,6 +511,11 @@ const styles = StyleSheet.create({
   unlockedRowTitle: { fontFamily: fonts.bodySemi, fontSize: 15, color: colors.cream50 },
   unlockedRowBody: { fontFamily: fonts.body, fontSize: 13, color: colors.cream100 },
   unlockedFoot: { fontFamily: fonts.body, fontSize: 12.5, color: colors.cream100 },
+  pay: { gap: spacing.sm + 2, padding: spacing.md, borderRadius: radii.lg, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surfaceTint },
+  payTitle: { fontFamily: fonts.bodyBold, fontSize: type.heading, color: colors.ink900 },
+  payHint: { fontFamily: fonts.body, fontSize: 13, color: colors.ink500 },
+  cashRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  cashTitle: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.ink900 },
   problem: { fontFamily: fonts.bodySemi, fontSize: type.small, color: colors.red600, textAlign: "center" },
   cta: { minHeight: 52, borderRadius: radii.pill, backgroundColor: colors.green700, alignItems: "center", justifyContent: "center" },
   ctaOff: { opacity: 0.5 },

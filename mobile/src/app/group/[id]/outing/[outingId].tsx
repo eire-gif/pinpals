@@ -1,16 +1,21 @@
 import { useCallback, useMemo, useState } from "react";
-import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Platform, Pressable, RefreshControl, ScrollView, Share, StyleSheet, Text, View } from "react-native";
 import { Stack, router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { Avatar } from "@/components/avatar";
+import { OutingPayCard } from "@/components/outing-pay-card";
 import { SectionTitle } from "@/components/group-bits";
 import { LoadError, StateMessage } from "@/components/state-message";
 import { useAuth } from "@/lib/auth";
 import { loadGroupPage, type GroupMember } from "@/lib/groups-data";
 import { countdownLabel, isTrip, tripBadge, tripRangeLabel } from "@/lib/itinerary-rules";
 import { clock, closesLabel, entriesOpen, feeLabel, irishToday, isOutingDay, outingDateLabel, outingPast, PAID_LABELS, type PaidStatus } from "@/lib/outing-rules";
-import { cancelOuting, loadOuting, markOutingPaid, setOutingEntry, type OutingEntry, type OutingPage } from "@/lib/outings";
+import { SITE_URL } from "@/lib/config";
+import { loadItinerary } from "@/lib/itinerary";
+import { CLAIM_LABELS, type ClaimMethod } from "@/lib/outing-payments";
+import { outingShareText } from "@/lib/outing-share";
+import { cancelOuting, claimOutingPaid, loadOuting, markOutingPaid, setOutingEntry, type OutingEntry, type OutingPage } from "@/lib/outings";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 
 /**
@@ -38,6 +43,7 @@ export default function OutingScreen() {
   const [page, setPage] = useState<OutingPage | null | undefined>(undefined);
   const [members, setMembers] = useState<GroupMember[]>([]);
   const [officer, setOfficer] = useState(false);
+  const [societyName, setSocietyName] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
@@ -50,6 +56,7 @@ export default function OutingScreen() {
       setPage(o);
       setMembers(g?.members ?? []);
       setOfficer(g?.myRole === "owner" || g?.myRole === "admin");
+      setSocietyName(g?.group.name ?? null);
       setFailed(false);
     } catch {
       setFailed(true);
@@ -107,7 +114,7 @@ export default function OutingScreen() {
     );
   }
 
-  const { outing, entries, payments } = page;
+  const { outing, entries, payments, claims } = page;
   const me = entries.find((e) => e.memberId === userId) ?? null;
   const cancelled = outing.status === "cancelled";
   const started = outing.matchDayId != null;
@@ -135,9 +142,16 @@ export default function OutingScreen() {
       return;
     }
     const paid = payments.get(e.memberId);
+    const claim = paid ? undefined : claims.get(e.memberId);
     const mark = (s: Exclude<PaidStatus, "card"> | null, label: string) => ({ text: label, onPress: () => void act(`pay-${e.memberId}`, () => markOutingPaid(outingId, e.memberId, s)) });
-    Alert.alert(e.name, paid ? PAID_LABELS[paid] : outing.entryFeeCents ? `Not paid yet · ${feeLabel(outing.entryFeeCents)}` : undefined, [
-      ...(paid !== "card"
+    Alert.alert(e.name, paid ? PAID_LABELS[paid] : claim ? `Says they paid by ${CLAIM_LABELS[claim]} · ${feeLabel(outing.entryFeeCents)}` : outing.entryFeeCents ? `Not paid yet · ${feeLabel(outing.entryFeeCents)}` : undefined, [
+      ...(claim
+        ? [
+            mark(claim === "cash" ? "cash" : "transfer", `Confirm — received by ${CLAIM_LABELS[claim]}`),
+            { text: "Not received", onPress: () => void act(`pay-${e.memberId}`, () => claimOutingPaid(outingId, null, e.memberId)) },
+          ]
+        : []),
+      ...(paid !== "card" && !claim
         ? [
             ...(paid !== "cash" ? [mark("cash", "Paid cash")] : []),
             ...(paid !== "transfer" ? [mark("transfer", "Paid by transfer")] : []),
@@ -169,9 +183,22 @@ export default function OutingScreen() {
   const openItinerary = () => router.push({ pathname: "/group/[id]/itinerary/[outingId]", params: { id: String(groupId), outingId: String(outingId) } });
   const openDraw = () => router.push({ pathname: "/live/day/group", params: { group: String(groupId), outing: String(outingId) } });
   const paidCount = entries.filter((e) => payments.has(e.memberId)).length;
+  const claimCount = entries.filter((e) => !payments.has(e.memberId) && claims.has(e.memberId)).length;
+
+  async function share() {
+    try {
+      // A trip lists its courses, from the rounds on its itinerary.
+      const courses = trip ? (await loadItinerary(outingId).catch(() => [])).filter((i) => i.kind === "round").sort((a, b) => (a.onDate < b.onDate ? -1 : a.onDate > b.onDate ? 1 : 0)).map((i) => i.title) : [];
+      const message = outingShareText({ ...outing, societyName, courses }, SITE_URL);
+      await Share.share(Platform.OS === "ios" ? { message, url: SITE_URL } : { message });
+    } catch {
+      // The member closed the share sheet.
+    }
+  }
 
   const person = (e: OutingEntry) => {
     const paid = payments.get(e.memberId);
+    const claimed = !paid && claims.has(e.memberId);
     return (
       <Pressable key={e.memberId} style={styles.person} onPress={() => entrantMenu(e)} accessibilityRole="button" accessibilityLabel={`${e.name}${officer && paid ? `, ${PAID_LABELS[paid]}` : ""}`}>
         <Avatar url={e.avatarUrl} color={e.avatarColor} name={e.name} size={36} />
@@ -186,8 +213,8 @@ export default function OutingScreen() {
           ) : null}
         </View>
         {officer && outing.entryFeeCents ? (
-          <View style={[styles.paid, paid ? styles.paidYes : styles.paidNo]}>
-            <Text style={[styles.paidText, paid ? styles.paidYesText : styles.paidNoText]}>{paid ? (paid === "waived" ? "Waived" : "Paid") : "Unpaid"}</Text>
+          <View style={[styles.paid, paid ? styles.paidYes : claimed ? styles.paidClaim : styles.paidNo]}>
+            <Text style={[styles.paidText, paid ? styles.paidYesText : claimed ? styles.paidClaimText : styles.paidNoText]}>{paid ? (paid === "waived" ? "Waived" : "Paid") : claimed ? "Says paid" : "Unpaid"}</Text>
           </View>
         ) : null}
       </Pressable>
@@ -196,7 +223,19 @@ export default function OutingScreen() {
 
   return (
     <View style={styles.fill}>
-      <Stack.Screen options={{ title: outing.title, headerBackTitle: "Back" }} />
+      <Stack.Screen
+        options={{
+          title: outing.title,
+          headerBackTitle: "Back",
+          headerRight: cancelled
+            ? undefined
+            : () => (
+                <Pressable onPress={() => void share()} hitSlop={10} accessibilityRole="button" accessibilityLabel="Share to Instagram, Facebook, WhatsApp…">
+                  <Ionicons name="share-outline" size={22} color={colors.navy900} />
+                </Pressable>
+              ),
+        }}
+      />
       <ScrollView
         contentContainerStyle={styles.body}
         refreshControl={
@@ -277,11 +316,15 @@ export default function OutingScreen() {
           <Text style={styles.note}>You&apos;re in. Entries have closed — ask the captain or secretary to make any change.</Text>
         ) : null}
 
-        {me && outing.entryFeeCents ? (
-          <View style={styles.payRow}>
-            <Ionicons name={myPaid ? "checkmark-done-circle" : "wallet-outline"} size={20} color={myPaid ? colors.green700 : colors.navy900} />
-            <Text style={styles.payText}>{myPaid ? PAID_LABELS[myPaid] : `Entry ${feeLabel(outing.entryFeeCents)} — not paid yet. Pay the secretary; they'll mark it here.`}</Text>
-          </View>
+        {me && outing.entryFeeCents && !cancelled ? (
+          <OutingPayCard
+            outing={outing}
+            myName={me.name}
+            paid={myPaid}
+            claim={userId ? claims.get(userId) : undefined}
+            busy={busy === "claim"}
+            onClaim={(m: ClaimMethod | null) => void act("claim", () => claimOutingPaid(outingId, m))}
+          />
         ) : null}
 
         {/* The captain and secretary */}
@@ -303,7 +346,7 @@ export default function OutingScreen() {
                   ? "It's the day: check the draw, choose the tees, then start the round."
                   : "Publish the tee times whenever you're ready; members see theirs straight away. You start the round on the day."}
             </Text>
-            {outing.entryFeeCents ? <Text style={styles.officerHint}>{`${paidCount} of ${entries.length} paid or waived. Tap a name to mark it.`}</Text> : null}
+            {outing.entryFeeCents ? <Text style={styles.officerHint}>{`${paidCount} of ${entries.length} paid or waived${claimCount ? ` · ${claimCount} say they've paid` : ""}. Tap a name to mark it.`}</Text> : null}
             <View style={styles.officerRow}>
               {!started ? (
                 <Pressable
@@ -423,6 +466,8 @@ const styles = StyleSheet.create({
   paid: { paddingHorizontal: 9, paddingVertical: 3, borderRadius: radii.pill },
   paidYes: { backgroundColor: colors.green100 },
   paidNo: { backgroundColor: colors.red100 },
+  paidClaim: { backgroundColor: "#fbf3df", borderWidth: 1, borderColor: colors.gold400 },
+  paidClaimText: { color: "#7a5a12" },
   paidText: { fontFamily: fonts.bodySemi, fontSize: 12 },
   paidYesText: { color: colors.green800 },
   paidNoText: { color: colors.red600 },

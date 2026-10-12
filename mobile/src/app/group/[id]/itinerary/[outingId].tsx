@@ -1,9 +1,11 @@
 import { useCallback, useMemo, useState } from "react";
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Platform, Pressable, RefreshControl, ScrollView, Share, StyleSheet, Text, View } from "react-native";
 import { Stack, router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { LoadError, StateMessage } from "@/components/state-message";
+import { SITE_URL } from "@/lib/config";
+import { outingShareText } from "@/lib/outing-share";
 import { useAuth } from "@/lib/auth";
 import { loadGroupPage } from "@/lib/groups-data";
 import { loadItinerary, type ItineraryItem } from "@/lib/itinerary";
@@ -47,6 +49,7 @@ export default function ItineraryScreen() {
   const [page, setPage] = useState<OutingPage | null | undefined>(undefined);
   const [items, setItems] = useState<ItineraryItem[]>([]);
   const [officer, setOfficer] = useState(false);
+  const [societyName, setSocietyName] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [day, setDay] = useState<string | null>(rawDay ?? null);
@@ -58,6 +61,7 @@ export default function ItineraryScreen() {
       setPage(o);
       setItems(sortItems(list));
       setOfficer(g?.myRole === "owner" || g?.myRole === "admin");
+      setSocietyName(g?.group.name ?? null);
       setFailed(false);
     } catch {
       setFailed(true);
@@ -88,7 +92,32 @@ export default function ItineraryScreen() {
     };
   }, [items, userId]);
 
-  const header = <Stack.Screen options={{ title: outing?.title ?? "Itinerary", headerBackTitle: "Back" }} />;
+  async function share() {
+    if (!outing) return;
+    try {
+      const message = outingShareText({ ...outing, societyName, courses: items.filter((i) => i.kind === "round").map((i) => i.title) }, SITE_URL);
+      await Share.share(Platform.OS === "ios" ? { message, url: SITE_URL } : { message });
+    } catch {
+      // Closed the share sheet.
+    }
+  }
+
+  const header = (
+    <Stack.Screen
+      options={{
+        title: outing?.title ?? "Itinerary",
+        headerBackTitle: "Back",
+        headerRight:
+          outing && outing.status === "open"
+            ? () => (
+                <Pressable onPress={() => void share()} hitSlop={10} accessibilityRole="button" accessibilityLabel="Share to Instagram, Facebook, WhatsApp…">
+                  <Ionicons name="share-outline" size={22} color={colors.navy900} />
+                </Pressable>
+              )
+            : undefined,
+      }}
+    />
+  );
 
   if (page === undefined && !failed) {
     return (
