@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { GROUP_KIND_INFO, roleLabel, type GroupKind, type GroupOffice, type GroupRole } from "@/lib/groups";
@@ -19,7 +19,18 @@ const KIND_TINT: Record<GroupKind, string> = {
   club: colors.navy900,
 };
 
-export function GroupIcon({ kind, size = 44 }: { kind: GroupKind; size?: number }) {
+/** The group's own logo when it has one (0124), else its kind's icon. */
+export function GroupIcon({ kind, size = 44, logoUrl = null }: { kind: GroupKind; size?: number; logoUrl?: string | null }) {
+  if (logoUrl) {
+    return (
+      <Image
+        source={{ uri: logoUrl }}
+        style={[styles.logo, { width: size, height: size, borderRadius: size * 0.27 }]}
+        resizeMode="cover"
+        accessibilityIgnoresInvertColors
+      />
+    );
+  }
   return (
     <View style={[styles.icon, { width: size, height: size, borderRadius: size * 0.27, backgroundColor: KIND_TINT[kind] }]}>
       <Ionicons name={GROUP_KIND_INFO[kind].icon as keyof typeof Ionicons.glyphMap} size={size * 0.5} color={colors.cream50} />
@@ -37,8 +48,10 @@ export function GroupRow({
   detail,
   onPress,
   right,
+  logoUrl = null,
 }: {
   kind: GroupKind;
+  logoUrl?: string | null;
   name: string;
   detail: string;
   onPress: () => void;
@@ -46,7 +59,7 @@ export function GroupRow({
 }) {
   return (
     <Pressable onPress={onPress} style={({ pressed }) => [styles.row, pressed && styles.pressed]} accessibilityRole="button" accessibilityLabel={`${name}, ${detail}`}>
-      <GroupIcon kind={kind} />
+      <GroupIcon kind={kind} logoUrl={logoUrl} />
       <View style={styles.rowBody}>
         <Text style={styles.name} numberOfLines={1}>
           {name}
@@ -82,6 +95,7 @@ export function SectionTitle({ children }: { children: string }) {
 
 const styles = StyleSheet.create({
   icon: { alignItems: "center", justifyContent: "center" },
+  logo: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
   row: {
     flexDirection: "row",
     alignItems: "center",

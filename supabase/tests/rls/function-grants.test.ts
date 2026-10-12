@@ -247,6 +247,9 @@ const EXPECTED: Record<string, Expectation> = {
   // Read anyone's scorecards: only through the wrappers above, which decide whose.
   "handicap_differentials_of(p_member uuid)": { anon: false, authenticated: false },
   "handicap_indicator_of(p_member uuid)": { anon: false, authenticated: false },
+  // 0124 group cover and logo
+  "set_group_image(p_group_id bigint, p_which text, p_url text)": { anon: false, authenticated: true },
+  "group_can_style(p_group_id bigint, p_user_id uuid)": { anon: false, authenticated: false },
 
   // --- Service role / internal only. Everything below is either a trigger
   // --- function, a sweep, or a privileged write path that must never be

@@ -51,7 +51,7 @@ export function HomeGroups() {
           <View style={styles.icons}>
             {shown.map((g, i) => (
               <View key={g.id} style={[styles.iconSlot, { marginLeft: i === 0 ? 0 : -10 }]}>
-                <GroupIcon kind={g.kind} size={34} />
+                <GroupIcon kind={g.kind} size={34} logoUrl={g.logoUrl} />
               </View>
             ))}
           </View>

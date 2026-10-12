@@ -67,3 +67,12 @@ Not included: soft/hard caps against a low handicap index, exceptional-score red
 - Existing societies with a plain admin keep them until the owner reassigns (pre-launch, so likely none).
 - 9-hole scores, caps and PCC in the indicator.
 - Showing the indicator on other members' profiles (only the member and society officers see it today).
+
+## Cover photo and logo (12 Oct 2026, migration 0124)
+- **Decision (Eire):** only a society's captain or secretary changes them; the owner too, as they appoint both. In a crew or trip, whoever runs it.
+- **On the group page:** with a cover, the photograph runs edge to edge across the top with the logo half over it; "Cover" (top right) changes it. Without one, those who can see "Add a cover photo". Tapping the logo (camera badge) changes it, cropped square on the phone. Both can be removed.
+- **The logo replaces the kind's icon everywhere:** the group page, My groups, Find a society, Home's strip and the draw screen. (Not yet on the invite-link page.)
+- **How:** `POST /api/app/groups/[id]/image` (`which` = cover | logo, `image` or `remove=on`) re-encodes with sharp (no EXIF/GPS; cover 1600 px, logo 512 px) into the uploader's own `member-avatars` folder as `group-<id>-<which>-<ts>`, then calls `set_group_image()` as them.
+- **Database:** `groups.cover_url`, `groups.logo_url` (column-granted: never `select *` from groups); `group_can_style()` (internal), `set_group_image()` — checks the role and that the URL is in the caller's own folder under a `group-` name.
+- **Verified:** RLS 711/711 (3 new in `group-images.test.ts`); site tsc and 1266 unit tests; app tsc. **0124 already applied to production.**
+- **To ship:** merge (Vercel deploys the upload route), then `eas update`. #188 (0123) must merge first or with it — this branch includes it.
