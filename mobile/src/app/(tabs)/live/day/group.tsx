@@ -19,6 +19,8 @@ import { createFourballDay, createScrambleDay } from "@/lib/live-match-days";
 import { courseHandicap, indexLabel, parseIndex, playingHandicap, scrambleHandicap } from "@/lib/live-scoring";
 import { irishToday, isOutingDay, outingDateLabel } from "@/lib/outing-rules";
 import { linkOutingMatchDay, loadClub, loadOuting, publishOutingDraw, saveOuting, setOutingEntry, type OutingPage } from "@/lib/outings";
+import { loadItineraryItem, setItemPeople, type ItineraryItem } from "@/lib/itinerary";
+import type { PlayFormat } from "@/lib/itinerary-rules";
 import { clockLabel } from "@/lib/tee-time-post";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 
@@ -43,6 +45,12 @@ import { colors, fonts, radii, spacing, type } from "@/lib/theme";
  * outing (anyone ticked who hadn't entered is entered); members see their
  * times at once. "Start the day" is offered only on the outing's date, and
  * the live day is linked back to the outing.
+ *
+ * A TRIP'S ROUND (?round=<itinerary item id>, Oct 2026): a round on an
+ * overnight or abroad trip's itinerary (0126). Its course, date, first tee,
+ * gap, format and groups come from the itinerary; "Start the round" starts
+ * it live (asking first if it isn't that round's day) and saves the final
+ * groups back to the itinerary.
  *
  * A FUTURE DATE (Oct 2026): the date and first tee are picked on scroll
  * wheels. Today → "Start the day" as before. A later date → "Save for
@@ -76,12 +84,21 @@ function teeGroupSummary(sizes: number[]): string {
   return `${sizes.length} tee groups — ${list} players`;
 }
 
+/** A trip round's format (0126) as this screen's: the formats it can't start yet play as Stableford. */
+function formatFromTrip(f: PlayFormat | null): Format {
+  if (f === "strokeplay") return "stroke";
+  if (f === "scramble") return "scramble4";
+  return "stableford";
+}
+
 let seq = 0;
 const nextKey = () => `g${++seq}`;
 
 export default function DrawFromGroup() {
-  const { group: groupParam, outing: outingParam } = useLocalSearchParams<{ group?: string; outing?: string }>();
+  const { group: groupParam, outing: outingParam, round: roundParam } = useLocalSearchParams<{ group?: string; outing?: string; round?: string }>();
   const outingId = outingParam ? Number(outingParam) : null;
+  const roundId = roundParam ? Number(roundParam) : null;
+  const [tripRound, setTripRound] = useState<ItineraryItem | null>(null);
   const [outing, setOuting] = useState<OutingPage | null>(null);
   const [publishing, setPublishing] = useState(false);
   const { session } = useAuth();
@@ -130,9 +147,39 @@ export default function DrawFromGroup() {
     setDrawn(null);
     setGuests([]);
     setTitle((t) => t || groupName);
-    void Promise.all([loadGroupRoster(groupId), outingId ? loadOuting(outingId) : Promise.resolve(null)])
-      .then(async ([people, page]) => {
+    void Promise.all([
+      loadGroupRoster(groupId),
+      outingId ? loadOuting(outingId) : Promise.resolve(null),
+      roundId ? loadItineraryItem(roundId).catch(() => null) : Promise.resolve(null),
+    ])
+      .then(async ([people, page, round]) => {
         setRoster(people);
+        if (round && round.kind === "round") {
+          // A trip's round: everything comes from the itinerary.
+          setTripRound(round);
+          const label = (p: RosterPlayer) => (p.index != null ? indexLabel(p.index) : "");
+          const onIt = people.filter((p) => round.people.some((x) => x.memberId === p.id));
+          setTicked(new Map(onIt.map((p) => [p.id, label(p)])));
+          setTitle(round.title);
+          setPlaysOn(round.onDate);
+          if (round.startsAt) setFirstTee(round.startsAt.slice(0, 5));
+          if (round.teeInterval) setGap(round.teeInterval);
+          setFormat(formatFromTrip(round.playFormat));
+          const byGroup = new Map<number, Entrant[]>();
+          for (const x of [...round.people].sort((a, b) => (a.position ?? 0) - (b.position ?? 0))) {
+            const p = people.find((r) => r.id === x.memberId);
+            if (!x.slot || !p) continue;
+            const indexText = label(p);
+            byGroup.set(x.slot, [...(byGroup.get(x.slot) ?? []), { key: `m:${p.id}`, memberId: p.id, name: p.name, indexText, index: parseIndex(indexText) }]);
+          }
+          const saved = [...byGroup.entries()].sort((a, b) => a[0] - b[0]).map(([, g]) => g);
+          if (saved.length > 0) setDrawn(saved);
+          if (round.clubId) {
+            const club = await loadClub(round.clubId);
+            if (club) course.setClub(club);
+          }
+          return;
+        }
         if (page && page.outing.groupId === groupId) {
           // From an outing: its entrants are who's playing, and a published
           // draw comes back as it was.
@@ -175,7 +222,7 @@ export default function DrawFromGroup() {
       .catch(() => setRoster([]));
     // course.setClub is a state setter: stable.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [groupId, groupKind, groupName, userId, outingId]);
+  }, [groupId, groupKind, groupName, userId, outingId, roundId]);
 
   const entrants: Entrant[] = useMemo(() => {
     const members = (roster ?? [])
@@ -250,8 +297,19 @@ export default function DrawFromGroup() {
   if (title.trim() === "") problems.push("Give the day a name");
   if (!drawnNow) problems.push("Make the draw");
 
-  const start = async () => {
+  const start = async (startAnyway = false) => {
     if (problems.length > 0 || !drawnNow || !course.club) return;
+    if (tripRound && tripRound.onDate !== irishToday() && !startAnyway) {
+      Alert.alert(
+        "Start it today?",
+        `This round is on the itinerary for ${outingDateLabel(tripRound.onDate)}. Starting it now opens live scoring today.`,
+        [
+          { text: "Not yet", style: "cancel" },
+          { text: "Start now", onPress: () => void start(true) },
+        ]
+      );
+      return;
+    }
     setSaving(true);
     try {
       const day = {
@@ -313,6 +371,14 @@ export default function DrawFromGroup() {
         if (drawnNow.every((g) => g.every((p) => p.memberId))) await publishDraw(drawnNow).catch(() => undefined);
         await linkOutingMatchDay(outing.outing.id, id).catch(() => undefined);
       }
+      if (tripRound) {
+        // The groups as played go back on the itinerary. Guests aren't on
+        // the trip, so they stay off it. Never blocks the round.
+        await setItemPeople(
+          tripRound.id,
+          drawnNow.flatMap((g, gi) => g.filter((p) => p.memberId).map((p) => ({ memberId: p.memberId as string, slot: gi + 1 })))
+        ).catch(() => undefined);
+      }
       router.replace({ pathname: "/live/day/[id]", params: { id: String(id), created: "1" } });
     } catch (e) {
       Alert.alert("Couldn't start the day", e instanceof Error ? e.message : "Please try again.");
@@ -354,7 +420,7 @@ export default function DrawFromGroup() {
   const outingDay = outing ? isOutingDay(outing.outing.playsOn) : true;
 
   // A later date, not from an existing outing: save it as an event instead of starting it.
-  const future = !outing && playsOn > irishToday();
+  const future = !outing && !tripRound && playsOn > irishToday();
   const runsGroup = group?.role === "owner" || group?.role === "admin";
   const futureProblems: string[] = [];
   if (future) {
@@ -634,17 +700,17 @@ export default function DrawFromGroup() {
           <View style={styles.whenRow}>
             <Pressable
               onPress={() => setSheet("date")}
-              disabled={!!outing}
+              disabled={!!outing || !!tripRound}
               style={({ pressed }) => [styles.whenField, pressed && { opacity: 0.85 }]}
               accessibilityRole="button"
-              accessibilityLabel={`Date, ${dayLabel(playsOn)}${outing ? ", set by the event" : ". Tap to change"}`}
+              accessibilityLabel={`Date, ${dayLabel(playsOn)}${outing || tripRound ? ", set by the event" : ". Tap to change"}`}
             >
               <Ionicons name="calendar-outline" size={20} color={colors.green700} />
               <View style={{ flex: 1 }}>
                 <Text style={styles.whenLabel}>Date</Text>
                 <Text style={styles.whenValue} numberOfLines={1}>{dayLabel(playsOn)}</Text>
               </View>
-              {outing ? null : <Ionicons name="chevron-down" size={16} color={colors.ink500} />}
+              {outing || tripRound ? null : <Ionicons name="chevron-down" size={16} color={colors.ink500} />}
             </Pressable>
             <Pressable
               onPress={() => setSheet("time")}
@@ -744,7 +810,7 @@ export default function DrawFromGroup() {
         <>
         {problems.length > 0 ? <Text style={styles.problem}>{problems[0]}</Text> : null}
         <Pressable onPress={() => void start()} disabled={problems.length > 0 || saving} style={[styles.start, (problems.length > 0 || saving) && styles.startOff]} accessibilityRole="button">
-          {saving ? <ActivityIndicator color={colors.cream50} /> : <Text style={styles.startLabel}>{scramble ? "Start the scramble" : "Start the day"}</Text>}
+          {saving ? <ActivityIndicator color={colors.cream50} /> : <Text style={styles.startLabel}>{tripRound ? "Start the round" : scramble ? "Start the scramble" : "Start the day"}</Text>}
         </Pressable>
         <Text style={styles.footNote}>Everyone on PinPals gets their card and the leaderboard on their phone. Guests are scored by their group.</Text>
         </>
