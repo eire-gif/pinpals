@@ -82,10 +82,41 @@ describe("setting up an outing", () => {
       await as(c, OWNER);
       await c.query("select public.save_outing($1, null, $2::jsonb)", [g, outing(day(14))]);
       await as(c, MEMBER);
-      await rejects(c, "select public.save_outing($1, null, $2::jsonb)", [g, outing(day(7))], /captain or secretary/);
+      await rejects(c, "select public.save_outing($1, null, $2::jsonb)", [g, outing(day(7))], /whoever runs the group/);
       await as(c, SECRETARY);
       await rejects(c, "select public.save_outing($1, null, $2::jsonb)", [g, outing(day(-1))], /passed/);
       await rejects(c, "select public.save_outing($1, null, $2::jsonb)", [g, outing(day(7), { title: " " })], /name/);
+    });
+  });
+
+  it("crews and trips have events too (0129): their owner and admins set them up, members join", async () => {
+    await withRole("authenticated", OWNER, async (c) => {
+      for (const kind of ["crew", "trip"]) {
+        await as(c, OWNER);
+        const g = (await c.query<{ id: string }>("select public.create_group($1, 'The Sunday Four', null, null, $2::date, $3::date) as id", [
+          kind, kind === "trip" ? day(30) : null, kind === "trip" ? day(34) : null,
+        ])).rows[0].id;
+        await c.query("set local role service_role");
+        for (const m of [SECRETARY, MEMBER]) await c.query("select public.group_add_member($1, $2)", [g, m]);
+        await c.query("set local role authenticated");
+        await as(c, OWNER);
+        await c.query("select public.set_group_role($1, $2, 'admin')", [g, SECRETARY]);
+
+        // The owner, an admin: a day out and a trip abroad.
+        const id = (await c.query<{ id: string }>("select public.save_outing($1, null, $2::jsonb) as id", [g, outing(day(7))])).rows[0].id;
+        await as(c, SECRETARY);
+        await c.query("select public.save_outing($1, null, $2::jsonb)", [
+          g, JSON.stringify({ kind: "abroad", title: "Algarve", location: "Vilamoura", plays_on: day(30), ends_on: day(34) }),
+        ]);
+        // A plain member can't set one up, but can join.
+        await as(c, MEMBER);
+        await rejects(c, "select public.save_outing($1, null, $2::jsonb)", [g, outing(day(9))], /whoever runs the group/);
+        await c.query("select public.set_outing_entry($1, true)", [id]);
+        expect(await entrants(c, id)).toEqual([MEMBER]);
+        // Someone outside it sees nothing.
+        await as(c, STRANGER);
+        expect((await c.query("select 1 from public.society_outings where group_id = $1", [g])).rowCount).toBe(0);
+      }
     });
   });
 

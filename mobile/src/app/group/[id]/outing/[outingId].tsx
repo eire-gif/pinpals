@@ -9,6 +9,7 @@ import { SectionTitle } from "@/components/group-bits";
 import { LoadError, StateMessage } from "@/components/state-message";
 import { useAuth } from "@/lib/auth";
 import { loadGroupPage, type GroupMember } from "@/lib/groups-data";
+import { groupNoun, organisers, type GroupKind } from "@/lib/groups";
 import { countdownLabel, isTrip, tripBadge, tripRangeLabel } from "@/lib/itinerary-rules";
 import { clock, closesLabel, entriesOpen, feeLabel, irishToday, isOutingDay, outingDateLabel, outingPast, PAID_LABELS, type PaidStatus } from "@/lib/outing-rules";
 import { SITE_URL } from "@/lib/config";
@@ -44,6 +45,7 @@ export default function OutingScreen() {
   const [members, setMembers] = useState<GroupMember[]>([]);
   const [officer, setOfficer] = useState(false);
   const [societyName, setSocietyName] = useState<string | null>(null);
+  const [kind, setKind] = useState<GroupKind | null>(null);
   const [failed, setFailed] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
@@ -57,6 +59,7 @@ export default function OutingScreen() {
       setMembers(g?.members ?? []);
       setOfficer(g?.myRole === "owner" || g?.myRole === "admin");
       setSocietyName(g?.group.name ?? null);
+      setKind(g?.group.kind ?? null);
       setFailed(false);
     } catch {
       setFailed(true);
@@ -109,7 +112,7 @@ export default function OutingScreen() {
     return (
       <View style={styles.fill}>
         <Stack.Screen options={{ title: "Outing", headerBackTitle: "Back" }} />
-        <StateMessage icon="calendar-outline" title="This outing isn't available" body="It may have been removed, or you're not in the society." size="screen" />
+        <StateMessage icon="calendar-outline" title="This outing isn't available" body="It may have been removed, or you're not in the group." size="screen" />
       </View>
     );
   }
@@ -292,7 +295,7 @@ export default function OutingScreen() {
             </Text>
           </View>
         ) : me && outing.drawPublishedAt ? (
-          <Text style={styles.note}>You&apos;re in. The captain or secretary hasn&apos;t put you in a group yet.</Text>
+          <Text style={styles.note}>{`You're in. ${cap(organisers(kind))} hasn't put you in a group yet.`}</Text>
         ) : null}
 
         {started ? (
@@ -313,7 +316,7 @@ export default function OutingScreen() {
             </Pressable>
           )
         ) : me ? (
-          <Text style={styles.note}>You&apos;re in. Entries have closed — ask the captain or secretary to make any change.</Text>
+          <Text style={styles.note}>{`You're in. Entries have closed — ask ${organisers(kind)} to make any change.`}</Text>
         ) : null}
 
         {me && outing.entryFeeCents && !cancelled ? (
@@ -330,7 +333,7 @@ export default function OutingScreen() {
         {/* The captain and secretary */}
         {officer && !cancelled ? (
           <View style={styles.officer}>
-            <Text style={styles.officerTitle}>Captain &amp; secretary</Text>
+            <Text style={styles.officerTitle}>{kind === "society" ? "Captain & secretary" : "Organiser"}</Text>
             {!started && !past && !trip ? (
               <Pressable style={[styles.cta, styles.ctaNavy]} onPress={openDraw} accessibilityRole="button">
                 <Ionicons name="shuffle" size={18} color={colors.cream50} />
@@ -373,7 +376,7 @@ export default function OutingScreen() {
             </View>
             {adding ? (
               notIn.length === 0 ? (
-                <Text style={styles.officerHint}>Everyone in the society is in.</Text>
+                <Text style={styles.officerHint}>{`Everyone in the ${groupNoun(kind)} is in.`}</Text>
               ) : (
                 notIn.map((m) => (
                   <View key={m.id} style={styles.addRow}>
@@ -472,3 +475,5 @@ const styles = StyleSheet.create({
   paidYesText: { color: colors.green800 },
   paidNoText: { color: colors.red600 },
 });
+
+const cap = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);

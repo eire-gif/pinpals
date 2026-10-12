@@ -130,6 +130,21 @@ export const GROUP_KIND_INFO: Record<GroupKind, GroupKindInfo> = {
   },
 };
 
+/**
+ * Events (outings: a day out, an overnight, a trip abroad — 0125–0127):
+ * societies from the start, crews and trips since 0129.
+ */
+export const EVENT_KINDS: readonly GroupKind[] = ["society", "crew", "trip"];
+export const hasEvents = (kind: GroupKind): boolean => EVENT_KINDS.includes(kind);
+
+/** Who runs a group's events, as a sentence says it: "the captain or secretary" in a society, "the organiser" elsewhere. */
+export const organisers = (kind: GroupKind | null | undefined): string =>
+  kind === "society" ? "the captain or secretary" : "the organiser";
+
+/** "society", "crew", "trip" — for sentences like "everyone in the trip". */
+export const groupNoun = (kind: GroupKind | null | undefined): string =>
+  kind === "society" || kind === "crew" || kind === "trip" ? kind : "group";
+
 export function isGroupKind(value: unknown): value is GroupKind {
   return typeof value === "string" && (GROUP_KINDS as readonly string[]).includes(value);
 }

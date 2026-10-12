@@ -157,7 +157,7 @@ export default function ItineraryItemScreen() {
     ) : (
       <View style={styles.fill}>
         <Stack.Screen options={{ title: "Itinerary", headerBackTitle: "Back" }} />
-        <StateMessage icon="lock-closed-outline" title="Only the captain or secretary adds to the itinerary" size="screen" />
+        <StateMessage icon="lock-closed-outline" title="Only the organisers add to the itinerary" size="screen" />
       </View>
     );
   }

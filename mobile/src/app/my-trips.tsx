@@ -81,7 +81,7 @@ export default function MyTripsScreen() {
           <StateMessage
             icon="airplane-outline"
             title={past ? "No past trips" : "No trips coming up"}
-            body={past ? undefined : "When your society's captain sets up an overnight or abroad trip and you join it, it shows here with the full itinerary."}
+            body={past ? undefined : "When an overnight or abroad trip is set up in one of your groups and you join it, it shows here with the full itinerary."}
           />
         ) : (
           trips.map((t) => (

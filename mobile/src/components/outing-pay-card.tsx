@@ -48,7 +48,7 @@ export function OutingPayCard({
 
   function sayPaid() {
     const options: ClaimMethod[] = ways.length ? ways : ["revolut", "transfer", "cash"];
-    Alert.alert("How did you pay?", "The captain or secretary checks and confirms it.", [
+    Alert.alert("How did you pay?", "The organisers check and confirm it.", [
       ...options.map((m) => ({ text: m === "revolut" ? "Revolut" : m === "transfer" ? "Bank transfer" : "Cash", onPress: () => onClaim(m) })),
       { text: "Cancel", style: "cancel" as const },
     ]);
@@ -65,7 +65,7 @@ export function OutingPayCard({
       {claim ? (
         <View style={styles.claim}>
           <Ionicons name="time-outline" size={18} color={colors.navy900} />
-          <Text style={styles.claimText}>{`You said you paid by ${CLAIM_LABELS[claim]}. The captain or secretary will confirm it here.`}</Text>
+          <Text style={styles.claimText}>{`You said you paid by ${CLAIM_LABELS[claim]}. The organisers will confirm it here.`}</Text>
           <Pressable onPress={() => onClaim(null)} disabled={busy} hitSlop={8} accessibilityRole="button" accessibilityLabel="Undo, I haven't paid">
             <Text style={styles.undo}>Undo</Text>
           </Pressable>
@@ -98,11 +98,11 @@ export function OutingPayCard({
       {!claim && outing.payCash ? (
         <View style={styles.cash}>
           <Ionicons name="cash-outline" size={18} color={colors.green700} />
-          <Text style={styles.cashText}>Cash to the captain or secretary is fine too.</Text>
+          <Text style={styles.cashText}>Cash to the organisers is fine too.</Text>
         </View>
       ) : null}
 
-      {!claim && ways.length === 0 ? <Text style={styles.hint}>Pay the captain or secretary — they&apos;ll mark it here.</Text> : null}
+      {!claim && ways.length === 0 ? <Text style={styles.hint}>Pay the organisers — they&apos;ll mark it here.</Text> : null}
 
       {!claim ? (
         <Pressable style={styles.paidButton} onPress={sayPaid} disabled={busy} accessibilityRole="button">
