@@ -410,3 +410,16 @@ describe("the group chat", () => {
     });
   });
 });
+
+describe("group_members links to profiles exactly once (0123)", () => {
+  it("so the app's profile:profiles(...) embeds stay unambiguous", async () => {
+    await withRole("authenticated", owner, async (c) => {
+      const { rows } = await asService(c, () =>
+        c.query<{ n: number }>(
+          "select count(*)::int as n from pg_constraint where conrelid = 'public.group_members'::regclass and contype = 'f' and confrelid = 'public.profiles'::regclass",
+        ),
+      );
+      expect(rows[0].n).toBe(1);
+    });
+  });
+});

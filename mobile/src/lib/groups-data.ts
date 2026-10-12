@@ -1,6 +1,6 @@
 import * as SecureStore from "expo-secure-store";
 
-import { postToSite } from "@/lib/api";
+import { postFormToSite, postToSite, type UploadFile } from "@/lib/api";
 import { SITE_URL } from "@/lib/config";
 import { groupInvitePath, isGroupKind, isGroupOffice, type GroupKind, type GroupOffice, type GroupPrivacy, type GroupRole } from "@/lib/groups";
 import { supabase } from "@/lib/supabase";
@@ -22,7 +22,7 @@ import { supabase } from "@/lib/supabase";
  * does. A failed notify never fails the action itself.
  */
 
-const GROUP_COLUMNS = "id, kind, name, about, privacy, features, members_can_invite, member_count, club_id, starts_on, ends_on, conversation_id, created_at, club:clubs(name)";
+const GROUP_COLUMNS = "id, kind, name, about, privacy, features, members_can_invite, member_count, club_id, starts_on, ends_on, conversation_id, created_at, cover_url, logo_url, club:clubs(name)";
 
 type GroupRow = {
   id: number;
@@ -38,6 +38,8 @@ type GroupRow = {
   ends_on: string | null;
   conversation_id: number | null;
   created_at: string;
+  cover_url?: string | null;
+  logo_url?: string | null;
   club: { name: string } | null;
 };
 
@@ -55,6 +57,10 @@ export type Group = {
   startsOn: string | null;
   endsOn: string | null;
   conversationId: number | null;
+  /** The photograph across the top of its page (0124). */
+  coverUrl: string | null;
+  /** Its own badge, in place of the kind's icon (0124). */
+  logoUrl: string | null;
 };
 
 const toGroup = (r: GroupRow): Group => ({
@@ -71,6 +77,8 @@ const toGroup = (r: GroupRow): Group => ({
   startsOn: r.starts_on,
   endsOn: r.ends_on,
   conversationId: r.conversation_id,
+  coverUrl: r.cover_url ?? null,
+  logoUrl: r.logo_url ?? null,
 });
 
 type PersonRow = {
@@ -535,4 +543,22 @@ export async function loadSocietyHandicaps(groupId: number): Promise<Map<string,
 export async function setSocietyHandicap(groupId: number, memberId: string, index: number | null): Promise<void> {
   const { error } = await supabase.rpc("set_society_handicap", { p_group_id: groupId, p_member_id: memberId, p_index: index });
   if (error) fail(error, "Couldn't save that handicap.");
+}
+
+// ---------------------------------------------------------------------------
+// Cover photo and logo (0124): society owner, captain or secretary; whoever
+// runs a crew or trip. Through the website, which strips the photo's EXIF.
+// ---------------------------------------------------------------------------
+
+export type GroupImage = "cover" | "logo";
+
+/** Returns the new image's address. */
+export async function uploadGroupImage(groupId: number, which: GroupImage, file: UploadFile): Promise<string | null> {
+  const res = await postFormToSite<{ ok: true; url: string | null }>(`/api/app/groups/${groupId}/image`, { which }, { field: "image", file });
+  return res.url;
+}
+
+/** Back to the default: the kind's icon, or the plain header. */
+export async function removeGroupImage(groupId: number, which: GroupImage): Promise<void> {
+  await postFormToSite<{ ok: true }>(`/api/app/groups/${groupId}/image`, { which, remove: "on" });
 }

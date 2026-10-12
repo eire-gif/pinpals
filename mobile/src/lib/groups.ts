@@ -174,6 +174,17 @@ export function roleLabel(role: GroupRole, office: GroupOffice | null): string |
   return parts.length > 0 ? parts.join(" · ") : null;
 }
 
+/**
+ * Who may change a group's cover photo and logo (0124's group_can_style):
+ * in a society, its owner, captain or secretary; in a crew or trip, whoever
+ * runs it. Ordinary members never.
+ */
+export function canStyleGroup(kind: GroupKind, role: GroupRole | null, office: GroupOffice | null): boolean {
+  if (role === null) return false;
+  if (kind === "society") return role === "owner" || office !== null;
+  return role === "owner" || role === "admin";
+}
+
 export const GROUP_ACTIONS = [
   "view",
   "post",

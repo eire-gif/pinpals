@@ -109,6 +109,7 @@ export default function GroupsScreen() {
                 <View key={g.id} style={styles.invite}>
                   <GroupRow
                     kind={g.kind}
+                    logoUrl={g.logoUrl}
                     name={g.name}
                     detail={`${g.invitedBy ? `${g.invitedBy} invited you · ` : ""}${GROUP_KIND_INFO[g.kind].label} · ${membersLabel(g.memberCount)}`}
                     onPress={() => router.push({ pathname: "/group/[id]", params: { id: String(g.id) } })}
@@ -133,6 +134,7 @@ export default function GroupsScreen() {
                 <GroupRow
                   key={g.id}
                   kind={g.kind}
+                  logoUrl={g.logoUrl}
                   name={g.name}
                   detail={`${GROUP_KIND_INFO[g.kind].label} · ${membersLabel(g.memberCount)}${g.role === "owner" ? " · you run it" : g.role === "admin" ? " · admin" : ""}`}
                   onPress={() => router.push({ pathname: "/group/[id]", params: { id: String(g.id) } })}
@@ -155,6 +157,7 @@ export default function GroupsScreen() {
                   <GroupRow
                     key={g.id}
                     kind={g.kind}
+                    logoUrl={g.logoUrl}
                     name={g.name}
                     detail="You asked to join"
                     onPress={() => router.push({ pathname: "/group/[id]", params: { id: String(g.id) } })}

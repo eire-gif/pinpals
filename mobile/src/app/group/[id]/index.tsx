@@ -1,18 +1,21 @@
 import { useCallback, useState } from "react";
-import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
+import { ActivityIndicator, Alert, ImageBackground, Linking, Pressable, RefreshControl, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
 import { Stack, router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
+import * as ImagePicker from "expo-image-picker";
 
 import { Avatar } from "@/components/avatar";
 import { GroupIcon, RoleBadge, SectionTitle, membersLabel } from "@/components/group-bits";
 import { LoadError, StateMessage } from "@/components/state-message";
 import { useAuth } from "@/lib/auth";
 import { isOn } from "@/lib/features";
-import { GROUP_KIND_INFO, GROUP_OFFICE_LABELS, GROUP_OFFICES, groupCan, joinState, roleLabel, type GroupRole, type GroupSettings } from "@/lib/groups";
+import { GROUP_KIND_INFO, GROUP_OFFICE_LABELS, GROUP_OFFICES, canStyleGroup, groupCan, joinState, roleLabel, type GroupRole, type GroupSettings } from "@/lib/groups";
+import { PHOTO_PICKER_OPTIONS, preparePhotoForUpload } from "@/lib/photo-picking";
 import {
   canDrawFrom,
   leaveGroup,
   loadGroupPage,
+  removeGroupImage,
   removeMember,
   requestToJoin,
   respondToInvitation,
@@ -20,7 +23,9 @@ import {
   setGroupMuted,
   setMemberOffice,
   setMemberRole,
+  uploadGroupImage,
   withdrawRequest,
+  type GroupImage,
   type GroupMember,
   type GroupPage,
 } from "@/lib/groups-data";
@@ -73,6 +78,50 @@ export default function GroupScreen() {
       void load();
     }, [load])
   );
+
+  // ---- Cover photo and logo (0124) ----
+  async function pickImage(which: GroupImage, source: "camera" | "library") {
+    const permission =
+      source === "camera" ? await ImagePicker.requestCameraPermissionsAsync() : await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert(source === "camera" ? "Camera is off" : "Photos are off", "PinPals needs this to set the group's picture. You can turn it on in Settings.", [
+        { text: "Not now", style: "cancel" },
+        { text: "Open Settings", onPress: () => void Linking.openSettings() },
+      ]);
+      return;
+    }
+    // A logo is cropped square on the phone; a cover keeps its shape.
+    const options = which === "logo" ? { ...PHOTO_PICKER_OPTIONS, allowsEditing: true, aspect: [1, 1] as [number, number] } : PHOTO_PICKER_OPTIONS;
+    const result = source === "camera" ? await ImagePicker.launchCameraAsync(options) : await ImagePicker.launchImageLibraryAsync(options);
+    if (result.canceled || result.assets.length === 0) return;
+    const asset = result.assets[0];
+    await act(which, async () => {
+      const file = await preparePhotoForUpload({
+        uri: asset.uri,
+        name: asset.fileName ?? `${which}.jpg`,
+        type: asset.mimeType ?? "image/jpeg",
+        width: asset.width,
+        height: asset.height,
+      });
+      await uploadGroupImage(groupId, which, file);
+    });
+  }
+
+  function imageMenu(which: GroupImage, current: string | null) {
+    const cover = which === "cover";
+    Alert.alert(
+      cover ? "Cover photo" : "Logo",
+      cover ? "The picture across the top of the group's page — your home course, a day out." : "The group's badge, shown on its page and wherever it's listed.",
+      [
+        { text: "Take a photo", onPress: () => void pickImage(which, "camera") },
+        { text: "Choose from library", onPress: () => void pickImage(which, "library") },
+        ...(current
+          ? [{ text: cover ? "Remove the cover" : "Remove the logo", style: "destructive" as const, onPress: () => void act(which, () => removeGroupImage(groupId, which)) }]
+          : []),
+        { text: "Cancel", style: "cancel" as const },
+      ]
+    );
+  }
 
   /** Runs a change, then reloads; shows the database's message on failure. */
   async function act(key: string, fn: () => Promise<unknown>, after?: () => void) {
@@ -129,6 +178,7 @@ export default function GroupScreen() {
     full: group.memberCount >= info.maxMembers,
   });
   const detail = [info.label, membersLabel(group.memberCount), group.clubName].filter(Boolean).join(" · ");
+  const canStyle = canStyleGroup(group.kind, myRole, page.myOffice);
 
   function memberMenu(m: GroupMember) {
     if (m.id === userId) {
@@ -232,8 +282,38 @@ export default function GroupScreen() {
           />
         }
       >
-        <View style={styles.hero}>
-          <GroupIcon kind={group.kind} size={64} />
+        {group.coverUrl ? (
+          <ImageBackground source={{ uri: group.coverUrl }} style={styles.cover} imageStyle={styles.coverImage} resizeMode="cover" accessibilityIgnoresInvertColors>
+            <View style={styles.coverVeil} />
+            {canStyle ? (
+              <Pressable onPress={() => imageMenu("cover", group.coverUrl)} disabled={busy !== null} style={styles.coverButton} accessibilityRole="button" accessibilityLabel="Change the cover photo">
+                {busy === "cover" ? <ActivityIndicator size="small" color={colors.cream50} /> : <Ionicons name="camera" size={16} color={colors.cream50} />}
+                <Text style={styles.coverButtonText}>{busy === "cover" ? "Saving" : "Cover"}</Text>
+              </Pressable>
+            ) : null}
+          </ImageBackground>
+        ) : canStyle ? (
+          <Pressable onPress={() => imageMenu("cover", null)} disabled={busy !== null} style={styles.addCover} accessibilityRole="button" accessibilityLabel="Add a cover photo">
+            {busy === "cover" ? <ActivityIndicator color={colors.navy900} /> : <Ionicons name="image-outline" size={20} color={colors.navy900} />}
+            <Text style={styles.addCoverText}>{busy === "cover" ? "Saving…" : "Add a cover photo"}</Text>
+          </Pressable>
+        ) : null}
+
+        <View style={[styles.hero, group.coverUrl ? styles.heroOnCover : null]}>
+          <Pressable
+            onPress={() => imageMenu("logo", group.logoUrl)}
+            disabled={!canStyle || busy !== null}
+            style={group.coverUrl ? styles.logoRing : null}
+            accessibilityRole={canStyle ? "button" : "image"}
+            accessibilityLabel={canStyle ? "Change the group's logo" : `${group.name} logo`}
+          >
+            <GroupIcon kind={group.kind} size={group.coverUrl ? 76 : 64} logoUrl={group.logoUrl} />
+            {canStyle ? (
+              <View style={styles.logoEdit}>
+                {busy === "logo" ? <ActivityIndicator size="small" color={colors.cream50} /> : <Ionicons name="camera" size={13} color={colors.cream50} />}
+              </View>
+            ) : null}
+          </Pressable>
           <Text style={styles.name} accessibilityRole="header">
             {group.name}
           </Text>
@@ -438,6 +518,51 @@ const styles = StyleSheet.create({
   spinner: { marginTop: spacing.xl },
   body: { padding: spacing.md, paddingBottom: spacing.xl * 2, gap: spacing.sm },
   hero: { alignItems: "center", gap: 6, paddingVertical: spacing.md },
+  // The cover runs edge to edge, out of the scroll view's padding.
+  cover: { height: 190, marginHorizontal: -spacing.md, marginTop: -spacing.md, justifyContent: "flex-end" },
+  coverImage: { backgroundColor: colors.navy900 },
+  coverVeil: { position: "absolute", top: 0, right: 0, bottom: 0, left: 0, backgroundColor: "rgba(12,32,56,0.18)" },
+  coverButton: {
+    position: "absolute",
+    top: spacing.sm + 4,
+    right: spacing.md,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 12,
+    height: 32,
+    borderRadius: radii.pill,
+    backgroundColor: "rgba(12,32,56,0.55)",
+  },
+  coverButtonText: { fontFamily: fonts.bodySemi, fontSize: 13, color: colors.cream50 },
+  addCover: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.sm,
+    height: 48,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderStyle: "dashed",
+    borderColor: colors.line,
+  },
+  addCoverText: { fontFamily: fonts.bodySemi, fontSize: type.small, color: colors.navy900 },
+  // With a cover, the logo sits half over the photograph.
+  heroOnCover: { marginTop: -54, paddingTop: 0 },
+  logoRing: { padding: 4, borderRadius: 26, backgroundColor: colors.cream50 },
+  logoEdit: {
+    position: "absolute",
+    right: -4,
+    bottom: -4,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.navy900,
+    borderWidth: 2,
+    borderColor: colors.cream50,
+  },
   name: { fontFamily: fonts.display, fontSize: 26, color: colors.ink900, textAlign: "center", marginTop: spacing.xs },
   detail: { fontFamily: fonts.bodySemi, fontSize: type.small, color: colors.ink500, textAlign: "center" },
   about: { fontFamily: fonts.body, fontSize: type.body, color: colors.ink900, textAlign: "center", marginTop: spacing.xs, lineHeight: 22 },

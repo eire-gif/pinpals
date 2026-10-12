@@ -78,6 +78,7 @@ export default function FindSocietyScreen() {
           renderItem={({ item }) => (
             <GroupRow
               kind={item.kind}
+              logoUrl={item.logoUrl}
               name={item.name}
               detail={[membersLabel(item.memberCount), item.clubName].filter(Boolean).join(" · ")}
               onPress={() => router.push({ pathname: "/group/[id]", params: { id: String(item.id) } })}

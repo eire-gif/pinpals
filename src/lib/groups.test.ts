@@ -12,6 +12,7 @@ import {
   groupNameProblem,
   groupInvitePath,
   groupSlug,
+  canStyleGroup,
   isGroupOffice,
   roleLabel,
   isCreatableGroupKind,
@@ -167,5 +168,22 @@ describe("society offices (0122)", () => {
     expect(isGroupOffice("captain")).toBe(true);
     expect(isGroupOffice("secretary")).toBe(true);
     expect(isGroupOffice("treasurer")).toBe(false);
+  });
+});
+
+describe("canStyleGroup (0124)", () => {
+  it("lets a society's owner and officers change its look, and nobody else", () => {
+    expect(canStyleGroup("society", "owner", null)).toBe(true);
+    expect(canStyleGroup("society", "admin", "captain")).toBe(true);
+    expect(canStyleGroup("society", "admin", "secretary")).toBe(true);
+    expect(canStyleGroup("society", "admin", null)).toBe(false);
+    expect(canStyleGroup("society", "member", null)).toBe(false);
+    expect(canStyleGroup("society", null, null)).toBe(false);
+  });
+
+  it("lets whoever runs a crew or trip change its look", () => {
+    expect(canStyleGroup("crew", "owner", null)).toBe(true);
+    expect(canStyleGroup("trip", "admin", null)).toBe(true);
+    expect(canStyleGroup("crew", "member", null)).toBe(false);
   });
 });

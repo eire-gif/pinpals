@@ -284,7 +284,7 @@ export default function DrawFromGroup() {
                   accessibilityRole="radio"
                   accessibilityState={{ checked: on }}
                 >
-                  <GroupIcon kind={g.kind} size={28} />
+                  <GroupIcon kind={g.kind} size={28} logoUrl={g.logoUrl} />
                   <Text style={[styles.groupChipText, on && styles.groupChipTextOn]} numberOfLines={1}>
                     {g.name}
                   </Text>
