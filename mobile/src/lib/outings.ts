@@ -1,4 +1,5 @@
 import type { Club } from "@/lib/courses";
+import type { OutingKind } from "@/lib/itinerary-rules";
 import type { PaidStatus } from "@/lib/outing-rules";
 import { supabase } from "@/lib/supabase";
 
@@ -11,10 +12,17 @@ import { supabase } from "@/lib/supabase";
 export type Outing = {
   id: number;
   groupId: number;
+  /** A day out, or a trip (overnight / abroad) with an itinerary (0126). */
+  kind: OutingKind;
   title: string;
   clubId: number | null;
-  courseName: string;
+  /** A day out's course. Null on a trip: its courses are on its rounds. */
+  courseName: string | null;
   playsOn: string;
+  /** A trip's last day; null on a day out. */
+  endsOn: string | null;
+  /** A trip's place, e.g. "Vale do Lobo, Portugal". */
+  location: string | null;
   firstTee: string | null;
   details: string | null;
   entryFeeCents: number | null;
@@ -39,10 +47,13 @@ export type OutingEntry = {
 type OutingRow = {
   id: number;
   group_id: number;
+  kind: OutingKind;
   title: string;
   club_id: number | null;
-  course_name: string;
+  course_name: string | null;
   plays_on: string;
+  ends_on: string | null;
+  location: string | null;
   first_tee: string | null;
   details: string | null;
   entry_fee_cents: number | null;
@@ -52,15 +63,18 @@ type OutingRow = {
   match_day_id: number | null;
 };
 
-const OUTING = "id, group_id, title, club_id, course_name, plays_on, first_tee, details, entry_fee_cents, max_entries, status, draw_published_at, match_day_id";
+const OUTING = "id, group_id, kind, title, club_id, course_name, plays_on, ends_on, location, first_tee, details, entry_fee_cents, max_entries, status, draw_published_at, match_day_id";
 
 const toOuting = (r: OutingRow): Outing => ({
   id: r.id,
   groupId: r.group_id,
+  kind: r.kind ?? "day",
   title: r.title,
   clubId: r.club_id,
   courseName: r.course_name,
   playsOn: r.plays_on,
+  endsOn: r.ends_on,
+  location: r.location,
   firstTee: r.first_tee,
   details: r.details,
   entryFeeCents: r.entry_fee_cents,
@@ -90,7 +104,11 @@ export type OutingSummary = Outing & {
 /** A society's outings from `fromDate` on (or all past ones), soonest first. */
 export async function listOutings(groupId: number, userId: string, opts: { fromDate: string; past?: boolean }): Promise<OutingSummary[]> {
   let q = supabase.from("society_outings").select(`${OUTING}, entries:society_outing_entries(member_id, tee_group, tee_time)`).eq("group_id", groupId);
-  q = opts.past ? q.lt("plays_on", opts.fromDate).order("plays_on", { ascending: false }).limit(30) : q.gte("plays_on", opts.fromDate).order("plays_on");
+  // A trip counts as upcoming until its last day is over (0126).
+  const d = opts.fromDate;
+  q = opts.past
+    ? q.lt("plays_on", d).or(`ends_on.is.null,ends_on.lt.${d}`).order("plays_on", { ascending: false }).limit(30)
+    : q.or(`plays_on.gte.${d},ends_on.gte.${d}`).order("plays_on");
   const { data, error } = await q.overrideTypes<(OutingRow & { entries: { member_id: string; tee_group: number | null; tee_time: string | null }[] })[]>();
   if (error) fail(error, "Couldn't load the outings.");
   return (data ?? []).map((r) => {
@@ -167,7 +185,7 @@ export async function loadClub(clubId: number): Promise<Club | null> {
 export type MyTeeTime = {
   outingId: number;
   title: string;
-  courseName: string;
+  courseName: string | null;
   playsOn: string;
   teeGroup: number;
   teeTime: string | null;
@@ -192,7 +210,7 @@ export async function loadMyTeeTimes(groupId: number, userId: string, fromDate: 
       {
         id: number;
         title: string;
-        course_name: string;
+        course_name: string | null;
         plays_on: string;
         match_day_id: number | null;
         entries: { member_id: string; tee_group: number | null; tee_time: string | null; tee_position: number | null; profile: { first_name: string | null; last_name: string | null } | null }[];
@@ -225,10 +243,13 @@ export async function loadMyTeeTimes(groupId: number, userId: string, fromDate: 
 // ---------------------------------------------------------------------------
 
 export type OutingInput = {
+  kind: OutingKind;
   title: string;
   clubId: number | null;
-  courseName: string;
+  courseName: string | null;
   playsOn: string;
+  endsOn: string | null;
+  location: string | null;
   firstTee: string | null;
   details: string | null;
   entryFeeCents: number | null;
@@ -240,10 +261,13 @@ export async function saveOuting(groupId: number, outingId: number | null, input
     p_group_id: groupId,
     p_id: outingId,
     p: {
+      kind: input.kind,
       title: input.title,
       club_id: input.clubId,
       course_name: input.courseName,
       plays_on: input.playsOn,
+      ends_on: input.endsOn,
+      location: input.location,
       first_tee: input.firstTee,
       details: input.details,
       entry_fee_cents: input.entryFeeCents,
