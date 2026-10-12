@@ -1,5 +1,6 @@
 import type { Club } from "@/lib/courses";
 import type { OutingKind } from "@/lib/itinerary-rules";
+import type { ClaimMethod } from "@/lib/outing-payments";
 import type { PaidStatus } from "@/lib/outing-rules";
 import { supabase } from "@/lib/supabase";
 
@@ -23,6 +24,12 @@ export type Outing = {
   endsOn: string | null;
   /** A trip's place, e.g. "Vale do Lobo, Portugal". */
   location: string | null;
+  /** How to pay (0127): Revolut username, bank details, cash, a note. Members only. */
+  payRevtag: string | null;
+  payIban: string | null;
+  payAccountName: string | null;
+  payCash: boolean;
+  payNote: string | null;
   firstTee: string | null;
   details: string | null;
   entryFeeCents: number | null;
@@ -54,6 +61,11 @@ type OutingRow = {
   plays_on: string;
   ends_on: string | null;
   location: string | null;
+  pay_revtag: string | null;
+  pay_iban: string | null;
+  pay_account_name: string | null;
+  pay_cash: boolean | null;
+  pay_note: string | null;
   first_tee: string | null;
   details: string | null;
   entry_fee_cents: number | null;
@@ -63,7 +75,7 @@ type OutingRow = {
   match_day_id: number | null;
 };
 
-const OUTING = "id, group_id, kind, title, club_id, course_name, plays_on, ends_on, location, first_tee, details, entry_fee_cents, max_entries, status, draw_published_at, match_day_id";
+const OUTING = "id, group_id, kind, title, club_id, course_name, plays_on, ends_on, location, first_tee, details, entry_fee_cents, max_entries, status, draw_published_at, match_day_id, pay_revtag, pay_iban, pay_account_name, pay_cash, pay_note";
 
 const toOuting = (r: OutingRow): Outing => ({
   id: r.id,
@@ -75,6 +87,11 @@ const toOuting = (r: OutingRow): Outing => ({
   playsOn: r.plays_on,
   endsOn: r.ends_on,
   location: r.location,
+  payRevtag: r.pay_revtag ?? null,
+  payIban: r.pay_iban ?? null,
+  payAccountName: r.pay_account_name ?? null,
+  payCash: r.pay_cash ?? true,
+  payNote: r.pay_note ?? null,
   firstTee: r.first_tee,
   details: r.details,
   entryFeeCents: r.entry_fee_cents,
@@ -126,13 +143,15 @@ export type OutingPage = {
   entries: OutingEntry[];
   /** Your own payment; or, for officers, everyone's. Keyed by member. */
   payments: Map<string, PaidStatus>;
+  /** "I've paid" not yet confirmed (0127): your own, or for officers everyone's. */
+  claims: Map<string, ClaimMethod>;
 };
 
 export async function loadOuting(outingId: number): Promise<OutingPage | null> {
   const { data: row, error } = await supabase.from("society_outings").select(OUTING).eq("id", outingId).maybeSingle<OutingRow>();
   if (error) fail(error, "Couldn't load this outing.");
   if (!row) return null;
-  const [entries, payments] = await Promise.all([
+  const [entries, payments, claims] = await Promise.all([
     supabase
       .from("society_outing_entries")
       .select("member_id, entered_at, tee_group, tee_time, tee_position, profile:profiles(first_name, last_name, home_club, avatar_url, avatar_color)")
@@ -149,6 +168,8 @@ export async function loadOuting(outingId: number): Promise<OutingPage | null> {
         }[]
       >(),
     supabase.from("society_outing_payments").select("member_id, status").eq("outing_id", outingId).overrideTypes<{ member_id: string; status: PaidStatus }[]>(),
+    // A database without 0127 just has no claims.
+    supabase.from("society_outing_payment_claims").select("member_id, method").eq("outing_id", outingId).overrideTypes<{ member_id: string; method: ClaimMethod }[]>(),
   ]);
   if (entries.error) fail(entries.error, "Couldn't load who's in.");
   return {
@@ -165,6 +186,7 @@ export async function loadOuting(outingId: number): Promise<OutingPage | null> {
       teePosition: e.tee_position,
     })),
     payments: new Map((payments.data ?? []).map((p) => [p.member_id, p.status])),
+    claims: new Map((claims.data ?? []).map((c) => [c.member_id, c.method])),
   };
 }
 
@@ -250,6 +272,11 @@ export type OutingInput = {
   playsOn: string;
   endsOn: string | null;
   location: string | null;
+  payRevtag: string | null;
+  payIban: string | null;
+  payAccountName: string | null;
+  payCash: boolean;
+  payNote: string | null;
   firstTee: string | null;
   details: string | null;
   entryFeeCents: number | null;
@@ -268,6 +295,11 @@ export async function saveOuting(groupId: number, outingId: number | null, input
       plays_on: input.playsOn,
       ends_on: input.endsOn,
       location: input.location,
+      pay_revtag: input.payRevtag,
+      pay_iban: input.payIban,
+      pay_account_name: input.payAccountName,
+      pay_cash: input.payCash,
+      pay_note: input.payNote,
       first_tee: input.firstTee,
       details: input.details,
       entry_fee_cents: input.entryFeeCents,
@@ -306,4 +338,23 @@ export async function linkOutingMatchDay(outingId: number, matchDayId: number): 
 export async function markOutingPaid(outingId: number, memberId: string, status: Exclude<PaidStatus, "card"> | null): Promise<void> {
   const { error } = await supabase.rpc("mark_outing_paid", { p_outing_id: outingId, p_member: memberId, p_status: status });
   if (error) fail(error, "Couldn't mark that.");
+}
+
+/** "I've paid" (a method), or withdraw it (null). With memberId, an officer clears someone's claim. */
+export async function claimOutingPaid(outingId: number, method: ClaimMethod | null, memberId?: string): Promise<void> {
+  const { error } = await supabase.rpc("claim_outing_paid", { p_outing_id: outingId, p_method: method, p_member: memberId ?? null });
+  if (error) fail(error, "Couldn't save that.");
+}
+
+/** The payment details on this society's most recent outing that had any — to start a new one with. */
+export async function lastPaymentDetails(groupId: number): Promise<Pick<Outing, "payRevtag" | "payIban" | "payAccountName" | "payCash" | "payNote"> | null> {
+  const { data } = await supabase
+    .from("society_outings")
+    .select("pay_revtag, pay_iban, pay_account_name, pay_cash, pay_note")
+    .eq("group_id", groupId)
+    .or("pay_revtag.not.is.null,pay_iban.not.is.null")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle<{ pay_revtag: string | null; pay_iban: string | null; pay_account_name: string | null; pay_cash: boolean; pay_note: string | null }>();
+  return data ? { payRevtag: data.pay_revtag, payIban: data.pay_iban, payAccountName: data.pay_account_name, payCash: data.pay_cash, payNote: data.pay_note } : null;
 }

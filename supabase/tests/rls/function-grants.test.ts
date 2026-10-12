@@ -262,6 +262,8 @@ const EXPECTED: Record<string, Expectation> = {
   "save_outing_item(p_outing_id bigint, p_id bigint, p jsonb)": { anon: false, authenticated: true },
   "delete_outing_item(p_item_id bigint)": { anon: false, authenticated: true },
   "set_outing_item_people(p_item_id bigint, p_people jsonb)": { anon: false, authenticated: true },
+  // 0127 payment details and "I've paid"
+  "claim_outing_paid(p_outing_id bigint, p_method text, p_member uuid)": { anon: false, authenticated: true },
   // A trigger: leaving a trip takes you off its flights, rooms and groups.
   "outing_entry_left()": { anon: false, authenticated: false },
 
