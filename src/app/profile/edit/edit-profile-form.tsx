@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import ClubCombobox from "@/components/club-combobox";
 import { COUNTRIES, regionsForCountry } from "@/lib/regions";
+import { membershipLabel } from "@/lib/membership-number";
 import MemberAvatar from "@/components/member-avatar";
 import { ALLOWED_AVATAR_TYPES } from "@/lib/avatar";
 import { shrinkForUpload } from "@/lib/images/shrink-for-upload";
@@ -197,43 +198,9 @@ export default function EditProfileForm({
           )}
         </div>
 
-        <div className="grid gap-1.5 min-w-0">
-          <label htmlFor="county" className="text-[13.5px] font-bold">
-            {country === "scotland"
-              ? "Council area you play in most"
-              : country === "wales"
-                ? "Area you play in most"
-                : country === "spain"
-                  ? "Province you play in most"
-                  : country === "portugal"
-                    ? "Region you play in most"
-                    : "County you play in most"}
-          </label>
-          {/* Keyed on country so React rebuilds the select when the country
-              changes — otherwise a defaultValue of "Kerry" would survive a
-              switch to Scotland as a stale selection in a list that no longer
-              contains it. */}
-          <select
-            key={country}
-            id="county"
-            name="county"
-            defaultValue={regions.includes(defaultValues.county) ? defaultValues.county : ""}
-            className="w-full px-3.5 py-3 rounded-lg border-[1.5px] border-line focus:outline-none focus:border-green-600 bg-surface"
-          >
-            <option value="">
-              {country === "scotland"
-                ? "Select a council area"
-                : country === "spain"
-                  ? "Select a province"
-                  : country === "portugal"
-                    ? "Select a region"
-                    : "Select a county"}
-            </option>
-            {regions.map((c) => (
-              <option key={c} value={c}>{c}</option>
-            ))}
-          </select>
-        </div>
+        {/* Country only (Oct 2026): no county picker. A county already saved
+            is kept while the country stays the same, and dropped if it changes. */}
+        <input type="hidden" name="county" value={country === defaultValues.country && regions.includes(defaultValues.county) ? defaultValues.county : ""} />
       </div>
 
       <div className="grid gap-1.5 min-w-0">
@@ -245,8 +212,9 @@ export default function EditProfileForm({
 
       <div className="grid gap-1.5 min-w-0">
         <label htmlFor="guiNumber" className="text-[13.5px] font-bold">
-          GUI / Golf Ireland membership number <span className="font-normal text-ink-500">(optional)</span>
+          {membershipLabel(country).title} <span className="font-normal text-ink-500">(optional)</span>
         </label>
+        {membershipLabel(country).aka ? <span className="text-xs text-ink-500">{membershipLabel(country).aka}</span> : null}
         <input id="guiNumber" name="guiNumber" defaultValue={defaultValues.guiNumber}
           placeholder="e.g. 1234567"
           className="w-full px-3.5 py-3 rounded-lg border-[1.5px] border-line focus:outline-none focus:border-green-600" />
