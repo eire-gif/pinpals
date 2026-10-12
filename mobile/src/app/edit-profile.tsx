@@ -19,6 +19,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import * as ImagePicker from "expo-image-picker";
 
 import { Chip, ChipGroup, Section } from "@/components/form-bits";
+import { membershipLabel } from "@/lib/membership-number";
 import { useAuth } from "@/lib/auth";
 import { ApiError, type UploadFile } from "@/lib/api";
 import {
@@ -27,7 +28,7 @@ import {
   saveMyProfile,
   type ProfileEdits,
 } from "@/lib/profile";
-import { COUNTRY_NAMES, regionsFor, searchClubs, type ClubHit } from "@/lib/tee-time-post";
+import { COUNTRY_NAMES, searchClubs, type ClubHit } from "@/lib/tee-time-post";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 import { KeyboardDoneButton } from "@/components/keyboard";
 import { PHOTO_PICKER_OPTIONS, preparePhotoForUpload } from "@/lib/photo-picking";
@@ -64,7 +65,6 @@ export default function EditProfileScreen() {
   const [clubName, setClubName] = useState("");
   const [clubQuery, setClubQuery] = useState("");
   const [clubHits, setClubHits] = useState<ClubHit[]>([]);
-  const [counties, setCounties] = useState<string[]>([]);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
 
   useEffect(() => {
@@ -99,16 +99,6 @@ export default function EditProfileScreen() {
       live = false;
     };
   }, [userId]);
-
-  // Counties are fetched rather than bundled — `clubs.region` is null for
-  // most clubs outside England, so this list cannot be derived locally.
-  useEffect(() => {
-    let live = true;
-    void regionsFor(form.country).then((list) => live && setCounties(list));
-    return () => {
-      live = false;
-    };
-  }, [form.country]);
 
   // Searched on a delay, not a keystroke: a club name is five or six
   // characters before it means anything, and a query per letter is a query
@@ -361,18 +351,8 @@ export default function EditProfileScreen() {
             ))}
           </ChipGroup>
 
-          {counties.length > 0 ? (
-            <ChipGroup>
-              {counties.map((name) => (
-                <Chip
-                  key={name}
-                  label={name}
-                  selected={form.county === name}
-                  onPress={() => set({ county: form.county === name ? "" : name })}
-                />
-              ))}
-            </ChipGroup>
-          ) : null}
+          {/* Country only (Oct 2026): no county picker. A county already
+              saved is kept until the country changes. */}
         </Section>
 
         <Section title="Handicap">
@@ -426,7 +406,10 @@ export default function EditProfileScreen() {
           ) : null}
         </Section>
 
-        <Section title="GUI membership number" hint="Optional. Never shown to other members.">
+        <Section
+          title={membershipLabel(form.country).title}
+          hint={[membershipLabel(form.country).aka, "Optional. Never shown to other members."].filter(Boolean).join(". ")}
+        >
           <Field
             label="Number"
             value={form.guiNumber}
