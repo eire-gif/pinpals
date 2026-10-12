@@ -20,6 +20,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { appRouteFor } from "@/lib/alert-routes";
+import { applyUpdateAtLaunch } from "@/lib/app-updates";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { hrefFromNotification, registerForPush } from "@/lib/push";
 import { connectWidget } from "@/lib/widgets";
@@ -222,6 +223,11 @@ function RootNavigator() {
 }
 
 export default function RootLayout() {
+  // A new over-the-air update goes live at this launch, not the next one.
+  useEffect(() => {
+    void applyUpdateAtLaunch();
+  }, []);
+
   return (
     // GestureHandlerRootView explicitly, rather than relying on expo-router
     // providing one. Swipe-to-delete in the inbox is the first thing in the
