@@ -1,6 +1,6 @@
 # Scorecard certification
 
-Oct 2026. **Status: built; 0128 to be applied to production; `scorecardCertification` flag on in this branch, live once merged and published with `eas update`. The website parts (notify route, badge on the public card page) go live when Vercel deploys `main`. No native build: it uses expo-secure-store and expo-device, both already in the binary.**
+Oct 2026. **Status: 0128 applied to production (12 Oct 2026, comment-free, one part; RLS, grants and HMAC checked there); `scorecardCertification` flag on in this branch (PR #193), live once merged and published with `eas update`. The website parts (notify route, badge on the public card page) go live when Vercel deploys `main`. No native build: it uses expo-secure-store and expo-device, both already in the binary.**
 
 A playing partner certifies your card, the way a marker signs a paper one. The card then shows:
 
