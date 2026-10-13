@@ -382,3 +382,27 @@ export async function notifyInviteCancelled(
     }
   });
 }
+
+/**
+ * Someone in a round invited you to fill its open place (0132). The link is
+ * the round's signed share link from the person who asked, so it opens the
+ * round in the app and, from an email, on the website — where there is no
+ * other page for a single tee time.
+ */
+export async function notifyTeeTimeInvited(
+  admin: SupabaseClient,
+  input: { memberId: string; inviterId: string; invite: InviteRef; link: string }
+): Promise<void> {
+  await safeNotify("tee-time-invited", async () => {
+    const inviterName = await memberNameFor(admin, input.inviterId);
+    await notifyUser(admin, {
+      userId: input.memberId,
+      type: "tee_time_invited",
+      title: `${inviterName} invited you to play`,
+      body: `There's a place for you at ${whenAt(input.invite)}. Ask for it and the host will confirm.`,
+      href: input.link,
+      data: { inviteId: input.invite.inviteId },
+      dedupeKey: buildDedupeKey(["tee_time", input.invite.inviteId, "invited", input.memberId]),
+    });
+  });
+}

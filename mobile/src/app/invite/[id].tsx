@@ -188,6 +188,8 @@ export default function InviteScreen() {
   // needed" is one glance rather than two numbers to add up.
   const others = players.filter((p) => p.id !== invite.member_id);
   const openSeats = Math.max(0, invite.spaces_available);
+  // The host or anyone playing can fill a place, until the day is over (0132).
+  const canFill = (isMine || playing) && openSeats > 0 && invite.status === "open" && invite.play_date >= todayIso();
 
   return (
     <>
@@ -319,17 +321,38 @@ export default function InviteScreen() {
             );
           })}
 
-          {Array.from({ length: openSeats }).map((_, i) => (
-            <View key={`open-${i}`} style={[styles.seat, styles.seatOpen]}>
-              <View style={styles.openAvatar}>
-                <Ionicons name="add" size={22} color={colors.green700} />
+          {/* An open place (0132): the host or anyone playing taps it to
+              invite a PinPal or send a link. Everyone else just sees it. */}
+          {Array.from({ length: openSeats }).map((_, i) =>
+            canFill ? (
+              <Pressable
+                key={`open-${i}`}
+                style={({ pressed }) => [styles.seat, styles.seatOpen, pressed && styles.pressed]}
+                onPress={() => router.push({ pathname: "/round-invite", params: { id: String(inviteId) } })}
+                accessibilityRole="button"
+                accessibilityLabel="Open place. Invite a PinPal or send a link"
+              >
+                <View style={styles.openAvatar}>
+                  <Ionicons name="person-add" size={20} color={colors.green700} />
+                </View>
+                <View style={styles.seatText}>
+                  <Text style={styles.openName}>Open place</Text>
+                  <Text style={styles.openInvite}>Invite a PinPal or send a link</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={colors.green700} />
+              </Pressable>
+            ) : (
+              <View key={`open-${i}`} style={[styles.seat, styles.seatOpen]}>
+                <View style={styles.openAvatar}>
+                  <Ionicons name="add" size={22} color={colors.green700} />
+                </View>
+                <View style={styles.seatText}>
+                  <Text style={styles.openName}>Open place</Text>
+                  <Text style={styles.seatSub}>Waiting for a golfer</Text>
+                </View>
               </View>
-              <View style={styles.seatText}>
-                <Text style={styles.openName}>Open place</Text>
-                <Text style={styles.seatSub}>Waiting for a golfer</Text>
-              </View>
-            </View>
-          ))}
+            )
+          )}
         </View>
 
         {invite.notes ? (
@@ -739,6 +762,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: colors.green100,
   },
+  openInvite: { fontFamily: fonts.bodySemi, fontSize: 14, color: colors.green700 },
   openName: { fontFamily: fonts.bodySemi, fontSize: 16, color: colors.green800 },
 
   notes: {

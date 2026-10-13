@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { Platform } from "react-native";
 import { consumePendingInvite } from "@/lib/find-pinpals";
 import { consumePendingGroupInvite } from "@/lib/groups-data";
+import { consumePendingTeeLink } from "@/lib/tee-time-sharing";
 import { useFonts } from "expo-font";
 import {
   PlayfairDisplay_700Bold,
@@ -80,7 +81,8 @@ function RootNavigator() {
     const onAuthForm = first === "login" || first === "signup";
     // card-link: a shared scorecard (pinpals.ie/c/…) opens for anyone.
     // join: a member's invite link or QR code (Find PinPals, 0118).
-    const signedOutAllowed = onAuthForm || first === "auth-confirm" || first === "card-link" || first === "join";
+    // tee-link: a shared tee time (0132).
+    const signedOutAllowed = onAuthForm || first === "auth-confirm" || first === "card-link" || first === "join" || first === "tee-link";
 
     if (!session && !signedOutAllowed) {
       router.replace("/login");
@@ -113,6 +115,10 @@ function RootNavigator() {
       if (owner) router.push({ pathname: "/member/[id]", params: { id: owner } });
     });
     // A group's invite link opened before signing in (app/join-group.tsx).
+    // A shared tee time opened before signing in (app/tee-link.tsx).
+    void consumePendingTeeLink().then((inviteId) => {
+      if (inviteId) router.push({ pathname: "/invite/[id]", params: { id: String(inviteId) } });
+    });
     void consumePendingGroupInvite().then((groupId) => {
       if (groupId) router.push({ pathname: "/group/[id]", params: { id: String(groupId) } });
     });

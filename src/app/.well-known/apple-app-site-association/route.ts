@@ -92,6 +92,7 @@ const ASSOCIATION = {
           { "/": "/live/*", comment: "Live scoring: a scorecard or a match-day board." },
           { "/": "/signup", comment: "Invite friends — the app's sign-up, or Home if signed in." },
           { "/": "/c/*", comment: "A shared scorecard." },
+          { "/": "/t/*", comment: "A shared tee time with an open place (signed link)." },
           { "/": "/join/*", comment: "A member's invite link or QR code — connects in the app." },
         ],
       },
