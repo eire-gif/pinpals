@@ -5,8 +5,10 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { StateMessage } from "@/components/state-message";
+import { HoleArt } from "@/components/guide-art";
 import { Choices, Crumbs, LookFor, TONES, Tip, WhoBadge } from "@/components/guide-bits";
-import { guideById, type GuideStep } from "@/lib/guide";
+import { guideById, isAudience, resolveGuide, type Audience, type ResolvedGuide } from "@/lib/guide";
+import { useGuideAudience } from "@/lib/guide-audience";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 
 /**
@@ -15,14 +17,30 @@ import { colors, fonts, radii, spacing, type } from "@/lib/theme";
  * A step shows where to go, what it looks like when you get there, and —
  * where the screen doesn't need a group picked first — a button that goes
  * straight there. The last page is the "done" page, offering the next guide.
+ *
+ * Written for friends, a golf trip or a society (lib/guide.ts): the `for`
+ * param when the guides page opened it, else the member's saved choice.
+ * All guides and Finish go back to the guides page itself — not just one
+ * screen back, which after "Next guide" or a guide link is somewhere else.
  */
 export default function GuideScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
-  const guide = guideById(String(id));
+  const { id, for: forParam } = useLocalSearchParams<{ id: string; for?: string }>();
+  const saved = useGuideAudience();
+  const raw = guideById(String(id));
+  const wanted: Audience = isAudience(forParam) ? forParam : (saved.audience ?? "society");
+  // A guide that isn't written for this audience (a society-only one, from
+  // a link) still opens — as written for whoever it is for.
+  const guide: ResolvedGuide | null = raw ? (resolveGuide(raw, wanted) ?? resolveGuide(raw, raw.audiences?.[0] ?? "society")) : null;
+  const audience: Audience = raw && resolveGuide(raw, wanted) ? wanted : (raw?.audiences?.[0] ?? wanted);
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const pager = useRef<ScrollView>(null);
   const [page, setPage] = useState(0);
+
+  // Without a `for`, wait for the saved choice so the steps don't change under them.
+  if (!isAudience(forParam) && !saved.ready) {
+    return <View style={styles.fill} />;
+  }
 
   if (!guide) {
     return (
@@ -36,7 +54,10 @@ export default function GuideScreen() {
   const tone = TONES[guide.tone];
   const total = guide.steps.length;
   const pages = total + 1; // + the "done" page
-  const next = guide.next ? guideById(guide.next) : undefined;
+  const nextRaw = guide.next ? guideById(guide.next) : undefined;
+  const next = nextRaw ? resolveGuide(nextRaw, audience) : null;
+  // Back to the guides page if it is behind us; otherwise this screen becomes it.
+  const allGuides = () => router.dismissTo("/guide");
 
   const goTo = (p: number) => {
     const clamped = Math.max(0, Math.min(pages - 1, p));
@@ -82,7 +103,7 @@ export default function GuideScreen() {
           <Text style={styles.doneTitle}>That&apos;s it</Text>
           <Text style={styles.body}>{`You know how to ${guide.title.charAt(0).toLowerCase()}${guide.title.slice(1)}. Swipe back any time to check a step.`}</Text>
           {next ? (
-            <Pressable style={styles.nextCard} onPress={() => router.replace({ pathname: "/guide/[id]", params: { id: next.id } })} accessibilityRole="button" accessibilityLabel={`Next guide: ${next.title}`}>
+            <Pressable style={styles.nextCard} onPress={() => router.replace({ pathname: "/guide/[id]", params: { id: next.id, for: audience } })} accessibilityRole="button" accessibilityLabel={`Next guide: ${next.title}`}>
               <View style={[styles.nextIcon, { backgroundColor: TONES[next.tone].bg }]}>
                 <Ionicons name={next.icon} size={22} color={TONES[next.tone].ink} />
               </View>
@@ -93,7 +114,7 @@ export default function GuideScreen() {
               <Ionicons name="chevron-forward" size={20} color={colors.ink500} />
             </Pressable>
           ) : null}
-          <Pressable style={styles.allLink} onPress={() => router.back()} accessibilityRole="button">
+          <Pressable style={styles.allLink} onPress={allGuides} accessibilityRole="button">
             <Text style={styles.allLinkText}>All guides</Text>
           </Pressable>
         </ScrollView>
@@ -105,7 +126,7 @@ export default function GuideScreen() {
           <Text style={styles.navText}>Back</Text>
         </Pressable>
         {done ? (
-          <Pressable style={[styles.navBtn, styles.navMain]} onPress={() => router.back()} accessibilityRole="button">
+          <Pressable style={[styles.navBtn, styles.navMain]} onPress={allGuides} accessibilityRole="button">
             <Text style={[styles.navText, styles.navMainText]}>Finish</Text>
           </Pressable>
         ) : (
@@ -119,7 +140,7 @@ export default function GuideScreen() {
   );
 }
 
-function StepPage({ step, n, width, toneBg, toneInk }: { step: GuideStep; n: number; width: number; toneBg: string; toneInk: string }) {
+function StepPage({ step, n, width, toneBg, toneInk }: { step: ResolvedGuide["steps"][number]; n: number; width: number; toneBg: string; toneInk: string }) {
   return (
     <ScrollView style={{ width }} contentContainerStyle={styles.page}>
       <View style={styles.head}>
@@ -135,6 +156,7 @@ function StepPage({ step, n, width, toneBg, toneInk }: { step: GuideStep; n: num
       {step.who ? <WhoBadge who={step.who} /> : null}
       <Text style={styles.body}>{step.body}</Text>
       {step.choices ? <Choices choices={step.choices} /> : null}
+      {step.art ? <HoleArt art={step.art} /> : null}
       {step.look ? <LookFor controls={step.look} /> : null}
       {step.tip ? <Tip text={step.tip} /> : null}
       {step.go ? (

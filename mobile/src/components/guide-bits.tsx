@@ -2,7 +2,8 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { router } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
-import { guideById, type Guide, type GuideChoice, type GuideControl, type GuideCrumb } from "@/lib/guide";
+import { guideById, resolveGuide, type Guide, type GuideChoice, type GuideControl, type GuideCrumb } from "@/lib/guide";
+import { useGuideAudience } from "@/lib/guide-audience";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 
 /**
@@ -131,26 +132,31 @@ export function Tip({ text }: { text: string }) {
 }
 
 /**
- * "New here? How to …" — a slim card that opens one guide, for the screens
- * where a first-timer is most likely to be lost.
+ * "New here? …" — a slim card for the screens where a first-timer is most
+ * likely to be lost. With a guide id it opens that guide, written for the
+ * member's saved choice of friends / trip / society; without one it opens
+ * the guides page, where they choose.
  */
-export function GuideLink({ id, lead = "New here?" }: { id: string; lead?: string }) {
-  const g = guideById(id);
-  if (!g) return null;
-  const tone = TONES[g.tone];
+export function GuideLink({ id, lead = "New here?", title }: { id?: string; lead?: string; title?: string }) {
+  const { audience } = useGuideAudience();
+  const g = id ? guideById(id) : undefined;
+  if (id && !g) return null;
+  const resolved = g ? resolveGuide(g, audience ?? "society") ?? resolveGuide(g, "friends") : null;
+  const tone = TONES[g?.tone ?? "green"];
+  const label = title ?? (resolved ? `${resolved.title} · ${resolved.steps.length} quick steps` : "How-to guides");
   return (
     <Pressable
       style={({ pressed }) => [styles.guideLink, pressed && { opacity: 0.85 }]}
-      onPress={() => router.push({ pathname: "/guide/[id]", params: { id } })}
+      onPress={() => (g ? router.push({ pathname: "/guide/[id]", params: { id: g.id } }) : router.push("/guide"))}
       accessibilityRole="button"
-      accessibilityLabel={`${lead} Open the guide: ${g.title}, ${g.steps.length} steps`}
+      accessibilityLabel={`${lead} ${label}`}
     >
       <View style={[styles.guideLinkIcon, { backgroundColor: tone.bg }]}>
         <Ionicons name="book" size={18} color={tone.ink} />
       </View>
       <View style={{ flex: 1 }}>
         <Text style={styles.guideLinkLead}>{lead}</Text>
-        <Text style={styles.guideLinkTitle}>{`${g.title} · ${g.steps.length} quick steps`}</Text>
+        <Text style={styles.guideLinkTitle}>{label}</Text>
       </View>
       <Ionicons name="chevron-forward" size={18} color={colors.ink500} />
     </Pressable>

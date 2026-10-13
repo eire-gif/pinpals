@@ -148,7 +148,7 @@ export default function LiveScoringHub() {
             onPress={() => router.push("/live/day/group")}
           />
         ) : null}
-        {isOn("groups") ? <GuideLink id="round" lead="First time?" /> : null}
+        {isOn("groups") ? <GuideLink id="live" lead="First time?" /> : null}
       </View>
 
       {failed ? (

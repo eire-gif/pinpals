@@ -103,7 +103,7 @@ export default function GroupsScreen() {
             </Pressable>
           </View>
 
-          <GuideLink id="society" />
+          <GuideLink title="How groups work — for friends, trips or societies" />
 
           {data && data.invitations.length > 0 ? (
             <>
