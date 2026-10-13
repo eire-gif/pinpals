@@ -4,7 +4,7 @@ import { OPERATOR, SUPERVISORY_AUTHORITY, operatorFullDescription } from "./oper
 /**
  * Pinpals Privacy Policy, v1.1 — the Article 13 notice.
  *
- * 1.1 (13 Oct 2026): verified mobile numbers and sharing them with a group's
+ * 1.1 (13 Oct 2026): mobile numbers and sharing them with a group's
  * officers; groups, societies, events, live scoring and shot positions; the
  * hole map's satellite imagery and the phone's location; push notifications;
  * the full list of processors; Download my data; two-step sign-in for staff;
@@ -51,7 +51,7 @@ export const PRIVACY: LegalDocument = {
     "Your mobile number is seen only by the groups you choose to share it with. Your date of birth and Golf Ireland number are never shown. Your handicap shows only if you switch it on — and to the people who run a society you join.",
     "We use it to run your account, the marketplace and tee times — not to build a profile of you and not to sell to anyone.",
     "Marketing email is a separate, optional tick. You can switch it off any time, in one click, and we'll never bundle it into agreeing to the Terms.",
-    "Supabase, Vercel, Stripe, Resend, Expo, our text-message provider and Google Maps process data for us, each named in section 5. Stripe handles card details — we never see them.",
+    "Supabase, Vercel, Stripe, Resend, Expo and Google Maps process data for us, each named in section 5. Stripe handles card details — we never see them.",
     "You can download a copy of your data yourself, correct it, or delete your account — and you can complain to the Data Protection Commission.",
   ],
   sections: [
@@ -84,7 +84,7 @@ export const PRIVACY: LegalDocument = {
         },
         {
           kind: "p",
-          text: "Optionally: how you heard about us; and a mobile number, which we check by texting you a code. You can use it to sign in with a text code instead of your password, and choose groups to share it with.",
+          text: "Optionally: how you heard about us; and a mobile number, which you can choose to share with your groups.",
         },
         {
           kind: "p",
@@ -192,7 +192,7 @@ export const PRIVACY: LegalDocument = {
         },
         {
           kind: "p",
-          text: "To check your mobile number and let you sign in with it — necessary to perform our contract, since you asked for it. To share it with a group — only with your consent, given and withdrawn group by group.",
+          text: "To keep your mobile number — because you asked us to. To share it with a group — only with your consent, given and withdrawn group by group.",
         },
         {
           kind: "p",
@@ -223,7 +223,6 @@ export const PRIVACY: LegalDocument = {
             "Vercel — hosting for the website itself, which also keeps short-lived technical request logs.",
             "Stripe — payment processing and seller payouts. Stripe handles card and bank details directly and acts as its own controller for parts of that, under its own privacy policy.",
             "Resend — sending account, notification and (if you have opted in) newsletter email.",
-            "Our text-message provider (Twilio) — sending the codes that check your mobile and sign you in. It receives your number and the code, nothing else.",
             "Expo, with Apple and Google — delivering push notifications to your phone. They receive your device's push token and the alert's text.",
             "Google Maps Platform — the satellite imagery on the hole map. Your phone asks Google for the map tiles of the course you are looking at; Google sees your device's internet address, not who you are.",
           ],
@@ -290,7 +289,7 @@ export const PRIVACY: LegalDocument = {
         },
         {
           kind: "p",
-          text: "Access by our staff is limited to the people who need it, needs a second step at sign-in (a code from an authenticator app), and administrative actions are recorded in an audit log. You can turn on signing in with a text code to your verified mobile.",
+          text: "Access by our staff is limited to the people who need it, needs a second step at sign-in (a code from an authenticator app), and administrative actions are recorded in an audit log.",
         },
         {
           kind: "p",
