@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { withPrivateDetails } from "@/lib/member-private";
 import type { ConnectionProfile, ConnectionWithProfiles, InterestWithDetails, MyTeeTimeRequest, Profile, TeeTimeInvite } from "@/lib/types";
 import { initials } from "@/lib/format";
 import { profileCompletion } from "@/lib/profile";
@@ -184,11 +185,13 @@ export default async function DashboardPage({
 
   if (!user) redirect("/login");
 
-  const { data: profile } = await supabase
+  const { data: shared } = await supabase
     .from("profiles")
     .select("*")
     .eq("id", user.id)
     .single<Profile>();
+  // Their own handicap and membership number — owner-only (0133).
+  const profile = await withPrivateDetails(supabase, user.id, shared);
 
   const { data: myInvites } = await supabase
     .from("tee_time_invites")

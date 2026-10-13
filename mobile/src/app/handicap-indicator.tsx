@@ -29,7 +29,7 @@ export default function HandicapIndicatorScreen() {
       const [s, list, me] = await Promise.all([
         loadMyHandicapIndicator(),
         loadMyIndicatorCards(),
-        supabase.from("profiles").select("handicap").eq("id", userId).maybeSingle<{ handicap: number | null }>(),
+        supabase.from("member_private").select("handicap").eq("member_id", userId).maybeSingle<{ handicap: number | null }>(),
       ]);
       setSummary(s);
       setCards(list);

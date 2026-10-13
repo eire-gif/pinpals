@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { withPrivateDetails } from "@/lib/member-private";
 import type { Profile } from "@/lib/types";
 import { initials } from "@/lib/format";
 import { countryName } from "@/lib/regions";
@@ -18,11 +19,13 @@ export default async function ProfilePage({
 
   if (!user) redirect("/login");
 
-  const { data: profile } = await supabase
+  const { data: shared } = await supabase
     .from("profiles")
     .select("*")
     .eq("id", user.id)
     .single<Profile>();
+  // Their own handicap even while hidden from others — member_private (0133).
+  const profile = await withPrivateDetails(supabase, user.id, shared);
 
   const name = profile ? `${profile.first_name} ${profile.last_name}` : "Golfer";
 

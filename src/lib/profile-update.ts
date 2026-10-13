@@ -133,10 +133,8 @@ export async function applyProfileUpdate(
       home_club_id: homeClubId,
       country,
       county: county || null,
-      handicap,
       handicap_visible: handicapVisible,
       bio: bio || null,
-      gui_membership_number: guiNumber || null,
       // Omitted entirely when the member neither uploaded nor removed a
       // photo, so an ordinary save can never blank an existing one.
       ...(avatarUrl !== undefined ? { avatar_url: avatarUrl } : {}),
@@ -145,6 +143,19 @@ export async function applyProfileUpdate(
 
   if (error) {
     return { error: error.message };
+  }
+
+  // ============ Handicap and membership number ============
+  // Owner-only, in member_private (0133). Written after the profile so the
+  // shared copy others see follows the "show my handicap" choice just made.
+  const { error: privateError } = await supabase
+    .from("member_private")
+    .upsert(
+      { member_id: userId, handicap, gui_membership_number: guiNumber || null, updated_at: new Date().toISOString() },
+      { onConflict: "member_id" }
+    );
+  if (privateError) {
+    return { error: privateError.message };
   }
 
   // ============ Date of birth ============

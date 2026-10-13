@@ -25,6 +25,7 @@ import { inviteFriends } from "@/lib/invite-friends";
 import { isSuperAdmin } from "@/lib/admin";
 import { supabase } from "@/lib/supabase";
 import { bestOfLabel, comparedWithOwn, indicatorLabel } from "@/lib/handicap-indicator";
+import { loadMyPrivate } from "@/lib/profile";
 import { loadMyHandicapIndicator, type HandicapIndicator } from "@/lib/scorecards";
 import { listMyTrips, type MyTrip } from "@/lib/itinerary";
 import { countdownLabel, tripBadge, tripRangeLabel } from "@/lib/itinerary-rules";
@@ -68,7 +69,9 @@ export default function ProfileScreen() {
     const base = "first_name, last_name, home_club, county, handicap, avatar_url, avatar_color";
     let { data, error } = await supabase.from("profiles").select(`${base}, cover_url`).eq("id", session.user.id).maybeSingle().overrideTypes<Profile>();
     if (error) ({ data } = await supabase.from("profiles").select(base).eq("id", session.user.id).maybeSingle().overrideTypes<Profile>());
-    setProfile(data);
+    // Your own handicap even while hidden from others — member_private (0133).
+    const mine = await loadMyPrivate(session.user.id).catch(() => null);
+    setProfile(data ? { ...data, handicap: mine?.handicap ?? data.handicap } : data);
 
     // Failure here must not stop the profile rendering: the deletion row is
     // the least important thing on this screen right up until it is the only

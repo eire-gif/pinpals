@@ -36,14 +36,10 @@
 //   revoke all on function public.<fn>(<args>) from public, anon, authenticated;
 //   grant execute on function public.<fn>(<args>) to <only what needs it>;
 //
-// KNOWN-ACCEPTED ODDITY, recorded rather than silently tolerated:
-// handle_new_user(), sync_denormalised_club_names() and validate_article_image()
-// are TRIGGER functions that are nonetheless executable by anon. Calling a
-// trigger function directly over PostgREST fails at runtime ("trigger functions
-// can only be called as triggers"), so this is noise rather than an opening —
-// but they have no business being callable and revoking them is a tidy-up worth
-// doing in some future migration. They are marked `triggerFn: true` below so
-// that clean-up can be spotted and this list updated in one place.
+// Trigger functions: handle_new_user(), sync_denormalised_club_names() and
+// validate_article_image() used to be executable by anon (noise rather than an
+// opening — a trigger function can't be called directly). 0133 revoked them;
+// every trigger function is now unreachable from a browser.
 
 import { describe, it, expect, afterAll } from "vitest";
 import { pool, closePool } from "./harness";
@@ -53,8 +49,6 @@ afterAll(closePool);
 type Expectation = {
   anon: boolean;
   authenticated: boolean;
-  /** A trigger function — see the note above. Documentation only. */
-  triggerFn?: true;
 };
 
 // Keyed by `proname(pg_get_function_identity_arguments(oid))`, exactly as the
@@ -84,10 +78,14 @@ const EXPECTED: Record<string, Expectation> = {
     authenticated: true,
   },
 
-  // --- Trigger functions that are nonetheless anon-executable. See the note.
-  "handle_new_user()": { anon: true, authenticated: true, triggerFn: true },
-  "sync_denormalised_club_names()": { anon: true, authenticated: true, triggerFn: true },
-  "validate_article_image()": { anon: true, authenticated: true, triggerFn: true },
+  // --- Trigger functions — revoked from both roles in 0133. The last three
+  // --- keep handicap and membership number in member_private (owner-only).
+  "handle_new_user()": { anon: false, authenticated: false },
+  "sync_denormalised_club_names()": { anon: false, authenticated: false },
+  "validate_article_image()": { anon: false, authenticated: false },
+  "profiles_private_fields()": { anon: false, authenticated: false },
+  "profiles_private_row()": { anon: false, authenticated: false },
+  "member_private_sync()": { anon: false, authenticated: false },
 
   // --- Signed-in members only. Each is safe to expose because it either takes
   // --- no caller-controlled identity, or derives identity from auth.uid().

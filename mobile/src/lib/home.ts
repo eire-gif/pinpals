@@ -70,15 +70,15 @@ async function profileCompletion(userId: string): Promise<number | null> {
   // The columns are listed rather than joined from COMPLETION_FIELDS so the
   // generated types can resolve them; the array below is still the single
   // list that decides the score.
-  const { data, error } = await supabase
-    .from("profiles")
-    .select("home_club, county, handicap, bio, gui_membership_number")
-    .eq("id", userId)
-    .maybeSingle<Record<string, unknown>>();
+  // Handicap and membership number are yours alone (member_private, 0133).
+  const [{ data, error }, { data: mine }] = await Promise.all([
+    supabase.from("profiles").select("home_club, county, bio").eq("id", userId).maybeSingle<Record<string, unknown>>(),
+    supabase.from("member_private").select("handicap, gui_membership_number").eq("member_id", userId).maybeSingle<Record<string, unknown>>(),
+  ]);
 
   if (error || !data) return null;
 
-  const row = data;
+  const row: Record<string, unknown> = { ...data, ...(mine ?? {}) };
   const filled = COMPLETION_FIELDS.filter((field) => {
     const value = row[field];
     return value !== null && value !== undefined && value !== "";
