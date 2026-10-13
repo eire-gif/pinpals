@@ -135,15 +135,76 @@ export default function ResultsScreen() {
   const current: ResultsSettings = settings ?? DEFAULT_SETTINGS;
 
   // Save the organiser's settings as they change (draft survives).
+  //
+  // Debounced, but never dropped: leaving the screen (blur or unmount)
+  // sends whatever is still waiting, where it used to cancel it — a change
+  // made in the last 600 ms before tapping Back was silently lost. The
+  // status is shown on screen so the organiser knows it's safe to leave.
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pending = useRef<ResultsSettings | null>(null);
+  const [save, setSave] = useState<SaveStatus>({ state: "idle" });
+  const flush = useCallback(async (): Promise<boolean> => {
+    if (saveTimer.current) {
+      clearTimeout(saveTimer.current);
+      saveTimer.current = null;
+    }
+    const next = pending.current;
+    if (!next) return true;
+    pending.current = null;
+    setSave({ state: "saving" });
+    try {
+      await saveResultsSettings(dayId, next);
+      if (!pending.current) setSave({ state: "saved", at: new Date() });
+      return true;
+    } catch {
+      // Keep it to try again, unless a newer change has replaced it.
+      pending.current = pending.current ?? next;
+      setSave({ state: "failed" });
+      return false;
+    }
+  }, [dayId]);
   const change = (next: ResultsSettings) => {
     setSettings(next);
+    pending.current = next;
+    setSave({ state: "saving" });
     if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => void saveResultsSettings(dayId, next).catch(() => undefined), 600);
+    saveTimer.current = setTimeout(() => void flush(), 600);
   };
-  useEffect(() => () => {
-    if (saveTimer.current) clearTimeout(saveTimer.current);
-  }, []);
+  useFocusEffect(
+    useCallback(
+      () => () => {
+        void flush();
+      },
+      [flush]
+    )
+  );
+  useEffect(() => () => void flush(), [flush]);
+
+  /** Where the results will show, saved straight away before the first
+   *  publish (the call only files it on the draft); once they're out, a
+   *  change waits for "Publish the update", as it always has. */
+  const chooseGroup = (id: number | null) => {
+    setGroupId(id);
+    if (state?.row?.status === "published") return;
+    setSave({ state: "saving" });
+    setResultsGroup(dayId, id)
+      .then(() => setSave({ state: "saved", at: new Date() }))
+      .catch(() => setSave({ state: "failed" }));
+  };
+
+  /** Leave for Home or the group's page — after anything waiting is saved. */
+  const leave = async (to: "home" | "group") => {
+    const ok = await flush();
+    const go = () => {
+      const target = to === "group" && listedOn != null ? { pathname: "/group/[id]" as const, params: { id: String(listedOn) } } : "/";
+      router.navigate(target);
+    };
+    if (ok) return go();
+    Alert.alert("Your last change didn't save", "Check your signal. If you leave now, that change is lost — everything before it is saved.", [
+      { text: "Try again", onPress: () => void leave(to) },
+      { text: "Leave anyway", style: "destructive", onPress: go },
+    ]);
+  };
 
   const live: Results | null = useMemo(
     () => (data && state && hasResults(data) ? workOut(data, state, current) : null),
@@ -251,6 +312,9 @@ export default function ResultsScreen() {
         },
       },
     ]);
+
+  const listedOn = published?.groupId ?? groupId ?? null;
+  const listedName = listedOn != null ? (groups?.find((g) => g.id === listedOn)?.name ?? null) : null;
 
   const handicaps = data ? data.matches.flatMap((m) => m.players.map((p) => p.playingHandicap)) : [];
 
@@ -395,7 +459,7 @@ export default function ResultsScreen() {
           <Checks results={live} />
           <AmendEditor entrants={entrants} settings={current} onChange={change} />
           <ExtrasEditor settings={current} onChange={change} />
-          {groups && groups.length > 0 ? <GroupPicker groups={groups} value={groupId ?? null} onChange={setGroupId} /> : null}
+          {groups && groups.length > 0 ? <GroupPicker groups={groups} value={groupId ?? null} onChange={chooseGroup} /> : null}
           <Pressable
             onPress={() => void publish()}
             disabled={busy}
@@ -419,12 +483,103 @@ export default function ResultsScreen() {
         </>
       ) : null}
 
+      <SavedPanel
+        kind={draftView ? (published ? "correcting" : "draft") : isOrganiser ? "published" : "member"}
+        save={save}
+        groupName={listedName}
+        onRetry={() => void flush()}
+        onHome={() => void leave("home")}
+        onGroup={listedOn != null ? () => void leave("group") : null}
+      />
+
       {isOrganiser && published && !draftView ? (
         <Pressable onPress={withdraw} style={styles.linkRow} accessibilityRole="button">
           <Text style={[styles.link, { color: colors.red600 }]}>Take the results down</Text>
         </Pressable>
       ) : null}
     </ScrollView>
+  );
+}
+
+type SaveStatus = { state: "idle" } | { state: "saving" } | { state: "saved"; at: Date } | { state: "failed" };
+
+/**
+ * "You can leave": the end of the page tells the organiser (and anyone
+ * else) that nothing here is lost by going back, and where to find it again
+ * — with the two ways out people asked for, Home and the group's page.
+ *
+ * What's saved where: the scores are on the players' own cards, saved hole
+ * by hole as they were entered; the organiser's settings, corrections and
+ * group choice save as they're made (the status line shows each one land);
+ * published results are stored and kept on the group's page.
+ */
+function SavedPanel({
+  kind,
+  save,
+  groupName,
+  onRetry,
+  onHome,
+  onGroup,
+}: {
+  kind: "draft" | "correcting" | "published" | "member";
+  save: SaveStatus;
+  groupName: string | null;
+  onRetry: () => void;
+  onHome: () => void;
+  onGroup: (() => void) | null;
+}) {
+  const where = groupName ? `${groupName}'s page, under Past results` : "the group's page, under Past results";
+  const failed = save.state === "failed";
+  const title = failed
+    ? "Your last change didn't save"
+    : kind === "draft" || kind === "correcting"
+      ? "Everything is saved — you can leave"
+      : "These results are saved";
+  const body = failed
+    ? "Check your signal and try again. Everything before it is saved."
+    : kind === "draft"
+      ? "The scores are on the players' cards, and your settings and corrections save as you make them. Nothing is published until you tap Publish — come back any time from Live scoring or the society's page."
+      : kind === "correcting"
+        ? `Your corrections are saved as a draft. Members keep seeing the published results until you tap Publish the update. They're on ${where}.`
+        : kind === "published"
+          ? `Published and stored. You'll find them again on ${where}, and you can correct them later.`
+          : `They're kept on ${where}, so you can look back at them any time.`;
+  const statusText =
+    save.state === "saving" ? "Saving…" : save.state === "saved" ? `Saved at ${save.at.toLocaleTimeString("en-IE", { hour: "2-digit", minute: "2-digit" })}` : null;
+
+  return (
+    <View style={[styles.saved, failed && styles.savedFailed]} accessibilityLiveRegion="polite">
+      <View style={styles.savedTop}>
+        <View style={[styles.savedIcon, failed && { backgroundColor: colors.red600 }]}>
+          <Ionicons name={failed ? "cloud-offline-outline" : "checkmark"} size={18} color={colors.cream50} />
+        </View>
+        <View style={{ flex: 1, gap: 2 }}>
+          <Text style={styles.savedTitle}>{title}</Text>
+          {statusText ? <Text style={styles.savedStatus}>{statusText}</Text> : null}
+        </View>
+      </View>
+      <Text style={styles.savedBody}>{body}</Text>
+      {failed ? (
+        <Pressable onPress={onRetry} style={({ pressed }) => [styles.savedButtonMain, { backgroundColor: colors.red600 }, pressed && { opacity: 0.85 }]} accessibilityRole="button">
+          <Ionicons name="refresh" size={18} color={colors.cream50} />
+          <Text style={styles.savedButtonMainText}>Try again</Text>
+        </Pressable>
+      ) : null}
+      <View style={styles.savedButtons}>
+        <Pressable onPress={onHome} style={({ pressed }) => [styles.savedButton, pressed && { opacity: 0.85 }]} accessibilityRole="button" accessibilityLabel="Back to Home">
+          <Ionicons name="home-outline" size={17} color={colors.navy900} />
+          <Text style={styles.savedButtonText}>Back to Home</Text>
+        </Pressable>
+        {onGroup ? (
+          <Pressable onPress={onGroup} style={({ pressed }) => [styles.savedButton, pressed && { opacity: 0.85 }]} accessibilityRole="button" accessibilityLabel={groupName ? `Back to ${groupName}` : "Back to the group"}>
+            <Ionicons name="people-outline" size={17} color={colors.navy900} />
+            <Text style={styles.savedButtonText} numberOfLines={1}>
+              {groupName ? `Back to ${groupName}` : "Back to the group"}
+            </Text>
+          </Pressable>
+        ) : null}
+      </View>
+    </View>
   );
 }
 
@@ -1037,6 +1192,32 @@ const styles = StyleSheet.create({
   addChip: { flexDirection: "row", alignItems: "center", gap: 4, minHeight: 40, paddingHorizontal: 12, borderRadius: radii.pill, borderWidth: 1, borderStyle: "dashed", borderColor: colors.line },
   link: { fontFamily: fonts.bodyBold, fontSize: type.small, color: colors.green700 },
   linkRow: { minHeight: 44, alignItems: "center", justifyContent: "center" },
+
+  saved: { padding: spacing.md, gap: spacing.sm + 2, borderRadius: radii.lg, borderWidth: 1, borderColor: colors.green700, backgroundColor: colors.green100 },
+  savedFailed: { borderColor: colors.red600, backgroundColor: colors.red100 },
+  savedTop: { flexDirection: "row", alignItems: "center", gap: spacing.sm + 2 },
+  savedIcon: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.green700, alignItems: "center", justifyContent: "center" },
+  savedTitle: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.ink900 },
+  savedStatus: { fontFamily: fonts.bodySemi, fontSize: 12.5, color: colors.green700 },
+  savedBody: { fontFamily: fonts.body, fontSize: type.small, lineHeight: 21, color: colors.ink900 },
+  savedButtons: { flexDirection: "row", gap: spacing.sm, flexWrap: "wrap" },
+  savedButton: {
+    flexGrow: 1,
+    flexBasis: 140,
+    minHeight: 46,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.navy900,
+    backgroundColor: colors.surface,
+  },
+  savedButtonText: { fontFamily: fonts.bodyBold, fontSize: type.small, color: colors.navy900, flexShrink: 1 },
+  savedButtonMain: { minHeight: 46, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, borderRadius: radii.pill },
+  savedButtonMainText: { fontFamily: fonts.bodyBold, fontSize: type.small, color: colors.cream50 },
   publish: { minHeight: 54, borderRadius: radii.pill, backgroundColor: colors.green700, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.md },
   publishText: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.cream50 },
   prize: { gap: 6, paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: colors.line },
