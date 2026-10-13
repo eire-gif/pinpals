@@ -212,6 +212,12 @@ const EXPECTED: Record<string, Expectation> = {
   "banner_seen(p_banner_id bigint)": { anon: true, authenticated: true },
   "banner_clicked(p_banner_id bigint)": { anon: true, authenticated: true },
   "affiliate_clicked(p_product_id bigint, p_source text)": { anon: true, authenticated: true },
+  // 0139 advertising. Both reachable by visitors on purpose: adverts are
+  // public, and a signed-out website view is counted (flagged, never billed).
+  // ads_for_me() returns display fields only; ad_log() writes nothing a
+  // caller chooses beyond kind/source, and de-duplicates by auth.uid().
+  "ads_for_me(p_country text, p_region text, p_club_id bigint)": { anon: true, authenticated: true },
+  "ad_log(p_campaign_id bigint, p_kind text, p_source text)": { anon: true, authenticated: true },
   "live_round_delete(p_round_id bigint)": { anon: false, authenticated: true },
   // 0108 hole maps
   "course_layout_get(p_club_id bigint)": { anon: false, authenticated: true },

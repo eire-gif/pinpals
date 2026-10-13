@@ -96,6 +96,29 @@ export const ADMIN_ACTIONS = [
   "affiliate.updated",
   "banner.created",
   "banner.updated",
+  // In-app advertising (0139) — /admin/advertising
+  // (src/app/admin/advertising/actions.ts and upload/route.ts). Every write
+  // to advertisers, ad_campaigns and ad_settings, and every creative upload
+  // to the ad-creatives bucket. ad_campaign.updated carries the changed
+  // field names; money fields (rate, cap, payment status) also carry their
+  // before/after. ad_campaign.approved on an alcohol/betting advert records
+  // that the approver ticked the suitability confirmation.
+  "advertiser.created",
+  "advertiser.updated",
+  "ad_campaign.created",
+  "ad_campaign.updated",
+  "ad_campaign.submitted",
+  "ad_campaign.approved",
+  "ad_campaign.rejected",
+  "ad_campaign.paused",
+  "ad_campaign.resumed",
+  "ad_campaign.ended",
+  "ad_creative.uploaded",
+  "ad_settings.updated",
+  // The advertiser's report (/admin/advertising/[id]/report/export): no
+  // member data, but it is a file that leaves the system, so it's recorded
+  // like every other export.
+  "export.ad_report",
   "admin.role_changed",
   // /admin/staff (see src/app/admin/staff/actions.ts and
   // supabase/migrations/0027_staff_roles_lockdown.sql). "admin.role_changed"
@@ -261,6 +284,11 @@ export const AUDIT_TARGET_TYPES = [
   "listing_promotion",
   "affiliate_product",
   "marketplace_banner",
+  // In-app advertising (0139): rows in advertisers, ad_campaigns, and the
+  // single ad_settings row (targetId null).
+  "advertiser",
+  "ad_campaign",
+  "ad_settings",
   "webhook_event",
   "payout",
   // A privileged VIEW is always audited against the *conversation*

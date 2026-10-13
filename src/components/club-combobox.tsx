@@ -38,6 +38,7 @@ export default function ClubCombobox({
   defaultClubId = null,
   defaultValue = "",
   required = false,
+  onSelect,
 }: {
   /** Field name for the club id. The display name is submitted as `${name}Name`. */
   name: string;
@@ -45,6 +46,9 @@ export default function ClubCombobox({
   defaultClubId?: number | null;
   defaultValue?: string;
   required?: boolean;
+  /** Optional: told about each pick — for a multi-course picker (admin advertising)
+   *  that collects clubs into its own list; the box then clears for the next one. */
+  onSelect?: (club: { id: number; name: string }) => void;
 }) {
   const listId = useId();
   const [query, setQuery] = useState(defaultValue);
@@ -104,10 +108,16 @@ export default function ClubCombobox({
   }, [query, country, open]);
 
   function selectClub(club: ClubSummary) {
-    setChosen({ id: club.id, name: club.name });
-    setQuery(club.name);
     setOpen(false);
     setHighlight(-1);
+    if (onSelect) {
+      onSelect({ id: club.id, name: club.name });
+      setChosen(null);
+      setQuery("");
+      return;
+    }
+    setChosen({ id: club.id, name: club.name });
+    setQuery(club.name);
   }
 
   return (

@@ -20,6 +20,7 @@ import * as SplashScreen from "expo-splash-screen";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
+import { AdTakeoverHost } from "@/components/ad-takeover";
 import { appRouteFor } from "@/lib/alert-routes";
 import { applyUpdateAtLaunch } from "@/lib/app-updates";
 import { AuthProvider, useAuth } from "@/lib/auth";
@@ -185,6 +186,7 @@ function RootNavigator() {
   }, [loading, session, router]);
 
   return (
+    <>
     <Stack
       screenOptions={{
         headerStyle: { backgroundColor: colors.cream50 },
@@ -225,6 +227,10 @@ function RootNavigator() {
         options={{ title: "Tee time", headerBackTitle: "Back" }}
       />
     </Stack>
+    {/* In-app advertising (0139): renders nothing unless the `ads` flag
+        and the server's master switch are both on. */}
+    <AdTakeoverHost />
+    </>
   );
 }
 

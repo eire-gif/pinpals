@@ -33,6 +33,10 @@ const NAV_ITEMS: { href: string; label: string; enabled?: boolean; roles?: reado
   // own file-header comment), so any active staff member should at least
   // see the link and land on the tabs their role can actually open.
   { href: "/admin/marketplace", label: "Marketplace", enabled: true },
+  // In-app advertising (0139). No `roles` restriction: any active staff
+  // member may look; every write re-checks ADVERTISING_EDIT_ROLES (admin,
+  // finance, super admin) in src/app/admin/advertising/actions.ts.
+  { href: "/admin/advertising", label: "Advertising", enabled: true },
   { href: "/admin/users", label: "Users", enabled: true },
   { href: "/admin/listings", label: "Listings", enabled: true },
   { href: "/admin/tee-times", label: "Tee-times", enabled: true },

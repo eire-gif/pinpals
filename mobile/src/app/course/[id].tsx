@@ -4,6 +4,7 @@ import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from "expo-rou
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { Avatar } from "@/components/avatar";
+import { CoursePartnerStrip, useCoursePartner } from "@/components/course-partner";
 import { STARS_GOLD, StarRow } from "@/components/stars";
 import { TeeTimeCard } from "@/components/tee-time-card";
 import { useAuth } from "@/lib/auth";
@@ -50,6 +51,8 @@ export default function CourseScreen() {
   const userId = session?.user?.id ?? null;
 
   const [course, setCourseRow] = useState<CourseDetail | null>(null);
+  // Course partner (0139): null — nothing drawn — without one, or with ads off.
+  const partner = useCoursePartner(clubId);
   // Favourite (0112): the star in the header, the same one as in Courses.
   const [favourite, setFavourite] = useState(false);
   useFocusEffect(
@@ -221,6 +224,8 @@ export default function CourseScreen() {
           <Text style={styles.heroTitle}>{course.name}</Text>
           <Text style={styles.heroPlace}>{placeLabel(course)}</Text>
         </View>
+
+        <CoursePartnerStrip ad={partner} style={styles.partner} />
 
         <View style={styles.summary}>
           {avg !== null && count > 0 ? (
@@ -528,6 +533,7 @@ const styles = StyleSheet.create({
   hero: { backgroundColor: colors.navy900, paddingHorizontal: 20, paddingTop: 22, paddingBottom: 20 },
   heroTitle: { fontFamily: fonts.display, fontSize: 28, lineHeight: 33, color: colors.cream50 },
   heroPlace: { fontFamily: fonts.body, fontSize: 14.5, color: colors.cream100, marginTop: 4 },
+  partner: { marginHorizontal: 20, marginTop: 14 },
   summary: { flexDirection: "row", alignItems: "center", gap: 18, paddingHorizontal: 20, paddingTop: 18 },
   big: { alignItems: "center", gap: 3 },
   bigNumber: { fontFamily: fonts.display, fontSize: 46, lineHeight: 50, color: colors.ink900 },

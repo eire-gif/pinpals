@@ -16,6 +16,8 @@ import { StatusBar } from "expo-status-bar";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import * as Linking from "expo-linking";
 
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { AdBanner } from "@/components/ad-banner";
 import { RatingLine } from "@/components/stars";
 import { useCurrentLocation } from "@/lib/location";
 import {
@@ -68,6 +70,7 @@ type Scope = { kind: "country"; code: string } | { kind: "near" } | { kind: "fav
 const OLD_HEAD = require("../../assets/images/scenes/old-head.jpg");
 
 export default function CoursesScreen() {
+  const insets = useSafeAreaInsets();
   const router = useRouter();
   const location = useCurrentLocation();
 
@@ -374,6 +377,8 @@ export default function CoursesScreen() {
           )}
         />
       )}
+      {/* Slide-up advert (0139): nothing unless advertising is on. */}
+      <AdBanner screen="courses" bottom={insets.bottom + spacing.sm} />
     </View>
   );
 }

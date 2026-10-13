@@ -14,6 +14,7 @@ import {
 } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { AdBanner } from "@/components/ad-banner";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 
 import { coursePhoto } from "@/components/course-photos";
@@ -450,6 +451,9 @@ export default function MarketplaceScreen() {
         }
         renderItem={({ item }) => <GearCard card={item} onPress={() => open(item)} onFavourite={userId ? () => void favourite(item) : undefined} />}
       />
+
+      {/* Slide-up advert (0139), above the tab bar: nothing unless advertising is on. */}
+      <AdBanner screen="marketplace" />
 
       <MarketplaceFilters
         open={filtersOpen}

@@ -7,10 +7,14 @@ import {
   getMarketplaceRevenue,
   heldForSellersEur,
   parseRevenuePeriod,
+  periodStart,
+  sumEur,
   type HeldOrderRow,
 } from "@/lib/admin/marketplace-revenue";
 import { formatDateTime } from "@/lib/admin/format";
 import { formatPrice } from "@/lib/format";
+import StatCard from "@/components/admin/stat-card";
+import { advertisingEarnedBetween } from "@/lib/admin/advertising";
 
 // The marketplace money dashboard (0114 Buyer Protection, 0115 shops,
 // promotions, banners, affiliates). Read-only: every figure links to where
@@ -20,7 +24,10 @@ export default async function RevenueTab({ searchParams }: { searchParams: Recor
   await requireStaff({ roles: FINANCE_ROLES });
 
   const period = parseRevenuePeriod(searchParams.period);
-  const r = await getMarketplaceRevenue(period);
+  const now = new Date();
+  const [r, ads] = await Promise.all([getMarketplaceRevenue(period, now), advertisingEarnedBetween(periodStart(period, now), now)]);
+  // In-app advertising (0139), earned in the period; 0 until that migration is applied.
+  const totalEur = sumEur([r.totalRevenueEur, ads.earnedEur]);
 
   return (
     <div>
@@ -44,7 +51,7 @@ export default async function RevenueTab({ searchParams }: { searchParams: Recor
       </div>
 
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5 mb-8">
-        <StatCard label="Total PinPals revenue" value={formatPrice(r.totalRevenueEur)} accent hint="Buyer Protection + shop commission + promotions + banner fees" />
+        <StatCard label="Total PinPals revenue" value={formatPrice(totalEur)} accent hint="Buyer Protection + shop commission + promotions + banner fees + advertising" />
         <StatCard label="Buyer Protection fees" value={formatPrice(r.orders.buyerProtectionEur)} hint={`${r.orders.paidOrders - r.orders.shopOrders} member sales`} />
         <StatCard label="Shop commission" value={formatPrice(r.orders.shopCommissionEur)} hint={`${r.orders.shopOrders} pro shop sales`} href="/admin/marketplace?tab=shops" />
         <StatCard
@@ -54,6 +61,12 @@ export default async function RevenueTab({ searchParams }: { searchParams: Recor
           href="/admin/marketplace?tab=promotions"
         />
         <StatCard label="Banner fees" value={formatPrice(r.banners.totalEur)} hint={`${r.banners.count} banners started`} href="/admin/marketplace?tab=retail" />
+        <StatCard
+          label="Advertising"
+          value={formatPrice(ads.earnedEur)}
+          hint={ads.available ? "In-app adverts, earned in the period" : "Not set up yet (migration 0139)"}
+          href="/admin/advertising"
+        />
         <StatCard label="GMV (paid orders)" value={formatPrice(r.orders.gmvEur)} hint={`${r.orders.paidOrders} paid orders`} />
       </div>
 
@@ -131,38 +144,6 @@ export default async function RevenueTab({ searchParams }: { searchParams: Recor
         marked refunded. Affiliate commission is paid by retailers outside PinPals and isn&rsquo;t counted.
       </p>
     </div>
-  );
-}
-
-function StatCard({
-  label,
-  value,
-  hint,
-  href,
-  accent = false,
-  warn = false,
-}: {
-  label: string;
-  value: string;
-  hint?: string;
-  href?: string;
-  accent?: boolean;
-  warn?: boolean;
-}) {
-  const body = (
-    <>
-      <div className={`text-xs uppercase tracking-wide font-semibold ${accent ? "text-gold-400" : "text-ink-500"}`}>{label}</div>
-      <div className={`font-display font-bold text-3xl mt-1 ${accent ? "text-cream-50" : warn ? "text-red-600" : "text-ink-900"}`}>{value}</div>
-      {hint && <div className={`text-xs mt-1 ${accent ? "text-cream-100" : "text-ink-500"}`}>{hint}</div>}
-    </>
-  );
-  const cls = `block rounded-2xl p-6 shadow-sm border ${accent ? "bg-navy-900 border-navy-900" : "bg-surface border-line"}`;
-  return href ? (
-    <Link href={href} className={`${cls} hover:shadow-md hover:-translate-y-0.5 transition`}>
-      {body}
-    </Link>
-  ) : (
-    <div className={cls}>{body}</div>
   );
 }
 

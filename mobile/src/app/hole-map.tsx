@@ -10,6 +10,7 @@ import { HoleMapView, type HoleMapHandle, type MapScene } from "@/components/hol
 import { LoadError, StateMessage } from "@/components/state-message";
 import { useAuth } from "@/lib/auth";
 import { isOn } from "@/lib/features";
+import { YardagesSponsor, useCoursePartner } from "@/components/course-partner";
 import {
   defaultAim,
   distanceM,
@@ -81,6 +82,8 @@ let rememberedOutlines = true;
 export default function HoleMapScreen() {
   const params = useLocalSearchParams<{ clubId: string; hole?: string; roundId?: string; layoutId?: string }>();
   const clubId = Number(params.clubId);
+  // "Yardages brought to you by …" (0139): in the sheet, under the numbers.
+  const partner = useCoursePartner(clubId);
   const roundId = params.roundId ? Number(params.roundId) : null;
   const insets = useSafeAreaInsets();
   const { session } = useAuth();
@@ -490,6 +493,8 @@ export default function HoleMapScreen() {
             </Pressable>
           ) : null}
         </View>
+
+        <YardagesSponsor ad={partner} />
 
         {canMark || hasDetails ? (
           <View style={styles.actionRow}>

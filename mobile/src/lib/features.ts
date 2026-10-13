@@ -57,6 +57,11 @@ export const FEATURES = {
   // ---- Gates (unfinished, off) ----
   /** Shared rounds (phase 9): model only — see claude/shared-round-model.md. */
   sharedRounds: false,
+  /** In-app advertising (claude/advertising.md, needs 0139): takeovers, banners,
+   *  sponsored posts and course partners. Also needs ad_settings.ads_enabled
+   *  switched on in /admin/advertising — both must be on for any advert to
+   *  show. Off: nothing is fetched and nothing draws. */
+  ads: false,
 
 } as const;
 
