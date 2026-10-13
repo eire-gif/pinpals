@@ -2,6 +2,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { router } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
+import { RaisedCard } from "@/components/live-scoring-card";
 import { guideById, resolveGuide, type Guide, type GuideChoice, type GuideControl, type GuideCrumb } from "@/lib/guide";
 import { useGuideAudience } from "@/lib/guide-audience";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
@@ -41,7 +42,27 @@ export function Crumbs({ path }: { path: GuideCrumb[] }) {
 
 /** A picture of one control, drawn the way the app draws it. */
 export function ControlMock({ control }: { control: GuideControl }) {
-  const { style, label, icon } = control;
+  const { style, label, icon, subtitle } = control;
+  if (style === "raised") {
+    // The app's own raised card, as a picture: it can't be pressed here.
+    return (
+      <View style={styles.wide} pointerEvents="none" importantForAccessibility="no-hide-descendants">
+        <RaisedCard title={label} subtitle={subtitle ?? ""} icon={icon} onPress={() => undefined} inset={false} marginTop={0} />
+      </View>
+    );
+  }
+  if (style === "banner") {
+    return (
+      <View style={[styles.wide, styles.banner]}>
+        {icon ? <Ionicons name={icon} size={20} color={colors.navy900} /> : null}
+        <View style={{ flex: 1 }}>
+          <Text style={styles.bannerTitle}>{label}</Text>
+          {subtitle ? <Text style={styles.bannerSub}>{subtitle}</Text> : null}
+        </View>
+        <Ionicons name="chevron-forward" size={18} color={colors.navy900} />
+      </View>
+    );
+  }
   if (style === "tile") {
     return (
       <View style={styles.tile}>
@@ -199,6 +220,10 @@ const styles = StyleSheet.create({
   kicker: { fontFamily: fonts.bodyBold, fontSize: 11, letterSpacing: 1, color: colors.ink500 },
   lookBody: { flexDirection: "row", flexWrap: "wrap", gap: 10, padding: 14, alignItems: "center" },
 
+  wide: { width: "100%" },
+  banner: { flexDirection: "row", alignItems: "center", gap: spacing.sm, padding: 14, borderRadius: radii.lg, backgroundColor: colors.gold400 },
+  bannerTitle: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.navy900 },
+  bannerSub: { fontFamily: fonts.body, fontSize: type.small, color: colors.navy900 },
   button: { flexDirection: "row", alignItems: "center", gap: 6, height: 44, paddingHorizontal: 18, borderRadius: radii.pill, borderWidth: 1 },
   buttonMain: { backgroundColor: colors.green700, borderColor: colors.green700 },
   buttonPlain: { backgroundColor: colors.surface, borderColor: colors.line },

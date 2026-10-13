@@ -68,11 +68,15 @@ export type GuideCrumb = { icon: Icon; label: string };
  *   primary — the green pill button   outline — the white button
  *   tile    — a square tile           link    — green text link
  *   field   — a box to type in
+ *   raised  — the big navy-and-gold card (Home's Live Scoring, Start a Game…)
+ *   banner  — the gold bar on a group's page (Start a round)
  */
 export type GuideControl = {
-  style: "primary" | "outline" | "tile" | "link" | "field";
+  style: "primary" | "outline" | "tile" | "link" | "field" | "raised" | "banner";
   label: string;
   icon?: Icon;
+  /** The second line on a raised card or a banner. */
+  subtitle?: string;
 };
 
 /** Options laid out as cards; the first is drawn as picked. */
@@ -368,7 +372,7 @@ export const GUIDES: Guide[] = [
         look: [
           { style: "outline", label: "Chat", icon: "chatbubbles-outline" },
           { style: "tile", label: "Events", icon: "calendar-outline" },
-          { style: "primary", label: "Start a round", icon: "shuffle" },
+          { style: "banner", label: "Start a round", icon: "shuffle", subtitle: "Draw into groups or teams, scored live" },
         ],
         as: { trip: { body: "Open the trip from Groups & societies. Chat opens the trip's chat, Events has the trip with its itinerary — your flights, room and tee times — and Start a round draws everyone on the day." } },
       },
@@ -499,11 +503,11 @@ export const GUIDES: Guide[] = [
     steps: [
       {
         title: "Start a round from your group",
-        body: "On your group's page, tap Start a round. It's also in Live scoring as From a Group.",
+        body: "On your group's page, tap the gold Start a round bar. It's also in Live scoring as From a Group.",
         path: [MENU, GROUPS, YOUR_GROUP],
         look: [
-          { style: "primary", label: "Start a round", icon: "shuffle" },
-          { style: "outline", label: "From a Group", icon: "people-outline" },
+          { style: "banner", label: "Start a round", icon: "shuffle", subtitle: "Draw into groups or teams, scored live" },
+          { style: "raised", label: "From a Group", icon: "shuffle", subtitle: "Draw your crew or society into groups or teams" },
         ],
         go: { label: "Live scoring", to: "/live" },
       },
@@ -741,16 +745,30 @@ export const GUIDES: Guide[] = [
     steps: [
       {
         title: "Open Live scoring",
-        body: "Tap the Live Scoring card on Home, or Live scoring in the menu. Then tap Start a Game.",
-        look: [
-          { style: "tile", label: "Live Scoring", icon: "podium-outline" },
-          { style: "primary", label: "Start a Game" },
-        ],
+        body: "On Home, tap the big Live Scoring card. It's in the menu too.",
+        look: [{ style: "raised", label: "Live Scoring", subtitle: "Score with your group, watch the leaderboard move" }],
         go: { label: "Live scoring", to: "/live" },
       },
       {
+        title: "Choose how you're playing",
+        body: "Running the society's day? Tap From a Group to draw your members into tee groups or teams. Match Day runs several matches at once with a team score, Ryder Cup style. Just your own fourball? Tap Start a Game.",
+        look: [{ style: "raised", label: "From a Group", icon: "shuffle", subtitle: "Draw your crew or society into groups or teams" }, { style: "raised", label: "Match Day", icon: "people", subtitle: "Societies, fourballs, foursomes and competitions" }, { style: "raised", label: "Start a Game", icon: "flag", subtitle: "Stableford, stroke play, a match or a scramble" }],
+        tip: "From a Group is covered step by step in Play a round together. The rest of this guide is Start a Game.",
+        as: {
+          friends: {
+            body: "Just your fourball? Tap Start a Game — that's the rest of this guide. Got a crew set up? From a Group ticks everyone in it and draws you into groups.",
+            look: [{ style: "raised", label: "Start a Game", icon: "flag", subtitle: "Stableford, stroke play, a match or a scramble" }, { style: "raised", label: "From a Group", icon: "shuffle", subtitle: "Draw your crew or society into groups or teams" }],
+            tip: "From a Group is covered step by step in Play a round together.",
+          },
+          trip: {
+            body: "On the trip, tap From a Group to draw everyone into fourballs for the day, or Match Day for a team competition. Start a Game is for a quick game in your own fourball.",
+            look: [{ style: "raised", label: "From a Group", icon: "shuffle", subtitle: "Draw your crew or society into groups or teams" }, { style: "raised", label: "Match Day", icon: "people", subtitle: "Societies, fourballs, foursomes and competitions" }, { style: "raised", label: "Start a Game", icon: "flag", subtitle: "Stableford, stroke play, a match or a scramble" }],
+          },
+        },
+      },
+      {
         title: "Course, tees and format",
-        body: "Search for the course, pick your tees, and 18 or 9 holes. Then pick the format.",
+        body: "After Start a Game: search for the course, pick your tees, and 18 or 9 holes. Then pick the format.",
         choices: [
           { icon: "stats-chart", label: "Stableford", blurb: "Points per hole." },
           { icon: "list", label: "Stroke play", blurb: "Gross and net." },
@@ -1175,6 +1193,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-13", text: "Score a game live: shows the real Live Scoring, Start a Game, Match Day and From a Group cards, and which to tap for friends, trips or societies." },
   { on: "2026-10-13", text: "Guides are now written for friends, golf trips or societies — pick yours at the top." },
   { on: "2026-10-13", text: "New guides: posting a tee time, finding a game, live scoring, the hole map, messages, finding friends, selling, buying and Social." },
   { on: "2026-10-13", text: "New guide: Fill a place in your round — invite a PinPal or send a link to an open place." },
