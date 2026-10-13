@@ -113,7 +113,7 @@ export default async function AdminReportsPage({
           title={`Downloads ${total} ${total === 1 ? "report" : "reports"} matching the current filters — without the reporters' descriptions`}
         />
       </div>
-      <p className="text-ink-500 mb-6">
+      <p className="text-sm text-ink-500 mb-6">
         {total} {total === 1 ? "report" : "reports"}
         {status && <> · {REPORT_STATUS_LABELS[status as ReportStatus] ?? status}</>}
         {q && (

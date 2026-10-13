@@ -8,6 +8,10 @@ import RegionSelect from "@/components/region-select";
 import AdminAvatar from "@/components/admin/avatar";
 import StatusBadge from "@/components/admin/status-badge";
 import ExportCsvLink from "@/components/admin/export-csv-link";
+import AdminPageHeader from "@/components/admin/page-header";
+import AdminRowActions from "@/components/admin/controls/row-actions";
+import { BulkProvider, BulkBar, SelectAll, SelectRow } from "@/components/admin/controls/bulk";
+import { bulkBarProps, rowActionProps } from "@/lib/admin/controls";
 
 export default async function AdminListingsPage({
   searchParams,
@@ -23,7 +27,7 @@ export default async function AdminListingsPage({
     page?: string;
   }>;
 }) {
-  await requireStaff();
+  const { staff } = await requireStaff();
   const {
     q = "",
     status = "",
@@ -92,26 +96,24 @@ export default async function AdminListingsPage({
 
   return (
     <div>
-      <div className="flex items-start justify-between gap-4 mb-1">
-        <h1 className="font-display font-bold text-2xl">Listings</h1>
-        <ExportCsvLink
-          href={exportHref}
-          title={`Downloads ${total} ${total === 1 ? "listing" : "listings"} matching the current filters`}
-        />
-      </div>
-      <p className="text-ink-500 mb-6">
-        {total} {total === 1 ? "listing" : "listings"}
-        {status && <> · {LISTING_STATUS_LABELS[status] ?? status}</>}
-        {category && <> · {category}</>}
-        {county && <> · {county}</>}
-        {q && (
+      <AdminPageHeader
+        title="Listings"
+        description={
           <>
-            {" "}
-            matching &ldquo;{q}&rdquo;
+            {total} {total === 1 ? "listing" : "listings"}
+            {status && <> · {LISTING_STATUS_LABELS[status] ?? status}</>}
+            {category && <> · {category}</>}
+            {county && <> · {county}</>}
+            {q && <> matching &ldquo;{q}&rdquo;</>}. Pick &ldquo;Removed by admin&rdquo; to find hidden ones.
           </>
-        )}
-        .
-      </p>
+        }
+        actions={
+          <ExportCsvLink
+            href={exportHref}
+            title={`Downloads ${total} ${total === 1 ? "listing" : "listings"} matching the current filters`}
+          />
+        }
+      />
 
       {seller && (
         <div className="flex items-center gap-2 mb-4 text-sm">
@@ -131,7 +133,7 @@ export default async function AdminListingsPage({
           name="q"
           defaultValue={q}
           placeholder="Search title, description, seller…"
-          className="flex-1 min-w-[240px] px-4 py-2.5 rounded-full border-[1.5px] border-line bg-surface text-sm"
+          className="flex-1 min-w-[200px] px-4 py-2.5 rounded-full border-[1.5px] border-line bg-surface text-sm"
         />
         <select
           name="status"
@@ -199,57 +201,78 @@ export default async function AdminListingsPage({
         )}
       </form>
 
-      <div className="bg-surface border border-line rounded-2xl overflow-hidden shadow-sm">
-        {listings.length === 0 ? (
-          <div className="text-center py-16 text-ink-500">No listings match that search.</div>
-        ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-ink-500 text-xs uppercase tracking-wide border-b border-line">
-                <th className="px-5 py-3 font-semibold">Listing</th>
-                <th className="px-5 py-3 font-semibold">Seller</th>
-                <th className="px-5 py-3 font-semibold">Price</th>
-                <th className="px-5 py-3 font-semibold">County</th>
-                <th className="px-5 py-3 font-semibold">Status</th>
-                <th className="px-5 py-3 font-semibold">Listed</th>
-              </tr>
-            </thead>
-            <tbody>
-              {listings.map((l) => {
-                const rowSellerName = l.seller ? `${l.seller.first_name} ${l.seller.last_name}` : "Unknown seller";
-                return (
-                  <tr key={l.id} className="border-b border-line last:border-0 hover:bg-surface-tint">
-                    <td className="px-5 py-3">
-                      <Link href={`/admin/listings/${l.id}`} className="font-semibold text-ink-900 hover:underline">
-                        {l.title}
-                      </Link>
-                      <div className="text-xs text-ink-500">{l.category}</div>
-                    </td>
-                    <td className="px-5 py-3">
-                      {l.seller ? (
-                        <Link href={`/admin/users/${l.seller.id}`} className="flex items-center gap-2.5">
-                          <AdminAvatar name={rowSellerName} color={l.seller.avatar_color} />
-                          <span className="text-ink-900">{rowSellerName}</span>
+      <BulkProvider>
+        <div className="bg-surface border border-line rounded-2xl overflow-x-auto shadow-sm">
+          {listings.length === 0 ? (
+            <div className="text-center py-16 text-ink-500">No listings match that search.</div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-ink-500 text-xs uppercase tracking-wide border-b border-line">
+                  <th className="w-10 pl-4 pr-1 py-3">
+                    <SelectAll ids={listings.map((l) => l.id)} />
+                  </th>
+                  <th className="px-4 py-3 font-semibold">Listing</th>
+                  <th className="px-4 py-3 font-semibold">Seller</th>
+                  <th className="px-4 py-3 font-semibold">Price</th>
+                  <th className="px-4 py-3 font-semibold">County</th>
+                  <th className="px-4 py-3 font-semibold">Status</th>
+                  <th className="px-4 py-3 font-semibold">Listed</th>
+                  <th className="w-12 px-2 py-3">
+                    <span className="sr-only">Actions</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {listings.map((l) => {
+                  const rowSellerName = l.seller ? `${l.seller.first_name} ${l.seller.last_name}` : "Unknown seller";
+                  return (
+                    <tr key={l.id} className="border-b border-line last:border-0 hover:bg-surface-tint">
+                      <td className="w-10 pl-4 pr-1 py-3">
+                        <SelectRow id={l.id} label={`Select ${l.title}`} />
+                      </td>
+                      <td className="px-4 py-3">
+                        <Link href={`/admin/listings/${l.id}`} className="font-semibold text-ink-900 hover:underline">
+                          {l.title}
                         </Link>
-                      ) : (
-                        <span className="text-ink-500">{rowSellerName}</span>
-                      )}
-                    </td>
-                    <td className="px-5 py-3 text-ink-900 font-semibold">
-                      {l.price_eur !== null ? formatPrice(l.price_eur) : "Auction"}
-                    </td>
-                    <td className="px-5 py-3 text-ink-500">{l.county ?? "—"}</td>
-                    <td className="px-5 py-3">
-                      <StatusBadge status={l.status} labels={LISTING_STATUS_LABELS} styles={LISTING_STATUS_STYLES} />
-                    </td>
-                    <td className="px-5 py-3 text-ink-500">{formatDateTime(l.created_at)}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
-      </div>
+                        <div className="text-xs text-ink-500">{l.category}</div>
+                      </td>
+                      <td className="px-4 py-3">
+                        {l.seller ? (
+                          <Link href={`/admin/users/${l.seller.id}`} className="flex items-center gap-2.5">
+                            <AdminAvatar name={rowSellerName} color={l.seller.avatar_color} />
+                            <span className="text-ink-900">{rowSellerName}</span>
+                          </Link>
+                        ) : (
+                          <span className="text-ink-500">{rowSellerName}</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-ink-900 font-semibold whitespace-nowrap">
+                        {l.price_eur !== null ? formatPrice(l.price_eur) : "Auction"}
+                      </td>
+                      <td className="px-4 py-3 text-ink-500">{l.county ?? "—"}</td>
+                      <td className="px-4 py-3">
+                        <StatusBadge status={l.status} labels={LISTING_STATUS_LABELS} styles={LISTING_STATUS_STYLES} />
+                      </td>
+                      <td className="px-4 py-3 text-ink-500 whitespace-nowrap">{formatDateTime(l.created_at)}</td>
+                      <td className="w-12 px-2 py-3 text-right">
+                        <AdminRowActions {...rowActionProps(
+                            staff,
+                            "listing",
+                            l.id,
+                            { hidden: l.status === "removed", hideable: l.status === "active" },
+                            l.title
+                          )} />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+        <BulkBar {...bulkBarProps(staff, "listing")} />
+      </BulkProvider>
 
       {totalPages > 1 && (
         <div className="flex items-center justify-between mt-6 text-sm text-ink-500">

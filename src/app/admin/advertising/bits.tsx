@@ -50,22 +50,23 @@ export function AdvertisingHeader({
   actions?: React.ReactNode;
 }) {
   return (
-    <div className="mb-8">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="text-[11px] uppercase tracking-[0.18em] font-bold text-gold-600">PinPals advertising</p>
-          <h1 className="font-display font-bold text-3xl text-ink-900 mt-1">{title}</h1>
+    <div className="mb-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="font-display font-bold text-2xl text-ink-900">{title}</h1>
           {subtitle && <p className="text-sm text-ink-500 mt-1 max-w-2xl">{subtitle}</p>}
         </div>
-        {actions && <div className="flex flex-wrap items-center gap-3">{actions}</div>}
+        {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
       </div>
-      <nav className="flex gap-1.5 mt-5">
+      {/* Same wrapping pill row as /admin/marketplace. */}
+      <nav aria-label="Advertising sections" className="flex flex-wrap gap-1.5 mt-4">
         {TABS.map((t) => (
           <Link
             key={t.href}
             href={t.href}
-            className={`px-3.5 py-1.5 rounded-full text-sm font-bold border transition ${
-              current === t.href ? "bg-navy-900 text-cream-50 border-navy-900" : "border-line text-ink-500 hover:text-ink-900 bg-surface"
+            aria-current={current === t.href ? "page" : undefined}
+            className={`px-3.5 py-1.5 rounded-full text-sm font-semibold border transition ${
+              current === t.href ? "bg-navy-900 text-cream-50 border-navy-900" : "bg-surface border-line text-ink-900 hover:bg-cream-100"
             }`}
           >
             {t.label}

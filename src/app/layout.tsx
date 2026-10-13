@@ -4,6 +4,7 @@ import { Playfair_Display, Public_Sans } from "next/font/google";
 import "./globals.css";
 import SiteHeader from "@/components/site-header";
 import SiteFooter from "@/components/site-footer";
+import SiteChromeGate from "@/components/site-chrome-gate";
 
 const playfair = Playfair_Display({
   variable: "--font-playfair",
@@ -69,9 +70,19 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className={`${playfair.variable} ${publicSans.variable} h-full`}>
       <body className="min-h-full flex flex-col font-sans antialiased">
-        {!inAppShell && <SiteHeader />}
+        {/* SiteChromeGate leaves the public header and footer off /admin,
+            which has its own bar. */}
+        {!inAppShell && (
+          <SiteChromeGate>
+            <SiteHeader />
+          </SiteChromeGate>
+        )}
         <main className="flex-1">{children}</main>
-        {!inAppShell && <SiteFooter />}
+        {!inAppShell && (
+          <SiteChromeGate>
+            <SiteFooter />
+          </SiteChromeGate>
+        )}
       </body>
     </html>
   );

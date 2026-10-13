@@ -53,16 +53,6 @@ export default async function OverviewTab() {
         )}
       </Section>
 
-      <div className="bg-surface border border-line rounded-2xl p-6">
-        <h2 className="font-display font-bold text-lg mb-2">About this console</h2>
-        <p className="text-sm text-ink-500">
-          Most of what&rsquo;s below reuses the same read functions and role gates as the dedicated admin pages this
-          links into — Listings, Orders, Seller accounts, Payout ledger, Reports, Support cases. Nothing here
-          duplicates a moderation or finance action: use this page to spot what needs attention, then act on the
-          linked page. The two exceptions are the Offers &amp; auctions and Disputes tabs, which had no admin view
-          anywhere before this phase.
-        </p>
-      </div>
     </div>
   );
 }

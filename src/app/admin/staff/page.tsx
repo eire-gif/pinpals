@@ -19,13 +19,9 @@ export default async function AdminStaffPage() {
   return (
     <div>
       <h1 className="font-display font-bold text-2xl mb-1">Staff</h1>
-      <p className="text-ink-500 mb-6">
-        {staffMembers.length} {staffMembers.length === 1 ? "staff account" : "staff accounts"}. Granting, changing, or
-        disabling a staff account is restricted to super admins and is always recorded in the{" "}
-        <a href="/admin/audit-log" className="underline">
-          audit log
-        </a>
-        . You can&rsquo;t change your own role or status here — ask another super admin.
+      <p className="text-sm text-ink-500 mb-6">
+        {staffMembers.length} {staffMembers.length === 1 ? "staff account" : "staff accounts"}. You can&rsquo;t change your
+        own role — ask another super admin.
       </p>
 
       <div className="bg-surface border border-line rounded-2xl overflow-hidden shadow-sm mb-8">

@@ -83,7 +83,7 @@ export default async function AdminSupportCasesPage({
           New case
         </Link>
       </div>
-      <p className="text-ink-500 mb-6">
+      <p className="text-sm text-ink-500 mb-6">
         {total} {total === 1 ? "case" : "cases"}
         {status && <> · {SUPPORT_CASE_STATUS_LABELS[status as SupportCaseStatus] ?? status}</>}
         {q && (

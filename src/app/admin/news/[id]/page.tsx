@@ -2,6 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireStaff } from "@/lib/admin/authorization";
 import { createAdminClient } from "@/lib/supabase/admin";
+import AdminRowActions from "@/components/admin/controls/row-actions";
+import { rowActionProps } from "@/lib/admin/controls";
 import { validateDraft, normalise, trimPunctuation } from "@/lib/news/validate";
 import {
   publishArticle,
@@ -49,7 +51,7 @@ export default async function AdminArticlePage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ error?: string }>;
 }) {
-  await requireStaff();
+  const { staff } = await requireStaff();
   const { id } = await params;
   const { error } = await searchParams;
   const supabase = createAdminClient();
@@ -115,11 +117,18 @@ export default async function AdminArticlePage({
       <h1 className="font-display font-bold text-2xl mt-4 mb-1 text-balance">
         {article.headline}
       </h1>
-      <p className="text-ink-500 text-sm mb-6">
-        {article.source_organisation} · {article.status} · drafted by{" "}
-        {article.ai_model ?? "unknown model"}
-        {article.prompt_version ? ` (prompt ${article.prompt_version})` : ""}
-      </p>
+      <div className="flex flex-wrap items-start justify-between gap-3 mb-6">
+        <p className="text-ink-500 text-sm">
+          {article.source_organisation} · {article.status} · drafted by{" "}
+          {article.ai_model ?? "unknown model"}
+          {article.prompt_version ? ` (prompt ${article.prompt_version})` : ""}
+        </p>
+        {/* Delete permanently (super admin, drafts and rejected only). Publish,
+            reject, retract and edit stay below, with their own rules. */}
+        {!isPublished && article.status !== "retracted" && (
+          <AdminRowActions {...rowActionProps(staff, "article", article.id, { hidden: false }, article.headline, { view: false })} editHref={null} redirectAfterDelete="/admin/news" />
+        )}
+      </div>
 
       {/* Validation state, live */}
       {live && (

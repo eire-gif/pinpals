@@ -59,9 +59,8 @@ export default async function RiskFlagsPage({
   return (
     <div>
       <h1 className="font-display font-bold text-2xl mb-1">Risk flags</h1>
-      <p className="text-ink-500 mb-6">
-        {total} {total === 1 ? "flag" : "flags"} — internal signals only, never shown to members and never an
-        automatic consequence. Raise or clear one from the member/listing/order&rsquo;s own detail page.
+      <p className="text-sm text-ink-500 mb-6">
+        {total} {total === 1 ? "flag" : "flags"} — internal signals for staff, never shown to members.
       </p>
 
       <form className="flex flex-wrap gap-3 mb-6">

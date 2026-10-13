@@ -2,8 +2,11 @@ import Link from "next/link";
 import { requireStaff } from "@/lib/admin/authorization";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { formatDateTime } from "@/lib/admin/format";
-import ModerationForm from "@/components/admin/moderation-form";
-import { hideCourseReview, restoreCourseReview } from "./actions";
+import AdminPageHeader from "@/components/admin/page-header";
+import AdminRowActions from "@/components/admin/controls/row-actions";
+import { BulkProvider, BulkBar, SelectAll, SelectRow } from "@/components/admin/controls/bulk";
+import { Pill } from "@/components/admin/table";
+import { bulkBarProps, rowActionProps } from "@/lib/admin/controls";
 
 type Row = {
   id: number;
@@ -32,7 +35,7 @@ export default async function AdminCourseReviewsPage({
 }: {
   searchParams: Promise<{ status?: string; reviewId?: string }>;
 }) {
-  await requireStaff();
+  const { staff } = await requireStaff();
   const { status = "", reviewId } = await searchParams;
   const admin = createAdminClient();
 
@@ -59,8 +62,10 @@ export default async function AdminCourseReviewsPage({
 
   return (
     <div>
-      <h1 className="font-display font-bold text-2xl mb-1">Course reviews</h1>
-      <p className="text-ink-500 mb-6">Reviews with a comment, newest first. Hiding one also removes it from the club&apos;s average.</p>
+      <AdminPageHeader
+        title="Course reviews"
+        description="Reviews with a comment, newest first. Hiding one also takes it out of the course's average."
+      />
 
       {reviewId ? (
         <div className="flex items-center gap-2 mb-4 text-sm">
@@ -83,42 +88,47 @@ export default async function AdminCourseReviewsPage({
       {rows.length === 0 ? (
         <div className="bg-surface border border-line rounded-2xl text-center py-16 text-ink-500">No course reviews match.</div>
       ) : (
-        <div className="flex flex-col gap-4">
-          {rows.map((r) => (
-            <div key={r.id} className="bg-surface border border-line rounded-2xl p-5">
-              <div className="flex items-start justify-between gap-3 flex-wrap">
-                <div>
-                  <div className="text-sm font-bold text-ink-900">
-                    {r.member ? `${r.member.first_name} ${r.member.last_name}` : "Unknown member"} &rarr;{" "}
-                    {r.club ? (
-                      <Link href={`/courses/${r.club.country}/${r.club.slug}`} className="underline">{r.club.name}</Link>
-                    ) : (
-                      "a course"
-                    )}
+        <BulkProvider>
+          <div className="flex items-center gap-2 mb-3 text-sm text-ink-500">
+            <SelectAll ids={rows.map((r) => r.id)} /> Select all on this page
+          </div>
+          <div className="flex flex-col gap-3">
+            {rows.map((r) => (
+              <div key={r.id} className="bg-surface border border-line rounded-2xl p-5">
+                <div className="flex items-start gap-3">
+                  <div className="pt-0.5">
+                    <SelectRow id={r.id} label={`Select review #${r.id}`} />
                   </div>
-                  <div className="text-xs text-ink-500 mt-0.5">#{r.id} · {r.rating}★ · {formatDateTime(r.created_at)}</div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-bold text-ink-900">
+                      {r.member ? `${r.member.first_name} ${r.member.last_name}` : "Unknown member"} &rarr;{" "}
+                      {r.club ? (
+                        <Link href={`/courses/${r.club.country}/${r.club.slug}`} className="underline">
+                          {r.club.name}
+                        </Link>
+                      ) : (
+                        "a course"
+                      )}
+                    </div>
+                    <div className="text-xs text-ink-500 mt-0.5">
+                      #{r.id} · {r.rating}★ · {formatDateTime(r.created_at)}
+                    </div>
+                  </div>
+                  <Pill tone={r.hidden_at ? "bad" : "good"}>{r.hidden_at ? "Hidden" : "Visible"}</Pill>
+                  <AdminRowActions {...rowActionProps(staff, "course_review", r.id, { hidden: !!r.hidden_at })} />
                 </div>
-                <span className={`text-xs font-bold px-2.5 py-1 rounded-full shrink-0 ${r.hidden_at ? "bg-red-100 text-red-600" : "bg-green-100 text-green-800"}`}>
-                  {r.hidden_at ? "Hidden" : "Visible"}
-                </span>
-              </div>
-              {r.body && <p className="text-sm text-ink-900 mt-3 whitespace-pre-wrap">{r.body}</p>}
-              {r.hidden_at && (
-                <p className="text-xs text-ink-500 mt-3 bg-cream-100 rounded-lg px-3 py-2">
-                  Hidden {formatDateTime(r.hidden_at)}
-                  {r.hidden_reason && <> — &ldquo;{r.hidden_reason}&rdquo;</>}
-                </p>
-              )}
-              <div className="mt-4">
-                {r.hidden_at ? (
-                  <ModerationForm action={restoreCourseReview} idField="reviewId" id={r.id} submitLabel="Restore" pendingLabel="Restoring…" placeholder="Reason for restoring (recorded in the audit log)" />
-                ) : (
-                  <ModerationForm action={hideCourseReview} idField="reviewId" id={r.id} submitLabel="Hide" pendingLabel="Hiding…" tone="danger" placeholder="Reason for hiding (recorded in the audit log)" />
+                {r.body && <p className="text-sm text-ink-900 mt-3 whitespace-pre-wrap">{r.body}</p>}
+                {r.hidden_at && (
+                  <p className="text-xs text-ink-500 mt-3 bg-cream-100 rounded-lg px-3 py-2">
+                    Hidden {formatDateTime(r.hidden_at)}
+                    {r.hidden_reason && <> — &ldquo;{r.hidden_reason}&rdquo;</>}
+                  </p>
                 )}
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+          <BulkBar {...bulkBarProps(staff, "course_review")} />
+        </BulkProvider>
       )}
     </div>
   );
