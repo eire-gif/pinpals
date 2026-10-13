@@ -54,6 +54,19 @@ create or replace function auth.uid() returns uuid
 language sql stable
 as $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
 
+-- auth.jwt(): the real one returns the request's JWT claims. Locally a test
+-- names the assurance level with request.jwt.claim.aal; unset, a session is
+-- taken as having passed two-step sign-in (aal2), so tests about what staff
+-- can do keep working. staff-two-step.test.ts sets aal1 to check the gate.
+create or replace function auth.jwt() returns jsonb
+language sql stable
+as $$
+  select coalesce(nullif(current_setting('request.jwt.claims', true), '')::jsonb, '{}'::jsonb)
+    || jsonb_build_object(
+         'sub', nullif(current_setting('request.jwt.claim.sub', true), ''),
+         'aal', coalesce(nullif(current_setting('request.jwt.claim.aal', true), ''), 'aal2'))
+$$;
+
 -- ============ storage schema (bucket/object policies from 0003_marketplace.sql) ============
 create table if not exists storage.buckets (
   id text primary key,

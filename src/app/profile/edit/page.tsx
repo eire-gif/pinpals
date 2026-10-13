@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { withPrivateDetails } from "@/lib/member-private";
 import type { Profile } from "@/lib/types";
 import EditProfileForm from "./edit-profile-form";
 
@@ -16,11 +17,13 @@ export default async function EditProfilePage({
 
   if (!user) redirect("/login");
 
-  const { data: profile } = await supabase
+  const { data: shared } = await supabase
     .from("profiles")
     .select("*")
     .eq("id", user.id)
     .single<Profile>();
+  // Their own handicap and membership number — owner-only (0133).
+  const profile = await withPrivateDetails(supabase, user.id, shared);
 
   // Own row only, by that table's RLS — a member can always read their own
   // date of birth even though nobody else can (0059).

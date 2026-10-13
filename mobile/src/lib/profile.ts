@@ -47,21 +47,35 @@ type ProfileRow = {
   home_club_id: number | null;
   country: string | null;
   county: string | null;
-  handicap: number | null;
   handicap_visible: boolean | null;
   bio: string | null;
-  gui_membership_number: string | null;
   avatar_url: string | null;
 };
 
 type BirthdateRow = { date_of_birth: string; age_range_visible: boolean };
 
+type PrivateRow = { handicap: number | null; gui_membership_number: string | null };
+
+/**
+ * Your handicap and membership number, from member_private (0133) — readable
+ * by you alone. The copy on profiles is what others see: the handicap only
+ * while you show it, the membership number never.
+ */
+export async function loadMyPrivate(userId: string): Promise<{ handicap: number | null; guiNumber: string | null }> {
+  const { data } = await supabase
+    .from("member_private")
+    .select("handicap, gui_membership_number")
+    .eq("member_id", userId)
+    .maybeSingle<PrivateRow>();
+  return { handicap: data?.handicap == null ? null : Number(data.handicap), guiNumber: data?.gui_membership_number ?? null };
+}
+
 export async function loadMyProfile(userId: string): Promise<MyProfile | null> {
-  const [{ data: profile }, { data: birthdate }] = await Promise.all([
+  const [{ data: profile }, { data: birthdate }, mine] = await Promise.all([
     supabase
       .from("profiles")
       .select(
-        "first_name, last_name, home_club, home_club_id, country, county, handicap, handicap_visible, bio, gui_membership_number, avatar_url"
+        "first_name, last_name, home_club, home_club_id, country, county, handicap_visible, bio, avatar_url"
       )
       .eq("id", userId)
       .maybeSingle<ProfileRow>(),
@@ -72,6 +86,7 @@ export async function loadMyProfile(userId: string): Promise<MyProfile | null> {
       .select("date_of_birth, age_range_visible")
       .eq("user_id", userId)
       .maybeSingle<BirthdateRow>(),
+    loadMyPrivate(userId),
   ]);
 
   if (!profile) return null;
@@ -83,10 +98,10 @@ export async function loadMyProfile(userId: string): Promise<MyProfile | null> {
     homeClubId: profile.home_club_id,
     country: profile.country ?? "ireland",
     county: profile.county,
-    handicap: profile.handicap,
+    handicap: mine.handicap,
     handicapVisible: profile.handicap_visible ?? false,
     bio: profile.bio,
-    guiNumber: profile.gui_membership_number,
+    guiNumber: mine.guiNumber,
     avatarUrl: profile.avatar_url,
     dateOfBirth: birthdate?.date_of_birth ?? null,
     ageRangeVisible: birthdate?.age_range_visible ?? false,

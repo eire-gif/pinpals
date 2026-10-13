@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { withPrivateDetails } from "@/lib/member-private";
 import { requireStaff } from "@/lib/admin/authorization";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminAction } from "@/lib/admin/audit";
@@ -203,11 +204,13 @@ export async function updateMemberProfile(
 
   const admin = createAdminClient();
 
-  const { data: before } = await admin
+  const { data: shared } = await admin
     .from("profiles")
     .select("*")
     .eq("id", targetId)
     .maybeSingle<Profile>();
+  // The real handicap and membership number are in member_private (0133).
+  const before = await withPrivateDetails(admin, targetId, shared);
 
   if (!before) return { error: "That member no longer exists." };
 
@@ -257,10 +260,19 @@ export async function updateMemberProfile(
     return { error: "Nothing changed — edit a field before saving." };
   }
 
-  const { error } = await admin
+  // Handicap and membership number to member_private — written after the
+  // profile so the shared copy follows the "show handicap" setting saved here.
+  const { handicap, gui_membership_number, ...sharedValues } = parsed.values;
+  const { error: sharedError } = await admin
     .from("profiles")
-    .update({ ...parsed.values, home_club: homeClubName })
+    .update({ ...sharedValues, home_club: homeClubName })
     .eq("id", targetId);
+  const { error: privateError } = sharedError
+    ? { error: null }
+    : await admin
+        .from("member_private")
+        .upsert({ member_id: targetId, handicap, gui_membership_number, updated_at: new Date().toISOString() }, { onConflict: "member_id" });
+  const error = sharedError ?? privateError;
 
   await recordAdminAction({
     actor: { id: user.id, role: staff.role },

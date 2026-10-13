@@ -16,10 +16,22 @@ import { supabase } from "./supabase";
  * opened from the app (the pp_shell cookie), because this screen is the menu.
  */
 
-/** is_staff() is SECURITY DEFINER and executable by signed-in members (0007). */
+/**
+ * Whether to show the Admin row. Reads the member's own staff_roles row
+ * (always readable by them, 0007) rather than is_staff(): since 0135 that is
+ * true only after two-step sign-in, which happens on the website when the
+ * Admin pages open — an app session never has it.
+ */
 export async function isSuperAdmin(): Promise<boolean> {
-  const { data, error } = await supabase.rpc("is_staff", { required_roles: ["super_admin"] });
-  return !error && data === true;
+  const { data: session } = await supabase.auth.getSession();
+  const userId = session.session?.user.id;
+  if (!userId) return false;
+  const { data, error } = await supabase
+    .from("staff_roles")
+    .select("role, status")
+    .eq("user_id", userId)
+    .maybeSingle<{ role: string; status: string }>();
+  return !error && data?.role === "super_admin" && data.status === "active";
 }
 
 export type AdminSection = { path: string; label: string; icon: string; hint?: string };

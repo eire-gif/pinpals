@@ -492,6 +492,19 @@ async function anonymise(admin: SupabaseClient, userId: string): Promise<void> {
     throw new Error(`Couldn't anonymise the profile: ${error.message}`);
   }
 
+  // Handicap and membership number live in member_private (0133); blanking
+  // the shared copy above does not reach them.
+  const { error: privateError } = await admin.from("member_private").delete().eq("member_id", userId);
+  if (privateError) {
+    throw new Error(`Couldn't remove the private details: ${privateError.message}`);
+  }
+
+  // The mobile (0134), and every share of it.
+  const { error: phoneError } = await admin.rpc("remove_member_phone", { p_member: userId });
+  if (phoneError && !/remove_member_phone/.test(phoneError.message)) {
+    throw new Error(`Couldn't remove the mobile number: ${phoneError.message}`);
+  }
+
   // The auth row has to stay for the foreign keys, so it is emptied instead.
   // The address is given a domain that cannot receive mail, so a stray
   // password-reset or marketing send has nowhere to go, and the ban is made

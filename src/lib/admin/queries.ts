@@ -1,4 +1,5 @@
 import "server-only";
+import { withPrivateDetails } from "@/lib/member-private";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type {
   Auction,
@@ -313,7 +314,7 @@ export type AdminUserDetail = {
 
 export async function getUserDetail(id: string): Promise<AdminUserDetail | null> {
   const admin = createAdminClient();
-  const [{ data: profile }, authUsers, { data: listings }, { data: invites }, { data: offersMade }, notes] =
+  const [{ data: shared }, authUsers, { data: listings }, { data: invites }, { data: offersMade }, notes] =
     await Promise.all([
       admin.from("profiles").select("*").eq("id", id).maybeSingle<Profile>(),
       authUserMap(),
@@ -338,6 +339,8 @@ export async function getUserDetail(id: string): Promise<AdminUserDetail | null>
       listUserNotes(id),
     ]);
 
+  // Real handicap and membership number — member_private (0133).
+  const profile = await withPrivateDetails(admin, id, shared);
   if (!profile) return null;
 
   return {
