@@ -19,6 +19,9 @@ import { WithInvite } from "@/components/pinpals";
 import { INVITE_EVERY, inviteAfter } from "@/lib/invite-slots";
 import { PostCard, postCardWidth } from "@/components/post-card";
 import { RecapPrompt } from "@/components/recap-prompt";
+import { SponsoredCard } from "@/components/sponsored-card";
+import { adsOf, feedAdFor, feedAdSlot } from "@/lib/ads-rules";
+import { useAds, useHiddenAds } from "@/lib/ads";
 import { ScreenHeader, useCollapsingHeader } from "@/components/screen-header";
 import { useAuth } from "@/lib/auth";
 import { loadFeed, type FeedEntry, type FeedPost } from "@/lib/feed";
@@ -168,6 +171,12 @@ export default function FeedScreen() {
   }, []);
   const actions = usePostActions({ update, remove, reload: load, afterBlock });
 
+  // Sponsored posts (0139): after the 4th post, then every 12th. Empty — and
+  // so nothing drawn — unless advertising is on (lib/ads.ts).
+  const allAds = useAds();
+  const hiddenAds = useHiddenAds();
+  const feedAds = adsOf(allAds, "feed", hiddenAds);
+
   const header = (
     <View>
       <RecapPrompt userId={userId} style={styles.recap} />
@@ -298,7 +307,11 @@ export default function FeedScreen() {
               />
             )
           }
-          renderItem={({ item, index }) => (
+          renderItem={({ item, index }) => {
+            const adSlot = feedAdSlot(index, entries.length);
+            const sponsored = adSlot == null ? null : feedAdFor(feedAds, adSlot);
+            return (
+            <View style={sponsored ? { gap: spacing.md } : undefined}>
             <WithInvite
               show={inviteAfter(index, entries.length, INVITE_EVERY.feed)}
               gap={spacing.md}
@@ -350,7 +363,10 @@ export default function FeedScreen() {
               </Pressable>
             )}
             </WithInvite>
-          )}
+            {sponsored ? <SponsoredCard ad={sponsored} width={cardWidth} /> : null}
+            </View>
+            );
+          }}
         />
       )}
     </View>

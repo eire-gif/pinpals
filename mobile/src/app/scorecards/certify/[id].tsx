@@ -18,6 +18,7 @@ import {
   signCertification,
   type CertifyMethod,
 } from "@/lib/certify-device";
+import { requestTakeover } from "@/lib/ads";
 import { isOn } from "@/lib/features";
 import { goHome } from "@/lib/go-home";
 import { playedLabel, scorecardTotals, shotsOnCard, vsParText } from "@/lib/scorecard-math";
@@ -123,6 +124,9 @@ export default function CertifyScreen() {
           await certify(req.id, method, signed.keyId, signed.signature);
         }
       }
+      // A round just certified: the moment an "after a round" advert may
+      // show (only with ads on; the host waits for a free screen).
+      requestTakeover("after_round");
       await load();
     } catch (e) {
       if (e instanceof CertifyCancelled) return;
