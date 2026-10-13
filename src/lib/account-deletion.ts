@@ -156,6 +156,99 @@ export async function requestAccountDeletion(
 }
 
 /**
+ * A super admin starting a member's deletion on their behalf — an erasure
+ * request by email, say. The same request row, the same lock, the same
+ * stand-down of tee times, listings and posts, and the same scheduled scrub as
+ * a member's own request: GDPR handling stays in this one file.
+ *
+ * The blocking check is can_delete_account_for() (0140), the same rules as
+ * can_delete_account() for a member named by id. `immediate` schedules the
+ * scrub for its next run instead of after the thirty-day grace period, for a
+ * request where the member has already asked for erasure in writing.
+ */
+export async function requestAccountDeletionByStaff(
+  userId: string,
+  { immediate = false }: { immediate?: boolean } = {}
+): Promise<Result<PendingDeletion>> {
+  const admin = createAdminClient();
+
+  const { data: blocked, error: checkError } = await admin.rpc("can_delete_account_for", {
+    p_user_id: userId,
+  });
+  if (checkError) {
+    return fail("failed", "Couldn't check this account just now (is migration 0140 applied?).");
+  }
+  if (typeof blocked === "string" && blocked.length > 0) {
+    return fail("blocked", blocked);
+  }
+
+  const delayMs = immediate ? 60 * 1000 : GRACE_DAYS * 24 * 60 * 60 * 1000;
+  const scheduledFor = new Date(Date.now() + delayMs).toISOString();
+
+  const { data: request, error: insertError } = await admin
+    .from("account_deletion_requests")
+    .insert({ user_id: userId, scheduled_for: scheduledFor })
+    .select("requested_at, scheduled_for")
+    .single<{ requested_at: string; scheduled_for: string }>();
+
+  if (insertError) {
+    if (insertError.code === "23505") {
+      return fail("already_requested", "This account is already scheduled for deletion.");
+    }
+    return fail("failed", "Couldn't start the deletion just now.");
+  }
+
+  await standDownCommitments(admin, admin, userId, { releaseHeldPlaces: false });
+  await lockAccount(admin, userId);
+
+  return {
+    ok: true,
+    value: { requestedAt: request.requested_at, scheduledFor: request.scheduled_for },
+  };
+}
+
+/**
+ * Undo a deletion that hasn't run yet — "a deletion made in temper can be
+ * undone by asking". Removes the open request, lifts the lock and un-hides
+ * the posts the request hid. Listings and tee times it took down stay down;
+ * the member can relist or repost.
+ */
+export async function cancelAccountDeletionByStaff(userId: string): Promise<Result<null>> {
+  const admin = createAdminClient();
+
+  const { data: removed, error } = await admin
+    .from("account_deletion_requests")
+    .delete()
+    .eq("user_id", userId)
+    .is("completed_at", null)
+    .select("id");
+
+  if (error) return fail("failed", "Couldn't cancel the deletion just now.");
+  if (!removed || removed.length === 0) return fail("failed", "There's no pending deletion for this account.");
+
+  await admin.auth.admin.updateUserById(userId, { ban_duration: "none" });
+  await admin
+    .from("posts")
+    .update({ hidden_at: null, hidden_reason: null })
+    .eq("author_id", userId)
+    .eq("hidden_reason", "account_deletion");
+
+  return { ok: true, value: null };
+}
+
+/** The open deletion request for a member, if any — for the admin pages. */
+export async function pendingDeletionFor(userId: string): Promise<PendingDeletion | null> {
+  const admin = createAdminClient();
+  const { data } = await admin
+    .from("account_deletion_requests")
+    .select("requested_at, scheduled_for")
+    .eq("user_id", userId)
+    .is("completed_at", null)
+    .maybeSingle<{ requested_at: string; scheduled_for: string }>();
+  return data ? { requestedAt: data.requested_at, scheduledFor: data.scheduled_for } : null;
+}
+
+/**
  * Cancel what the member owes other people before the account goes dark.
  *
  * A fourball three of whom have confirmed is a plan other people have made
@@ -166,7 +259,8 @@ export async function requestAccountDeletion(
 async function standDownCommitments(
   supabase: SupabaseClient,
   admin: SupabaseClient,
-  userId: string
+  userId: string,
+  { releaseHeldPlaces = true }: { releaseHeldPlaces?: boolean } = {}
 ): Promise<void> {
   // --- Places they hold on other people's tee times -----------------------
   //
@@ -175,12 +269,19 @@ async function standDownCommitments(
   // to the host under the same row lock and the host gets the same
   // notification. Re-implementing it would be a second version of a rule that
   // already exists.
-  const { data: held } = await supabase
-    .from("tee_time_interests")
-    .select("id, status")
-    .eq("member_id", userId)
-    .in("status", ["accepted", "confirmed"])
-    .returns<{ id: number; status: string }[]>();
+  //
+  // Skipped when staff start the deletion (requestAccountDeletionByStaff):
+  // confirm_tee_time_place() acts as auth.uid(), and there is no member
+  // session to act as. Those places go when the scrub deletes the member's
+  // tee_time_interests rows.
+  const { data: held } = releaseHeldPlaces
+    ? await supabase
+        .from("tee_time_interests")
+        .select("id, status")
+        .eq("member_id", userId)
+        .in("status", ["accepted", "confirmed"])
+        .returns<{ id: number; status: string }[]>()
+    : { data: [] as { id: number; status: string }[] };
 
   for (const interest of held ?? []) {
     await confirmPlace(supabase, userId, interest.id, false);

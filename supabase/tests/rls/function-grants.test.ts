@@ -102,6 +102,8 @@ const EXPECTED: Record<string, Expectation> = {
   // honest answer depends on payouts, refunds and disputes, none of which a
   // member may read under their own RLS.
   "can_delete_account()": { anon: false, authenticated: true },
+  // 0140: the staff-side check for a member named by id. Service role only.
+  "can_delete_account_for(p_user_id uuid)": { anon: false, authenticated: false },
   "can_message(a uuid, b uuid)": { anon: false, authenticated: true },
   "get_order_dispute_status(p_order_id bigint)": { anon: false, authenticated: true },
   "is_blocked(a uuid, b uuid)": { anon: false, authenticated: true },
