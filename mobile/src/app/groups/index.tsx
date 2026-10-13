@@ -58,7 +58,7 @@ export default function GroupsScreen() {
   const header = (
     <>
       <Stack.Screen options={{ headerTitle: "", headerBackTitle: "Back" }} />
-      <ScreenHeader scene="coastAerial" title="Your groups" subtitle="Crews, trips and societies" />
+      <ScreenHeader scene="coastAerial" title="Groups & societies" subtitle="Your crews, trips and societies" />
     </>
   );
 
@@ -130,7 +130,7 @@ export default function GroupsScreen() {
             </>
           ) : null}
 
-          <SectionTitle>Your groups</SectionTitle>
+          <SectionTitle>Your groups &amp; societies</SectionTitle>
           {data && data.groups.length > 0 ? (
             <View style={styles.list}>
               {data.groups.map((g) => (
