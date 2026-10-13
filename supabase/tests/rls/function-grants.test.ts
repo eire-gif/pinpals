@@ -179,6 +179,12 @@ const EXPECTED: Record<string, Expectation> = {
   "live_match_day_delete(p_day_id bigint)": { anon: false, authenticated: true },
   "live_round_set_drive(p_round_id bigint, p_hole smallint, p_position smallint)": { anon: false, authenticated: true },
   "live_scramble_day_create(p_day jsonb, p_teams jsonb, p_card jsonb)": { anon: false, authenticated: true },
+  // 0137 competition results. Each checks the caller organised the day
+  // (or, for card status, is in it) itself.
+  "competition_results_save(p_day_id bigint, p_settings jsonb)": { anon: false, authenticated: true },
+  "competition_results_publish(p_day_id bigint, p_results jsonb)": { anon: false, authenticated: true },
+  "competition_results_withdraw(p_day_id bigint)": { anon: false, authenticated: true },
+  "competition_card_status(p_day_id bigint)": { anon: false, authenticated: true },
   "order_set_meetup(p_order_id bigint, p_at timestamp with time zone, p_place text)": { anon: false, authenticated: true },
   "order_confirm_handover(p_order_id bigint, p_code text)": { anon: false, authenticated: true },
   "order_mark_posted(p_order_id bigint, p_tracking text)": { anon: false, authenticated: true },

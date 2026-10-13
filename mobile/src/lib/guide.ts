@@ -24,6 +24,8 @@ import type { Href } from "expo-router";
  *               app/group/[id]/itinerary/*
  *    round    → app/(tabs)/live/day/group.tsx, app/(tabs)/live/round/[id].tsx,
  *               app/scorecards/certify/[id].tsx
+ *    results  → app/(tabs)/live/day/[id].tsx, components/results-entry.tsx,
+ *               app/(tabs)/live/day/results/[id].tsx
  *    teePost  → app/post-tee-time.tsx, app/tee-time-requests.tsx
  *    teeJoin  → app/(tabs)/tee-times.tsx, app/invite/[id].tsx, app/my-requests.tsx
  *    fill     → app/invite/[id].tsx, app/round-invite.tsx, app/tee-link.tsx
@@ -586,6 +588,76 @@ export const GUIDES: Guide[] = [
           { style: "link", label: "Choose who", icon: "finger-print" },
         ],
         tip: "Scores can't be changed once the round is finished.",
+      },
+    ],
+    next: "results",
+  },
+
+  {
+    id: "results",
+    section: "groups",
+    title: "Publish the results",
+    blurb: "1st, 2nd and 3rd with countbacks, worked out from the cards — check, publish, share.",
+    icon: "trophy",
+    tone: "gold",
+    audience: "Whoever started the day",
+    as: { friends: { blurb: "Who won, with the countback worked out — share it to the group chat." } },
+    steps: [
+      {
+        title: "Open the day's board",
+        body: "Open the day from Live scoring, under Society days, matches & scrambles. On its board, the Results card shows how many cards are in. Tap Prepare results — you can do it while the last groups are still out.",
+        path: [{ icon: "podium-outline", label: "Live scoring" }, { icon: "people-outline", label: "Society days, matches & scrambles" }],
+        look: [{ style: "primary", label: "Prepare results" }],
+        who: "Whoever started the day. Everyone else sees the results once you publish them.",
+        go: { label: "Live scoring", to: "/live" },
+        tip: "Results are for Stableford and stroke-play days, scrambles and foursomes. A match day's result is its team score, already on its board.",
+      },
+      {
+        title: "How the winners are decided",
+        body: "Ties are broken the way Golf Ireland clubs do it — the R&A's countback: the last 9 holes, then the last 6, the last 3 and the 18th, then the last 6, 3 and 9th of the front nine. Holes go by their number on the card, so a group that started on the 10th is judged on the same holes as everyone else.",
+        choices: [
+          { icon: "shuffle", label: "Random draw", blurb: "Still level after every step: PinPals draws, the same way every time." },
+          { icon: "people", label: "Share the place", blurb: "Still level after every step: both show as =2nd." },
+        ],
+        tip: "In stroke play each step takes ½, ⅓, ⅙ or 1⁄18 of the handicap off, never rounded. In Stableford it's simply the points on those holes.",
+      },
+      {
+        title: "Divisions and prizes",
+        body: "Pick One, Two or Three divisions — the field is split evenly by playing handicap, and − and + move the cut. Then switch on Best gross, One prize per player and Guests can win as your society plays it.",
+        look: [
+          { style: "outline", label: "Two" },
+          { style: "outline", label: "Best gross" },
+          { style: "outline", label: "One prize per player" },
+        ],
+        only: ["society", "trip"],
+        tip: "With One prize per player, someone placed in their division doesn't also take best gross — it goes to the next best.",
+      },
+      {
+        title: "Check the podium and every tie",
+        body: "The top three stand on the podium and everyone is listed below. Wherever players are level, tap one to see the countback step by step — the step that separated them is highlighted.",
+        look: [{ style: "link", label: "Won on countback · last 6: 14 v 12" }],
+        tip: "B9 beside each score is the points (or net) on holes 10–18 — the first countback step.",
+      },
+      {
+        title: "Before you publish",
+        body: "PinPals lists anything that could change the result: a card still out, a card missing stroke indexes, or a placed card a playing partner hasn't certified yet. Under Prizes you enter, add nearest the pin and longest drive winners.",
+        look: [
+          { style: "link", label: "Nearest the pin", icon: "add" },
+          { style: "link", label: "Longest drive", icon: "add" },
+        ],
+        tip: "In stroke play a picked-up hole is a no return (NR) and can't place — the Rules of Golf. In Stableford it's just no points.",
+      },
+      {
+        title: "Publish",
+        body: "Tap Publish results. Every card is closed so no score can change, and everyone in the day gets a notification with the winners and where they finished.",
+        look: [{ style: "primary", label: "Publish results" }],
+        tip: "Spotted a mistake? Tap Correct, fix it, and Publish the update — everyone sees Updated. Take the results down hides them again.",
+      },
+      {
+        title: "Share it",
+        body: "Tap Share results to send them to WhatsApp, the society chat or anywhere else. The link shows a results card with each division's top three, and opens the full results — countbacks included.",
+        look: [{ style: "primary", label: "Share results", icon: "share-outline" }],
+        tip: "Anyone who played can share the results too, from their own results page.",
       },
     ],
   },
@@ -1260,6 +1332,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-13", text: "New guide: Publish the results — 1st, 2nd and 3rd with R&A countbacks, divisions, prizes, publishing and sharing." },
   { on: "2026-10-13", text: "Foursomes (Scotch foursomes) as Stableford or stroke play: in Start a Game and From a Group — pairs on one leaderboard, half the pair's combined handicaps." },
   { on: "2026-10-13", text: "New guide: Your mobile and privacy — add your mobile, share it with your society, download your data." },
   { on: "2026-10-13", text: "Run your society: Phone numbers — call, text or WhatsApp members who share their mobile." },

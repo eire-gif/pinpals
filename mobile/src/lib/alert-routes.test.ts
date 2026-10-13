@@ -284,6 +284,7 @@ describe("every native destination is a screen that exists", () => {
     expect(appRouteFor("/scorecards/certify/7")).toEqual({ kind: "native", path: "/scorecards/certify/7" });
     expect(appRouteFor("/scorecards/31")).toEqual({ kind: "native", path: "/scorecards/31" });
     expect(appRouteFor("/live/days/3")).toEqual({ kind: "native", path: "/live/day/3" });
+    expect(appRouteFor("/live/days/3/results")).toEqual({ kind: "native", path: "/live/day/results/3" });
     expect(appRouteFor("/live/days/x").kind).toBe("web");
     expect(appRouteFor("/feed")).toEqual({ kind: "native", path: "/feed" });
     expect(appRouteFor("/members/0b6f1a3e-8c2d-4f5a-9e7b-1c2d3e4f5a6b")).toEqual({
