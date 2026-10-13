@@ -2,7 +2,14 @@ import type { LegalDocument } from "./types";
 import { OPERATOR, SUPERVISORY_AUTHORITY, operatorFullDescription } from "./operator";
 
 /**
- * Pinpals Privacy Policy, v1.0 — the Article 13 notice.
+ * Pinpals Privacy Policy, v1.1 — the Article 13 notice.
+ *
+ * 1.1 (13 Oct 2026): verified mobile numbers and sharing them with a group's
+ * officers; groups, societies, events, live scoring and shot positions; the
+ * hole map's satellite imagery and the phone's location; push notifications;
+ * the full list of processors; Download my data; two-step sign-in for staff;
+ * handicap and Golf Ireland number held privately. See
+ * claude/security-and-gdpr.md (project docs) for the records behind it.
  *
  * ============ Read this before editing ============
  *
@@ -36,16 +43,16 @@ export const PRIVACY: LegalDocument = {
   consentType: "privacy",
   title: "Pinpals Privacy Policy",
   shortTitle: "Privacy Policy",
-  version: "1.0",
-  effectiveFrom: "2026-10-03",
+  version: "1.1",
+  effectiveFrom: "2026-10-13",
   summary: "What personal data Pinpals holds about you, why, and what you can do about it.",
   keyPoints: [
-    "We hold what you give us: your name, email, and whatever you choose to add — club, county, handicap, photo, phone, date of birth.",
-    "Your phone number and date of birth are never shown to other members. Your name, club, county and handicap are, if you fill them in.",
+    "We hold what you give us: your name, email, and whatever you choose to add — club, county, handicap, photo, mobile number, date of birth.",
+    "Your mobile number is seen only by the groups you choose to share it with. Your date of birth and Golf Ireland number are never shown. Your handicap shows only if you switch it on — and to the people who run a society you join.",
     "We use it to run your account, the marketplace and tee times — not to build a profile of you and not to sell to anyone.",
     "Marketing email is a separate, optional tick. You can switch it off any time, in one click, and we'll never bundle it into agreeing to the Terms.",
-    "Stripe, Supabase, Vercel and our email provider process data for us. Stripe handles card details — we never see them.",
-    "You can see, correct, export or delete your data, and you can complain to the Data Protection Commission.",
+    "Supabase, Vercel, Stripe, Resend, Expo, our text-message provider and Google Maps process data for us, each named in section 5. Stripe handles card details — we never see them.",
+    "You can download a copy of your data yourself, correct it, or delete your account — and you can complain to the Data Protection Commission.",
   ],
   sections: [
     {
@@ -77,7 +84,7 @@ export const PRIVACY: LegalDocument = {
         },
         {
           kind: "p",
-          text: "Optionally, at sign-up or later: your mobile number, and how you heard about us.",
+          text: "Optionally: how you heard about us; and a mobile number, which we check by texting you a code. You can use it to sign in with a text code instead of your password, and choose groups to share it with.",
         },
         {
           kind: "p",
@@ -86,6 +93,18 @@ export const PRIVACY: LegalDocument = {
         {
           kind: "p",
           text: "As you use the site: your listings and the photographs on them, your offers and bids, your orders, your messages to other members, your reviews, your posts in the feed with their photographs, your comments and likes, your tee-time availability and the invitations you accept, your notification settings, the members you have blocked, reports you make about other members, and support cases you open.",
+        },
+        {
+          kind: "p",
+          text: "In groups and societies: which groups you belong to and your role in them, events you enter, guests you add, payments an organiser marks against you, and the handicap a society sets for you. When you play: the scores in your live rounds and scorecards, the handicap indicator we work out from them, and — if you mark shots on the hole map — where each shot was played from.",
+        },
+        {
+          kind: "p",
+          text: "Your phone's location, only when you ask for it: to find tee times near you (used for that search and not kept), and on the hole map to show distances (kept only if you mark a shot, as that shot's position in the round). We never track you in the background.",
+        },
+        {
+          kind: "p",
+          text: "If you allow notifications on your phone: a push token that lets us send alerts to that device.",
         },
         {
           kind: "p",
@@ -110,8 +129,16 @@ export const PRIVACY: LegalDocument = {
           text: "Visible to other signed-in members: your name, profile photograph, home club, country, county, bio, and your listings, reviews and tee-time posts. Your handicap is visible only if you switch it on. Your age is shown only as a wide band (for example \"35–44\"), and only if you switch that on separately.",
         },
         {
+          kind: "p",
+          text: "In a group: its members see that you are in it. In a society, the owner, captain and secretary also see your handicap and handicap indicator, to set the handicaps the society plays off — joining a society shares this with them, and the app says so. The players in a live round see its scores and any shot positions.",
+        },
+        {
+          kind: "p",
+          text: "Your mobile number: only you, unless you share it with a group. Shared, it is seen by the people who run that group — its owner and admins, or a society's captain and secretary. If you run the group yourself, its members see it too. You choose group by group, and turning a share off removes it at once.",
+        },
+        {
           kind: "note",
-          text: "Never visible to other members: your email address, your phone number, your date of birth itself, your golfing union membership number, your payment details, your notification settings, and your consent records. These are held in a way that other members' accounts cannot read, not merely hidden by the design of a page.",
+          text: "Never visible to other members: your email address, your mobile number (unless you share it with a group, as above), your date of birth itself, your golfing union membership number, your handicap while you keep it hidden (except from the people who run a society you are in), your payment details, your notification settings, and your consent records. These are held in a way that other members' accounts cannot read, not merely hidden by the design of a page.",
         },
         {
           kind: "p",
@@ -165,6 +192,14 @@ export const PRIVACY: LegalDocument = {
         },
         {
           kind: "p",
+          text: "To check your mobile number and let you sign in with it — necessary to perform our contract, since you asked for it. To share it with a group — only with your consent, given and withdrawn group by group.",
+        },
+        {
+          kind: "p",
+          text: "To use your phone's location for a nearby search or the hole map — only when you allow it on your phone, which you can withdraw in your phone's settings at any time.",
+        },
+        {
+          kind: "p",
           text: "To keep proof of what you agreed to and when — a legal obligation, since Article 7(1) requires us to be able to demonstrate your consent.",
         },
         {
@@ -184,10 +219,13 @@ export const PRIVACY: LegalDocument = {
         {
           kind: "ul",
           items: [
-            "Supabase — the database and authentication behind the site, where your account and content are stored.",
+            "Supabase — the database and authentication behind the site and app, where your account and content are stored (in the EU, Ireland).",
             "Vercel — hosting for the website itself, which also keeps short-lived technical request logs.",
             "Stripe — payment processing and seller payouts. Stripe handles card and bank details directly and acts as its own controller for parts of that, under its own privacy policy.",
-            "Our email provider — sending account, notification and (if you have opted in) newsletter email.",
+            "Resend — sending account, notification and (if you have opted in) newsletter email.",
+            "Our text-message provider (Twilio) — sending the codes that check your mobile and sign you in. It receives your number and the code, nothing else.",
+            "Expo, with Apple and Google — delivering push notifications to your phone. They receive your device's push token and the alert's text.",
+            "Google Maps Platform — the satellite imagery on the hole map. Your phone asks Google for the map tiles of the course you are looking at; Google sees your device's internet address, not who you are.",
           ],
         },
         {
@@ -211,6 +249,14 @@ export const PRIVACY: LegalDocument = {
         {
           kind: "p",
           text: "Your account and profile: for as long as your account is open. When you close it, we delete or anonymise your profile, listings, feed posts and their photographs, comments, messages and tee-time history, except where something below requires us to keep a record.",
+        },
+        {
+          kind: "p",
+          text: "Your mobile number: until you remove it in Privacy & security, or close your account. Shares with groups end when you turn them off, leave the group, or remove the number.",
+        },
+        {
+          kind: "p",
+          text: "Live rounds, scorecards and shot positions: for as long as your account is open, unless you delete the round. When you close your account your shot positions are deleted.",
         },
         {
           kind: "p",
@@ -244,7 +290,7 @@ export const PRIVACY: LegalDocument = {
         },
         {
           kind: "p",
-          text: "Access by our staff is limited to the people who need it, and administrative actions are recorded in an audit log.",
+          text: "Access by our staff is limited to the people who need it, needs a second step at sign-in (a code from an authenticator app), and administrative actions are recorded in an audit log. You can turn on signing in with a text code to your verified mobile.",
         },
         {
           kind: "p",
@@ -272,7 +318,7 @@ export const PRIVACY: LegalDocument = {
         },
         {
           kind: "p",
-          text: `To exercise any of these, write to ${OPERATOR.dataProtectionContact}. We will not charge you, and we will not make you give a reason. We may need to check who you are before we act.`,
+          text: `You can download a copy of your data yourself at any time: Privacy & security → Download my data, in the app or on the website. You can delete your account from your profile. For anything else, write to ${OPERATOR.dataProtectionContact}. We will not charge you, and we will not make you give a reason. We may need to check who you are before we act.`,
         },
         {
           kind: "note",
