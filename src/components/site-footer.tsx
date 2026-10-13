@@ -22,6 +22,7 @@ export default function SiteFooter() {
             <div className="flex flex-col gap-1.5 text-sm">
               <Link href="/community" className="hover:text-white">Find golfers</Link>
               <Link href="/courses" className="hover:text-white">Course directory</Link>
+              <Link href="/rules" className="hover:text-white">Rules of Golf</Link>
               <Link href="/marketplace" className="hover:text-white">Marketplace</Link>
               <Link href="/signup" className="hover:text-white">Join Pinpals</Link>
             </div>
