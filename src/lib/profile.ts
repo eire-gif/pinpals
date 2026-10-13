@@ -5,7 +5,8 @@ import type { Profile } from "./types";
 // starts at a non-zero baseline once these are filled in too.
 const COMPLETION_FIELDS: ReadonlyArray<keyof Profile> = [
   "home_club",
-  "county",
+  // County left the edit screens (Oct 2026, country only), so it no longer
+  // counts — a field nobody can fill must not hold the meter below 100.
   "handicap",
   "bio",
   "gui_membership_number",
