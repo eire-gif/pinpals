@@ -153,6 +153,8 @@ export const MENU: MenuSection[] = [
   {
     title: "Help",
     items: [
+      // Step-by-step guides with pictures (app/guide, content in lib/guide.ts).
+      { kind: "native", label: "How-to guides", icon: "book-outline", to: "/guide" },
       { kind: "contact", label: "Contact us", icon: "chatbox-ellipses-outline" },
       { kind: "signout", label: "Log out", icon: "log-out-outline" },
     ],

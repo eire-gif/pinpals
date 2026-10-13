@@ -4,6 +4,7 @@ import { Stack, router, useFocusEffect } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { GroupRow, SectionTitle, membersLabel } from "@/components/group-bits";
+import { GuideLink } from "@/components/guide-bits";
 import { ScreenHeader } from "@/components/screen-header";
 import { LoadError, StateMessage } from "@/components/state-message";
 import { useAuth } from "@/lib/auth";
@@ -101,6 +102,8 @@ export default function GroupsScreen() {
               <Text style={styles.actionText}>Find a society</Text>
             </Pressable>
           </View>
+
+          <GuideLink id="society" />
 
           {data && data.invitations.length > 0 ? (
             <>
