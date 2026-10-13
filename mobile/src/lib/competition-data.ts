@@ -204,7 +204,12 @@ export async function loadGroupResults(groupId: number): Promise<GroupResult[]> 
       updated: r.version > 1,
       winners: res.prizes
         .filter((p) => divisionLabels.has(p.label) && p.winners.length > 0)
-        .map((p) => ({ label: p.label, name: p.winners[0].name, score: p.winners[0].score })),
+        .map((p) => {
+          const w = p.winners[0];
+          // A team or pair with no name of its own ("Team 2"): say who.
+          const plain = /^(Team|Pair) \d+$/.test(w.name) && w.detail;
+          return { label: p.label, name: plain ? `${w.name} (${w.detail!.split(" · ").join(" & ")})` : w.name, score: w.score };
+        }),
     };
   });
 }

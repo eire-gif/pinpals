@@ -408,34 +408,34 @@ export default function GroupScreen() {
             ) : society ? (
               <Text style={styles.hint}>The captain or secretary brings new members in — ask them, or share the society&apos;s name so golfers can find it.</Text>
             ) : null}
-            <View style={styles.row}>
+            <View style={styles.tools}>
               {group.conversationId ? (
-                <Pressable style={styles.button} onPress={() => router.push(`/conversation/${group.conversationId}`)} accessibilityRole="button">
+                <Pressable style={styles.tool} onPress={() => router.push(`/conversation/${group.conversationId}`)} accessibilityRole="button">
                   <Ionicons name="chatbubbles-outline" size={18} color={colors.navy900} />
-                  <Text style={styles.buttonText}>Chat</Text>
+                  <Text style={styles.buttonText} numberOfLines={1}>Chat</Text>
                 </Pressable>
               ) : null}
               {can("edit_group") ? (
-                <Pressable style={styles.button} onPress={() => router.push({ pathname: "/group/[id]/settings", params: { id: String(groupId) } })} accessibilityRole="button">
+                <Pressable style={styles.tool} onPress={() => router.push({ pathname: "/group/[id]/settings", params: { id: String(groupId) } })} accessibilityRole="button">
                   <Ionicons name="settings-outline" size={18} color={colors.navy900} />
-                  <Text style={styles.buttonText}>Settings</Text>
+                  <Text style={styles.buttonText} numberOfLines={1}>Settings</Text>
                 </Pressable>
               ) : null}
               {society && runsIt ? (
-                <Pressable style={styles.button} onPress={() => router.push({ pathname: "/group/[id]/handicaps", params: { id: String(groupId) } })} accessibilityRole="button">
+                <Pressable style={styles.tool} onPress={() => router.push({ pathname: "/group/[id]/handicaps", params: { id: String(groupId) } })} accessibilityRole="button">
                   <Ionicons name="stats-chart-outline" size={18} color={colors.navy900} />
-                  <Text style={styles.buttonText}>Handicaps</Text>
+                  <Text style={styles.buttonText} numberOfLines={1}>Handicaps</Text>
                 </Pressable>
               ) : null}
               {myRole ? (
                 <Pressable
-                  style={styles.button}
+                  style={styles.tool}
                   onPress={() => router.push({ pathname: "/group/[id]/contacts", params: { id: String(groupId) } })}
                   accessibilityRole="button"
                   accessibilityLabel={runsIt ? "Phone numbers members have shared with you" : "Phone numbers of the people who run this group"}
                 >
                   <Ionicons name="call-outline" size={18} color={colors.navy900} />
-                  <Text style={styles.buttonText}>Phone numbers</Text>
+                  <Text style={styles.buttonText} numberOfLines={1}>Phone numbers</Text>
                 </Pressable>
               ) : null}
             </View>
@@ -632,6 +632,24 @@ const styles = StyleSheet.create({
   button: {
     flex: 1,
     height: 46,
+    borderRadius: radii.pill,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    borderWidth: 1,
+    borderColor: colors.navy900,
+    backgroundColor: colors.surface,
+  },
+  // Chat, Settings, Handicaps, Phone numbers: up to four, so two to a row
+  // (one row of four squeezed "Phone numbers" out of its pill).
+  tools: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
+  tool: {
+    flexGrow: 1,
+    flexBasis: "45%",
+    minWidth: 0,
+    height: 46,
+    paddingHorizontal: 12,
     borderRadius: radii.pill,
     flexDirection: "row",
     alignItems: "center",
