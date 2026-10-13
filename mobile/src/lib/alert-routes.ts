@@ -93,6 +93,8 @@ const PATTERNS: { match: RegExp; to: (id: string) => string }[] = [
   // match result opens the match-day board.
   { match: /^\/live\/rounds\/(\d+)$/, to: (id) => `/live/round/${id}` },
   { match: /^\/live\/days\/(\d+)$/, to: (id) => `/live/day/${id}` },
+  // Competition results (0137): "the results are in" opens them.
+  { match: /^\/live\/days\/(\d+)\/results$/, to: (id) => `/live/day/results/${id}` },
   // Scorecard certification (0128): "certify my card" opens the request; the
   // answer opens your card. `certify` before the plain id, which is \d+ only.
   { match: /^\/scorecards\/certify\/(\d+)$/, to: (id) => `/scorecards/certify/${id}` },

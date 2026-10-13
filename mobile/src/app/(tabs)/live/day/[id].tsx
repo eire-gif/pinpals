@@ -4,6 +4,7 @@ import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleS
 import { Stack, router, useFocusEffect, useLocalSearchParams } from "expo-router";
 
 import { DayBoard } from "@/components/day-board";
+import { ResultsEntry } from "@/components/results-entry";
 import { ScrambleBoard } from "@/components/scramble-board";
 import { LoadError, StateMessage } from "@/components/state-message";
 import { useAuth } from "@/lib/auth";
@@ -187,6 +188,8 @@ export default function MatchDayBoard() {
           </Text>
         </Pressable>
       ) : null}
+
+      <ResultsEntry data={data} me={me} />
 
       {scramble ? <ScrambleBoard matches={matches} isMine={mine} /> : null}
       {fourballs ? <DayBoard matches={matches} me={me} /> : null}
