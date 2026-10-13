@@ -4,6 +4,7 @@ import type { StaffRole } from "@/lib/admin/roles";
 import { canAccess } from "@/lib/admin/roles";
 import { FINANCE_ROLES } from "@/lib/admin/finance";
 import { MODERATION_ROLES } from "@/lib/admin/moderation";
+import AdminPageHeader from "@/components/admin/page-header";
 import OverviewTab from "./overview-tab";
 import ListingsTab from "./listings-tab";
 import SellersTab from "./sellers-tab";
@@ -90,30 +91,26 @@ export default async function AdminMarketplacePage({
 
   return (
     <div>
-      <h1 className="font-display font-bold text-2xl mb-2">Marketplace</h1>
-      <p className="text-ink-500 mb-6">
-        Listings, sellers, orders, payments, offers, auctions, disputes, reported messages, revenue, pro shops, promotions and retail ads — one console for the
-        marketplace, most of it linking straight into the dedicated page for that data. Every mutation here (and
-        everywhere it links to) is audited in{" "}
-        <Link href="/admin/audit-log" className="underline">
-          the audit log
-        </Link>
-        .
-      </p>
+      <AdminPageHeader title="Marketplace" description="Listings, sales, money and shops in one place. Every change is in the audit log." />
 
-      <div className="flex gap-1.5 border-b border-line mb-6 overflow-x-auto">
+      {/* Pills that wrap onto a second line on narrower screens, rather than
+          a tab strip with a horizontal scrollbar. */}
+      <nav aria-label="Marketplace sections" className="flex flex-wrap gap-1.5 mb-6">
         {TABS.filter((t) => !t.roles || canAccess(staff, t.roles)).map((t) => (
           <Link
             key={t.key}
             href={`/admin/marketplace?tab=${t.key}`}
-            className={`shrink-0 px-4 py-2.5 text-sm font-bold border-b-2 transition ${
-              t.key === tab ? "border-green-700 text-green-700" : "border-transparent text-ink-500 hover:text-ink-900"
+            aria-current={t.key === tab ? "page" : undefined}
+            className={`px-3.5 py-1.5 rounded-full text-sm font-semibold border transition ${
+              t.key === tab
+                ? "bg-navy-900 border-navy-900 text-cream-50"
+                : "bg-surface border-line text-ink-900 hover:bg-cream-100"
             }`}
           >
             {t.label}
           </Link>
         ))}
-      </div>
+      </nav>
 
       {tab === "overview" && <OverviewTab />}
       {tab === "listings" && <ListingsTab searchParams={params} />}

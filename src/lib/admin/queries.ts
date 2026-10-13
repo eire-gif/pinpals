@@ -2155,6 +2155,9 @@ export type AdminOrderPage = {
  * seller-name search. `orderId` is an exact primary-key match, not a search
  * term. `from`/`to` are ISO timestamps, inclusive bounds on created_at. */
 export type AdminOrderFilters = {
+  /** Paid orders a buyer reported a problem on that haven't been released
+   * (problem_at set, released_at null — 0114). The Overview links here. */
+  problemOnly?: boolean;
   orderId?: number;
   buyer?: string;
   seller?: string;
@@ -2231,6 +2234,7 @@ export async function listOrders(
     .range(rangeFrom, rangeTo);
 
   if (filters.orderId) query = query.eq("id", filters.orderId);
+  if (filters.problemOnly) query = query.not("problem_at", "is", null).is("released_at", null);
   if (buyerIds) query = query.in("buyer_id", buyerIds);
   if (sellerIds) query = query.in("seller_id", sellerIds);
   if (filters.status) query = query.eq("status", filters.status);

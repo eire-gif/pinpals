@@ -1,9 +1,14 @@
 import Link from "next/link";
 import { requireStaff } from "@/lib/admin/authorization";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { COUNTRIES, countryName, isCountryCode } from "@/lib/regions";
 import type { Club } from "@/lib/types";
 import ImportControls from "./import-controls";
+import AdminPageHeader from "@/components/admin/page-header";
+import AdminRowActions from "@/components/admin/controls/row-actions";
+import { BulkProvider, BulkBar, SelectAll, SelectRow } from "@/components/admin/controls/bulk";
+import { ShowHiddenToggle, PrimaryLink, Pill } from "@/components/admin/table";
+import { bulkBarProps, canEdit, rowActionProps } from "@/lib/admin/controls";
 
 export const dynamic = "force-dynamic";
 
@@ -22,20 +27,25 @@ const PAGE_SIZE = 50;
 export default async function AdminClubsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; country?: string; gap?: string; page?: string }>;
+  searchParams: Promise<{ q?: string; country?: string; gap?: string; page?: string; hidden?: string }>;
 }) {
   const { staff } = await requireStaff();
-  const { q = "", country = "", gap = "", page = "1" } = await searchParams;
+  const { q = "", country = "", gap = "", page = "1", hidden = "" } = await searchParams;
+  const showHidden = hidden === "1";
   const pageNumber = Math.max(1, Number.parseInt(page, 10) || 1);
   const from = (pageNumber - 1) * PAGE_SIZE;
 
-  const supabase = await createClient();
+  // Service role, like every other admin read: staff must see hidden
+  // courses (0140) to add them back.
+  const supabase = createAdminClient();
 
   let query = supabase
     .from("clubs")
-    .select("id, slug, name, country, region, town, website, latitude, longitude, holes, source, verified_at, updated_at", {
+    .select("id, slug, name, country, region, town, website, latitude, longitude, holes, source, verified_at, updated_at, hidden_at", {
       count: "exact",
     });
+
+  if (!showHidden) query = query.is("hidden_at", null);
 
   if (isCountryCode(country)) query = query.eq("country", country);
 
@@ -53,7 +63,7 @@ export default async function AdminClubsPage({
   const { data: clubs, count } = await query
     .order("name", { ascending: true })
     .range(from, from + PAGE_SIZE - 1)
-    .returns<(Club & { updated_at: string })[]>();
+    .returns<(Club & { updated_at: string; hidden_at: string | null })[]>();
 
   const total = count ?? 0;
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
@@ -86,6 +96,7 @@ export default async function AdminClubsPage({
     if (q) params.set("q", q);
     if (country) params.set("country", country);
     if (gap) params.set("gap", gap);
+    if (showHidden) params.set("hidden", "1");
     if (nextPage > 1) params.set("page", String(nextPage));
     const query = params.toString();
     return query ? `/admin/clubs?${query}` : "/admin/clubs";
@@ -93,12 +104,11 @@ export default async function AdminClubsPage({
 
   return (
     <div>
-      <h1 className="font-display font-bold text-2xl mb-1">Courses</h1>
-      <p className="text-sm text-ink-500 mb-6">
-        {total.toLocaleString("en-IE")} {total === 1 ? "course" : "courses"} matching. Imported from
-        OpenStreetMap — edit anything here and tick &ldquo;verified&rdquo; to stop future imports
-        overwriting it.
-      </p>
+      <AdminPageHeader
+        title="Courses"
+        description={`${total.toLocaleString("en-IE")} ${total === 1 ? "course" : "courses"} matching. Tick “verified” on a course to stop imports overwriting it.`}
+        actions={canEdit(staff, "club") && <PrimaryLink href="/admin/clubs/new">Add course</PrimaryLink>}
+      />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 mb-6">
         {summary.map((c) => (
@@ -142,71 +152,77 @@ export default async function AdminClubsPage({
           <option value="unmatched">Unmatched seed names</option>
           <option value="verified">Verified by staff</option>
         </select>
-        <button type="submit" className="px-4 py-2 rounded-full text-sm font-bold bg-green-700 text-cream-50">
+        <ShowHiddenToggle checked={showHidden} />
+        <button type="submit" className="px-4 py-2 rounded-full text-sm font-bold bg-navy-900 text-cream-50 hover:bg-navy-800 transition">
           Filter
         </button>
       </form>
 
-      <div className="bg-surface border border-line rounded-xl overflow-x-auto">
-        <table className="w-full text-sm min-w-[720px]">
-          <thead className="bg-cream-100 text-left">
-            <tr>
-              <th className="px-4 py-2.5 font-bold">Course</th>
-              <th className="px-4 py-2.5 font-bold">Country</th>
-              <th className="px-4 py-2.5 font-bold">County</th>
-              <th className="px-4 py-2.5 font-bold">Website</th>
-              <th className="px-4 py-2.5 font-bold">Source</th>
-              <th className="px-4 py-2.5" />
-            </tr>
-          </thead>
-          <tbody>
-            {(clubs ?? []).map((club) => (
-              <tr key={club.id} className="border-t border-line">
-                <td className="px-4 py-2.5">
-                  <span className="font-semibold">{club.name}</span>
-                  {club.town && <span className="text-ink-500"> · {club.town}</span>}
-                </td>
-                <td className="px-4 py-2.5">{countryName(club.country)}</td>
-                <td className="px-4 py-2.5">
-                  {club.region ?? <span className="text-gold-600">—</span>}
-                </td>
-                <td className="px-4 py-2.5">
-                  {club.website ? (
-                    <a
-                      href={club.website}
-                      target="_blank"
-                      rel="noopener noreferrer nofollow"
-                      className="text-green-700 underline"
-                    >
-                      Link
-                    </a>
-                  ) : (
-                    <span className="text-gold-600">—</span>
-                  )}
-                </td>
-                <td className="px-4 py-2.5">
-                  <span
-                    className={`text-xs font-bold px-2 py-0.5 rounded-full ${
-                      club.verified_at
-                        ? "bg-green-100 text-green-800"
-                        : club.source === "seed"
-                          ? "bg-gold-100 text-gold-600"
-                          : "bg-cream-100 text-ink-500"
-                    }`}
-                  >
-                    {club.verified_at ? "Verified" : club.source}
-                  </span>
-                </td>
-                <td className="px-4 py-2.5 text-right whitespace-nowrap">
-                  <Link href={`/admin/clubs/${club.id}`} className="text-green-700 font-bold">
-                    Edit
-                  </Link>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <BulkProvider>
+        <div className="bg-surface border border-line rounded-2xl overflow-x-auto shadow-sm">
+          {(clubs ?? []).length === 0 ? (
+            <div className="text-center py-16 text-ink-500">No courses match that search.</div>
+          ) : (
+            <table className="w-full text-sm min-w-[720px]">
+              <thead>
+                <tr className="text-left text-ink-500 text-xs uppercase tracking-wide border-b border-line">
+                  <th className="w-10 pl-4 pr-1 py-3">
+                    <SelectAll ids={(clubs ?? []).map((c) => c.id)} />
+                  </th>
+                  <th className="px-4 py-3 font-semibold">Course</th>
+                  <th className="px-4 py-3 font-semibold">Country</th>
+                  <th className="px-4 py-3 font-semibold">County</th>
+                  <th className="px-4 py-3 font-semibold">Website</th>
+                  <th className="px-4 py-3 font-semibold">Source</th>
+                  <th className="w-12 px-2 py-3">
+                    <span className="sr-only">Actions</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {(clubs ?? []).map((club) => (
+                  <tr key={club.id} className="border-b border-line last:border-0 hover:bg-surface-tint">
+                    <td className="w-10 pl-4 pr-1 py-3">
+                      <SelectRow id={club.id} label={`Select ${club.name}`} />
+                    </td>
+                    <td className="px-4 py-3">
+                      <Link href={`/admin/clubs/${club.id}`} className="font-semibold text-ink-900 hover:underline">
+                        {club.name}
+                      </Link>
+                      {club.town && <span className="text-ink-500"> · {club.town}</span>}
+                      {club.hidden_at && (
+                        <span className="ml-2">
+                          <Pill tone="bad">Hidden</Pill>
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">{countryName(club.country)}</td>
+                    <td className="px-4 py-3">{club.region ?? <span className="text-gold-600">—</span>}</td>
+                    <td className="px-4 py-3">
+                      {club.website ? (
+                        <a href={club.website} target="_blank" rel="noopener noreferrer nofollow" className="text-green-700 underline">
+                          Link
+                        </a>
+                      ) : (
+                        <span className="text-gold-600">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      <Pill tone={club.verified_at ? "good" : club.source === "seed" ? "warn" : "neutral"}>
+                        {club.verified_at ? "Verified" : club.source}
+                      </Pill>
+                    </td>
+                    <td className="w-12 px-2 py-3 text-right">
+                      <AdminRowActions {...rowActionProps(staff, "club", club.id, { hidden: !!club.hidden_at }, club.name)} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+        <BulkBar {...bulkBarProps(staff, "club")} />
+      </BulkProvider>
 
       {pageCount > 1 && (
         <nav className="flex items-center justify-between mt-5" aria-label="Pagination">

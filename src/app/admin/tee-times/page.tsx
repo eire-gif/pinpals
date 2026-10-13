@@ -6,13 +6,17 @@ import { formatClock, formatInviteDate, formatTimeRange } from "@/lib/tee-times"
 import AdminAvatar from "@/components/admin/avatar";
 import StatusBadge from "@/components/admin/status-badge";
 import ExportCsvLink from "@/components/admin/export-csv-link";
+import AdminPageHeader from "@/components/admin/page-header";
+import AdminRowActions from "@/components/admin/controls/row-actions";
+import { BulkProvider, BulkBar, SelectAll, SelectRow } from "@/components/admin/controls/bulk";
+import { bulkBarProps, rowActionProps } from "@/lib/admin/controls";
 
 export default async function AdminTeeTimesPage({
   searchParams,
 }: {
   searchParams: Promise<{ q?: string; status?: string }>;
 }) {
-  await requireStaff();
+  const { staff } = await requireStaff();
   const { q = "", status = "" } = await searchParams;
   const invites = await listTeeTimeInvites(q, status);
 
@@ -26,17 +30,21 @@ export default async function AdminTeeTimesPage({
 
   return (
     <div>
-      <div className="flex items-start justify-between gap-4 mb-1">
-        <h1 className="font-display font-bold text-2xl">Tee-times</h1>
-        <ExportCsvLink
-          href={exportHref}
-          title={`Downloads ${invites.length} ${invites.length === 1 ? "invite" : "invites"} matching the current filters`}
-        />
-      </div>
-      <p className="text-ink-500 mb-6">
-        {invites.length} {invites.length === 1 ? "invite" : "invites"}
-        {status && <> · {statusLabel(INVITE_STATUS_LABELS, status)}</>}.
-      </p>
+      <AdminPageHeader
+        title="Tee times"
+        description={
+          <>
+            {invites.length} {invites.length === 1 ? "tee time" : "tee times"}
+            {status && <> · {statusLabel(INVITE_STATUS_LABELS, status)}</>}. Pick &ldquo;Cancelled&rdquo; to find hidden ones.
+          </>
+        }
+        actions={
+          <ExportCsvLink
+            href={exportHref}
+            title={`Downloads ${invites.length} ${invites.length === 1 ? "tee time" : "tee times"} matching the current filters`}
+          />
+        }
+      />
 
       <form className="flex flex-wrap gap-3 mb-6">
         <input
@@ -44,7 +52,7 @@ export default async function AdminTeeTimesPage({
           name="q"
           defaultValue={q}
           placeholder="Search club, county, notes, host…"
-          className="flex-1 min-w-[240px] px-4 py-2.5 rounded-full border-[1.5px] border-line bg-surface text-sm"
+          className="flex-1 min-w-[200px] px-4 py-2.5 rounded-full border-[1.5px] border-line bg-surface text-sm"
         />
         <select
           name="status"
@@ -65,58 +73,74 @@ export default async function AdminTeeTimesPage({
         </button>
       </form>
 
-      <div className="bg-surface border border-line rounded-2xl overflow-hidden shadow-sm">
-        {invites.length === 0 ? (
-          <div className="text-center py-16 text-ink-500">No tee-time invites match that search.</div>
-        ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-ink-500 text-xs uppercase tracking-wide border-b border-line">
-                <th className="px-5 py-3 font-semibold">Club</th>
-                <th className="px-5 py-3 font-semibold">Host</th>
-                <th className="px-5 py-3 font-semibold">Date</th>
-                <th className="px-5 py-3 font-semibold">Time</th>
-                <th className="px-5 py-3 font-semibold">Status</th>
-                <th className="px-5 py-3 font-semibold text-right">Interest</th>
-              </tr>
-            </thead>
-            <tbody>
-              {invites.map((i) => {
-                const hostName = i.host ? `${i.host.first_name} ${i.host.last_name}` : "Unknown host";
-                const timeRange =
-                  formatTimeRange(i.time_from, i.time_to) ??
-                  (i.exact_tee_time ? formatClock(i.exact_tee_time) : null);
-                return (
-                  <tr key={i.id} className="border-b border-line last:border-0 hover:bg-surface-tint">
-                    <td className="px-5 py-3">
-                      <Link href={`/admin/tee-times/${i.id}`} className="font-semibold text-ink-900 hover:underline">
-                        {i.club_name}
-                      </Link>
-                      {i.county && <div className="text-xs text-ink-500">{i.county}</div>}
-                    </td>
-                    <td className="px-5 py-3">
-                      {i.host ? (
-                        <Link href={`/admin/users/${i.host.id}`} className="flex items-center gap-2.5">
-                          <AdminAvatar name={hostName} color={i.host.avatar_color} />
-                          <span className="text-ink-900">{hostName}</span>
+      <BulkProvider>
+        <div className="bg-surface border border-line rounded-2xl overflow-x-auto shadow-sm">
+          {invites.length === 0 ? (
+            <div className="text-center py-16 text-ink-500">No tee times match that search.</div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-ink-500 text-xs uppercase tracking-wide border-b border-line">
+                  <th className="w-10 pl-4 pr-1 py-3">
+                    <SelectAll ids={invites.map((i) => i.id)} />
+                  </th>
+                  <th className="px-4 py-3 font-semibold">Club</th>
+                  <th className="px-4 py-3 font-semibold">Host</th>
+                  <th className="px-4 py-3 font-semibold">Date</th>
+                  <th className="px-4 py-3 font-semibold">Time</th>
+                  <th className="px-4 py-3 font-semibold">Status</th>
+                  <th className="px-4 py-3 font-semibold text-right">Interest</th>
+                  <th className="w-12 px-2 py-3">
+                    <span className="sr-only">Actions</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {invites.map((i) => {
+                  const hostName = i.host ? `${i.host.first_name} ${i.host.last_name}` : "Unknown host";
+                  const timeRange =
+                    formatTimeRange(i.time_from, i.time_to) ?? (i.exact_tee_time ? formatClock(i.exact_tee_time) : null);
+                  return (
+                    <tr key={i.id} className="border-b border-line last:border-0 hover:bg-surface-tint">
+                      <td className="w-10 pl-4 pr-1 py-3">
+                        <SelectRow id={i.id} label={`Select tee time at ${i.club_name}`} />
+                      </td>
+                      <td className="px-4 py-3">
+                        <Link href={`/admin/tee-times/${i.id}`} className="font-semibold text-ink-900 hover:underline">
+                          {i.club_name}
                         </Link>
-                      ) : (
-                        <span className="text-ink-500">{hostName}</span>
-                      )}
-                    </td>
-                    <td className="px-5 py-3 text-ink-500">{formatInviteDate(i.play_date)}</td>
-                    <td className="px-5 py-3 text-ink-500">{timeRange ?? "—"}</td>
-                    <td className="px-5 py-3">
-                      <StatusBadge status={i.status} labels={INVITE_STATUS_LABELS} styles={INVITE_STATUS_STYLES} />
-                    </td>
-                    <td className="px-5 py-3 text-right text-ink-900">{i.interest_count}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
-      </div>
+                        {i.county && <div className="text-xs text-ink-500">{i.county}</div>}
+                      </td>
+                      <td className="px-4 py-3">
+                        {i.host ? (
+                          <Link href={`/admin/users/${i.host.id}`} className="flex items-center gap-2.5">
+                            <AdminAvatar name={hostName} color={i.host.avatar_color} />
+                            <span className="text-ink-900">{hostName}</span>
+                          </Link>
+                        ) : (
+                          <span className="text-ink-500">{hostName}</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-ink-500 whitespace-nowrap">{formatInviteDate(i.play_date)}</td>
+                      <td className="px-4 py-3 text-ink-500 whitespace-nowrap">{timeRange ?? "—"}</td>
+                      <td className="px-4 py-3">
+                        <StatusBadge status={i.status} labels={INVITE_STATUS_LABELS} styles={INVITE_STATUS_STYLES} />
+                      </td>
+                      <td className="px-4 py-3 text-right text-ink-900">{i.interest_count}</td>
+                      <td className="w-12 px-2 py-3 text-right">
+                        <AdminRowActions
+                          {...rowActionProps(staff, "tee_time", i.id, { hidden: i.status === "cancelled", hideable: i.status !== "completed" }, i.club_name)}
+                        />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+        <BulkBar {...bulkBarProps(staff, "tee_time")} />
+      </BulkProvider>
     </div>
   );
 }

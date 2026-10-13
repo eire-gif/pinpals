@@ -1,6 +1,10 @@
 import Link from "next/link";
 import { requireStaff } from "@/lib/admin/authorization";
 import { createAdminClient } from "@/lib/supabase/admin";
+import AdminPageHeader from "@/components/admin/page-header";
+import AdminRowActions from "@/components/admin/controls/row-actions";
+import { BulkProvider, BulkBar, SelectRow } from "@/components/admin/controls/bulk";
+import { bulkBarProps, rowActionProps } from "@/lib/admin/controls";
 
 export const dynamic = "force-dynamic";
 
@@ -50,7 +54,7 @@ export default async function AdminNewsPage({
 }: {
   searchParams: Promise<{ status?: string }>;
 }) {
-  await requireStaff();
+  const { staff } = await requireStaff();
   const { status = "draft" } = await searchParams;
   const active = TABS.some((t) => t.key === status) ? status : "draft";
 
@@ -76,13 +80,10 @@ export default async function AdminNewsPage({
 
   return (
     <div>
-      <h1 className="font-display font-bold text-2xl mb-1">News review</h1>
-      <p className="text-ink-500 text-sm mb-6">
-        Drafts are written from a single press release and every quote is checked
-        word-for-word against it before it reaches this page. What the checks cannot
-        catch is a fact added from outside the release — that is what reading the
-        draft against the source is for.
-      </p>
+      <AdminPageHeader
+        title="News review"
+        description="Read each draft against its press release before publishing — quotes are already checked word for word."
+      />
 
       <div className="flex flex-wrap gap-2 mb-6">
         {TABS.map((tab) => (
@@ -101,6 +102,7 @@ export default async function AdminNewsPage({
         ))}
       </div>
 
+      <BulkProvider>
       <div className="bg-surface border border-line rounded-2xl overflow-hidden shadow-sm">
         {articles.length === 0 ? (
           <div className="text-center py-16 text-ink-500">
@@ -111,11 +113,11 @@ export default async function AdminNewsPage({
         ) : (
           <ul>
             {articles.map((a) => (
-              <li key={a.id} className="border-b border-line last:border-0">
-                <Link
-                  href={`/admin/news/${a.id}`}
-                  className="block px-5 py-4 hover:bg-surface-tint transition"
-                >
+              <li key={a.id} className="border-b border-line last:border-0 flex items-start gap-1 hover:bg-surface-tint transition">
+                <div className="pl-4 pt-5">
+                  <SelectRow id={a.id} label={`Select ${a.headline}`} />
+                </div>
+                <Link href={`/admin/news/${a.id}`} className="block flex-1 min-w-0 px-4 py-4">
                   <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0">
                       <div className="font-display font-bold text-lg text-ink-900 text-balance">
@@ -165,11 +167,16 @@ export default async function AdminNewsPage({
                     </span>
                   </div>
                 </Link>
+                <div className="pr-3 pt-4">
+                  <AdminRowActions {...rowActionProps(staff, "article", a.id, { hidden: false }, a.headline, { view: false })} />
+                </div>
               </li>
             ))}
           </ul>
         )}
       </div>
+      <BulkBar {...bulkBarProps(staff, "article")} />
+      </BulkProvider>
     </div>
   );
 }

@@ -26,6 +26,7 @@ export default async function AdminOrdersPage({
     payment?: string;
     from?: string;
     to?: string;
+    problem?: string;
     page?: string;
   }>;
 }) {
@@ -43,14 +44,17 @@ export default async function AdminOrdersPage({
     payment = "",
     from = "",
     to = "",
+    problem = "",
     page: pageParam,
   } = await searchParams;
+  const problemOnly = problem === "1";
   const page = Math.max(1, Number.parseInt(pageParam ?? "1", 10) || 1);
   const orderId = idParam.trim() ? Number.parseInt(idParam, 10) : undefined;
 
   const { rows: orders, total, pageSize } = await listOrders(
     {
       orderId: orderId && Number.isFinite(orderId) ? orderId : undefined,
+      problemOnly,
       buyer: buyer || undefined,
       seller: seller || undefined,
       status: status || undefined,
@@ -63,7 +67,7 @@ export default async function AdminOrdersPage({
     page
   );
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
-  const hasFilters = Boolean(idParam || buyer || seller || status || payment || from || to);
+  const hasFilters = Boolean(idParam || buyer || seller || status || payment || from || to || problemOnly);
 
   // Same filters as the page, minus `page` — an export is every matching
   // order, not the twenty currently on screen.
@@ -87,6 +91,7 @@ export default async function AdminOrdersPage({
     if (payment) params.set("payment", payment);
     if (from) params.set("from", from);
     if (to) params.set("to", to);
+    if (problemOnly) params.set("problem", "1");
     if (targetPage > 1) params.set("page", String(targetPage));
     const qs = params.toString();
     return qs ? `/admin/orders?${qs}` : "/admin/orders";
@@ -101,13 +106,17 @@ export default async function AdminOrdersPage({
           title={`Downloads ${total} ${total === 1 ? "order" : "orders"} matching the current filters`}
         />
       </div>
-      <p className="text-ink-500 mb-6">
+      <p className="text-sm text-ink-500 mb-6">
         {total} {total === 1 ? "order" : "orders"}
         {status && <> · {statusLabel(ORDER_STATUS_LABELS, status)}</>}
         {payment && <> · {statusLabel(PAYMENT_STATUS_LABELS, payment)} payment</>}.
       </p>
 
       <form className="flex flex-wrap gap-3 mb-6">
+        <label className="inline-flex items-center gap-2 text-sm px-2">
+          <input type="checkbox" name="problem" value="1" defaultChecked={problemOnly} />
+          Problem sales only
+        </label>
         <input
           type="text"
           name="id"

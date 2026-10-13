@@ -13,18 +13,16 @@ import {
 } from "@/lib/admin/format";
 import {
   LISTING_REMOVAL_ROLES,
-  MODERATION_ROLES,
   checkListingForceRemoval,
 } from "@/lib/admin/moderation";
 import { ROLE_LABELS } from "@/lib/admin/roles";
 import { formatPrice } from "@/lib/format";
 import AdminAvatar from "@/components/admin/avatar";
 import StatusBadge from "@/components/admin/status-badge";
-import ModerationForm from "@/components/admin/moderation-form";
+import RecordPanel from "@/components/admin/controls/record-panel";
 import { REPORT_CATEGORY_LABELS, REPORT_STATUS_LABELS, REPORT_STATUS_STYLES } from "@/lib/admin/reports";
 import { listFraudFlagsForTarget } from "@/lib/admin/queries";
 import RiskFlagsPanel from "@/components/admin/risk-flags-panel";
-import { forceRemoveListing, hideListing, restoreListing } from "./actions";
 
 export default async function AdminListingDetailPage({
   params,
@@ -52,7 +50,6 @@ export default async function AdminListingDetailPage({
 
   const { listing, seller, offers, moderationHistory } = detail;
   const sellerName = seller ? `${seller.first_name} ${seller.last_name}` : "Unknown seller";
-  const canModerate = canAccess(staff, MODERATION_ROLES);
 
   // Force removal is offered only where the ordinary Hide button can't reach:
   // "active" already has Hide and "removed" already has Restore, so drawing a
@@ -117,68 +114,24 @@ export default async function AdminListingDetailPage({
         </div>
       </div>
 
-      {canModerate && (listing.status === "active" || listing.status === "removed") && (
-        <Section title="Moderation">
-          <div className="p-5">
-            {listing.status === "removed" ? (
-              <ModerationForm
-                action={restoreListing}
-                idField="listingId"
-                id={listing.id}
-                submitLabel="Restore"
-                pendingLabel="Restoring…"
-                placeholder="Reason for restoring (recorded in the audit log)"
-              />
-            ) : (
-              <ModerationForm
-                action={hideListing}
-                idField="listingId"
-                id={listing.id}
-                submitLabel="Hide"
-                pendingLabel="Hiding…"
-                tone="danger"
-                placeholder="Reason for hiding (recorded in the audit log)"
-              />
-            )}
-          </div>
-        </Section>
-      )}
-
-      {canForceRemove && (
-        <Section title="Remove from the site">
-          <div className="p-5">
-            <p className="text-sm text-ink-500 mb-1.5">
-              This listing is{" "}
-              <span className="font-bold text-ink-900">
-                {LISTING_STATUS_LABELS[listing.status] ?? listing.status}
-              </span>
-              , so the usual Hide action doesn&rsquo;t apply to it. Removing it takes it off the site
-              and out of search, and stops the seller relisting it.
-            </p>
-            <p className="text-sm text-ink-500 mb-4">
-              Nothing is deleted &mdash; you can restore it here afterwards, and it goes back to{" "}
-              <span className="font-bold text-ink-900">
-                {LISTING_STATUS_LABELS[listing.status] ?? listing.status}
-              </span>
-              , not straight to live.
-            </p>
-            {removalWarning && (
-              <p className="text-sm text-red-600 bg-red-100 border border-red-600/20 rounded-xl px-4 py-3 mb-4">
-                {removalWarning}
-              </p>
-            )}
-            <ModerationForm
-              action={forceRemoveListing}
-              idField="listingId"
-              id={listing.id}
-              submitLabel="Remove listing"
-              pendingLabel="Removing…"
-              tone="danger"
-              placeholder="Reason for removing (recorded in the audit log)"
-            />
-          </div>
-        </Section>
-      )}
+      <div className="mb-8">
+        <RecordPanel
+          staff={staff}
+          entity="listing"
+          id={listing.id}
+          state={{ hidden: listing.status === "removed", hideable: listing.status === "active" }}
+          title={listing.title}
+          values={{ title: listing.title, description: listing.description }}
+          stateNote={
+            listing.status === "removed"
+              ? "Removed — members can't see this listing. Restore puts it back to the status it had."
+              : canForceRemove && removalWarning
+                ? removalWarning
+                : null
+          }
+          editIntro="Fix a title or description (for example personal details posted by mistake). The seller isn't notified."
+        />
+      </div>
 
       {/* Sensitive seller data stays minimized here — name, club/county, and
           a link to the full profile, not email/handicap/GUI number. Staff

@@ -5,6 +5,10 @@ import AdminAvatar from "@/components/admin/avatar";
 import ExportCsvLink from "@/components/admin/export-csv-link";
 import { canAccess } from "@/lib/admin/roles";
 import { USER_EXPORT_ROLES } from "@/lib/admin/export";
+import AdminPageHeader from "@/components/admin/page-header";
+import AdminRowActions from "@/components/admin/controls/row-actions";
+import { BulkProvider, BulkBar, SelectAll, SelectRow } from "@/components/admin/controls/bulk";
+import { bulkBarProps, rowActionProps } from "@/lib/admin/controls";
 
 export default async function AdminUsersPage({
   searchParams,
@@ -39,26 +43,24 @@ export default async function AdminUsersPage({
 
   return (
     <div>
-      <div className="flex items-start justify-between gap-4 mb-1">
-        <h1 className="font-display font-bold text-2xl">Users</h1>
-        {canExport && (
-          <ExportCsvLink
-            href={exportHref}
-            title={`Downloads ${total} ${total === 1 ? "member" : "members"}, including email addresses`}
-          />
-        )}
-      </div>
-      <p className="text-ink-500 mb-6">
-        {total} {total === 1 ? "member" : "members"}
-        {suspendedOnly && " · suspended"}
-        {q && (
+      <AdminPageHeader
+        title="Users"
+        description={
           <>
-            {" "}
-            matching &ldquo;{q}&rdquo;
+            {total} {total === 1 ? "member" : "members"}
+            {suspendedOnly && " · suspended"}
+            {q && <> matching &ldquo;{q}&rdquo;</>}.
           </>
-        )}
-        .
-      </p>
+        }
+        actions={
+          canExport && (
+            <ExportCsvLink
+              href={exportHref}
+              title={`Downloads ${total} ${total === 1 ? "member" : "members"}, including email addresses`}
+            />
+          )
+        }
+      />
 
       <form className="flex flex-wrap gap-3 mb-6">
         <input
@@ -84,59 +86,71 @@ export default async function AdminUsersPage({
         </button>
       </form>
 
-      <div className="bg-surface border border-line rounded-2xl overflow-hidden shadow-sm">
-        {users.length === 0 ? (
-          <div className="text-center py-16 text-ink-500">
-            No members match that search.
-          </div>
-        ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-ink-500 text-xs uppercase tracking-wide border-b border-line">
-                <th className="px-5 py-3 font-semibold">Member</th>
-                <th className="px-5 py-3 font-semibold">Email</th>
-                <th className="px-5 py-3 font-semibold">Club</th>
-                <th className="px-5 py-3 font-semibold">County</th>
-                <th className="px-5 py-3 font-semibold text-right">Listings</th>
-                <th className="px-5 py-3 font-semibold text-right">Invites</th>
-                <th className="px-5 py-3 font-semibold">Joined</th>
-              </tr>
-            </thead>
-            <tbody>
-              {users.map((u) => {
-                const name = `${u.first_name} ${u.last_name}`;
-                return (
-                  <tr key={u.id} className="border-b border-line last:border-0 hover:bg-surface-tint">
-                    <td className="px-5 py-3">
-                      <Link href={`/admin/users/${u.id}`} className="flex items-center gap-3">
-                        <AdminAvatar name={name} color={u.avatar_color} />
-                        <span className="font-semibold text-ink-900">{name}</span>
-                        {isUserSuspended(u) && (
-                          <span className="bg-red-100 text-red-600 text-xs font-bold px-2 py-0.5 rounded-full">
-                            Suspended
-                          </span>
-                        )}
-                      </Link>
-                    </td>
-                    <td className="px-5 py-3 text-ink-500">{u.email ?? "—"}</td>
-                    <td className="px-5 py-3 text-ink-500">{u.home_club ?? "—"}</td>
-                    <td className="px-5 py-3 text-ink-500">{u.county ?? "—"}</td>
-                    <td className="px-5 py-3 text-right text-ink-900">{u.listing_count}</td>
-                    <td className="px-5 py-3 text-right text-ink-900">{u.invite_count}</td>
-                    <td className="px-5 py-3 text-ink-500">
-                      {new Date(u.created_at).toLocaleDateString("en-IE", {
-                        day: "numeric",
-                        month: "short",
-                        year: "numeric",
-                      })}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
-      </div>
+      <BulkProvider>
+        <div className="bg-surface border border-line rounded-2xl overflow-x-auto shadow-sm">
+          {users.length === 0 ? (
+            <div className="text-center py-16 text-ink-500">No members match that search.</div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-ink-500 text-xs uppercase tracking-wide border-b border-line">
+                  <th className="w-10 pl-4 pr-1 py-3">
+                    <SelectAll ids={users.map((u) => u.id)} />
+                  </th>
+                  <th className="px-4 py-3 font-semibold">Member</th>
+                  <th className="px-4 py-3 font-semibold">Email</th>
+                  <th className="px-4 py-3 font-semibold">Club</th>
+                  <th className="px-4 py-3 font-semibold">County</th>
+                  <th className="px-4 py-3 font-semibold text-right">Listings</th>
+                  <th className="px-4 py-3 font-semibold text-right">Tee times</th>
+                  <th className="px-4 py-3 font-semibold">Joined</th>
+                  <th className="w-12 px-2 py-3">
+                    <span className="sr-only">Actions</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {users.map((u) => {
+                  const name = `${u.first_name} ${u.last_name}`;
+                  const suspended = isUserSuspended(u);
+                  return (
+                    <tr key={u.id} className="border-b border-line last:border-0 hover:bg-surface-tint">
+                      <td className="w-10 pl-4 pr-1 py-3">
+                        <SelectRow id={u.id} label={`Select ${name}`} />
+                      </td>
+                      <td className="px-4 py-3">
+                        <Link href={`/admin/users/${u.id}`} className="flex items-center gap-3">
+                          <AdminAvatar name={name} color={u.avatar_color} />
+                          <span className="font-semibold text-ink-900">{name}</span>
+                          {suspended && (
+                            <span className="bg-red-100 text-red-600 text-xs font-bold px-2 py-0.5 rounded-full">Suspended</span>
+                          )}
+                        </Link>
+                      </td>
+                      <td className="px-4 py-3 text-ink-500">{u.email ?? "—"}</td>
+                      <td className="px-4 py-3 text-ink-500">{u.home_club ?? "—"}</td>
+                      <td className="px-4 py-3 text-ink-500">{u.county ?? "—"}</td>
+                      <td className="px-4 py-3 text-right text-ink-900">{u.listing_count}</td>
+                      <td className="px-4 py-3 text-right text-ink-900">{u.invite_count}</td>
+                      <td className="px-4 py-3 text-ink-500 whitespace-nowrap">
+                        {new Date(u.created_at).toLocaleDateString("en-IE", {
+                          day: "numeric",
+                          month: "short",
+                          year: "numeric",
+                        })}
+                      </td>
+                      <td className="w-12 px-2 py-3 text-right">
+                        <AdminRowActions {...rowActionProps(staff, "user", u.id, { hidden: suspended }, name)} />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+        <BulkBar {...bulkBarProps(staff, "user")} />
+      </BulkProvider>
 
       {totalPages > 1 && (
         <div className="flex items-center justify-between mt-6 text-sm text-ink-500">

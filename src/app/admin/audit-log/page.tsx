@@ -101,11 +101,9 @@ export default async function AdminAuditLogPage({
   return (
     <div>
       <h1 className="font-display font-bold text-2xl mb-1">Audit log</h1>
-      <p className="text-ink-500 mb-6">
+      <p className="text-sm text-ink-500 mb-6">
         About {approxTotal} {approxTotal === 1 ? "entry" : "entries"}
-        {hasFilters && " matching these filters"}. Every admin action that changes another
-        member&rsquo;s data is recorded here, permanently — there is no way to edit or delete an
-        entry from within the app.
+        {hasFilters && " matching these filters"}. Every admin change, kept permanently.
       </p>
 
       <form className="flex flex-wrap gap-3 mb-6">

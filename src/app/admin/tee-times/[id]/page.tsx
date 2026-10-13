@@ -2,7 +2,6 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireStaff } from "@/lib/admin/authorization";
 import { getTeeTimeInviteDetail } from "@/lib/admin/queries";
-import { canAccess } from "@/lib/admin/roles";
 import {
   formatDateTime,
   INVITE_STATUS_LABELS,
@@ -10,12 +9,10 @@ import {
   INVITE_INTEREST_STATUS_LABELS,
   INVITE_INTEREST_STATUS_STYLES,
 } from "@/lib/admin/format";
-import { MODERATION_ROLES } from "@/lib/admin/moderation";
 import { LADIES_ONLY_BADGE, VISIBILITY_LABELS, formatClock, formatInviteDate, formatTimeRange } from "@/lib/tee-times";
 import AdminAvatar from "@/components/admin/avatar";
 import StatusBadge from "@/components/admin/status-badge";
-import ModerationForm from "@/components/admin/moderation-form";
-import { cancelInvite, restoreInvite } from "./actions";
+import RecordPanel from "@/components/admin/controls/record-panel";
 
 export default async function AdminTeeTimeDetailPage({
   params,
@@ -32,7 +29,6 @@ export default async function AdminTeeTimeDetailPage({
 
   const { invite, host, interests } = detail;
   const hostName = host ? `${host.first_name} ${host.last_name}` : "Unknown host";
-  const canModerate = canAccess(staff, MODERATION_ROLES);
   const timeRange =
     formatTimeRange(invite.time_from, invite.time_to) ??
     (invite.exact_tee_time ? formatClock(invite.exact_tee_time) : null);
@@ -98,32 +94,17 @@ export default async function AdminTeeTimeDetailPage({
         </div>
       </div>
 
-      {canModerate && (invite.status === "cancelled" || invite.status === "open" || invite.status === "full") && (
-        <Section title="Moderation">
-          <div className="p-5">
-            {invite.status === "cancelled" ? (
-              <ModerationForm
-                action={restoreInvite}
-                idField="inviteId"
-                id={invite.id}
-                submitLabel="Restore"
-                pendingLabel="Restoring…"
-                placeholder="Reason for restoring (recorded in the audit log)"
-              />
-            ) : (
-              <ModerationForm
-                action={cancelInvite}
-                idField="inviteId"
-                id={invite.id}
-                submitLabel="Cancel"
-                pendingLabel="Cancelling…"
-                tone="danger"
-                placeholder="Reason for cancelling (recorded in the audit log)"
-              />
-            )}
-          </div>
-        </Section>
-      )}
+      <div className="mb-8">
+        <RecordPanel
+          staff={staff}
+          entity="tee_time"
+          id={invite.id}
+          state={{ hidden: invite.status === "cancelled", hideable: invite.status !== "completed" }}
+          title={invite.club_name}
+          values={{ notes: invite.notes }}
+          stateNote={invite.status === "cancelled" ? "Cancelled — only the host can see it." : null}
+        />
+      </div>
 
       <Section title="Host">
         {host ? (

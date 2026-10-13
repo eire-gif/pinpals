@@ -54,10 +54,9 @@ export default async function AdminPayoutsPage({
           title={`Downloads ${total} seller ${total === 1 ? "account" : "accounts"} matching the current filters`}
         />
       </div>
-      <p className="text-ink-500 mb-6">
-        {total} seller {total === 1 ? "account" : "accounts"} — Stripe Connect onboarding and payout
-        readiness. Every status here is a cached copy of what Stripe last reported, not a live balance
-        or ledger. For the actual money ledger — payouts, amounts, which orders they paid out — see{" "}
+      <p className="text-sm text-ink-500 mb-6">
+        {total} seller {total === 1 ? "account" : "accounts"} — Stripe onboarding and payout readiness, as Stripe last
+        reported it. Money paid out is in the{" "}
         <Link href="/admin/payouts/ledger" className="text-ink-900 hover:underline">
           Payout ledger
         </Link>

@@ -11,11 +11,14 @@ import {
 } from "@/lib/admin/marketplace-revenue";
 import { formatDateTime, personName } from "@/lib/admin/format";
 import { formatPrice } from "@/lib/format";
-import ModerationForm from "@/components/admin/moderation-form";
 import SimpleActionForm from "@/components/admin/simple-action-form";
 import FieldsActionForm from "@/components/admin/fields-action-form";
 import StatusBadge from "@/components/admin/status-badge";
-import { approveStore, reinstateStore, setStoreCommission, suspendStore } from "./growth-actions";
+import AdminRowActions from "@/components/admin/controls/row-actions";
+import { BulkProvider, BulkBar, SelectRow } from "@/components/admin/controls/bulk";
+import { bulkBarProps, rowActionProps } from "@/lib/admin/controls";
+import type { StaffRecord } from "@/lib/admin/roles";
+import { approveStore, setStoreCommission } from "./growth-actions";
 
 const STORE_STATUS_LABELS: Record<StoreStatus, string> = {
   pending: "Awaiting approval",
@@ -45,16 +48,13 @@ export default async function ShopsTab() {
 
   return (
     <div>
-      <h2 className="font-display font-bold text-lg mb-2">Pro shops</h2>
+      <h2 className="font-display font-bold text-lg mb-1">Pro shops</h2>
       <p className="text-sm text-ink-500 mb-6">
-        Club pro shops selling new stock in New Gear. They pay commission on each sale (kept back from what they&rsquo;re
-        paid) instead of the buyer paying Buyer Protection. Suspending a shop stops it adding new stock; its existing
-        listings stay up — remove any that need to come down from{" "}
+        Club pro shops selling new stock. Suspending a shop stops it adding stock; its listings stay up (remove them from{" "}
         <Link href="/admin/listings" className="underline">
           Listings
         </Link>
-        .
-        {!canAct && " You can view shops; approving and commission changes need a finance role."}
+        ).{!canAct && " Approving and commission changes need a finance role."}
       </p>
 
       {stores.length === 0 && (
@@ -69,11 +69,14 @@ export default async function ShopsTab() {
             <h3 className="font-display font-bold text-base mb-3">
               {SECTION_TITLES[status]} <span className="text-ink-500 font-normal">({rows.length})</span>
             </h3>
-            <div className="grid gap-4">
-              {rows.map((s) => (
-                <StoreCard key={s.id} store={s} canAct={canAct} />
-              ))}
-            </div>
+            <BulkProvider>
+              <div className="grid gap-4">
+                {rows.map((s) => (
+                  <StoreCard key={s.id} store={s} canAct={canAct} staff={staff} />
+                ))}
+              </div>
+              <BulkBar {...bulkBarProps(staff, "store")} />
+            </BulkProvider>
           </section>
         );
       })}
@@ -81,20 +84,28 @@ export default async function ShopsTab() {
   );
 }
 
-function StoreCard({ store: s, canAct }: { store: AdminStoreRow; canAct: boolean }) {
+function StoreCard({ store: s, canAct, staff }: { store: AdminStoreRow; canAct: boolean; staff: StaffRecord }) {
   return (
     <div className="bg-surface border border-line rounded-2xl p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
+        <div className="flex items-start gap-3">
+          <div className="pt-1.5">
+            <SelectRow id={s.id} label={`Select ${s.name}`} />
+          </div>
+          <div>
           <div className="flex items-center gap-2">
-            <span className="font-display font-bold text-ink-900 text-lg">{s.name}</span>
+            <Link href={`/admin/records/store/${s.id}`} className="font-display font-bold text-ink-900 text-lg hover:underline">
+              {s.name}
+            </Link>
             <StatusBadge status={s.status} labels={STORE_STATUS_LABELS} styles={STORE_STATUS_STYLES} />
+            <AdminRowActions {...rowActionProps(staff, "store", s.id, { hidden: s.status === "suspended" }, s.name)} />
           </div>
           <div className="text-sm text-ink-500 mt-1">
             {personName(s.owner)} · {s.clubName ?? "No club"} · applied {formatDateTime(s.created_at)}
             {s.approved_at && <> · approved {formatDateTime(s.approved_at)}</>}
           </div>
           <div className="text-xs text-ink-500 mt-0.5">/{s.slug}</div>
+          </div>
         </div>
         <dl className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
           <Fact label="In stock" value={String(s.itemsInStock)} />
@@ -107,27 +118,10 @@ function StoreCard({ store: s, canAct }: { store: AdminStoreRow; canAct: boolean
       {canAct && (
         <div className="mt-4 pt-4 border-t border-line grid md:grid-cols-2 gap-5">
           <div>
-            {s.status === "pending" && (
-              <div className="grid gap-3">
-                <SimpleActionForm action={approveStore} idField="storeId" id={s.id} submitLabel="Approve shop" pendingLabel="Approving…" successLabel="Approved — the owner has been notified." />
-                <details>
-                  <summary className="text-sm text-ink-500 cursor-pointer">Reject (suspend) instead…</summary>
-                  <div className="mt-2">
-                    <ModerationForm action={suspendStore} idField="storeId" id={s.id} submitLabel="Suspend shop" pendingLabel="Suspending…" tone="danger" placeholder="Reason (recorded in the audit log, not sent to the owner)" />
-                  </div>
-                </details>
-              </div>
-            )}
-            {s.status === "active" && (
-              <details>
-                <summary className="text-sm text-ink-500 cursor-pointer">Suspend this shop…</summary>
-                <div className="mt-2">
-                  <ModerationForm action={suspendStore} idField="storeId" id={s.id} submitLabel="Suspend shop" pendingLabel="Suspending…" tone="danger" placeholder="Reason (recorded in the audit log, not sent to the owner)" />
-                </div>
-              </details>
-            )}
-            {s.status === "suspended" && (
-              <SimpleActionForm action={reinstateStore} idField="storeId" id={s.id} submitLabel="Reinstate shop" pendingLabel="Reinstating…" successLabel="Reinstated — the owner has been notified." />
+            {s.status === "pending" ? (
+              <SimpleActionForm action={approveStore} idField="storeId" id={s.id} submitLabel="Approve shop" pendingLabel="Approving…" successLabel="Approved — the owner has been notified." />
+            ) : (
+              <p className="text-sm text-ink-500">Suspend, reinstate, edit or delete from the &ldquo;⋯&rdquo; menu.</p>
             )}
           </div>
           <FieldsActionForm action={setStoreCommission} submitLabel="Set commission" pendingLabel="Saving…" className="grid gap-2">

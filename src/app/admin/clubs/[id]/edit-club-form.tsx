@@ -1,17 +1,43 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { COUNTRIES, regionsForCountry } from "@/lib/regions";
 import type { Club } from "@/lib/types";
-import { updateClub, type ClubEditState } from "../actions";
+import { createClub, updateClub, type ClubEditState, type ClubCreateState } from "../actions";
 
-const initialState: ClubEditState = {};
+type FormState = ClubEditState & ClubCreateState;
+const initialState: FormState = {};
+
+/** A blank course, for "Add course". */
+export const EMPTY_CLUB = {
+  id: 0,
+  name: "",
+  country: "ireland",
+  region: null,
+  town: null,
+  holes: null,
+  website: null,
+  latitude: null,
+  longitude: null,
+  verified_at: null,
+} as unknown as Club;
 
 const field =
   "px-3.5 py-2.5 rounded-lg border-[1.5px] border-line bg-surface text-[15px] focus:outline-none focus:border-green-600";
 
-export default function EditClubForm({ club }: { club: Club }) {
-  const [state, formAction, pending] = useActionState(updateClub, initialState);
+/** The course form. `mode="create"` (Add course) posts to createClub and
+ * opens the new course when it's saved; otherwise it edits `club`. */
+export default function EditClubForm({ club, mode = "edit" }: { club: Club; mode?: "edit" | "create" }) {
+  const router = useRouter();
+  const [state, formAction, pending] = useActionState(
+    async (prev: FormState, fd: FormData): Promise<FormState> =>
+      mode === "create" ? createClub(prev, fd) : updateClub(prev, fd),
+    initialState
+  );
+  useEffect(() => {
+    if (state.createdId) router.push(`/admin/clubs/${state.createdId}`);
+  }, [state.createdId, router]);
   const [country, setCountry] = useState(club.country);
   const regions = regionsForCountry(country);
 
@@ -150,9 +176,9 @@ export default function EditClubForm({ club }: { club: Club }) {
       <button
         type="submit"
         disabled={pending}
-        className="justify-self-start px-6 py-2.5 rounded-full font-bold bg-green-700 text-cream-50 disabled:opacity-60"
+        className="justify-self-start px-6 py-2.5 rounded-full font-bold bg-navy-900 text-cream-50 hover:bg-navy-800 disabled:opacity-60"
       >
-        {pending ? "Saving…" : "Save course"}
+        {pending ? "Saving…" : mode === "create" ? "Add course" : "Save course"}
       </button>
     </form>
   );

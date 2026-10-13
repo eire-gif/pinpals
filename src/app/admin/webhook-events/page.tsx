@@ -36,10 +36,8 @@ export default async function AdminWebhookEventsPage({
   return (
     <div>
       <h1 className="font-display font-bold text-2xl mb-1">Webhook events</h1>
-      <p className="text-ink-500 mb-6">
-        {total} Stripe {total === 1 ? "event" : "events"} received. This is Pinpals&apos; own delivery ledger, not
-        a live Stripe dashboard — a &quot;Failed&quot; row means this app couldn&apos;t route it to an order (or
-        the amounts didn&apos;t reconcile), not that Stripe itself failed.
+      <p className="text-sm text-ink-500 mb-6">
+        {total} Stripe {total === 1 ? "event" : "events"} received. &ldquo;Failed&rdquo; means PinPals couldn&apos;t match it to an order.
       </p>
 
       <form className="flex flex-wrap gap-3 mb-6">

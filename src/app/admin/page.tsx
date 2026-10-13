@@ -2,130 +2,116 @@ import Link from "next/link";
 import { requireStaff } from "@/lib/admin/authorization";
 import { ROLE_LABELS } from "@/lib/admin/roles";
 import { getOverviewMetrics } from "@/lib/admin/queries";
-import { canSeeFinanceMetrics, UNAVAILABLE_METRICS } from "@/lib/admin/overview";
-import UnavailableCard from "@/components/admin/unavailable-card";
+import { canSeeFinanceMetrics } from "@/lib/admin/overview";
+import { getAdminAttention, getCommunitySnapshot } from "@/lib/admin/admin-lists";
+import AdminPageHeader from "@/components/admin/page-header";
 
-// Bounded operational overview — every real number below comes from an
-// indexed count query (see getOverviewMetrics() in queries.ts), never a full
-// table scan, and none of it is historical/trend analytics (that's Phase 7
-// per admin-architecture-review.md §8, deliberately out of scope here).
-// totalMembers/totalListings are shown with a "~": getOverviewMetrics() now
-// takes those two from planner statistics rather than a real COUNT(*), so
-// this page never claims a precision it doesn't have.
+// The Overview: what needs a person today, then a compact snapshot of the
+// community. Every number is a bounded count (getOverviewMetrics() in
+// queries.ts, getAdminAttention()/getCommunitySnapshot() in admin-lists.ts);
+// members and listings totals come from planner statistics, hence the "~".
 export default async function AdminOverviewPage() {
-  // Deliberately re-checked here rather than trusting the layout alone — see
-  // the comment on requireStaff() in src/lib/admin/authorization.ts.
-  const { user, staff } = await requireStaff();
+  // Re-checked here rather than trusting the layout alone — see
+  // requireStaff() in src/lib/admin/authorization.ts.
+  const { staff } = await requireStaff();
+  const finance = canSeeFinanceMetrics(staff);
   const metrics = await getOverviewMetrics();
-  const showFinance = canSeeFinanceMetrics(staff);
-
-  const attentionMetrics = UNAVAILABLE_METRICS.filter((m) => showFinance || !m.financeOnly);
+  const [attention, snapshot] = await Promise.all([
+    getAdminAttention({
+      finance,
+      suspendedMembers: metrics.suspendedMembers,
+      openSupportCases: metrics.unresolvedSupportCases,
+    }),
+    getCommunitySnapshot(),
+  ]);
 
   return (
     <div>
-      <h1 className="font-display font-bold text-2xl mb-2">Overview</h1>
-      <p className="text-ink-500 mb-8">
-        Signed in as <strong className="text-ink-900">{user.email}</strong> — role:{" "}
-        <strong className="text-ink-900">{ROLE_LABELS[staff.role]}</strong>.
-      </p>
+      <AdminPageHeader title="Overview" description={`What needs attention today. Signed in as ${ROLE_LABELS[staff.role]}.`} />
 
       <Section title="Needs attention">
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
-          <StatCard
-            href="/admin/users?suspended=1"
-            label="Suspended members"
-            value={metrics.suspendedMembers}
-          />
-          <StatCard
-            href="/admin/support"
-            label="Unresolved support cases"
-            value={metrics.unresolvedSupportCases}
-          />
-          {attentionMetrics.map((m) => (
-            <UnavailableCard key={m.key} label={m.label} reason={m.reason} />
-          ))}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <Card href="/admin/reports" label="Open reports" value={attention.openReports} alert />
+          <Card href="/admin/support" label="Open support cases" value={attention.openSupportCases} alert />
+          {finance && (
+            <>
+              <Card href="/admin/orders?problem=1" label="Problem sales" value={attention.problemSales} alert />
+              <Card href="/admin/marketplace?tab=orders" label="Orders awaiting payment" value={attention.ordersAwaitingPayment} />
+              <Card
+                href="/admin/webhook-events?status=failed"
+                label="Webhook failures"
+                sub="Last 7 days"
+                value={attention.webhookFailures7d}
+                alert
+              />
+              <Card href="/admin/payouts?attention=1" label="Sellers not set up" sub="Stripe onboarding incomplete" value={attention.sellersIncomplete} />
+            </>
+          )}
+          <Card href="/admin/listings?status=pending_review" label="Listings to review" value={attention.listingsAwaitingReview} />
+          <Card href="/admin/listings?status=removed" label="Hidden listings" value={attention.hiddenListings} />
+          <Card href="/admin/feed?status=hidden" label="Hidden posts" value={attention.hiddenPosts} />
+          <Card href="/admin/users?suspended=1" label="Suspended members" value={attention.suspendedMembers} />
+          <Card href="/admin/advertising" label="Live ad campaigns" value={attention.liveAdCampaigns} />
         </div>
-        {!showFinance && (
-          <p className="text-xs text-ink-500 mt-4">
-            Finance-only metrics (orders, payments, seller onboarding) aren&rsquo;t shown for your role.
-          </p>
-        )}
       </Section>
 
       <Section title="Community snapshot">
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
-          <StatCard href="/admin/users" label="Members" value={metrics.totalMembers} approx />
-          <StatCard
-            href="/admin/listings?status=active"
-            label="Active listings"
-            value={metrics.activeListings}
-            sub={`~${metrics.totalListings} total`}
-          />
-          <StatCard
-            href="/admin/listings?status=removed"
-            label="Removed by admin"
-            value={metrics.removedListings}
-          />
-          <StatCard
-            href="/admin/tee-times?status=open"
-            label="Open tee-times"
-            value={metrics.openInvites}
-            sub={`${metrics.totalInvites} total`}
-          />
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <Card href="/admin/users" label="Members" value={metrics.totalMembers} approx sub={snapshotSub(snapshot.newMembersThisWeek, "new this week")} />
+          <Card href="/admin/listings?status=active" label="Active listings" value={metrics.activeListings} sub={`~${metrics.totalListings} in total`} />
+          <Card href="/admin/tee-times?status=open" label="Open tee times" value={metrics.openInvites} sub={`${metrics.totalInvites} in total`} />
+          <Card href="/admin/groups" label="Groups" value={snapshot.groups} sub={snapshotSub(snapshot.societies, "societies")} />
+          <Card href="/admin/groups/events?when=upcoming" label="Upcoming events" value={snapshot.upcomingEvents} />
+          <Card href="/admin/feed" label="Posts this week" value={snapshot.postsThisWeek} />
         </div>
       </Section>
-
-      <div className="bg-surface border border-line rounded-2xl p-6">
-        <h2 className="font-display font-bold text-lg mb-2">Phase 4 — operational overview</h2>
-        <p className="text-sm text-ink-500">
-          Users, listings, and tee-times are searchable from the nav on the left, with moderation
-          actions and an audit trail. Orders, payouts, clubs management, member-facing reports, and
-          settings are still further out — see <code>admin-architecture-review.md</code> for the full
-          sequence. Cards above marked &ldquo;data unavailable&rdquo; reflect subsystems that genuinely
-          don&rsquo;t exist yet, not a bug in this page.
-        </p>
-      </div>
     </div>
   );
+}
+
+function snapshotSub(n: number | null, text: string) {
+  return n == null ? undefined : `${n} ${text}`;
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="mb-8">
-      <h2 className="font-display font-bold text-lg mb-3">{title}</h2>
+    <section className="mb-8">
+      <h2 className="text-[11px] font-bold uppercase tracking-[0.08em] text-ink-500 mb-3">{title}</h2>
       {children}
-    </div>
+    </section>
   );
 }
 
-function StatCard({
+/** A count that links to its page. `alert` turns a non-zero number gold so
+ * the things that need someone stand out; null (couldn't count) shows "—". */
+function Card({
   href,
   label,
   value,
   sub,
   approx,
+  alert,
 }: {
   href: string;
   label: string;
-  value: number;
+  value: number | null;
   sub?: string;
-  /** True for a count taken from planner statistics (`count: "estimated"`)
-   * rather than a real COUNT(*) — see getOverviewMetrics()'s own comment.
-   * Shown with a leading "~" so the dashboard never claims a precision it
-   * doesn't have. */
   approx?: boolean;
+  alert?: boolean;
 }) {
+  const hot = alert && (value ?? 0) > 0;
   return (
     <Link
       href={href}
-      className="block bg-surface border border-line rounded-2xl p-6 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition"
+      className={`block rounded-2xl border p-4 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition ${
+        hot ? "bg-navy-900 border-navy-900" : "bg-surface border-line"
+      }`}
     >
-      <div className="text-xs uppercase tracking-wide text-ink-500 font-semibold">{label}</div>
-      <div className="font-display font-bold text-3xl mt-1 text-ink-900">
-        {approx && "~"}
-        {value}
+      <div className={`text-xs font-semibold ${hot ? "text-gold-400" : "text-ink-500"}`}>{label}</div>
+      <div className={`font-display font-bold text-2xl mt-1 ${hot ? "text-cream-50" : "text-ink-900"}`}>
+        {value == null ? "—" : `${approx ? "~" : ""}${value.toLocaleString("en-IE")}`}
       </div>
-      {sub && <div className="text-xs text-ink-500 mt-1">{sub}</div>}
+      {sub && <div className={`text-xs mt-0.5 ${hot ? "text-cream-100" : "text-ink-500"}`}>{sub}</div>}
     </Link>
   );
 }

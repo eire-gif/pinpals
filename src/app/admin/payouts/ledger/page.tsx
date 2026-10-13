@@ -60,14 +60,8 @@ export default async function AdminPayoutLedgerPage({
           title={`Downloads ${total} ${total === 1 ? "payout" : "payouts"} matching the current filters`}
         />
       </div>
-      <p className="text-ink-500 mb-6">
-        {total} {total === 1 ? "payout" : "payouts"} — Stripe is the source of truth for every figure here;
-        this is Pinpals&apos; own timestamped record of it, traced through to the orders each payout swept
-        up. For seller Connect onboarding status, see{" "}
-        <Link href="/admin/payouts" className="text-ink-900 hover:underline">
-          Seller accounts
-        </Link>
-        .
+      <p className="text-sm text-ink-500 mb-6">
+        {total} {total === 1 ? "payout" : "payouts"}, each traced to the orders it paid out. Stripe is the source of truth.
       </p>
 
       <form className="flex flex-wrap gap-3 mb-6">

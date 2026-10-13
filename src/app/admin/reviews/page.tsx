@@ -2,10 +2,13 @@ import Link from "next/link";
 import { requireStaff } from "@/lib/admin/authorization";
 import { listReviews } from "@/lib/admin/queries";
 import { formatDateTime, personName } from "@/lib/admin/format";
-import ModerationForm from "@/components/admin/moderation-form";
 import AdminPagination from "@/components/admin/pagination";
 import ExportCsvLink from "@/components/admin/export-csv-link";
-import { hideReview, restoreReview } from "./actions";
+import AdminPageHeader from "@/components/admin/page-header";
+import AdminRowActions from "@/components/admin/controls/row-actions";
+import { BulkProvider, BulkBar, SelectAll, SelectRow } from "@/components/admin/controls/bulk";
+import { Pill } from "@/components/admin/table";
+import { bulkBarProps, rowActionProps } from "@/lib/admin/controls";
 
 /**
  * The review moderation queue — "support report/moderation without silent
@@ -23,7 +26,7 @@ export default async function AdminReviewsPage({
 }: {
   searchParams: Promise<{ status?: string; reviewId?: string; page?: string }>;
 }) {
-  await requireStaff();
+  const { staff } = await requireStaff();
   const { status = "", reviewId, page: pageParam } = await searchParams;
   const page = Math.max(1, Number.parseInt(pageParam ?? "1", 10) || 1);
   const parsedReviewId = reviewId ? Number(reviewId) : undefined;
@@ -54,17 +57,21 @@ export default async function AdminReviewsPage({
 
   return (
     <div>
-      <div className="flex items-start justify-between gap-4 mb-1">
-        <h1 className="font-display font-bold text-2xl">Reviews</h1>
-        <ExportCsvLink
-          href={exportHref}
-          title={`Downloads ${total} ${total === 1 ? "review" : "reviews"} matching the current filters`}
-        />
-      </div>
-      <p className="text-ink-500 mb-6">
-        {total} {total === 1 ? "review" : "reviews"}
-        {status && <> · {status === "hidden" ? "Hidden only" : "Visible only"}</>}.
-      </p>
+      <AdminPageHeader
+        title="Reviews"
+        description={
+          <>
+            Buyer and seller reviews. {total} {total === 1 ? "review" : "reviews"}
+            {status && <> · {status === "hidden" ? "Hidden only" : "Visible only"}</>}.
+          </>
+        }
+        actions={
+          <ExportCsvLink
+            href={exportHref}
+            title={`Downloads ${total} ${total === 1 ? "review" : "reviews"} matching the current filters`}
+          />
+        }
+      />
 
       {reviewId && (
         <div className="flex items-center gap-2 mb-4 text-sm">
@@ -89,63 +96,44 @@ export default async function AdminReviewsPage({
       </form>
 
       {rows.length === 0 ? (
-        <div className="bg-surface border border-line rounded-2xl text-center py-16 text-ink-500">
-          No reviews match that filter.
-        </div>
+        <div className="bg-surface border border-line rounded-2xl text-center py-16 text-ink-500">No reviews match that filter.</div>
       ) : (
-        <div className="flex flex-col gap-4">
-          {rows.map((review) => (
-            <div key={review.id} className="bg-surface border border-line rounded-2xl p-5">
-              <div className="flex items-start justify-between gap-3 flex-wrap">
-                <div>
-                  <div className="text-sm font-bold text-ink-900">
-                    {personName(review.reviewer)} &rarr; {personName(review.reviewee)}
+        <BulkProvider>
+          <div className="flex items-center gap-2 mb-3 text-sm text-ink-500">
+            <SelectAll ids={rows.map((r) => r.id)} /> Select all on this page
+          </div>
+          <div className="flex flex-col gap-3">
+            {rows.map((review) => (
+              <div key={review.id} className="bg-surface border border-line rounded-2xl p-5">
+                <div className="flex items-start gap-3">
+                  <div className="pt-0.5">
+                    <SelectRow id={review.id} label={`Select review #${review.id}`} />
                   </div>
-                  <div className="text-xs text-ink-500 mt-0.5">
-                    Order #{review.order_id} · {review.rating}★ · {formatDateTime(review.created_at)}
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-bold text-ink-900">
+                      {personName(review.reviewer)} &rarr; {personName(review.reviewee)}
+                    </div>
+                    <div className="text-xs text-ink-500 mt-0.5">
+                      Order #{review.order_id} · {review.rating}★ · {formatDateTime(review.created_at)}
+                    </div>
                   </div>
+                  <Pill tone={review.hidden_at ? "bad" : "good"}>{review.hidden_at ? "Hidden" : "Visible"}</Pill>
+                  <AdminRowActions {...rowActionProps(staff, "review", review.id, { hidden: !!review.hidden_at })} />
                 </div>
-                {review.hidden_at ? (
-                  <span className="bg-red-100 text-red-600 text-xs font-bold px-2.5 py-1 rounded-full shrink-0">Hidden</span>
-                ) : (
-                  <span className="bg-green-100 text-green-800 text-xs font-bold px-2.5 py-1 rounded-full shrink-0">Visible</span>
+
+                {review.body && <p className="text-sm text-ink-900 mt-3 whitespace-pre-wrap">{review.body}</p>}
+
+                {review.hidden_at && (
+                  <p className="text-xs text-ink-500 mt-3 bg-cream-100 rounded-lg px-3 py-2">
+                    Hidden {formatDateTime(review.hidden_at)}
+                    {review.hidden_reason && <> — &ldquo;{review.hidden_reason}&rdquo;</>}
+                  </p>
                 )}
               </div>
-
-              {review.body && <p className="text-sm text-ink-900 mt-3 whitespace-pre-wrap">{review.body}</p>}
-
-              {review.hidden_at && (
-                <p className="text-xs text-ink-500 mt-3 bg-cream-100 rounded-lg px-3 py-2">
-                  Hidden {formatDateTime(review.hidden_at)}
-                  {review.hidden_reason && <> — &ldquo;{review.hidden_reason}&rdquo;</>}
-                </p>
-              )}
-
-              <div className="mt-4">
-                {review.hidden_at ? (
-                  <ModerationForm
-                    action={restoreReview}
-                    idField="reviewId"
-                    id={review.id}
-                    submitLabel="Restore"
-                    pendingLabel="Restoring…"
-                    placeholder="Reason for restoring (recorded in the audit log)"
-                  />
-                ) : (
-                  <ModerationForm
-                    action={hideReview}
-                    idField="reviewId"
-                    id={review.id}
-                    submitLabel="Hide"
-                    pendingLabel="Hiding…"
-                    tone="danger"
-                    placeholder="Reason for hiding (recorded in the audit log)"
-                  />
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+          <BulkBar {...bulkBarProps(staff, "review")} />
+        </BulkProvider>
       )}
 
       <AdminPagination page={page} pageSize={pageSize} total={total} hrefForPage={pageHref} />

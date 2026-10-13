@@ -2,8 +2,11 @@ import Link from "next/link";
 import { requireStaff } from "@/lib/admin/authorization";
 import { formatDateTime } from "@/lib/admin/format";
 import { createAdminClient } from "@/lib/supabase/admin";
-import ModerationForm from "@/components/admin/moderation-form";
-import { hideComment, hidePost, restoreComment, restorePost } from "./actions";
+import AdminPageHeader from "@/components/admin/page-header";
+import AdminRowActions from "@/components/admin/controls/row-actions";
+import { BulkProvider, BulkBar, SelectAll, SelectRow } from "@/components/admin/controls/bulk";
+import { Pill } from "@/components/admin/table";
+import { bulkBarProps, rowActionProps } from "@/lib/admin/controls";
 
 const PAGE_SIZE = 25;
 const PHOTO_URL_TTL_SECONDS = 15 * 60;
@@ -50,7 +53,7 @@ export default async function AdminFeedPage({
 }: {
   searchParams: Promise<{ status?: string; postId?: string; commentId?: string; page?: string }>;
 }) {
-  await requireStaff();
+  const { staff } = await requireStaff();
   const { status = "", postId: postParam, commentId: commentParam, page: pageParam } = await searchParams;
   const page = Math.max(1, Number.parseInt(pageParam ?? "1", 10) || 1);
   const admin = createAdminClient();
@@ -113,12 +116,15 @@ export default async function AdminFeedPage({
 
   return (
     <div>
-      <h1 className="font-display font-bold text-2xl mb-1">Social</h1>
-      <p className="text-ink-500 mb-6">
-        {total} {total === 1 ? "post" : "posts"}
-        {status && <> · {status === "hidden" ? "Hidden only" : "Visible only"}</>}. Hiding never deletes — the author still sees
-        their post, marked as hidden.
-      </p>
+      <AdminPageHeader
+        title="Social"
+        description={
+          <>
+            {total} {total === 1 ? "post" : "posts"}
+            {status && <> · {status === "hidden" ? "Hidden only" : "Visible only"}</>}. A hidden post stays visible to its author, marked as hidden.
+          </>
+        }
+      />
 
       {postId ? (
         <div className="flex items-center gap-2 mb-4 text-sm">
@@ -143,11 +149,20 @@ export default async function AdminFeedPage({
       {rows.length === 0 ? (
         <div className="bg-surface border border-line rounded-2xl text-center py-16 text-ink-500">No posts match that filter.</div>
       ) : (
-        <div className="flex flex-col gap-4">
+        <BulkProvider>
+        {!postId && (
+          <div className="flex items-center gap-2 mb-3 text-sm text-ink-500">
+            <SelectAll ids={rows.map((p) => p.id)} /> Select all on this page
+          </div>
+        )}
+        <div className="flex flex-col gap-3">
           {rows.map((post) => (
             <div key={post.id} className="bg-surface border border-line rounded-2xl p-5">
-              <div className="flex items-start justify-between gap-3 flex-wrap">
-                <div>
+              <div className="flex items-start gap-3">
+                <div className="pt-0.5">
+                  <SelectRow id={post.id} label={`Select post #${post.id}`} />
+                </div>
+                <div className="flex-1 min-w-0">
                   <div className="text-sm font-bold text-ink-900">
                     {post.author ? (
                       <Link href={`/admin/users/${post.author.id}`} className="hover:underline">
@@ -165,11 +180,8 @@ export default async function AdminFeedPage({
                     {post.comment_count} comments · {formatDateTime(post.created_at)}
                   </div>
                 </div>
-                {post.hidden_at ? (
-                  <span className="bg-red-100 text-red-600 text-xs font-bold px-2.5 py-1 rounded-full shrink-0">Hidden</span>
-                ) : (
-                  <span className="bg-green-100 text-green-800 text-xs font-bold px-2.5 py-1 rounded-full shrink-0">Visible</span>
-                )}
+                <Pill tone={post.hidden_at ? "bad" : "good"}>{post.hidden_at ? "Hidden" : "Visible"}</Pill>
+                <AdminRowActions {...rowActionProps(staff, "post", post.id, { hidden: !!post.hidden_at }, null, { view: false })} />
               </div>
 
               {post.body && <p className="text-sm text-ink-900 mt-3 whitespace-pre-wrap">{post.body}</p>}
@@ -200,54 +212,46 @@ export default async function AdminFeedPage({
                 </p>
               )}
 
-              <div className="mt-4">
-                {post.hidden_at ? (
-                  <ModerationForm
-                    action={restorePost}
-                    idField="targetId"
-                    id={post.id}
-                    submitLabel="Restore post"
-                    pendingLabel="Restoring…"
-                    placeholder="Reason for restoring (recorded in the audit log)"
-                  />
-                ) : (
-                  <ModerationForm action={hidePost} idField="targetId" id={post.id} submitLabel="Hide post" pendingLabel="Hiding…" tone="danger" />
-                )}
-              </div>
-
               {postId === post.id && (comments ?? []).length > 0 && (
-                <div className="mt-6 border-t border-line pt-4 grid gap-3">
-                  <h2 className="text-sm font-bold">Comments</h2>
-                  {(comments ?? []).map((c) => (
-                    <div
-                      key={c.id}
-                      className={`rounded-xl border p-4 ${c.id === commentId ? "border-gold-500 bg-gold-500/10" : "border-line"}`}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="text-xs text-ink-500">
-                          <span className="font-bold text-ink-900">{nameOf(c.author)}</span> · Comment #{c.id} ·{" "}
-                          {formatDateTime(c.created_at)}
-                        </div>
-                        {c.hidden_at && (
-                          <span className="bg-red-100 text-red-600 text-xs font-bold px-2 py-0.5 rounded-full">Hidden</span>
-                        )}
-                      </div>
-                      <p className="text-sm mt-2 whitespace-pre-wrap">{c.body}</p>
-                      {c.hidden_reason && <p className="text-xs text-ink-500 mt-2">&ldquo;{c.hidden_reason}&rdquo;</p>}
-                      <div className="mt-3">
-                        {c.hidden_at ? (
-                          <ModerationForm action={restoreComment} idField="targetId" id={c.id} submitLabel="Restore" pendingLabel="Restoring…" />
-                        ) : (
-                          <ModerationForm action={hideComment} idField="targetId" id={c.id} submitLabel="Hide comment" pendingLabel="Hiding…" tone="danger" />
-                        )}
-                      </div>
+                <div className="mt-6 border-t border-line pt-4">
+                  <BulkProvider>
+                    <div className="flex items-center gap-2 mb-3">
+                      <SelectAll ids={(comments ?? []).map((c) => c.id)} />
+                      <h2 className="text-sm font-bold">Comments</h2>
                     </div>
-                  ))}
+                    <div className="grid gap-3">
+                      {(comments ?? []).map((c) => (
+                        <div
+                          key={c.id}
+                          className={`rounded-xl border p-4 ${c.id === commentId ? "border-gold-500 bg-gold-500/10" : "border-line"}`}
+                        >
+                          <div className="flex items-start gap-3">
+                            <div className="pt-0.5">
+                              <SelectRow id={c.id} label={`Select comment #${c.id}`} />
+                            </div>
+                            <div className="flex-1 min-w-0 text-xs text-ink-500">
+                              <span className="font-bold text-ink-900">{nameOf(c.author)}</span> · Comment #{c.id} ·{" "}
+                              {formatDateTime(c.created_at)}
+                            </div>
+                            {c.hidden_at && <Pill tone="bad">Hidden</Pill>}
+                            <AdminRowActions
+                              {...rowActionProps(staff, "post_comment", c.id, { hidden: !!c.hidden_at }, null, { view: false })}
+                            />
+                          </div>
+                          <p className="text-sm mt-2 whitespace-pre-wrap">{c.body}</p>
+                          {c.hidden_reason && <p className="text-xs text-ink-500 mt-2">&ldquo;{c.hidden_reason}&rdquo;</p>}
+                        </div>
+                      ))}
+                    </div>
+                    <BulkBar {...bulkBarProps(staff, "post_comment")} />
+                  </BulkProvider>
                 </div>
               )}
             </div>
           ))}
         </div>
+        <BulkBar {...bulkBarProps(staff, "post")} />
+        </BulkProvider>
       )}
 
       {!postId && pages > 1 && (

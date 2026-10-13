@@ -260,6 +260,45 @@ export const ADMIN_ACTIONS = [
   "article.edited",
   "article.retracted",
   "article.corrected",
+  // Admin controls (0140) — the shared Edit / Hide / Restore / Remove / Add
+  // back / Delete permanently set on every admin list (see
+  // src/app/admin/controls/actions.ts and src/lib/admin/controls.ts).
+  // *.edited carries `metadata.changed` (before/after per field);
+  // *.deleted carries `metadata.snapshot`, a copy of the row as it was, since
+  // the row itself is gone. A member is never hard-deleted:
+  // user.deletion_requested records a super admin starting the existing
+  // account-deletion process on their behalf, user.deletion_cancelled its undo.
+  "user.deletion_requested",
+  "user.deletion_cancelled",
+  "listing.edited",
+  "listing.deleted",
+  "invite.edited",
+  "invite.deleted",
+  "club.created",
+  "club.hide",
+  "club.restore",
+  "club.deleted",
+  "group.hide",
+  "group.restore",
+  "group.edited",
+  "group.deleted",
+  "outing.hide",
+  "outing.restore",
+  "outing.cancelled",
+  "outing.reopened",
+  "outing.edited",
+  "outing.deleted",
+  "post.edited",
+  "post.deleted",
+  "post_comment.edited",
+  "post_comment.deleted",
+  "course_review.edited",
+  "course_review.deleted",
+  "review.edited",
+  "review.deleted",
+  "store.edited",
+  "store.deleted",
+  "article.deleted",
 ] as const;
 export type AdminAction = (typeof ADMIN_ACTIONS)[number];
 
@@ -324,6 +363,9 @@ export const AUDIT_TARGET_TYPES = [
   "club",
   // The target of the article.* actions above — a row in `articles`.
   "article",
+  // Admin controls (0140): rows in `groups` and `society_outings` (events).
+  "group",
+  "outing",
 ] as const;
 export type AuditTargetType = (typeof AUDIT_TARGET_TYPES)[number];
 

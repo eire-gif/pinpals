@@ -14,7 +14,6 @@ import {
   OFFER_STATUS_STYLES,
   sellerStatusLabel,
 } from "@/lib/admin/format";
-import { MODERATION_ROLES } from "@/lib/admin/moderation";
 import { MEMBER_EDIT_ROLES } from "@/lib/admin/member-profile";
 import { ROLE_LABELS } from "@/lib/admin/roles";
 import { formatPrice, sellerAccountStatusLabel } from "@/lib/format";
@@ -27,7 +26,10 @@ import { REPORT_CATEGORY_LABELS, REPORT_STATUS_LABELS, REPORT_STATUS_STYLES } fr
 import { listFraudFlagsForTarget } from "@/lib/admin/queries";
 import RiskFlagsPanel from "@/components/admin/risk-flags-panel";
 import MemberProfileForm from "@/components/admin/member-profile-form";
-import { suspendUser, reinstateUser, addUserNote, updateMemberProfile } from "./actions";
+import { addUserNote, updateMemberProfile } from "./actions";
+import { cancelMemberDeletion } from "../../controls/actions";
+import { pendingDeletionFor } from "@/lib/account-deletion";
+import RecordPanel from "@/components/admin/controls/record-panel";
 
 export default async function AdminUserDetailPage({
   params,
@@ -50,14 +52,12 @@ export default async function AdminUserDetailPage({
     1
   );
   const fraudFlags = await listFraudFlagsForTarget("user", id);
+  const pendingDeletion = await pendingDeletionFor(id);
 
   const { profile, listings, invites, offersMade, notes } = detail;
   const name = `${profile.first_name} ${profile.last_name}`;
   const suspended = isUserSuspended(profile);
   const sellerStatus = sellerStatusLabel(listings);
-  // A UX nicety only — canAccess() re-checks this server-side inside
-  // suspendUser()/reinstateUser() themselves, which is the real boundary.
-  const canModerate = canAccess(staff, MODERATION_ROLES);
   // Same reasoning: /admin/payouts itself is gated to FINANCE_ROLES (see
   // src/lib/admin/finance.ts), so a moderator/support staff member shouldn't
   // see a live-looking link into a page requireStaff() would 404 them out of.
@@ -148,8 +148,38 @@ export default async function AdminUserDetailPage({
         </div>
       </div>
 
+      <div className="mb-8">
+        <RecordPanel
+          staff={staff}
+          entity="user"
+          id={profile.id}
+          state={{ hidden: suspended }}
+          title={name}
+          stateNote={
+            pendingDeletion
+              ? `Account deletion requested ${formatDateTime(pendingDeletion.requestedAt)}; the scrub runs from ${formatDateTime(pendingDeletion.scheduledFor)}.`
+              : suspended
+                ? "Suspended — this member can't sign in."
+                : null
+          }
+        />
+        {pendingDeletion && canAccess(staff, ["super_admin"]) && (
+          <div className="bg-surface border border-line rounded-2xl p-5 mt-4">
+            <h2 className="text-[11px] font-bold uppercase tracking-[0.08em] text-ink-500 mb-3">Cancel the deletion</h2>
+            <ModerationForm
+              action={cancelMemberDeletion}
+              idField="id"
+              id={profile.id}
+              submitLabel="Cancel deletion"
+              pendingLabel="Cancelling…"
+              placeholder="Why the deletion is being cancelled (recorded in the audit log)"
+            />
+          </div>
+        )}
+      </div>
+
       {canEditProfile && (
-        <Section title="Member details">
+        <Section title="Member details" id="edit">
           <MemberProfileForm
             action={updateMemberProfile}
             userId={profile.id}
@@ -168,33 +198,6 @@ export default async function AdminUserDetailPage({
               guiNumber: profile.gui_membership_number ?? "",
             }}
           />
-        </Section>
-      )}
-
-      {canModerate && (
-        <Section title="Moderation">
-          <div className="p-5">
-            {suspended ? (
-              <ModerationForm
-                action={reinstateUser}
-                idField="userId"
-                id={profile.id}
-                submitLabel="Reinstate"
-                pendingLabel="Reinstating…"
-                placeholder="Reason for reinstating (recorded in the audit log)"
-              />
-            ) : (
-              <ModerationForm
-                action={suspendUser}
-                idField="userId"
-                id={profile.id}
-                submitLabel="Suspend"
-                pendingLabel="Suspending…"
-                tone="danger"
-                placeholder="Reason for suspending (recorded in the audit log)"
-              />
-            )}
-          </div>
         </Section>
       )}
 
@@ -383,9 +386,9 @@ export default async function AdminUserDetailPage({
   );
 }
 
-function Section({ title, children }: { title: React.ReactNode; children: React.ReactNode }) {
+function Section({ title, children, id }: { title: React.ReactNode; children: React.ReactNode; id?: string }) {
   return (
-    <div className="mb-8">
+    <div className="mb-8 scroll-mt-6" id={id}>
       <h2 className="font-display font-bold text-lg mb-3">{title}</h2>
       <div className="bg-surface border border-line rounded-2xl overflow-hidden shadow-sm">{children}</div>
     </div>

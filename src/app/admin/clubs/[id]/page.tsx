@@ -1,7 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireStaff } from "@/lib/admin/authorization";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { canEdit } from "@/lib/admin/controls";
+import { formatDateTime } from "@/lib/admin/format";
+import AdminPageHeader from "@/components/admin/page-header";
+import RecordPanel from "@/components/admin/controls/record-panel";
 import { countryName } from "@/lib/regions";
 import type { Club } from "@/lib/types";
 import EditClubForm from "./edit-club-form";
@@ -9,14 +13,19 @@ import EditClubForm from "./edit-club-form";
 export const dynamic = "force-dynamic";
 
 export default async function AdminClubPage({ params }: { params: Promise<{ id: string }> }) {
-  await requireStaff();
+  const { staff } = await requireStaff();
 
   const { id } = await params;
   const clubId = Number.parseInt(id, 10);
   if (!Number.isFinite(clubId)) notFound();
 
-  const supabase = await createClient();
-  const { data: club } = await supabase.from("clubs").select("*").eq("id", clubId).maybeSingle<Club>();
+  // Service role: a hidden course (0140) must still open here.
+  const supabase = createAdminClient();
+  const { data: club } = await supabase
+    .from("clubs")
+    .select("*")
+    .eq("id", clubId)
+    .maybeSingle<Club & { hidden_at?: string | null; hidden_reason?: string | null }>();
   if (!club) notFound();
 
   // How many members would be affected by getting this row wrong. Shown
@@ -30,16 +39,16 @@ export default async function AdminClubPage({ params }: { params: Promise<{ id: 
 
   return (
     <div className="max-w-2xl">
-      <Link href="/admin/clubs" className="text-sm font-bold text-green-700">
-        ← All courses
-      </Link>
-
-      <h1 className="font-display font-bold text-2xl mt-2 mb-1">{club.name}</h1>
-      <p className="text-sm text-ink-500 mb-1">
-        {countryName(club.country)}
-        {club.region ? ` · ${club.region}` : ""} · {memberCount ?? 0}{" "}
-        {memberCount === 1 ? "member" : "members"} play here
-      </p>
+      <AdminPageHeader
+        eyebrow={<Link href="/admin/clubs">← All courses</Link>}
+        title={club.name}
+        description={
+          <>
+            {countryName(club.country)}
+            {club.region ? ` · ${club.region}` : ""} · {memberCount ?? 0} {memberCount === 1 ? "member" : "members"} play here
+          </>
+        }
+      />
       <p className="text-xs text-ink-500 mb-6">
         <Link href={`/courses/${club.country}/${club.slug}`} className="underline">
           /courses/{club.country}/{club.slug}
@@ -61,9 +70,28 @@ export default async function AdminClubPage({ params }: { params: Promise<{ id: 
         )}
       </p>
 
-      <div className="bg-surface border border-line rounded-xl p-6">
-        <EditClubForm club={club} />
+      <div className="mb-4">
+        <RecordPanel
+          staff={staff}
+          entity="club"
+          id={club.id}
+          state={{ hidden: !!club.hidden_at }}
+          title={club.name}
+          stateNote={
+            club.hidden_at
+              ? `Hidden ${formatDateTime(club.hidden_at)}${club.hidden_reason ? ` — “${club.hidden_reason}”` : ""}. Members and visitors can't see it.`
+              : null
+          }
+        />
       </div>
+
+      {canEdit(staff, "club") ? (
+        <div id="edit" className="bg-surface border border-line rounded-2xl p-6 scroll-mt-6">
+          <EditClubForm club={club} />
+        </div>
+      ) : (
+        <p className="text-sm text-ink-500">Editing courses is for admins.</p>
+      )}
 
       {/* The slug is deliberately not editable. It is the course's public URL
           and members' bookmarks; changing it silently breaks every link that
