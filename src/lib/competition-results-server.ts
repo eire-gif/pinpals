@@ -101,7 +101,7 @@ export async function notifyResults(admin: SupabaseClient, dayId: number): Promi
       userId: memberId,
       type: "live_match_result",
       title: updated ? `${title}: results updated` : `${title}: the results are in`,
-      body: `${headline}${mine} Tap for the full results and countbacks.`.trim(),
+      body: `${headline}${mine}${(results.amendments?.length ?? 0) > 0 ? " Some cards were amended by the organiser." : ""} Tap for the full results and countbacks.`.trim(),
       href: `/live/days/${dayId}/results`,
       dedupeKey: `competition_results:${dayId}:v${row.version}:${memberId}`,
     });

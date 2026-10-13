@@ -73,3 +73,36 @@ Organiser = `live_match_days.created_by`. RLS tests:
   TestFlight build. WhatsApp shows the card from the link.
 - Not posted to the society chat automatically (members are notified and the
   results sit on the day); can be added.
+
+## Oct 2026, later: pair cards, amendments, past results (migration 0138)
+
+Asked (Eire, 13 Oct): Face ID certification for foursomes; results kept on
+the society's page for members to view again; the organiser able to change a
+result, clearly marked "Amended" where it differs from what players submitted.
+
+- **Pair and team cards.** `scorecard_from_live_round` saves the side's card
+  for foursomes/scramble pairs and teams and for foursomes/greensomes matches:
+  the side's ball (on its first player), the side's handicap, no index,
+  `scorecards.team_card` set. Fixes the foursomes-match bug where the
+  partner's card came out blank. Certifier is from the **other side**
+  (Rule 3.3b): the other side in a match; another pair/team in the same tee
+  group on a day (`scorecard_certify_candidates`). Never counted for the
+  handicap indicator (`handicap_differentials_of`: `team_card is null`) —
+  WHS accepts individual formats only. Results count a team as certified when
+  either partner's copy is.
+- **Amendments** (`ResultsSettings.amendments`, `applyAmendments` in the
+  engine): correct a hole or disqualify, with a reason. The players' cards are
+  never changed. Rows carry `amended` lines ("Hole 7: 5 → 6 — reason"),
+  `Results.amendments` summarises them; shown as **Amended** on the results
+  screen, podium, prizes, day card, group list, share page, link image and the
+  notification.
+- **Past results on the group page.** `competition_results.group_id`
+  (`competition_results_set_group`, organiser must be in the group;
+  `competition_results_group_suggestion`: the event's society, else the
+  organiser's group with most of the day's players). Group members read
+  published results (new RLS policy); the published JSON now carries `event`
+  (title, course, date) so non-players can open them. Group page section:
+  `components/group-past-results.tsx`.
+- Tests: `supabase/tests/rls/team-cards-and-society-results.test.ts`, engine
+  amendment tests. Guides: *Play a round together* (pair's card), *Publish the
+  results* (amend, group page).

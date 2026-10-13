@@ -50,10 +50,28 @@ export default async function ResultsPage({ params }: { params: Promise<{ token:
       <img src={`/results/${token}/opengraph-image`} alt={`${data.title} results`} width={1200} height={630} className="w-full h-auto rounded-2xl border border-line shadow-sm" />
 
       <div className="grid gap-1">
-        <p className="text-sm font-bold uppercase tracking-widest text-green-700">{data.version > 1 ? "Results · updated" : "Results"}</p>
+        <p className="text-sm font-bold uppercase tracking-widest text-green-700">
+          {data.version > 1 ? "Results · updated" : "Results"}
+          {(r.amendments?.length ?? 0) > 0 ? <span className="text-red-600"> · amended</span> : null}
+        </p>
         <h1 className="font-display text-3xl text-ink-900">{data.title}</h1>
         <p className="text-ink-500">{data.courseName}</p>
       </div>
+
+      {(r.amendments?.length ?? 0) > 0 ? (
+        <section className="grid gap-2 rounded-2xl border border-red-600 bg-red-100 px-5 py-4">
+          <h2 className="font-bold text-red-600">Amended by the organiser</h2>
+          <p className="text-sm text-ink-500">These results differ from what the players submitted on these cards:</p>
+          {r.amendments.map((a) => (
+            <div key={a.name} className="text-sm">
+              <div className="font-semibold text-ink-900">{a.name}</div>
+              {a.lines.map((l, i) => (
+                <div key={i} className="text-red-600">{l}</div>
+              ))}
+            </div>
+          ))}
+        </section>
+      ) : null}
 
       {r.divisions.map((d) => (
         <section key={d.label} className="grid gap-2">
@@ -80,6 +98,7 @@ export default async function ResultsPage({ params }: { params: Promise<{ token:
                       <div className="font-semibold text-ink-900">{row.name}</div>
                       {row.detail ? <div className="text-xs text-ink-500">{row.detail}</div> : null}
                       {row.note ? <div className={`text-xs ${row.wonTie ? "text-green-700 font-semibold" : "text-ink-500"}`}>{row.note}</div> : null}
+                      {row.amended?.length ? <div className="text-xs text-red-600 font-semibold">Amended: {row.amended.join(" · ")}</div> : null}
                     </td>
                     <td className="text-center px-2 py-2 text-ink-500">{row.handicap}</td>
                     <td className="text-center px-2 py-2 text-ink-500">{row.back ?? "–"}</td>

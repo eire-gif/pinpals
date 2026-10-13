@@ -6,6 +6,7 @@ import * as ImagePicker from "expo-image-picker";
 
 import { Avatar } from "@/components/avatar";
 import { GroupIcon, RoleBadge, SectionTitle, membersLabel } from "@/components/group-bits";
+import { GroupPastResults } from "@/components/group-past-results";
 import { LoadError, StateMessage } from "@/components/state-message";
 import { useAuth } from "@/lib/auth";
 import { isOn } from "@/lib/features";
@@ -499,6 +500,9 @@ export default function GroupScreen() {
                 );
               })}
             </View>
+
+            {/* Past results (0138): competitions published to this group. */}
+            {myRole !== null && isOn("liveScoring") ? <GroupPastResults groupId={groupId} /> : null}
 
             {requests.length > 0 ? (
               <>

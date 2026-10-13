@@ -30,6 +30,9 @@ export type Scorecard = ScorecardMeta & {
   liveRoundId: number | null;
   visibility: Visibility;
   holeList: ScorecardHole[];
+  /** A pair's or team's card (0138): one ball, the side's handicap; never
+   *  used for the handicap indicator. */
+  teamCard: "foursomes" | "greensomes" | "scramble" | null;
 };
 
 type Row = {
@@ -48,11 +51,12 @@ type Row = {
   source: "live" | "manual";
   live_round_id: number | null;
   visibility: Visibility;
+  team_card: "foursomes" | "greensomes" | "scramble" | null;
   scorecard_holes: { hole: number; par: number; stroke_index: number | null; yards: number | null; strokes: number | null; putts: number | null }[];
 };
 
 const SELECT =
-  "id, member_id, club_id, course_name, tee_name, holes, played_on, par_total, course_rating, slope, handicap_index, playing_handicap, source, live_round_id, visibility, scorecard_holes (hole, par, stroke_index, yards, strokes, putts)";
+  "id, member_id, club_id, course_name, tee_name, holes, played_on, par_total, course_rating, slope, handicap_index, playing_handicap, source, live_round_id, visibility, team_card, scorecard_holes (hole, par, stroke_index, yards, strokes, putts)";
 
 const toScorecard = (r: Row): Scorecard => ({
   id: r.id,
@@ -71,6 +75,7 @@ const toScorecard = (r: Row): Scorecard => ({
   source: r.source,
   liveRoundId: r.live_round_id,
   visibility: r.visibility,
+  teamCard: r.team_card ?? null,
   holeList: [...r.scorecard_holes]
     .sort((a, b) => a.hole - b.hole)
     .map((h) => ({ hole: h.hole, par: h.par, strokeIndex: h.stroke_index, yards: h.yards, strokes: h.strokes, putts: h.putts })),

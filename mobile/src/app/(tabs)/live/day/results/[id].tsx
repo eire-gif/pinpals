@@ -19,19 +19,24 @@ import { LoadError, StateMessage } from "@/components/state-message";
 import { useAuth } from "@/lib/auth";
 import { isOn } from "@/lib/features";
 import {
-  basisOf,
+  entrantsOf,
   hasResults,
   loadResultsState,
   publishResults,
   resultsLink,
   resultsShareText,
   saveResultsSettings,
+  setResultsGroup,
+  suggestedGroup,
   withdrawResults,
   workOut,
   type ResultsState,
 } from "@/lib/competition-data";
+import { loadMyGroups } from "@/lib/groups-data";
 import {
   DEFAULT_SETTINGS,
+  type Amendment,
+  type ResultEntrant,
   countbackSteps,
   evenCuts,
   placeOf,
@@ -59,6 +64,17 @@ import { colors, fonts, radii, spacing, type } from "@/lib/theme";
  * every division, the prizes and, on any tie, the countback step by step —
  * the same table the organiser saw.
  *
+ * AMENDMENTS (0138): the organiser can correct a hole or disqualify a card
+ * before publishing (or in a correction). The players' cards never change;
+ * every amended row, the podium and a summary at the top say "Amended",
+ * with what was submitted and why.
+ *
+ * WHO SEES IT: everyone in the day, and — once published — every member of
+ * the group whose page lists it (the organiser picks the group; a society
+ * day from an event defaults to the event's society). Someone who didn't
+ * play can't open the day itself, so the published copy carries its own
+ * title, course and date.
+ *
  * The rules are in lib/competition-results.ts (R&A matching scorecards).
  */
 
@@ -81,6 +97,8 @@ export default function ResultsScreen() {
   const [busy, setBusy] = useState(false);
   const [tab, setTab] = useState<Tab>(0);
   const [openTie, setOpenTie] = useState<string | null>(null);
+  const [groups, setGroups] = useState<{ id: number; name: string }[] | null>(null);
+  const [groupId, setGroupId] = useState<number | null | undefined>(undefined);
 
   const load = useCallback(async () => {
     try {
@@ -89,10 +107,20 @@ export default function ResultsScreen() {
       setData(d);
       setState(s);
       setSettings((cur) => cur ?? s.row?.settings ?? null);
+      // The organiser: which group's page lists the results.
+      if (d && me != null && d.day.createdBy === me) {
+        const chosen = s.row?.groupId ?? null;
+        const [mine, suggestion] = await Promise.all([
+          loadMyGroups(me).catch(() => null),
+          chosen == null && !(s.row?.status === "published") ? suggestedGroup(dayId).catch(() => null) : Promise.resolve(null),
+        ]);
+        setGroups((mine?.groups ?? []).map((g) => ({ id: g.id, name: g.name })));
+        setGroupId((cur) => (cur !== undefined ? cur : (chosen ?? suggestion)));
+      }
     } catch {
       setFailed(true);
     }
-  }, [dayId]);
+  }, [dayId, me]);
 
   useFocusEffect(
     useCallback(() => {
@@ -125,12 +153,16 @@ export default function ResultsScreen() {
   if (!isOn("liveScoring")) return <StateMessage size="screen" icon="podium-outline" title="Live scoring is on its way" />;
   if (failed) return <LoadError size="screen" what="the results" onRetry={() => void load()} />;
   if (data === undefined || state == null) return <ActivityIndicator color={colors.green700} style={{ marginTop: spacing.xl }} />;
-  if (data === null) return <StateMessage size="screen" icon="lock-closed-outline" title="These results aren't available" body="The day may have been removed, or you're not in it." />;
-  if (!hasResults(data)) {
+  // Not in the day, but a member of the group the results are shown on:
+  // the published copy stands on its own.
+  if (data === null && !published?.results) {
+    return <StateMessage size="screen" icon="lock-closed-outline" title="These results aren't available" body="The day may have been removed, or you're not in it." />;
+  }
+  if (data && !hasResults(data)) {
     return <StateMessage size="screen" icon="people-outline" title="A match day's result is its team score" body="It's on the match day's board." />;
   }
 
-  const draftView = isOrganiser && (!published || editing);
+  const draftView = !!data && isOrganiser && (!published || editing);
   const results: Results | null = draftView ? live : (published?.results ?? null);
 
   if (!results) {
@@ -145,7 +177,14 @@ export default function ResultsScreen() {
     );
   }
 
-  const { day } = data;
+  const day = data
+    ? data.day
+    : {
+        title: results.event?.title ?? "Results",
+        courseName: results.event?.courseName ?? "",
+        playedOn: results.event?.playedOn ?? "",
+        foursomes: results.team && results.divisions[0]?.label === "Pairs" ? results.basis : null,
+      };
   const divisions = results.divisions;
   const tabIndex = tab === "prizes" ? "prizes" : Math.min(tab, divisions.length - 1);
   const division: Division | null = tabIndex === "prizes" ? null : divisions[tabIndex];
@@ -157,6 +196,9 @@ export default function ResultsScreen() {
   const mine = me && !draftView ? placeOf(results, me) : null;
   const link = published?.shareToken ? resultsLink(published.shareToken) : null;
 
+  const amendedCount = results.amendments?.length ?? 0;
+  const entrants: ResultEntrant[] = draftView && data && state ? entrantsOf(data, state.certified) : [];
+
   const share = async () => {
     await Share.share({ message: resultsShareText(day.title, day.courseName, results, link) }).catch(() => undefined);
   };
@@ -167,7 +209,8 @@ export default function ResultsScreen() {
     const go = async () => {
       setBusy(true);
       try {
-        await publishResults(dayId, live);
+        if (groupId !== undefined) await setResultsGroup(dayId, groupId);
+        await publishResults(dayId, { ...live, event: { title: day.title, courseName: day.courseName, playedOn: day.playedOn } });
         setEditing(false);
         await load();
       } catch (e) {
@@ -180,6 +223,7 @@ export default function ResultsScreen() {
       published ? "Publish the update?" : "Publish the results?",
       [
         ...stops.map((s) => s.text),
+        ...(live.amendments.length > 0 ? [`${live.amendments.length} amended ${live.amendments.length === 1 ? "card shows" : "cards show"} as Amended, with what the players submitted.`] : []),
         published
           ? "Everyone in the day is told the results have been updated."
           : `Every card is closed and all ${live.counts.entrants} ${results.team ? (day.foursomes ? "pairs" : "teams") : "players"} are told the results.`,
@@ -208,7 +252,7 @@ export default function ResultsScreen() {
       },
     ]);
 
-  const handicaps = data.matches.flatMap((m) => m.players.map((p) => p.playingHandicap));
+  const handicaps = data ? data.matches.flatMap((m) => m.players.map((p) => p.playingHandicap)) : [];
 
   return (
     <ScrollView
@@ -233,12 +277,12 @@ export default function ResultsScreen() {
           <Text style={styles.statusText}>
             {draftView
               ? "Provisional · only you can see this"
-              : `${published && published.version > 1 ? "Updated" : "Final"} · published ${published?.publishedAt ? timeLabel(published.publishedAt) : ""}`}
+              : `${published && published.version > 1 ? "Updated" : "Final"}${amendedCount > 0 ? " · Amended" : ""} · published ${published?.publishedAt ? timeLabel(published.publishedAt) : ""}`}
           </Text>
         </View>
         <Text style={styles.heroTitle}>{day.title}</Text>
         <Text style={styles.heroMeta}>
-          {day.courseName} · {dateLabel(day.playedOn)} · {basisLabel} · {results.counts.complete} of {results.counts.entrants} cards
+          {[day.courseName, day.playedOn ? dateLabel(day.playedOn) : null, basisLabel, `${results.counts.complete} of ${results.counts.entrants} cards`].filter(Boolean).join(" · ")}
         </Text>
         {!draftView ? (
           <View style={styles.heroButtons}>
@@ -256,6 +300,8 @@ export default function ResultsScreen() {
       </View>
 
       {mine ? <MyResult place={mine} basis={results.basis} /> : null}
+
+      {amendedCount > 0 ? <AmendedSummary results={results} organiserView={draftView} /> : null}
 
       {draftView ? (
         <SettingsPanel
@@ -310,6 +356,12 @@ export default function ResultsScreen() {
                       {draftView && r.certified === false && r.position != null && r.position <= 3 ? (
                         <Text style={[styles.sub, { color: colors.red600 }]}>Card not certified yet</Text>
                       ) : null}
+                      {r.amended.length > 0 ? (
+                        <View style={styles.amendedRow}>
+                          <Text style={styles.amendedTag}>Amended</Text>
+                          <Text style={styles.amendedText} numberOfLines={3}>{r.amended.join(" · ")}</Text>
+                        </View>
+                      ) : null}
                     </View>
                     <Text style={[styles.cell, styles.cNum]}>{r.handicap}</Text>
                     <Text style={[styles.cell, styles.cNum]}>{r.back ?? "–"}</Text>
@@ -341,7 +393,9 @@ export default function ResultsScreen() {
       {draftView && live ? (
         <>
           <Checks results={live} />
+          <AmendEditor entrants={entrants} settings={current} onChange={change} />
           <ExtrasEditor settings={current} onChange={change} />
+          {groups && groups.length > 0 ? <GroupPicker groups={groups} value={groupId ?? null} onChange={setGroupId} /> : null}
           <Pressable
             onPress={() => void publish()}
             disabled={busy}
@@ -431,6 +485,7 @@ function Podium({ rows, basis }: { rows: ResultRow[]; basis: "stableford" | "str
               {r.score}
               {basis === "stableford" ? " pts" : " net"}
               {r.wonTie ? " · cb" : ""}
+              {r.amended.length > 0 ? " · amended" : ""}
             </Text>
             <View style={[styles.block, { height: heights[i], backgroundColor: i === 1 ? colors.navy900 : i === 0 ? colors.navy800 : colors.green700 }]}>
               <Text style={[styles.blockText, i === 1 && { color: colors.gold400 }]}>{r.positionLabel}</Text>
@@ -513,7 +568,10 @@ function Prizes({ results }: { results: Results }) {
             <View key={`${w.name}${i}`} style={styles.prizeRow}>
               {w.place ? <Text style={styles.prizePlace}>{w.place}</Text> : null}
               <View style={{ flex: 1 }}>
-                <Text style={styles.name}>{w.name}</Text>
+                <Text style={styles.name}>
+                  {w.name}
+                  {w.amended ? <Text style={styles.amendedInline}>  Amended</Text> : null}
+                </Text>
                 {w.note ? <Text style={styles.sub}>{w.note}</Text> : null}
               </View>
               {w.score ? <Text style={styles.prizeScore}>{w.score}</Text> : null}
@@ -694,7 +752,204 @@ function ExtrasEditor({ settings, onChange }: { settings: ResultsSettings; onCha
   );
 }
 
+/** "Amended by the organiser": every change from what the players
+ *  submitted, at the top of the results. */
+function AmendedSummary({ results, organiserView }: { results: Results; organiserView: boolean }) {
+  return (
+    <View style={styles.amendedCard}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+        <Ionicons name="create-outline" size={18} color={colors.red600} />
+        <Text style={styles.amendedTitle}>{organiserView ? "Your amendments" : "Amended by the organiser"}</Text>
+      </View>
+      <Text style={styles.sub}>
+        {organiserView
+          ? "These cards will show as Amended, with what the players submitted and why."
+          : "These results differ from what the players submitted on these cards:"}
+      </Text>
+      {results.amendments.map((a) => (
+        <View key={a.name} style={{ gap: 2 }}>
+          <Text style={styles.name}>{a.name}</Text>
+          {a.lines.map((l, i) => (
+            <Text key={i} style={styles.amendedText}>
+              {l}
+            </Text>
+          ))}
+        </View>
+      ))}
+    </View>
+  );
+}
+
+/**
+ * "Amend a card": correct one hole (a wrong score signed for), or
+ * disqualify a card, always with a reason. The players' card isn't
+ * touched — the amendment is applied to the results and shown.
+ */
+function AmendEditor({ entrants, settings, onChange }: { entrants: ResultEntrant[]; settings: ResultsSettings; onChange: (s: ResultsSettings) => void }) {
+  const [open, setOpen] = useState(false);
+  const [who, setWho] = useState<string | null>(null);
+  const [hole, setHole] = useState<number | null>(null);
+  const [strokes, setStrokes] = useState<number | null>(null);
+  const [reason, setReason] = useState("");
+  const [query, setQuery] = useState("");
+  const entrant = entrants.find((e) => e.key === who) ?? null;
+  const card = entrant ? [...entrant.card].sort((a, b) => a.hole - b.hole) : [];
+  const submitted = entrant && hole != null ? (hole in entrant.scores ? entrant.scores[hole] : undefined) : undefined;
+  const nameOf = (key: string) => entrants.find((e) => e.key === key)?.name ?? "A card";
+
+  const reset = () => {
+    setWho(null);
+    setHole(null);
+    setStrokes(null);
+    setReason("");
+    setQuery("");
+    setOpen(false);
+  };
+  const add = (a: Amendment) => {
+    const rest = settings.amendments.filter((x) => !(x.key === a.key && (a.dq ? x.dq : x.hole === a.hole)));
+    onChange({ ...settings, amendments: [...rest, a] });
+    reset();
+  };
+  const remove = (i: number) => onChange({ ...settings, amendments: settings.amendments.filter((_, k) => k !== i) });
+  const pickHole = (h: number) => {
+    setHole(h);
+    const was = entrant && h in entrant.scores ? entrant.scores[h] : null;
+    setStrokes(was ?? null);
+  };
+  const shown = entrants.filter((e) => e.name.toLowerCase().includes(query.trim().toLowerCase())).slice(0, 30);
+
+  return (
+    <View style={styles.card}>
+      <Text style={styles.cardTitle}>Amend a card</Text>
+      <Text style={styles.sub}>
+        Correct a hole or disqualify a card, with the reason. The players&apos; card stays as they submitted it; the results show it as Amended.
+      </Text>
+      {settings.amendments.map((a, i) => (
+        <View key={`${a.key}${a.hole ?? "dq"}`} style={styles.amendItem}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.name}>{nameOf(a.key)}</Text>
+            <Text style={styles.amendedText}>
+              {a.dq ? "Disqualified" : `Hole ${a.hole}: ${a.strokes == null ? "picked up" : a.strokes}`}
+              {a.reason ? ` — ${a.reason}` : ""}
+            </Text>
+          </View>
+          <Pressable onPress={() => remove(i)} hitSlop={10} accessibilityRole="button" accessibilityLabel={`Remove the amendment to ${nameOf(a.key)}`}>
+            <Ionicons name="close-circle" size={22} color={colors.ink500} />
+          </Pressable>
+        </View>
+      ))}
+      {!open ? (
+        <Pressable onPress={() => setOpen(true)} style={styles.addChip} accessibilityRole="button">
+          <Ionicons name="create-outline" size={16} color={colors.green700} />
+          <Text style={styles.link}>Amend a card</Text>
+        </Pressable>
+      ) : !entrant ? (
+        <View style={{ gap: spacing.sm }}>
+          <TextInput value={query} onChangeText={setQuery} placeholder="Find a player or pair" placeholderTextColor={colors.ink500} style={styles.input} accessibilityLabel="Find a player or pair" />
+          <View style={styles.row}>
+            {shown.map((e) => (
+              <Pressable key={e.key} onPress={() => setWho(e.key)} style={styles.choice} accessibilityRole="button">
+                <Text style={styles.choiceText}>{e.name}</Text>
+              </Pressable>
+            ))}
+          </View>
+          <Pressable onPress={reset} style={styles.linkRow} accessibilityRole="button">
+            <Text style={styles.link}>Cancel</Text>
+          </Pressable>
+        </View>
+      ) : (
+        <View style={{ gap: spacing.sm }}>
+          <Text style={styles.label}>{entrant.name} — tap the hole to correct</Text>
+          <View style={styles.holeGrid}>
+            {card.map((h) => {
+              const v = h.hole in entrant.scores ? entrant.scores[h.hole] : undefined;
+              const on = hole === h.hole;
+              return (
+                <Pressable key={h.hole} onPress={() => pickHole(h.hole)} style={[styles.holeCell, on && styles.choiceOn]} accessibilityRole="button" accessibilityLabel={`Hole ${h.hole}, ${v === undefined ? "no score" : v === null ? "picked up" : v}`}>
+                  <Text style={[styles.holeNo, on && styles.choiceTextOn]}>{h.hole}</Text>
+                  <Text style={[styles.holeScore, on && styles.choiceTextOn]}>{v === undefined ? "–" : v === null ? "P" : v}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+          {hole != null ? (
+            <View style={styles.cutRow}>
+              <Text style={styles.cutText}>
+                Hole {hole}: submitted {submitted === undefined ? "no score" : submitted === null ? "picked up" : submitted} → <Text style={{ fontFamily: fonts.bodyBold }}>{strokes == null ? "picked up" : strokes}</Text>
+              </Text>
+              <Pressable onPress={() => setStrokes((v) => (v == null ? 1 : Math.max(1, v - 1)))} style={styles.stepBtn} accessibilityRole="button" accessibilityLabel="One fewer">
+                <Text style={styles.stepBtnText}>−</Text>
+              </Pressable>
+              <Pressable onPress={() => setStrokes((v) => (v == null ? 4 : Math.min(20, v + 1)))} style={styles.stepBtn} accessibilityRole="button" accessibilityLabel="One more">
+                <Text style={styles.stepBtnText}>+</Text>
+              </Pressable>
+            </View>
+          ) : null}
+          <TextInput value={reason} onChangeText={setReason} placeholder="Reason (shown to everyone)" placeholderTextColor={colors.ink500} style={styles.input} maxLength={120} accessibilityLabel="Reason for the amendment" />
+          <View style={styles.row}>
+            <Pressable
+              onPress={() => hole != null && add({ key: entrant.key, hole, strokes, dq: false, reason: reason.trim() })}
+              disabled={hole == null || reason.trim() === ""}
+              style={[styles.choice, styles.choiceOn, (hole == null || reason.trim() === "") && { opacity: 0.5 }]}
+              accessibilityRole="button"
+            >
+              <Text style={[styles.choiceText, styles.choiceTextOn]}>Save the correction</Text>
+            </Pressable>
+            <Pressable
+              onPress={() =>
+                Alert.alert(`Disqualify ${entrant.name}?`, "They'll be listed as DQ with your reason, and can't place.", [
+                  { text: "Cancel", style: "cancel" },
+                  { text: "Disqualify", style: "destructive", onPress: () => add({ key: entrant.key, hole: null, strokes: null, dq: true, reason: reason.trim() }) },
+                ])
+              }
+              disabled={reason.trim() === ""}
+              style={[styles.choice, reason.trim() === "" && { opacity: 0.5 }]}
+              accessibilityRole="button"
+            >
+              <Text style={[styles.choiceText, { color: colors.red600 }]}>Disqualify</Text>
+            </Pressable>
+          </View>
+          <Pressable onPress={reset} style={styles.linkRow} accessibilityRole="button">
+            <Text style={styles.link}>Cancel</Text>
+          </Pressable>
+        </View>
+      )}
+    </View>
+  );
+}
+
+/** Which group's page lists the results — members of it can look back at them. */
+function GroupPicker({ groups, value, onChange }: { groups: { id: number; name: string }[]; value: number | null; onChange: (id: number | null) => void }) {
+  return (
+    <View style={styles.card}>
+      <Text style={styles.cardTitle}>Show on a group&apos;s page</Text>
+      <Text style={styles.sub}>Members of the group can look back at these results under Past results, even if they didn&apos;t play.</Text>
+      <View style={styles.row}>
+        {groups.map((g) => (
+          <Pressable key={g.id} onPress={() => onChange(g.id)} style={[styles.choice, value === g.id && styles.choiceOn]} accessibilityRole="radio" accessibilityState={{ checked: value === g.id }}>
+            <Text style={[styles.choiceText, value === g.id && styles.choiceTextOn]}>{g.name}</Text>
+          </Pressable>
+        ))}
+        <Pressable onPress={() => onChange(null)} style={[styles.choice, value == null && styles.choiceOn]} accessibilityRole="radio" accessibilityState={{ checked: value == null }}>
+          <Text style={[styles.choiceText, value == null && styles.choiceTextOn]}>Players only</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
+  amendedRow: { flexDirection: "row", alignItems: "flex-start", gap: 6, marginTop: 2 },
+  amendedTag: { fontFamily: fonts.bodyBold, fontSize: 10.5, letterSpacing: 0.6, textTransform: "uppercase", color: colors.cream50, backgroundColor: colors.red600, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, overflow: "hidden" },
+  amendedText: { flex: 1, fontFamily: fonts.body, fontSize: 12.5, lineHeight: 17, color: colors.red600 },
+  amendedInline: { fontFamily: fonts.bodyBold, fontSize: 11, color: colors.red600 },
+  amendedCard: { backgroundColor: colors.red100, borderRadius: radii.lg, padding: spacing.md, gap: 6, borderWidth: 1, borderColor: colors.red600 },
+  amendedTitle: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.red600 },
+  amendItem: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingVertical: 4 },
+  holeGrid: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  holeCell: { width: 44, height: 50, borderRadius: radii.md, borderWidth: 1, borderColor: colors.line, alignItems: "center", justifyContent: "center", backgroundColor: colors.surface },
+  holeNo: { fontFamily: fonts.body, fontSize: 11, color: colors.ink500 },
+  holeScore: { fontFamily: fonts.bodyBold, fontSize: 16, color: colors.ink900 },
   page: { padding: spacing.md, gap: spacing.md, paddingBottom: spacing.xl * 2 },
   hero: { backgroundColor: colors.navy900, borderRadius: radii.lg, padding: spacing.md, gap: 8 },
   statusPill: { alignSelf: "flex-start", borderRadius: radii.pill, paddingHorizontal: 10, paddingVertical: 4 },

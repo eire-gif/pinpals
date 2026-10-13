@@ -304,10 +304,25 @@ export default function LiveRoundScreen() {
   // Certification (0128): once the round is final, offer to have a playing
   // partner certify your card — when you played, and someone else in the
   // round is a member who could.
+  //
+  // A pair's or team's card (0138: foursomes, greensomes, scramble) is the
+  // side's, and is certified by the OTHER side (Rule 3.3b) — in a match,
+  // someone on the other side; on a foursomes or scramble day, another pair
+  // or team in the group, who are on other cards, so the server decides who
+  // can (scorecard_certify_candidates). A lone pair has nobody to ask.
+  const sideCard = scr != null || (matchFormat != null && isOneBallPerSide(matchFormat));
   const offerCertification = () => {
-    if (!isOn("scorecards") || !isOn("scorecardCertification") || scr || me == null) return;
-    if (!players.some((p) => p.memberId === me) || !players.some((p) => p.memberId != null && p.memberId !== me)) return;
-    Alert.alert("Get your card certified?", "Ask someone you played with to confirm your scores with their Face ID or fingerprint. Your card will show who certified it.", [
+    if (!isOn("scorecards") || !isOn("scorecardCertification") || me == null) return;
+    if (!players.some((p) => p.memberId === me)) return;
+    if (scr ? round.matchDayId == null : !players.some((p) => p.memberId != null && p.memberId !== me)) return;
+    const mine = players.find((p) => p.memberId === me);
+    if (sideCard && !scr && !players.some((p) => p.memberId != null && p.side !== mine?.side)) return;
+    Alert.alert(
+      sideCard ? "Get your pair's card certified?" : "Get your card certified?",
+      sideCard
+        ? `Ask someone from the other ${scr && !scr.foursomes ? "team" : "pair"} to confirm the scores with their Face ID or fingerprint — your partner can't mark your own card. It's the ${scr && !scr.foursomes ? "team" : "pair"}'s card, so it isn't used for your handicap.`
+        : "Ask someone you played with to confirm your scores with their Face ID or fingerprint. Your card will show who certified it.",
+      [
       { text: "Not now", style: "cancel" },
       {
         text: "Choose who",
@@ -339,7 +354,7 @@ export default function LiveRoundScreen() {
   // its page — which needs it saved as a scorecard first (0110), so that
   // one saves (or refreshes) it on the way.
   const iPlay = me != null && players.some((p) => p.memberId === me);
-  const canShareMine = isOn("scorecards") && !scr && iPlay;
+  const canShareMine = isOn("scorecards") && iPlay;
   const shareGame = async () => {
     const text = liveGameShareText({
       courseName: round.courseName,
@@ -865,10 +880,18 @@ export default function LiveRoundScreen() {
 
           {/* Scorecards (0110): your own line as a card in your profile.
               Saving again later refreshes the same card. */}
-          {isOn("scorecards") && !scr && me != null && players.some((p) => p.memberId === me) ? (
+          {isOn("scorecards") && me != null && players.some((p) => p.memberId === me) ? (
             <Pressable onPress={() => void saveMyScorecard()} style={styles.secondary} accessibilityRole="button">
               <Ionicons name="document-text-outline" size={18} color={colors.green700} />
-              <Text style={styles.link}>{live ? "Save my scorecard so far" : "Save my scorecard"}</Text>
+              <Text style={styles.link}>
+                {sideCard
+                  ? live
+                    ? `Save our ${scr && !scr.foursomes ? "team" : "pair"}'s card so far`
+                    : `Save our ${scr && !scr.foursomes ? "team" : "pair"}'s card`
+                  : live
+                    ? "Save my scorecard so far"
+                    : "Save my scorecard"}
+              </Text>
             </Pressable>
           ) : null}
 
