@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
-import { ActivityIndicator, Alert, Platform, Pressable, RefreshControl, ScrollView, Share, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Platform, Pressable, RefreshControl, ScrollView, Share, StyleSheet, Text, TextInput, View } from "react-native";
 import { Stack, router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
@@ -17,7 +17,21 @@ import { SITE_URL } from "@/lib/config";
 import { loadItinerary } from "@/lib/itinerary";
 import { CLAIM_LABELS, type ClaimMethod } from "@/lib/outing-payments";
 import { outingShareText } from "@/lib/outing-share";
-import { cancelOuting, claimOutingPaid, loadOuting, markOutingPaid, setOutingEntry, type OutingEntry, type OutingPage } from "@/lib/outings";
+import { indexLabel, parseIndex } from "@/lib/live-scoring";
+import {
+  addOutingGuest,
+  cancelOuting,
+  claimOutingPaid,
+  loadOuting,
+  markOutingGuestPaid,
+  markOutingPaid,
+  removeOutingGuest,
+  setOutingEntry,
+  updateOutingGuest,
+  type OutingEntry,
+  type OutingGuest,
+  type OutingPage,
+} from "@/lib/outings";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 
 /**
@@ -31,6 +45,10 @@ import { colors, fonts, radii, spacing, type } from "@/lib/theme";
  * people off at any time, mark who has paid, and make the draw (the From a
  * group screen, opened on this outing: publish the tee times beforehand,
  * start the round on the day). Only they can start it.
+ *
+ * Guests (0131): the officers enter people who aren't on PinPals, with a
+ * name and a handicap index. They take a place, go in the draw and can be
+ * marked paid, like a member.
  *
  * A trip (overnight or abroad, 0126) has no single draw: its rounds, flights,
  * rooms and notes are on its itinerary, which this page opens.
@@ -51,6 +69,8 @@ export default function OutingScreen() {
   const [failed, setFailed] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
+  /** The guest form: closed, adding a new guest, or changing one. */
+  const [guestForm, setGuestForm] = useState<null | { id: number | null; name: string; index: string }>(null);
   const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
@@ -86,12 +106,16 @@ export default function OutingScreen() {
     }
   }
 
+  // Members and guests, as one list: who's in, and the tee groups.
   const groups = useMemo(() => {
-    const entries = page?.entries ?? [];
-    const drawn = new Map<number, OutingEntry[]>();
-    for (const e of entries) if (e.teeGroup) drawn.set(e.teeGroup, [...(drawn.get(e.teeGroup) ?? []), e]);
+    const rows: Row[] = [
+      ...(page?.entries ?? []).map((e): Row => ({ key: `m:${e.memberId}`, name: e.name, member: e, guest: null, teeGroup: e.teeGroup, teeTime: e.teeTime, teePosition: e.teePosition })),
+      ...(page?.guests ?? []).map((g): Row => ({ key: `g:${g.id}`, name: g.name, member: null, guest: g, teeGroup: g.teeGroup, teeTime: g.teeTime, teePosition: g.teePosition })),
+    ];
+    const drawn = new Map<number, Row[]>();
+    for (const r of rows) if (r.teeGroup) drawn.set(r.teeGroup, [...(drawn.get(r.teeGroup) ?? []), r]);
     const ordered = [...drawn.entries()].sort((a, b) => a[0] - b[0]).map(([n, list]) => ({ n, time: list[0]?.teeTime ?? null, list: list.sort((a, b) => (a.teePosition ?? 0) - (b.teePosition ?? 0)) }));
-    return { ordered, undrawn: entries.filter((e) => !e.teeGroup) };
+    return { all: rows, ordered, undrawn: rows.filter((r) => !r.teeGroup) };
   }, [page]);
 
   if (page === undefined && !failed) {
@@ -119,7 +143,7 @@ export default function OutingScreen() {
     );
   }
 
-  const { outing, entries, payments, claims } = page;
+  const { outing, entries, payments, claims, guests, guestPayments } = page;
   const me = entries.find((e) => e.memberId === userId) ?? null;
   const cancelled = outing.status === "cancelled";
   const started = outing.matchDayId != null;
@@ -139,6 +163,47 @@ export default function OutingScreen() {
       { text: "Keep my place", style: "cancel" },
       { text: "Cancel my place", style: "destructive", onPress: () => void act("me", () => setOutingEntry(outingId, false)) },
     ]);
+  }
+
+  function guestMenu(g: OutingGuest) {
+    if (!officer) return;
+    const paid = guestPayments.get(g.id);
+    const mark = (s: Exclude<PaidStatus, "card"> | null, label: string) => ({ text: label, onPress: () => void act(`gpay-${g.id}`, () => markOutingGuestPaid(g.id, s)) });
+    const detail = [g.handicapIndex != null ? `Guest · index ${indexLabel(g.handicapIndex)}` : "Guest", outing.entryFeeCents ? (paid ? PAID_LABELS[paid] : `Not paid yet · ${feeLabel(outing.entryFeeCents)}`) : null].filter(Boolean).join("\n");
+    Alert.alert(g.name, detail, [
+      ...(outing.entryFeeCents
+        ? [
+            ...(paid !== "cash" ? [mark("cash", "Paid cash")] : []),
+            ...(paid !== "transfer" ? [mark("transfer", "Paid by transfer")] : []),
+            ...(paid !== "waived" ? [mark("waived", "Waive the fee")] : []),
+            ...(paid ? [mark(null, "Not paid")] : []),
+          ]
+        : []),
+      ...(!started
+        ? [
+            { text: "Change name or index", onPress: () => setGuestForm({ id: g.id, name: g.name, index: g.handicapIndex != null ? indexLabel(g.handicapIndex) : "" }) },
+            { text: "Take off the outing", style: "destructive" as const, onPress: () => void act(`goff-${g.id}`, () => removeOutingGuest(g.id)) },
+          ]
+        : []),
+      { text: "Close", style: "cancel" as const },
+    ]);
+  }
+
+  async function saveGuest() {
+    if (!guestForm) return;
+    const name = guestForm.name.trim();
+    const index = guestForm.index.trim() ? parseIndex(guestForm.index) : null;
+    if (!name) return;
+    if (guestForm.index.trim() && index == null) {
+      Alert.alert("Check the index", "A handicap index looks like 14.2, or +1.5 for a plus handicap.");
+      return;
+    }
+    const id = guestForm.id;
+    await act("guest", async () => {
+      if (id == null) await addOutingGuest(outingId, name, index);
+      else await updateOutingGuest(id, name, index);
+      setGuestForm(null);
+    });
   }
 
   function entrantMenu(e: OutingEntry) {
@@ -187,7 +252,8 @@ export default function OutingScreen() {
 
   const openItinerary = () => router.push({ pathname: "/group/[id]/itinerary/[outingId]", params: { id: String(groupId), outingId: String(outingId) } });
   const openDraw = () => router.push({ pathname: "/live/day/group", params: { group: String(groupId), outing: String(outingId) } });
-  const paidCount = entries.filter((e) => payments.has(e.memberId)).length;
+  const paidCount = entries.filter((e) => payments.has(e.memberId)).length + guests.filter((g) => guestPayments.has(g.id)).length;
+  const inCount = entries.length + guests.length;
   const claimCount = entries.filter((e) => !payments.has(e.memberId) && claims.has(e.memberId)).length;
 
   async function share() {
@@ -201,11 +267,36 @@ export default function OutingScreen() {
     }
   }
 
-  const person = (e: OutingEntry) => {
+  const person = (r: Row) => {
+    if (r.guest) {
+      const g = r.guest;
+      const paid = guestPayments.get(g.id);
+      return (
+        <Pressable key={r.key} style={styles.person} onPress={() => guestMenu(g)} disabled={!officer} accessibilityRole={officer ? "button" : undefined} accessibilityLabel={`${g.name}, guest${officer && paid ? `, ${PAID_LABELS[paid]}` : ""}`}>
+          <View style={styles.guestBadge}>
+            <Ionicons name="person-outline" size={17} color={colors.navy900} />
+          </View>
+          <View style={styles.personBody}>
+            <Text style={styles.personName} numberOfLines={1}>
+              {g.name}
+            </Text>
+            <Text style={styles.meta} numberOfLines={1}>
+              {g.handicapIndex != null ? `Guest · index ${indexLabel(g.handicapIndex)}` : "Guest"}
+            </Text>
+          </View>
+          {officer && outing.entryFeeCents ? (
+            <View style={[styles.paid, paid ? styles.paidYes : styles.paidNo]}>
+              <Text style={[styles.paidText, paid ? styles.paidYesText : styles.paidNoText]}>{paid ? (paid === "waived" ? "Waived" : "Paid") : "Unpaid"}</Text>
+            </View>
+          ) : null}
+        </Pressable>
+      );
+    }
+    const e = r.member!;
     const paid = payments.get(e.memberId);
     const claimed = !paid && claims.has(e.memberId);
     return (
-      <Pressable key={e.memberId} style={styles.person} onPress={() => entrantMenu(e)} accessibilityRole="button" accessibilityLabel={`${e.name}${officer && paid ? `, ${PAID_LABELS[paid]}` : ""}`}>
+      <Pressable key={r.key} style={styles.person} onPress={() => entrantMenu(e)} accessibilityRole="button" accessibilityLabel={`${e.name}${officer && paid ? `, ${PAID_LABELS[paid]}` : ""}`}>
         <Avatar url={e.avatarUrl} color={e.avatarColor} name={e.name} size={36} />
         <View style={styles.personBody}>
           <Text style={styles.personName} numberOfLines={1}>
@@ -264,7 +355,7 @@ export default function OutingScreen() {
           </Text>
           <View style={styles.heroFacts}>
             {outing.entryFeeCents != null ? <Text style={styles.heroFact}>{`${trip ? "Cost" : "Entry"} ${feeLabel(outing.entryFeeCents)}`}</Text> : null}
-            <Text style={styles.heroFact}>{`${entries.length}${outing.maxEntries ? ` of ${outing.maxEntries}` : ""} in`}</Text>
+            <Text style={styles.heroFact}>{`${inCount}${outing.maxEntries ? ` of ${outing.maxEntries}` : ""} in`}</Text>
           </View>
           <Text style={styles.heroCloses}>{cancelled ? "This outing was cancelled" : started ? "The round is under way" : past ? "Played" : closesLabel(outing.playsOn)}</Text>
         </View>
@@ -288,10 +379,10 @@ export default function OutingScreen() {
             <Text style={styles.teeKicker}>YOUR TEE TIME</Text>
             <Text style={styles.teeTime}>{clock(myGroup.time) ?? `Group ${myGroup.n}`}</Text>
             <Text style={styles.teeWith}>
-              {myGroup.list.filter((p) => p.memberId !== userId).length > 0
+              {myGroup.list.filter((p) => p.member?.memberId !== userId).length > 0
                 ? `Group ${myGroup.n} · with ${myGroup.list
-                    .filter((p) => p.memberId !== userId)
-                    .map((p) => p.name)
+                    .filter((p) => p.member?.memberId !== userId)
+                    .map((p) => (p.guest ? `${p.name} (guest)` : p.name))
                     .join(", ")}`
                 : `Group ${myGroup.n}`}
             </Text>
@@ -351,7 +442,7 @@ export default function OutingScreen() {
                   ? "It's the day: check the draw, choose the tees, then start the round."
                   : "Publish the tee times whenever you're ready; members see theirs straight away. You start the round on the day."}
             </Text>
-            {outing.entryFeeCents ? <Text style={styles.officerHint}>{`${paidCount} of ${entries.length} paid or waived${claimCount ? ` · ${claimCount} say they've paid` : ""}. Tap a name to mark it.`}</Text> : null}
+            {outing.entryFeeCents ? <Text style={styles.officerHint}>{`${paidCount} of ${inCount} paid or waived${claimCount ? ` · ${claimCount} say they've paid` : ""}. Tap a name to mark it.`}</Text> : null}
             <View style={styles.officerRow}>
               {!started ? (
                 <Pressable
@@ -370,12 +461,59 @@ export default function OutingScreen() {
                 </Pressable>
               ) : null}
               {!started ? (
+                <Pressable
+                  style={styles.small}
+                  onPress={() => setGuestForm((f) => (f ? null : { id: null, name: "", index: "" }))}
+                  accessibilityRole="button"
+                  accessibilityState={{ expanded: guestForm !== null }}
+                >
+                  <Ionicons name="person-outline" size={16} color={colors.navy900} />
+                  <Text style={styles.smallText}>Add a guest</Text>
+                </Pressable>
+              ) : null}
+              {!started ? (
                 <Pressable style={styles.small} onPress={cancelIt} accessibilityRole="button">
                   <Ionicons name="close-circle-outline" size={16} color={colors.red600} />
                   <Text style={[styles.smallText, { color: colors.red600 }]}>Cancel outing</Text>
                 </Pressable>
               ) : null}
             </View>
+            {guestForm ? (
+              <View style={styles.guestForm}>
+                <Text style={styles.guestFormTitle}>{guestForm.id == null ? "Add a guest" : "Change the guest"}</Text>
+                <Text style={styles.officerHint}>Someone who isn&apos;t on PinPals. They take a place and go in the draw like anyone else.</Text>
+                <View style={styles.guestFields}>
+                  <TextInput
+                    value={guestForm.name}
+                    onChangeText={(v) => setGuestForm((f) => (f ? { ...f, name: v } : f))}
+                    placeholder="Guest's name"
+                    placeholderTextColor={colors.ink500}
+                    style={[styles.guestInput, { flex: 1 }]}
+                    maxLength={60}
+                    autoCapitalize="words"
+                    accessibilityLabel="Guest's name"
+                  />
+                  <TextInput
+                    value={guestForm.index}
+                    onChangeText={(v) => setGuestForm((f) => (f ? { ...f, index: v } : f))}
+                    placeholder="Index"
+                    placeholderTextColor={colors.ink500}
+                    style={[styles.guestInput, styles.guestIndex]}
+                    keyboardType="numbers-and-punctuation"
+                    maxLength={5}
+                    accessibilityLabel="Guest's handicap index, optional"
+                  />
+                </View>
+                <View style={styles.officerRow}>
+                  <Pressable style={[styles.addButton, !guestForm.name.trim() && { opacity: 0.4 }]} onPress={() => void saveGuest()} disabled={!guestForm.name.trim() || busy !== null} accessibilityRole="button">
+                    {busy === "guest" ? <ActivityIndicator size="small" color={colors.cream50} /> : <Text style={styles.addButtonText}>{guestForm.id == null ? "Add guest" : "Save"}</Text>}
+                  </Pressable>
+                  <Pressable style={styles.small} onPress={() => setGuestForm(null)} accessibilityRole="button">
+                    <Text style={styles.smallText}>Cancel</Text>
+                  </Pressable>
+                </View>
+              </View>
+            ) : null}
             {adding ? (
               notIn.length === 0 ? (
                 <Text style={styles.officerHint}>{`Everyone in the ${groupNoun(kind)} is in.`}</Text>
@@ -415,8 +553,8 @@ export default function OutingScreen() {
           </>
         ) : (
           <>
-            <SectionTitle>{`Who's in (${entries.length})`}</SectionTitle>
-            {entries.length === 0 ? <Text style={styles.note}>Nobody yet{open ? " — be the first." : "."}</Text> : entries.map(person)}
+            <SectionTitle>{`Who's in (${inCount})`}</SectionTitle>
+            {inCount === 0 ? <Text style={styles.note}>Nobody yet{open ? " — be the first." : "."}</Text> : groups.all.map(person)}
           </>
         )}
         <DoneHome saved={saved ? "Saved — everyone in the group can see it under Events" : null} />
@@ -470,6 +608,13 @@ const styles = StyleSheet.create({
   personName: { fontFamily: fonts.bodySemi, fontSize: type.body, color: colors.ink900 },
   meta: { fontFamily: fonts.body, fontSize: 12.5, color: colors.ink500 },
   paid: { paddingHorizontal: 9, paddingVertical: 3, borderRadius: radii.pill },
+  guestBadge: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: colors.cream100, borderWidth: 1, borderColor: colors.line, borderStyle: "dashed" },
+  guestForm: { gap: spacing.sm, padding: 12, borderRadius: radii.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
+  guestFormTitle: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.ink900 },
+  guestFields: { flexDirection: "row", gap: spacing.sm },
+  // 16pt floor: iOS zooms the screen when a smaller input takes focus.
+  guestInput: { minHeight: 44, paddingHorizontal: 12, borderRadius: radii.md, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.cream50, fontFamily: fonts.body, fontSize: 16, color: colors.ink900 },
+  guestIndex: { width: 84, textAlign: "center" },
   paidYes: { backgroundColor: colors.green100 },
   paidNo: { backgroundColor: colors.red100 },
   paidClaim: { backgroundColor: "#fbf3df", borderWidth: 1, borderColor: colors.gold400 },
@@ -480,3 +625,14 @@ const styles = StyleSheet.create({
 });
 
 const cap = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
+
+/** A member or a guest, as the page lists them. */
+type Row = {
+  key: string;
+  name: string;
+  member: OutingEntry | null;
+  guest: OutingGuest | null;
+  teeGroup: number | null;
+  teeTime: string | null;
+  teePosition: number | null;
+};

@@ -51,6 +51,39 @@ export type OutingEntry = {
   teePosition: number | null;
 };
 
+/**
+ * A guest on an event (0131): someone not on PinPals, entered by the
+ * captain or secretary. They take a place and go in the draw like anyone.
+ */
+export type OutingGuest = {
+  id: number;
+  name: string;
+  handicapIndex: number | null;
+  teeGroup: number | null;
+  teeTime: string | null;
+  teePosition: number | null;
+};
+
+type GuestRow = {
+  id: number;
+  name: string;
+  handicap_index: number | string | null;
+  tee_group: number | null;
+  tee_time: string | null;
+  tee_position: number | null;
+};
+
+const toGuest = (g: GuestRow): OutingGuest => ({
+  id: g.id,
+  name: g.name,
+  handicapIndex: g.handicap_index == null ? null : Number(g.handicap_index),
+  teeGroup: g.tee_group,
+  teeTime: g.tee_time,
+  teePosition: g.tee_position,
+});
+
+const GUEST = "id, name, handicap_index, tee_group, tee_time, tee_position";
+
 type OutingRow = {
   id: number;
   group_id: number;
@@ -120,6 +153,7 @@ export type OutingSummary = Outing & {
 
 /** A society's outings from `fromDate` on (or all past ones), soonest first. */
 export async function listOutings(groupId: number, userId: string, opts: { fromDate: string; past?: boolean }): Promise<OutingSummary[]> {
+  const counts = await guestCounts(groupId);
   let q = supabase.from("society_outings").select(`${OUTING}, entries:society_outing_entries(member_id, tee_group, tee_time)`).eq("group_id", groupId);
   // A trip counts as upcoming until its last day is over (0126).
   const d = opts.fromDate;
@@ -130,8 +164,21 @@ export async function listOutings(groupId: number, userId: string, opts: { fromD
   if (error) fail(error, "Couldn't load the outings.");
   return (data ?? []).map((r) => {
     const me = r.entries.find((e) => e.member_id === userId);
-    return { ...toOuting(r), entered: r.entries.length, mine: !!me, myTeeGroup: me?.tee_group ?? null, myTeeTime: me?.tee_time ?? null };
+    return { ...toOuting(r), entered: r.entries.length + (counts.get(r.id) ?? 0), mine: !!me, myTeeGroup: me?.tee_group ?? null, myTeeTime: me?.tee_time ?? null };
   });
+}
+
+/** Guests per outing in one group. Empty on a database without 0131. */
+async function guestCounts(groupId: number): Promise<Map<number, number>> {
+  const { data, error } = await supabase
+    .from("society_outing_guests")
+    .select("outing_id, outing:society_outings!inner(group_id)")
+    .eq("outing.group_id", groupId)
+    .overrideTypes<{ outing_id: number }[]>();
+  const out = new Map<number, number>();
+  if (error) return out;
+  for (const g of data ?? []) out.set(g.outing_id, (out.get(g.outing_id) ?? 0) + 1);
+  return out;
 }
 
 // ---------------------------------------------------------------------------
@@ -141,6 +188,10 @@ export async function listOutings(groupId: number, userId: string, opts: { fromD
 export type OutingPage = {
   outing: Outing;
   entries: OutingEntry[];
+  /** Guests (0131), in the order they were added. */
+  guests: OutingGuest[];
+  /** Guest payments — the officers only. Keyed by guest id. */
+  guestPayments: Map<number, Exclude<PaidStatus, "card">>;
   /** Your own payment; or, for officers, everyone's. Keyed by member. */
   payments: Map<string, PaidStatus>;
   /** "I've paid" not yet confirmed (0127): your own, or for officers everyone's. */
@@ -151,7 +202,7 @@ export async function loadOuting(outingId: number): Promise<OutingPage | null> {
   const { data: row, error } = await supabase.from("society_outings").select(OUTING).eq("id", outingId).maybeSingle<OutingRow>();
   if (error) fail(error, "Couldn't load this outing.");
   if (!row) return null;
-  const [entries, payments, claims] = await Promise.all([
+  const [entries, payments, claims, guests, guestPayments] = await Promise.all([
     supabase
       .from("society_outing_entries")
       .select("member_id, entered_at, tee_group, tee_time, tee_position, profile:profiles(first_name, last_name, home_club, avatar_url, avatar_color)")
@@ -170,6 +221,13 @@ export async function loadOuting(outingId: number): Promise<OutingPage | null> {
     supabase.from("society_outing_payments").select("member_id, status").eq("outing_id", outingId).overrideTypes<{ member_id: string; status: PaidStatus }[]>(),
     // A database without 0127 just has no claims.
     supabase.from("society_outing_payment_claims").select("member_id, method").eq("outing_id", outingId).overrideTypes<{ member_id: string; method: ClaimMethod }[]>(),
+    // A database without 0131 just has no guests.
+    supabase.from("society_outing_guests").select(GUEST).eq("outing_id", outingId).order("id").overrideTypes<GuestRow[]>(),
+    supabase
+      .from("society_outing_guest_payments")
+      .select("guest_id, status, guest:society_outing_guests!inner(outing_id)")
+      .eq("guest.outing_id", outingId)
+      .overrideTypes<{ guest_id: number; status: Exclude<PaidStatus, "card"> }[]>(),
   ]);
   if (entries.error) fail(entries.error, "Couldn't load who's in.");
   return {
@@ -187,6 +245,8 @@ export async function loadOuting(outingId: number): Promise<OutingPage | null> {
     })),
     payments: new Map((payments.data ?? []).map((p) => [p.member_id, p.status])),
     claims: new Map((claims.data ?? []).map((c) => [c.member_id, c.method])),
+    guests: guests.error ? [] : (guests.data ?? []).map(toGuest),
+    guestPayments: new Map(guestPayments.error ? [] : (guestPayments.data ?? []).map((p) => [p.guest_id, p.status])),
   };
 }
 
@@ -239,6 +299,12 @@ export async function loadMyTeeTimes(groupId: number, userId: string, fromDate: 
       }[]
     >();
   if (error) fail(error, "Couldn't load your tee times.");
+  // Guests drawn alongside you (0131). None on a database without it.
+  const ids = (data ?? []).map((o) => o.id);
+  const guestRows =
+    ids.length === 0
+      ? []
+      : ((await supabase.from("society_outing_guests").select(`outing_id, ${GUEST}`).in("outing_id", ids).not("tee_group", "is", null).overrideTypes<(GuestRow & { outing_id: number })[]>()).data ?? []);
   const out: MyTeeTime[] = [];
   for (const o of data ?? []) {
     const me = o.entries.find((e) => e.member_id === userId);
@@ -251,10 +317,14 @@ export async function loadMyTeeTimes(groupId: number, userId: string, fromDate: 
       teeGroup: me.tee_group,
       teeTime: me.tee_time,
       matchDayId: o.match_day_id,
-      partners: o.entries
-        .filter((e) => e.tee_group === me.tee_group && e.member_id !== userId)
-        .sort((a, b) => (a.tee_position ?? 0) - (b.tee_position ?? 0))
-        .map((e) => [e.profile?.first_name, e.profile?.last_name].filter(Boolean).join(" ") || "A member"),
+      partners: [
+        ...o.entries
+          .filter((e) => e.tee_group === me.tee_group && e.member_id !== userId)
+          .map((e) => ({ pos: e.tee_position ?? 0, name: [e.profile?.first_name, e.profile?.last_name].filter(Boolean).join(" ") || "A member" })),
+        ...guestRows.filter((g) => g.outing_id === o.id && g.tee_group === me.tee_group).map((g) => ({ pos: g.tee_position ?? 0, name: `${g.name} (guest)` })),
+      ]
+        .sort((a, b) => a.pos - b.pos)
+        .map((p) => p.name),
     });
   }
   return out;
@@ -321,8 +391,11 @@ export async function setOutingEntry(outingId: number, inIt: boolean, memberId?:
   if (error) fail(error, inIt ? "Couldn't put you in." : "Couldn't take you out.");
 }
 
-/** Groups in tee order, each with its tee time and members. */
-export async function publishOutingDraw(outingId: number, groups: { teeTime: string | null; members: string[] }[]): Promise<void> {
+/** One seat in a published draw: a member's id, or a guest on the outing (0131). */
+export type DrawSeat = string | { guest: number };
+
+/** Groups in tee order, each with its tee time and players in order. */
+export async function publishOutingDraw(outingId: number, groups: { teeTime: string | null; members: DrawSeat[] }[]): Promise<void> {
   const { error } = await supabase.rpc("publish_outing_draw", {
     p_outing_id: outingId,
     p_groups: groups.map((g) => ({ tee_time: g.teeTime, members: g.members })),
@@ -357,4 +430,37 @@ export async function lastPaymentDetails(groupId: number): Promise<Pick<Outing, 
     .limit(1)
     .maybeSingle<{ pay_revtag: string | null; pay_iban: string | null; pay_account_name: string | null; pay_cash: boolean; pay_note: string | null }>();
   return data ? { payRevtag: data.pay_revtag, payIban: data.pay_iban, payAccountName: data.pay_account_name, payCash: data.pay_cash, payNote: data.pay_note } : null;
+}
+
+// ---------------------------------------------------------------------------
+// Guests (0131)
+// ---------------------------------------------------------------------------
+
+/** "Could not find the function" — a database without 0131 yet. */
+function guestsMissing(error: { message: string; code?: string } | null): boolean {
+  return !!error && (error.code === "PGRST202" || /could not find the function/i.test(error.message));
+}
+
+const NOT_YET = "Guests on events need the latest update to PinPals. Add them on the day for now.";
+
+export async function addOutingGuest(outingId: number, name: string, handicapIndex: number | null): Promise<number> {
+  const { data, error } = await supabase.rpc("add_outing_guest", { p_outing_id: outingId, p_name: name, p_index: handicapIndex });
+  if (guestsMissing(error)) throw new Error(NOT_YET);
+  if (error) fail(error, "Couldn't add the guest.");
+  return Number(data);
+}
+
+export async function updateOutingGuest(guestId: number, name: string, handicapIndex: number | null): Promise<void> {
+  const { error } = await supabase.rpc("update_outing_guest", { p_guest_id: guestId, p_name: name, p_index: handicapIndex });
+  if (error) fail(error, "Couldn't change the guest.");
+}
+
+export async function removeOutingGuest(guestId: number): Promise<void> {
+  const { error } = await supabase.rpc("remove_outing_guest", { p_guest_id: guestId });
+  if (error) fail(error, "Couldn't take the guest off.");
+}
+
+export async function markOutingGuestPaid(guestId: number, status: Exclude<PaidStatus, "card"> | null): Promise<void> {
+  const { error } = await supabase.rpc("mark_outing_guest_paid", { p_guest_id: guestId, p_status: status });
+  if (error) fail(error, "Couldn't mark that.");
 }

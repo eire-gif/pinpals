@@ -303,6 +303,17 @@ export const GUIDES: Guide[] = [
         tip: "Skip this step for a day out.",
       },
       {
+        title: "Add guests",
+        body: "Bringing someone who isn't on PinPals? Open the event and tap Add a guest. Type their name and handicap index, then Add guest. They take a place, go in the draw with everyone else, and you can mark them paid.",
+        look: [
+          { style: "outline", label: "Add a guest", icon: "person-outline" },
+          { style: "field", label: "Guest's name", icon: "create-outline" },
+          { style: "primary", label: "Add guest" },
+        ],
+        who: "Captain or secretary (a crew or trip's organiser)",
+        tip: "You can also add a guest on the draw screen — they're put on the event when you publish the tee times.",
+      },
+      {
         title: "Track who's in and who's paid",
         body: "Open the event to see Who's in. When a member taps I've paid, they show as Says paid — tap their name to confirm it, mark them paid by cash or transfer, or waive the fee.",
         look: [
@@ -345,7 +356,7 @@ export const GUIDES: Guide[] = [
       },
       {
         title: "Tick who's playing",
-        body: "Tick each player, or Tick everyone. Check every handicap index — a society handicap is used where the captain or secretary set one. Add a guest for anyone not on PinPals.",
+        body: "Tick each player, or Tick everyone. Check every handicap index — a society handicap is used where the captain or secretary set one. Tap Add a guest for anyone not on PinPals — guests can go on published tee times too.",
         look: [
           { style: "link", label: "Tick everyone" },
           { style: "link", label: "Add a guest" },
@@ -420,6 +431,7 @@ export const GUIDE_JOURNEY: { guide: string; icon: Icon; label: string }[] = [
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-13", text: "Create an event: new step, Add guests. Guests now go on published tee times and can be marked paid." },
   { on: "2026-10-13", text: "Guides added: setting up and running a society, joining one, events and trips, and playing a round together." },
 ];
 
