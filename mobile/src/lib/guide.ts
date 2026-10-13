@@ -84,7 +84,7 @@ export type Guide = {
 };
 
 const MENU: GuideCrumb = { icon: "menu", label: "Menu" };
-const GROUPS: GuideCrumb = { icon: "people-outline", label: "Groups" };
+const GROUPS: GuideCrumb = { icon: "people-outline", label: "Groups & societies" };
 const YOUR_GROUP: GuideCrumb = { icon: "shield-outline", label: "Your group" };
 const EVENTS: GuideCrumb = { icon: "calendar-outline", label: "Events" };
 
@@ -100,14 +100,14 @@ export const GUIDES: Guide[] = [
     next: "run",
     steps: [
       {
-        title: "Open Groups",
-        body: "Open the menu at the top left and tap Groups. You can also tap Your groups on the Home screen.",
+        title: "Open Groups & societies",
+        body: "Open the menu at the top left and tap Groups & societies. You can also tap Your groups & societies on the Home screen.",
         path: [MENU, GROUPS],
-        go: { label: "Open Groups", to: "/groups" },
+        go: { label: "Groups & societies", to: "/groups" },
       },
       {
         title: "Tap Start a group",
-        body: "It's the green button at the top of Your groups.",
+        body: "It's the green button at the top of Groups & societies.",
         look: [
           { style: "primary", label: "Start a group", icon: "add" },
           { style: "outline", label: "Find a society", icon: "search" },
@@ -216,7 +216,7 @@ export const GUIDES: Guide[] = [
     steps: [
       {
         title: "Find a society",
-        body: "In Groups, tap Find a society and search by name.",
+        body: "In Groups & societies, tap Find a society and search by name.",
         path: [MENU, GROUPS],
         look: [{ style: "outline", label: "Find a society", icon: "search" }],
         go: { label: "Find a society", to: "/groups/find" },
@@ -229,12 +229,12 @@ export const GUIDES: Guide[] = [
       },
       {
         title: "Or accept an invitation",
-        body: "Invitations appear at the top of Your groups, and as a notification. Tap Join — or tap the link a friend sent you.",
+        body: "Invitations appear at the top of Groups & societies, and as a notification. Tap Join — or tap the link a friend sent you.",
         look: [
           { style: "primary", label: "Join" },
           { style: "outline", label: "Decline" },
         ],
-        go: { label: "Open Groups", to: "/groups" },
+        go: { label: "Groups & societies", to: "/groups" },
       },
     ],
   },
@@ -431,6 +431,7 @@ export const GUIDE_JOURNEY: { guide: string; icon: Icon; label: string }[] = [
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-13", text: "Groups is now called Groups & societies, in the menu and on Home." },
   { on: "2026-10-13", text: "Create an event: new step, Add guests. Guests now go on published tee times and can be marked paid." },
   { on: "2026-10-13", text: "Guides added: setting up and running a society, joining one, events and trips, and playing a round together." },
 ];

@@ -47,7 +47,7 @@ export function HomeGroups() {
       ) : null}
 
       {shown.length > 0 ? (
-        <Pressable style={styles.groups} onPress={() => router.push("/groups")} accessibilityRole="button" accessibilityLabel="Your groups">
+        <Pressable style={styles.groups} onPress={() => router.push("/groups")} accessibilityRole="button" accessibilityLabel="Your groups and societies">
           <View style={styles.icons}>
             {shown.map((g, i) => (
               <View key={g.id} style={[styles.iconSlot, { marginLeft: i === 0 ? 0 : -10 }]}>
@@ -56,7 +56,9 @@ export function HomeGroups() {
             ))}
           </View>
           <View style={styles.groupsBody}>
-            <Text style={styles.groupsTitle}>Your groups</Text>
+            <Text style={styles.groupsTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
+              Your groups &amp; societies
+            </Text>
             <Text style={styles.groupsDetail} numberOfLines={1}>
               {data.groups.map((g) => g.name).join(" · ")}
             </Text>
