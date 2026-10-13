@@ -58,7 +58,7 @@ function Card({ data }: { data: PublishedResults }) {
     <div style={{ width: 1200, height: 630, display: "flex", flexDirection: "column", background: NAVY, color: CREAM, fontFamily: "Public Sans", padding: "48px 60px 36px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
         <div style={{ display: "flex", flexDirection: "column" }}>
-          <div style={{ fontSize: 20, fontWeight: 600, letterSpacing: 3, color: GOLD }}>{`RESULTS${data.version > 1 ? " · UPDATED" : ""}`}</div>
+          <div style={{ fontSize: 20, fontWeight: 600, letterSpacing: 3, color: GOLD }}>{`RESULTS${data.version > 1 ? " · UPDATED" : ""}${(r.amendments?.length ?? 0) > 0 ? " · AMENDED" : ""}`}</div>
           <div style={{ fontFamily: "Playfair", fontSize: data.title.length > 26 ? 50 : 62, lineHeight: 1.05, marginTop: 8 }}>{data.title}</div>
           <div style={{ fontSize: 24, marginTop: 8, color: "rgba(247,243,234,0.82)" }}>{`${data.courseName} · ${dateLine(data.playedOn)} · ${format}`}</div>
         </div>

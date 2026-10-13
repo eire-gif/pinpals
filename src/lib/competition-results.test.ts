@@ -242,6 +242,62 @@ describe("the whole result", () => {
   });
 });
 
+describe("organiser amendments", () => {
+  it("a corrected hole changes the result and the row says what the players submitted", () => {
+    const a = entrant("A", fromPoints(Array(18).fill(2))); // 36
+    const b = entrant("B", fromPoints([...Array(17).fill(2), 3])); // 37
+    const res = buildResults({
+      basis: "stableford",
+      team: false,
+      entrants: [a, b],
+      settings: { ...DEFAULT_SETTINGS, amendments: [{ key: b.key, hole: 18, strokes: 5, dq: false, reason: "Signed for a 3, took a 5" }] },
+      seed: "d",
+    });
+    const rows = res.divisions[0].ranking.rows;
+    expect(rows.map((r) => [r.name, r.score])).toEqual([
+      ["A", "36"],
+      ["B", "35"],
+    ]);
+    expect(rows[1].amended).toEqual(["Hole 18: 3 → 5 — Signed for a 3, took a 5"]);
+    expect(res.amendments).toEqual([{ name: "B", lines: ["Hole 18: 3 → 5 — Signed for a 3, took a 5"] }]);
+    expect(res.checks.some((c) => c.text.includes("Amended"))).toBe(true);
+    // The players' own card is untouched.
+    expect(b.scores[18]).toBe(3);
+  });
+
+  it("disqualifies a card: listed as DQ with the reason, never placed", () => {
+    const a = entrant("A", fromPoints(Array(18).fill(3)));
+    const b = entrant("B", fromPoints(Array(18).fill(2)));
+    const res = buildResults({
+      basis: "stableford",
+      team: false,
+      entrants: [a, b],
+      settings: { ...DEFAULT_SETTINGS, amendments: [{ key: a.key, hole: null, strokes: null, dq: true, reason: "Wrong ball" }] },
+      seed: "d",
+    });
+    const rows = res.divisions[0].ranking.rows;
+    expect(rows.map((r) => [r.name, r.positionLabel])).toEqual([
+      ["B", "1"],
+      ["A", "DQ"],
+    ]);
+    expect(rows[1].amended).toEqual(["Disqualified — Wrong ball"]);
+    expect(res.prizes[0].winners.map((w) => w.name)).toEqual(["B"]);
+  });
+
+  it("an amendment that changes nothing isn't shown", () => {
+    const a = entrant("A", fromPoints(Array(18).fill(2)));
+    const res = buildResults({
+      basis: "stableford",
+      team: false,
+      entrants: [a],
+      settings: { ...DEFAULT_SETTINGS, amendments: [{ key: a.key, hole: 4, strokes: 4, dq: false, reason: "" }] },
+      seed: "d",
+    });
+    expect(res.divisions[0].ranking.rows[0].amended).toEqual([]);
+    expect(res.amendments).toEqual([]);
+  });
+});
+
 describe("competition-results.ts is shared", () => {
   it("is byte-identical in the website and the app", () => {
     const site = readFileSync(join(process.cwd(), "src/lib/competition-results.ts"), "utf8");

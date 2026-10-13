@@ -28,6 +28,8 @@ export type ResultsRow = {
   version: number;
   shareToken: string | null;
   publishedAt: string | null;
+  /** The group whose page lists the results (0138). */
+  groupId: number | null;
 };
 
 export type ResultsState = {
@@ -53,6 +55,11 @@ const settingsFrom = (raw: unknown): ResultsSettings => {
     bestGross: s.bestGross ?? DEFAULT_SETTINGS.bestGross,
     onePrizePerPlayer: s.onePrizePerPlayer ?? DEFAULT_SETTINGS.onePrizePerPlayer,
     guestsCanWin: s.guestsCanWin ?? DEFAULT_SETTINGS.guestsCanWin,
+    amendments: Array.isArray(s.amendments)
+      ? s.amendments
+          .filter((a) => a && typeof a.key === "string")
+          .map((a) => ({ key: a.key, hole: typeof a.hole === "number" ? a.hole : null, strokes: typeof a.strokes === "number" ? a.strokes : null, dq: !!a.dq, reason: String(a.reason ?? "") }))
+      : [],
     extras: Array.isArray(s.extras) ? s.extras.filter((x) => x && typeof x.label === "string").map((x) => ({ label: x.label, winner: String(x.winner ?? "") })) : [],
   };
 };
@@ -61,9 +68,9 @@ export async function loadResultsState(dayId: number): Promise<ResultsState> {
   const [{ data: row }, { data: cards }] = await Promise.all([
     supabase
       .from("competition_results")
-      .select("settings, status, results, version, share_token, published_at")
+      .select("settings, status, results, version, share_token, published_at, group_id")
       .eq("match_day_id", dayId)
-      .maybeSingle<{ settings: unknown; status: "draft" | "published"; results: Results | null; version: number; share_token: string | null; published_at: string | null }>(),
+      .maybeSingle<{ settings: unknown; status: "draft" | "published"; results: Results | null; version: number; share_token: string | null; published_at: string | null; group_id: number | null }>(),
     supabase.rpc("competition_card_status", { p_day_id: dayId }),
   ]);
   const certified = new Map<string, boolean>();
@@ -77,6 +84,7 @@ export async function loadResultsState(dayId: number): Promise<ResultsState> {
           version: row.version,
           shareToken: row.share_token,
           publishedAt: row.published_at,
+          groupId: row.group_id,
         }
       : null,
     certified,
@@ -106,7 +114,9 @@ export function entrantsOf(data: MatchDayData, certified: Map<string, boolean>):
         scores: scoresOf(lead.id),
         roundId: m.round.id,
         group: m.round.matchNumber ?? scr.teamNumber,
-        certified: null,
+        // A side's card (0138) is certified by the other side, on either
+        // partner's copy.
+        certified: ordered.some((p) => p.memberId && certified.get(`${m.round.id}:${p.memberId}`)) || null,
       });
       continue;
     }
@@ -146,6 +156,59 @@ export async function saveResultsSettings(dayId: number, settings: ResultsSettin
 }
 
 /** Publishes (or republishes) and tells everyone in the day. */
+/** The group whose page should list the results: already chosen, or the
+ *  database's suggestion (the event's group, or the organiser's group with
+ *  most of the day's players). */
+export async function suggestedGroup(dayId: number): Promise<number | null> {
+  const { data } = await supabase.rpc("competition_results_group_suggestion", { p_day_id: dayId });
+  return typeof data === "number" ? data : data == null ? null : Number(data);
+}
+
+export async function setResultsGroup(dayId: number, groupId: number | null): Promise<void> {
+  const { error } = await supabase.rpc("competition_results_set_group", { p_day_id: dayId, p_group_id: groupId });
+  if (error) throw error;
+}
+
+export type GroupResult = {
+  dayId: number;
+  title: string;
+  courseName: string;
+  playedOn: string;
+  amended: boolean;
+  updated: boolean;
+  /** "John Byrne (38 pts)" per division. */
+  winners: { label: string; name: string; score: string }[];
+};
+
+/** A group's past results, newest first (0138: members of the group read
+ *  them, whether or not they played). */
+export async function loadGroupResults(groupId: number): Promise<GroupResult[]> {
+  const { data, error } = await supabase
+    .from("competition_results")
+    .select("match_day_id, version, published_at, results")
+    .eq("group_id", groupId)
+    .eq("status", "published")
+    .order("published_at", { ascending: false })
+    .limit(30)
+    .overrideTypes<{ match_day_id: number; version: number; published_at: string; results: Results }[]>();
+  if (error) throw error;
+  return (data ?? []).map((r) => {
+    const res = r.results;
+    const divisionLabels = new Set(res.divisions.map((d) => d.label));
+    return {
+      dayId: r.match_day_id,
+      title: res.event?.title ?? "Competition",
+      courseName: res.event?.courseName ?? "",
+      playedOn: res.event?.playedOn ?? r.published_at.slice(0, 10),
+      amended: (res.amendments ?? []).length > 0,
+      updated: r.version > 1,
+      winners: res.prizes
+        .filter((p) => divisionLabels.has(p.label) && p.winners.length > 0)
+        .map((p) => ({ label: p.label, name: p.winners[0].name, score: p.winners[0].score })),
+    };
+  });
+}
+
 export async function publishResults(dayId: number, results: Results): Promise<{ version: number; shareToken: string }> {
   const { data, error } = await supabase.rpc("competition_results_publish", { p_day_id: dayId, p_results: results });
   if (error) throw error;

@@ -42,6 +42,13 @@
  *
  * The result is plain JSON (no Maps), so the published copy can be stored
  * as it is and shown, shared and notified from without working it out again.
+ *
+ * AMENDMENTS: the organiser can correct a hole's score or disqualify a card
+ * (a wrong score signed for, a breach of the rules). The players' cards are
+ * never changed — the amendment is applied here, on the way into the
+ * ranking — and every row it touches says "Amended", with what the players
+ * submitted and what it became, and why. So a published result that
+ * differs from the cards always says so.
  */
 
 import { shotsSoFar, stablefordPoints, type CardHole } from "./live-scoring";
@@ -72,6 +79,20 @@ export type ResultsSettings = {
   guestsCanWin: boolean;
   /** Prizes the cards can't decide: nearest the pin, longest drive. */
   extras: { label: string; winner: string }[];
+  /** The organiser's corrections to what the players submitted. */
+  amendments: Amendment[];
+};
+
+/** A correction by the organiser: a hole's score (hole set), or a
+ *  disqualification (dq). Always with a reason, shown to everyone. */
+export type Amendment = {
+  /** The entrant's key (a player, or a team's card). */
+  key: string;
+  hole: number | null;
+  /** The corrected score; null = picked up. */
+  strokes: number | null;
+  dq: boolean;
+  reason: string;
 };
 
 export const DEFAULT_SETTINGS: ResultsSettings = {
@@ -81,6 +102,7 @@ export const DEFAULT_SETTINGS: ResultsSettings = {
   onePrizePerPlayer: true,
   guestsCanWin: false,
   extras: [],
+  amendments: [],
 };
 
 /** One card in the competition: a player, or a team or pair on one ball. */
@@ -100,11 +122,14 @@ export type ResultEntrant = {
   /** The round (card) it was scored on, and its tee group. */
   roundId: number;
   group: number | null;
-  /** Certified by a playing partner; null where it doesn't apply (a team). */
+  /** Certified by a playing partner (a team's card: by the other side). */
   certified: boolean | null;
+  /** Set by applyAmendments: disqualified, and what was amended. */
+  dq?: boolean;
+  amended?: string[];
 };
 
-export type RowStatus = "ok" | "out" | "nr";
+export type RowStatus = "ok" | "out" | "nr" | "dq";
 
 export type ResultRow = {
   key: string;
@@ -137,6 +162,8 @@ export type ResultRow = {
   wonTie: boolean;
   /** Index into Ranking.ties when this row was level with others. */
   tie: number | null;
+  /** The organiser's amendments to this card, in words; empty when none. */
+  amended: string[];
 };
 
 export type CountbackStep = {
@@ -175,7 +202,7 @@ export type Division = {
 
 export type Prize = {
   label: string;
-  winners: { place: string; name: string; detail: string | null; score: string; note: string | null; memberIds: string[] }[];
+  winners: { place: string; name: string; detail: string | null; score: string; note: string | null; memberIds: string[]; amended?: boolean }[];
 };
 
 export type Results = {
@@ -191,6 +218,11 @@ export type Results = {
   prizes: Prize[];
   /** For the organiser before publishing. */
   checks: { level: "stop" | "warn" | "ok"; text: string }[];
+  /** Every amendment, by card — shown at the top of published results. */
+  amendments: { name: string; lines: string[] }[];
+  /** The day, added when published so the results stand on their own
+   *  (a society's past results, the share page). */
+  event?: { title: string; courseName: string; playedOn: string };
   counts: { entrants: number; complete: number; out: number; nr: number; uncertifiedPlacers: number };
 };
 
@@ -260,6 +292,7 @@ type Figures = {
 };
 
 function figures(e: ResultEntrant, basis: RankBasis, steps: CountbackStep[]): Figures {
+  if (e.dq) return { status: "dq", thru: 0, points: 0, gross: null, total: 0, steps: [], siMissing: false };
   const card = [...e.card].sort((a, b) => a.hole - b.hole);
   const n = card.length;
   const shots = shotsSoFar(basis === "gross" ? 0 : e.handicap, card);
@@ -387,6 +420,7 @@ export function rankEntrants(entrants: readonly ResultEntrant[], basis: RankBasi
       note: null,
       wonTie: false,
       tie: null,
+      amended: e.amended ?? [],
     };
   };
 
@@ -452,12 +486,13 @@ export function rankEntrants(entrants: readonly ResultEntrant[], basis: RankBasi
     .filter((e) => !ranked.includes(e))
     .map((e) => {
       const row = base(e);
-      row.positionLabel = row.status === "nr" ? "NR" : row.status === "out" ? "Out" : "Guest";
+      row.positionLabel = row.status === "nr" ? "NR" : row.status === "out" ? "Out" : row.status === "dq" ? "DQ" : "Guest";
       if (row.status === "nr") row.note = "Picked up a hole: no return in stroke play";
+      if (row.status === "dq") row.note = "Disqualified by the organiser";
       if (row.status === "ok" && !isEligible(e)) row.note = "Guests don't take places";
       return row;
     })
-    .sort((a, b) => ["Guest", "Out", "NR"].indexOf(a.positionLabel) - ["Guest", "Out", "NR"].indexOf(b.positionLabel) || a.name.localeCompare(b.name));
+    .sort((a, b) => ["Guest", "Out", "NR", "DQ"].indexOf(a.positionLabel) - ["Guest", "Out", "NR", "DQ"].indexOf(b.positionLabel) || a.name.localeCompare(b.name));
 
   return { basis, rows: [...rows, ...unranked], ties };
 }
@@ -506,8 +541,41 @@ export type BuildInput = {
   seed: string;
 };
 
+/**
+ * The organiser's amendments, applied to copies of the entrants: a hole's
+ * score replaced, or the card disqualified, each written up in words
+ * ("Hole 7: 5 → 6 — signed for a 5, took 6") for the row and the summary.
+ * An amendment to a card that isn't there, or that changes nothing, is
+ * ignored.
+ */
+export function applyAmendments(entrants: readonly ResultEntrant[], amendments: readonly Amendment[]): ResultEntrant[] {
+  return entrants.map((e) => {
+    const mine = amendments.filter((a) => a.key === e.key);
+    if (mine.length === 0) return e;
+    const scores = { ...e.scores };
+    const lines: string[] = [];
+    let dq = false;
+    const show = (v: number | null | undefined) => (v === undefined ? "no score" : v === null ? "picked up" : String(v));
+    for (const a of mine) {
+      const why = a.reason.trim() ? ` — ${a.reason.trim()}` : "";
+      if (a.dq) {
+        dq = true;
+        lines.push(`Disqualified${why}`);
+      } else if (a.hole != null && e.card.some((h) => h.hole === a.hole)) {
+        const was = a.hole in e.scores ? e.scores[a.hole] : undefined;
+        if (was === a.strokes) continue;
+        scores[a.hole] = a.strokes;
+        lines.push(`Hole ${a.hole}: ${show(was)} → ${show(a.strokes)}${why}`);
+      }
+    }
+    if (lines.length === 0) return e;
+    return { ...e, scores, dq, amended: lines };
+  });
+}
+
 export function buildResults(input: BuildInput): Results {
-  const { basis, team, entrants, settings, seed, teamWord } = input;
+  const { basis, team, settings, seed, teamWord } = input;
+  const entrants = applyAmendments(input.entrants, settings.amendments ?? []);
   const holes = entrants[0]?.card.length ?? 18;
   const opts: RankOptions = { tieRule: settings.tieRule, seed, eligible: (e) => settings.guestsCanWin || !e.guest };
   const cuts = team ? [] : settings.divisionCuts;
@@ -536,6 +604,7 @@ export function buildResults(input: BuildInput): Results {
         score: basis === "stableford" ? `${r.score} pts` : `net ${r.score}`,
         note: r.note,
         memberIds: r.memberIds,
+        amended: r.amended.length > 0,
       })),
     });
   }
@@ -551,7 +620,7 @@ export function buildResults(input: BuildInput): Results {
       const level = bestGross.rows.filter((r) => r.position === 1);
       prizes.push({
         label: "Best gross",
-        winners: level.map((r) => ({ place: level.length > 1 ? "=1st" : "1st", name: r.name, detail: r.detail, score: `${r.gross} gross`, note: r.note, memberIds: r.memberIds })),
+        winners: level.map((r) => ({ place: level.length > 1 ? "=1st" : "1st", name: r.name, detail: r.detail, score: `${r.gross} gross`, note: r.note, memberIds: r.memberIds, amended: r.amended.length > 0 })),
       });
     }
   }
@@ -578,6 +647,10 @@ export function buildResults(input: BuildInput): Results {
     checks.push({ level: "warn", text: `Not certified by a playing partner yet: ${uncertified.map((r) => r.name).join(", ")}.` });
   }
   if (nr.length > 0) checks.push({ level: "warn", text: `No return (picked up a hole in stroke play): ${nr.map((r) => r.name).join(", ")}.` });
+  const amended = entrants.filter((e) => e.amended && e.amended.length > 0).map((e) => ({ name: e.name, lines: e.amended! }));
+  if (amended.length > 0) {
+    checks.push({ level: "warn", text: `${amended.length} ${amended.length === 1 ? "card is" : "cards are"} amended by you. They'll show as Amended, with what the players submitted.` });
+  }
   if (checks.length === 0) checks.push({ level: "ok", text: "Every card is in, every hole has a stroke index, and every placed card is certified." });
 
   return {
@@ -591,6 +664,7 @@ export function buildResults(input: BuildInput): Results {
     bestGross,
     prizes,
     checks,
+    amendments: amended,
     counts: {
       entrants: entrants.length,
       complete: allRows.filter((r) => r.status !== "out").length,

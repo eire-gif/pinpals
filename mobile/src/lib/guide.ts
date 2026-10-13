@@ -25,7 +25,8 @@ import type { Href } from "expo-router";
  *    round    → app/(tabs)/live/day/group.tsx, app/(tabs)/live/round/[id].tsx,
  *               app/scorecards/certify/[id].tsx
  *    results  → app/(tabs)/live/day/[id].tsx, components/results-entry.tsx,
- *               app/(tabs)/live/day/results/[id].tsx
+ *               app/(tabs)/live/day/results/[id].tsx, components/group-past-results.tsx,
+ *               app/group/[id]/index.tsx
  *    teePost  → app/post-tee-time.tsx, app/tee-time-requests.tsx
  *    teeJoin  → app/(tabs)/tee-times.tsx, app/invite/[id].tsx, app/my-requests.tsx
  *    fill     → app/invite/[id].tsx, app/round-invite.tsx, app/tee-link.tsx
@@ -589,6 +590,15 @@ export const GUIDES: Guide[] = [
         ],
         tip: "Scores can't be changed once the round is finished.",
       },
+      {
+        title: "Foursomes and scrambles: the pair's card",
+        body: "Playing foursomes or a scramble, it's your pair's (or team's) card — one ball. After the last hole, tap Choose who and pick someone from the OTHER pair in your group to certify it with Face ID. Your partner can't mark your own card.",
+        look: [
+          { style: "link", label: "Save our pair's card", icon: "document-text-outline" },
+          { style: "link", label: "Choose who", icon: "finger-print" },
+        ],
+        tip: "A pair's or team's card isn't used for your handicap — the World Handicap System only counts individual rounds.",
+      },
     ],
     next: "results",
   },
@@ -646,6 +656,24 @@ export const GUIDES: Guide[] = [
           { style: "link", label: "Longest drive", icon: "add" },
         ],
         tip: "In stroke play a picked-up hole is a no return (NR) and can't place — the Rules of Golf. In Stableford it's just no points.",
+      },
+      {
+        title: "Amend a card, if you must",
+        body: "A wrong score signed for, or a breach of the rules? Under Amend a card, pick the player or pair, tap the hole and set the right score — or tap Disqualify — and give the reason. The players' card isn't touched: the results show the card as Amended, with what was submitted, what it became and why.",
+        look: [
+          { style: "link", label: "Amend a card", icon: "create-outline" },
+          { style: "outline", label: "Save the correction" },
+        ],
+        tip: "Everyone sees an Amended label on the card, on the results and on the shared link — nothing changes quietly.",
+      },
+      {
+        title: "Show it on your group's page",
+        body: "Under Show on a group's page, pick the society, trip or crew. Its members can look back at the results under Past results on the group's page — even those who didn't play. A day from an event is set to that society already.",
+        look: [{ style: "outline", label: "North Dublin Golf Society" }],
+        as: {
+          friends: { body: "Under Show on a group's page, pick your crew. Everyone in it can look back at the results under Past results on the crew's page." },
+          trip: { body: "Under Show on a group's page, pick the trip. Everyone on it can look back at every round's results under Past results on the trip's page." },
+        },
       },
       {
         title: "Publish",
@@ -1332,6 +1360,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-13", text: "Publish the results: amend a card (shown as Amended) and show results on your group's page under Past results. Play a round together: certify a foursomes or scramble pair's card." },
   { on: "2026-10-13", text: "New guide: Publish the results — 1st, 2nd and 3rd with R&A countbacks, divisions, prizes, publishing and sharing." },
   { on: "2026-10-13", text: "Foursomes (Scotch foursomes) as Stableford or stroke play: in Start a Game and From a Group — pairs on one leaderboard, half the pair's combined handicaps." },
   { on: "2026-10-13", text: "New guide: Your mobile and privacy — add your mobile, share it with your society, download your data." },

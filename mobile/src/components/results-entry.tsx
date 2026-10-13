@@ -43,7 +43,10 @@ export function ResultsEntry({ data, me }: { data: MatchDayData; me: string | nu
         <View style={styles.head}>
           <Ionicons name="trophy" size={20} color={colors.gold400} />
           <Text style={styles.title}>Results</Text>
-          <Text style={styles.tag}>{(state.row?.version ?? 1) > 1 ? "Updated" : "Final"}</Text>
+          <Text style={styles.tag}>
+            {(state.row?.version ?? 1) > 1 ? "Updated" : "Final"}
+            {(published.amendments?.length ?? 0) > 0 ? " · Amended" : ""}
+          </Text>
         </View>
         <Text style={styles.body} numberOfLines={3}>
           Winner{firsts.length > 1 ? "s" : ""}: {firsts.join(" · ")}

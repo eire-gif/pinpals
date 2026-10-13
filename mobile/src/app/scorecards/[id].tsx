@@ -156,6 +156,15 @@ export default function ScorecardScreen() {
             <Text style={styles.savedText}>Saved to My scorecards</Text>
           </View>
         ) : null}
+        {card.teamCard ? (
+          <View style={styles.teamNote} accessibilityRole="text">
+            <Ionicons name="people" size={18} color={colors.navy900} />
+            <Text style={styles.teamNoteText}>
+              {card.teamCard === "scramble" ? "A scramble team's card" : card.teamCard === "greensomes" ? "A greensomes pair's card" : "A foursomes pair's card"}: one ball, played off the{" "}
+              {card.teamCard === "scramble" ? "team's" : "pair's"} handicap. It's certified by the other side, and it isn't used for your handicap.
+            </Text>
+          </View>
+        ) : null}
         <View style={styles.hero}>
           <Text style={styles.heroEyebrow}>{playedLabel(card.playedOn)}</Text>
           <Text style={styles.heroTitle}>{card.courseName}</Text>
@@ -258,6 +267,8 @@ function Action({ icon, label, onPress, busy = false }: { icon: keyof typeof Ion
 const styles = StyleSheet.create({
   page: { padding: spacing.md, gap: spacing.md, paddingBottom: spacing.xl * 2 },
   hero: { backgroundColor: colors.navy900, borderRadius: radii.lg, padding: spacing.md + 4, gap: 4 },
+  teamNote: { flexDirection: "row", gap: spacing.sm, alignItems: "flex-start", backgroundColor: colors.cream100, borderRadius: radii.md, padding: spacing.md },
+  teamNoteText: { flex: 1, fontFamily: fonts.body, fontSize: 14, lineHeight: 20, color: colors.ink900 },
   heroEyebrow: { fontFamily: fonts.bodyBold, fontSize: 11.5, letterSpacing: 1.2, textTransform: "uppercase", color: colors.gold400 },
   heroTitle: { fontFamily: fonts.display, fontSize: 26, lineHeight: 31, color: colors.cream50 },
   heroSub: { fontFamily: fonts.body, fontSize: 13.5, color: creamAlpha(0.8) },
