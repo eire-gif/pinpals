@@ -8,14 +8,13 @@ import type { Href } from "expo-router";
  *  KEEP THIS IN STEP WITH THE APP.
  *
  *  Every guide below describes real screens, using the exact words on their
- *  buttons. When a change touches any of these flows — starting or running a
- *  group, events and trips, payments, the draw, live scoring, certifying a
- *  card — update the matching steps here in the same change, and add a line
- *  to GUIDE_CHANGES at the bottom. A guide that names a button which no
- *  longer exists is worse than no guide.
+ *  buttons. When a change touches any of these flows, update the matching
+ *  steps here in the same change, and add a line to GUIDE_CHANGES at the
+ *  bottom. A guide that names a button which no longer exists is worse than
+ *  no guide.
  *
  *  Screens each guide follows:
- *    society  → app/groups/index.tsx, app/groups/new.tsx, app/group/[id]/index.tsx,
+ *    start    → app/groups/index.tsx, app/groups/new.tsx, app/group/[id]/index.tsx,
  *               app/group/[id]/invite.tsx
  *    run      → app/group/[id]/index.tsx, app/group/[id]/settings.tsx,
  *               app/group/[id]/handicaps.tsx
@@ -23,10 +22,29 @@ import type { Href } from "expo-router";
  *    event    → app/group/[id]/events.tsx, app/group/[id]/outing/new.tsx,
  *               app/group/[id]/outing/[outingId].tsx, components/outing-pay-card.tsx,
  *               app/group/[id]/itinerary/*
- *    fill     → app/invite/[id].tsx, app/round-invite.tsx, app/tee-link.tsx
  *    round    → app/(tabs)/live/day/group.tsx, app/(tabs)/live/round/[id].tsx,
  *               app/scorecards/certify/[id].tsx
+ *    teePost  → app/post-tee-time.tsx, app/tee-time-requests.tsx
+ *    teeJoin  → app/(tabs)/tee-times.tsx, app/invite/[id].tsx, app/my-requests.tsx
+ *    fill     → app/invite/[id].tsx, app/round-invite.tsx, app/tee-link.tsx
+ *    live     → app/(tabs)/live/index.tsx, app/(tabs)/live/new.tsx, app/(tabs)/live/round/[id].tsx
+ *    holeMap  → app/hole-map.tsx, components/hole-map-page.ts, app/course/[id].tsx
+ *    messages → app/(tabs)/inbox.tsx, app/new-chat.tsx, app/new-group.tsx,
+ *               app/conversation/[id].tsx
+ *    connect  → app/members.tsx, app/connections.tsx, app/invite-friends.tsx
+ *    sell     → app/new-listing.tsx, app/listing/[id].tsx, app/selling.tsx,
+ *               app/payouts.tsx, components/handover-panel.tsx
+ *    buy      → app/(tabs)/marketplace.tsx, app/listing/[id].tsx, app/checkout.tsx,
+ *               app/order/[id].tsx
+ *    social   → app/(tabs)/feed.tsx, app/compose.tsx, app/new-post.tsx,
+ *               app/comments/[id].tsx, app/share/[id].tsx, app/rate-course.tsx
  * ─────────────────────────────────────────────────────────────────────────
+ *
+ * WHO A GUIDE IS FOR. The group guides are written three ways — for a crew
+ * of friends, a golf trip, or a society — because two friends setting up a
+ * Saturday fourball don't need a captain, a secretary and join requests. The
+ * guides page asks which, once. A guide or step with `audiences`/`only` is
+ * shown just for those; `as` swaps in that audience's wording.
  *
  * It is data, not JSX, for the same reason lib/menu.ts is: one place to
  * edit, and the screens (app/guide/*) only draw it.
@@ -34,15 +52,22 @@ import type { Href } from "expo-router";
 
 type Icon = keyof typeof Ionicons.glyphMap;
 
-/** One stop on the way to a screen: "☰ Menu › Groups › Start a group". */
+export type Audience = "friends" | "trip" | "society";
+
+export const AUDIENCES: { id: Audience; label: string; blurb: string; icon: Icon; group: string }[] = [
+  { id: "friends", label: "Friends", blurb: "Your regular fourball and the friends who fill in", icon: "people", group: "crew" },
+  { id: "trip", label: "Golf trip", blurb: "Everyone going away together", icon: "airplane", group: "trip" },
+  { id: "society", label: "Society", blurb: "A golf society, big or small", icon: "trophy", group: "society" },
+];
+
+/** One stop on the way to a screen: "☰ Menu › Groups & societies". */
 export type GuideCrumb = { icon: Icon; label: string };
 
 /**
- * What to look for on the screen, drawn the way the app draws it so the
- * member recognises it when they get there:
+ * What to look for on the screen, drawn the way the app draws it:
  *   primary — the green pill button   outline — the white button
- *   tile    — a square tile (Events, Tee times on a group's page)
- *   link    — green text link         field   — a box to type in
+ *   tile    — a square tile           link    — green text link
+ *   field   — a box to type in
  */
 export type GuideControl = {
   style: "primary" | "outline" | "tile" | "link" | "field";
@@ -50,55 +75,100 @@ export type GuideControl = {
   icon?: Icon;
 };
 
-/** A row of options as the screen shows them (the kinds of group, the formats). */
+/** Options laid out as cards; the first is drawn as picked. */
 export type GuideChoice = { icon: Icon; label: string; blurb: string };
 
-export type GuideStep = {
+/** A drawing of the hole map (components/guide-art.tsx). */
+export type GuideArt = "holeOverview" | "holeNumbers" | "holeDrag" | "holeAim" | "holeHazards" | "holeShots";
+
+type StepText = {
   title: string;
   body: string;
   /** How to get there, when it isn't the screen the last step left you on. */
   path?: GuideCrumb[];
   /** The buttons or boxes to look for on this screen. */
   look?: GuideControl[];
-  /** Options laid out as cards. */
   choices?: GuideChoice[];
   /** Who can do this, when it isn't everyone. */
   who?: string;
   tip?: string;
+  art?: GuideArt;
   /** "Take me there" — only for screens that don't need a group picked first. */
   go?: { label: string; to: Href };
 };
 
+export type GuideStep = StepText & {
+  /** Shown only for these audiences. */
+  only?: Audience[];
+  /** That audience's wording, over the default. */
+  as?: Partial<Record<Audience, Partial<StepText>>>;
+};
+
+export type GuideSection = "groups" | "play" | "people" | "market" | "social";
+
+export const SECTIONS: { id: GuideSection; title: string }[] = [
+  { id: "groups", title: "Your group" },
+  { id: "play", title: "Playing golf" },
+  { id: "people", title: "Messages & friends" },
+  { id: "market", title: "Marketplace" },
+  { id: "social", title: "Social" },
+];
+
 export type Guide = {
   id: string;
+  section: GuideSection;
   title: string;
-  /** One line under the title on the guides page. */
   blurb: string;
   icon: Icon;
-  /** Card colour on the guides page. */
   tone: "green" | "navy" | "gold";
-  /** Who the guide is for, shown as a badge. */
+  /** Who it's for, shown as a badge. */
   audience: string;
+  /** Shown only for these audiences (group guides). Absent: everyone. */
+  audiences?: Audience[];
+  /** That audience's title, blurb and badge. */
+  as?: Partial<Record<Audience, { title?: string; blurb?: string; audience?: string }>>;
   steps: GuideStep[];
   /** Guide to suggest when this one is finished. */
   next?: string;
 };
+
+/** A guide as one audience reads it. */
+export type ResolvedGuide = Omit<Guide, "steps" | "as" | "audiences"> & { steps: StepText[] };
 
 const MENU: GuideCrumb = { icon: "menu", label: "Menu" };
 const GROUPS: GuideCrumb = { icon: "people-outline", label: "Groups & societies" };
 const YOUR_GROUP: GuideCrumb = { icon: "shield-outline", label: "Your group" };
 const EVENTS: GuideCrumb = { icon: "calendar-outline", label: "Events" };
 
+const KIND = {
+  crew: { icon: "people", label: "Crew", blurb: "Your regular fourball and friends. Up to 20, invite only, with a chat." },
+  trip: { icon: "airplane", label: "Trip", blurb: "Everyone on a golf trip. Up to 20, invite only, with a chat." },
+  society: { icon: "trophy", label: "Society", blurb: "Up to 500. Golfers can find it and ask to join; you approve them." },
+} satisfies Record<string, GuideChoice>;
+
+const OUTING = {
+  day: { icon: "flag", label: "Day out", blurb: "One course, one day. Entries, the draw and who has paid." },
+  overnight: { icon: "bed", label: "Overnight in Ireland", blurb: "Two or more days: rounds, where you're staying, travel and notes." },
+  abroad: { icon: "airplane", label: "Abroad", blurb: "Everything overnight has, plus flights and transfers." },
+} satisfies Record<string, GuideChoice>;
+
 export const GUIDES: Guide[] = [
-  // -------------------------------------------------------------------------
+  // =========================================================================
+  // Your group — written three ways
+  // =========================================================================
   {
-    id: "society",
+    id: "start",
+    section: "groups",
     title: "Set up a society",
-    blurb: "Start a society, crew or trip and bring your golfers in.",
+    blurb: "Start a society and bring your golfers in.",
     icon: "people",
     tone: "green",
     audience: "Anyone",
-    next: "run",
+    as: {
+      friends: { title: "Start a crew", blurb: "A home for your fourball: one chat, your rounds, your days out." },
+      trip: { title: "Set up your golf trip", blurb: "Everyone going, one chat, and the trip's plan in one place." },
+    },
+    next: "event",
     steps: [
       {
         title: "Open Groups & societies",
@@ -114,47 +184,91 @@ export const GUIDES: Guide[] = [
           { style: "outline", label: "Find a society", icon: "search" },
         ],
         go: { label: "Start a group", to: "/groups/new" },
+        as: {
+          friends: { look: [{ style: "primary", label: "Start a group", icon: "add" }] },
+          trip: { look: [{ style: "primary", label: "Start a group", icon: "add" }] },
+        },
       },
       {
-        title: "Pick the kind of group",
-        body: "Choose Society for a golf society. Crew and Trip are for your regular fourball or a golf trip with friends.",
-        choices: [
-          { icon: "trophy", label: "Society", blurb: "Up to 500. Golfers can find it and ask to join; you approve them." },
-          { icon: "people", label: "Crew", blurb: "Your regular fourball and friends. Up to 20, invite only, with a chat." },
-          { icon: "airplane", label: "Trip", blurb: "Everyone on a golf trip. Up to 20, invite only, with a chat." },
-        ],
+        title: "Choose Society",
+        body: "Pick Society. Golfers can find it by name and ask to join, and you decide who gets in.",
+        choices: [KIND.society, KIND.crew, KIND.trip],
+        as: {
+          friends: { title: "Choose Crew", body: "Pick Crew. It's invite only — just the friends you bring in.", choices: [KIND.crew, KIND.trip, KIND.society] },
+          trip: { title: "Choose Trip", body: "Pick Trip. It's invite only — just the people going.", choices: [KIND.trip, KIND.crew, KIND.society] },
+        },
       },
       {
         title: "Name it and add your home club",
-        body: "Give it a name, and a line about who you are and when you play. For a society, search for your home club. Then tap Create society.",
+        body: "Give it a name, and a line about who you are and when you play. Search for your home club. Then tap Create society.",
         look: [
-          { style: "field", label: "Name", icon: "create-outline" },
+          { style: "field", label: "Malahide Golf Society", icon: "create-outline" },
           { style: "field", label: "Home club (optional)", icon: "flag-outline" },
           { style: "primary", label: "Create society" },
         ],
         tip: "You can change the name, description and home club later in Settings.",
+        as: {
+          friends: {
+            title: "Name your crew",
+            tip: "You can change the name and description later in Settings.",
+            body: "Give it a name your friends will recognise, and a line about it if you like. Tap Create crew.",
+            look: [
+              { style: "field", label: "Saturday Golf Crew", icon: "create-outline" },
+              { style: "primary", label: "Create crew" },
+            ],
+          },
+          trip: {
+            title: "Name the trip",
+            tip: "You can change the name and description later in Settings.",
+            body: "Name it after the trip — where and when — and add a line about it. Tap Create trip.",
+            look: [
+              { style: "field", label: "Algarve 2027", icon: "create-outline" },
+              { style: "primary", label: "Create trip" },
+            ],
+          },
+        },
       },
       {
         title: "Add a cover photo and logo",
-        body: "On your society's page, tap Add a cover photo — your home course or a day out. Tap the small camera on the badge to set a logo.",
+        body: "On the group's page, tap Add a cover photo — your home course, a day out. Tap the small camera on the badge to set a logo.",
         look: [{ style: "outline", label: "Add a cover photo", icon: "image-outline" }],
         who: "Owner, captain or secretary",
+        as: { friends: { who: "Whoever started it" }, trip: { who: "Whoever started it" } },
       },
       {
         title: "Invite your golfers",
-        body: "Tap Invite. Share the society's link on WhatsApp or by text — anyone who taps it can join. Or tick people you're connected with, or search every member under Find PinPals, then send the invitations.",
+        body: "Tap Invite. Share the link on WhatsApp or by text — anyone who taps it joins. Or tick people you're connected with, or search every member under Find PinPals, then send the invitations.",
         look: [
           { style: "primary", label: "Invite", icon: "person-add" },
           { style: "outline", label: "Find PinPals", icon: "search" },
         ],
         tip: "The group chat starts as soon as three of you are in.",
+        as: {
+          friends: {
+            title: "Bring your friends in",
+            body: "Tap Invite and send the link to your fourball's WhatsApp — anyone who taps it joins straight in. Friends already on PinPals can be ticked instead.",
+            look: [
+              { style: "primary", label: "Invite", icon: "person-add" },
+              { style: "primary", label: "WhatsApp", icon: "logo-whatsapp" },
+            ],
+          },
+          trip: {
+            title: "Bring everyone going",
+            body: "Tap Invite and drop the link in the trip's WhatsApp — everyone who taps it is in. Anyone already on PinPals can be ticked instead.",
+            look: [
+              { style: "primary", label: "Invite", icon: "person-add" },
+              { style: "primary", label: "WhatsApp", icon: "logo-whatsapp" },
+            ],
+          },
+        },
       },
     ],
   },
 
-  // -------------------------------------------------------------------------
   {
     id: "run",
+    section: "groups",
+    audiences: ["society"],
     title: "Run your society",
     blurb: "Captain and secretary, join requests, handicaps and settings.",
     icon: "ribbon",
@@ -171,7 +285,7 @@ export const GUIDES: Guide[] = [
           { style: "link", label: "Make secretary" },
         ],
         who: "The owner (whoever started the society)",
-        tip: "Only the owner, captain and secretary can invite or add people. In a crew or trip you choose Make admin instead.",
+        tip: "Only the owner, captain and secretary can invite or add people.",
       },
       {
         title: "Approve people who ask to join",
@@ -205,19 +319,24 @@ export const GUIDES: Guide[] = [
     ],
   },
 
-  // -------------------------------------------------------------------------
   {
     id: "join",
+    section: "groups",
     title: "Join a society",
     blurb: "Find a society, ask to join, or accept an invitation.",
     icon: "enter",
     tone: "gold",
     audience: "Members",
+    as: {
+      friends: { title: "Join a friend's crew", blurb: "Accept the invitation or tap the link they sent." },
+      trip: { title: "Join the trip", blurb: "Accept the invitation or tap the link the organiser sent." },
+    },
     next: "round",
     steps: [
       {
         title: "Find a society",
         body: "In Groups & societies, tap Find a society and search by name.",
+        only: ["society"],
         path: [MENU, GROUPS],
         look: [{ style: "outline", label: "Find a society", icon: "search" }],
         go: { label: "Find a society", to: "/groups/find" },
@@ -225,29 +344,49 @@ export const GUIDES: Guide[] = [
       {
         title: "Ask to join",
         body: "Open the society and tap Ask to join. Its captain or secretary is told, and you'll get a notification when you're in.",
+        only: ["society"],
         look: [{ style: "primary", label: "Ask to join" }],
         tip: "Changed your mind? Tap Withdraw on the same page.",
       },
       {
         title: "Or accept an invitation",
-        body: "Invitations appear at the top of Groups & societies, and as a notification. Tap Join — or tap the link a friend sent you.",
+        body: "Invitations appear at the top of Groups & societies, and as a notification. Tap Join — or tap the link you were sent.",
         look: [
           { style: "primary", label: "Join" },
           { style: "outline", label: "Decline" },
         ],
         go: { label: "Groups & societies", to: "/groups" },
+        as: {
+          friends: { title: "Accept the invitation", body: "When a friend adds you, it's at the top of Groups & societies and in your alerts. Tap Join. If they sent a link instead, just tap it — you're straight in." },
+          trip: { title: "Accept the invitation", body: "When the organiser adds you, it's at the top of Groups & societies and in your alerts. Tap Join. If they sent a link, tap it — you're straight in." },
+        },
+      },
+      {
+        title: "Find your way around",
+        body: "Open the group from Groups & societies. Chat opens the group chat once three of you are in, Events shows what's planned, and Start a round draws you into groups on the day.",
+        only: ["friends", "trip"],
+        look: [
+          { style: "outline", label: "Chat", icon: "chatbubbles-outline" },
+          { style: "tile", label: "Events", icon: "calendar-outline" },
+          { style: "primary", label: "Start a round", icon: "shuffle" },
+        ],
+        as: { trip: { body: "Open the trip from Groups & societies. Chat opens the trip's chat, Events has the trip with its itinerary — your flights, room and tee times — and Start a round draws everyone on the day." } },
       },
     ],
   },
 
-  // -------------------------------------------------------------------------
   {
     id: "event",
+    section: "groups",
     title: "Create an event",
     blurb: "A society day out, an overnight, or a trip abroad.",
     icon: "calendar",
     tone: "navy",
-    audience: "Captain, secretary, organiser",
+    audience: "Captain, secretary",
+    as: {
+      friends: { title: "Plan a day out", blurb: "Pick a course and date, see who's in, collect the green fees.", audience: "Whoever started the crew" },
+      trip: { title: "Plan the trip", blurb: "Dates, rounds, rooms, flights and who's paid — day by day.", audience: "The trip's organiser" },
+    },
     next: "round",
     steps: [
       {
@@ -258,26 +397,38 @@ export const GUIDES: Guide[] = [
           { style: "tile", label: "Events", icon: "calendar-outline" },
           { style: "primary", label: "New event", icon: "add" },
         ],
-        who: "Captain or secretary (a crew or trip's organiser)",
+        who: "Captain or secretary",
+        as: { friends: { who: "Whoever started the crew" }, trip: { who: "The trip's organiser" } },
       },
       {
         title: "Choose what kind of outing",
-        body: "Name it — Captain's Day, Algarve 2027 — and pick the kind.",
-        choices: [
-          { icon: "flag", label: "Day out", blurb: "One course, one day. Entries, the draw and who has paid." },
-          { icon: "bed", label: "Overnight in Ireland", blurb: "Two or more days: rounds, where you're staying, travel and notes." },
-          { icon: "airplane", label: "Abroad", blurb: "Everything overnight has, plus flights and transfers." },
-        ],
+        body: "Name it — Captain's Day, say — and pick the kind.",
+        choices: [OUTING.day, OUTING.overnight, OUTING.abroad],
+        as: {
+          friends: { body: "Name it — Saturday at The Island, say — and pick Day out. Going away for a night? Pick Overnight in Ireland." },
+          trip: { body: "Name it — Algarve 2027 — and pick Abroad or Overnight in Ireland. Both open a full itinerary.", choices: [OUTING.abroad, OUTING.overnight, OUTING.day] },
+        },
       },
       {
         title: "Date, course and first tee",
-        body: "Scroll the wheels to pick the date (and the last day, for a trip). For a day out, search for the course and set the first tee. Add an entry fee and a limit on places if you want them.",
+        body: "Scroll the wheels to pick the date. Search for the course and set the first tee. Add an entry fee and a limit on places if you want them.",
         look: [
           { style: "field", label: "Date", icon: "calendar-outline" },
           { style: "field", label: "Course", icon: "flag-outline" },
           { style: "field", label: "First tee", icon: "time-outline" },
           { style: "field", label: "Entry fee", icon: "cash-outline" },
         ],
+        as: {
+          trip: {
+            title: "First day, last day and cost",
+            body: "Scroll the wheels to the first and last day, and add where you're based. The courses go on the itinerary, one round per day. Add the cost per person if you're collecting it.",
+            look: [
+              { style: "field", label: "First day", icon: "calendar-outline" },
+              { style: "field", label: "Last day", icon: "calendar-outline" },
+              { style: "field", label: "Cost per person", icon: "cash-outline" },
+            ],
+          },
+        },
       },
       {
         title: "Say how members pay you",
@@ -291,17 +442,17 @@ export const GUIDES: Guide[] = [
       },
       {
         title: "Create it",
-        body: "Tap Create the outing — or Build the itinerary for a trip. It appears under Events for everyone in the group, and they can join straight away.",
-        look: [
-          { style: "primary", label: "Create the outing" },
-          { style: "primary", label: "Build the itinerary" },
-        ],
+        body: "Tap Create the outing. It appears under Events for everyone in the group, and they can join straight away.",
+        look: [{ style: "primary", label: "Create the outing" }],
+        as: { trip: { body: "Tap Build the itinerary. The trip appears under Events and everyone can join it straight away.", look: [{ style: "primary", label: "Build the itinerary" }] } },
       },
       {
         title: "Build the trip itinerary",
-        body: "For an overnight or abroad trip, open the event and tap Itinerary. Add each day's course and tee times, accommodation and rooms, flights and transfers, and notes. Members see their own flights, room and tee times.",
+        body: "Open the trip and tap Itinerary. Add each day's course and tee times, where you're staying and who's in which room, flights and transfers, and notes. Everyone sees their own flights, room and tee times.",
+        only: ["trip", "society"],
         look: [{ style: "outline", label: "Itinerary · build and edit", icon: "map-outline" }],
-        tip: "Skip this step for a day out.",
+        tip: "Skip this for a day out.",
+        as: { trip: { tip: "Each round on the itinerary has its own groups and tee times." } },
       },
       {
         title: "Add guests",
@@ -311,12 +462,11 @@ export const GUIDES: Guide[] = [
           { style: "field", label: "Guest's name", icon: "create-outline" },
           { style: "primary", label: "Add guest" },
         ],
-        who: "Captain or secretary (a crew or trip's organiser)",
         tip: "You can also add a guest on the draw screen — they're put on the event when you publish the tee times.",
       },
       {
         title: "Track who's in and who's paid",
-        body: "Open the event to see Who's in. When a member taps I've paid, they show as Says paid — tap their name to confirm it, mark them paid by cash or transfer, or waive the fee.",
+        body: "Open the event to see Who's in. When someone taps I've paid, they show as Says paid — tap their name to confirm it, mark them paid by cash or transfer, or waive the fee.",
         look: [
           { style: "outline", label: "Says paid" },
           { style: "link", label: "Paid cash" },
@@ -327,6 +477,7 @@ export const GUIDES: Guide[] = [
       {
         title: "Make the draw",
         body: "Tap Make the draw on the event. Draw the field into groups, then Publish tee times — everyone sees their tee time and who they're playing with straight away. On the day, tap Draw and start the round.",
+        only: ["friends", "society"],
         look: [
           { style: "primary", label: "Make the draw" },
           { style: "primary", label: "Publish tee times" },
@@ -336,14 +487,15 @@ export const GUIDES: Guide[] = [
     ],
   },
 
-  // -------------------------------------------------------------------------
   {
     id: "round",
+    section: "groups",
     title: "Play a round together",
     blurb: "Draw your group into fourballs and score it live.",
     icon: "golf",
     tone: "green",
     audience: "Anyone in a group",
+    as: { friends: { blurb: "Pick who's playing, pick the game, and score it live." } },
     steps: [
       {
         title: "Start a round from your group",
@@ -353,7 +505,7 @@ export const GUIDES: Guide[] = [
           { style: "primary", label: "Start a round", icon: "shuffle" },
           { style: "outline", label: "From a Group", icon: "people-outline" },
         ],
-        go: { label: "Open Live scoring", to: "/live" },
+        go: { label: "Live scoring", to: "/live" },
       },
       {
         title: "Tick who's playing",
@@ -363,6 +515,10 @@ export const GUIDES: Guide[] = [
           { style: "link", label: "Add a guest" },
           { style: "field", label: "Index", icon: "speedometer-outline" },
         ],
+        as: {
+          friends: { body: "Everyone in the crew starts ticked — untick anyone not playing. Check each handicap index, and tap Add a guest for a friend who isn't on PinPals." },
+          trip: { body: "Everyone on the trip starts ticked — untick anyone sitting it out. Check each handicap index, and tap Add a guest for anyone not on PinPals." },
+        },
       },
       {
         title: "Choose the format",
@@ -403,6 +559,7 @@ export const GUIDES: Guide[] = [
       {
         title: "Score it live",
         body: "Everyone on PinPals gets their card and the leaderboard on their phone. Enter scores hole by hole — shots are worked out from the handicaps, and the leaderboard moves as you go. Guests are scored by their group.",
+        tip: "Tap Hole map under the hole number for yardages on the satellite view — see the hole map guide.",
       },
       {
         title: "Finish and get your card certified",
@@ -416,11 +573,133 @@ export const GUIDES: Guide[] = [
     ],
   },
 
-  // -------------------------------------------------------------------------
+  // =========================================================================
+  // Playing golf
+  // =========================================================================
+  {
+    id: "teePost",
+    section: "play",
+    title: "Post a tee time",
+    blurb: "Got a spare place? Offer it and choose who joins you.",
+    icon: "flag",
+    tone: "green",
+    audience: "Everyone",
+    next: "fill",
+    steps: [
+      {
+        title: "Open Post a tee time",
+        body: "Tap Post a tee time on Home, or the round green + at the top of the Tee Times tab.",
+        look: [
+          { style: "tile", label: "Post a tee time", icon: "flag" },
+          { style: "primary", label: "+", icon: "add" },
+        ],
+        go: { label: "Post a tee time", to: "/post-tee-time" },
+      },
+      {
+        title: "Choose the course and day",
+        body: "Type a few letters in Search golf clubs and tap the club. Then tap Choose a day — Today, Tomorrow, or any day in the next six weeks.",
+        look: [
+          { style: "field", label: "Search golf clubs", icon: "search" },
+          { style: "field", label: "Choose a day", icon: "calendar-outline" },
+        ],
+      },
+      {
+        title: "Set the time",
+        body: "Already booked? Switch on I've already booked a tee time and pick it. If not, give a window: From and, if you like, Until — morning, afternoon or evening.",
+        look: [
+          { style: "outline", label: "I've already booked a tee time", icon: "toggle" },
+          { style: "field", label: "From", icon: "time-outline" },
+          { style: "field", label: "Until", icon: "time-outline" },
+        ],
+      },
+      {
+        title: "Spaces, and who can see it",
+        body: "Pick 1, 2 or 3 spaces. Choose All members, or My connections only for just the golfers you know.",
+        look: [
+          { style: "outline", label: "2 spaces" },
+          { style: "outline", label: "All members" },
+          { style: "outline", label: "My connections only" },
+        ],
+      },
+      {
+        title: "Add the extras and post",
+        body: "Optional: Ladies only, a Handicap limit, and Notes — buggies booked, a few euro on it. Then tap Post tee time.",
+        look: [
+          { style: "field", label: "Notes", icon: "create-outline" },
+          { style: "primary", label: "Post tee time" },
+        ],
+        tip: "Your connections are told straight away, and the app offers to put it in your calendar.",
+      },
+      {
+        title: "Answer who wants to play",
+        body: "When someone asks to join, you get an alert. Open Golfers interested in mine from the menu — or tap Manage who's coming on the round — and tap Offer a place or Decline.",
+        path: [MENU, { icon: "people-outline", label: "Golfers interested in mine" }],
+        look: [
+          { style: "primary", label: "Offer a place" },
+          { style: "outline", label: "Decline" },
+        ],
+        tip: "Nothing's final until they tap Confirm my place. You always choose who plays.",
+        go: { label: "Requests to join", to: "/tee-time-requests" },
+      },
+    ],
+  },
+
+  {
+    id: "teeJoin",
+    section: "play",
+    title: "Find a game",
+    blurb: "Join a fourball with a spare place, near you or further afield.",
+    icon: "search",
+    tone: "navy",
+    audience: "Everyone",
+    next: "holeMap",
+    steps: [
+      {
+        title: "Open Tee Times",
+        body: "Tap the Tee Times tab. All tee times shows every round looking for players; Near me shows those within 50 km.",
+        look: [
+          { style: "outline", label: "All tee times" },
+          { style: "outline", label: "Near me", icon: "navigate" },
+          { style: "outline", label: "Filters", icon: "options-outline" },
+        ],
+        go: { label: "Tee Times", to: "/tee-times" },
+      },
+      {
+        title: "Narrow it down",
+        body: "Tap Filters to pick This week or This weekend, how many spaces, Tee time already booked, or Ladies only. The button shows how many rounds match.",
+        look: [
+          { style: "outline", label: "This weekend" },
+          { style: "primary", label: "Show 6 rounds" },
+        ],
+      },
+      {
+        title: "Ask to play",
+        body: "Tap a round to see who's playing and the host's notes. Tap I'm interested — the host is told and you'll hear back here.",
+        look: [{ style: "primary", label: "I'm interested", icon: "hand-right" }],
+      },
+      {
+        title: "Confirm your place",
+        body: "When the host offers you a place, you get an alert. Open the round and tap Confirm my place — or I can't make it, so it goes to someone else.",
+        look: [
+          { style: "primary", label: "Confirm my place" },
+          { style: "outline", label: "I can't make it" },
+        ],
+        tip: "Tap Add to my calendar so the day's kept free.",
+      },
+      {
+        title: "If plans change",
+        body: "Until the day, you can tap Cancel my place on the round. The host is told and the space reopens. Everything you've asked for is under Rounds I've asked to join in the menu.",
+        look: [{ style: "outline", label: "Cancel my place", icon: "exit-outline" }],
+        go: { label: "Rounds I've asked to join", to: "/my-requests" },
+      },
+    ],
+  },
+
   {
     id: "fill",
+    section: "play",
     title: "Fill a place in your round",
-    blurb: "Invite a PinPal or send a link to fill an open place.",
+    blurb: "Invite a PinPal or send a link to an open place.",
     icon: "person-add",
     tone: "gold",
     audience: "Host or anyone playing",
@@ -449,29 +728,490 @@ export const GUIDES: Guide[] = [
       },
     ],
   },
+
+  {
+    id: "live",
+    section: "play",
+    title: "Score a game live",
+    blurb: "Stableford, stroke play, a match or a scramble — shots worked out for you.",
+    icon: "podium",
+    tone: "navy",
+    audience: "Everyone",
+    next: "holeMap",
+    steps: [
+      {
+        title: "Open Live scoring",
+        body: "Tap the Live Scoring card on Home, or Live scoring in the menu. Then tap Start a Game.",
+        look: [
+          { style: "tile", label: "Live Scoring", icon: "podium-outline" },
+          { style: "primary", label: "Start a Game" },
+        ],
+        go: { label: "Live scoring", to: "/live" },
+      },
+      {
+        title: "Course, tees and format",
+        body: "Search for the course, pick your tees, and 18 or 9 holes. Then pick the format.",
+        choices: [
+          { icon: "stats-chart", label: "Stableford", blurb: "Points per hole." },
+          { icon: "list", label: "Stroke play", blurb: "Gross and net." },
+          { icon: "git-compare", label: "Singles", blurb: "One v one, hole by hole." },
+          { icon: "people", label: "Scramble", blurb: "Teams of 2 or 4, one ball." },
+        ],
+      },
+      {
+        title: "Add the players and tee off",
+        body: "You're in already. Tap Add a PinPal for friends on PinPals, or Add a guest for anyone else, and check each handicap index — plays-off is worked out for the course. Tap Tee off.",
+        look: [
+          { style: "link", label: "Add a PinPal" },
+          { style: "link", label: "Add a guest" },
+          { style: "primary", label: "Tee off" },
+        ],
+        tip: "PinPals you add get the card and leaderboard on their own phone.",
+      },
+      {
+        title: "Score each hole",
+        body: "Each player's score starts at par plus their shots. Use − and + to set it, tap the number to confirm, and tap Next hole. Hold a number to clear it.",
+        look: [
+          { style: "outline", label: "−" },
+          { style: "primary", label: "5" },
+          { style: "outline", label: "+" },
+          { style: "primary", label: "Next hole" },
+        ],
+        tip: "Tap the gold Hole map pill for yardages on the satellite view.",
+      },
+      {
+        title: "Leaderboard, finish and share",
+        body: "The Leaderboard tab updates as everyone scores. After the last hole, tap Finish round, then get your card certified and Share scorecard to WhatsApp.",
+        look: [
+          { style: "outline", label: "Leaderboard" },
+          { style: "primary", label: "Finish round" },
+          { style: "outline", label: "Share scorecard", icon: "share-outline" },
+        ],
+      },
+    ],
+  },
+
+  {
+    id: "holeMap",
+    section: "play",
+    title: "Use the hole map",
+    blurb: "Satellite view of every hole: yardages, hazards, the pin and your shots.",
+    icon: "map",
+    tone: "green",
+    audience: "Everyone",
+    steps: [
+      {
+        title: "Open the hole map",
+        body: "On a course's page, tap a hole number under Hole by hole. In a live round, tap the gold Hole map pill under the hole number. The satellite view turns so the tee is at the bottom and the green at the top.",
+        look: [
+          { style: "outline", label: "1" },
+          { style: "outline", label: "2" },
+          { style: "primary", label: "Hole map", icon: "map-outline" },
+        ],
+        art: "holeOverview",
+      },
+      {
+        title: "Read your numbers",
+        body: "The panel at the bottom gives the distance to the Front, Centre and Back of the green. Within 750 m of the green they're measured from you, using your phone's GPS; further away, from the tee.",
+        art: "holeNumbers",
+        tip: "Tap yds to switch to metres.",
+      },
+      {
+        title: "Set today's pin and your tee",
+        body: "Drag the flag to where the pin is today — it turns red, yellow or white for the front, middle or back of the green. Drag the T to the tee box you're playing. Every number re-measures.",
+        art: "holeDrag",
+        look: [{ style: "outline", label: "Put the tee, flag and aim back", icon: "refresh" }],
+      },
+      {
+        title: "Plan with the aim circle",
+        body: "On longer holes a white circle sits about 230 yards out. Drag it — or tap anywhere — to where you want to lay up. It shows how far it is from you, and the big gold number is what's left to the green.",
+        art: "holeAim",
+        tip: "Tap Reset to put it back.",
+      },
+      {
+        title: "See what's in play",
+        body: "Bunkers, water and trees are marked, with the distance to each one still ahead of you. Tap Hazards and more for the list.",
+        art: "holeHazards",
+        look: [{ style: "outline", label: "Hazards and more", icon: "list" }],
+      },
+      {
+        title: "Mark your shots",
+        body: "In a live round, walk to your ball and tap Mark shot. The map draws each shot and how far it went. The undo arrow takes back the last one.",
+        art: "holeShots",
+        look: [{ style: "primary", label: "Mark shot 2", icon: "locate" }],
+        tip: "Distances are GPS estimates — check the course's own markers before an important shot.",
+      },
+    ],
+  },
+
+  // =========================================================================
+  // Messages & friends
+  // =========================================================================
+  {
+    id: "connect",
+    section: "people",
+    title: "Find your golf friends",
+    blurb: "Connect with people you play with — and invite the ones not on PinPals.",
+    icon: "people-circle",
+    tone: "gold",
+    audience: "Everyone",
+    next: "messages",
+    steps: [
+      {
+        title: "Open Find PinPals",
+        body: "In the menu, tap Browse all members. For you suggests golfers you've played with and people at your club; search by name or club at the top.",
+        path: [MENU, { icon: "search-outline", label: "Browse all members" }],
+        look: [
+          { style: "outline", label: "For you" },
+          { style: "outline", label: "My club" },
+          { style: "outline", label: "Nearby" },
+        ],
+        go: { label: "Find PinPals", to: "/members" },
+      },
+      {
+        title: "Connect",
+        body: "Tap Connect on someone's card or profile. When they accept, you can message each other and see each other's connections-only tee times.",
+        look: [{ style: "primary", label: "Connect" }],
+      },
+      {
+        title: "Answer requests",
+        body: "Requests from others are at the top of My connections. Tap Accept or Decline.",
+        path: [MENU, { icon: "people-circle-outline", label: "My connections" }],
+        look: [
+          { style: "primary", label: "Accept" },
+          { style: "outline", label: "Decline" },
+        ],
+        go: { label: "My connections", to: "/connections" },
+      },
+      {
+        title: "Bring your fourball",
+        body: "In the menu, tap Invite friends to PinPals. Send your link on WhatsApp or by text, or show your QR code in the clubhouse — when they join, you're connected straight away.",
+        look: [
+          { style: "primary", label: "WhatsApp", icon: "logo-whatsapp" },
+          { style: "outline", label: "Show full screen", icon: "qr-code-outline" },
+        ],
+        go: { label: "Invite friends", to: "/invite-friends" },
+      },
+    ],
+  },
+
+  {
+    id: "messages",
+    section: "people",
+    title: "Chat with your PinPals",
+    blurb: "Messages, group chats, photos, reactions and replies.",
+    icon: "chatbubbles",
+    tone: "navy",
+    audience: "Everyone",
+    steps: [
+      {
+        title: "Open your Inbox",
+        body: "Tap the Inbox tab. Chats and Alerts sit at the top — tap either to see just that.",
+        look: [
+          { style: "tile", label: "Chats", icon: "chatbubbles-outline" },
+          { style: "tile", label: "Alerts", icon: "notifications-outline" },
+        ],
+        go: { label: "Inbox", to: "/inbox" },
+      },
+      {
+        title: "Start a chat",
+        body: "Tap the pencil at the top of the Inbox and pick someone. If you've chatted before, it opens that chat.",
+        look: [{ style: "outline", label: "New message", icon: "create-outline" }],
+        tip: "You can message your connections. Chats about a listing or a tee time start from that listing or round.",
+      },
+      {
+        title: "Start a group chat",
+        body: "Tap the pencil, then New group. Name it, pick at least two people, and tap Start group. Up to 20 can be in it.",
+        look: [
+          { style: "outline", label: "New group", icon: "people-outline" },
+          { style: "primary", label: "Start group" },
+        ],
+      },
+      {
+        title: "React and reply",
+        body: "Press and hold a message for a quick reaction — 👍 ❤️ 😂 ⛳ 🔥 👏 — and Reply. Or swipe a message right to reply to it. In a group, Reply privately starts a one-to-one chat about it.",
+        look: [
+          { style: "outline", label: "⛳" },
+          { style: "link", label: "Reply" },
+          { style: "link", label: "Reply privately" },
+        ],
+      },
+      {
+        title: "Photos, emoji and ticks",
+        body: "Tap the camera to send a photo, or the smiley for emoji — there's a golf set. One tick means sent; two green ticks mean everyone's read it.",
+        look: [
+          { style: "outline", label: "Send a photo", icon: "camera-outline" },
+          { style: "outline", label: "Add an emoji", icon: "happy-outline" },
+        ],
+      },
+      {
+        title: "Delete or tidy up",
+        body: "Hold a message and tap Delete. For 48 hours you can Delete for everyone; after that, Delete for me. To clear a chat from your Inbox, swipe it left and tap Hide — it comes back if they write again.",
+        look: [
+          { style: "link", label: "Delete for everyone" },
+          { style: "outline", label: "Hide" },
+        ],
+      },
+    ],
+  },
+
+  // =========================================================================
+  // Marketplace
+  // =========================================================================
+  {
+    id: "sell",
+    section: "market",
+    title: "Sell your gear",
+    blurb: "List clubs and kit in a minute, answer offers, and get paid safely.",
+    icon: "pricetag",
+    tone: "gold",
+    audience: "Everyone",
+    next: "buy",
+    steps: [
+      {
+        title: "Set up payouts first",
+        body: "In the menu, tap Payouts, then Set up payouts. You give your details and bank account to Stripe directly — never in a PinPals form. When it says Ready to sell, buyers can pay you.",
+        path: [MENU, { icon: "card-outline", label: "Payouts" }],
+        look: [{ style: "primary", label: "Set up payouts" }],
+        go: { label: "Getting paid", to: "/payouts" },
+        tip: "You can list and take offers before this, but nobody can pay you until it's done.",
+      },
+      {
+        title: "Photograph it",
+        body: "Tap Sell an item on Home, or List item on the Marketplace. Add up to 8 photos — the first is the cover.",
+        look: [
+          { style: "tile", label: "Sell an item", icon: "pricetag-outline" },
+          { style: "outline", label: "Add photos", icon: "camera-outline" },
+        ],
+        go: { label: "List an item", to: "/new-listing" },
+      },
+      {
+        title: "Describe it",
+        body: "Say what it is, pick the category, the brand and the condition. The brand matters most — it's how buyers filter.",
+        look: [
+          { style: "field", label: "TaylorMade Stealth 2 driver, 10.5°", icon: "create-outline" },
+          { style: "outline", label: "Drivers" },
+          { style: "outline", label: "Excellent" },
+        ],
+      },
+      {
+        title: "Price and delivery",
+        body: "Set your price and choose Fixed price or Open to offers. Choose Post it, Collection or both, and where it is. Tap Save and review.",
+        look: [
+          { style: "field", label: "€ 180", icon: "cash-outline" },
+          { style: "outline", label: "Open to offers" },
+          { style: "primary", label: "Save and review" },
+        ],
+      },
+      {
+        title: "Put it on sale",
+        body: "It's saved as a draft only you can see. Check it over, then tap Put on sale.",
+        look: [{ style: "primary", label: "Put on sale" }],
+      },
+      {
+        title: "Answer offers",
+        body: "Offers are under Selling › Offers. Accept, Decline, or Counter with a higher price. Accepting reserves the item while the buyer pays.",
+        path: [MENU, { icon: "cash-outline", label: "Selling" }],
+        look: [
+          { style: "primary", label: "Accept" },
+          { style: "outline", label: "Counter" },
+          { style: "outline", label: "Decline" },
+        ],
+        go: { label: "Selling", to: "/selling" },
+      },
+      {
+        title: "Hand it over and get paid",
+        body: "Meeting up? Check they're happy, then ask for their 4-digit code and tap Confirm handover — you're paid. Posting it? Add the tracking number and tap Mark as posted; you're paid when it arrives.",
+        look: [
+          { style: "field", label: "0000", icon: "keypad-outline" },
+          { style: "primary", label: "Confirm handover" },
+          { style: "outline", label: "Mark as posted" },
+        ],
+        tip: "Meet at a golf club, in daylight.",
+      },
+    ],
+  },
+
+  {
+    id: "buy",
+    section: "market",
+    title: "Buy gear safely",
+    blurb: "Find second-hand clubs and kit, with your money held until you have it.",
+    icon: "bag-handle",
+    tone: "green",
+    audience: "Everyone",
+    steps: [
+      {
+        title: "Browse used gear",
+        body: "Tap the Marketplace tab and Used Gear. Search, or tap Near me, At my club, Under €100 or Left-handed. Filters narrows by brand, condition and price.",
+        look: [
+          { style: "outline", label: "Used Gear" },
+          { style: "outline", label: "At my club" },
+          { style: "outline", label: "Filters", icon: "options-outline" },
+        ],
+        go: { label: "Marketplace", to: "/marketplace" },
+      },
+      {
+        title: "Buy it or make an offer",
+        body: "Tap Buy now — or, if the seller is open to offers, Make an offer. They have 48 hours to accept, decline or counter. Questions? Tap Message under the seller.",
+        look: [
+          { style: "primary", label: "Buy now · €180" },
+          { style: "outline", label: "Make an offer" },
+        ],
+      },
+      {
+        title: "Check out",
+        body: "Choose Meet at the club (free) or Tracked post, agree to the terms, and tap Reserve and pay. You pay by card with Stripe, and the item's held for you for 30 minutes.",
+        look: [
+          { style: "outline", label: "Meet at the club" },
+          { style: "primary", label: "Reserve and pay €193.70" },
+        ],
+        tip: "Buyer Protection is added to the price and shown before you pay. Your money's held until you have the item.",
+      },
+      {
+        title: "Get it",
+        body: "Meeting up? Check the item, then read your 4-digit handover code from the order to the seller — that releases the payment. Posted? When it arrives, tap It arrived — all OK.",
+        look: [
+          { style: "tile", label: "4 8 2 7", icon: "keypad-outline" },
+          { style: "primary", label: "It arrived — all OK" },
+        ],
+      },
+      {
+        title: "If something's wrong",
+        body: "On the order, tap Problem with this item, say what's wrong, and tap Report and hold the payment. The seller isn't paid while it's looked at.",
+        look: [
+          { style: "link", label: "Problem with this item" },
+          { style: "primary", label: "Report and hold the payment" },
+        ],
+      },
+    ],
+  },
+
+  // =========================================================================
+  // Social
+  // =========================================================================
+  {
+    id: "social",
+    section: "social",
+    title: "Share on Social",
+    blurb: "Rounds, holes, great shots and photos — plus course reviews.",
+    icon: "images",
+    tone: "navy",
+    audience: "Everyone",
+    steps: [
+      {
+        title: "Start a post",
+        body: "On Home, tap How was golf today? — or Photo, My round or Review under it. On the Social tab, tap ⊕ at the top.",
+        look: [
+          { style: "field", label: "How was golf today?", icon: "chatbubble-outline" },
+          { style: "outline", label: "Photo", icon: "camera-outline" },
+          { style: "outline", label: "My round", icon: "trophy-outline" },
+        ],
+        go: { label: "Social", to: "/feed" },
+      },
+      {
+        title: "Pick what you're sharing",
+        body: "Choose a kind of post. A round, hole or shot has golf details to fill in — your score, the club, how it finished.",
+        choices: [
+          { icon: "chatbubble-ellipses", label: "General post", blurb: "Share a thought, photo or update." },
+          { icon: "trophy", label: "Share a round", blurb: "Your score and stats, with photos." },
+          { icon: "flag", label: "Share a hole", blurb: "A hole, a score, a moment." },
+          { icon: "golf", label: "Share a shot", blurb: "A great (or unlucky) shot." },
+        ],
+      },
+      {
+        title: "Photos, words and who sees it",
+        body: "Add up to 6 photos, or one video, and a caption. Under Who can see this, choose All PinPals members or My connections only. Tap Post.",
+        look: [
+          { style: "outline", label: "Photos", icon: "images-outline" },
+          { style: "outline", label: "My connections only" },
+          { style: "primary", label: "Post" },
+        ],
+      },
+      {
+        title: "React, comment and share",
+        body: "Tap the flag on a post for Great Shot, or hold it for On Fire, Nice Round and more. Comment — type @ to mention someone. Share sends it to a chat or out to WhatsApp and Instagram.",
+        look: [
+          { style: "outline", label: "Great Shot", icon: "flag" },
+          { style: "outline", label: "Comment", icon: "chatbubble-outline" },
+          { style: "outline", label: "Share", icon: "share-outline" },
+        ],
+      },
+      {
+        title: "Rate a course",
+        body: "Tap Review on Home, find the course, and give it stars. Tick what stood out — greens, views, value — add a line, and tap Post review.",
+        look: [
+          { style: "outline", label: "★★★★☆" },
+          { style: "outline", label: "Greens" },
+          { style: "primary", label: "Post review" },
+        ],
+        go: { label: "Rate a course", to: "/rate-course" },
+      },
+    ],
+  },
 ];
 
-/**
- * The big picture on the guides page: group → event → round.
- * Each stop opens its guide.
- */
-export const GUIDE_JOURNEY: { guide: string; icon: Icon; label: string }[] = [
-  { guide: "society", icon: "people", label: "Start a group" },
-  { guide: "event", icon: "calendar", label: "Create an event" },
-  { guide: "round", icon: "golf", label: "Play the round" },
-];
+/** The big picture on the guides page, for each kind of group. */
+export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label: string }[]> = {
+  friends: [
+    { guide: "start", icon: "people", label: "Start a crew" },
+    { guide: "event", icon: "calendar", label: "Plan a day out" },
+    { guide: "round", icon: "golf", label: "Play the round" },
+  ],
+  trip: [
+    { guide: "start", icon: "airplane", label: "Set up the trip" },
+    { guide: "event", icon: "map", label: "Plan the days" },
+    { guide: "round", icon: "golf", label: "Play the rounds" },
+  ],
+  society: [
+    { guide: "start", icon: "trophy", label: "Set up a society" },
+    { guide: "event", icon: "calendar", label: "Create an event" },
+    { guide: "round", icon: "golf", label: "Play the round" },
+  ],
+};
 
 /**
  * What changed in the guides, newest first. Add a line whenever a guide is
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-13", text: "Guides are now written for friends, golf trips or societies — pick yours at the top." },
+  { on: "2026-10-13", text: "New guides: posting a tee time, finding a game, live scoring, the hole map, messages, finding friends, selling, buying and Social." },
   { on: "2026-10-13", text: "New guide: Fill a place in your round — invite a PinPal or send a link to an open place." },
   { on: "2026-10-13", text: "Groups is now called Groups & societies, in the menu and on Home." },
   { on: "2026-10-13", text: "Create an event: new step, Add guests. Guests now go on published tee times and can be marked paid." },
   { on: "2026-10-13", text: "Guides added: setting up and running a society, joining one, events and trips, and playing a round together." },
 ];
 
+export const isAudience = (v: unknown): v is Audience => v === "friends" || v === "trip" || v === "society";
+
+/** Older links used "society" for the set-up guide. */
+const RENAMED: Record<string, string> = { society: "start" };
+
 export function guideById(id: string): Guide | undefined {
-  return GUIDES.find((g) => g.id === id);
+  const key = RENAMED[id] ?? id;
+  return GUIDES.find((g) => g.id === key);
+}
+
+export const guideShown = (g: Guide, a: Audience): boolean => !g.audiences || g.audiences.includes(a);
+
+/** A guide as `a` reads it: their title, their steps, their wording. Null if it isn't for them. */
+export function resolveGuide(g: Guide, a: Audience): ResolvedGuide | null {
+  if (!guideShown(g, a)) return null;
+  const head = g.as?.[a] ?? {};
+  const steps = g.steps
+    .filter((s) => !s.only || s.only.includes(a))
+    .map(({ only: _only, as, ...base }) => ({ ...base, ...(as?.[a] ?? {}) }));
+  const next = g.next ? guideById(g.next) : undefined;
+  return {
+    id: g.id,
+    section: g.section,
+    icon: g.icon,
+    tone: g.tone,
+    title: head.title ?? g.title,
+    blurb: head.blurb ?? g.blurb,
+    audience: head.audience ?? g.audience,
+    next: next && guideShown(next, a) ? next.id : undefined,
+    steps,
+  };
 }
