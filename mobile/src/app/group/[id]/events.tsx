@@ -3,6 +3,7 @@ import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleS
 import { Stack, router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
+import { GuideLink } from "@/components/guide-bits";
 import { LoadError, StateMessage } from "@/components/state-message";
 import { useAuth } from "@/lib/auth";
 import { loadGroupPage } from "@/lib/groups-data";
@@ -100,6 +101,8 @@ export default function SocietyEventsScreen() {
             <Text style={styles.newText}>New event</Text>
           </Pressable>
         ) : null}
+
+        {officer ? <GuideLink id="event" lead="Setting one up?" /> : null}
 
         <View style={styles.tabs} accessibilityRole="tablist">
           {[false, true].map((p) => (

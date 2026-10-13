@@ -3,6 +3,7 @@ import { ActivityIndicator, Alert, ImageBackground, Pressable, RefreshControl, S
 import { router, useFocusEffect } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
+import { GuideLink } from "@/components/guide-bits";
 import { RaisedCard } from "@/components/live-scoring-card";
 import { LoadError, StateMessage } from "@/components/state-message";
 import { useAuth } from "@/lib/auth";
@@ -147,6 +148,7 @@ export default function LiveScoringHub() {
             onPress={() => router.push("/live/day/group")}
           />
         ) : null}
+        {isOn("groups") ? <GuideLink id="round" lead="First time?" /> : null}
       </View>
 
       {failed ? (
