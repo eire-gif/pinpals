@@ -54,13 +54,14 @@ export type HomeSummary = {
   onboarded: boolean;
 };
 
-/** Home club, county, handicap, bio, GUI number. First and last name are
+/** Home club, handicap, bio, GUI number. First and last name are
  *  required at signup and so are not part of the score — everyone would
  *  start above zero for having done nothing. Kept in step with
  *  src/lib/profile.ts on the website. */
 const COMPLETION_FIELDS = [
   "home_club",
-  "county",
+  // County left the edit screens (Oct 2026, country only), so it no longer
+  // counts — a field nobody can fill must not hold the meter below 100.
   "handicap",
   "bio",
   "gui_membership_number",
@@ -72,7 +73,7 @@ async function profileCompletion(userId: string): Promise<number | null> {
   // list that decides the score.
   // Handicap and membership number are yours alone (member_private, 0133).
   const [{ data, error }, { data: mine }] = await Promise.all([
-    supabase.from("profiles").select("home_club, county, bio").eq("id", userId).maybeSingle<Record<string, unknown>>(),
+    supabase.from("profiles").select("home_club, bio").eq("id", userId).maybeSingle<Record<string, unknown>>(),
     supabase.from("member_private").select("handicap, gui_membership_number").eq("member_id", userId).maybeSingle<Record<string, unknown>>(),
   ]);
 
