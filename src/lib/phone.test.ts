@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { cleanCode, formatPhone, maskPhone, normalisePhone, whatsappUrl } from "./phone";
+import { formatPhone, normalisePhone, whatsappUrl } from "./phone";
 
 const ok = (s: string) => {
   const r = normalisePhone(s);
@@ -28,15 +28,10 @@ describe("normalisePhone", () => {
 });
 
 describe("display and links", () => {
-  it("formats, masks and links", () => {
+  it("formats and links", () => {
     expect(formatPhone("+353871234567")).toBe("087 123 4567");
     expect(formatPhone("+447700900123")).toBe("+44 7700 900123");
-    expect(maskPhone("+353871234567")).toBe("•••• 4567");
     expect(whatsappUrl("+353871234567")).toBe("https://wa.me/353871234567");
-  });
-  it("reads a six-digit code", () => {
-    expect(cleanCode("123 456")).toBe("123456");
-    expect(cleanCode("12345")).toBeNull();
   });
   it("is byte-identical in the website and the app", () => {
     const site = readFileSync(path.join(__dirname, "phone.ts"), "utf8");

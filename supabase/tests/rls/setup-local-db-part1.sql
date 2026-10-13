@@ -43,10 +43,6 @@ create table if not exists auth.users (
   created_at timestamptz not null default now()
 );
 
--- Phone sign-in (0134): the two columns GoTrue sets when a number is verified.
-alter table auth.users add column if not exists phone text unique default null;
-alter table auth.users add column if not exists phone_confirmed_at timestamptz;
-
 -- The real Supabase auth.uid() reads a GUC PostgREST sets per-request from the
 -- caller's JWT `sub` claim. Replicated the same way here so a test can
 -- simulate any identity with:

@@ -7,8 +7,8 @@
  * checks.
  *
  * A number with no country code is taken as Irish ("087 123 4567"); a UK
- * mobile needs its +44. Numbers are checked for shape only — the text code is
- * what proves one is real.
+ * mobile needs its +44. Numbers are checked for shape only: PinPals sends no
+ * text messages (they cost money per message), so nothing proves a number.
  */
 
 export type PhoneResult = { ok: true; e164: string } | { ok: false; error: string };
@@ -46,17 +46,6 @@ export function formatPhone(e164: string): string {
   return e164;
 }
 
-/** Only the last few digits, for "we sent a code to … 4567". */
-export function maskPhone(e164: string): string {
-  return `•••• ${e164.slice(-4)}`;
-}
-
 export const telUrl = (e164: string): string => `tel:${e164}`;
 export const smsUrl = (e164: string): string => `sms:${e164}`;
 export const whatsappUrl = (e164: string): string => `https://wa.me/${e164.replace(/^\+/, "")}`;
-
-/** A six-digit text code, as typed (spaces allowed). */
-export function cleanCode(input: string): string | null {
-  const code = input.replace(/\s/g, "");
-  return /^\d{6}$/.test(code) ? code : null;
-}

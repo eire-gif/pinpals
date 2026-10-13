@@ -6,25 +6,17 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { useAuth } from "@/lib/auth";
 import { loadMyGroups } from "@/lib/groups-data";
-import {
-  confirmAddCode,
-  loadMyMobile,
-  loadMyShares,
-  removeMyMobile,
-  sendAddCode,
-  setShare,
-  type MyMobile,
-} from "@/lib/mobile-number";
-import { cleanCode, formatPhone, maskPhone, normalisePhone } from "@/lib/phone";
+import { loadMyMobile, loadMyShares, removeMyMobile, saveMyMobile, setShare, type MyMobile } from "@/lib/mobile-number";
+import { formatPhone, normalisePhone } from "@/lib/phone";
 import { signedInUrl } from "@/lib/web-session";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 
 /**
  * Privacy & security (Profile → Account).
  *
- *   - Your mobile: add one and prove it with a text code; then sign in with a
- *     code, and share it with the people who run your groups — group by
- *     group, off until you turn it on.
+ *   - Your mobile: add it, then share it with the people who run your
+ *     groups — group by group, off until you turn it on. (No text-message
+ *     check: texts cost money per message.)
  *   - Download my data: everything PinPals holds about you, as a file
  *     (opens the website signed in, which downloads it).
  *
@@ -43,11 +35,9 @@ export default function PrivacyScreen() {
   const [groups, setGroups] = useState<GroupRow[]>([]);
   const [shares, setShares] = useState<Set<number>>(new Set());
 
-  // Adding a number: type it → code sent → type the code.
+  // Adding or changing the number.
   const [adding, setAdding] = useState(false);
   const [number, setNumber] = useState("");
-  const [sentTo, setSentTo] = useState<string | null>(null);
-  const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
@@ -71,41 +61,28 @@ export default function PrivacyScreen() {
   const resetAdd = () => {
     setAdding(false);
     setNumber("");
-    setSentTo(null);
-    setCode("");
     setError(null);
   };
 
-  const sendCode = async () => {
+  const save = async () => {
+    if (!userId) return;
     const parsed = normalisePhone(number);
     if (!parsed.ok) return setError(parsed.error);
     setBusy(true);
     setError(null);
-    const problem = await sendAddCode(parsed.e164);
-    setBusy(false);
-    if (problem) return setError(problem);
-    setSentTo(parsed.e164);
-  };
-
-  const confirm = async () => {
-    if (!sentTo) return;
-    const token = cleanCode(code);
-    if (!token) return setError("Type the six-digit code from the text.");
-    setBusy(true);
-    setError(null);
-    const problem = await confirmAddCode(sentTo, token);
-    if (problem) {
+    try {
+      await saveMyMobile(userId, parsed.e164);
+      await load();
+      resetAdd();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't save your number.");
+    } finally {
       setBusy(false);
-      return setError(problem);
     }
-    // The database copies the number across as Auth confirms it.
-    await load();
-    setBusy(false);
-    resetAdd();
   };
 
   const remove = () => {
-    Alert.alert("Remove your mobile?", "You won't be able to sign in with a text code, and no group will see it any more.", [
+    Alert.alert("Remove your mobile?", "No group will see it any more.", [
       { text: "Cancel", style: "cancel" },
       {
         text: "Remove",
@@ -158,15 +135,21 @@ export default function PrivacyScreen() {
           ) : mobile && !adding ? (
             <>
               <View style={styles.numberRow}>
-                <Ionicons name="checkmark-circle" size={22} color={colors.green700} />
+                <Ionicons name="call" size={20} color={colors.green700} />
                 <View style={{ flex: 1 }}>
                   <Text style={styles.number}>{formatPhone(mobile.phone)}</Text>
-                  <Text style={styles.small}>Verified · only you can see it unless you share it below</Text>
+                  <Text style={styles.small}>Only you can see it unless you share it below</Text>
                 </View>
               </View>
-              <Text style={styles.small}>You can sign in with a text code to this number instead of your password.</Text>
               <View style={styles.buttons}>
-                <Pressable style={styles.secondary} onPress={() => setAdding(true)} accessibilityRole="button">
+                <Pressable
+                  style={styles.secondary}
+                  onPress={() => {
+                    setNumber(formatPhone(mobile.phone));
+                    setAdding(true);
+                  }}
+                  accessibilityRole="button"
+                >
                   <Text style={styles.secondaryText}>Change number</Text>
                 </Pressable>
                 <Pressable style={styles.secondary} onPress={remove} accessibilityRole="button">
@@ -176,12 +159,12 @@ export default function PrivacyScreen() {
             </>
           ) : !adding ? (
             <>
-              <Text style={styles.body1}>Add your mobile to sign in with a text code, and so the captain or secretary of your society can reach you — only if you say so.</Text>
+              <Text style={styles.body1}>Add your mobile so the captain or secretary of your society can reach you — only if you choose to share it.</Text>
               <Pressable style={styles.primary} onPress={() => setAdding(true)} accessibilityRole="button">
                 <Text style={styles.primaryText}>Add my mobile</Text>
               </Pressable>
             </>
-          ) : !sentTo ? (
+          ) : (
             <>
               <Text style={styles.label}>Mobile number</Text>
               <TextInput
@@ -193,41 +176,18 @@ export default function PrivacyScreen() {
                 keyboardType="phone-pad"
                 textContentType="telephoneNumber"
                 autoComplete="tel"
+                returnKeyType="done"
+                onSubmitEditing={() => void save()}
                 autoFocus
               />
-              <Text style={styles.small}>We&apos;ll text you a code. Outside Ireland, start with your country code (+44…).</Text>
+              <Text style={styles.small}>Outside Ireland, start with your country code (+44…).</Text>
               {error ? <Text style={styles.error}>{error}</Text> : null}
               <View style={styles.buttons}>
                 <Pressable style={styles.secondary} onPress={resetAdd} accessibilityRole="button">
                   <Text style={styles.secondaryText}>Cancel</Text>
                 </Pressable>
-                <Pressable style={[styles.primary, styles.grow, busy && styles.off]} onPress={sendCode} disabled={busy} accessibilityRole="button">
-                  {busy ? <ActivityIndicator color={colors.cream50} /> : <Text style={styles.primaryText}>Text me a code</Text>}
-                </Pressable>
-              </View>
-            </>
-          ) : (
-            <>
-              <Text style={styles.label}>{`Code sent to ${maskPhone(sentTo)}`}</Text>
-              <TextInput
-                style={[styles.input, styles.codeInput]}
-                value={code}
-                onChangeText={setCode}
-                placeholder="123456"
-                placeholderTextColor={colors.ink500}
-                keyboardType="number-pad"
-                textContentType="oneTimeCode"
-                autoComplete="sms-otp"
-                maxLength={7}
-                autoFocus
-              />
-              {error ? <Text style={styles.error}>{error}</Text> : null}
-              <View style={styles.buttons}>
-                <Pressable style={styles.secondary} onPress={() => void sendCode()} disabled={busy} accessibilityRole="button">
-                  <Text style={styles.secondaryText}>Send again</Text>
-                </Pressable>
-                <Pressable style={[styles.primary, styles.grow, busy && styles.off]} onPress={confirm} disabled={busy} accessibilityRole="button">
-                  {busy ? <ActivityIndicator color={colors.cream50} /> : <Text style={styles.primaryText}>Verify</Text>}
+                <Pressable style={[styles.primary, styles.grow, busy && styles.off]} onPress={() => void save()} disabled={busy} accessibilityRole="button">
+                  {busy ? <ActivityIndicator color={colors.cream50} /> : <Text style={styles.primaryText}>Save</Text>}
                 </Pressable>
               </View>
             </>
@@ -306,7 +266,6 @@ const styles = StyleSheet.create({
     color: colors.ink900,
     backgroundColor: colors.cream50,
   },
-  codeInput: { fontSize: 24, letterSpacing: 6, textAlign: "center" },
   error: { fontFamily: fonts.bodySemi, fontSize: type.small, color: colors.red600 },
   buttons: { flexDirection: "row", gap: spacing.sm },
   grow: { flex: 1 },

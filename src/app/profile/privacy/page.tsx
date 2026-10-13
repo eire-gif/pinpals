@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { myMobile } from "@/lib/phone-auth";
+import { myMobile } from "@/lib/member-phone";
 import MobileForm from "./mobile-form";
 
 export const metadata = { title: "Privacy & security · PinPals" };
@@ -31,7 +31,7 @@ export default async function PrivacyPage() {
         <h2 className="font-display font-bold text-xl">Your mobile</h2>
         {!mobile && (
           <p className="text-sm text-ink-700">
-            Add your mobile to sign in with a text code, and so the captain or secretary of your society can reach you — only if you choose to share it, group by group, in the app.
+            Add your mobile so the captain or secretary of your society can reach you — only if you choose to share it, group by group, in the app.
           </p>
         )}
         <MobileForm current={mobile?.phone ?? null} />

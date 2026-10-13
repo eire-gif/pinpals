@@ -32,7 +32,7 @@ import type { Href } from "expo-router";
  *    messages → app/(tabs)/inbox.tsx, app/new-chat.tsx, app/new-group.tsx,
  *               app/conversation/[id].tsx
  *    connect  → app/members.tsx, app/connections.tsx, app/invite-friends.tsx
- *    mobile   → app/privacy.tsx, app/login.tsx, app/group/[id]/contacts.tsx
+ *    mobile   → app/privacy.tsx, app/group/[id]/contacts.tsx
  *    sell     → app/new-listing.tsx, app/listing/[id].tsx, app/selling.tsx,
  *               app/payouts.tsx, components/handover-panel.tsx
  *    buy      → app/(tabs)/marketplace.tsx, app/listing/[id].tsx, app/checkout.tsx,
@@ -928,7 +928,7 @@ export const GUIDES: Guide[] = [
     id: "mobile",
     section: "people",
     title: "Your mobile and privacy",
-    blurb: "Verify your mobile, sign in with a text code, share it with your society, download your data.",
+    blurb: "Add your mobile, share it with your society, download your data.",
     icon: "lock-closed",
     tone: "navy",
     audience: "Everyone",
@@ -942,11 +942,11 @@ export const GUIDES: Guide[] = [
       },
       {
         title: "Add your mobile",
-        body: "Tap Add my mobile, type your number and tap Text me a code. Type the six-digit code from the text and tap Verify.",
+        body: "Tap Add my mobile, type your number and tap Save.",
         look: [
           { style: "primary", label: "Add my mobile" },
           { style: "field", label: "087 123 4567" },
-          { style: "primary", label: "Text me a code" },
+          { style: "primary", label: "Save" },
         ],
         tip: "Only you can see your number until you choose to share it.",
       },
@@ -964,14 +964,6 @@ export const GUIDES: Guide[] = [
           { style: "outline", label: "Phone numbers", icon: "call-outline" },
           { style: "outline", label: "Call", icon: "call" },
           { style: "outline", label: "WhatsApp", icon: "logo-whatsapp" },
-        ],
-      },
-      {
-        title: "Sign in with a text code",
-        body: "On the Log in screen, tap Sign in with a text code instead. Type your verified mobile, then the code we text you — no password needed.",
-        look: [
-          { style: "link", label: "Sign in with a text code instead" },
-          { style: "primary", label: "Text me a code" },
         ],
       },
       {
@@ -1264,7 +1256,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
-  { on: "2026-10-13", text: "New guide: Your mobile and privacy — verify your mobile, sign in with a text code, share it with your society, download your data." },
+  { on: "2026-10-13", text: "New guide: Your mobile and privacy — add your mobile, share it with your society, download your data." },
   { on: "2026-10-13", text: "Run your society: Phone numbers — call, text or WhatsApp members who share their mobile." },
   { on: "2026-10-13", text: "Score a game live: shows the real Live Scoring, Start a Game, Match Day and From a Group cards, and which to tap for friends, trips or societies." },
   { on: "2026-10-13", text: "Guides are now written for friends, golf trips or societies — pick yours at the top." },

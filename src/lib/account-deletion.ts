@@ -499,7 +499,7 @@ async function anonymise(admin: SupabaseClient, userId: string): Promise<void> {
     throw new Error(`Couldn't remove the private details: ${privateError.message}`);
   }
 
-  // A verified mobile (0134): off the sign-in record, and every share ended.
+  // The mobile (0134), and every share of it.
   const { error: phoneError } = await admin.rpc("remove_member_phone", { p_member: userId });
   if (phoneError && !/remove_member_phone/.test(phoneError.message)) {
     throw new Error(`Couldn't remove the mobile number: ${phoneError.message}`);

@@ -34,7 +34,7 @@ export const EXPORT_SOURCES: readonly ExportSource[] = [
   { section: "profile", table: "profiles", column: "id", about: "Your profile as other members see it." },
   { section: "private_details", table: "member_private", column: "member_id", about: "Your handicap and Golf Ireland number — only you can see these." },
   { section: "date_of_birth", table: "member_birthdates", column: "user_id", about: "Your date of birth — only you can see it." },
-  { section: "mobile_number", table: "member_phones", column: "member_id", about: "Your mobile number and which groups you share it with." },
+  { section: "mobile_number", table: "member_phones", column: "member_id", about: "Your mobile number." },
   { section: "mobile_sharing", table: "member_phone_shares", column: "member_id", about: "The groups whose captain and secretary can see your mobile." },
   { section: "addresses", table: "addresses", column: "user_id", about: "Delivery addresses." },
   { section: "notification_settings", table: "notification_preferences", column: "user_id", about: "Which notifications you get." },

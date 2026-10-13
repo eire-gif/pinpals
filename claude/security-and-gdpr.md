@@ -13,12 +13,11 @@ Not reviewed by a solicitor or a data protection adviser. It should be, before l
 |---|---|---|
 | Handicap | Readable by every signed-in member through the API, even when "hidden" — the app just didn't show it | Real value in `member_private`, readable only by the member. The copy on `profiles` holds it only while the member shows it. Society officers still see it (`society_handicaps`, as promised on joining) and the handicap indicator still uses it |
 | Golf Ireland number | Readable by every signed-in member | In `member_private` only. The copy on `profiles` is always blank |
-| Mobile numbers | Not collected | Optional, verified by a text code (Supabase Auth). Copied to `member_phones` (owner-only) by a trigger once Auth confirms it |
+| Mobile numbers | Not collected | Optional, typed in by the member, in `member_phones` (owner-only). **Not checked by text message, and no sign-in by text** — each text costs money, so PinPals sends none (decided 13 Oct 2026) |
 | Society contacts | None | Per-group, member's own choice (`member_phone_shares`). `group_contacts()`: the people who run a group see members' shared numbers; members see the people who run it. App: group page → **Phone numbers** (Call / Text / WhatsApp) |
-| Sign-in | Email + password | Also **Sign in with a text code** (app and website), for verified mobiles only. Never creates an account |
 | Staff | Password only | **Two-step sign-in** (authenticator app). `/admin` sends staff to `/two-step`. 0135 makes the database agree: `is_staff()` is true only on an aal2 session |
 | Right of access | Email us | **Download my data** — app (Privacy & security) and website (`/profile/privacy`). JSON file of every table naming the member, secrets and staff notes removed |
-| Account deletion | Profile anonymised | Also deletes `member_private`, the mobile (Auth too) and every share |
+| Account deletion | Profile anonymised | Also deletes `member_private`, the mobile and every share |
 | Database hygiene | 3 trigger functions callable by anyone; 7 functions with a mutable search path | Revoked; search paths pinned |
 
 Older apps keep working: writing `handicap` or `gui_membership_number` on `profiles` the old way moves the value into `member_private`.
@@ -29,14 +28,9 @@ Older apps keep working: writing `handicap` or `gui_membership_number` on `profi
 
 1. **Paste the SQL** (Supabase → SQL editor), one file at a time: `0133_privacy_hardening.paste.sql`, then `0134_member_phones.paste.sql`. **Not 0135 yet.**
 2. **Merge the PR**, wait for Vercel to show Ready, then `eas update --branch production --platform ios`.
-3. **Two-step for staff.** Both super admins sign in on the website and open `/admin`. It sends you to `/two-step`: scan the QR code with an authenticator app (Google Authenticator, Microsoft Authenticator, 1Password), type the code. Then paste `0135_staff_two_step.paste.sql`. (Before that, the database still treats a password-only staff session as staff; after it, it doesn't.)
+3. **Two-step for staff.** Both super admins sign in on the website and open `/admin`. It sends you to `/two-step`: scan the QR code with a free authenticator app — no text messages, no cost (Google Authenticator, Microsoft Authenticator, 1Password), type the code. Then paste `0135_staff_two_step.paste.sql`. (Before that, the database still treats a password-only staff session as staff; after it, it doesn't.)
 4. **Leaked-password protection.** Supabase → Authentication → (Attack Protection / Password security) → turn on *Prevent use of leaked passwords*. Pro plan feature.
-5. **Text messages.** Supabase → Authentication → Sign In / Providers → **Phone** → enable, provider **Twilio** (Account SID, Auth Token, Messaging Service SID). Code length 6, expiry 5–10 minutes.
-   - Twilio → Messaging → Geo permissions: **Ireland and UK only**. This is the main defence against SMS-pumping fraud.
-   - Supabase → Authentication → Rate limits: SMS per hour around 30 to start.
-   - Until this is set up, "Text me a code" says "We can't send text messages just now" — nothing breaks.
-   - Phone signup: the app and site never create an account from a phone (`shouldCreateUser: false`), but the Auth API would if called directly with phone enabled. A phone-only account would have a blank profile and no email. If Supabase offers a separate phone-signup switch, turn it off; otherwise accept it and watch Users for phone-only rows.
-6. **App Store privacy answers** (see §8) — update before the next submission.
+5. **App Store privacy answers** (see §8) — update before the next submission.
 
 ---
 
@@ -47,7 +41,7 @@ Controller: the PinPals company (details in `src/lib/legal/operator.ts` on #103)
 | Activity | Data | Who | Basis | Kept | Shared with |
 |---|---|---|---|---|---|
 | Accounts and profiles | Name, email, password hash, club, county, bio, photo, age band, handicap, Golf Ireland no. | Members | Contract; consent for showing handicap and age band | Life of account | Supabase |
-| Verified mobile, text-code sign-in | Mobile number, codes | Members who add one | Contract (they asked) | Until removed or account closed | Supabase, Twilio |
+| Mobile number | Mobile number | Members who add one | Contract (they asked) | Until removed or account closed | Supabase |
 | Sharing a mobile with a group | Number, which groups | Members who opt in | Consent, per group | Until switched off, left, or number removed | Group's owner/admins (and members, for numbers of those who run it) |
 | Groups, societies, events | Membership, roles, entries, guests, payments marked, society handicaps | Members | Contract | Life of group / account | Supabase |
 | Live scoring, scorecards, handicap indicator | Scores, rounds, shot positions (lat/lng on a course) | Members who play | Contract | Life of account, or until round deleted | Round's players |
@@ -66,7 +60,6 @@ Controller: the PinPals company (details in `src/lib/legal/operator.ts` on #103)
 | Vercel | Website hosting, logs | Global edge; US company | Vercel DPA, SCCs |
 | Stripe | Payments, payouts | EU/US | Stripe DPA (in its terms); Stripe is its own controller for some processing |
 | Resend | Email | US | Resend DPA, SCCs |
-| Twilio | Text-message codes | US/global | Twilio DPA, SCCs |
 | Expo (+ Apple APNs, Google FCM) | Push notifications | US | Expo DPA |
 | Google Maps Platform | Satellite tiles on hole maps | Global | Google Maps Platform terms + data processing terms |
 | Anthropic | Drafting golf news from public sources — no member data | US | Commercial terms |
@@ -102,7 +95,7 @@ Keep a copy of each signed/accepted DPA in the company records.
 
 ## 8. App Store privacy answers — changes
 
-- **Contact Info → Phone Number:** App Functionality, linked. Now "an optional verified mobile, used to sign in and shared with groups the member chooses".
+- **Contact Info → Phone Number:** App Functionality, linked. Now "an optional mobile number, shared only with groups the member chooses".
 - **Location → Precise Location: now tick it.** Shot positions from the hole map are stored with the round. App Functionality, linked, not tracking. (The old note in `app-store-privacy-answers.md` says location isn't stored — that changed with hole maps, 0108.)
 - **Other Data:** add "group memberships, live scores and scorecards".
 
@@ -127,7 +120,7 @@ Watch-outs: Apple may give a private relay email; a Google/Apple account with th
 
 ## 10. Still open
 
-- Privacy Policy 1.1 goes live only with #103 (needs the company details). #103 also has an older, unverified "mobile at sign-up" field (`member_private_details`, its own `src/lib/phone.ts`) — when it's rebased, drop that field in favour of the verified flow here.
+- Privacy Policy 1.1 goes live only with #103 (needs the company details). #103 also has an older "mobile at sign-up" field (`member_private_details`, its own `src/lib/phone.ts`) — when it is rebased, drop that field and its table in favour of `member_phones` here, so a member has one mobile in one place.
 - `is_staff()` with aal2 means staff on the app are members until they open Admin on the website. Intended.
-- SMS costs money per code — keep geo permissions tight and watch the Twilio bill in the first weeks.
+- Mobile numbers aren't checked, so a member could type someone else's number. Low risk (it's only shown to their own group's officers, by their choice). If that ever matters, text-message checks can be added later (Supabase phone provider + Twilio, paid per text).
 - Get a solicitor to read the Privacy Policy and this record before launch.

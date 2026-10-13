@@ -8,13 +8,12 @@
 //   seller2    not in the society
 //
 // What must hold:
-//   - a number reaches member_phones only once Auth has confirmed it, and
-//     goes when Auth drops it; nobody writes member_phones directly
-//   - a member reads their own number only
+//   - a member adds, changes and removes their own number, nobody else's
+//   - a member reads their own number only; numbers must be in +353… form
 //   - sharing is the member's own, and only with groups they are in
 //   - the people who run a group see the numbers shared with it; members see
 //     only the people who run it; outsiders see nothing
-//   - remove_my_phone() clears Auth, the copy and every share
+//   - remove_my_phone() clears the number and every share
 import { describe, it, expect, afterAll } from "vitest";
 import type { PoolClient } from "pg";
 import { withRole, closePool } from "./harness";
@@ -44,11 +43,13 @@ async function rejects(c: PoolClient, sql: string, params: unknown[]): Promise<v
   if (!failed) throw new Error(`Expected to be rejected: ${sql}`);
 }
 
-/** What Auth does when a member proves a number with a text code. */
+/** A member saving their mobile. */
 async function verify(c: PoolClient, userId: string, phone: string): Promise<void> {
-  await c.query("set local role postgres");
-  await c.query("update auth.users set phone = $2, phone_confirmed_at = now() where id = $1", [userId, phone]);
-  await c.query("set local role authenticated");
+  await as(c, userId);
+  await c.query(
+    "insert into public.member_phones (member_id, phone) values ($1, $2) on conflict (member_id) do update set phone = excluded.phone",
+    [userId, phone],
+  );
 }
 
 async function society(c: PoolClient): Promise<string> {
@@ -72,29 +73,32 @@ const contacts = async (c: PoolClient, userId: string, group: string) => {
 };
 
 describe("the number", () => {
-  it("arrives once Auth confirms it, and only then", async () => {
+  it("is the member's own to add, change and remove", async () => {
     await withRole("authenticated", MEMBER, async (c) => {
-      await c.query("set local role postgres");
-      await c.query("update auth.users set phone = '353871234567', phone_confirmed_at = null where id = $1", [MEMBER]);
-      await c.query("set local role authenticated");
-      await as(c, MEMBER);
-      expect((await c.query("select * from public.member_phones")).rows).toEqual([]);
-
-      await verify(c, MEMBER, "353871234567");
-      await as(c, MEMBER);
+      await verify(c, MEMBER, "+353871234567");
+      await verify(c, MEMBER, "+353861112222");
       const { rows } = await c.query("select phone from public.member_phones where member_id = $1", [MEMBER]);
-      expect(rows).toEqual([{ phone: "+353871234567" }]);
+      expect(rows).toEqual([{ phone: "+353861112222" }]);
+      await c.query("delete from public.member_phones where member_id = $1", [MEMBER]);
+      expect((await c.query("select * from public.member_phones")).rows).toEqual([]);
     });
   });
 
-  it("is read by its owner only, and written by nobody directly", async () => {
+  it("must be in +353… form", async () => {
     await withRole("authenticated", MEMBER, async (c) => {
-      await verify(c, MEMBER, "353871234567");
+      await as(c, MEMBER);
+      await rejects(c, "insert into public.member_phones (member_id, phone) values ($1, '087 123 4567')", [MEMBER]);
+    });
+  });
+
+  it("nobody else can read, add, change or remove it", async () => {
+    await withRole("authenticated", MEMBER, async (c) => {
+      await verify(c, MEMBER, "+353871234567");
       await as(c, STRANGER);
       expect((await c.query("select * from public.member_phones where member_id = $1", [MEMBER])).rows).toEqual([]);
-      await as(c, MEMBER);
-      await rejects(c, "insert into public.member_phones (member_id, phone, verified_at) values ($1, '+353870000000', now())", [MEMBER]);
-      await rejects(c, "update public.member_phones set phone = '+353870000000' where member_id = $1", [MEMBER]);
+      await rejects(c, "insert into public.member_phones (member_id, phone) values ($1, '+353870000000')", [MEMBER2]);
+      expect((await c.query("update public.member_phones set phone = '+353870000000' where member_id = $1", [MEMBER])).rowCount).toBe(0);
+      expect((await c.query("delete from public.member_phones where member_id = $1", [MEMBER])).rowCount).toBe(0);
     });
   });
 
@@ -121,9 +125,9 @@ describe("sharing", () => {
   it("the people who run it see members' numbers; members see theirs; outsiders nothing", async () => {
     await withRole("authenticated", OWNER, async (c) => {
       const g = await society(c);
-      await verify(c, MEMBER, "353871234567");
-      await verify(c, SECRETARY, "353861112222");
-      await verify(c, MEMBER2, "353851113333");
+      await verify(c, MEMBER, "+353871234567");
+      await verify(c, SECRETARY, "+353861112222");
+      await verify(c, MEMBER2, "+353851113333");
       await share(c, MEMBER, g);
       await share(c, SECRETARY, g);
       // MEMBER2 verified a number but didn't share it.
@@ -145,7 +149,7 @@ describe("sharing", () => {
   it("stopping sharing takes it out straight away", async () => {
     await withRole("authenticated", OWNER, async (c) => {
       const g = await society(c);
-      await verify(c, MEMBER, "353871234567");
+      await verify(c, MEMBER, "+353871234567");
       await share(c, MEMBER, g);
       await as(c, MEMBER);
       await c.query("delete from public.member_phone_shares where group_id = $1", [g]);
@@ -155,19 +159,16 @@ describe("sharing", () => {
 });
 
 describe("remove_my_phone()", () => {
-  it("clears Auth, the copy and every share", async () => {
+  it("clears the number and every share", async () => {
     await withRole("authenticated", OWNER, async (c) => {
       const g = await society(c);
-      await verify(c, MEMBER, "353871234567");
+      await verify(c, MEMBER, "+353871234567");
       await share(c, MEMBER, g);
       await as(c, MEMBER);
       await c.query("select public.remove_my_phone()");
 
       expect((await c.query("select * from public.member_phones")).rows).toEqual([]);
       expect((await c.query("select * from public.member_phone_shares")).rows).toEqual([]);
-      await c.query("set local role postgres");
-      const { rows } = await c.query("select phone, phone_confirmed_at from auth.users where id = $1", [MEMBER]);
-      expect(rows).toEqual([{ phone: null, phone_confirmed_at: null }]);
     });
   });
 

@@ -1,22 +1,19 @@
--- Verified mobile numbers (Oct 2026). Design: claude/security-and-gdpr.md
+-- Mobile numbers for society contacts (Oct 2026). Design: claude/security-and-gdpr.md
 --
--- 1. A member adds a mobile and proves it with a text code (Supabase Auth's
---    phone change). Once Auth marks it confirmed, a trigger copies it to
---    member_phones — readable by that member only. Nothing else writes it.
--- 2. With a verified mobile they can sign in with a text code instead of a
---    password (Auth, no database change).
--- 3. Sharing is per group, the member's own choice (member_phone_shares).
+-- 1. A member can add a mobile number (member_phones) — readable and
+--    writable by that member only. There is no text-message check and no
+--    sign-in by text: those cost money per message, so PinPals doesn't send
+--    any. The number is as the member typed it (in one standard form).
+-- 2. Sharing is per group, the member's own choice (member_phone_shares).
 --    Shared with a group: the people who run it (owner and admins — in a
 --    society, the captain and secretary) can see it. If the member runs the
 --    group themselves, its members can see it too, so they can reach them.
 --    group_contacts() is the only way anyone else reads a number.
--- 4. remove_my_phone() takes the number off the account entirely (Auth too)
---    and ends every share.
+-- 3. remove_my_phone() takes the number off and ends every share.
 --
 -- Rollback:
 --   drop function if exists public.group_contacts(bigint), public.remove_my_phone(),
---     public.remove_member_phone(uuid), public.sync_member_phone();
---   drop trigger if exists sync_member_phone on auth.users;
+--     public.remove_member_phone(uuid);
 --   drop table if exists public.member_phone_shares, public.member_phones;
 
 
@@ -25,7 +22,6 @@
 create table if not exists public.member_phones (
   member_id uuid primary key references public.profiles (id) on delete cascade,
   phone text not null check (phone ~ '^\+[1-9][0-9]{6,14}$'),
-  verified_at timestamptz not null,
   updated_at timestamptz not null default now()
 );
 
@@ -34,9 +30,18 @@ alter table public.member_phones enable row level security;
 drop policy if exists "own mobile" on public.member_phones;
 create policy "own mobile" on public.member_phones
   for select to authenticated using (member_id = (select auth.uid()));
+drop policy if exists "add own mobile" on public.member_phones;
+create policy "add own mobile" on public.member_phones
+  for insert to authenticated with check (member_id = (select auth.uid()));
+drop policy if exists "change own mobile" on public.member_phones;
+create policy "change own mobile" on public.member_phones
+  for update to authenticated using (member_id = (select auth.uid())) with check (member_id = (select auth.uid()));
+drop policy if exists "remove own mobile" on public.member_phones;
+create policy "remove own mobile" on public.member_phones
+  for delete to authenticated using (member_id = (select auth.uid()));
 
 revoke all on public.member_phones from anon, authenticated;
-grant select on public.member_phones to authenticated;
+grant select, insert, update, delete on public.member_phones to authenticated;
 
 
 -- ============ Who it is shared with ============
@@ -69,54 +74,9 @@ revoke all on public.member_phone_shares from anon, authenticated;
 grant select, insert, delete on public.member_phone_shares to authenticated;
 
 
--- ============ Kept in step with Auth ============
-
--- After Auth changes a member's phone: copy it once confirmed, drop it once
--- gone. Never blocks Auth — a failure here leaves the number unshared, which
--- is the safe way round.
-create or replace function public.sync_member_phone()
-returns trigger
-language plpgsql
-security definer
-set search_path = public
-as $$
-begin
-  if new.phone is not null and btrim(new.phone) <> '' and new.phone_confirmed_at is not null then
-    if exists (select 1 from public.profiles where id = new.id) then
-      insert into public.member_phones (member_id, phone, verified_at)
-      values (new.id, '+' || ltrim(btrim(new.phone), '+'), new.phone_confirmed_at)
-      on conflict (member_id) do update
-        set phone = excluded.phone, verified_at = excluded.verified_at, updated_at = now();
-    end if;
-  else
-    delete from public.member_phones where member_id = new.id;
-  end if;
-  return null;
-exception when others then
-  return null;
-end;
-$$;
-revoke all on function public.sync_member_phone() from public, anon, authenticated;
-
-drop trigger if exists sync_member_phone on auth.users;
-create trigger sync_member_phone
-  after update of phone, phone_confirmed_at on auth.users
-  for each row execute function public.sync_member_phone();
-
--- Any number already verified in Auth.
-insert into public.member_phones (member_id, phone, verified_at)
-select u.id, '+' || ltrim(btrim(u.phone), '+'), u.phone_confirmed_at
-  from auth.users u
-  join public.profiles p on p.id = u.id
- where u.phone is not null and btrim(u.phone) <> '' and u.phone_confirmed_at is not null
-   and ('+' || ltrim(btrim(u.phone), '+')) ~ '^\+[1-9][0-9]{6,14}$'
-on conflict (member_id) do nothing;
-
-
 -- ============ Taking it off ============
 
--- The number off the account, Auth included, and every share ended. The
--- server uses this when an account is deleted.
+-- The number and every share. The server uses this when an account is deleted.
 create or replace function public.remove_member_phone(p_member uuid)
 returns void
 language plpgsql
@@ -124,7 +84,6 @@ security definer
 set search_path = public
 as $$
 begin
-  update auth.users set phone = null, phone_confirmed_at = null where id = p_member;
   delete from public.member_phones where member_id = p_member;
   delete from public.member_phone_shares where member_id = p_member;
 end;
