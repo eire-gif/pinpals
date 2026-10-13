@@ -246,6 +246,126 @@ revoke all on function public.member_affinity(uuid) from public, anon;
 grant execute on function public.member_affinity(uuid) to authenticated;
 
 
+-- ============ Handicaps that use the real value ============
+-- The handicap indicator works from the index the member really plays off,
+-- and a society's officers see their members' handicaps (0122: joining a
+-- society shares it with the people who run it). Both now read
+-- member_private, so hiding a handicap from everyone else changes neither.
+
+create or replace function public.handicap_differentials_of(p_member uuid)
+returns table (
+  scorecard_id bigint,
+  played_on date,
+  course_name text,
+  tee_name text,
+  adjusted_gross integer,
+  differential numeric,
+  counts boolean
+)
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  with recent as (
+    select s.id, s.played_on, s.course_name, s.tee_name, s.course_rating, s.slope,
+           coalesce(s.handicap_index, p.handicap) as idx,
+           coalesce(s.par_total, (select sum(h.par) from public.scorecard_holes h where h.scorecard_id = s.id))::int as par
+      from public.scorecards s
+      left join public.member_private p on p.member_id = s.member_id
+     where s.member_id = p_member
+       and s.holes = 18
+       and s.course_rating is not null
+       and s.slope is not null
+       and (select count(*) from public.scorecard_holes h where h.scorecard_id = s.id) = 18
+       and (select count(*) from public.scorecard_holes h where h.scorecard_id = s.id and h.strokes is not null) >= 14
+     order by s.played_on desc, s.id desc
+     limit 20
+  ),
+  -- Course handicap for the card's tees (WHS), from the index played off.
+  ch as (
+    select r.*,
+           case when r.idx is null then null
+                else round(r.idx * r.slope / 113.0 + (r.course_rating - r.par))::int end as course_hcp
+      from recent r
+  ),
+  holes as (
+    select c.id,
+           h.strokes,
+           case
+             when c.course_hcp is null then h.par + 5
+             else h.par + 2
+                  + floor(c.course_hcp / 18.0)::int
+                  + case when coalesce(h.stroke_index, h.hole) <= ((c.course_hcp % 18) + 18) % 18 then 1 else 0 end
+           end as cap
+      from ch c
+      join public.scorecard_holes h on h.scorecard_id = c.id
+  ),
+  scored as (
+    select c.id, c.played_on, c.course_name, c.tee_name,
+           sum(least(coalesce(h.strokes, h.cap), h.cap))::int as ags,
+           c.course_rating, c.slope
+      from ch c
+      join holes h on h.id = c.id
+     group by c.id, c.played_on, c.course_name, c.tee_name, c.course_rating, c.slope
+  ),
+  diffs as (
+    select s.*,
+           round((113.0 / s.slope) * (s.ags - s.course_rating), 1) as diff,
+           count(*) over () as n,
+           row_number() over (order by round((113.0 / s.slope) * (s.ags - s.course_rating), 1), s.played_on desc, s.id desc) as rank
+      from scored s
+  )
+  select d.id, d.played_on, d.course_name, d.tee_name, d.ags, d.diff,
+         d.n >= 3 and d.rank <= case
+           when d.n <= 5 then 1
+           when d.n <= 8 then 2
+           when d.n <= 11 then 3
+           when d.n <= 14 then 4
+           when d.n <= 16 then 5
+           when d.n <= 18 then 6
+           when d.n = 19 then 7
+           else 8
+         end
+    from diffs d
+   order by d.played_on desc, d.id desc;
+$$;
+revoke all on function public.handicap_differentials_of(uuid) from public, anon, authenticated;
+
+create or replace function public.society_handicaps(p_group_id bigint)
+returns table (
+  member_id uuid,
+  own_index numeric,
+  indicator numeric,
+  rounds integer,
+  society_index numeric,
+  society_index_set_at timestamptz
+)
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+begin
+  if (select kind from public.groups where id = p_group_id and hidden_at is null) is distinct from 'society' then
+    raise exception 'Only a society keeps handicaps.';
+  end if;
+  if coalesce(public.group_role(p_group_id, (select auth.uid())), '') not in ('owner', 'admin') then
+    raise exception 'Only the society''s captain and secretary can see its handicaps.';
+  end if;
+
+  return query
+    select m.member_id, p.handicap, i.indicator, i.rounds, m.society_index, m.society_index_set_at
+      from public.group_members m
+      left join public.member_private p on p.member_id = m.member_id
+      cross join lateral public.handicap_indicator_of(m.member_id) i
+     where m.group_id = p_group_id;
+end;
+$$;
+revoke all on function public.society_handicaps(bigint) from public, anon, authenticated;
+grant execute on function public.society_handicaps(bigint) to authenticated;
+
+
 -- ============ Trigger functions aren't for calling ============
 
 revoke all on function public.handle_new_user() from public, anon, authenticated;

@@ -499,6 +499,12 @@ async function anonymise(admin: SupabaseClient, userId: string): Promise<void> {
     throw new Error(`Couldn't remove the private details: ${privateError.message}`);
   }
 
+  // A verified mobile (0134): off the sign-in record, and every share ended.
+  const { error: phoneError } = await admin.rpc("remove_member_phone", { p_member: userId });
+  if (phoneError && !/remove_member_phone/.test(phoneError.message)) {
+    throw new Error(`Couldn't remove the mobile number: ${phoneError.message}`);
+  }
+
   // The auth row has to stay for the foreign keys, so it is emptied instead.
   // The address is given a domain that cannot receive mail, so a stray
   // password-reset or marketing send has nowhere to go, and the ban is made

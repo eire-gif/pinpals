@@ -16,6 +16,8 @@ import { useRouter } from "expo-router";
 
 import { useAuth } from "@/lib/auth";
 import { SITE_URL } from "@/lib/config";
+import { sendSignInCode, verifySignInCode } from "@/lib/mobile-number";
+import { cleanCode, maskPhone, normalisePhone } from "@/lib/phone";
 import { colors, radii, spacing, type } from "@/lib/theme";
 import { KEYBOARD_DISMISS_MODE } from "@/components/keyboard";
 
@@ -26,6 +28,44 @@ export default function LoginScreen() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  // Sign in with a text code (0134) — for a member who has verified a mobile.
+  const [mode, setMode] = useState<"password" | "code">("password");
+  const [phone, setPhone] = useState("");
+  const [sentTo, setSentTo] = useState<string | null>(null);
+  const [code, setCode] = useState("");
+
+  const switchMode = (next: "password" | "code") => {
+    setMode(next);
+    setError(null);
+    setSentTo(null);
+    setCode("");
+  };
+
+  const sendCode = async () => {
+    if (pending) return;
+    const parsed = normalisePhone(phone);
+    if (!parsed.ok) return setError(parsed.error);
+    setPending(true);
+    setError(null);
+    const problem = await sendSignInCode(parsed.e164);
+    setPending(false);
+    if (problem) return setError(problem);
+    setSentTo(parsed.e164);
+  };
+
+  const verifyCode = async () => {
+    if (pending || !sentTo) return;
+    const token = cleanCode(code);
+    if (!token) return setError("Type the six-digit code from the text.");
+    setPending(true);
+    setError(null);
+    const problem = await verifySignInCode(sentTo, token);
+    // On success the auth gate redirects, as with a password.
+    if (problem) {
+      setError(problem);
+      setPending(false);
+    }
+  };
 
   const submit = async () => {
     if (pending) return;
@@ -56,6 +96,8 @@ export default function LoginScreen() {
           </Text>
 
           <View style={styles.card}>
+            {mode === "password" ? (
+              <>
             <View style={styles.field}>
               <Text style={styles.label}>Email</Text>
               <TextInput
@@ -85,6 +127,43 @@ export default function LoginScreen() {
                 placeholderTextColor={colors.ink500}
               />
             </View>
+              </>
+            ) : !sentTo ? (
+              <View style={styles.field}>
+                <Text style={styles.label}>Your mobile</Text>
+                <TextInput
+                  style={styles.input}
+                  value={phone}
+                  onChangeText={setPhone}
+                  placeholder="087 123 4567"
+                  keyboardType="phone-pad"
+                  textContentType="telephoneNumber"
+                  autoComplete="tel"
+                  returnKeyType="go"
+                  onSubmitEditing={sendCode}
+                  placeholderTextColor={colors.ink500}
+                />
+                <Text style={styles.hint}>The number you verified in Privacy &amp; security. We&apos;ll text you a code.</Text>
+              </View>
+            ) : (
+              <View style={styles.field}>
+                <Text style={styles.label}>{`Code sent to ${maskPhone(sentTo)}`}</Text>
+                <TextInput
+                  style={[styles.input, styles.codeInput]}
+                  value={code}
+                  onChangeText={setCode}
+                  placeholder="123456"
+                  keyboardType="number-pad"
+                  textContentType="oneTimeCode"
+                  autoComplete="sms-otp"
+                  maxLength={7}
+                  returnKeyType="go"
+                  onSubmitEditing={verifyCode}
+                  placeholderTextColor={colors.ink500}
+                />
+                <Text style={styles.hint}>If this number is on a PinPals account, the code is on its way.</Text>
+              </View>
+            )}
 
             {error && (
               <View style={styles.errorBox}>
@@ -94,15 +173,23 @@ export default function LoginScreen() {
 
             <Pressable
               style={[styles.primary, pending && styles.primaryDisabled]}
-              onPress={submit}
+              onPress={mode === "password" ? submit : sentTo ? verifyCode : sendCode}
               disabled={pending}
               accessibilityRole="button"
             >
               {pending ? (
                 <ActivityIndicator color={colors.cream50} />
               ) : (
-                <Text style={styles.primaryLabel}>Log in</Text>
+                <Text style={styles.primaryLabel}>{mode === "password" ? "Log in" : sentTo ? "Log in" : "Text me a code"}</Text>
               )}
+            </Pressable>
+
+            <Pressable
+              style={styles.linkRow}
+              onPress={() => switchMode(mode === "password" ? "code" : "password")}
+              accessibilityRole="button"
+            >
+              <Text style={styles.link}>{mode === "password" ? "Sign in with a text code instead" : "Use my email and password"}</Text>
             </Pressable>
 
             {/* Resetting a password still happens on the website: the reset
@@ -181,6 +268,8 @@ const styles = StyleSheet.create({
     fontSize: type.body,
   },
   linkRow: { minHeight: 44, justifyContent: "center" },
+  hint: { fontSize: type.small, color: colors.ink500, lineHeight: 18 },
+  codeInput: { fontSize: 24, letterSpacing: 6, textAlign: "center" },
   link: {
     color: colors.green700,
     fontWeight: "700",

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import LoginForm from "./login-form";
+import CodeLogin from "./code-login";
 import { safeRedirectPath } from "@/lib/safe-redirect";
 
 export default async function LoginPage({
@@ -34,6 +35,7 @@ export default async function LoginPage({
       ) : null}
       <div className="bg-surface rounded-2xl shadow-lg p-8">
         <LoginForm next={safeNext ?? undefined} />
+        <CodeLogin next={safeNext ?? undefined} />
         <p className="text-sm text-ink-500 text-center mt-5">
           New here?{" "}
           <Link href="/signup" className="text-green-700 font-bold">

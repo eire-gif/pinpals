@@ -426,6 +426,17 @@ export default function GroupScreen() {
                   <Text style={styles.buttonText}>Handicaps</Text>
                 </Pressable>
               ) : null}
+              {myRole ? (
+                <Pressable
+                  style={styles.button}
+                  onPress={() => router.push({ pathname: "/group/[id]/contacts", params: { id: String(groupId) } })}
+                  accessibilityRole="button"
+                  accessibilityLabel={runsIt ? "Phone numbers members have shared with you" : "Phone numbers of the people who run this group"}
+                >
+                  <Ionicons name="call-outline" size={18} color={colors.navy900} />
+                  <Text style={styles.buttonText}>Phone numbers</Text>
+                </Pressable>
+              ) : null}
             </View>
             {myRole && canDrawFrom({ kind: group.kind, role: myRole }) && isOn("liveScoring") ? (
               <Pressable

@@ -57,6 +57,8 @@ describe("requireStaff", () => {
     mockGetUser.mockReset();
     mockMaybeSingle.mockReset();
     mockGetAal.mockReset();
+    // Two-step sign-in done, unless a test says otherwise.
+    mockGetAal.mockResolvedValue({ data: { currentLevel: "aal2" }, error: null });
   });
 
   it("redirects an unauthenticated request to /login", async () => {
@@ -105,13 +107,31 @@ describe("requireStaff", () => {
     expect(result.staff.role).toBe("support");
   });
 
-  it("404s when requiredAal is aal2 but the session is only aal1", async () => {
+  it("sends staff without two-step sign-in to /two-step, by default", async () => {
     mockUser();
     mockMaybeSingle.mockResolvedValue({
       data: { user_id: "u1", role: "super_admin", status: "active" },
     });
     mockGetAal.mockResolvedValue({ data: { currentLevel: "aal1" }, error: null });
-    await expect(requireStaff({ requiredAal: "aal2" })).rejects.toThrow("NOT_FOUND");
+    await expect(requireStaff()).rejects.toThrow("REDIRECT:/two-step");
+    await expect(requireStaff({ requiredAal: "aal2" })).rejects.toThrow("REDIRECT:/two-step");
+  });
+
+  it("still 404s a member on a password-only session — the redirect is for staff only", async () => {
+    mockUser();
+    mockMaybeSingle.mockResolvedValue({ data: null });
+    mockGetAal.mockResolvedValue({ data: { currentLevel: "aal1" }, error: null });
+    await expect(requireStaff()).rejects.toThrow("NOT_FOUND");
+  });
+
+  it("lets a caller opt out with requiredAal aal1 (the two-step page itself)", async () => {
+    mockUser();
+    mockMaybeSingle.mockResolvedValue({
+      data: { user_id: "u1", role: "support", status: "active" },
+    });
+    mockGetAal.mockResolvedValue({ data: { currentLevel: "aal1" }, error: null });
+    const result = await requireStaff({ requiredAal: "aal1" });
+    expect(result.staff.role).toBe("support");
   });
 
   it("allows when requiredAal is aal2 and the session already satisfies it", async () => {

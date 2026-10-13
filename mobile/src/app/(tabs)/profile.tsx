@@ -365,7 +365,8 @@ export default function ProfileScreen() {
         <GroupTitle text="Account" />
         <View style={styles.group}>
           <NativeLink icon="person-circle-outline" label="Edit profile" to="/edit-profile" />
-          <NativeLink icon="options-outline" label="Notification settings" to="/notification-settings" last />
+          <NativeLink icon="options-outline" label="Notification settings" to="/notification-settings" />
+          <NativeLink icon="lock-closed-outline" label="Privacy & security" to="/privacy" last />
         </View>
 
       {superAdmin ? (

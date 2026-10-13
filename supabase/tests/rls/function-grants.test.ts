@@ -87,6 +87,15 @@ const EXPECTED: Record<string, Expectation> = {
   "profiles_private_row()": { anon: false, authenticated: false },
   "member_private_sync()": { anon: false, authenticated: false },
 
+  // --- 0134, verified mobile numbers. The trigger and the server's
+  // --- remove_member_phone(p_member) are never for a browser; a member removes
+  // --- their own number and reads a group's shared numbers (membership is
+  // --- checked inside, from auth.uid()).
+  "sync_member_phone()": { anon: false, authenticated: false },
+  "remove_member_phone(p_member uuid)": { anon: false, authenticated: false },
+  "remove_my_phone()": { anon: false, authenticated: true },
+  "group_contacts(p_group_id bigint)": { anon: false, authenticated: true },
+
   // --- Signed-in members only. Each is safe to expose because it either takes
   // --- no caller-controlled identity, or derives identity from auth.uid().
   "are_connected(a uuid, b uuid)": { anon: false, authenticated: true },

@@ -46,12 +46,10 @@ type RequireStaffOptions = {
   /** Restrict to specific roles. Omitted/empty = any active staff role. */
   roles?: readonly StaffRole[];
   /**
-   * Seam for future step-up MFA on high-risk actions (e.g. issuing a payout,
-   * deleting an account). No caller sets this yet, and no MFA enrollment UI
-   * exists in the app yet, but the check itself is real — it reads Supabase
-   * Auth's actual authenticator assurance level — so a later phase can
-   * require "aal2" on a specific mutation without restructuring this
-   * function or its callers.
+   * Authenticator assurance level. Defaults to "aal2": every admin page and
+   * action needs two-step sign-in (an authenticator-app code on top of the
+   * password). A staff member without it is sent to /two-step to set it up
+   * or enter a code, then back. 0135 makes the database's is_staff() agree.
    */
   requiredAal?: "aal1" | "aal2";
 };
@@ -64,8 +62,8 @@ type RequireStaffOptions = {
  * in every navigation path), and don't reimplement this check inline.
  *
  * - No session -> redirect to /login.
- * - Session but not an active staff member, wrong role, or (when required)
- *   insufficient auth assurance level -> 404. A 404 rather than a "not
+ * - Session but not an active staff member, or wrong role -> 404.
+ * - Staff without two-step sign-in this session -> /two-step. A 404 rather than a "not
  *   authorized" page avoids confirming to a logged-in non-staff user that
  *   /admin, or a specific admin sub-route, exists at all.
  */
@@ -84,12 +82,10 @@ export async function requireStaff(
     notFound();
   }
 
-  if (options.requiredAal === "aal2" && !(await hasAal2(supabase))) {
-    // No step-up/re-auth UI exists yet, so the only safe response today is
-    // the same denial as any other failed check. Swap this for a redirect to
-    // a step-up flow once MFA enrollment ships — the call site above never
-    // has to change.
-    notFound();
+  if ((options.requiredAal ?? "aal2") === "aal2" && !(await hasAal2(supabase))) {
+    // Only reached by active staff — anyone else got the 404 above, so this
+    // redirect confirms nothing to a member.
+    redirect("/two-step");
   }
 
   // canAccess(staff, ...) only returns true when staff is non-null (see

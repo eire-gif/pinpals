@@ -15,7 +15,10 @@ export async function proxy(request: NextRequest) {
   // no-cache here: no-cache still permits a shared cache to store the
   // response (just requires revalidation), which is not an acceptable
   // default for admin data.
-  if (request.nextUrl.pathname.startsWith("/admin")) {
+  // The same for two-step sign-in (a QR secret) and the member's own
+  // privacy pages (their mobile number, their data file).
+  const path = request.nextUrl.pathname;
+  if (path.startsWith("/admin") || path.startsWith("/two-step") || path.startsWith("/profile")) {
     response.headers.set("Cache-Control", "private, no-store");
   }
 

@@ -113,3 +113,20 @@ describe("the shared copy on profiles", () => {
     });
   });
 });
+
+describe("the people who run a society", () => {
+  it("still see a member's real handicap when it's hidden from everyone else", async () => {
+    await withRole("authenticated", USERS.seller1, async (c) => {
+      await as(c, USERS.seller1);
+      const g = (await c.query<{ id: string }>("select public.create_group('society', 'Malahide Golf Society') as id")).rows[0].id;
+      await c.query("set local role service_role");
+      await c.query("select public.group_add_member($1, $2)", [g, ME]);
+      await c.query("set local role authenticated");
+      await mine(c, false, 15.1, null);
+
+      await as(c, USERS.seller1);
+      const { rows } = await c.query("select own_index from public.society_handicaps($1) where member_id = $2", [g, ME]);
+      expect(rows).toEqual([{ own_index: "15.1" }]);
+    });
+  });
+});

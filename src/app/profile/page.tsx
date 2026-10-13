@@ -94,6 +94,11 @@ export default async function ProfilePage({
           account settings, which for PinPals is this page — without it
           competing with the things a member actually came here to do. */}
       <p className="text-center mt-8">
+        <Link href="/profile/privacy" className="text-sm font-bold text-green-700 hover:text-green-600">
+          Privacy &amp; security — mobile number, download my data
+        </Link>
+      </p>
+      <p className="text-center mt-3">
         <Link
           href="/profile/delete"
           className="text-sm text-ink-500 underline underline-offset-4 hover:text-red-600 transition"
