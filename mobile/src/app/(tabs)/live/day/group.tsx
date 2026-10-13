@@ -18,7 +18,7 @@ import type { GroupRole } from "@/lib/groups";
 import { SIDE_COLORS, createFourballDay, createMatchDay, createScrambleDay } from "@/lib/live-match-days";
 import { courseHandicap, formatInfo, indexLabel, parseIndex, playingHandicap, scrambleHandicap, type MatchFormat } from "@/lib/live-scoring";
 import { irishToday, isOutingDay, outingDateLabel } from "@/lib/outing-rules";
-import { linkOutingMatchDay, loadClub, loadOuting, publishOutingDraw, saveOuting, setOutingEntry, type OutingPage } from "@/lib/outings";
+import { addOutingGuest, linkOutingMatchDay, loadClub, loadOuting, publishOutingDraw, saveOuting, setOutingEntry, updateOutingGuest, type DrawSeat, type OutingPage } from "@/lib/outings";
 import { loadItineraryItem, setItemPeople, type ItineraryItem } from "@/lib/itinerary";
 import type { PlayFormat } from "@/lib/itinerary-rules";
 import { clockLabel } from "@/lib/tee-time-post";
@@ -92,7 +92,8 @@ const ALLOWANCE = 0.95;
 const GAPS = [8, 9, 10, 12];
 
 type Entrant = DrawPlayer & { memberId: string | null; indexText: string };
-type Guest = { key: string; name: string; indexText: string };
+/** A guest typed in here. `outingGuestId`: already a guest on the event (0131). */
+type Guest = { key: string; name: string; indexText: string; outingGuestId?: number };
 
 /** "1 tee group of 1 player", "3 tee groups — 4, 3 and 3 players". */
 function teeGroupSummary(sizes: number[]): string {
@@ -209,20 +210,35 @@ export default function DrawFromGroup() {
           const label = (p: RosterPlayer) => (p.index != null ? indexLabel(p.index) : "");
           const inIt = people.filter((p) => page.entries.some((e) => e.memberId === p.id));
           setTicked(new Map(inIt.map((p) => [p.id, label(p)])));
+          // The event's guests (0131) come in as guests here, already entered.
+          const outingGuests: Guest[] = page.guests.map((g) => ({
+            key: `o:${g.id}`,
+            name: g.name,
+            indexText: g.handicapIndex != null ? indexLabel(g.handicapIndex) : "",
+            outingGuestId: g.id,
+          }));
+          setGuests(outingGuests);
           setTitle(page.outing.title);
           setPlaysOn(page.outing.playsOn);
           if (page.outing.firstTee) setFirstTee(page.outing.firstTee.slice(0, 5));
-          const byGroup = new Map<number, Entrant[]>();
-          for (const e of [...page.entries].sort((a, b) => (a.teePosition ?? 0) - (b.teePosition ?? 0))) {
+          const seated: { group: number; pos: number; who: Entrant }[] = [];
+          for (const e of page.entries) {
             const p = people.find((x) => x.id === e.memberId);
             if (!e.teeGroup || !p) continue;
             const indexText = label(p);
-            byGroup.set(e.teeGroup, [...(byGroup.get(e.teeGroup) ?? []), { key: `m:${p.id}`, memberId: p.id, name: p.name, indexText, index: parseIndex(indexText) }]);
+            seated.push({ group: e.teeGroup, pos: e.teePosition ?? 0, who: { key: `m:${p.id}`, memberId: p.id, name: p.name, indexText, index: parseIndex(indexText) } });
           }
+          for (const g of page.guests) {
+            const guest = outingGuests.find((x) => x.outingGuestId === g.id);
+            if (!g.teeGroup || !guest) continue;
+            seated.push({ group: g.teeGroup, pos: g.teePosition ?? 0, who: { key: guest.key, memberId: null, name: guest.name, indexText: guest.indexText, index: parseIndex(guest.indexText) } });
+          }
+          const byGroup = new Map<number, Entrant[]>();
+          for (const x of seated.sort((a, b) => a.pos - b.pos)) byGroup.set(x.group, [...(byGroup.get(x.group) ?? []), x.who]);
           const saved = [...byGroup.entries()].sort((a, b) => a[0] - b[0]).map(([, g]) => g);
           if (saved.length > 0) {
             setDrawn(saved);
-            const t = page.entries.filter((e) => e.teeGroup && e.teeTime).sort((a, b) => (a.teeGroup ?? 0) - (b.teeGroup ?? 0));
+            const t = [...page.entries, ...page.guests].filter((e) => e.teeGroup && e.teeTime).sort((a, b) => (a.teeGroup ?? 0) - (b.teeGroup ?? 0));
             const first = t.find((e) => e.teeGroup === 1)?.teeTime;
             const second = t.find((e) => e.teeGroup === 2)?.teeTime;
             if (first) setFirstTee(first.slice(0, 5));
@@ -428,7 +444,7 @@ export default function DrawFromGroup() {
       if (outing) {
         // The final draw becomes the outing's tee times, and the outing
         // remembers its live day. Neither may block the day itself.
-        if (drawnNow.every((g) => g.every((p) => p.memberId))) await publishDraw(drawnNow).catch(() => undefined);
+        await publishDraw(drawnNow).catch(() => undefined);
         await linkOutingMatchDay(outing.outing.id, id).catch(() => undefined);
       }
       if (tripRound) {
@@ -447,20 +463,55 @@ export default function DrawFromGroup() {
     }
   };
 
+  /**
+   * Puts every guest in this draw on the event (0131): a new one is added,
+   * one already there gets any change to their name or index. Returns each
+   * guest's id on the event, by their key here.
+   */
+  const enterGuests = async (eventId: number, groupsNow: Entrant[][]): Promise<Map<string, number>> => {
+    const ids = new Map<string, number>();
+    for (const p of groupsNow.flat()) {
+      if (p.memberId) continue;
+      const g = guests.find((x) => x.key === p.key);
+      if (!g) continue;
+      const name = g.name.trim();
+      const index = parseIndex(g.indexText);
+      if (g.outingGuestId != null) {
+        const was = outing?.guests.find((x) => x.id === g.outingGuestId);
+        if (!was || was.name !== name || was.handicapIndex !== index) await updateOutingGuest(g.outingGuestId, name, index);
+        ids.set(g.key, g.outingGuestId);
+      } else {
+        const id = await addOutingGuest(eventId, name, index);
+        ids.set(g.key, id);
+      }
+    }
+    // Remember the new ones, so publishing again doesn't add them twice.
+    setGuests((gs) => gs.map((x) => (ids.has(x.key) ? { ...x, outingGuestId: ids.get(x.key) } : x)));
+    return ids;
+  };
+
+  const seatsFor = (groupsNow: Entrant[][], guestIds: Map<string, number>) =>
+    groupsNow.map((g, gi) => ({
+      teeTime: times[gi] || null,
+      members: g.map((p): DrawSeat => (p.memberId ? p.memberId : { guest: guestIds.get(p.key) as number })),
+    }));
+
   /** Saves this draw as the outing's tee times; anyone ticked who hadn't
-   *  entered is entered first. */
+   *  entered is entered first, guests included. */
   const publishDraw = async (groupsNow: Entrant[][]) => {
     if (!outing) return;
     for (const p of groupsNow.flat()) {
       if (p.memberId && !outing.entries.some((e) => e.memberId === p.memberId)) await setOutingEntry(outing.outing.id, true, p.memberId);
     }
-    await publishOutingDraw(
-      outing.outing.id,
-      groupsNow.map((g, gi) => ({ teeTime: times[gi] || null, members: g.map((p) => p.memberId as string) }))
-    );
+    const guestIds = await enterGuests(outing.outing.id, groupsNow);
+    await publishOutingDraw(outing.outing.id, seatsFor(groupsNow, guestIds));
   };
 
-  const publishProblem = !drawnNow ? "Make the draw" : drawnNow.some((g) => g.some((p) => !p.memberId)) ? "Guests can't go on published tee times — add them on the day" : null;
+  const publishProblem = !drawnNow
+    ? "Make the draw"
+    : drawnNow.some((g) => g.some((p) => !p.memberId && !p.name))
+      ? "A guest needs a name"
+      : null;
 
   const publish = async () => {
     if (!outing || !drawnNow || publishProblem) return;
@@ -487,7 +538,7 @@ export default function DrawFromGroup() {
     if (!group) futureProblems.push("Choose a group");
     else if (!runsGroup) futureProblems.push("Only whoever runs the group can set up a round ahead — or pick today");
     if (entrants.length === 0) futureProblems.push("Tick who's playing");
-    if (entrants.some((e) => !e.memberId)) futureProblems.push("Guests are added on the day — take them out for now");
+    if (entrants.some((e) => !e.memberId && !e.name)) futureProblems.push("A guest needs a name");
     if (!course.club) futureProblems.push("Choose the course");
     if (title.trim() === "") futureProblems.push("Give the day a name");
   }
@@ -516,12 +567,9 @@ export default function DrawFromGroup() {
       });
       // Everyone ticked goes in; a draw made now becomes their tee times.
       for (const e of entrants) if (e.memberId) await setOutingEntry(outingId, true, e.memberId);
-      if (drawnNow && drawnNow.every((g) => g.every((p) => p.memberId))) {
-        await publishOutingDraw(
-          outingId,
-          drawnNow.map((g, gi) => ({ teeTime: times[gi] || null, members: g.map((p) => p.memberId as string) }))
-        );
-      }
+      // Guests go on the event too (0131), drawn or not.
+      const guestIds = await enterGuests(outingId, drawnNow ?? [entrants.filter((e) => !e.memberId)]);
+      if (drawnNow) await publishOutingDraw(outingId, seatsFor(drawnNow, guestIds));
       Alert.alert(
         `Saved for ${dayLabel(playsOn)}`,
         drawnNow

@@ -32,7 +32,7 @@ Step 2 of `claude/society-entry-fees.md`, plus the draw. A society's captain or 
 - **Events → New outing:** name, date (wheel), course, first tee (clock wheel), entry fee, places, details. Edit or cancel later.
 - **On an outing:**
   - **Make the draw** opens From a group on this outing, with entrants, name, course and first tee filled in, and any published draw laid out again.
-  - **Publish tee times** saves the draw. Members see theirs at once; publishing again replaces it. Anyone ticked who hadn't entered is entered. Guests can't go on published tee times.
+  - **Publish tee times** saves the draw. Members see theirs at once; publishing again replaces it. Anyone ticked who hadn't entered is entered. Guests (0131) are entered on the outing and go on published tee times too.
   - On the day, **Draw and start the round**: choose the tees and Start the day. The final draw is published and the outing linked to the live day.
   - **Add members** (any time before the round) and **tap a name**: Paid cash / Paid by transfer / Waive the fee / Not paid / Take off the outing. "x of y paid or waived" is shown.
 

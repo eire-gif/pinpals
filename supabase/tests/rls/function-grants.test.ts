@@ -289,6 +289,13 @@ const EXPECTED: Record<string, Expectation> = {
   "claim_outing_paid(p_outing_id bigint, p_method text, p_member uuid)": { anon: false, authenticated: true },
   // A trigger: leaving a trip takes you off its flights, rooms and groups.
   "outing_entry_left()": { anon: false, authenticated: false },
+  // 0131 guests on events. outing_entry_count is only called from the
+  // functions above it, so nobody may call it directly.
+  "add_outing_guest(p_outing_id bigint, p_name text, p_index numeric)": { anon: false, authenticated: true },
+  "update_outing_guest(p_guest_id bigint, p_name text, p_index numeric)": { anon: false, authenticated: true },
+  "remove_outing_guest(p_guest_id bigint)": { anon: false, authenticated: true },
+  "mark_outing_guest_paid(p_guest_id bigint, p_status text)": { anon: false, authenticated: true },
+  "outing_entry_count(p_outing_id bigint)": { anon: false, authenticated: false },
 
   // --- Service role / internal only. Everything below is either a trigger
   // --- function, a sweep, or a privileged write path that must never be
