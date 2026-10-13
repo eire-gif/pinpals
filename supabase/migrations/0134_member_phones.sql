@@ -1,4 +1,4 @@
--- Verified mobile numbers (Oct 2026). Design: claude/mobile-numbers.md
+-- Verified mobile numbers (Oct 2026). Design: claude/security-and-gdpr.md
 --
 -- 1. A member adds a mobile and proves it with a text code (Supabase Auth's
 --    phone change). Once Auth marks it confirmed, a trigger copies it to

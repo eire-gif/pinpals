@@ -17,7 +17,7 @@ import type { Href } from "expo-router";
  *    start    → app/groups/index.tsx, app/groups/new.tsx, app/group/[id]/index.tsx,
  *               app/group/[id]/invite.tsx
  *    run      → app/group/[id]/index.tsx, app/group/[id]/settings.tsx,
- *               app/group/[id]/handicaps.tsx
+ *               app/group/[id]/handicaps.tsx, app/group/[id]/contacts.tsx
  *    join     → app/groups/find.tsx, app/groups/index.tsx, app/group/[id]/index.tsx
  *    event    → app/group/[id]/events.tsx, app/group/[id]/outing/new.tsx,
  *               app/group/[id]/outing/[outingId].tsx, components/outing-pay-card.tsx,
@@ -32,6 +32,7 @@ import type { Href } from "expo-router";
  *    messages → app/(tabs)/inbox.tsx, app/new-chat.tsx, app/new-group.tsx,
  *               app/conversation/[id].tsx
  *    connect  → app/members.tsx, app/connections.tsx, app/invite-friends.tsx
+ *    mobile   → app/privacy.tsx, app/login.tsx, app/group/[id]/contacts.tsx
  *    sell     → app/new-listing.tsx, app/listing/[id].tsx, app/selling.tsx,
  *               app/payouts.tsx, components/handover-panel.tsx
  *    buy      → app/(tabs)/marketplace.tsx, app/listing/[id].tsx, app/checkout.tsx,
@@ -306,6 +307,16 @@ export const GUIDES: Guide[] = [
         look: [{ style: "outline", label: "Handicaps", icon: "stats-chart-outline" }],
         who: "Captain or secretary",
         tip: "Pick a course and tees to see everyone's course handicap for that day.",
+      },
+      {
+        title: "Phone your members",
+        body: "Tap Phone numbers on the society's page to call, text or WhatsApp members who have shared their mobile with the society. Members choose this themselves, in Privacy & security — ask them to turn it on.",
+        look: [
+          { style: "outline", label: "Phone numbers", icon: "call-outline" },
+          { style: "outline", label: "WhatsApp", icon: "logo-whatsapp" },
+        ],
+        who: "Owner, captain or secretary",
+        tip: "Share your own number too: members then see the captain's and secretary's numbers on the same screen.",
       },
       {
         title: "Change the settings",
@@ -914,6 +925,66 @@ export const GUIDES: Guide[] = [
   },
 
   {
+    id: "mobile",
+    section: "people",
+    title: "Your mobile and privacy",
+    blurb: "Verify your mobile, sign in with a text code, share it with your society, download your data.",
+    icon: "lock-closed",
+    tone: "navy",
+    audience: "Everyone",
+    next: "messages",
+    steps: [
+      {
+        title: "Open Privacy & security",
+        body: "In the menu, tap Privacy & security. It's also on your Profile, under Account.",
+        path: [MENU, { icon: "lock-closed-outline", label: "Privacy & security" }],
+        go: { label: "Privacy & security", to: "/privacy" },
+      },
+      {
+        title: "Add your mobile",
+        body: "Tap Add my mobile, type your number and tap Text me a code. Type the six-digit code from the text and tap Verify.",
+        look: [
+          { style: "primary", label: "Add my mobile" },
+          { style: "field", label: "087 123 4567" },
+          { style: "primary", label: "Text me a code" },
+        ],
+        tip: "Only you can see your number until you choose to share it.",
+      },
+      {
+        title: "Share it with your group",
+        body: "Under Share it with a group, turn on the groups you want. The people who run each one — a society's captain and secretary — can then call or message you. If you run the group, its members see your number too.",
+        look: [{ style: "outline", label: "Share it with a group" }],
+        tip: "Turn a switch off and your number disappears from that group straight away.",
+      },
+      {
+        title: "See a group's numbers",
+        body: "On a group's page, tap Phone numbers. Call, Text or WhatsApp anyone listed.",
+        path: [MENU, GROUPS, YOUR_GROUP],
+        look: [
+          { style: "outline", label: "Phone numbers", icon: "call-outline" },
+          { style: "outline", label: "Call", icon: "call" },
+          { style: "outline", label: "WhatsApp", icon: "logo-whatsapp" },
+        ],
+      },
+      {
+        title: "Sign in with a text code",
+        body: "On the Log in screen, tap Sign in with a text code instead. Type your verified mobile, then the code we text you — no password needed.",
+        look: [
+          { style: "link", label: "Sign in with a text code instead" },
+          { style: "primary", label: "Text me a code" },
+        ],
+      },
+      {
+        title: "Download your data",
+        body: "Tap Download my data for a file of everything PinPals holds about you — profile, posts, messages you sent, listings, orders, rounds and groups.",
+        path: [MENU, { icon: "lock-closed-outline", label: "Privacy & security" }],
+        look: [{ style: "outline", label: "Download my data", icon: "download-outline" }],
+        tip: "Your handicap shows only while you switch it on in Edit profile. Your Golf Ireland number never shows.",
+      },
+    ],
+  },
+
+  {
     id: "messages",
     section: "people",
     title: "Chat with your PinPals",
@@ -1193,6 +1264,8 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-13", text: "New guide: Your mobile and privacy — verify your mobile, sign in with a text code, share it with your society, download your data." },
+  { on: "2026-10-13", text: "Run your society: Phone numbers — call, text or WhatsApp members who share their mobile." },
   { on: "2026-10-13", text: "Score a game live: shows the real Live Scoring, Start a Game, Match Day and From a Group cards, and which to tap for friends, trips or societies." },
   { on: "2026-10-13", text: "Guides are now written for friends, golf trips or societies — pick yours at the top." },
   { on: "2026-10-13", text: "New guides: posting a tee time, finding a game, live scoring, the hole map, messages, finding friends, selling, buying and Social." },

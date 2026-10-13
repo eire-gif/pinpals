@@ -148,6 +148,7 @@ export const MENU: MenuSection[] = [
       { kind: "native", label: "Edit your profile", icon: "create-outline", to: "/edit-profile" },
       { kind: "native", label: "Blocked members", icon: "hand-left-outline", to: "/blocked-members" },
       { kind: "native", label: "Notification settings", icon: "options-outline", to: "/notification-settings" },
+      { kind: "native", label: "Privacy & security", icon: "lock-closed-outline", to: "/privacy" },
     ],
   },
   {
