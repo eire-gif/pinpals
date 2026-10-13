@@ -668,7 +668,7 @@ export const GUIDES: Guide[] = [
       },
       {
         title: "Show it on your group's page",
-        body: "Under Show on a group's page, pick the society, trip or crew. Its members can look back at the results under Past results on the group's page — even those who didn't play. A day from an event is set to that society already.",
+        body: "Under Show on a group's page, pick the society, trip or crew. Its members can look back at the results under Past results on the group's page — tap it to open the list, or See all results for every one — even those who didn't play. A day from an event is set to that society already.",
         look: [{ style: "outline", label: "North Dublin Golf Society" }],
         as: {
           friends: { body: "Under Show on a group's page, pick your crew. Everyone in it can look back at the results under Past results on the crew's page." },
@@ -679,7 +679,7 @@ export const GUIDES: Guide[] = [
         title: "Publish",
         body: "Tap Publish results. Every card is closed so no score can change, and everyone in the day gets a notification with the winners and where they finished.",
         look: [{ style: "primary", label: "Publish results" }],
-        tip: "Spotted a mistake? Tap Correct, fix it, and Publish the update — everyone sees Updated. Take the results down hides them again.",
+        tip: "Spotted a mistake? Tap Correct, fix it, and Publish the update — everyone sees Updated. Take the results down hides them again. Your settings and corrections save as you go, so Back to Home at the bottom never loses anything — the panel there shows when it's saved.",
       },
       {
         title: "Share it",
@@ -1360,6 +1360,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-13", text: "Publish the results: Past results on a group's page now folds away (tap to open, See all results for the full list), and the results page ends with a Saved panel and Back to Home / Back to the group." },
   { on: "2026-10-13", text: "Publish the results: amend a card (shown as Amended) and show results on your group's page under Past results. Play a round together: certify a foursomes or scramble pair's card." },
   { on: "2026-10-13", text: "New guide: Publish the results — 1st, 2nd and 3rd with R&A countbacks, divisions, prizes, publishing and sharing." },
   { on: "2026-10-13", text: "Foursomes (Scotch foursomes) as Stableford or stroke play: in Start a Game and From a Group — pairs on one leaderboard, half the pair's combined handicaps." },
