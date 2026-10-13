@@ -210,6 +210,51 @@ export function readList(form: Source, name: string): string[] {
   return [...new Set(values.map((v) => v.trim()).filter(Boolean))];
 }
 
+/**
+ * The admin form's times are Irish time (Europe/Dublin, so IST in summer and
+ * GMT in winter) — the owner works in Ireland and typing UTC put adverts an
+ * hour late all summer. Stored values stay UTC ISO strings.
+ */
+export const AD_FORM_TIME_ZONE = "Europe/Dublin";
+
+/** Minutes the zone is ahead of UTC at a given instant (Dublin: 60 in summer, 0 in winter). */
+function zoneOffsetMinutes(at: Date, timeZone: string): number {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone,
+    hourCycle: "h23",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).formatToParts(at);
+  const n = (t: string) => Number(parts.find((p) => p.type === t)?.value);
+  const asUtc = Date.UTC(n("year"), n("month") - 1, n("day"), n("hour"), n("minute"), n("second"));
+  return Math.round((asUtc - Math.floor(at.getTime() / 1000) * 1000) / 60000);
+}
+
+/** ISO → "YYYY-MM-DDTHH:mm" in Irish time, for the form's datetime-local inputs. */
+export function toInputDublin(iso: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return new Date(d.getTime() + zoneOffsetMinutes(d, AD_FORM_TIME_ZONE) * 60000).toISOString().slice(0, 16);
+}
+
+/** "2026-10-14T09:00" typed as Irish time → UTC ISO, or null. An explicit zone in the value wins. */
+export function parseDublinInput(value: string): string | null {
+  if (!value) return null;
+  if (/[zZ]|[+-]\d\d:\d\d$/.test(value)) return parseUtcInput(value);
+  const naive = Date.parse(`${value}Z`);
+  if (Number.isNaN(naive)) return null;
+  // Guess with the offset at the naive instant, then correct once — right on
+  // both sides of the clock change.
+  let t = naive - zoneOffsetMinutes(new Date(naive), AD_FORM_TIME_ZONE) * 60000;
+  t = naive - zoneOffsetMinutes(new Date(t), AD_FORM_TIME_ZONE) * 60000;
+  return new Date(t).toISOString();
+}
+
 /** ISO → "YYYY-MM-DDTHH:mm" in UTC, for a datetime-local input that is read as UTC. */
 export function toInputUtc(iso: string | null): string {
   return iso ? new Date(iso).toISOString().slice(0, 16) : "";
@@ -279,9 +324,9 @@ export function parseCampaignForm(form: Source, opts: { forSubmit: boolean; now?
   if (club_ids.some((id) => !Number.isInteger(id) || id <= 0)) return { error: "Unknown course." };
   if (club_ids.length > 200) return { error: "Too many courses." };
 
-  const starts_at = parseUtcInput(str(form.get("starts_at"))) ?? (opts.now ?? new Date()).toISOString();
+  const starts_at = parseDublinInput(str(form.get("starts_at"))) ?? (opts.now ?? new Date()).toISOString();
   const endsRaw = str(form.get("ends_at"));
-  const ends_at = parseUtcInput(endsRaw);
+  const ends_at = parseDublinInput(endsRaw);
   if (endsRaw && !ends_at) return { error: "The end date isn't a date." };
   if (ends_at && Date.parse(ends_at) <= Date.parse(starts_at)) return { error: "The advert must end after it starts." };
 

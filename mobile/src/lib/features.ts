@@ -54,14 +54,16 @@ export const FEATURES = {
    *  "waiting for you" list; the certify screen says "on its way". */
   scorecardCertification: true,
 
-  // ---- Gates (unfinished, off) ----
-  /** Shared rounds (phase 9): model only — see claude/shared-round-model.md. */
-  sharedRounds: false,
   /** In-app advertising (claude/advertising.md, needs 0139): takeovers, banners,
    *  sponsored posts and course partners. Also needs ad_settings.ads_enabled
    *  switched on in /admin/advertising — both must be on for any advert to
-   *  show. Off: nothing is fetched and nothing draws. */
-  ads: false,
+   *  show. Off: nothing is fetched and nothing draws. On since 13 Oct 2026;
+   *  the master switch in /admin/advertising is the kill switch. */
+  ads: true,
+
+  // ---- Gates (unfinished, off) ----
+  /** Shared rounds (phase 9): model only — see claude/shared-round-model.md. */
+  sharedRounds: false,
 
 } as const;
 

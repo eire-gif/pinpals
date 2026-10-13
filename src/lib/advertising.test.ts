@@ -8,6 +8,8 @@ import {
   parseCampaignForm,
   parseEuro,
   parseUtcInput,
+  parseDublinInput,
+  toInputDublin,
 } from "./advertising";
 
 function form(fields: Record<string, string | string[]>) {
@@ -99,6 +101,21 @@ describe("campaign form", () => {
     expect(parseEuro("12.345")).toBeNull();
     expect(parseEuro("-3")).toBeNull();
     expect(parseUtcInput("2026-10-14T09:00")).toBe("2026-10-14T09:00:00.000Z");
+  });
+
+  it("reads and writes the form's times as Irish time", () => {
+    // Summer (IST, UTC+1) and winter (GMT, UTC+0).
+    expect(parseDublinInput("2026-10-13T21:10")).toBe("2026-10-13T20:10:00.000Z");
+    expect(parseDublinInput("2026-12-01T09:00")).toBe("2026-12-01T09:00:00.000Z");
+    // Either side of the clocks going back (25 Oct 2026, 02:00 IST -> 01:00 GMT).
+    expect(parseDublinInput("2026-10-25T00:30")).toBe("2026-10-24T23:30:00.000Z");
+    expect(parseDublinInput("2026-10-25T03:00")).toBe("2026-10-25T03:00:00.000Z");
+    expect(parseDublinInput("2026-10-14T09:00Z")).toBe("2026-10-14T09:00:00.000Z");
+    expect(parseDublinInput("")).toBeNull();
+    expect(parseDublinInput("nonsense")).toBeNull();
+    expect(toInputDublin("2026-10-13T20:10:00.000Z")).toBe("2026-10-13T21:10");
+    expect(toInputDublin("2026-12-01T09:00:00.000Z")).toBe("2026-12-01T09:00");
+    expect(toInputDublin(null)).toBe("");
   });
 });
 

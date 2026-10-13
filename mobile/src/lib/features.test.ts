@@ -8,16 +8,14 @@ describe("feature flags", () => {
     // design docs named in features.ts — then update this test.
     expect({
       sharedRounds: FEATURES.sharedRounds,
-      ads: FEATURES.ads,
     }).toEqual({
       sharedRounds: false,
-      ads: false,
     });
   });
 
   it("shipped features are on", () => {
-    expect([FEATURES.recapPrompts, FEATURES.achievementClaims, FEATURES.profileSections, FEATURES.video, FEATURES.liveScoring, FEATURES.shotMaps, FEATURES.scorecards, FEATURES.groups, FEATURES.scorecardCertification]).toEqual([
-      true, true, true, true, true, true, true, true, true,
+    expect([FEATURES.recapPrompts, FEATURES.achievementClaims, FEATURES.profileSections, FEATURES.video, FEATURES.liveScoring, FEATURES.shotMaps, FEATURES.scorecards, FEATURES.groups, FEATURES.scorecardCertification, FEATURES.ads]).toEqual([
+      true, true, true, true, true, true, true, true, true, true,
     ]);
   });
 });

@@ -339,11 +339,11 @@ export default function CampaignForm({
               </div>
               <div className="grid sm:grid-cols-3 gap-3">
                 <label className="grid gap-1">
-                  <span className={labelCls}>Starts (UTC)</span>
+                  <span className={labelCls}>Starts (Irish time)</span>
                   <input name="starts_at" type="datetime-local" value={v.starts_at ?? ""} onChange={(e) => set("starts_at", e.target.value)} disabled={ended} className={inputCls} />
                 </label>
                 <label className="grid gap-1">
-                  <span className={labelCls}>Ends (UTC){v.pricing_model === "flat" ? " *" : ""}</span>
+                  <span className={labelCls}>Ends (Irish time){v.pricing_model === "flat" ? " *" : ""}</span>
                   <input name="ends_at" type="datetime-local" value={v.ends_at ?? ""} onChange={(e) => set("ends_at", e.target.value)} required={v.pricing_model === "flat"} disabled={ended} className={inputCls} />
                 </label>
                 <label className="grid gap-1">

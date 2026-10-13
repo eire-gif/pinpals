@@ -8,7 +8,7 @@ import {
   getCampaign,
   listAdvertisers,
 } from "@/lib/admin/advertising";
-import { AD_CATEGORY_LABELS, campaignView, isSensitiveCategory, toInputUtc, type AdCategory, type AdFormat, type DisplayStyle, type TakeoverPlacement } from "@/lib/advertising";
+import { AD_CATEGORY_LABELS, campaignView, isSensitiveCategory, toInputDublin, type AdCategory, type AdFormat, type DisplayStyle, type TakeoverPlacement } from "@/lib/advertising";
 import { formatRate, isCapReached, summarizeCampaign } from "@/lib/advertising-revenue";
 import { formatDateTime } from "@/lib/admin/format";
 import StatCard from "@/components/admin/stat-card";
@@ -162,8 +162,8 @@ export default async function CampaignPage({
           countries: campaign.countries ?? [],
           regions: campaign.regions ?? [],
           clubs: (campaign.club_ids ?? []).map((cid) => ({ id: Number(cid), name: names.get(Number(cid)) ?? `Course #${cid}` })),
-          starts_at: toInputUtc(campaign.starts_at),
-          ends_at: toInputUtc(campaign.ends_at),
+          starts_at: toInputDublin(campaign.starts_at),
+          ends_at: toInputDublin(campaign.ends_at),
           weight: campaign.weight,
           pricing_model: campaign.pricing_model,
           rate_eur: String(campaign.rate_eur ?? ""),
