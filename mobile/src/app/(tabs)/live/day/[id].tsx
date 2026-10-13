@@ -70,7 +70,9 @@ export default function MatchDayBoard() {
   const scramble = day.kind === "scramble";
   // A society day (0121): tee groups, one individual leaderboard.
   const fourballs = day.kind === "fourballs";
-  const what = scramble ? "scramble" : fourballs ? "society day" : "match day";
+  // A day of foursomes pairs (0136) is a scramble day underneath.
+  const pairs = scramble && day.foursomes != null;
+  const what = pairs ? "foursomes day" : scramble ? "scramble" : fourballs ? "society day" : "match day";
   const allDone = matches.length > 0 && totals.finishedCount === matches.length;
   const anyLive = matches.some((m) => m.round.status === "live" && !m.state?.finished);
   const sideName = (m: Match, n: 1 | 2) =>
@@ -82,7 +84,7 @@ export default function MatchDayBoard() {
     Alert.alert(
       `Delete this ${what}?`,
       scramble
-        ? `${matches.length === 1 ? "Its team" : `All ${matches.length} teams`} and every score go for everyone in it. This can't be undone.`
+        ? `${matches.length === 1 ? (pairs ? "Its pair" : "Its team") : `All ${matches.length} ${pairs ? "pairs" : "teams"}`} and every score go for everyone in it. This can't be undone.`
         : fourballs
           ? `${matches.length === 1 ? "Its group" : `All ${matches.length} groups`} and every score go for everyone in it. This can't be undone.`
         : `${matches.length === 1 ? "Its match" : `All ${matches.length} matches`} and every score go for everyone in it. This can't be undone.`,

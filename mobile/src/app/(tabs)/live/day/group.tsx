@@ -16,7 +16,7 @@ import { draw, indexTotal, swapPlayers, teamSizes, teeGroupSizes, teeTimes, type
 import { canDrawFrom, loadGroupRoster, loadMyGroups, type Group, type RosterPlayer } from "@/lib/groups-data";
 import type { GroupRole } from "@/lib/groups";
 import { SIDE_COLORS, createFourballDay, createMatchDay, createScrambleDay } from "@/lib/live-match-days";
-import { courseHandicap, formatInfo, indexLabel, parseIndex, playingHandicap, scrambleHandicap, type MatchFormat } from "@/lib/live-scoring";
+import { FOURSOMES_ALLOWANCE, courseHandicap, formatInfo, foursomesHandicap, indexLabel, parseIndex, playingHandicap, scrambleHandicap, type FoursomesScoring, type MatchFormat } from "@/lib/live-scoring";
 import { irishToday, isOutingDay, outingDateLabel } from "@/lib/outing-rules";
 import { addOutingGuest, linkOutingMatchDay, loadClub, loadOuting, publishOutingDraw, saveOuting, setOutingEntry, updateOutingGuest, type DrawSeat, type OutingPage } from "@/lib/outings";
 import { loadItineraryItem, setItemPeople, type ItineraryItem } from "@/lib/itinerary";
@@ -37,6 +37,11 @@ import { colors, fonts, radii, spacing, type } from "@/lib/theme";
  *                              (live_match_day_create; Oct 2026)
  *   Scramble 2s / 4s         → a scramble day: one card per team, one team
  *                              leaderboard (live_scramble_day_create)
+ *   Foursomes Stableford /   → a day of foursomes pairs (0136): the draw
+ *   Foursomes stroke play      makes fourballs of two pairs (seats 1 & 2 v
+ *                              3 & 4); one card per pair, one pairs
+ *                              leaderboard (live_scramble_day_create with
+ *                              foursomes_scoring). Scotch foursomes.
  *
  * Who can be drawn is the database's rule (live_can_add_player): anyone in a
  * crew or trip, or everyone in a society you run. Guests can be added by
@@ -65,20 +70,32 @@ import { colors, fonts, radii, spacing, type } from "@/lib/theme";
  * group (the outings rule), and no guests — they're added on the day.
  */
 
-type Format = "stableford" | "stroke" | "scramble2" | "scramble4" | "singles" | "fourball" | "foursomes" | "greensomes";
+type Format = "stableford" | "stroke" | "scramble2" | "scramble4" | "foursomesPts" | "foursomesNet" | "singles" | "fourball" | "foursomes" | "greensomes";
 
 const FORMATS: { id: Format; label: string; hint: string }[] = [
   { id: "stableford", label: "Stableford", hint: "Tee groups, everyone on one points leaderboard" },
   { id: "stroke", label: "Stroke play", hint: "Tee groups, ranked by net score" },
   { id: "scramble4", label: "Scramble 4s", hint: "Teams of four, one ball per team" },
   { id: "scramble2", label: "Scramble 2s", hint: "Pairs, one ball per pair" },
+  { id: "foursomesPts", label: "Foursomes Stableford", hint: "Scotch foursomes: pairs, alternate shot, on points" },
+  { id: "foursomesNet", label: "Foursomes stroke play", hint: "Scotch foursomes: pairs, alternate shot, net score" },
 ];
+
+/** The foursomes competitions (0136), and how each is ranked. */
+const FOURSOMES_COMP: Partial<Record<Format, FoursomesScoring>> = { foursomesPts: "stableford", foursomesNet: "stroke" };
+
+/** Foursomes pairs, two to a tee group: groups of four, and a group of two
+ *  when the pairs are odd. An odd player out is left over. */
+function pairGroupSizes(players: number): { sizes: number[]; leftOver: number } {
+  const pairs = Math.floor(players / 2);
+  return { sizes: [...Array(Math.floor(pairs / 2)).fill(4), ...(pairs % 2 ? [2] : [])], leftOver: players % 2 };
+}
 
 /** Matchplay: the draw makes the matches; each is scored hole by hole, side v side. */
 const MATCH_FORMATS_HERE: { id: Format; label: string; hint: string }[] = [
   { id: "singles", label: "Singles", hint: "One v one" },
   { id: "fourball", label: "Fourball", hint: "Pairs, better ball" },
-  { id: "foursomes", label: "Foursomes", hint: "Pairs, alternate shot" },
+  { id: "foursomes", label: "Foursomes", hint: "Scotch foursomes: pairs, alternate shot" },
   { id: "greensomes", label: "Greensomes", hint: "Both drive, pick one" },
 ];
 
@@ -275,8 +292,15 @@ export default function DrawFromGroup() {
 
   const scramble = format === "scramble2" || format === "scramble4";
   const matchFormat = MATCH_FORMAT[format] ?? null;
+  const foursomesComp = FOURSOMES_COMP[format] ?? null;
   const teamSize = matchFormat ? (matchFormat === "matchplay" ? 2 : 4) : format === "scramble2" ? 2 : 4;
-  const sizing = scramble || matchFormat ? teamSizes(entrants.length, teamSize) : { sizes: teeGroupSizes(entrants.length, perGroup), leftOver: 0 };
+  const sizing = foursomesComp
+    ? pairGroupSizes(entrants.length)
+    : scramble || matchFormat
+      ? teamSizes(entrants.length, teamSize)
+      : { sizes: teeGroupSizes(entrants.length, perGroup), leftOver: 0 };
+  /** Pairs within a group: a match's sides, or a foursomes group's two pairs. */
+  const paired = matchFormat != null || foursomesComp != null;
 
   // Anything that changes who's in or how they're split clears the draw.
   const invalidate = () => {
@@ -297,9 +321,9 @@ export default function DrawFromGroup() {
   const makeDraw = () => {
     setPicked(null);
     let groupsNow = draw(entrants, sizing.sizes, mode);
-    // A pairs match, balanced: the best and the highest handicap of the four
-    // play together against the middle two.
-    if (matchFormat && matchFormat !== "matchplay" && mode === "balanced") {
+    // A pairs match (or two foursomes pairs), balanced: the best and the
+    // highest handicap of the four play together against the middle two.
+    if (((matchFormat && matchFormat !== "matchplay") || foursomesComp) && mode === "balanced") {
       groupsNow = groupsNow.map((g) => {
         if (g.length !== 4) return g;
         const by = [...g].sort((a, b) => (a.index ?? 99) - (b.index ?? 99));
@@ -343,13 +367,16 @@ export default function DrawFromGroup() {
   if (matchFormat && sizing.leftOver > 0) problems.push(`${sizing.leftOver} left over — ${matchFormat === "matchplay" ? "singles need an even number" : "pairs matches need groups of four"}: add ${teamSize - sizing.leftOver === 1 ? "a guest" : "guests"} or untick someone`);
   if (matchFormat && sizing.sizes.length > 40) problems.push("40 matches at most");
   if (matchFormat && teamsOn && (teamNames[0].trim() === "" || teamNames[1].trim() === "")) problems.push("Name both teams");
-  if (!scramble && sizing.sizes.length > 40) problems.push("40 groups at most");
+  if (foursomesComp && sizing.leftOver > 0) problems.push("Foursomes is played in pairs — one left over: add a guest or untick someone");
+  if (foursomesComp && sizing.sizes.length > 30) problems.push("60 pairs at most");
+  if (!scramble && !foursomesComp && sizing.sizes.length > 40) problems.push("40 groups at most");
   if (scramble && sizing.sizes.length > 60) problems.push("60 teams at most");
   problems.push(...course.problems);
   if (title.trim() === "") problems.push("Give the day a name");
   if (!drawnNow) problems.push("Make the draw");
   // A draw saved for tee groups (an event, a trip round) doesn't fit matches of another size.
   else if (matchFormat && drawnNow.some((g) => g.length !== teamSize)) problems.push(`Draw again — ${matchFormat === "matchplay" ? "singles are two to a match" : "pairs matches are four to a match"}`);
+  else if (foursomesComp && drawnNow.some((g) => g.length % 2 !== 0)) problems.push("Draw again — foursomes groups are two pairs");
 
   const start = async (startAnyway = false) => {
     if (problems.length > 0 || !drawnNow || !course.club) return;
@@ -397,6 +424,33 @@ export default function DrawFromGroup() {
               };
             }),
           })),
+          course.holeCard()
+        );
+      } else if (foursomesComp) {
+        // Each tee group is two pairs: seats 1 & 2, 3 & 4. One card per pair.
+        id = await createScrambleDay(
+          { ...day, size: 2, driveMinimum: null, foursomes: foursomesComp },
+          drawnNow.flatMap((g, gi) =>
+            [0, 2]
+              .filter((i) => i < g.length)
+              .map((i) => {
+                const pair = [g[i], g[i + 1]];
+                const ws = pair.map((p) => handicaps(p)!);
+                return {
+                  name: pair.map((p) => p.name.split(" ")[0]).join(" & "),
+                  teeTime: times[gi] || null,
+                  teamHandicap: foursomesHandicap(ws.map((w) => w.courseHandicap)),
+                  players: pair.map((p, k) => ({
+                    memberId: p.memberId,
+                    name: p.name,
+                    handicapIndex: ws[k].index,
+                    courseHandicap: ws[k].courseHandicap,
+                    playingHandicap: playingHandicap(ws[k].courseHandicap, FOURSOMES_ALLOWANCE),
+                    estimated: ws[k].estimated,
+                  })),
+                };
+              })
+          ),
           course.holeCard()
         );
       } else if (scramble) {
@@ -811,7 +865,7 @@ export default function DrawFromGroup() {
               ) : null}
             </>
           ) : null}
-          {!scramble && !matchFormat ? (
+          {!scramble && !matchFormat && !foursomesComp ? (
             <View style={styles.row}>
               {([4, 3] as const).map((n) => (
                 <Pressable
@@ -834,6 +888,8 @@ export default function DrawFromGroup() {
               ? "Tick who's playing to see the groups."
               : matchFormat
                 ? `${sizing.sizes.length} ${sizing.sizes.length === 1 ? "match" : "matches"}${matchFormat === "matchplay" ? ", one v one" : ", pair v pair"}${sizing.leftOver ? ` · ${sizing.leftOver} left over` : ""} · ${Math.round(formatInfo(matchFormat).allowance * 100)}% handicap allowance`
+              : foursomesComp
+                ? `${Math.floor(entrants.length / 2)} ${Math.floor(entrants.length / 2) === 1 ? "pair" : "pairs"}, two to a tee group${sizing.leftOver ? " · 1 left over" : ""} · each pair plays off half its combined course handicaps`
               : scramble
                 ? `${sizing.sizes.length} ${sizing.sizes.length === 1 ? "team" : "teams"} of ${teamSize}${sizing.leftOver ? ` · ${sizing.leftOver} left over` : ""}`
                 : `${teeGroupSummary(sizing.sizes)} · ${Math.round(ALLOWANCE * 100)}% handicap allowance`}
@@ -918,7 +974,7 @@ export default function DrawFromGroup() {
                     accessibilityRole="button"
                     accessibilityLabel={`${p.name}, ${unitWord.toLowerCase()} ${gi + 1}. ${picked ? "Tap to swap with the player you picked" : "Tap to pick for a swap"}`}
                   >
-                    {matchFormat ? <View style={[styles.sideDot, { backgroundColor: SIDE_COLORS[sideOf(pi, g.length) - 1] }]} /> : null}
+                    {paired ? <View style={[styles.sideDot, { backgroundColor: SIDE_COLORS[(foursomesComp ? (pi < 2 ? 1 : 2) : sideOf(pi, g.length)) - 1] }]} /> : null}
                     <Text style={[styles.drawnName, on && styles.drawnNameOn]} numberOfLines={1}>
                       {p.memberId === userId ? `${p.name} (you)` : p.name || "Guest"}
                       {matchFormat && teamsOn ? <Text style={styles.sideName}>{`  ${teamNames[sideOf(pi, g.length) - 1]}`}</Text> : null}
@@ -967,7 +1023,7 @@ export default function DrawFromGroup() {
         <>
         {problems.length > 0 ? <Text style={styles.problem}>{problems[0]}</Text> : null}
         <Pressable onPress={() => void start()} disabled={problems.length > 0 || saving} style={[styles.start, (problems.length > 0 || saving) && styles.startOff]} accessibilityRole="button">
-          {saving ? <ActivityIndicator color={colors.cream50} /> : <Text style={styles.startLabel}>{tripRound ? "Start the round" : matchFormat ? "Start the matches" : scramble ? "Start the scramble" : "Start the day"}</Text>}
+          {saving ? <ActivityIndicator color={colors.cream50} /> : <Text style={styles.startLabel}>{tripRound ? "Start the round" : matchFormat ? "Start the matches" : foursomesComp ? "Start the foursomes" : scramble ? "Start the scramble" : "Start the day"}</Text>}
         </Pressable>
         <Text style={styles.footNote}>Everyone on PinPals gets their card and the leaderboard on their phone. Guests are scored by their group.</Text>
         </>

@@ -51,7 +51,8 @@ export type WidgetRound = {
   status: "live" | "finished";
   courseName: string;
   teeTime: string | null;
-  scramble: { teamName: string | null; teamNumber: number | null; teamHandicap: number } | null;
+  /** A scramble team, or (0136) a foursomes pair — `foursomes` says how it's ranked. */
+  scramble: { teamName: string | null; teamNumber: number | null; teamHandicap: number; foursomes?: "stableford" | "stroke" | null } | null;
 };
 
 export type WidgetPlayer = {
@@ -116,20 +117,22 @@ function matchLine(g: WidgetGame, sideName: (n: 1 | 2) => string) {
   return { st, names, status, side, played, leaderName: side ? sideName(side) : null };
 }
 
-/** Rank scramble teams by net to par (as the app's scramble board does). */
-function teamBoard(games: WidgetGame[]) {
+/** Rank scramble teams by net to par (as the app's scramble board does);
+ *  foursomes Stableford pairs (0136) by points. */
+function teamBoard(games: WidgetGame[], onPoints: boolean) {
   const rows = games.map((g) => {
     const scr = g.round.scramble;
     const lead = [...g.players].sort((a, b) => a.position - b.position)[0];
-    const name = scr?.teamName ?? `Team ${g.round.matchNumber ?? scr?.teamNumber ?? ""}`.trim();
-    const r = lead ? buildBoard("stroke", g.card, [{ id: lead.id, name, playingHandicap: scr?.teamHandicap ?? 0 }], g.scores).rows[0] : null;
+    const name = scr?.teamName ?? `${scr?.foursomes ? "Pair" : "Team"} ${g.round.matchNumber ?? scr?.teamNumber ?? ""}`.trim();
+    const r = lead ? buildBoard(scr?.foursomes ?? "stroke", g.card, [{ id: lead.id, name, playingHandicap: scr?.teamHandicap ?? 0 }], g.scores).rows[0] : null;
     const thru = r?.thru ?? 0;
-    return { g, name, thru, net: r?.netToPar ?? 0, done: g.round.status === "finished" || thru === g.card.length, pos: "" };
+    return { g, name, thru, net: r?.netToPar ?? 0, points: r?.points ?? 0, done: g.round.status === "finished" || thru === g.card.length, pos: "" };
   });
-  const started = rows.filter((r) => r.thru > 0).sort((a, b) => a.net - b.net || b.thru - a.thru || a.name.localeCompare(b.name));
+  const key = (r: (typeof rows)[number]) => (onPoints ? -r.points : r.net);
+  const started = rows.filter((r) => r.thru > 0).sort((a, b) => key(a) - key(b) || b.thru - a.thru || a.name.localeCompare(b.name));
   for (const r of started) {
-    const at = started.findIndex((o) => o.net === r.net);
-    r.pos = `${started.filter((o) => o.net === r.net).length > 1 ? "T" : ""}${at + 1}`;
+    const at = started.findIndex((o) => key(o) === key(r));
+    r.pos = `${started.filter((o) => key(o) === key(r)).length > 1 ? "T" : ""}${at + 1}`;
   }
   return [...started, ...rows.filter((r) => r.thru === 0)];
 }
@@ -154,33 +157,36 @@ export function buildWidgetPayload(input: {
 
   // --- Scramble day: a team leaderboard ------------------------------------
   if (day?.kind === "scramble" || focus.round.scramble) {
-    const ranked = teamBoard(games);
+    const foursomes = focus.round.scramble?.foursomes ?? null;
+    const onPoints = foursomes === "stableford";
+    const ranked = teamBoard(games, onPoints);
+    const score = (r: (typeof ranked)[number]) => (onPoints ? `${r.points}` : toParLabel(r.net));
     const mineRow = ranked.find((r) => isMine(r.g, me)) ?? ranked.find((r) => r.g.round.id === focus.round.id);
     const leader = ranked.find((r) => r.thru > 0);
     return {
       ...base,
-      eyebrow: `PINPALS · ${(day?.title ?? "Scramble").toUpperCase()}`,
-      title: `${focus.round.courseName} · Net`,
+      eyebrow: `PINPALS · ${(day?.title ?? (foursomes ? "Foursomes" : "Scramble")).toUpperCase()}`,
+      title: `${focus.round.courseName} · ${onPoints ? "Points" : "Net"}`,
       teams: [],
       matches: [],
       board: {
-        heading: "NET",
+        heading: onPoints ? "PTS" : "NET",
         rows: ranked.slice(0, MAX_ROWS).map((r) => ({
           pos: r.pos || "–",
           name: r === mineRow ? `${r.name} · You` : r.name,
           thru: r.thru === 0 ? (r.g.round.teeTime ?? "–") : r.done ? "F" : String(r.thru),
-          score: r.thru === 0 ? "–" : toParLabel(r.net),
+          score: r.thru === 0 ? "–" : score(r),
           mine: r === mineRow,
-          good: r.thru > 0 && r.net < 0,
+          good: r.thru > 0 && (onPoints ? r.points > r.thru * 2 : r.net < 0),
         })),
       },
       mine: mineRow
         ? {
-            eyebrow: "SCRAMBLE",
+            eyebrow: foursomes ? "FOURSOMES" : "SCRAMBLE",
             title: mineRow.name,
             big: mineRow.thru === 0 ? "–" : ordinal(mineRow.pos),
-            line1: mineRow.thru === 0 ? "Not started" : `Net ${toParLabel(mineRow.net)} · ${mineRow.done ? "F" : `thru ${mineRow.thru}`}`,
-            line2: leader && leader !== mineRow ? `Leader: ${leader.name} ${toParLabel(leader.net)}` : leader ? "You're leading" : "",
+            line1: mineRow.thru === 0 ? "Not started" : `${onPoints ? `${mineRow.points} pts` : `Net ${toParLabel(mineRow.net)}`} · ${mineRow.done ? "F" : `thru ${mineRow.thru}`}`,
+            line2: leader && leader !== mineRow ? `Leader: ${leader.name} ${score(leader)}` : leader ? "You're leading" : "",
           }
         : null,
     };

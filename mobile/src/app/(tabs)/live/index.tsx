@@ -124,7 +124,7 @@ export default function LiveScoringHub() {
           marginTop={0}
           icon="flag"
           title="Start a Game"
-          subtitle="Stableford, stroke play, a match or a scramble"
+          subtitle="Stableford, stroke play, foursomes, a match or a scramble"
           onPress={() => router.push("/live/new")}
         />
         <RaisedCard
@@ -188,10 +188,12 @@ function DayList({ days, me, onDelete }: { days: MatchDaySummary[]; me: string |
           live={d.live}
           title={d.title}
           place={d.courseName}
-          tag={d.kind === "scramble" ? "Scramble" : d.kind === "fourballs" ? "Society day" : "Match day"}
+          tag={d.foursomes ? "Foursomes" : d.kind === "scramble" ? "Scramble" : d.kind === "fourballs" ? "Society day" : "Match day"}
           tagTone={d.kind === "match" ? "navy" : "gold"}
           count={
-            d.kind === "scramble"
+            d.foursomes
+              ? `${d.matchCount} ${d.matchCount === 1 ? "pair" : "pairs"}`
+              : d.kind === "scramble"
               ? `${d.matchCount} ${d.matchCount === 1 ? "team" : "teams"}`
               : d.kind === "fourballs"
                 ? `${d.matchCount} ${d.matchCount === 1 ? "group" : "groups"}`

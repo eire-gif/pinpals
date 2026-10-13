@@ -13,6 +13,7 @@ import {
 } from "./live-rounds";
 import {
   matchPoints,
+  type FoursomesScoring,
   teamMatchState,
   type CardHole,
   type MatchFormat,
@@ -46,6 +47,9 @@ export type MatchDay = {
    *  "fourballs": a society day — one round per tee group, individual
    *  Stableford or stroke play on one leaderboard (0121). */
   kind: DayKind;
+  /** A "scramble" day whose teams are foursomes pairs (0136), and how
+   *  they're ranked. */
+  foursomes: FoursomesScoring | null;
 };
 
 export type DayKind = "match" | "scramble" | "fourballs";
@@ -77,6 +81,7 @@ export type MatchDaySummary = {
   live: boolean;
   createdBy: string | null;
   kind: DayKind;
+  foursomes: FoursomesScoring | null;
 };
 
 type DayRow = {
@@ -90,9 +95,10 @@ type DayRow = {
   played_on: string;
   team_names: string[] | null;
   kind: string | null;
+  foursomes_scoring: FoursomesScoring | null;
 };
 
-const DAY_SELECT = "id, created_by, title, club_id, course_name, tee_name, holes, played_on, team_names, kind";
+const DAY_SELECT = "id, created_by, title, club_id, course_name, tee_name, holes, played_on, team_names, kind, foursomes_scoring";
 
 const toDay = (d: DayRow): MatchDay => ({
   id: d.id,
@@ -105,6 +111,7 @@ const toDay = (d: DayRow): MatchDay => ({
   playedOn: d.played_on,
   teamNames: d.team_names && d.team_names.length === 2 ? [d.team_names[0], d.team_names[1]] : null,
   kind: asKind(d.kind),
+  foursomes: d.foursomes_scoring ?? null,
 });
 
 export const asMatchPlayers = (players: LiveRoundPlayer[]): MatchPlayer[] =>
@@ -121,10 +128,10 @@ export const asMatchPlayers = (players: LiveRoundPlayer[]): MatchPlayer[] =>
 export async function loadMyMatchDays(): Promise<MatchDaySummary[]> {
   const { data, error } = await supabase
     .from("live_match_days")
-    .select("id, created_by, title, course_name, played_on, kind, live_rounds (status)")
+    .select("id, created_by, title, course_name, played_on, kind, foursomes_scoring, live_rounds (status)")
     .order("created_at", { ascending: false })
     .limit(20)
-    .overrideTypes<{ id: number; created_by: string | null; title: string; course_name: string; played_on: string; kind: string | null; live_rounds: { status: string }[] }[]>();
+    .overrideTypes<{ id: number; created_by: string | null; title: string; course_name: string; played_on: string; kind: string | null; foursomes_scoring: FoursomesScoring | null; live_rounds: { status: string }[] }[]>();
   if (error) throw error;
   return (data ?? []).map((d) => ({
     id: d.id,
@@ -135,6 +142,7 @@ export async function loadMyMatchDays(): Promise<MatchDaySummary[]> {
     live: (d.live_rounds ?? []).some((r) => r.status === "live"),
     createdBy: d.created_by,
     kind: asKind(d.kind),
+    foursomes: d.foursomes_scoring ?? null,
   }));
 }
 
@@ -283,7 +291,12 @@ export type NewScrambleTeam = {
 };
 
 export async function createScrambleDay(
-  day: Omit<NewMatchDay, "teamNames"> & { size: 2 | 4; driveMinimum: number | null },
+  day: Omit<NewMatchDay, "teamNames"> & {
+    size: 2 | 4;
+    driveMinimum: number | null;
+    /** A day of foursomes pairs (0136): size 2, no drives. */
+    foursomes?: FoursomesScoring;
+  },
   teams: NewScrambleTeam[],
   card: CardHole[]
 ): Promise<number> {
@@ -298,7 +311,8 @@ export async function createScrambleDay(
       slope: day.slope,
       par_total: day.parTotal,
       scramble_size: day.size,
-      drive_minimum: day.driveMinimum,
+      drive_minimum: day.foursomes ? null : day.driveMinimum,
+      ...(day.foursomes ? { foursomes_scoring: day.foursomes } : {}),
     },
     p_teams: teams.map((t) => ({
       name: t.name,

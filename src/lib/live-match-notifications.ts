@@ -5,11 +5,13 @@ import { notifyUser } from "./notifications-server";
 import {
   buildBoard,
   formatInfo,
+  foursomesLabel,
   matchPoints,
   pointsLabel,
   teamMatchState,
   toParLabel,
   type CardHole,
+  type FoursomesScoring,
   type LiveFormat,
   type MatchFormat,
   type MatchPlayer,
@@ -66,9 +68,11 @@ type RoundRow = {
   team_name: string | null;
   team_number: number | null;
   team_handicap: number | null;
+  /** Foursomes pair (0136): how the pairs are ranked. */
+  foursomes_scoring: FoursomesScoring | null;
 };
 
-const ROUND_COLUMNS = "id, created_by, course_name, format, status, played_on, match_day_id, match_number, match_type, tee_time, scramble_size, team_name, team_number, team_handicap";
+const ROUND_COLUMNS = "id, created_by, course_name, format, status, played_on, match_day_id, match_number, match_type, tee_time, scramble_size, team_name, team_number, team_handicap, foursomes_scoring";
 
 const firstName = (name: string) => name.trim().split(/\s+/)[0] || name;
 
@@ -93,7 +97,11 @@ export async function notifyRoundPlayers(admin: SupabaseClient, roundId: number)
     .eq("round_id", roundId)
     .overrideTypes<{ id: number; member_id: string | null; display_name: string }[]>();
   const by = await organiserName(admin, round.created_by);
-  const format = round.scramble_size ? `${round.scramble_size}-person scramble` : formatInfo(round.format as LiveFormat).label;
+  const format = round.foursomes_scoring
+    ? foursomesLabel(round.foursomes_scoring)
+    : round.scramble_size
+      ? `${round.scramble_size}-person scramble`
+      : formatInfo(round.format as LiveFormat).label;
   let sent = 0;
   for (const p of players ?? []) {
     if (!p.member_id || p.member_id === round.created_by) continue;
@@ -159,13 +167,15 @@ export async function notifyMatchDayPlayers(admin: SupabaseClient, dayId: number
       if (r.scramble_size) {
         // A scramble day: you're in a team, not a match.
         const mates = inMatch.filter((o) => o.id !== p.id).map((o) => firstName(o.display_name));
-        const teamName = r.team_name ?? `Team ${r.team_number ?? ""}`.trim();
+        const teamName = r.team_name ?? `${r.foursomes_scoring ? "Pair" : "Team"} ${r.team_number ?? ""}`.trim();
         const time = r.tee_time ? ` at ${r.tee_time.slice(0, 5)}` : "";
         await notifyUser(admin, {
           userId: p.member_id,
           type: "live_match_added",
-          title: `${day.title}: you're in ${teamName}`,
-          body: `${by} put you in a ${r.scramble_size}-person scramble with ${mates.join(" & ")}, ${shortDate(day.played_on)}${time}. Tap to open your team's card.`,
+          title: r.foursomes_scoring ? `${day.title}: you're playing foursomes` : `${day.title}: you're in ${teamName}`,
+          body: r.foursomes_scoring
+            ? `${by} paired you with ${mates.join(" & ")} for ${foursomesLabel(r.foursomes_scoring)} (Scotch foursomes), ${shortDate(day.played_on)}${time}. Tap to open your pair's card.`
+            : `${by} put you in a ${r.scramble_size}-person scramble with ${mates.join(" & ")}, ${shortDate(day.played_on)}${time}. Tap to open your team's card.`,
           href: `/live/rounds/${r.id}`,
           dedupeKey: `live_match_added:${r.id}:${p.member_id}`,
         });
@@ -251,22 +261,28 @@ export async function notifyMatchResult(admin: SupabaseClient, roundId: number):
         if (!sheet.has(s.player_id)) sheet.set(s.player_id, new Map());
         sheet.get(s.player_id)!.set(s.hole, s.strokes);
       }
-      const row = buildBoard("stroke", card, [{ id: lead.id, name: r.team_name ?? "", playingHandicap: r.team_handicap ?? 0 }], sheet).rows[0];
+      const row = buildBoard(r.foursomes_scoring ?? "stroke", card, [{ id: lead.id, name: r.team_name ?? "", playingHandicap: r.team_handicap ?? 0 }], sheet).rows[0];
       return row && row.thru > 0 ? row : null;
     };
     const mineRow = teamScore(round);
-    const teamName = round.team_name ?? `Team ${round.team_number ?? ""}`.trim();
-    const headline = mineRow ? `${teamName} are in: net ${toParLabel(mineRow.netToPar)} (${mineRow.gross} gross)` : `${teamName} have finished`;
+    // Foursomes Stableford (0136) ranks on points; everything else on net.
+    const onPoints = round.foursomes_scoring === "stableford";
+    const teamName = round.team_name ?? `${round.foursomes_scoring ? "Pair" : "Team"} ${round.team_number ?? ""}`.trim();
+    const headline = mineRow
+      ? onPoints
+        ? `${teamName} are in: ${mineRow.points} points`
+        : `${teamName} are in: net ${toParLabel(mineRow.netToPar)} (${mineRow.gross} gross)`
+      : `${teamName} have finished`;
     const done = (rounds ?? [])
       .filter((r) => r.status === "finished")
       .map((r) => ({ r, row: teamScore(r) }))
       .filter((x) => x.row != null)
-      .sort((a, b) => a.row!.netToPar - b.row!.netToPar || a.row!.gross - b.row!.gross);
+      .sort((a, b) => (onPoints ? b.row!.points - a.row!.points : 0) || a.row!.netToPar - b.row!.netToPar || a.row!.gross - b.row!.gross);
     const place = done.findIndex((x) => x.r.id === round.id) + 1;
     const out = (rounds ?? []).filter((r) => r.status !== "finished").length;
     const body =
       place > 0
-        ? `${place === 1 ? "Leading" : `${place}${place === 2 ? "nd" : place === 3 ? "rd" : "th"}`} of ${done.length} ${done.length === 1 ? "team" : "teams"} in${out > 0 ? `, ${out} still out` : ". That's everyone"}. Tap for the board.`
+        ? `${place === 1 ? "Leading" : `${place}${place === 2 ? "nd" : place === 3 ? "rd" : "th"}`} of ${done.length} ${done.length === 1 ? (round.foursomes_scoring ? "pair" : "team") : round.foursomes_scoring ? "pairs" : "teams"} in${out > 0 ? `, ${out} still out` : ". That's everyone"}. Tap for the board.`
         : `${day.title} at ${day.course_name}. Tap for the board.`;
     const recipients = new Set((players ?? []).map((p) => p.member_id).filter((m): m is string => !!m));
     if (day.created_by) recipients.add(day.created_by);
