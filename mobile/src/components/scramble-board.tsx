@@ -10,6 +10,9 @@ import { colors, fonts, radii, spacing, type } from "@/lib/theme";
  * The scramble-day leaderboard (0113): every team, ranked by net or gross
  * against par for the holes played, so groups out at different times
  * compare fairly. Tap a team for its card.
+ *
+ * Also a day of foursomes pairs (0136): stroke play ranks the same way;
+ * Stableford ranks on points, with net to par alongside.
  */
 
 type TeamRow = {
@@ -20,18 +23,21 @@ type TeamRow = {
   gross: number;
   netToPar: number;
   grossToPar: number;
+  points: number;
   done: boolean;
   position: string;
 };
 
-export function teamRows(matches: Match[], by: "net" | "gross"): TeamRow[] {
+export type BoardBy = "points" | "net" | "gross";
+
+export function teamRows(matches: Match[], by: BoardBy): TeamRow[] {
   const rows: TeamRow[] = matches.map((m) => {
     const scr = m.round.scramble;
     const ordered = [...m.players].sort((a, b) => a.position - b.position);
     const lead = ordered[0];
-    const name = scr?.teamName ?? `Team ${m.round.matchNumber ?? scr?.teamNumber ?? ""}`.trim();
+    const name = scr?.teamName ?? `${scr?.foursomes ? "Pair" : "Team"} ${m.round.matchNumber ?? scr?.teamNumber ?? ""}`.trim();
     const members = ordered.map((p) => p.name.split(" ")[0]).join(" · ");
-    const r = lead ? buildBoard("stroke", m.card, [{ id: lead.id, name, playingHandicap: scr?.teamHandicap ?? 0 }], m.scores).rows[0] : null;
+    const r = lead ? buildBoard(scr?.foursomes ?? "stroke", m.card, [{ id: lead.id, name, playingHandicap: scr?.teamHandicap ?? 0 }], m.scores).rows[0] : null;
     const played = lead ? [...(m.scores.get(lead.id)?.keys() ?? [])] : [];
     const parPlayed = m.card.filter((c) => played.includes(c.hole)).reduce((n, c) => n + c.par, 0);
     const thru = r?.thru ?? 0;
@@ -43,11 +49,12 @@ export function teamRows(matches: Match[], by: "net" | "gross"): TeamRow[] {
       gross: r?.gross ?? 0,
       netToPar: r?.netToPar ?? 0,
       grossToPar: (r?.gross ?? 0) - parPlayed,
+      points: r?.points ?? 0,
       done: m.round.status === "finished" || thru === m.card.length,
       position: "",
     };
   });
-  const key = (r: TeamRow) => (by === "net" ? r.netToPar : r.grossToPar);
+  const key = (r: TeamRow) => (by === "points" ? -r.points : by === "net" ? r.netToPar : r.grossToPar);
   const started = rows.filter((r) => r.thru > 0).sort((a, b) => key(a) - key(b) || b.thru - a.thru || a.name.localeCompare(b.name));
   for (const r of started) {
     const first = started.findIndex((o) => key(o) === key(r));
@@ -61,16 +68,24 @@ export function teamRows(matches: Match[], by: "net" | "gross"): TeamRow[] {
 }
 
 export function ScrambleBoard({ matches, isMine }: { matches: Match[]; isMine: (m: Match) => boolean }) {
-  const [by, setBy] = useState<"net" | "gross">("net");
+  const stableford = matches.some((m) => m.round.scramble?.foursomes === "stableford");
+  const pairs = matches.some((m) => m.round.scramble?.foursomes != null);
+  const options: BoardBy[] = stableford ? ["points", "net"] : ["net", "gross"];
+  const [chosen, setBy] = useState<BoardBy>(options[0]);
+  const by = options.includes(chosen) ? chosen : options[0];
   const rows = teamRows(matches, by);
+  const label = (k: BoardBy) => (k === "points" ? "Points" : k === "net" ? "Net" : "Gross");
+  // The figure in the small column: the other option.
+  const other = options.find((k) => k !== by) ?? "gross";
+  const show = (r: TeamRow, k: BoardBy) => (k === "points" ? String(r.points) : toParLabel(k === "net" ? r.netToPar : r.grossToPar));
   return (
     <View style={{ gap: spacing.sm }}>
       <View style={styles.head}>
         <Text style={styles.title}>Leaderboard</Text>
         <View style={styles.toggle}>
-          {(["net", "gross"] as const).map((k) => (
+          {options.map((k) => (
             <Pressable key={k} onPress={() => setBy(k)} style={[styles.pill, by === k && styles.pillOn]} accessibilityRole="button" accessibilityState={{ selected: by === k }}>
-              <Text style={[styles.pillText, by === k && styles.pillTextOn]}>{k === "net" ? "Net" : "Gross"}</Text>
+              <Text style={[styles.pillText, by === k && styles.pillTextOn]}>{label(k)}</Text>
             </Pressable>
           ))}
         </View>
@@ -79,22 +94,21 @@ export function ScrambleBoard({ matches, isMine }: { matches: Match[]; isMine: (
       <View style={styles.table}>
         <View style={[styles.tr, styles.th]}>
           <Text style={[styles.thText, styles.cPos]}>Pos</Text>
-          <Text style={[styles.thText, { flex: 1 }]}>Team</Text>
+          <Text style={[styles.thText, { flex: 1 }]}>{pairs ? "Pair" : "Team"}</Text>
           <Text style={[styles.thText, styles.cNum]}>Thru</Text>
-          <Text style={[styles.thText, styles.cNum]}>{by === "net" ? "Gross" : "Net"}</Text>
-          <Text style={[styles.thText, styles.cBig]}>{by === "net" ? "Net" : "Gross"}</Text>
+          <Text style={[styles.thText, styles.cNum]}>{label(other)}</Text>
+          <Text style={[styles.thText, styles.cBig]}>{by === "points" ? "Pts" : label(by)}</Text>
         </View>
         {rows.map((r) => {
           const mine = isMine(r.m);
-          const main = by === "net" ? r.netToPar : r.grossToPar;
-          const other = by === "net" ? r.grossToPar : r.netToPar;
+          const good = by === "points" ? r.points > r.thru * 2 : (by === "net" ? r.netToPar : r.grossToPar) < 0;
           return (
             <Pressable
               key={r.m.round.id}
               onPress={() => router.push({ pathname: "/live/round/[id]", params: { id: String(r.m.round.id) } })}
               style={({ pressed }) => [styles.tr, mine && styles.trMine, pressed && { opacity: 0.85 }]}
               accessibilityRole="button"
-              accessibilityLabel={`${r.position ? `Position ${r.position}, ` : ""}${r.name}${r.thru ? `, thru ${r.thru}, ${by} ${toParLabel(main)}` : ", not started"}`}
+              accessibilityLabel={`${r.position ? `Position ${r.position}, ` : ""}${r.name}${r.thru ? `, thru ${r.thru}, ${label(by).toLowerCase()} ${show(r, by)}` : ", not started"}`}
             >
               <Text style={[styles.pos, styles.cPos]}>{r.position || "–"}</Text>
               <View style={{ flex: 1, minWidth: 0 }}>
@@ -107,13 +121,17 @@ export function ScrambleBoard({ matches, isMine }: { matches: Match[]; isMine: (
                 </Text>
               </View>
               <Text style={[styles.cell, styles.cNum]}>{r.thru === 0 ? (r.m.round.teeTime ?? "–") : r.done ? "F" : r.thru}</Text>
-              <Text style={[styles.cell, styles.cNum]}>{r.thru ? toParLabel(other) : "–"}</Text>
-              <Text style={[styles.big, styles.cBig, r.thru > 0 && main < 0 && { color: colors.green700 }]}>{r.thru ? toParLabel(main) : "–"}</Text>
+              <Text style={[styles.cell, styles.cNum]}>{r.thru ? show(r, other) : "–"}</Text>
+              <Text style={[styles.big, styles.cBig, r.thru > 0 && good && { color: colors.green700 }]}>{r.thru ? show(r, by) : "–"}</Text>
             </Pressable>
           );
         })}
       </View>
-      <Text style={styles.foot}>Against par for the holes played, so groups out at different times compare fairly. Tap a team for its card.</Text>
+      <Text style={styles.foot}>
+        {by === "points"
+          ? `Stableford points, then net against par for the holes played. Tap a ${pairs ? "pair" : "team"} for its card.`
+          : `Against par for the holes played, so groups out at different times compare fairly. Tap a ${pairs ? "pair" : "team"} for its card.`}
+      </Text>
     </View>
   );
 }

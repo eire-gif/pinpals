@@ -54,8 +54,10 @@ export const LIVE_FORMATS: readonly FormatInfo[] = [
   { id: "matchplay", label: "Singles", blurb: "One v one, hole by hole", allowance: 1, available: true, matchDay: true, perSide: 1 },
   // WHS: four-ball MATCH play is 90% (85% is the stroke-play figure).
   { id: "fourball", label: "Fourball", blurb: "Better ball of each pair", allowance: 0.9, available: false, matchDay: true, perSide: 2 },
-  // Foursomes: 50% of the pair's combined course handicaps.
-  { id: "foursomes", label: "Foursomes", blurb: "Scotch, alternate shot", allowance: 0.5, available: false, matchDay: true, perSide: 2 },
+  // Foursomes (also called Scotch foursomes): 50% of the pair's combined
+  // course handicaps. A match in a match day, or (0136) pairs on a
+  // Stableford or stroke-play leaderboard — see foursomesHandicap below.
+  { id: "foursomes", label: "Foursomes", blurb: "Scotch foursomes · pairs, alternate shot", allowance: 0.5, available: true, matchDay: true, perSide: 2 },
   // Greensomes: 60% of the lower plus 40% of the higher course handicap.
   { id: "greensomes", label: "Greensomes", blurb: "Both drive, pick one", allowance: 0.6, available: false, matchDay: true, perSide: 2 },
   // Scramble (0113): the allowance is per player and worked out by
@@ -427,7 +429,7 @@ export function matchCompetitors(format: MatchFormat, players: readonly MatchPla
       const chs = pair.map((p) => p.courseHandicap).sort((a, b) => a - b);
       const hcp =
         format === "foursomes"
-          ? roundHalfUp(0.5 * chs.reduce((t, c) => t + c, 0))
+          ? foursomesHandicap(chs)
           : roundHalfUp(0.6 * (chs[0] ?? 0) + 0.4 * (chs[chs.length - 1] ?? 0));
       return { key: `side${n}`, side: n as 1 | 2, playerIds: pair.map((p) => p.id), matchHandicap: hcp };
     });
@@ -646,4 +648,42 @@ export function driveShortfall(
     .filter((x) => x.needed > 0);
   const total = needs.reduce((a, b) => a + b.needed, 0);
   return { needs, impossible: total > holesLeft, tight: total > 0 && total === holesLeft };
+}
+
+// ---------------------------------------------------------------------------
+// Foursomes as a competition (0136)
+// ---------------------------------------------------------------------------
+//
+// Foursomes — "Scotch foursomes" — is two players, one ball, alternate
+// shots. As a match it is scored above (matchCompetitors). As a competition,
+// pairs go on one leaderboard by Stableford points or net stroke play, each
+// pair scored like one player off the pair's handicap.
+
+export type FoursomesScoring = "stableford" | "stroke";
+
+/** WHS: a foursomes pair plays off half its combined course handicaps. */
+export const FOURSOMES_ALLOWANCE = 0.5;
+
+/**
+ * A foursomes pair's handicap: 50% of the two course handicaps added
+ * together, rounded once (WHS) — so 9 + 18 = 27 → 13.5 → 14, not 5 + 9.
+ * The same figure in a match and on a leaderboard.
+ */
+export function foursomesHandicap(courseHandicaps: readonly number[]): number {
+  if (courseHandicaps.length !== 2) throw new Error("A foursomes pair is two players");
+  return roundHalfUp(FOURSOMES_ALLOWANCE * (courseHandicaps[0] + courseHandicaps[1]));
+}
+
+/** "Foursomes Stableford", "Foursomes stroke play". */
+export function foursomesLabel(scoring: FoursomesScoring): string {
+  return scoring === "stableford" ? "Foursomes Stableford" : "Foursomes stroke play";
+}
+
+/**
+ * Who tees off: one partner drives the odd-numbered holes, the other the
+ * even ones, whoever holed out on the hole before. Returns the position in
+ * the pair (1 = the first player, odd holes).
+ */
+export function foursomesTeeShot(hole: number): 1 | 2 {
+  return hole % 2 === 1 ? 1 : 2;
 }

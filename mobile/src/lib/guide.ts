@@ -542,8 +542,10 @@ export const GUIDES: Guide[] = [
           { icon: "stats-chart", label: "Stableford", blurb: "Everyone on one points leaderboard." },
           { icon: "list", label: "Stroke play", blurb: "Ranked by net score." },
           { icon: "people", label: "Scramble 4s or 2s", blurb: "Teams, one ball per team." },
+          { icon: "swap-horizontal", label: "Foursomes Stableford or stroke play", blurb: "Scotch foursomes: pairs share a ball and take alternate shots. Two pairs to a tee group." },
           { icon: "git-compare", label: "Matchplay", blurb: "Singles, fourball, foursomes, greensomes." },
         ],
+        tip: "Foursomes and Scotch foursomes are the same game. Each pair plays off half its combined course handicaps — worked out for you.",
       },
       {
         title: "Name the day and pick when",
@@ -748,7 +750,7 @@ export const GUIDES: Guide[] = [
     id: "live",
     section: "play",
     title: "Score a game live",
-    blurb: "Stableford, stroke play, a match or a scramble — shots worked out for you.",
+    blurb: "Stableford, stroke play, foursomes, a match or a scramble — shots worked out for you.",
     icon: "podium",
     tone: "navy",
     audience: "Everyone",
@@ -763,17 +765,17 @@ export const GUIDES: Guide[] = [
       {
         title: "Choose how you're playing",
         body: "Running the society's day? Tap From a Group to draw your members into tee groups or teams. Match Day runs several matches at once with a team score, Ryder Cup style. Just your own fourball? Tap Start a Game.",
-        look: [{ style: "raised", label: "From a Group", icon: "shuffle", subtitle: "Draw your crew or society into groups or teams" }, { style: "raised", label: "Match Day", icon: "people", subtitle: "Societies, fourballs, foursomes and competitions" }, { style: "raised", label: "Start a Game", icon: "flag", subtitle: "Stableford, stroke play, a match or a scramble" }],
+        look: [{ style: "raised", label: "From a Group", icon: "shuffle", subtitle: "Draw your crew or society into groups or teams" }, { style: "raised", label: "Match Day", icon: "people", subtitle: "Societies, fourballs, foursomes and competitions" }, { style: "raised", label: "Start a Game", icon: "flag", subtitle: "Stableford, stroke play, foursomes, a match or a scramble" }],
         tip: "From a Group is covered step by step in Play a round together. The rest of this guide is Start a Game.",
         as: {
           friends: {
             body: "Just your fourball? Tap Start a Game — that's the rest of this guide. Got a crew set up? From a Group ticks everyone in it and draws you into groups.",
-            look: [{ style: "raised", label: "Start a Game", icon: "flag", subtitle: "Stableford, stroke play, a match or a scramble" }, { style: "raised", label: "From a Group", icon: "shuffle", subtitle: "Draw your crew or society into groups or teams" }],
+            look: [{ style: "raised", label: "Start a Game", icon: "flag", subtitle: "Stableford, stroke play, foursomes, a match or a scramble" }, { style: "raised", label: "From a Group", icon: "shuffle", subtitle: "Draw your crew or society into groups or teams" }],
             tip: "From a Group is covered step by step in Play a round together.",
           },
           trip: {
             body: "On the trip, tap From a Group to draw everyone into fourballs for the day, or Match Day for a team competition. Start a Game is for a quick game in your own fourball.",
-            look: [{ style: "raised", label: "From a Group", icon: "shuffle", subtitle: "Draw your crew or society into groups or teams" }, { style: "raised", label: "Match Day", icon: "people", subtitle: "Societies, fourballs, foursomes and competitions" }, { style: "raised", label: "Start a Game", icon: "flag", subtitle: "Stableford, stroke play, a match or a scramble" }],
+            look: [{ style: "raised", label: "From a Group", icon: "shuffle", subtitle: "Draw your crew or society into groups or teams" }, { style: "raised", label: "Match Day", icon: "people", subtitle: "Societies, fourballs, foursomes and competitions" }, { style: "raised", label: "Start a Game", icon: "flag", subtitle: "Stableford, stroke play, foursomes, a match or a scramble" }],
           },
         },
       },
@@ -784,8 +786,10 @@ export const GUIDES: Guide[] = [
           { icon: "stats-chart", label: "Stableford", blurb: "Points per hole." },
           { icon: "list", label: "Stroke play", blurb: "Gross and net." },
           { icon: "git-compare", label: "Singles", blurb: "One v one, hole by hole." },
+          { icon: "swap-horizontal", label: "Foursomes", blurb: "Scotch foursomes: pairs, alternate shot. Then pick Stableford, Stroke play or Matchplay." },
           { icon: "people", label: "Scramble", blurb: "Teams of 2 or 4, one ball." },
         ],
+        tip: "Foursomes: add two players for one pair, or four for two pairs — 1 & 2 play 3 & 4. The card shows who tees off on each hole.",
       },
       {
         title: "Add the players and tee off",
@@ -1256,6 +1260,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-13", text: "Foursomes (Scotch foursomes) as Stableford or stroke play: in Start a Game and From a Group — pairs on one leaderboard, half the pair's combined handicaps." },
   { on: "2026-10-13", text: "New guide: Your mobile and privacy — add your mobile, share it with your society, download your data." },
   { on: "2026-10-13", text: "Run your society: Phone numbers — call, text or WhatsApp members who share their mobile." },
   { on: "2026-10-13", text: "Score a game live: shows the real Live Scoring, Start a Game, Match Day and From a Group cards, and which to tap for friends, trips or societies." },

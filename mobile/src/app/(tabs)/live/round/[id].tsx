@@ -30,6 +30,8 @@ import {
   driveCounts,
   driveShortfall,
   formatInfo,
+  foursomesLabel,
+  foursomesTeeShot,
   isOneBallPerSide,
   matchCompetitors,
   netScoreName,
@@ -145,9 +147,10 @@ export default function LiveRoundScreen() {
       const scr = data.round.scramble;
       if (!scr) return buildBoard(data.round.format, data.card, data.players, data.scores);
       // A scramble team is one "player": its first, off the team handicap.
+      // So is a foursomes pair (0136), on Stableford or stroke play.
       const lead = [...data.players].sort((a, b) => a.position - b.position)[0];
       if (!lead) return null;
-      return buildBoard("stroke", data.card, [{ id: lead.id, name: teamLabel(data), playingHandicap: scr.teamHandicap }], data.scores);
+      return buildBoard(scr.foursomes ?? "stroke", data.card, [{ id: lead.id, name: teamLabel(data), playingHandicap: scr.teamHandicap }], data.scores);
     },
     [data]
   );
@@ -159,12 +162,27 @@ export default function LiveRoundScreen() {
 
   const { round, players, card, scores, drives } = data;
   const scr = round.scramble;
-  // Scramble is net stroke play for the team (0113).
-  const strokeLike = round.format === "stroke" || scr != null;
+  // Scramble is net stroke play for the team (0113); a foursomes pair is
+  // whichever it was set up as (0136).
+  const strokeLike = round.format === "stroke" || (scr != null && scr.foursomes == null);
+  const pairWord = scr?.foursomes ? "pair" : "team";
   const live = round.status === "live";
   const h = card.find((c) => c.hole === hole) ?? card[0];
   const matchFormat: MatchFormat | null = round.matchFormat;
   const info = formatInfo(matchFormat ?? round.format);
+  const formatLabel = scr?.foursomes ? foursomesLabel(scr.foursomes) : scr ? `${scr.size}-person scramble` : info.label;
+
+  /** Foursomes, as a match or a pair on a leaderboard: who tees off on this
+   *  hole — the first player on odd holes, the partner on even ones. */
+  const teeOff = (row: { side: number | null }): string | null => {
+    const pair = scr?.foursomes
+      ? [...players].sort((a, b) => a.position - b.position)
+      : matchFormat === "foursomes"
+        ? players.filter((x) => x.side === row.side).sort((a, b) => a.position - b.position)
+        : null;
+    if (!pair || pair.length !== 2) return null;
+    return pair[foursomesTeeShot(h.hole) - 1].name.split(" ")[0];
+  };
 
   // Who may enter scores: the round's own players, whoever started it, and a
   // match day's organiser (0104). Everyone else in a match day can watch.
@@ -328,7 +346,7 @@ export default function LiveRoundScreen() {
       teeName: round.teeName,
       playedOn: round.playedOn,
       live,
-      formatLabel: scr ? `${scr.size}-person scramble` : info.label,
+      formatLabel,
       heading: dayHeader && round.matchNumber ? `${dayHeader.title} · ${matchFormat ? "Match" : "Group"} ${round.matchNumber}` : null,
       card,
       rows: rows.map((r) => ({ id: r.id, name: r.name })),
@@ -518,7 +536,7 @@ export default function LiveRoundScreen() {
           <View style={styles.holeCard}>
             <View style={styles.holeTop}>
               <Text style={styles.holeMeta}>
-                {info.label}
+                {formatLabel}
                 {round.teeName ? ` · ${round.teeName} tees` : ""}
               </Text>
               {live ? (
@@ -672,6 +690,11 @@ export default function LiveRoundScreen() {
                       {[...players].sort((x, y) => x.position - y.position).map((x) => x.name.split(" ")[0]).join(" · ")}
                     </Text>
                   ) : null}
+                  {teeOff(p) ? (
+                    <Text style={styles.playerMeta} numberOfLines={1}>
+                      <Ionicons name="golf-outline" size={12} color={colors.ink500} /> {teeOff(p)} tees off
+                    </Text>
+                  ) : null}
                   <View style={styles.nameRow}>
                     {round.format === "stableford" && pts != null ? (
                       <Text style={[styles.badge, pts >= 3 ? styles.badgeGood : pts === 0 ? styles.badgeNil : null]}>{pts} pts</Text>
@@ -703,7 +726,7 @@ export default function LiveRoundScreen() {
             );
           })}
 
-          {scr ? (
+          {scr && !scr.foursomes ? (
             <DrivePicker
               players={[...players].sort((a, b) => a.position - b.position)}
               drives={drives}
@@ -716,7 +739,7 @@ export default function LiveRoundScreen() {
           ) : null}
 
           {!canScore && live ? (
-            <Text style={styles.footNote}>{scr ? "You're watching this team. Its own players score it." : "You're watching this match. Its own players score it."}</Text>
+            <Text style={styles.footNote}>{scr ? `You're watching this ${pairWord}. Its own players score it.` : "You're watching this match. Its own players score it."}</Text>
           ) : null}
 
           <LiveCard
@@ -735,7 +758,7 @@ export default function LiveRoundScreen() {
               <View style={styles.pickupRow}>
                 {rows.map((p) => (
                   <Pressable key={p.id} onPress={() => void score(p.id, null)} style={styles.pickup} accessibilityRole="button">
-                    <Text style={styles.pickupText}>{scr ? "Team picked up" : `${p.name.split(" ")[0]} picked up`}</Text>
+                    <Text style={styles.pickupText}>{scr ? (scr.foursomes ? "Pair picked up" : "Team picked up") : `${p.name.split(" ")[0]} picked up`}</Text>
                   </Pressable>
                 ))}
               </View>
@@ -795,14 +818,18 @@ export default function LiveRoundScreen() {
 
           <View style={styles.handicaps}>
             <Text style={styles.editorLabel}>
-              {scr ? `Team handicap · ${scr.size}-person scramble` : `Handicaps · ${Math.round(round.allowance * 100)}% allowance`}
+              {scr?.foursomes
+                ? "Pair handicap · foursomes, half the pair's combined course handicaps"
+                : scr
+                  ? `Team handicap · ${scr.size}-person scramble`
+                  : `Handicaps · ${Math.round(round.allowance * 100)}% allowance`}
             </Text>
             {scr ? <Text style={styles.playerName}>{teamLabel(data)} plays off {scr.teamHandicap}</Text> : null}
             {players.map((p) => (
               <Text key={p.id} style={styles.playerMeta}>
                 {p.name}: index {p.handicapIndex}, course {p.courseHandicap}
                 {p.estimated ? " (estimated)" : ""}
-                {scr ? `, share ${p.playingHandicap}` : matchFormat ? "" : `, plays off ${p.playingHandicap}`}
+                {scr?.foursomes ? "" : scr ? `, share ${p.playingHandicap}` : matchFormat ? "" : `, plays off ${p.playingHandicap}`}
               </Text>
             ))}
             {competitors && competitors.some((c) => c.shots > 0) ? (

@@ -1,7 +1,7 @@
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
 import { postToSite } from "./api";
-import type { CardHole, LiveFormat, LivePlayer, MatchFormat, ScoreSheet, ScrambleSize } from "./live-scoring";
+import type { CardHole, FoursomesScoring, LiveFormat, LivePlayer, MatchFormat, ScoreSheet, ScrambleSize } from "./live-scoring";
 import { supabase } from "./supabase";
 
 /**
@@ -56,6 +56,9 @@ export type ScrambleInfo = {
   /** The team's playing handicap (WHS allowances, summed then rounded). */
   teamHandicap: number;
   driveMinimum: number | null;
+  /** Set when the team is a foursomes (Scotch foursomes) pair, 0136: how
+   *  it's ranked. The round's format is then this too, not "scramble". */
+  foursomes: FoursomesScoring | null;
 };
 
 export type LiveRoundPlayer = LivePlayer & {
@@ -98,6 +101,7 @@ type RoundRow = {
   team_number: number | null;
   team_handicap: number | null;
   drive_minimum: number | null;
+  foursomes_scoring: FoursomesScoring | null;
 };
 
 type PlayerRow = {
@@ -114,7 +118,7 @@ type PlayerRow = {
 };
 
 export const ROUND_SELECT =
-  "id, created_by, club_id, course_name, tee_name, format, holes, course_rating, slope, par_total, allowance, status, played_on, match_day_id, match_number, match_type, tee_time, scramble_size, team_name, team_number, team_handicap, drive_minimum";
+  "id, created_by, club_id, course_name, tee_name, format, holes, course_rating, slope, par_total, allowance, status, played_on, match_day_id, match_number, match_type, tee_time, scramble_size, team_name, team_number, team_handicap, drive_minimum, foursomes_scoring";
 
 export const toMatchFormat = (t: RoundRow["match_type"]): MatchFormat | null =>
   t == null ? null : t === "singles" ? "matchplay" : t;
@@ -126,7 +130,9 @@ export const toRound = (r: RoundRow): LiveRound => ({
   courseName: r.course_name,
   teeName: r.tee_name,
   // A scramble team is stored as stroke play (0113); the app knows it apart.
-  format: r.scramble_size != null ? "scramble" : r.format,
+  // A foursomes pair (0136) is stored the same way and scored by its own
+  // Stableford or stroke play.
+  format: r.scramble_size != null ? (r.foursomes_scoring ?? "scramble") : r.format,
   holes: r.holes === 9 ? 9 : 18,
   // numeric columns arrive as strings from PostgREST when they carry a scale.
   courseRating: r.course_rating == null ? null : Number(r.course_rating),
@@ -147,6 +153,7 @@ export const toRound = (r: RoundRow): LiveRound => ({
           teamNumber: r.team_number,
           teamHandicap: r.team_handicap ?? 0,
           driveMinimum: r.drive_minimum,
+          foursomes: r.foursomes_scoring ?? null,
         }
       : null,
 });
@@ -166,7 +173,7 @@ export async function loadMyLiveRounds(userId: string): Promise<LiveRoundSummary
 
   let query = supabase
     .from("live_rounds")
-    .select(`id, created_by, course_name, format, scramble_size, status, played_on, created_at, live_round_players (count)`)
+    .select(`id, created_by, course_name, format, scramble_size, foursomes_scoring, status, played_on, created_at, live_round_players (count)`)
     .is("match_day_id", null) // matches are listed under their match day
     .order("created_at", { ascending: false })
     .limit(30);
@@ -179,6 +186,7 @@ export async function loadMyLiveRounds(userId: string): Promise<LiveRoundSummary
       course_name: string;
       format: LiveFormat;
       scramble_size: number | null;
+      foursomes_scoring: FoursomesScoring | null;
       status: "live" | "finished";
       played_on: string;
       live_round_players: { count: number }[];
@@ -190,7 +198,7 @@ export async function loadMyLiveRounds(userId: string): Promise<LiveRoundSummary
     .map((r) => ({
       id: r.id,
       courseName: r.course_name,
-      format: r.scramble_size != null ? ("scramble" as const) : r.format,
+      format: r.foursomes_scoring ? ("foursomes" as const) : r.scramble_size != null ? ("scramble" as const) : r.format,
       status: r.status,
       playedOn: r.played_on,
       playerCount: r.live_round_players?.[0]?.count ?? 0,
@@ -290,6 +298,8 @@ export type NewRound = {
   allowance: number;
   /** A scramble team (0113). */
   scramble?: { size: ScrambleSize; teamName: string | null; teamHandicap: number; driveMinimum: number | null };
+  /** A foursomes pair (0136): format "foursomes", two players. */
+  foursomes?: { scoring: FoursomesScoring; teamName: string | null; teamHandicap: number };
 };
 
 export async function createLiveRound(round: NewRound, players: NewPlayer[], card: CardHole[]): Promise<number> {
@@ -310,6 +320,13 @@ export async function createLiveRound(round: NewRound, players: NewPlayer[], car
             team_name: round.scramble.teamName,
             team_handicap: round.scramble.teamHandicap,
             drive_minimum: round.scramble.driveMinimum,
+          }
+        : {}),
+      ...(round.foursomes
+        ? {
+            scoring: round.foursomes.scoring,
+            team_name: round.foursomes.teamName,
+            team_handicap: round.foursomes.teamHandicap,
           }
         : {}),
     },

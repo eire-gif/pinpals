@@ -21,13 +21,18 @@ import { StateMessage } from "@/components/state-message";
 import { useAuth } from "@/lib/auth";
 import { isOn } from "@/lib/features";
 import { createLiveRound } from "@/lib/live-rounds";
+import { createMatchDay, createScrambleDay } from "@/lib/live-match-days";
 import {
+  FOURSOMES_ALLOWANCE,
   LIVE_FORMATS,
   courseHandicap,
   formatInfo,
+  foursomesHandicap,
+  foursomesLabel,
   parseIndex,
   playingHandicap,
   scrambleHandicap,
+  type FoursomesScoring,
   type LiveFormat,
   type ScrambleSize,
 } from "@/lib/live-scoring";
@@ -42,6 +47,12 @@ import { colors, fonts, radii, spacing, type } from "@/lib/theme";
  * profile, and "plays off" beside it is worked out live from the course's
  * rating and slope (live-scoring.ts) as you type — so the number a member
  * checks is the one they'll actually get shots from.
+ *
+ * FOURSOMES (Scotch foursomes; 0136): pairs, one ball, alternate shot.
+ * Two players are one pair; four are two pairs, 1 & 2 v 3 & 4. Scored by
+ * Stableford or stroke play (each pair plays off half its combined course
+ * handicaps), or — with four — as a pair v pair match. Two pairs, or a
+ * match, start as a small day so both pairs share one leaderboard.
  *
  * Members can add themselves, their PinPals and guests by name. Only
  * accepted PinPals are offered: putting a stranger on a leaderboard is
@@ -76,6 +87,9 @@ export default function NewLiveRound() {
   const [teamName, setTeamName] = useState("");
   const [driveMinimum, setDriveMinimum] = useState<number | null>(null);
   const scramble = format === "scramble";
+  // Foursomes (0136): how it's scored.
+  const foursomes = format === "foursomes";
+  const [scoring, setScoring] = useState<FoursomesScoring | "matchplay">("stableford");
 
   // Me first, with the handicap from my profile if I've given one.
   useEffect(() => {
@@ -118,6 +132,24 @@ export default function NewLiveRound() {
   if (players.some((p) => p.name.trim() === "")) problems.push("Every guest needs a name");
   if (format === "matchplay" && players.length !== 2) problems.push("Singles matchplay is two players");
   if (scramble && players.length !== size) problems.push(`A team of ${size} needs ${size} players`);
+  if (foursomes && scoring === "matchplay" && players.length !== 4) problems.push("A foursomes match is four players: two pairs");
+  else if (foursomes && players.length !== 2 && players.length !== 4) problems.push("Foursomes is played in pairs: add two or four players");
+
+  // Foursomes pairs: 1 & 2, then 3 & 4. Each plays off half its combined
+  // course handicaps — once both have an index.
+  const pairs = foursomes
+    ? [0, 2]
+        .filter((i) => i < players.length)
+        .map((i) => {
+          const ws = [worked[i], worked[i + 1]];
+          return { first: i, handicap: ws.every((w) => w != null) && ws.length === 2 ? foursomesHandicap(ws.map((w) => w!.courseHandicap)) : null };
+        })
+    : [];
+  const pairName = (i: number) =>
+    players
+      .slice(i, i + 2)
+      .map((p) => p.name.trim().split(" ")[0])
+      .join(" & ");
 
   const update = (key: string, change: Partial<DraftPlayer>) =>
     setPlayers((ps) => ps.map((p) => (p.key === key ? { ...p, ...change } : p)));
@@ -142,9 +174,82 @@ export default function NewLiveRound() {
   const addGuest = () =>
     setPlayers((ps) => [...ps, { key: nextKey(), memberId: null, name: "", indexText: "", isMe: false }]);
 
+  const startFoursomes = async () => {
+    if (!club) return;
+    const holeCard = course.holeCard();
+    const asPlayer = (i: number) => ({
+      memberId: players[i].memberId,
+      name: players[i].name.trim(),
+      handicapIndex: worked[i]!.index,
+      courseHandicap: worked[i]!.courseHandicap,
+      playingHandicap: playingHandicap(worked[i]!.courseHandicap, FOURSOMES_ALLOWANCE),
+      estimated: worked[i]!.estimated,
+    });
+    const day = {
+      title: `${scoring === "matchplay" ? "Foursomes match" : foursomesLabel(scoring)} · ${club.name}`,
+      courseName: club.name,
+      clubId: club.id,
+      teeName: course.teeName.trim() || null,
+      holes,
+      courseRating: rating,
+      slope,
+      parTotal: par,
+    };
+    if (scoring === "matchplay") {
+      const id = await createMatchDay(
+        { ...day, teamNames: null },
+        [{ format: "foursomes", teeTime: null, players: players.map((_, i) => ({ ...asPlayer(i), side: i < 2 ? 1 : 2 })) }],
+        holeCard
+      );
+      router.replace({ pathname: "/live/day/[id]", params: { id: String(id), created: "1" } });
+      return;
+    }
+    if (players.length === 2) {
+      const id = await createLiveRound(
+        {
+          courseName: club.name,
+          clubId: club.id,
+          teeName: day.teeName,
+          format: "foursomes",
+          holes,
+          courseRating: rating,
+          slope,
+          parTotal: par,
+          allowance: FOURSOMES_ALLOWANCE,
+          foursomes: { scoring, teamName: pairName(0), teamHandicap: pairs[0].handicap! },
+        },
+        [asPlayer(0), asPlayer(1)],
+        holeCard
+      );
+      router.replace({ pathname: "/live/round/[id]", params: { id: String(id) } });
+      return;
+    }
+    const id = await createScrambleDay(
+      { ...day, size: 2, driveMinimum: null, foursomes: scoring },
+      pairs.map((pr) => ({
+        name: pairName(pr.first),
+        teeTime: null,
+        teamHandicap: pr.handicap!,
+        players: [asPlayer(pr.first), asPlayer(pr.first + 1)],
+      })),
+      holeCard
+    );
+    router.replace({ pathname: "/live/day/[id]", params: { id: String(id), created: "1" } });
+  };
+
   const start = async () => {
     if (!club || problems.length > 0) return;
     setSaving(true);
+    if (foursomes) {
+      try {
+        await startFoursomes();
+      } catch (e) {
+        Alert.alert("Couldn't start the round", e instanceof Error ? e.message : "Please try again.");
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
     try {
       const holeCard = course.holeCard();
       const id = await createLiveRound(
@@ -209,8 +314,42 @@ export default function NewLiveRound() {
               );
             })}
           </View>
-          {scramble ? null : <Text style={styles.hint}>Handicap allowance: {Math.round(info.allowance * 100)}%</Text>}
+          {scramble || foursomes ? null : <Text style={styles.hint}>Handicap allowance: {Math.round(info.allowance * 100)}%</Text>}
         </Section>
+
+        {foursomes ? (
+          <Section
+            title="Foursomes scoring"
+            hint="Scotch foursomes: two players share one ball and take alternate shots. One partner tees off on the odd holes, the other on the even holes. Each pair plays off half its combined course handicaps."
+          >
+            <View style={styles.formats}>
+              {(
+                [
+                  { id: "stableford", label: "Stableford", blurb: "Pairs on points" },
+                  { id: "stroke", label: "Stroke play", blurb: "Pairs on net score" },
+                  { id: "matchplay", label: "Matchplay", blurb: "Pair v pair" },
+                ] as const
+              ).map((o) => {
+                const on = scoring === o.id;
+                return (
+                  <Pressable
+                    key={o.id}
+                    onPress={() => setScoring(o.id)}
+                    style={[styles.format, on && styles.formatOn]}
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked: on }}
+                  >
+                    <Text style={styles.formatLabel}>{o.label}</Text>
+                    <Text style={[styles.formatBlurb, on && styles.formatBlurbOn]}>{o.blurb}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            <Text style={styles.hint}>
+              {scoring === "matchplay" ? "Add four players: 1 & 2 play 3 & 4." : "Add two players for one pair, or four for two pairs (1 & 2, 3 & 4) on one leaderboard."}
+            </Text>
+          </Section>
+        ) : null}
 
         {scramble ? (
           <>
@@ -246,7 +385,16 @@ export default function NewLiveRound() {
             {players.map((p, i) => {
               const w = worked[i];
               return (
-                <View key={p.key} style={[styles.player, i > 0 && styles.playerDivider]}>
+                <View key={p.key}>
+                {foursomes && i % 2 === 0 ? (
+                  <View style={[styles.pairHead, i > 0 && styles.playerDivider]}>
+                    <Text style={styles.pairHeadText}>Pair {i / 2 + 1}</Text>
+                    <Text style={styles.pairHeadText}>
+                      {pairs[i / 2]?.handicap != null ? `Plays off ${pairs[i / 2].handicap}` : ""}
+                    </Text>
+                  </View>
+                ) : null}
+                <View style={[styles.player, i > 0 && !(foursomes && i % 2 === 0) && styles.playerDivider]}>
                   <View style={{ flex: 1, gap: 4 }}>
                     {p.memberId ? (
                       <Text style={styles.playerName} numberOfLines={1}>
@@ -280,14 +428,15 @@ export default function NewLiveRound() {
                     accessibilityLabel={`${p.name || "Guest"}'s handicap index`}
                   />
                   <View style={styles.playsOff}>
-                    <Text style={styles.playsOffNumber}>{scramble ? (team ? team.shares[i] : "–") : w ? w.playing : "–"}</Text>
-                    <Text style={styles.playsOffLabel}>{scramble ? "share" : "plays off"}</Text>
+                    <Text style={styles.playsOffNumber}>{scramble ? (team ? team.shares[i] : "–") : foursomes ? (w ? w.courseHandicap : "–") : w ? w.playing : "–"}</Text>
+                    <Text style={styles.playsOffLabel}>{scramble ? "share" : foursomes ? "course" : "plays off"}</Text>
                   </View>
                   {!p.isMe ? (
                     <Pressable onPress={() => remove(p.key)} hitSlop={10} accessibilityRole="button" accessibilityLabel={`Remove ${p.name || "guest"}`}>
                       <Ionicons name="close-circle" size={22} color={colors.ink500} />
                     </Pressable>
                   ) : null}
+                </View>
                 </View>
               );
             })}
@@ -299,7 +448,7 @@ export default function NewLiveRound() {
               </View>
             ) : null}
 
-            {players.length < (scramble ? size : 8) ? (
+            {players.length < (scramble ? size : foursomes ? 4 : 8) ? (
               <View style={[styles.addRow, players.length > 0 && styles.playerDivider]}>
                 <Pressable onPress={() => void openPals()} style={styles.addButton} accessibilityRole="button">
                   <Ionicons name="person-add-outline" size={18} color={colors.green700} />
@@ -447,6 +596,8 @@ const styles = StyleSheet.create({
   dayLinkBody: { fontFamily: fonts.body, fontSize: 13, lineHeight: 18, color: colors.cream100, marginTop: 2 },
   teamRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: spacing.md, backgroundColor: colors.cream100 },
   teamNumber: { fontFamily: fonts.display, fontSize: 26, color: colors.navy900 },
+  pairHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: spacing.md, paddingVertical: 6, backgroundColor: colors.cream100 },
+  pairHeadText: { fontFamily: fonts.bodyBold, fontSize: 12, letterSpacing: 0.6, textTransform: "uppercase", color: colors.navy900 },
   problem: { fontFamily: fonts.bodySemi, fontSize: type.small, color: colors.red600, textAlign: "center" },
   start: {
     minHeight: 54,

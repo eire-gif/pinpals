@@ -7,6 +7,8 @@ import {
   courseHandicap,
   driveCounts,
   driveShortfall,
+  foursomesHandicap,
+  foursomesTeeShot,
   scrambleHandicap,
   formatInfo,
   indexLabel,
@@ -363,5 +365,32 @@ describe("scramble (0113)", () => {
     expect(driveShortfall(counts, 3, 8).tight).toBe(true);
     expect(driveShortfall(counts, 3, 7).impossible).toBe(true);
     expect(driveShortfall(counts, null, 0).needs).toEqual([]);
+  });
+});
+
+describe("foursomes as a competition (0136)", () => {
+  it("plays off half the pair's combined course handicaps, rounded once", () => {
+    // (9 + 18) × .5 = 13.5 → 14 — not 5 + 9 = 14 by luck: 9 + 17 = 13
+    expect(foursomesHandicap([9, 18])).toBe(14);
+    expect(foursomesHandicap([9, 17])).toBe(13);
+    expect(foursomesHandicap([-2, 5])).toBe(2); // 1.5 → 2 (half up)
+    expect(() => foursomesHandicap([9])).toThrow();
+  });
+  it("is the same figure the foursomes match uses", () => {
+    const pairs: MatchPlayer[] = [
+      { id: 1, name: "A", playingHandicap: 0, courseHandicap: 9, side: 1, position: 1 },
+      { id: 2, name: "B", playingHandicap: 0, courseHandicap: 18, side: 1, position: 2 },
+      { id: 3, name: "C", playingHandicap: 0, courseHandicap: 3, side: 2, position: 3 },
+      { id: 4, name: "D", playingHandicap: 0, courseHandicap: 4, side: 2, position: 4 },
+    ];
+    expect(matchCompetitors("foursomes", pairs).map((c) => c.matchHandicap)).toEqual([foursomesHandicap([9, 18]), foursomesHandicap([3, 4])]);
+  });
+  it("the first player tees off the odd holes, the partner the even ones", () => {
+    expect([1, 2, 3, 10, 17, 18].map(foursomesTeeShot)).toEqual([1, 2, 1, 2, 1, 2]);
+  });
+  it("a pair on a Stableford board is one player off the pair's handicap", () => {
+    const b = buildBoard("stableford", card, [{ id: 1, name: "A & B", playingHandicap: foursomesHandicap([9, 18]) }], sheet({ 1: { 1: 4, 2: 5 } }));
+    // 14 shots: holes SI 7 and 13 each get one. Par 4 net 3 = 3 pts; par 4, 5 net 4 = 2 pts.
+    expect(b.rows[0].points).toBe(5);
   });
 });
