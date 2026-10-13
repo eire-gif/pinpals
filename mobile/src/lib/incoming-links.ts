@@ -17,6 +17,8 @@ import { routeForLink, scorecardIdFromShareToken } from "./share-links";
  *                                            (0120), works signed out too
  *   /signup                                → the app's sign-up (a signed-in
  *                                            member is moved on to Home)
+ *   /t/<token>                             → tee-link: a shared tee time (0132),
+ *                                            joins you to it, then opens it
  *   /c/<token>                             → card-link: the scorecard if signed
  *                                            in, else the public card (works
  *                                            signed out, like /signup)
@@ -68,6 +70,10 @@ export function routeForIncomingUrl(url: string): string | null {
   if (card) {
     return scorecardIdFromShareToken(card[1]) ? `/card-link?token=${encodeURIComponent(card[1])}` : webView(path);
   }
+
+  // A shared tee time (0132): tee-link adds you to the round, then opens it.
+  const tee = /^\/t\/([A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)$/.exec(path);
+  if (tee) return `/tee-link?token=${encodeURIComponent(tee[1])}`;
 
   const route = appRouteFor(query ? `${path}?${query}` : path);
   return route.kind === "native" ? route.path : webView(route.path);

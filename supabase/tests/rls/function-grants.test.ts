@@ -296,6 +296,12 @@ const EXPECTED: Record<string, Expectation> = {
   "remove_outing_guest(p_guest_id bigint)": { anon: false, authenticated: true },
   "mark_outing_guest_paid(p_guest_id bigint, p_status text)": { anon: false, authenticated: true },
   "outing_entry_count(p_outing_id bigint)": { anon: false, authenticated: false },
+  // 0132 filling an open place. The link claim is the website's, after it
+  // has checked the link's signature — never callable from the app.
+  "tee_time_invited(p_invite_id bigint)": { anon: false, authenticated: true },
+  "tee_time_can_fill(p_invite_id bigint, p_user uuid)": { anon: false, authenticated: true },
+  "invite_to_tee_time(p_invite_id bigint, p_members uuid[])": { anon: false, authenticated: true },
+  "tee_time_link_claim(p_invite_id bigint, p_sharer uuid, p_member uuid)": { anon: false, authenticated: false },
 
   // --- Service role / internal only. Everything below is either a trigger
   // --- function, a sweep, or a privileged write path that must never be

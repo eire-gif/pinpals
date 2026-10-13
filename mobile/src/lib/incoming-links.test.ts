@@ -36,6 +36,11 @@ describe("routeForIncomingUrl", () => {
     expect(routeForIncomingUrl("https://www.pinpals.ie/c/not-a-token.x")).toBe("/web?path=%2Fc%2Fnot-a-token.x&title=PinPals");
   });
 
+  it("opens a shared tee time on tee-link, which joins you to the round (0132)", () => {
+    expect(routeForIncomingUrl("https://www.pinpals.ie/t/eyJ0Ijo0Mn0.c2ln")).toBe("/tee-link?token=eyJ0Ijo0Mn0.c2ln");
+    expect(routeForIncomingUrl("https://www.pinpals.ie/t/no-dot")).toBe("/web?path=%2Ft%2Fno-dot&title=PinPals");
+  });
+
   it("opens a member's invite link or QR code on the join screen", () => {
     expect(routeForIncomingUrl("https://www.pinpals.ie/join/ab12cd34")).toBe("/join?code=ab12cd34");
     expect(routeForIncomingUrl("https://pinpals.ie/join/AB12CD34/")).toBe("/join?code=ab12cd34");

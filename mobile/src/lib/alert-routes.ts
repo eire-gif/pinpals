@@ -99,6 +99,9 @@ const PATTERNS: { match: RegExp; to: (id: string) => string }[] = [
   { match: /^\/scorecards\/(\d+)$/, to: (id) => `/scorecards/${id}` },
   // Groups (0120): an invitation, a join request or an approval opens the group.
   { match: /^\/groups\/(\d+)$/, to: (id) => `/group/${id}` },
+  // A shared tee time link (0132): "X invited you to play" opens the round,
+  // through tee-link, which adds you to it first. A signed token, not an id.
+  { match: /^\/t\/([A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)$/, to: (token) => `/tee-link?token=${encodeURIComponent(token)}` },
   // A member's page is keyed by their uuid, not a number — the one pattern
   // here that is not `\d+`, and still exact: anything that is not a uuid
   // falls through to the web view rather than to a screen that would only

@@ -23,6 +23,7 @@ import type { Href } from "expo-router";
  *    event    → app/group/[id]/events.tsx, app/group/[id]/outing/new.tsx,
  *               app/group/[id]/outing/[outingId].tsx, components/outing-pay-card.tsx,
  *               app/group/[id]/itinerary/*
+ *    fill     → app/invite/[id].tsx, app/round-invite.tsx, app/tee-link.tsx
  *    round    → app/(tabs)/live/day/group.tsx, app/(tabs)/live/round/[id].tsx,
  *               app/scorecards/certify/[id].tsx
  * ─────────────────────────────────────────────────────────────────────────
@@ -414,6 +415,40 @@ export const GUIDES: Guide[] = [
       },
     ],
   },
+
+  // -------------------------------------------------------------------------
+  {
+    id: "fill",
+    title: "Fill a place in your round",
+    blurb: "Invite a PinPal or send a link to fill an open place.",
+    icon: "person-add",
+    tone: "gold",
+    audience: "Host or anyone playing",
+    steps: [
+      {
+        title: "Open the round",
+        body: "Open the tee time you're hosting or playing in — from Home, Rounds I've posted, or My confirmed tee times in the menu.",
+        path: [MENU, { icon: "checkmark-circle-outline", label: "My confirmed tee times" }],
+        go: { label: "My confirmed tee times", to: "/confirmed-rounds" },
+      },
+      {
+        title: "Tap an open place",
+        body: "Under Who's playing, each empty seat says Open place. Tap one.",
+        look: [{ style: "outline", label: "Invite a PinPal or send a link", icon: "person-add" }],
+        who: "The host, or anyone with a confirmed place",
+      },
+      {
+        title: "Send a link or invite PinPals",
+        body: "Send a link on WhatsApp or by text to anyone — on PinPals or not. Or tick people under Your PinPals or Find PinPals and tap Send invitations; they get a notification.",
+        look: [
+          { style: "primary", label: "WhatsApp", icon: "logo-whatsapp" },
+          { style: "outline", label: "Find PinPals", icon: "search" },
+          { style: "primary", label: "Send invitations" },
+        ],
+        tip: "They ask for the place and the host confirms it, just like any request — so the host always decides who plays.",
+      },
+    ],
+  },
 ];
 
 /**
@@ -431,6 +466,7 @@ export const GUIDE_JOURNEY: { guide: string; icon: Icon; label: string }[] = [
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-13", text: "New guide: Fill a place in your round — invite a PinPal or send a link to an open place." },
   { on: "2026-10-13", text: "Groups is now called Groups & societies, in the menu and on Home." },
   { on: "2026-10-13", text: "Create an event: new step, Add guests. Guests now go on published tee times and can be marked paid." },
   { on: "2026-10-13", text: "Guides added: setting up and running a society, joining one, events and trips, and playing a round together." },

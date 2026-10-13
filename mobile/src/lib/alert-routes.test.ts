@@ -17,6 +17,10 @@ import { appRouteFor } from "./alert-routes";
  */
 
 describe("appRouteFor", () => {
+  it("opens a tee time invitation through tee-link (0132)", () => {
+    expect(appRouteFor("/t/eyJ0Ijo0Mn0.c2ln")).toEqual({ kind: "native", path: "/tee-link?token=eyJ0Ijo0Mn0.c2ln" });
+  });
+
   it("sends a message alert to the native thread", () => {
     expect(appRouteFor("/conversations/412")).toEqual({
       kind: "native",
