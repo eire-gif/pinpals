@@ -147,6 +147,8 @@ export default async function SiteHeader() {
     // menu: the feed is one page, and "My posts" lives on it.
     { href: "/feed", label: "Social" },
     { href: "/news", label: "News" },
+    // Public, like News: a rules lookup is as useful to a visitor as a member.
+    { href: "/rules", label: "Rules" },
   ];
 
   return (

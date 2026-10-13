@@ -131,9 +131,12 @@ export const MENU: MenuSection[] = [
     ],
   },
   {
-    title: "Courses & news",
+    title: "Courses, news & rules",
     items: [
       { kind: "native", label: "Course directory", icon: "flag-outline", to: "/courses" },
+      // Native, not web: the search runs on the phone, so it works on the
+      // course with no signal (lib/rules-of-golf.ts, shared with /rules).
+      { kind: "native", label: "Rules of Golf", icon: "reader-outline", to: "/rules" },
       // Web for now, and honestly so. The articles are on the site, the
       // pipeline that collects them is on the site, and a link tells us
       // whether anyone reads it before a native reader gets built.
