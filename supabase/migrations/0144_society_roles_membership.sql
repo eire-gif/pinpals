@@ -1177,4 +1177,12 @@ create policy "the committee reads the export log" on public.society_exports
 revoke all on public.society_exports from anon, authenticated;
 grant select on public.society_exports to authenticated;
 
+-- The files themselves: private, written and signed by the website only
+-- (service role; no object policies, so nobody else reads or writes them).
+-- A signed link lasts ten minutes; the website clears a society's older
+-- files each time it makes a new one.
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('society-exports', 'society-exports', false, 5242880, array['text/csv'])
+on conflict (id) do nothing;
+
 notify pgrst, 'reload schema';
