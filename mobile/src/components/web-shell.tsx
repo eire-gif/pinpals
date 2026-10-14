@@ -8,6 +8,7 @@ import {
 } from "react";
 import {
   ActivityIndicator,
+  Linking,
   Pressable,
   StyleSheet,
   Text,
@@ -20,6 +21,7 @@ import RNWebView, {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { SITE_URL } from "@/lib/config";
+import { decideWebNav, hostOf, isPinPalsUrl } from "@/lib/web-nav";
 import { signedInUrl } from "@/lib/web-session";
 import { colors, radii, spacing, type } from "@/lib/theme";
 
@@ -77,12 +79,23 @@ export function WebShell({ path }: { path: string }) {
     void resolve();
   }, [resolve]);
 
-  const allowed = (request: WebViewNavigation): boolean => {
-    try {
-      const host = new URL(request.url).hostname;
-      return host === "www.pinpals.ie" || host === "pinpals.ie";
-    } catch {
-      return false;
+  // Every navigation is decided here (src/lib/web-nav.ts): PinPals pages stay
+  // in the app; anything else (Stripe, an advertiser's site) opens in the
+  // phone's browser on purpose. See web-nav.ts for why originWhitelist is "*".
+  const siteHost = hostOf(SITE_URL);
+  const route = (request: WebViewNavigation & { isTopFrame?: boolean }): boolean => {
+    const decision = decideWebNav(request.url, request.isTopFrame ?? true, siteHost);
+    if (decision === "external") void Linking.openURL(request.url).catch(() => undefined);
+    return decision === "stay";
+  };
+
+  // A link with target="_blank". Without this, iOS hands it to Safari. PinPals
+  // pages open in this same view instead; anything else goes to the browser.
+  const openWindow = (targetUrl: string) => {
+    if (isPinPalsUrl(targetUrl, siteHost)) {
+      ref.current?.injectJavaScript(`window.location.href = ${JSON.stringify(targetUrl)}; true;`);
+    } else if (decideWebNav(targetUrl, true, siteHost) === "external") {
+      void Linking.openURL(targetUrl).catch(() => undefined);
     }
   };
 
@@ -114,7 +127,10 @@ export function WebShell({ path }: { path: string }) {
       <WebView
         ref={ref}
         source={{ uri }}
-        originWhitelist={[`${SITE_URL}/*`]}
+        // "*": let every navigation reach onShouldStartLoadWithRequest. A
+        // narrower list makes the library itself open non-matching URLs in
+        // Safari, signed out (how Admin → Advertising landed there, Oct 2026).
+        originWhitelist={["*"]}
         style={styles.fill}
         // iOS reuses the app's shared cookie store, which is what will let the
         // session handoff work when it lands (§4.2 of the build spec).
@@ -126,12 +142,8 @@ export function WebShell({ path }: { path: string }) {
         onHttpError={(event) => {
           if (event.nativeEvent.statusCode >= 500) setFailed(true);
         }}
-        onShouldStartLoadWithRequest={(request) => {
-          if (allowed(request)) return true;
-          // TODO: open off-site links in the system browser via expo-web-browser
-          // rather than dropping them, once there are any worth following.
-          return false;
-        }}
+        onShouldStartLoadWithRequest={route}
+        onOpenWindow={(event) => openWindow(event.nativeEvent.targetUrl)}
       />
       )}
       {loading && (
