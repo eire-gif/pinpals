@@ -7,10 +7,11 @@ import { GuideLink } from "@/components/guide-bits";
 import { LoadError, StateMessage } from "@/components/state-message";
 import { useAuth } from "@/lib/auth";
 import { loadGroupPage } from "@/lib/groups-data";
-import { groupNoun, organisers, type GroupKind } from "@/lib/groups";
+import { groupNoun, organisers, type GroupKind, officeAreas } from "@/lib/groups";
 import { countdownLabel, tripBadge, tripRangeLabel } from "@/lib/itinerary-rules";
 import { clock, closesLabel, entriesOpen, feeLabel, irishToday, outingDateLabel } from "@/lib/outing-rules";
 import { listOutings, setOutingEntry, type OutingSummary } from "@/lib/outings";
+import { Chip, PlaceChip } from "@/components/society-bits";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 
 /**
@@ -41,7 +42,9 @@ export default function SocietyEventsScreen() {
     if (!userId) return;
     try {
       const [page, list] = await Promise.all([loadGroupPage(groupId, userId), listOutings(groupId, userId, { fromDate: irishToday(), past })]);
-      setOfficer(page?.myRole === "owner" || page?.myRole === "admin");
+      // Whoever runs events: owner, captain, secretary, and since 0144 the
+      // vice-captain and event organisers.
+      setOfficer(officeAreas(page?.myRole ?? null, page?.myOffice ?? null).includes("events"));
       setGroupName(page?.group.name ?? "");
       setKind(page?.group.kind ?? null);
       setOutings(list);
@@ -58,6 +61,11 @@ export default function SocietyEventsScreen() {
   );
 
   async function toggle(o: OutingSummary) {
+    // A request-only event, or one with meals to choose: the request screen.
+    if (!o.mine && (o.entryMode === "request" || o.mealOptions.length > 0)) {
+      router.push({ pathname: "/group/[id]/outing/request", params: { id: String(groupId), outingId: String(o.id) } });
+      return;
+    }
     const go = async () => {
       setBusy(o.id);
       try {
@@ -70,7 +78,7 @@ export default function SocietyEventsScreen() {
       }
     };
     if (o.mine) {
-      Alert.alert(`Cancel your place at ${o.title}?`, "You can join again until midnight before the day.", [
+      Alert.alert(`Cancel your place at ${o.title}?`, "Your place goes to the next person on the waiting list, if there is one.", [
         { text: "Keep my place", style: "cancel" },
         { text: "Cancel my place", style: "destructive", onPress: () => void go() },
       ]);
@@ -179,7 +187,9 @@ export default function SocietyEventsScreen() {
                 </Pressable>
               );
             }
-            const open = entriesOpen(o.playsOn) && o.status === "open" && o.matchDayId == null;
+            const open = (o.entriesCloseAt ? Date.now() < new Date(o.entriesCloseAt).getTime() : entriesOpen(o.playsOn)) && o.status === "open" && o.matchDayId == null;
+            const queued = !o.mine && o.myPlace != null;
+            const full = o.maxEntries != null && o.entered >= o.maxEntries;
             const cancelled = o.status === "cancelled";
             const facts = [o.courseName, o.firstTee ? `First tee ${clock(o.firstTee)}` : null, feeLabel(o.entryFeeCents)].filter(Boolean).join(" · ");
             return (
@@ -207,8 +217,32 @@ export default function SocietyEventsScreen() {
                       ? "Cancelled"
                       : `${o.entered}${o.maxEntries ? ` of ${o.maxEntries}` : ""} in${o.mine && o.myTeeGroup ? ` · your tee time ${clock(o.myTeeTime) ?? `group ${o.myTeeGroup}`}` : ""}`}
                   </Text>
-                  {!cancelled && !past ? <Text style={[styles.closes, !open && styles.closed]}>{o.matchDayId ? "Round under way" : closesLabel(o.playsOn)}</Text> : null}
-                  {!cancelled && !past && open ? (
+                  {!cancelled && (o.myPlace || o.myPaymentDue) ? (
+                    <View style={styles.chips}>
+                      {o.myPlace ? <PlaceChip status={o.myPlace} linePosition={o.myLinePosition} /> : null}
+                      {o.myPaymentDue && !past ? <Chip tone="due">Payment due</Chip> : null}
+                    </View>
+                  ) : null}
+                  {!cancelled && !past ? (
+                    <Text style={[styles.closes, !open && styles.closed]}>
+                      {o.matchDayId
+                        ? "Round under way"
+                        : o.entriesCloseAt
+                          ? open
+                            ? `Entries close ${new Date(o.entriesCloseAt).toLocaleString("en-IE", { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit", timeZone: "Europe/Dublin" })}`
+                            : "Entries closed"
+                          : closesLabel(o.playsOn)}
+                    </Text>
+                  ) : null}
+                  {!cancelled && !past && queued ? (
+                    <Pressable
+                      style={[styles.join, styles.joinMine]}
+                      onPress={() => router.push({ pathname: "/group/[id]/outing/[outingId]", params: { id: String(groupId), outingId: String(o.id) } })}
+                      accessibilityRole="button"
+                    >
+                      <Text style={[styles.joinText, styles.joinTextMine]}>{o.myPlace === "offered" ? "A place is yours — answer" : "See my place"}</Text>
+                    </Pressable>
+                  ) : !cancelled && !past && open ? (
                     <Pressable
                       style={[styles.join, o.mine && styles.joinMine]}
                       onPress={() => void toggle(o)}
@@ -221,7 +255,9 @@ export default function SocietyEventsScreen() {
                       ) : (
                         <>
                           <Ionicons name={o.mine ? "checkmark-circle" : "add-circle-outline"} size={18} color={o.mine ? colors.green700 : colors.cream50} />
-                          <Text style={[styles.joinText, o.mine && styles.joinTextMine]}>{o.mine ? "You're in · Cancel" : "Join"}</Text>
+                          <Text style={[styles.joinText, o.mine && styles.joinTextMine]}>
+                            {o.mine ? "You're in · Cancel" : o.entryMode === "request" ? "Request a place" : full ? "Join the waiting list" : "Join"}
+                          </Text>
                         </>
                       )}
                     </Pressable>
@@ -242,6 +278,7 @@ export default function SocietyEventsScreen() {
 }
 
 const styles = StyleSheet.create({
+  chips: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 2 },
   fill: { flex: 1, backgroundColor: colors.cream50 },
   body: { padding: spacing.md, gap: spacing.sm, paddingBottom: spacing.xl * 2 },
   kicker: { fontFamily: fonts.bodyBold, fontSize: 12, letterSpacing: 1.2, color: colors.ink500 },

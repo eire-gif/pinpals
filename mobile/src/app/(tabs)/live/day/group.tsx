@@ -12,13 +12,13 @@ import { CourseSection, useCourseSetup } from "@/components/live-course-section"
 import { StateMessage } from "@/components/state-message";
 import { useAuth } from "@/lib/auth";
 import { isOn } from "@/lib/features";
-import { draw, indexTotal, swapPlayers, teamSizes, teeGroupSizes, teeTimes, type DrawMode, type DrawPlayer, type Seat } from "@/lib/group-draw";
+import { draw, honourWishes, indexTotal, swapPlayers, teamSizes, teeGroupSizes, teeTimes, type DrawMode, type DrawPlayer, type DrawWishes, type Seat } from "@/lib/group-draw";
 import { canDrawFrom, loadGroupRoster, loadMyGroups, type Group, type RosterPlayer } from "@/lib/groups-data";
 import type { GroupRole } from "@/lib/groups";
 import { SIDE_COLORS, createFourballDay, createMatchDay, createScrambleDay } from "@/lib/live-match-days";
 import { FOURSOMES_ALLOWANCE, courseHandicap, formatInfo, foursomesHandicap, indexLabel, parseIndex, playingHandicap, scrambleHandicap, type FoursomesScoring, type MatchFormat } from "@/lib/live-scoring";
 import { irishToday, isOutingDay, outingDateLabel } from "@/lib/outing-rules";
-import { addOutingGuest, linkOutingMatchDay, loadClub, loadOuting, publishOutingDraw, saveOuting, setOutingEntry, updateOutingGuest, type DrawSeat, type OutingPage } from "@/lib/outings";
+import { addOutingGuest, linkOutingMatchDay, loadClub, loadDrawWishes, loadOuting, publishOutingDraw, saveOuting, setOutingEntry, updateOutingGuest, type DrawSeat, type OutingPage } from "@/lib/outings";
 import { loadItineraryItem, setItemPeople, type ItineraryItem } from "@/lib/itinerary";
 import type { PlayFormat } from "@/lib/itinerary-rules";
 import { clockLabel } from "@/lib/tee-time-post";
@@ -153,6 +153,10 @@ export default function DrawFromGroup() {
   const [teamsOn, setTeamsOn] = useState(true);
   const [teamNames, setTeamNames] = useState<[string, string]>(["Blues", "Golds"]);
   const [mode, setMode] = useState<DrawMode>("random");
+  /** An event's requests and recent pairings (0142), honoured by the draw. */
+  const [wishes, setWishes] = useState<DrawWishes | null>(null);
+  const [useWishes, setUseWishes] = useState(true);
+  const [wishNote, setWishNote] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [firstTee, setFirstTee] = useState("");
   /** The day it's played (YYYY-MM-DD). Today unless a later date is picked, or the outing's. */
@@ -224,6 +228,9 @@ export default function DrawFromGroup() {
           // From an outing: its entrants are who's playing, and a published
           // draw comes back as it was.
           setOuting(page);
+          void loadDrawWishes(page.outing.id, groupId)
+            .then((w) => setWishes({ together: w.together, early: new Set(w.early), late: new Set(w.late), met: new Map(w.met) }))
+            .catch(() => setWishes(null));
           const label = (p: RosterPlayer) => (p.index != null ? indexLabel(p.index) : "");
           const inIt = people.filter((p) => page.entries.some((e) => e.memberId === p.id));
           setTicked(new Map(inIt.map((p) => [p.id, label(p)])));
@@ -321,6 +328,18 @@ export default function DrawFromGroup() {
   const makeDraw = () => {
     setPicked(null);
     let groupsNow = draw(entrants, sizing.sizes, mode);
+    setWishNote(null);
+    // Plain tee groups for an event: honour requests and avoid repeat pairings.
+    if (wishes && useWishes && !scramble && !matchFormat && !foursomesComp) {
+      const out = honourWishes(groupsNow, wishes, { balanced: mode === "balanced" });
+      groupsNow = out.groups;
+      const bits = [
+        out.togetherAsked ? `${out.together} of ${out.togetherAsked} "play with" requests` : null,
+        wishes.early.size || wishes.late.size ? "early and late tee requests" : null,
+        out.repeats === 0 && wishes.met.size ? "no repeat pairings from recent events" : out.repeats ? `${out.repeats} repeat pairing${out.repeats === 1 ? "" : "s"} couldn't be avoided` : null,
+      ].filter(Boolean);
+      setWishNote(bits.length ? `Honoured ${bits.join(" · ")}.` : null);
+    }
     // A pairs match (or two foursomes pairs), balanced: the best and the
     // highest handicap of the four play together against the middle two.
     if (((matchFormat && matchFormat !== "matchplay") || foursomesComp) && mode === "balanced") {
@@ -954,6 +973,19 @@ export default function DrawFromGroup() {
             <Ionicons name="shuffle" size={20} color={colors.cream50} />
             <Text style={styles.startLabel}>{drawnNow ? "Draw again" : "Make the draw"}</Text>
           </Pressable>
+          {wishes && !scramble && !matchFormat && !foursomesComp ? (
+            <Pressable
+              onPress={() => setUseWishes((v) => !v)}
+              style={styles.timeRow}
+              accessibilityRole="switch"
+              accessibilityState={{ checked: useWishes }}
+              accessibilityLabel="Honour playing requests and avoid repeat pairings"
+            >
+              <Ionicons name={useWishes ? "checkbox" : "square-outline"} size={22} color={colors.navy900} />
+              <Text style={[styles.meta, { flex: 1 }]}>Honour playing requests and avoid pairing the same people as recent events</Text>
+            </Pressable>
+          ) : null}
+          {wishNote && drawnNow ? <Text style={styles.meta}>{wishNote}</Text> : null}
 
           {drawnNow?.map((g, gi) => (
             <View key={gi} style={styles.drawn}>

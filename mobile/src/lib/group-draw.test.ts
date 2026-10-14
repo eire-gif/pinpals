@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { addMinutes, draw, indexTotal, shuffle, swapPlayers, teamSizes, teeGroupSizes, teeTimes, type DrawPlayer } from "./group-draw";
+import { addMinutes, draw, honourWishes, indexTotal, pairKey, shuffle, swapPlayers, teamSizes, teeGroupSizes, teeTimes, type DrawPlayer } from "./group-draw";
 
 /** A repeatable "random" source. */
 function seeded(seed: number): () => number {
@@ -94,5 +94,40 @@ describe("swapPlayers, shuffle and tee times", () => {
     expect(teeTimes("", 10, 2)).toEqual(["", ""]);
     expect(addMinutes("23:55", 10)).toBe("00:05");
     expect(addMinutes("25:00", 10)).toBe("");
+  });
+});
+
+describe("honourWishes", () => {
+  const p = (key: string, index: number | null = 18) => ({ key, name: key, index });
+  const none = { together: [] as [string, string][], early: new Set<string>(), late: new Set<string>(), met: new Map<string, number>() };
+
+  it("puts players who asked to play together in one group, keeping sizes", () => {
+    const dealt = [[p("a"), p("b")], [p("c"), p("d")]];
+    const out = honourWishes(dealt, { ...none, together: [["a", "c"]] });
+    expect(out.groups.map((g) => g.length)).toEqual([2, 2]);
+    const g = out.groups.findIndex((x) => x.some((y) => y.key === "a"));
+    expect(out.groups[g].map((x) => x.key)).toContain("c");
+    expect(out.together).toBe(1);
+  });
+
+  it("moves an early request to the front and a late one to the back", () => {
+    const dealt = [[p("a"), p("b")], [p("c"), p("d")], [p("e"), p("f")]];
+    const out = honourWishes(dealt, { ...none, early: new Set(["f"]), late: new Set(["a"]) });
+    expect(out.groups[0].map((x) => x.key)).toContain("f");
+    expect(out.groups[0].map((x) => x.key)).not.toContain("a");
+  });
+
+  it("avoids pairing the same players again", () => {
+    const dealt = [[p("a"), p("b")], [p("c"), p("d")]];
+    const met = new Map([[pairKey("a", "b"), 2], [pairKey("c", "d"), 1]]);
+    const out = honourWishes(dealt, { ...none, met });
+    expect(out.repeats).toBe(0);
+  });
+
+  it("only swaps close handicaps when balanced", () => {
+    const dealt = [[p("a", 2), p("b", 20)], [p("c", 30), p("d", 12)]];
+    const out = honourWishes(dealt, { ...none, together: [["a", "c"]] }, { balanced: true });
+    expect(out.together).toBe(0);
+    expect(out.groups).toEqual(dealt);
   });
 });

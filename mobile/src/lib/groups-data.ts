@@ -111,7 +111,7 @@ function fail(error: { message: string } | null, fallback: string): never {
 // ---------------------------------------------------------------------------
 
 export type MyGroups = {
-  groups: (Group & { role: GroupRole })[];
+  groups: (Group & { role: GroupRole; office?: GroupOffice | null })[];
   /** Pending invitations to you, newest first. */
   invitations: (Group & { invitedBy: string | null })[];
   /** Societies you've asked to join and are waiting on. */
@@ -122,10 +122,10 @@ export async function loadMyGroups(userId: string): Promise<MyGroups> {
   const [mine, waiting] = await Promise.all([
     supabase
       .from("group_members")
-      .select(`role, joined_at, group:groups(${GROUP_COLUMNS})`)
+      .select(`role, office, joined_at, group:groups(${GROUP_COLUMNS})`)
       .eq("member_id", userId)
       .order("joined_at", { ascending: false })
-      .overrideTypes<{ role: GroupRole; joined_at: string; group: GroupRow | null }[]>(),
+      .overrideTypes<{ role: GroupRole; office: string | null; joined_at: string; group: GroupRow | null }[]>(),
     supabase
       .from("group_invitations")
       .select(`direction, created_at, inviter:profiles!group_invitations_invited_by_fkey(first_name), group:groups(${GROUP_COLUMNS})`)
@@ -138,7 +138,7 @@ export async function loadMyGroups(userId: string): Promise<MyGroups> {
   if (waiting.error) fail(waiting.error, "Couldn't load your groups.");
 
   return {
-    groups: (mine.data ?? []).filter((r) => r.group).map((r) => ({ ...toGroup(r.group as GroupRow), role: r.role })),
+    groups: (mine.data ?? []).filter((r) => r.group).map((r) => ({ ...toGroup(r.group as GroupRow), role: r.role, office: isGroupOffice(r.office) ? r.office : null })),
     invitations: (waiting.data ?? [])
       .filter((r) => r.direction === "invite" && r.group)
       .map((r) => ({ ...toGroup(r.group as GroupRow), invitedBy: r.inviter?.first_name ?? null })),
@@ -437,8 +437,8 @@ export async function consumePendingGroupInvite(): Promise<number | null> {
 /** Whether you can put this group's members on cards (0121's
  *  live_can_add_player): anyone in a crew or trip; only whoever runs a
  *  society (owner or admin). The database applies the same rule. */
-export const canDrawFrom = (g: { kind: GroupKind; role: GroupRole }): boolean =>
-  g.kind === "crew" || g.kind === "trip" || g.role === "owner" || g.role === "admin";
+export const canDrawFrom = (g: { kind: GroupKind; role: GroupRole; office?: GroupOffice | null }): boolean =>
+  g.kind === "crew" || g.kind === "trip" || g.role === "owner" || g.role === "admin" || g.office === "vice_captain" || g.office === "event_organiser";
 
 export type RosterPlayer = {
   id: string;

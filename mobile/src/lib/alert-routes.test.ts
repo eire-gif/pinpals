@@ -301,4 +301,10 @@ describe("every native destination is a screen that exists", () => {
     expect(appRouteFor("/groups/12")).toEqual({ kind: "native", path: "/group/12" });
     expect(appRouteFor("/groups/twelve").kind).toBe("web");
   });
+
+  it("opens a society's event, noticeboard and membership", () => {
+    expect(appRouteFor("/groups/7/events/42")).toEqual({ kind: "native", path: "/group/7/outing/42" });
+    expect(appRouteFor("/groups/7/noticeboard")).toEqual({ kind: "native", path: "/group/7/noticeboard" });
+    expect(appRouteFor("/groups/7/membership")).toEqual({ kind: "native", path: "/group/7/membership" });
+  });
 });

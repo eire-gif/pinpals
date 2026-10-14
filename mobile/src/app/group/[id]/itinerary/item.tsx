@@ -28,6 +28,7 @@ import {
 } from "@/lib/itinerary-rules";
 import { clock, outingDateLabel } from "@/lib/outing-rules";
 import { loadClub, loadOuting, type OutingEntry, type OutingPage } from "@/lib/outings";
+import { officeAreas } from "@/lib/groups";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 
 const GAPS = [8, 9, 10, 12];
@@ -83,7 +84,9 @@ export default function ItineraryItemScreen() {
     try {
       const [o, g, it] = await Promise.all([loadOuting(outingId), loadGroupPage(groupId, userId), itemId ? loadItineraryItem(itemId) : Promise.resolve(null)]);
       setPage(o);
-      setOfficer(g?.myRole === "owner" || g?.myRole === "admin");
+      // Whoever runs events: owner, captain, secretary, and since 0144 the
+      // vice-captain and event organisers.
+      setOfficer(officeAreas(g?.myRole ?? null, g?.myOffice ?? null).includes("events"));
       if (!o || (itemId && !it)) {
         setMissing(true);
         return;

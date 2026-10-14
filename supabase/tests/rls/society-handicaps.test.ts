@@ -126,7 +126,7 @@ describe("captain and secretary", () => {
       await as(c, OWNER);
       await c.query("select public.set_group_office($1, $2, 'secretary')", [id, SECRETARY]);
       await rejects(c, "select public.set_group_role($1, $2, 'admin')", [id, MEMBER], /captain or secretary/);
-      await rejects(c, "select public.set_group_office($1, $2, 'treasurer')", [id, MEMBER], /Unknown office/);
+      await rejects(c, "select public.set_group_office($1, $2, 'president')", [id, MEMBER], /Unknown office/);
       await rejects(c, "select public.set_group_office($1, $2, 'captain')", [id, STRANGER], /not in this society/);
 
       await as(c, SECRETARY);
@@ -242,11 +242,11 @@ describe("society handicaps", () => {
       await rejects(c, "select public.set_society_handicap($1, $2, 10)", [id, STRANGER], /not in this society/);
 
       await as(c, MEMBER);
-      await rejects(c, "select * from public.society_handicaps($1)", [id], /captain and secretary/);
-      await rejects(c, "select public.set_society_handicap($1, $2, 10)", [id, MEMBER], /captain and secretary/);
+      await rejects(c, "select * from public.society_handicaps($1)", [id], /captain, secretary and handicap secretary/);
+      await rejects(c, "select public.set_society_handicap($1, $2, 10)", [id, MEMBER], /captain, secretary and handicap secretary/);
 
       await as(c, STRANGER);
-      await rejects(c, "select * from public.society_handicaps($1)", [id], /captain and secretary/);
+      await rejects(c, "select * from public.society_handicaps($1)", [id], /captain, secretary and handicap secretary/);
     });
   });
 });

@@ -141,11 +141,22 @@ describe("joining and cancelling", () => {
       await as(c, MEMBER);
       await c.query("select public.set_outing_entry($1, true)", [o]);
       await c.query("select public.set_outing_entry($1, true)", [o]); // twice is fine
+      // Full: since 0142 a member asking goes on the waiting list…
       await as(c, MEMBER2);
-      await rejects(c, "select public.set_outing_entry($1, true)", [o], /full/);
+      await c.query("select public.set_outing_entry($1, true)", [o]);
+      expect(await entrants(c, o)).toHaveLength(1);
       await as(c, MEMBER);
       await c.query("select public.set_outing_entry($1, false)", [o]);
       expect(await entrants(c, o)).toEqual([]);
+      // …and is offered the place that frees up.
+      await as(c, MEMBER2);
+      expect((await c.query("select status from public.society_outing_queue where outing_id = $1", [o])).rows).toEqual([{ status: "offered" }]);
+      // An event without a waiting list is simply full.
+      const closed = await newOuting(c, g, day(8), { max_entries: 1, waiting_list: false });
+      await as(c, MEMBER);
+      await c.query("select public.set_outing_entry($1, true)", [closed]);
+      await as(c, MEMBER2);
+      await rejects(c, "select public.set_outing_entry($1, true)", [closed], /full/);
     });
   });
 

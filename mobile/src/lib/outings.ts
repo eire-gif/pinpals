@@ -2,6 +2,7 @@ import type { Club } from "@/lib/courses";
 import type { OutingKind } from "@/lib/itinerary-rules";
 import type { ClaimMethod } from "@/lib/outing-payments";
 import type { PaidStatus } from "@/lib/outing-rules";
+import { postToSite } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
 
 /**
@@ -37,7 +38,21 @@ export type Outing = {
   status: "open" | "cancelled";
   drawPublishedAt: string | null;
   matchDayId: number | null;
+  /** 0142: how members get a place, and the event's details. */
+  entryMode: EntryMode;
+  entriesCloseAt: string | null;
+  waitingList: boolean;
+  autoOffer: boolean;
+  guestsAllowed: boolean;
+  guestFeeCents: number | null;
+  arriveBy: string | null;
+  formatLabel: string | null;
+  dressCode: string | null;
+  mealOptions: string[];
 };
+
+/** 'join': first come, first served. 'request': the officers give out places. */
+export type EntryMode = "join" | "request";
 
 export type OutingEntry = {
   memberId: string;
@@ -106,9 +121,24 @@ type OutingRow = {
   status: "open" | "cancelled";
   draw_published_at: string | null;
   match_day_id: number | null;
+  entry_mode?: EntryMode | null;
+  entries_close_at?: string | null;
+  waiting_list?: boolean | null;
+  auto_offer?: boolean | null;
+  guests_allowed?: boolean | null;
+  guest_fee_cents?: number | null;
+  arrive_by?: string | null;
+  format_label?: string | null;
+  dress_code?: string | null;
+  meal_options?: string[] | null;
 };
 
-const OUTING = "id, group_id, kind, title, club_id, course_name, plays_on, ends_on, location, first_tee, details, entry_fee_cents, max_entries, status, draw_published_at, match_day_id, pay_revtag, pay_iban, pay_account_name, pay_cash, pay_note";
+const OUTING_BASE = "id, group_id, kind, title, club_id, course_name, plays_on, ends_on, location, first_tee, details, entry_fee_cents, max_entries, status, draw_published_at, match_day_id, pay_revtag, pay_iban, pay_account_name, pay_cash, pay_note";
+/** With 0142's columns. A database without them falls back to OUTING_BASE. */
+const OUTING = `${OUTING_BASE}, entry_mode, entries_close_at, waiting_list, auto_offer, guests_allowed, guest_fee_cents, arrive_by, format_label, dress_code, meal_options`;
+
+/** "column … does not exist": the database hasn't had 0142 yet. */
+const missingColumn = (error: { message: string; code?: string } | null) => !!error && (error.code === "42703" || /does not exist/i.test(error.message));
 
 const toOuting = (r: OutingRow): Outing => ({
   id: r.id,
@@ -132,6 +162,16 @@ const toOuting = (r: OutingRow): Outing => ({
   status: r.status,
   drawPublishedAt: r.draw_published_at,
   matchDayId: r.match_day_id,
+  entryMode: r.entry_mode ?? "join",
+  entriesCloseAt: r.entries_close_at ?? null,
+  waitingList: r.waiting_list ?? true,
+  autoOffer: r.auto_offer ?? true,
+  guestsAllowed: r.guests_allowed ?? true,
+  guestFeeCents: r.guest_fee_cents ?? null,
+  arriveBy: r.arrive_by ?? null,
+  formatLabel: r.format_label ?? null,
+  dressCode: r.dress_code ?? null,
+  mealOptions: r.meal_options ?? [],
 });
 
 function fail(error: { message: string } | null, fallback: string): never {
@@ -149,23 +189,67 @@ export type OutingSummary = Outing & {
   /** Your tee time, once the draw is out. */
   myTeeGroup: number | null;
   myTeeTime: string | null;
+  /** 0142: in, asked, on the list (and where), or offered a place. */
+  myPlace: PlaceStatus | null;
+  myLinePosition: number | null;
+  myOfferExpiresAt: string | null;
+  /** In, with a fee, not marked paid. */
+  myPaymentDue: boolean;
 };
 
 /** A society's outings from `fromDate` on (or all past ones), soonest first. */
 export async function listOutings(groupId: number, userId: string, opts: { fromDate: string; past?: boolean }): Promise<OutingSummary[]> {
-  const counts = await guestCounts(groupId);
-  let q = supabase.from("society_outings").select(`${OUTING}, entries:society_outing_entries(member_id, tee_group, tee_time)`).eq("group_id", groupId);
-  // A trip counts as upcoming until its last day is over (0126).
-  const d = opts.fromDate;
-  q = opts.past
-    ? q.lt("plays_on", d).or(`ends_on.is.null,ends_on.lt.${d}`).order("plays_on", { ascending: false }).limit(30)
-    : q.or(`plays_on.gte.${d},ends_on.gte.${d}`).order("plays_on");
-  const { data, error } = await q.overrideTypes<(OutingRow & { entries: { member_id: string; tee_group: number | null; tee_time: string | null }[] })[]>();
+  const [counts, queue, paid] = await Promise.all([guestCounts(groupId), myOutingQueue(groupId), myPaidOutings(userId)]);
+  const run = (cols: string) => {
+    let q = supabase.from("society_outings").select(`${cols}, entries:society_outing_entries(member_id, tee_group, tee_time)`).eq("group_id", groupId);
+    // A trip counts as upcoming until its last day is over (0126).
+    const d = opts.fromDate;
+    q = opts.past
+      ? q.lt("plays_on", d).or(`ends_on.is.null,ends_on.lt.${d}`).order("plays_on", { ascending: false }).limit(30)
+      : q.or(`plays_on.gte.${d},ends_on.gte.${d}`).order("plays_on");
+    return q.overrideTypes<(OutingRow & { entries: { member_id: string; tee_group: number | null; tee_time: string | null }[] })[]>();
+  };
+  let { data, error } = await run(OUTING);
+  if (missingColumn(error)) ({ data, error } = await run(OUTING_BASE));
   if (error) fail(error, "Couldn't load the outings.");
   return (data ?? []).map((r) => {
     const me = r.entries.find((e) => e.member_id === userId);
-    return { ...toOuting(r), entered: r.entries.length + (counts.get(r.id) ?? 0), mine: !!me, myTeeGroup: me?.tee_group ?? null, myTeeTime: me?.tee_time ?? null };
+    const q = queue.get(r.id);
+    const o = toOuting(r);
+    return {
+      ...o,
+      entered: r.entries.length + (counts.get(r.id) ?? 0),
+      mine: !!me,
+      myTeeGroup: me?.tee_group ?? null,
+      myTeeTime: me?.tee_time ?? null,
+      myPlace: me ? "confirmed" : q?.status ?? null,
+      myLinePosition: q?.linePosition ?? null,
+      myOfferExpiresAt: q?.offerExpiresAt ?? null,
+      myPaymentDue: !!me && (o.entryFeeCents ?? 0) > 0 && !paid.has(r.id),
+    };
   });
+}
+
+/** Where you stand on an event: in, asked, waiting, or offered a place. */
+export type PlaceStatus = "confirmed" | "requested" | "waiting" | "offered";
+
+export type QueuePlace = { status: Exclude<PlaceStatus, "confirmed">; linePosition: number | null; offerExpiresAt: string | null; guestName: string | null };
+
+/** Your requests and waiting-list places in one group (0142). Empty before 0142. */
+export async function myOutingQueue(groupId: number): Promise<Map<number, QueuePlace>> {
+  const { data, error } = await supabase.rpc("my_outing_queue", { p_group_id: groupId });
+  const out = new Map<number, QueuePlace>();
+  if (error) return out;
+  for (const r of (data ?? []) as { outing_id: number; status: QueuePlace["status"]; line_position: number | null; offer_expires_at: string | null; guest_name: string | null }[]) {
+    out.set(r.outing_id, { status: r.status, linePosition: r.line_position, offerExpiresAt: r.offer_expires_at, guestName: r.guest_name });
+  }
+  return out;
+}
+
+/** Events you've paid for (or had waived). */
+async function myPaidOutings(userId: string): Promise<Set<number>> {
+  const { data } = await supabase.from("society_outing_payments").select("outing_id, status").eq("member_id", userId).overrideTypes<{ outing_id: number; status: string }[]>();
+  return new Set((data ?? []).filter((p) => p.status !== "refunded").map((p) => p.outing_id));
 }
 
 /** Guests per outing in one group. Empty on a database without 0131. */
@@ -196,13 +280,20 @@ export type OutingPage = {
   payments: Map<string, PaidStatus>;
   /** "I've paid" not yet confirmed (0127): your own, or for officers everyone's. */
   claims: Map<string, ClaimMethod>;
+  /** 0142: requests and the waiting list — your own, or the officers' whole list. */
+  queue: QueueEntry[];
+  /** What each member asked for: your own, or the officers' all. */
+  choices: Map<string, OutingChoice>;
+  /** Who withdrew: your own, or for officers everyone's. */
+  withdrawals: Withdrawal[];
 };
 
 export async function loadOuting(outingId: number): Promise<OutingPage | null> {
-  const { data: row, error } = await supabase.from("society_outings").select(OUTING).eq("id", outingId).maybeSingle<OutingRow>();
+  let { data: row, error } = await supabase.from("society_outings").select(OUTING).eq("id", outingId).maybeSingle<OutingRow>();
+  if (missingColumn(error)) ({ data: row, error } = await supabase.from("society_outings").select(OUTING_BASE).eq("id", outingId).maybeSingle<OutingRow>());
   if (error) fail(error, "Couldn't load this outing.");
   if (!row) return null;
-  const [entries, payments, claims, guests, guestPayments] = await Promise.all([
+  const [entries, payments, claims, guests, guestPayments, queue, choices, withdrawals] = await Promise.all([
     supabase
       .from("society_outing_entries")
       .select("member_id, entered_at, tee_group, tee_time, tee_position, profile:profiles(first_name, last_name, home_club, avatar_url, avatar_color)")
@@ -228,6 +319,32 @@ export async function loadOuting(outingId: number): Promise<OutingPage | null> {
       .select("guest_id, status, guest:society_outing_guests!inner(outing_id)")
       .eq("guest.outing_id", outingId)
       .overrideTypes<{ guest_id: number; status: Exclude<PaidStatus, "card"> }[]>(),
+    // 0142: your own place in the queue, or for officers everyone's. Empty before 0142.
+    supabase
+      .from("society_outing_queue")
+      .select("id, member_id, status, guest_name, guest_index, created_at, queued_at, offer_expires_at, profile:profiles(first_name, last_name, avatar_url, avatar_color)")
+      .eq("outing_id", outingId)
+      .order("queued_at")
+      .overrideTypes<
+        {
+          id: number;
+          member_id: string;
+          status: QueuePlace["status"];
+          guest_name: string | null;
+          guest_index: number | string | null;
+          created_at: string;
+          queued_at: string;
+          offer_expires_at: string | null;
+          profile: { first_name: string | null; last_name: string | null; avatar_url: string | null; avatar_color: string | null } | null;
+        }[]
+      >(),
+    supabase.from("society_outing_choices").select("member_id, meal, guest_meal, play_with, tee_pref, note").eq("outing_id", outingId).overrideTypes<ChoiceRow[]>(),
+    supabase
+      .from("society_outing_withdrawals")
+      .select("id, member_id, withdrawn_at, profile:profiles(first_name, last_name)")
+      .eq("outing_id", outingId)
+      .order("withdrawn_at", { ascending: false })
+      .overrideTypes<{ id: number; member_id: string; withdrawn_at: string; profile: { first_name: string | null; last_name: string | null } | null }[]>(),
   ]);
   if (entries.error) fail(entries.error, "Couldn't load who's in.");
   return {
@@ -247,8 +364,48 @@ export async function loadOuting(outingId: number): Promise<OutingPage | null> {
     claims: new Map((claims.data ?? []).map((c) => [c.member_id, c.method])),
     guests: guests.error ? [] : (guests.data ?? []).map(toGuest),
     guestPayments: new Map(guestPayments.error ? [] : (guestPayments.data ?? []).map((p) => [p.guest_id, p.status])),
+    queue: queue.error
+      ? []
+      : (queue.data ?? []).map((q) => ({
+          id: q.id,
+          memberId: q.member_id,
+          name: [q.profile?.first_name, q.profile?.last_name].filter(Boolean).join(" ") || "A member",
+          avatarUrl: q.profile?.avatar_url ?? null,
+          avatarColor: q.profile?.avatar_color ?? null,
+          status: q.status,
+          guestName: q.guest_name,
+          guestIndex: q.guest_index == null ? null : Number(q.guest_index),
+          askedAt: q.created_at,
+          offerExpiresAt: q.offer_expires_at,
+        })),
+    choices: new Map(choices.error ? [] : (choices.data ?? []).map((c) => [c.member_id, toChoice(c)])),
+    withdrawals: withdrawals.error
+      ? []
+      : (withdrawals.data ?? []).map((w) => ({ id: w.id, memberId: w.member_id, name: [w.profile?.first_name, w.profile?.last_name].filter(Boolean).join(" ") || "A member", at: w.withdrawn_at })),
   };
 }
+
+type ChoiceRow = { member_id: string; meal: string | null; guest_meal: string | null; play_with: string | null; tee_pref: "early" | "late" | null; note: string | null };
+const toChoice = (c: ChoiceRow): OutingChoice => ({ meal: c.meal, guestMeal: c.guest_meal, playWith: c.play_with, teePref: c.tee_pref, note: c.note });
+
+/** What a member asked for with their place (0142). Theirs and the officers' to see. */
+export type OutingChoice = { meal: string | null; guestMeal: string | null; playWith: string | null; teePref: "early" | "late" | null; note: string | null };
+
+/** Someone asking for a place, on the waiting list, or offered one (0142). */
+export type QueueEntry = {
+  id: number;
+  memberId: string;
+  name: string;
+  avatarUrl: string | null;
+  avatarColor: string | null;
+  status: QueuePlace["status"];
+  guestName: string | null;
+  guestIndex: number | null;
+  askedAt: string;
+  offerExpiresAt: string | null;
+};
+
+export type Withdrawal = { id: number; memberId: string; name: string; at: string };
 
 /** The course of an outing as the course picker wants it. */
 export async function loadClub(clubId: number): Promise<Club | null> {
@@ -351,6 +508,17 @@ export type OutingInput = {
   details: string | null;
   entryFeeCents: number | null;
   maxEntries: number | null;
+  /** 0142. Left out (undefined), the database keeps what it has. */
+  entryMode?: EntryMode;
+  entriesCloseAt?: string | null;
+  waitingList?: boolean;
+  autoOffer?: boolean;
+  guestsAllowed?: boolean;
+  guestFeeCents?: number | null;
+  arriveBy?: string | null;
+  formatLabel?: string | null;
+  dressCode?: string | null;
+  mealOptions?: string[];
 };
 
 export async function saveOuting(groupId: number, outingId: number | null, input: OutingInput): Promise<number> {
@@ -374,21 +542,34 @@ export async function saveOuting(groupId: number, outingId: number | null, input
       details: input.details,
       entry_fee_cents: input.entryFeeCents,
       max_entries: input.maxEntries,
+      ...(input.entryMode !== undefined ? { entry_mode: input.entryMode } : {}),
+      ...(input.entriesCloseAt !== undefined ? { entries_close_at: input.entriesCloseAt } : {}),
+      ...(input.waitingList !== undefined ? { waiting_list: input.waitingList } : {}),
+      ...(input.autoOffer !== undefined ? { auto_offer: input.autoOffer } : {}),
+      ...(input.guestsAllowed !== undefined ? { guests_allowed: input.guestsAllowed } : {}),
+      ...(input.guestFeeCents !== undefined ? { guest_fee_cents: input.guestFeeCents } : {}),
+      ...(input.arriveBy !== undefined ? { arrive_by: input.arriveBy } : {}),
+      ...(input.formatLabel !== undefined ? { format_label: input.formatLabel } : {}),
+      ...(input.dressCode !== undefined ? { dress_code: input.dressCode } : {}),
+      ...(input.mealOptions !== undefined ? { meal_options: input.mealOptions } : {}),
     },
   });
   if (error) fail(error, "Couldn't save the outing.");
+  flushSocietyAlerts();
   return Number(data);
 }
 
 export async function cancelOuting(outingId: number): Promise<void> {
   const { error } = await supabase.rpc("cancel_outing", { p_outing_id: outingId });
   if (error) fail(error, "Couldn't cancel the outing.");
+  flushSocietyAlerts();
 }
 
 /** Join (true) or cancel (false); with memberId, an officer for someone else. */
 export async function setOutingEntry(outingId: number, inIt: boolean, memberId?: string): Promise<void> {
   const { error } = await supabase.rpc("set_outing_entry", { p_outing_id: outingId, p_in: inIt, p_member: memberId ?? null });
   if (error) fail(error, inIt ? "Couldn't put you in." : "Couldn't take you out.");
+  flushSocietyAlerts();
 }
 
 /** One seat in a published draw: a member's id, or a guest on the outing (0131). */
@@ -401,6 +582,7 @@ export async function publishOutingDraw(outingId: number, groups: { teeTime: str
     p_groups: groups.map((g) => ({ tee_time: g.teeTime, members: g.members })),
   });
   if (error) fail(error, "Couldn't publish the tee times.");
+  flushSocietyAlerts();
 }
 
 export async function linkOutingMatchDay(outingId: number, matchDayId: number): Promise<void> {
@@ -463,4 +645,165 @@ export async function removeOutingGuest(guestId: number): Promise<void> {
 export async function markOutingGuestPaid(guestId: number, status: Exclude<PaidStatus, "card"> | null): Promise<void> {
   const { error } = await supabase.rpc("mark_outing_guest_paid", { p_guest_id: guestId, p_status: status });
   if (error) fail(error, "Couldn't mark that.");
+}
+
+// ---------------------------------------------------------------------------
+// Requests, the waiting list and offers (0142)
+// ---------------------------------------------------------------------------
+
+/**
+ * Asks the website to send the alerts the database just queued (a request,
+ * an offer, a new event…), so they go out now rather than at the next
+ * scheduled run. Fire-and-forget: the change is already made.
+ */
+export function flushSocietyAlerts(): void {
+  void postToSite("/api/app/societies/alerts", {}).catch(() => undefined);
+}
+
+export type PlaceRequest = {
+  meal?: string | null;
+  guestMeal?: string | null;
+  playWith?: string | null;
+  teePref?: "early" | "late" | null;
+  note?: string | null;
+  guest?: { name: string; index: number | null } | null;
+};
+
+/** Ask for a place (or change what you asked for). Says where you are now. */
+export async function requestOutingPlace(outingId: number, req: PlaceRequest = {}): Promise<Exclude<PlaceStatus, "offered">> {
+  const { data, error } = await supabase.rpc("request_outing_place", {
+    p_outing_id: outingId,
+    p: {
+      meal: req.meal ?? null,
+      guest_meal: req.guestMeal ?? null,
+      play_with: req.playWith ?? null,
+      tee_pref: req.teePref ?? null,
+      note: req.note ?? null,
+      guest: req.guest ? { name: req.guest.name, index: req.guest.index } : null,
+    },
+  });
+  if (error) fail(error, "Couldn't ask for a place.");
+  flushSocietyAlerts();
+  return data as Exclude<PlaceStatus, "offered">;
+}
+
+export type ReviewDecision = "approve" | "member_only" | "waiting" | "decline";
+
+export async function reviewOutingRequest(outingId: number, memberId: string, decision: ReviewDecision): Promise<string> {
+  const { data, error } = await supabase.rpc("review_outing_request", { p_outing_id: outingId, p_member: memberId, p_decision: decision });
+  if (error) fail(error, "Couldn't answer that.");
+  flushSocietyAlerts();
+  return String(data);
+}
+
+export async function answerOutingOffer(outingId: number, accept: boolean): Promise<string> {
+  const { data, error } = await supabase.rpc("answer_outing_offer", { p_outing_id: outingId, p_accept: accept });
+  if (error) fail(error, "Couldn't answer the offer.");
+  flushSocietyAlerts();
+  return String(data);
+}
+
+export async function promoteOutingWaiting(outingId: number, memberId: string): Promise<void> {
+  const { error } = await supabase.rpc("promote_outing_waiting", { p_outing_id: outingId, p_member: memberId });
+  if (error) fail(error, "Couldn't give them a place.");
+  flushSocietyAlerts();
+}
+
+export async function markOutingRefunded(outingId: number, memberId: string, refunded: boolean): Promise<void> {
+  const { error } = await supabase.rpc("mark_outing_refunded", { p_outing_id: outingId, p_member: memberId, p_refunded: refunded });
+  if (error) fail(error, "Couldn't mark that.");
+}
+
+/**
+ * What the draw should honour for an event (0142): who asked to play with
+ * whom, early or late, and who has been drawn together at the society's
+ * last few events. Officers only can read the choices; anyone else gets
+ * just the history.
+ */
+export async function loadDrawWishes(outingId: number, groupId: number): Promise<{ together: [string, string][]; early: string[]; late: string[]; met: [string, number][] }> {
+  const [choices, past] = await Promise.all([
+    supabase.from("society_outing_choices").select("member_id, play_with, tee_pref").eq("outing_id", outingId).overrideTypes<{ member_id: string; play_with: string | null; tee_pref: string | null }[]>(),
+    supabase
+      .from("society_outings")
+      .select("id, entries:society_outing_entries(member_id, tee_group)")
+      .eq("group_id", groupId)
+      .neq("id", outingId)
+      .not("draw_published_at", "is", null)
+      .order("plays_on", { ascending: false })
+      .limit(6)
+      .overrideTypes<{ id: number; entries: { member_id: string; tee_group: number | null }[] }[]>(),
+  ]);
+  const c = choices.error ? [] : choices.data ?? [];
+  const met = new Map<string, number>();
+  for (const o of past.data ?? []) {
+    const byGroup = new Map<number, string[]>();
+    for (const e of o.entries) if (e.tee_group) byGroup.set(e.tee_group, [...(byGroup.get(e.tee_group) ?? []), e.member_id]);
+    for (const ids of byGroup.values()) {
+      for (let i = 0; i < ids.length; i++)
+        for (let j = i + 1; j < ids.length; j++) {
+          const a = `m:${ids[i]}`;
+          const b = `m:${ids[j]}`;
+          const k = a < b ? `${a}|${b}` : `${b}|${a}`;
+          met.set(k, (met.get(k) ?? 0) + 1);
+        }
+    }
+  }
+  return {
+    together: c.filter((x) => x.play_with).map((x) => [`m:${x.member_id}`, `m:${x.play_with}`] as [string, string]),
+    early: c.filter((x) => x.tee_pref === "early").map((x) => `m:${x.member_id}`),
+    late: c.filter((x) => x.tee_pref === "late").map((x) => `m:${x.member_id}`),
+    met: [...met.entries()],
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Kept on the phone for no signal (Oct 2026)
+// ---------------------------------------------------------------------------
+
+const CACHE_KEY = (id: number) => `pinpals.outing.${id}.v1`;
+
+/**
+ * Keeps an event's details and your own tee group on the phone after each
+ * load, so the event page still opens on the course with no signal. Small on
+ * purpose (SecureStore values are meant to stay under a couple of KB): the
+ * event itself, and only the people in your tee group.
+ */
+export async function keepOutingOnPhone(page: OutingPage, userId: string): Promise<void> {
+  try {
+    const me = page.entries.find((e) => e.memberId === userId);
+    if (!me) return;
+    const mine = me.teeGroup
+      ? page.entries.filter((e) => e.teeGroup === me.teeGroup).map((e) => ({ ...e, avatarUrl: null, homeClub: null }))
+      : [{ ...me, avatarUrl: null, homeClub: null }];
+    const guests = me.teeGroup ? page.guests.filter((g) => g.teeGroup === me.teeGroup) : [];
+    const outing = { ...page.outing, details: page.outing.details ? page.outing.details.slice(0, 300) : null };
+    const SecureStore = await import("expo-secure-store");
+    await SecureStore.setItemAsync(CACHE_KEY(page.outing.id), JSON.stringify({ outing, entries: mine, guests, at: Date.now() }));
+  } catch {
+    // Best effort.
+  }
+}
+
+/** The copy kept on the phone, as a page with only your group in it; null if none. */
+export async function outingFromPhone(outingId: number): Promise<(OutingPage & { savedAt: number }) | null> {
+  try {
+    const SecureStore = await import("expo-secure-store");
+    const raw = await SecureStore.getItemAsync(CACHE_KEY(outingId));
+    if (!raw) return null;
+    const v = JSON.parse(raw) as { outing: Outing; entries: OutingEntry[]; guests: OutingGuest[]; at: number };
+    return {
+      outing: v.outing,
+      entries: v.entries,
+      guests: v.guests,
+      guestPayments: new Map(),
+      payments: new Map(),
+      claims: new Map(),
+      queue: [],
+      choices: new Map(),
+      withdrawals: [],
+      savedAt: v.at,
+    };
+  } catch {
+    return null;
+  }
 }

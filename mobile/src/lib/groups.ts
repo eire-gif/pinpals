@@ -171,10 +171,46 @@ export type GroupRole = (typeof GROUP_ROLES)[number];
  * handicaps. In a society there are no other admins, and members never
  * invite (members_can_invite is always off).
  */
-export const GROUP_OFFICES = ["captain", "secretary"] as const;
+export const GROUP_OFFICES = ["captain", "secretary", "vice_captain", "treasurer", "handicap_secretary", "event_organiser"] as const;
 export type GroupOffice = (typeof GROUP_OFFICES)[number];
 
-export const GROUP_OFFICE_LABELS: Record<GroupOffice, string> = { captain: "Captain", secretary: "Secretary" };
+/**
+ * The committee (0144). Captain and secretary run the society (role
+ * 'admin'); the others stay members by role and each get one area — the
+ * vice-captain and event organisers run events, the treasurer the money,
+ * the handicap secretary the handicaps. There can be several event
+ * organisers; one of every other office.
+ */
+export const RUNNING_OFFICES: readonly GroupOffice[] = ["captain", "secretary"];
+
+export const GROUP_OFFICE_LABELS: Record<GroupOffice, string> = {
+  captain: "Captain",
+  secretary: "Secretary",
+  vice_captain: "Vice-captain",
+  treasurer: "Treasurer",
+  handicap_secretary: "Handicap secretary",
+  event_organiser: "Event organiser",
+};
+
+/** A society's areas (0144's society_can) and who has them. */
+export const SOCIETY_AREAS = ["events", "people", "money", "handicaps", "messages"] as const;
+export type SocietyArea = (typeof SOCIETY_AREAS)[number];
+
+export function officeAreas(role: GroupRole | null, office: GroupOffice | null): SocietyArea[] {
+  if (role === "owner" || role === "admin") return [...SOCIETY_AREAS];
+  switch (office) {
+    case "vice_captain":
+      return ["events", "messages"];
+    case "treasurer":
+      return ["money", "messages"];
+    case "handicap_secretary":
+      return ["handicaps"];
+    case "event_organiser":
+      return ["events", "messages"];
+    default:
+      return [];
+  }
+}
 
 export function isGroupOffice(value: unknown): value is GroupOffice {
   return typeof value === "string" && (GROUP_OFFICES as readonly string[]).includes(value);
@@ -190,13 +226,13 @@ export function roleLabel(role: GroupRole, office: GroupOffice | null): string |
 }
 
 /**
- * Who may change a group's cover photo and logo (0124's group_can_style):
- * in a society, its owner, captain or secretary; in a crew or trip, whoever
- * runs it. Ordinary members never.
+ * Who may change a group's cover photo and logo (0124's group_can_style, as
+ * 0144 left it): in a society, its owner, captain or secretary; in a crew or
+ * trip, whoever runs it. Other committee members and ordinary members never.
  */
 export function canStyleGroup(kind: GroupKind, role: GroupRole | null, office: GroupOffice | null): boolean {
   if (role === null) return false;
-  if (kind === "society") return role === "owner" || office !== null;
+  if (kind === "society") return role === "owner" || (office !== null && RUNNING_OFFICES.includes(office));
   return role === "owner" || role === "admin";
 }
 

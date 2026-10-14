@@ -145,6 +145,15 @@ export const NOTIFICATION_TYPES = [
   // your card, and you hear their answer. Under tee_times with live scoring.
   "scorecard_certify_request",
   "scorecard_certify_result",
+  // Societies (0142–0144), from the society alert outbox. Events, places and
+  // reminders sit with tee times; the noticeboard and the committee's
+  // messages with the social side. Each society also has its own switches
+  // (society_alert_prefs), which the sender applies first.
+  "society_event",
+  "society_place",
+  "society_reminder",
+  "society_notice",
+  "society_message",
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 
@@ -192,6 +201,11 @@ export const NOTIFICATION_TYPE_CATEGORY: Record<NotificationType, NotificationCa
   group_request_approved: "feed",
   scorecard_certify_request: "tee_times",
   scorecard_certify_result: "tee_times",
+  society_event: "tee_times",
+  society_place: "tee_times",
+  society_reminder: "tee_times",
+  society_notice: "feed",
+  society_message: "feed",
 };
 
 /** Which preference category (if any) governs delivery for this notification

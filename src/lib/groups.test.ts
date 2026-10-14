@@ -167,7 +167,8 @@ describe("society offices (0122)", () => {
   it("knows the two offices", () => {
     expect(isGroupOffice("captain")).toBe(true);
     expect(isGroupOffice("secretary")).toBe(true);
-    expect(isGroupOffice("treasurer")).toBe(false);
+    expect(isGroupOffice("treasurer")).toBe(true);
+    expect(isGroupOffice("president")).toBe(false);
   });
 });
 
