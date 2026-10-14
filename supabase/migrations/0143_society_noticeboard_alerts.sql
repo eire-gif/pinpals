@@ -23,7 +23,8 @@
 --   5. The website sends what's in the outbox, every few minutes and right
 --      after a member's change: pg_cron calls POST /api/societies/alerts/run
 --      with the bearer token in vault secret 'society_alerts_cron_secret'
---      (the same value as SOCIETY_ALERTS_CRON_SECRET on Vercel).
+--      (SOCIETY_ALERTS_CRON_SECRET on Vercel) if one is set up, otherwise
+--      the existing scheduled-jobs secret 'account_deletion_cron_secret'.
 --
 -- Rollback:
 --   select cron.unschedule('pinpals-society-reminders'); select cron.unschedule('pinpals-society-alerts');
@@ -408,6 +409,7 @@ begin
           'Content-Type',  'application/json',
           'Authorization', 'Bearer ' || coalesce(
             (select decrypted_secret from vault.decrypted_secrets where name = 'society_alerts_cron_secret' limit 1),
+            (select decrypted_secret from vault.decrypted_secrets where name = 'account_deletion_cron_secret' limit 1),
             'unset'
           )
         ),
