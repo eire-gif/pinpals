@@ -1012,7 +1012,7 @@ export const GUIDES: Guide[] = [
       },
       {
         title: "Course, tees and format",
-        body: "After Start a Game: search for the course, pick your tees, and 18 or 9 holes. Then pick the format.",
+        body: "After Start a Game: search for the course and check the tees — if the course has a saved card, a tee is already picked so every stroke index is filled in. Choose 18 or 9 holes, then the format.",
         choices: [
           { icon: "stats-chart", label: "Stableford", blurb: "Points per hole." },
           { icon: "list", label: "Stroke play", blurb: "Gross and net." },
@@ -1491,6 +1491,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-14", text: "Score a game live: when a course has a saved card, a tee is now picked for you so the stroke indexes are filled in (choose Other tees for a blank card). In a society day, a stroke index entered on one card now fills in on every group's card." },
   { on: "2026-10-14", text: "New guide: Get a place on an event — join or request a place, the waiting list, guests and paying. Create an event: how members get a place, the day's details, answering requests. Run your society: committee roles, annual membership, money, exports, noticeboard and messages, order of merit." },
   { on: "2026-10-14", text: "Score a game live: start from a tee time with Start live scoring — your fourball is added, untick anyone not playing. The Hole map button is now Yardage & shot map. Find PinPals: your QR code is on Home too." },
   { on: "2026-10-13", text: "Publish the results: Past results on a group's page now folds away (tap to open, See all results for the full list), and the results page ends with a Saved panel and Back to Home / Back to the group." },

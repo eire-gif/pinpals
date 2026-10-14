@@ -31,6 +31,19 @@ const parseNumber = (text: string): number | null => {
   return Number.isFinite(n) ? n : null;
 };
 
+/**
+ * The tees a new round starts on when a course has saved cards: a verified
+ * card with every stroke index, White first (the usual men's medal tee),
+ * then any men's tee, then whatever there is.
+ */
+export function defaultCard(cards: CourseCard[]): CourseCard | null {
+  const complete = cards.filter((c) => c.card.length === c.holes && c.card.every((h) => h.strokeIndex != null));
+  const pool = complete.length > 0 ? complete : cards;
+  const rank = (c: CourseCard) =>
+    (c.verified ? 0 : 10) + (/^white\b/i.test(c.teeName) ? 0 : /women|ladies/i.test(c.teeName) ? 2 : 1);
+  return [...pool].sort((a, b) => rank(a) - rank(b))[0] ?? null;
+}
+
 export type CourseSetup = ReturnType<typeof useCourseSetup>;
 
 export function useCourseSetup() {
@@ -43,18 +56,38 @@ export function useCourseSetup() {
   const [slopeText, setSlopeText] = useState("");
   const [parText, setParText] = useState("72");
 
+  // Keyed on the club's id, not the object: screens that fill the course in
+  // for you (an event, a trip round, a tee time) can call setClub again with
+  // a fresh copy of the same club once their data arrives, and that must not
+  // throw away the tee already picked.
+  const clubId = club?.id ?? null;
   useEffect(() => {
     setCards(null);
     setCardId(null);
-    if (!club) return;
-    void loadCourseCards(club.id)
-      .then(setCards)
-      .catch(() => setCards([]));
-  }, [club]);
+    if (clubId == null) return;
+    let live = true;
+    void loadCourseCards(clubId)
+      .then((got) => {
+        if (!live) return;
+        setCards(got);
+        // A saved card means a full set of stroke indexes, so start from
+        // one: left on "Other tees", a round (and every card in a society
+        // day) starts blank and the group is asked for each index. The
+        // organiser can still change the tees or choose "Other tees".
+        const first = defaultCard(got);
+        if (first) pickCard(first);
+      })
+      .catch(() => live && setCards([]));
+    return () => {
+      live = false;
+    };
+    // pickCard only calls state setters.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clubId]);
 
   const card = cards?.find((c) => c.id === cardId) ?? null;
 
-  const pickCard = (c: CourseCard | null) => {
+  function pickCard(c: CourseCard | null) {
     setCardId(c?.id ?? null);
     if (c) {
       setTeeName(c.teeName);
@@ -63,7 +96,7 @@ export function useCourseSetup() {
       setSlopeText(c.slope != null ? String(c.slope) : "");
       setParText(String(c.parTotal ?? c.card.reduce((n, h) => n + h.par, 0)));
     }
-  };
+  }
 
   const setHoles = (n: 9 | 18) => {
     setHolesState(n);
@@ -120,7 +153,9 @@ export function CourseSection({ setup }: { setup: CourseSetup }) {
           title="Tees"
           hint={
             s.cards && s.cards.length > 0
-              ? "Cards already entered for this course. Pick yours, or enter other tees."
+              ? s.cardId == null
+                ? "Other tees start with a blank card: stroke indexes are entered as you play. Pick a tee above to use the saved card."
+                : "Cards already entered for this course. Pick yours, or enter other tees."
               : "No card on file for this course yet. Enter the rating and slope from the card if you have them; you can add the stroke indexes as you play."
           }
         >
