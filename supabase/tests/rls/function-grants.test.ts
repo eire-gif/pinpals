@@ -318,6 +318,55 @@ const EXPECTED: Record<string, Expectation> = {
   "remove_outing_guest(p_guest_id bigint)": { anon: false, authenticated: true },
   "mark_outing_guest_paid(p_guest_id bigint, p_status text)": { anon: false, authenticated: true },
   "outing_entry_count(p_outing_id bigint)": { anon: false, authenticated: false },
+  // 0142 society entries: requests, the waiting list and the alert outbox.
+  // The helpers and the outbox writer are internal; members call only the
+  // four actions, the closed check and their own place in the line.
+  "queue_society_alert(p_group_id bigint, p_outing_id bigint, p_member uuid, p_kind text, p_payload jsonb, p_dedupe text)": { anon: false, authenticated: false },
+  "outing_officer_ids(p_group_id bigint)": { anon: false, authenticated: false },
+  "outing_entries_closed(p_outing_id bigint)": { anon: false, authenticated: true },
+  "outing_free_places(p_outing_id bigint)": { anon: false, authenticated: false },
+  "outing_seat_from_queue(p_queue_id bigint, p_with_guest boolean, p_by uuid)": { anon: false, authenticated: false },
+  "offer_outing_places(p_outing_id bigint)": { anon: false, authenticated: false },
+  "expire_outing_offers(p_outing_id bigint)": { anon: false, authenticated: false },
+  "sweep_outing_offers()": { anon: false, authenticated: false },
+  "save_outing_choices(o society_outings, p_member uuid, p jsonb)": { anon: false, authenticated: false },
+  "request_outing_place(p_outing_id bigint, p jsonb)": { anon: false, authenticated: true },
+  "review_outing_request(p_outing_id bigint, p_member uuid, p_decision text)": { anon: false, authenticated: true },
+  "answer_outing_offer(p_outing_id bigint, p_accept boolean)": { anon: false, authenticated: true },
+  "promote_outing_waiting(p_outing_id bigint, p_member uuid)": { anon: false, authenticated: true },
+  "my_outing_queue(p_group_id bigint)": { anon: false, authenticated: true },
+  "mark_outing_refunded(p_outing_id bigint, p_member uuid, p_refunded boolean)": { anon: false, authenticated: true },
+  "society_outing_alerts()": { anon: false, authenticated: false },
+  "society_outing_cancelled_clear()": { anon: false, authenticated: false },
+  "society_entry_blocked(p_group_id bigint, p_member uuid)": { anon: false, authenticated: false },
+  // 0143 noticeboard, alert settings, messages, reminders. The audience
+  // resolver and the sweep are internal.
+  "set_society_alert_pref(p_group_id bigint, p_kind text, p_enabled boolean)": { anon: false, authenticated: true },
+  "society_can_message(p_group_id bigint, p_user uuid)": { anon: false, authenticated: true },
+  "save_society_notice(p_group_id bigint, p_id bigint, p jsonb)": { anon: false, authenticated: true },
+  "delete_society_notice(p_id bigint)": { anon: false, authenticated: true },
+  "society_audience(p_group_id bigint, p_audience text, p_outing_id bigint)": { anon: false, authenticated: false },
+  "society_audience_count(p_group_id bigint, p_audience text, p_outing_id bigint)": { anon: false, authenticated: true },
+  "send_society_message(p_group_id bigint, p_audience text, p_outing_id bigint, p_title text, p_body text, p_post_notice boolean)": { anon: false, authenticated: true },
+  "society_reminder_sweep()": { anon: false, authenticated: false },
+  // 0144 committee roles, annual membership, the treasurer. membership_status
+  // is internal (it reads other members' payments).
+  "society_can(p_group_id bigint, p_user uuid, p_area text)": { anon: false, authenticated: true },
+  "my_society_areas(p_group_id bigint)": { anon: false, authenticated: true },
+  "outing_money_officer(p_group_id bigint, p_user_id uuid)": { anon: false, authenticated: true },
+  "my_society_handicap(p_group_id bigint)": { anon: false, authenticated: true },
+  "membership_billing_season(p_group_id bigint)": { anon: false, authenticated: true },
+  "membership_status(p_group_id bigint, p_member uuid, p_season smallint)": { anon: false, authenticated: false },
+  "save_membership_settings(p_group_id bigint, p jsonb)": { anon: false, authenticated: true },
+  "mark_membership(p_group_id bigint, p_member uuid, p_season smallint, p_status text, p_method text)": { anon: false, authenticated: true },
+  "claim_membership_paid(p_group_id bigint, p_method text, p_member uuid)": { anon: false, authenticated: true },
+  "my_society_dues(p_group_id bigint)": { anon: false, authenticated: true },
+  "society_money(p_group_id bigint, p_season smallint)": { anon: false, authenticated: true },
+  "society_payment_claims(p_group_id bigint)": { anon: false, authenticated: true },
+  "society_member_list(p_group_id bigint)": { anon: false, authenticated: true },
+  "remind_membership(p_group_id bigint, p_member uuid)": { anon: false, authenticated: true },
+  // 0145 order of merit rules.
+  "save_order_of_merit(p_group_id bigint, p jsonb)": { anon: false, authenticated: true },
   // 0132 filling an open place. The link claim is the website's, after it
   // has checked the link's signature — never callable from the app.
   "tee_time_invited(p_invite_id bigint)": { anon: false, authenticated: true },

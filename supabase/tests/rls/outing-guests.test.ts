@@ -110,7 +110,7 @@ describe("guests", () => {
   it("count towards places, for guests and members alike", async () => {
     await withRole("authenticated", OWNER, async (c) => {
       const g = await society(c);
-      const o = await newOuting(c, g, { max_entries: 2 });
+      const o = await newOuting(c, g, { max_entries: 2, waiting_list: false });
       await addGuest(c, o, "Pat Murphy");
       await rejects(c, "select public.add_outing_guest($1, 'One Too Many', null)", [o], /full/);
       await as(c, MEMBER2);
