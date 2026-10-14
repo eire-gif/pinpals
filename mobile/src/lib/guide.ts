@@ -30,7 +30,8 @@ import type { Href } from "expo-router";
  *    teePost  → app/post-tee-time.tsx, app/tee-time-requests.tsx
  *    teeJoin  → app/(tabs)/tee-times.tsx, app/invite/[id].tsx, app/my-requests.tsx
  *    fill     → app/invite/[id].tsx, app/round-invite.tsx, app/tee-link.tsx
- *    live     → app/(tabs)/live/index.tsx, app/(tabs)/live/new.tsx, app/(tabs)/live/round/[id].tsx
+ *    live     → app/(tabs)/live/index.tsx, app/(tabs)/live/new.tsx, app/(tabs)/live/round/[id].tsx,
+ *               app/invite/[id].tsx (Start live scoring)
  *    holeMap  → app/hole-map.tsx, components/hole-map-page.ts, app/course/[id].tsx
  *    messages → app/(tabs)/inbox.tsx, app/new-chat.tsx, app/new-group.tsx,
  *               app/conversation/[id].tsx
@@ -579,7 +580,7 @@ export const GUIDES: Guide[] = [
       {
         title: "Score it live",
         body: "Everyone on PinPals gets their card and the leaderboard on their phone. Enter scores hole by hole — shots are worked out from the handicaps, and the leaderboard moves as you go. Guests are scored by their group.",
-        tip: "Tap Hole map under the hole number for yardages on the satellite view — see the hole map guide.",
+        tip: "Tap Yardage & shot map under the hole number for distances to the green and to track your shots — see the hole map guide.",
       },
       {
         title: "Finish and get your card certified",
@@ -861,6 +862,7 @@ export const GUIDES: Guide[] = [
         body: "On Home, tap the big Live Scoring card. It's in the menu too.",
         look: [{ style: "raised", label: "Live Scoring", subtitle: "Score with your group, watch the leaderboard move" }],
         go: { label: "Live scoring", to: "/live" },
+        tip: "Playing a tee time? Open it and tap Start live scoring — everyone on it is added for you. Untick anyone who isn't scoring with you.",
       },
       {
         title: "Choose how you're playing",
@@ -910,7 +912,7 @@ export const GUIDES: Guide[] = [
           { style: "outline", label: "+" },
           { style: "primary", label: "Next hole" },
         ],
-        tip: "Tap the gold Hole map pill for yardages on the satellite view.",
+        tip: "Tap the gold Yardage & shot map button under the hole number for front, centre and back of the green, and to mark each shot.",
       },
       {
         title: "Leaderboard, finish and share",
@@ -935,11 +937,11 @@ export const GUIDES: Guide[] = [
     steps: [
       {
         title: "Open the hole map",
-        body: "On a course's page, tap a hole number under Hole by hole. In a live round, tap the gold Hole map pill under the hole number. The satellite view turns so the tee is at the bottom and the green at the top.",
+        body: "On a course's page, tap a hole number under Hole by hole. In a live round, tap the gold Yardage & shot map button under the hole number. The satellite view turns so the tee is at the bottom and the green at the top.",
         look: [
           { style: "outline", label: "1" },
           { style: "outline", label: "2" },
-          { style: "primary", label: "Hole map", icon: "map-outline" },
+          { style: "primary", label: "Yardage & shot map", icon: "navigate" },
         ],
         art: "holeOverview",
       },
@@ -1018,7 +1020,7 @@ export const GUIDES: Guide[] = [
       },
       {
         title: "Bring your fourball",
-        body: "In the menu, tap Invite friends to PinPals. Send your link on WhatsApp or by text, or show your QR code in the clubhouse — when they join, you're connected straight away.",
+        body: "Tap the QR button beside Find your next fourball on Home, or Invite friends to PinPals in the menu. Send your link on WhatsApp or by text, or show your QR code in the clubhouse — when they join, you're connected straight away.",
         look: [
           { style: "primary", label: "WhatsApp", icon: "logo-whatsapp" },
           { style: "outline", label: "Show full screen", icon: "qr-code-outline" },
@@ -1360,6 +1362,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-14", text: "Score a game live: start from a tee time with Start live scoring — your fourball is added, untick anyone not playing. The Hole map button is now Yardage & shot map. Find PinPals: your QR code is on Home too." },
   { on: "2026-10-13", text: "Publish the results: Past results on a group's page now folds away (tap to open, See all results for the full list), and the results page ends with a Saved panel and Back to Home / Back to the group." },
   { on: "2026-10-13", text: "Publish the results: amend a card (shown as Amended) and show results on your group's page under Past results. Play a round together: certify a foursomes or scramble pair's card." },
   { on: "2026-10-13", text: "New guide: Publish the results — 1st, 2nd and 3rd with R&A countbacks, divisions, prizes, publishing and sharing." },

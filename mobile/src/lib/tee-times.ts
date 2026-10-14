@@ -272,3 +272,39 @@ export function coursePhotoIndex(invite: Pick<Invite, "club_id" | "club_name">, 
   for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0;
   return h % count;
 }
+
+// ===========================================================================
+// Live scoring from a tee time (0141)
+// ===========================================================================
+
+export type TeeMate = { id: string; name: string; handicap: number | null };
+
+/**
+ * Everyone on a tee time — the host, then whoever has confirmed — with the
+ * handicap each has chosen to show, for "Start live scoring" to put the
+ * fourball straight onto a new round. A hidden handicap comes back null and
+ * the player types their index in, as they would for any other round.
+ */
+export async function teeTimeLineUp(inviteId: number): Promise<{ invite: Invite; mates: TeeMate[] } | null> {
+  const invite = await getInvite(inviteId);
+  if (!invite) return null;
+  const confirmed = (await confirmedPlayersFor([inviteId])).get(inviteId) ?? [];
+  const ids = [invite.member_id, ...confirmed.map((p) => p.id).filter((id) => id !== invite.member_id)];
+  const { data } = await supabase
+    .from("profiles")
+    .select("id, first_name, last_name, handicap, handicap_visible")
+    .in("id", ids)
+    .overrideTypes<
+      { id: string; first_name: string | null; last_name: string | null; handicap: number | null; handicap_visible: boolean | null }[]
+    >();
+  const byId = new Map((data ?? []).map((r) => [r.id, r]));
+  const mates = ids.map((id) => {
+    const r = byId.get(id);
+    return {
+      id,
+      name: [r?.first_name, r?.last_name].filter(Boolean).join(" ") || "A member",
+      handicap: r?.handicap_visible ? (r.handicap ?? null) : null,
+    };
+  });
+  return { invite, mates };
+}

@@ -11,7 +11,7 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { CourseSection, useCourseSetup } from "@/components/live-course-section";
@@ -37,7 +37,9 @@ import {
   type ScrambleSize,
 } from "@/lib/live-scoring";
 import { listConnections, type Member } from "@/lib/members";
+import { loadClub } from "@/lib/outings";
 import { loadMyProfile } from "@/lib/profile";
+import { teeTimeLineUp, whenLabel, type TeeMate } from "@/lib/tee-times";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 
 /**
@@ -57,6 +59,12 @@ import { colors, fonts, radii, spacing, type } from "@/lib/theme";
  * Members can add themselves, their PinPals and guests by name. Only
  * accepted PinPals are offered: putting a stranger on a leaderboard is
  * refused by live_round_create anyway, and offering it would be a trap.
+ *
+ * FROM A TEE TIME (0141): opened with ?teeTime=<id> from a tee time's
+ * "Start live scoring", the course is set and everyone on the tee time is
+ * added and ticked. Untick anyone not scoring with you — they can be ticked
+ * back. The server lets you add people from the same tee time even when
+ * they aren't your PinPals yet.
  */
 
 type DraftPlayer = {
@@ -90,6 +98,47 @@ export default function NewLiveRound() {
   // Foursomes (0136): how it's scored.
   const foursomes = format === "foursomes";
   const [scoring, setScoring] = useState<FoursomesScoring | "matchplay">("stableford");
+
+  // From a tee time: who was on it, so they can be ticked in or out.
+  const { teeTime } = useLocalSearchParams<{ teeTime?: string }>();
+  const [fromTee, setFromTee] = useState<{ label: string; mates: TeeMate[] } | null>(null);
+  const setClub = course.setClub;
+  useEffect(() => {
+    const id = Number.parseInt(String(teeTime ?? ""), 10);
+    if (!Number.isFinite(id) || !userId) return;
+    let live = true;
+    void (async () => {
+      try {
+        const got = await teeTimeLineUp(id);
+        if (!got || !live) return;
+        const mates = got.mates.filter((m) => m.id !== userId);
+        const clubName = got.invite.club?.name ?? got.invite.club_name ?? "your tee time";
+        setFromTee({ label: `${clubName} · ${whenLabel(got.invite)}`, mates });
+        setPlayers((ps) => [
+          ...ps,
+          ...mates
+            .filter((m) => !ps.some((p) => p.memberId === m.id))
+            .map((m) => ({ key: nextKey(), memberId: m.id, name: m.name, indexText: m.handicap != null ? String(m.handicap) : "", isMe: false })),
+        ]);
+        if (got.invite.club_id != null) {
+          const club = await loadClub(got.invite.club_id);
+          if (club && live) setClub(club);
+        }
+      } catch {
+        // The tee time is a shortcut, not a requirement: set the round up by hand.
+      }
+    })();
+    return () => {
+      live = false;
+    };
+  }, [teeTime, userId, setClub]);
+
+  const toggleMate = (m: TeeMate) =>
+    setPlayers((ps) =>
+      ps.some((p) => p.memberId === m.id)
+        ? ps.filter((p) => p.memberId !== m.id)
+        : [...ps, { key: nextKey(), memberId: m.id, name: m.name, indexText: m.handicap != null ? String(m.handicap) : "", isMe: false }]
+    );
 
   // Me first, with the handicap from my profile if I've given one.
   useEffect(() => {
@@ -378,6 +427,32 @@ export default function NewLiveRound() {
             </Section>
             <ScrambleOptions size={size} onSize={setSize} driveMinimum={driveMinimum} onDriveMinimum={setDriveMinimum} holes={holes} />
           </>
+        ) : null}
+
+        {fromTee && fromTee.mates.length > 0 ? (
+          <Section title="From your tee time" hint={`${fromTee.label}. Everyone's in — untick anyone who isn't scoring with you.`}>
+            <View style={styles.players}>
+              {fromTee.mates.map((m, i) => {
+                const on = players.some((p) => p.memberId === m.id);
+                return (
+                  <Pressable
+                    key={m.id}
+                    onPress={() => toggleMate(m)}
+                    style={[styles.player, i > 0 && styles.playerDivider]}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: on }}
+                    accessibilityLabel={m.name}
+                  >
+                    <Ionicons name={on ? "checkbox" : "square-outline"} size={24} color={on ? colors.green700 : colors.ink500} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.playerName} numberOfLines={1}>{m.name}</Text>
+                      <Text style={styles.playerMeta}>{on ? "Playing in this round" : "Left out"}</Text>
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </Section>
         ) : null}
 
         <Section title="Players" hint="Enter each player's handicap index. Plays-off is worked out for this course.">
