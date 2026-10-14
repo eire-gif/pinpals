@@ -1123,6 +1123,97 @@ end;
 $$;
 revoke all on function public.society_audience(bigint, text, bigint) from public, anon, authenticated;
 
+-- Who may reach which audience: anyone with messages for everyone, entrants
+-- and the committee; the events area for an event's waiting list; the money
+-- area for those who owe money (so who owes stays with the treasurer).
+create or replace function public.society_audience_allowed(p_group_id bigint, p_user uuid, p_audience text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select public.society_can(p_group_id, p_user, 'messages')
+     and case
+           when p_audience in ('fees_unpaid', 'membership_unpaid') then public.society_can(p_group_id, p_user, 'money')
+           when p_audience = 'waiting' then public.society_can(p_group_id, p_user, 'events')
+           else true
+         end;
+$$;
+revoke all on function public.society_audience_allowed(bigint, uuid, text) from public, anon, authenticated;
+
+create or replace function public.society_audience_count(p_group_id bigint, p_audience text, p_outing_id bigint default null)
+returns integer
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+begin
+  if not public.society_audience_allowed(p_group_id, (select auth.uid()), p_audience) then
+    raise exception 'Only the committee can send to them.' using errcode = '42501';
+  end if;
+  return (select count(distinct x)::integer from public.society_audience(p_group_id, p_audience, p_outing_id) x);
+end;
+$$;
+revoke all on function public.society_audience_count(bigint, text, bigint) from public, anon, authenticated;
+grant execute on function public.society_audience_count(bigint, text, bigint) to authenticated;
+
+create or replace function public.send_society_message(p_group_id bigint, p_audience text, p_outing_id bigint, p_title text, p_body text, p_post_notice boolean default false)
+returns integer
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  me uuid := (select auth.uid());
+  v_title text := btrim(coalesce(p_title, ''));
+  v_body text := nullif(btrim(coalesce(p_body, '')), '');
+  v_msg bigint;
+  v_n integer;
+begin
+  if not public.society_can_message(p_group_id, me) then
+    raise exception 'Only the captain or secretary can send messages.' using errcode = '42501';
+  end if;
+  if not public.society_audience_allowed(p_group_id, me, p_audience) then
+    raise exception 'Only the treasurer, captain or secretary can message the people who owe money.' using errcode = '42501';
+  end if;
+  if p_audience in ('entrants', 'waiting') and p_outing_id is null then raise exception 'Choose the event.'; end if;
+  if p_outing_id is not null and not exists (select 1 from public.society_outings where id = p_outing_id and group_id = p_group_id) then
+    raise exception 'That event isn''t in this group.';
+  end if;
+  if char_length(v_title) = 0 then raise exception 'Give the message a title.'; end if;
+  if char_length(v_title) > 80 then raise exception 'The title is 80 characters at most.'; end if;
+  if v_body is not null and char_length(v_body) > 1000 then raise exception 'The message is 1,000 characters at most.'; end if;
+  if (select count(*) from public.society_messages where group_id = p_group_id and sent_at > now() - interval '1 day') >= 10 then
+    raise exception 'That''s ten messages today already — try again tomorrow.';
+  end if;
+  if p_post_notice and p_audience <> 'everyone' then
+    raise exception 'Only a message to everyone goes on the noticeboard.';
+  end if;
+
+  select count(distinct x)::integer into v_n from public.society_audience(p_group_id, p_audience, p_outing_id) x where x <> me;
+  if v_n = 0 then raise exception 'Nobody to send it to.'; end if;
+
+  insert into public.society_messages (group_id, sender_id, audience, outing_id, title, body, recipients)
+  values (p_group_id, me, p_audience, p_outing_id, v_title, v_body, v_n)
+  returning id into v_msg;
+
+  perform public.queue_society_alert(p_group_id, p_outing_id, x, 'message',
+           jsonb_build_object('message_id', v_msg, 'title', v_title, 'body', v_body, 'sender', me),
+           'message:' || v_msg)
+     from (select distinct x from public.society_audience(p_group_id, p_audience, p_outing_id) x where x <> me) a(x);
+
+  if p_post_notice then
+    insert into public.society_notices (group_id, author_id, kind, title, body)
+    values (p_group_id, me, 'general', v_title, v_body);
+  end if;
+  return v_n;
+end;
+$$;
+revoke all on function public.send_society_message(bigint, text, bigint, text, text, boolean) from public, anon, authenticated;
+grant execute on function public.send_society_message(bigint, text, bigint, text, text, boolean) to authenticated;
+
 -- A reminder to one member about their membership (the treasurer's "Remind").
 create or replace function public.remind_membership(p_group_id bigint, p_member uuid)
 returns void
@@ -1135,6 +1226,9 @@ declare
 begin
   if not public.society_can(p_group_id, (select auth.uid()), 'money') then
     raise exception 'Only the treasurer, captain or secretary can send reminders.' using errcode = '42501';
+  end if;
+  if not public.is_group_member(p_group_id, p_member) then
+    raise exception 'They''re not in this society.';
   end if;
   if v_season is null or public.membership_status(p_group_id, p_member, v_season) <> 'unpaid' then
     raise exception 'They don''t owe membership.';

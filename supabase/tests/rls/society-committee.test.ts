@@ -267,3 +267,65 @@ describe("order of merit rules", () => {
     });
   });
 });
+
+describe("review fixes", () => {
+  it("a member naming themselves still asks; an unpaid block applies", async () => {
+    await withRole("authenticated", OWNER, async (c) => {
+      const g = await society(c);
+      const o = await newOuting(c, g, { entry_mode: "request" });
+      await as(c, MEMBER);
+      await c.query("select public.set_outing_entry($1, true, $2)", [o, MEMBER]);
+      expect((await c.query("select count(*)::int as n from public.society_outing_entries where outing_id = $1", [o])).rows[0].n).toBe(0);
+      expect((await c.query("select status from public.society_outing_queue where outing_id = $1", [o])).rows).toEqual([{ status: "requested" }]);
+    });
+  });
+
+  it("reminders only go to members; organisers can't change payment details or see who owes", async () => {
+    await withRole("authenticated", OWNER, async (c) => {
+      const g = await society(c);
+      await as(c, SECRETARY);
+      await c.query("select public.save_membership_settings($1, $2::jsonb)", [g, JSON.stringify({ enabled: true, fee_cents: 8000 })]);
+      await rejects(c, "select public.remind_membership($1, $2)", [g, STRANGER], /not in this society/);
+      const o = await newOuting(c, g, { pay_iban: "IE29AIBK93115212345678", pay_account_name: "Fairways GS" });
+      await as(c, OWNER);
+      await c.query("select public.set_group_office($1, $2, 'event_organiser')", [g, MEMBER2]);
+      await as(c, MEMBER2);
+      await c.query("select public.save_outing($1, $2, $3::jsonb)", [g, o, JSON.stringify({ title: "October Medal", course_name: "Seapoint", plays_on: day(10), pay_iban: "GB33BUKB20201555555555", pay_account_name: "Me" })]);
+      expect((await c.query("select pay_iban from public.society_outings where id = $1", [o])).rows).toEqual([{ pay_iban: "IE29AIBK93115212345678" }]);
+      await rejects(c, "select public.society_audience_count($1, 'fees_unpaid', null)", [g], /committee/);
+      await rejects(c, "select public.send_society_message($1, 'membership_unpaid', null, 'Pay up', null, false)", [g], /owe money/);
+      expect((await c.query("select public.society_audience_count($1, 'everyone', null) as n", [g])).rows[0].n).toBe(4);
+    });
+  });
+
+  it("rejoining after a refund owes the fee again", async () => {
+    await withRole("authenticated", OWNER, async (c) => {
+      const g = await society(c);
+      const o = await newOuting(c, g);
+      await as(c, MEMBER);
+      await c.query("select public.request_outing_place($1, '{}'::jsonb)", [o]);
+      await as(c, SECRETARY);
+      await c.query("select public.mark_outing_paid($1, $2, 'cash')", [o, MEMBER]);
+      await c.query("select public.set_outing_entry($1, false, $2)", [o, MEMBER]);
+      await c.query("select public.mark_outing_refunded($1, $2, true)", [o, MEMBER]);
+      await as(c, MEMBER);
+      await c.query("select public.request_outing_place($1, '{}'::jsonb)", [o]);
+      expect((await c.query("select kind from public.my_society_dues($1)", [g])).rows).toEqual([{ kind: "event" }]);
+    });
+  });
+
+  it("an officer can't overbook past a held offer; meal_options null is fine", async () => {
+    await withRole("authenticated", OWNER, async (c) => {
+      const g = await society(c);
+      const o = await newOuting(c, g, { max_entries: 1, meal_options: null });
+      await as(c, MEMBER);
+      await c.query("select public.request_outing_place($1, '{}'::jsonb)", [o]);
+      await as(c, MEMBER2);
+      await c.query("select public.request_outing_place($1, '{}'::jsonb)", [o]);
+      await as(c, MEMBER);
+      await c.query("select public.set_outing_entry($1, false)", [o]);
+      await as(c, SECRETARY);
+      await rejects(c, "select public.add_outing_guest($1, 'Pat', null)", [o], /full/);
+    });
+  });
+});

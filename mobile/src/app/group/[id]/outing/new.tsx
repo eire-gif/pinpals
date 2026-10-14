@@ -13,6 +13,7 @@ import { addDays, isTrip, OUTING_KINDS, tripLengthLabel, type OutingKind } from 
 import { compactIban, formatIban, ibanIsValid, normaliseRevtag } from "@/lib/outing-payments";
 import { closesLabel, entriesCloseAt, irishToday, outingDateLabel, parseFee } from "@/lib/outing-rules";
 import { lastPaymentDetails, loadClub, loadOuting, saveOuting, type EntryMode } from "@/lib/outings";
+import { mySocietyAreas } from "@/lib/society";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 
 /** "YYYY-MM-DD" ↔ a Date at local noon (noon: no time zone can tip it into another day). */
@@ -79,6 +80,11 @@ export default function NewOutingScreen() {
   const [formatLabel, setFormatLabel] = useState("");
   const [dressCode, setDressCode] = useState("");
   const [mealsText, setMealsText] = useState("");
+  /** 0144: payment details are the treasurer's (and captain's, secretary's) to set. */
+  const [money, setMoney] = useState(true);
+  useEffect(() => {
+    void mySocietyAreas(groupId).then((a) => setMoney(a.length === 0 || a.includes("money")));
+  }, [groupId]);
   const [dateOpen, setDateOpen] = useState<"start" | "end" | null>(null);
   const [draftDate, setDraftDate] = useState(() => toDate(playsOn));
   const [teeOpen, setTeeOpen] = useState(false);
@@ -498,7 +504,13 @@ export default function NewOutingScreen() {
           </View>
         ) : null}
 
-        <View style={styles.pay}>
+        {!money ? (
+          <View style={styles.pay}>
+            <Text style={styles.payTitle}>How members pay</Text>
+            <Text style={styles.payHint}>The treasurer, captain or secretary sets where members pay. A new event uses the society&apos;s usual details.</Text>
+          </View>
+        ) : null}
+        <View style={[styles.pay, !money && { display: "none" }]}>
           <Text style={styles.payTitle}>How members pay</Text>
           <Text style={styles.payHint}>Members see these on the {noun}&apos;s page with a Pay button. Only people in the group can see them.</Text>
           <Section title="Revolut username" hint="Optional. Your @name in Revolut — members tap to open Revolut and pay you.">

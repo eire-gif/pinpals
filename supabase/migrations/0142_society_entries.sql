@@ -252,6 +252,20 @@ as $$
 $$;
 revoke all on function public.society_entry_blocked(bigint, uuid) from public, anon, authenticated;
 
+-- Who handles an event's money. Until 0144 that's whoever runs events;
+-- 0144 gives it to the treasurer (and keeps it from event organisers).
+create or replace function public.outing_money_officer(p_group_id bigint, p_user_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select public.outing_officer(p_group_id, p_user_id);
+$$;
+revoke all on function public.outing_money_officer(bigint, uuid) from public, anon, authenticated;
+grant execute on function public.outing_money_officer(bigint, uuid) to authenticated;
+
 -- Places a queue row needs: the member, and their guest if any.
 create or replace function public.outing_queue_seats(q public.society_outing_queue)
 returns integer
@@ -320,7 +334,7 @@ declare
   v_until timestamptz;
   v_made integer := 0;
 begin
-  select * into o from public.society_outings where id = p_outing_id;
+  select * into o from public.society_outings where id = p_outing_id for update;
   if not found or o.status <> 'open' or o.match_day_id is not null or not o.auto_offer or o.max_entries is null then
     return 0;
   end if;
@@ -461,7 +475,7 @@ declare
   v_free integer;
   q public.society_outing_queue%rowtype;
 begin
-  select * into o from public.society_outings where id = p_outing_id;
+  select * into o from public.society_outings where id = p_outing_id for update;
   if not found or not public.is_group_member(o.group_id, me) then
     raise exception 'That outing isn''t available.';
   end if;
@@ -515,7 +529,7 @@ begin
     values (p_outing_id, me, 'requested', v_guest, round(v_guest_index, 1));
     perform public.queue_society_alert(o.group_id, o.id, x, 'request_received',
       jsonb_build_object('title', o.title, 'plays_on', o.plays_on, 'member', me, 'guest', v_guest is not null),
-      'request_received:' || o.id || ':' || me || ':' || extract(epoch from now())::bigint)
+      'request_received:' || o.id || ':' || me || ':' || (now() at time zone 'Europe/Dublin')::date)
       from public.outing_officer_ids(o.group_id) x where x <> me;
     return 'requested';
   end if;
@@ -561,7 +575,7 @@ declare
   v_seats integer;
   v_free integer;
 begin
-  select * into o from public.society_outings where id = p_outing_id;
+  select * into o from public.society_outings where id = p_outing_id for update;
   if not found or not public.outing_officer(o.group_id, me) then
     raise exception 'Only the captain or secretary can answer requests.' using errcode = '42501';
   end if;
@@ -623,7 +637,7 @@ declare
   o public.society_outings%rowtype;
   q public.society_outing_queue%rowtype;
 begin
-  select * into o from public.society_outings where id = p_outing_id;
+  select * into o from public.society_outings where id = p_outing_id for update;
   if not found or not public.is_group_member(o.group_id, me) then
     raise exception 'That outing isn''t available.';
   end if;
@@ -633,6 +647,10 @@ begin
     raise exception 'That offer has run out.';
   end if;
   if o.status <> 'open' then raise exception 'This outing was cancelled.'; end if;
+  if o.match_day_id is not null then raise exception 'The round has started.'; end if;
+  if p_accept and public.society_entry_blocked(o.group_id, me) is not null then
+    raise exception '%', public.society_entry_blocked(o.group_id, me);
+  end if;
   if not p_accept then
     delete from public.society_outing_queue where id = q.id;
     delete from public.society_outing_choices where outing_id = p_outing_id and member_id = me;
@@ -705,7 +723,7 @@ declare
   v_was_in boolean;
   v_queued boolean;
 begin
-  select * into o from public.society_outings where id = p_outing_id;
+  select * into o from public.society_outings where id = p_outing_id for update;
   if not found or not public.is_group_member(o.group_id, me) then
     raise exception 'That outing isn''t available.';
   end if;
@@ -731,7 +749,9 @@ begin
     if exists (select 1 from public.society_outing_entries where outing_id = p_outing_id and member_id = v_who) then
       return;
     end if;
-    if v_who = me and p_member is null then
+    -- A member (however they call it) asks, so requests, the waiting list
+    -- and an unpaid membership all apply. Only officers put people straight in.
+    if not v_officer then
       perform public.request_outing_place(p_outing_id, '{}'::jsonb);
       return;
     end if;
@@ -776,7 +796,8 @@ declare
 begin
   select o2.* into o
     from public.society_outing_guests g join public.society_outings o2 on o2.id = g.outing_id
-   where g.id = p_guest_id;
+   where g.id = p_guest_id
+     for update of o2;
   if o.id is null or not public.outing_officer(o.group_id, me) then
     raise exception 'Only the captain or secretary can take a guest off.' using errcode = '42501';
   end if;
@@ -787,6 +808,66 @@ end;
 $$;
 revoke all on function public.remove_outing_guest(bigint) from public, anon, authenticated;
 grant execute on function public.remove_outing_guest(bigint) to authenticated;
+
+-- An officer adding a guest counts places held for offers too (replaces 0131's).
+create or replace function public.add_outing_guest(p_outing_id bigint, p_name text, p_index numeric default null)
+returns bigint
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  me uuid := (select auth.uid());
+  o public.society_outings%rowtype;
+  v_name text := btrim(coalesce(p_name, ''));
+  v_id bigint;
+begin
+  select * into o from public.society_outings where id = p_outing_id for update;
+  if not found or not public.outing_officer(o.group_id, me) then
+    raise exception 'Only the captain or secretary can add guests.' using errcode = '42501';
+  end if;
+  if o.status <> 'open' then raise exception 'This outing was cancelled.'; end if;
+  if o.match_day_id is not null then raise exception 'The round has started — add guests in the round.'; end if;
+  if char_length(v_name) = 0 then raise exception 'Give the guest a name.'; end if;
+  if char_length(v_name) > 60 then raise exception 'That name is too long — 60 characters at most.'; end if;
+  if p_index is not null and (p_index < -10 or p_index > 54) then
+    raise exception 'A handicap index is between +10 and 54.';
+  end if;
+  if (select count(*) from public.society_outing_guests where outing_id = p_outing_id) >= 100 then
+    raise exception 'That''s a lot of guests — 100 at most.';
+  end if;
+  if o.max_entries is not null and public.outing_free_places(p_outing_id) < 1 then
+    raise exception 'The outing is full.';
+  end if;
+  insert into public.society_outing_guests (outing_id, name, handicap_index, added_by)
+  values (p_outing_id, v_name, round(p_index, 1), me)
+  returning id into v_id;
+  return v_id;
+end;
+$$;
+revoke all on function public.add_outing_guest(bigint, text, numeric) from public, anon, authenticated;
+grant execute on function public.add_outing_guest(bigint, text, numeric) to authenticated;
+
+-- Back in after a refund: the refunded payment no longer stands, so they
+-- owe the fee again (and show as unpaid, not paid, everywhere).
+create or replace function public.outing_entry_rejoined()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  delete from public.society_outing_payments
+   where outing_id = new.outing_id and member_id = new.member_id and status = 'refunded';
+  return new;
+end;
+$$;
+revoke all on function public.outing_entry_rejoined() from public, anon, authenticated;
+
+drop trigger if exists society_outing_entry_rejoined on public.society_outing_entries;
+create trigger society_outing_entry_rejoined
+  after insert on public.society_outing_entries
+  for each row execute function public.outing_entry_rejoined();
 
 -- Officers: a withdrawn member's cash or transfer payment was handed back
 -- (p_refunded false undoes it). Only for someone no longer entered.
@@ -883,6 +964,21 @@ begin
     select * into cur from public.society_outings where id = p_id and group_id = p_group_id;
     if not found then raise exception 'That outing can''t be changed.'; end if;
   end if;
+  -- Where members send money is the money area's to set: anyone else
+  -- running the event keeps what's there (or, new, the society's last).
+  if not public.outing_money_officer(p_group_id, me) then
+    if p_id is null then
+      select o.pay_revtag, o.pay_iban, o.pay_account_name, coalesce(o.pay_cash, true), o.pay_note
+        into v_revtag, v_iban, v_account, v_cash, v_pay_note
+        from public.society_outings o
+       where o.group_id = p_group_id and (o.pay_revtag is not null or o.pay_iban is not null or o.pay_note is not null)
+       order by o.created_at desc limit 1;
+      v_cash := coalesce(v_cash, true);
+    else
+      v_revtag := cur.pay_revtag; v_iban := cur.pay_iban; v_account := cur.pay_account_name;
+      v_cash := coalesce(cur.pay_cash, true); v_pay_note := cur.pay_note;
+    end if;
+  end if;
   if v_kind not in ('day', 'overnight', 'abroad') then
     raise exception 'Choose a day out, overnight or abroad.';
   end if;
@@ -905,7 +1001,7 @@ begin
   if p ? 'meal_options' then
     if jsonb_typeof(p -> 'meal_options') not in ('array', 'null') then raise exception 'The meals don''t look right.'; end if;
     v_meals := '{}';
-    for v_meal in select btrim(x) from jsonb_array_elements_text(coalesce(p -> 'meal_options', '[]'::jsonb)) x loop
+    for v_meal in select btrim(x) from jsonb_array_elements_text(case when jsonb_typeof(p -> 'meal_options') = 'array' then p -> 'meal_options' else '[]'::jsonb end) x loop
       if char_length(v_meal) = 0 then continue; end if;
       if char_length(v_meal) > 40 then raise exception 'A meal is 40 characters at most.'; end if;
       if not (v_meal = any (v_meals)) then v_meals := v_meals || v_meal; end if;

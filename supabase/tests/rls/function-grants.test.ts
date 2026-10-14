@@ -339,6 +339,8 @@ const EXPECTED: Record<string, Expectation> = {
   "society_outing_alerts()": { anon: false, authenticated: false },
   "society_outing_cancelled_clear()": { anon: false, authenticated: false },
   "society_entry_blocked(p_group_id bigint, p_member uuid)": { anon: false, authenticated: false },
+  "outing_entry_rejoined()": { anon: false, authenticated: false },
+  "society_audience_allowed(p_group_id bigint, p_user uuid, p_audience text)": { anon: false, authenticated: false },
   // 0143 noticeboard, alert settings, messages, reminders. The audience
   // resolver and the sweep are internal.
   "set_society_alert_pref(p_group_id bigint, p_kind text, p_enabled boolean)": { anon: false, authenticated: true },
