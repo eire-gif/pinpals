@@ -58,6 +58,13 @@ async function rejects(c: PoolClient, sql: string, params: unknown[], pattern?: 
 
 async function setUp(c: PoolClient): Promise<void> {
   await asService(c, async () => {
+    // The fixture seed puts STRANGER on ME's tee time, and players on the
+    // same tee time may be added to a round (0141). Take them off it so the
+    // stranger here is a true stranger.
+    await c.query(
+      `update public.tee_time_interests set status = 'declined' where member_id = $1 and status = 'confirmed'`,
+      [STRANGER],
+    );
     for (const [a, b] of [
       [ME, PAL],
       [ME, BLOCKED_PAL],
@@ -144,6 +151,32 @@ describe("live rounds: who can be added", () => {
           /yourself, your PinPals, people in your group, or guests/,
         );
       }
+    });
+  });
+
+  it("adds a player from the same tee time, but not once it's cancelled (0141)", async () => {
+    await withRole("authenticated", ME, async (c) => {
+      await setUp(c);
+      // Back on ME's tee time: not a PinPal, but playing together.
+      await asService(c, async () => {
+        await c.query(
+          `update public.tee_time_interests set status = 'confirmed'
+            where member_id = $1 and invite_id in (select id from public.tee_time_invites where member_id = $2)`,
+          [STRANGER, ME],
+        );
+      });
+      await as(c, ME);
+      const add = [round(), JSON.stringify([player(ME, "Eire"), player(STRANGER, "Tee mate")]), card(18)];
+      await c.query("savepoint ok");
+      const { rows } = await c.query<{ id: string }>("select public.live_round_create($1::jsonb, $2::jsonb, $3::jsonb) as id", add);
+      expect(rows[0].id).toBeTruthy();
+      await c.query("rollback to savepoint ok");
+
+      await asService(c, async () => {
+        await c.query(`update public.tee_time_invites set status = 'cancelled' where member_id = $1`, [ME]);
+      });
+      await as(c, ME);
+      await rejects(c, "select public.live_round_create($1::jsonb, $2::jsonb, $3::jsonb)", add, /yourself, your PinPals/);
     });
   });
 
