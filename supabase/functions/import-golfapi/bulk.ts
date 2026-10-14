@@ -18,7 +18,9 @@
 // (seen 14 Oct 2026: lat/lng absent), and then the NAME decides instead:
 // exactly one candidate whose name, without the generic words ("Golf Club",
 // "The", "GC"…), is the same as ours. "Grange Golf Club" picks Grange GC
-// (Rathfarnham) over Grange Castle; two exact matches go to review.
+// (Rathfarnham) over Grange Castle; two exact matches go to review, and so
+// does a name two of OUR clubs share (Lahinch's "Castle Course" and Castle
+// Golf Club, Dublin — the sample run matched the wrong one before this).
 
 import type { ClubCandidate } from "./mapping.ts";
 
@@ -46,8 +48,14 @@ export function nameKey(name: string): string {
     .trim();
 }
 
-/** What to do with one of our clubs, given golfapi's search results. */
-export function decide(candidates: Located[], clubHasLocation: boolean, clubName: string): Decision {
+/**
+ * What to do with one of our clubs, given golfapi's search results.
+ * `ourNamesakes` is how many of OUR clubs in the same golfapi country share
+ * this club's name key (itself included). Above one, a name can't say which
+ * of ours a golfapi club is — "Castle Course" (Lahinch) and "Castle Golf
+ * Club" (Rathfarnham) are both "castle" (seen 14 Oct 2026) — so review.
+ */
+export function decide(candidates: Located[], clubHasLocation: boolean, clubName: string, ourNamesakes = 1): Decision {
   if (candidates.length === 0) return { kind: "review", reason: "not found on golfapi", candidates };
 
   let match: Located;
@@ -61,6 +69,7 @@ export function decide(candidates: Located[], clubHasLocation: boolean, clubName
     if (near.length > 1) return { kind: "review", reason: `${near.length} golfapi clubs within ${MATCH_KM} km`, candidates };
     match = near[0];
   } else {
+    if (ourNamesakes > 1) return { kind: "review", reason: `${ourNamesakes} of our clubs share this name — can't tell which one by name`, candidates };
     const key = nameKey(clubName);
     const same = key ? candidates.filter((c) => nameKey(c.name) === key) : [];
     if (same.length === 0) return { kind: "review", reason: `no golfapi club with the same name (${candidates.length} similar)`, candidates };

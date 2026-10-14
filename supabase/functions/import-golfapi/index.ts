@@ -53,7 +53,7 @@
 
 import { createClient, type SupabaseClient } from "jsr:@supabase/supabase-js@2";
 
-import { clubCost, decide, searchName, type Located } from "./bulk.ts";
+import { clubCost, decide, nameKey, searchName, type Located } from "./bulk.ts";
 import { importCost, km, mapClubSearch, mapCoordinates, mapCourse, type ClubCandidate, type MappedCourse, type MappedPoint } from "./mapping.ts";
 
 // Unverified until the first trial call — override with GOLFAPI_BASE_URL.
@@ -98,6 +98,10 @@ type Body =
       dry_run?: boolean;
     };
 
+/** Space between golfapi requests — under its burst limit. */
+const MIN_GAP_MS = 1200;
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body, null, 2), { status, headers: { "Content-Type": "application/json" } });
 
@@ -106,11 +110,30 @@ class Golfapi {
   used = 0;
   constructor(private base: string, private key: string) {}
 
+  private last = 0;
+
+  /**
+   * One request, paced and retried. golfapi rate-limits bursts: five
+   * searches in quick succession got a 429 on 14 Oct 2026 (and ten at once
+   * on 9 Oct). A refused request isn't charged, so a 429 is waited out and
+   * retried (2, 5, 10, 20 s) rather than failing the club; only a request
+   * that went through counts towards `used`.
+   */
   async get(path: string, params: Record<string, string> = {}, cost = 1): Promise<unknown> {
     const url = new URL(this.base.replace(/\/$/, "") + path);
     for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
-    const res = await fetch(url, { headers: { Authorization: `Bearer ${this.key}`, Accept: "application/json" } });
-    this.used += cost;
+    const waits = [2000, 5000, 10000, 20000];
+    let res: Response;
+    for (let attempt = 0; ; attempt++) {
+      const gap = this.last + MIN_GAP_MS - Date.now();
+      if (gap > 0) await sleep(gap);
+      this.last = Date.now();
+      res = await fetch(url, { headers: { Authorization: `Bearer ${this.key}`, Accept: "application/json" } });
+      if (res.status !== 429 || attempt >= waits.length) break;
+      await res.body?.cancel();
+      await sleep(waits[attempt]);
+    }
+    if (res.status !== 429) this.used += cost;
     const text = await res.text();
     let body: unknown = text;
     try {
@@ -377,6 +400,7 @@ async function runBulk(db: SupabaseClient, api: Golfapi, body: Extract<Body, { a
   });
   if (dueErr) throw dueErr;
   const clubs = (due ?? []) as BulkClub[];
+  const namesakes = await ourNameCounts(db);
 
   const done: unknown[] = [];
   let stopped: string | null = null;
@@ -414,7 +438,7 @@ async function runBulk(db: SupabaseClient, api: Golfapi, body: Extract<Body, { a
     let candidates: Located[] = [];
     try {
       candidates = saved ?? (await findCandidates(api, club)).candidates;
-      const decision = decide(candidates, club.latitude != null && club.longitude != null, club.name);
+      const decision = decide(candidates, club.latitude != null && club.longitude != null, club.name, namesakes.get(nameGroup(club.country, club.name)) ?? 1);
 
       if (decision.kind === "review") {
         await record(club.id, { status: "review", reason: decision.reason, candidates: decision.candidates.slice(0, 20), calls: saved ? 0 : clubCost(1, 0) });
@@ -503,4 +527,22 @@ async function alreadyImportedAs(db: SupabaseClient, clubId: number, providerClu
     .limit(1);
   if (e2) throw e2;
   return layouts?.length ? (layouts[0] as { club_id: number }).club_id : null;
+}
+
+/** A club's name key within golfapi's country (the UK is one country there). */
+const nameGroup = (country: string, name: string) => `${COUNTRY_NAME[country] ?? country}|${nameKey(name)}`;
+
+/** How many of our clubs share each name key, per golfapi country. */
+async function ourNameCounts(db: SupabaseClient): Promise<Map<string, number>> {
+  const counts = new Map<string, number>();
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await db.from("clubs").select("name, country").order("id").range(from, from + 999);
+    if (error) throw error;
+    for (const c of (data ?? []) as Array<{ name: string; country: string }>) {
+      const k = nameGroup(c.country, c.name);
+      counts.set(k, (counts.get(k) ?? 0) + 1);
+    }
+    if (!data || data.length < 1000) break;
+  }
+  return counts;
 }

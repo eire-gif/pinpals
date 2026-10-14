@@ -73,6 +73,18 @@ describe("decide by name, when golfapi gives no location", () => {
   });
 });
 
+describe("names two of our clubs share", () => {
+  it("won't match by name when another of our clubs has the same name — Lahinch's Castle Course", () => {
+    const d = decide([named("c", "Castle Golf Club")], true, "Castle Course", 2);
+    expect(d.kind).toBe("review");
+    expect(d.kind === "review" && d.reason).toContain("2 of our clubs share this name");
+  });
+
+  it("still matches a name only one of our clubs has", () => {
+    expect(decide([named("c", "Castle Golf Club")], true, "Castle Golf Club", 1)).toMatchObject({ kind: "import" });
+  });
+});
+
 describe("nameKey", () => {
   it("keeps what tells clubs apart", () => {
     expect(nameKey("Royal Dublin Golf Club")).toBe("royal dublin");
