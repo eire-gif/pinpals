@@ -29,6 +29,7 @@ import {
 } from "@/lib/itinerary-rules";
 import { clock, irishToday } from "@/lib/outing-rules";
 import { loadOuting, type OutingPage } from "@/lib/outings";
+import { officeAreas } from "@/lib/groups";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 
 /**
@@ -61,7 +62,9 @@ export default function ItineraryScreen() {
       const [o, list, g] = await Promise.all([loadOuting(outingId), loadItinerary(outingId), loadGroupPage(groupId, userId)]);
       setPage(o);
       setItems(sortItems(list));
-      setOfficer(g?.myRole === "owner" || g?.myRole === "admin");
+      // Whoever runs events: owner, captain, secretary, and since 0144 the
+      // vice-captain and event organisers.
+      setOfficer(officeAreas(g?.myRole ?? null, g?.myOffice ?? null).includes("events"));
       setSocietyName(g?.group.name ?? null);
       setFailed(false);
     } catch {

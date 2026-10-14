@@ -11,8 +11,8 @@ import { TimeSheet } from "@/components/time-sheet";
 import { placeLabel, type Club } from "@/lib/courses";
 import { addDays, isTrip, OUTING_KINDS, tripLengthLabel, type OutingKind } from "@/lib/itinerary-rules";
 import { compactIban, formatIban, ibanIsValid, normaliseRevtag } from "@/lib/outing-payments";
-import { closesLabel, irishToday, outingDateLabel, parseFee } from "@/lib/outing-rules";
-import { lastPaymentDetails, loadClub, loadOuting, saveOuting } from "@/lib/outings";
+import { closesLabel, entriesCloseAt, irishToday, outingDateLabel, parseFee } from "@/lib/outing-rules";
+import { lastPaymentDetails, loadClub, loadOuting, saveOuting, type EntryMode } from "@/lib/outings";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 
 /** "YYYY-MM-DD" ↔ a Date at local noon (noon: no time zone can tip it into another day). */
@@ -67,6 +67,18 @@ export default function NewOutingScreen() {
   const [accountName, setAccountName] = useState("");
   const [payCash, setPayCash] = useState(true);
   const [payNote, setPayNote] = useState("");
+  // 0142: how members get a place, and the day's details.
+  const [entryMode, setEntryMode] = useState<EntryMode>("join");
+  const [waitingList, setWaitingList] = useState(true);
+  const [autoOffer, setAutoOffer] = useState(true);
+  const [guestsAllowed, setGuestsAllowed] = useState(true);
+  const [guestFeeText, setGuestFeeText] = useState("");
+  /** Entries close: 0 = midnight before the day (the default), else days before. */
+  const [closeDays, setCloseDays] = useState(0);
+  const [arriveBy, setArriveBy] = useState("");
+  const [formatLabel, setFormatLabel] = useState("");
+  const [dressCode, setDressCode] = useState("");
+  const [mealsText, setMealsText] = useState("");
   const [dateOpen, setDateOpen] = useState<"start" | "end" | null>(null);
   const [draftDate, setDraftDate] = useState(() => toDate(playsOn));
   const [teeOpen, setTeeOpen] = useState(false);
@@ -108,6 +120,16 @@ export default function NewOutingScreen() {
         setAccountName(o.payAccountName ?? "");
         setPayCash(o.payCash);
         setPayNote(o.payNote ?? "");
+        setEntryMode(o.entryMode);
+        setWaitingList(o.waitingList);
+        setAutoOffer(o.autoOffer);
+        setGuestsAllowed(o.guestsAllowed);
+        setGuestFeeText(o.guestFeeCents != null ? (o.guestFeeCents / 100).toFixed(o.guestFeeCents % 100 ? 2 : 0) : "");
+        setCloseDays(o.entriesCloseAt ? Math.max(1, Math.round((entriesCloseAt(o.playsOn).getTime() - new Date(o.entriesCloseAt).getTime()) / 86_400_000) + 1) : 0);
+        setArriveBy(o.arriveBy ? o.arriveBy.slice(0, 5) : "");
+        setFormatLabel(o.formatLabel ?? "");
+        setDressCode(o.dressCode ?? "");
+        setMealsText(o.mealOptions.join(", "));
         setCourseName(o.courseName);
         if (o.clubId) setClub(await loadClub(o.clubId));
       } finally {
@@ -122,6 +144,9 @@ export default function NewOutingScreen() {
   const course = club?.name ?? courseName;
   const tag = normaliseRevtag(revtag);
   const ibanCompact = compactIban(iban);
+  const guestFee = parseFee(guestFeeText);
+  const arriveOk = arriveBy.trim() === "" || /^([01]?\d|2[0-3]):[0-5]\d$/.test(arriveBy.trim());
+  const meals = [...new Set(mealsText.split(",").map((m) => m.trim()).filter(Boolean))];
 
   const problem =
     title.trim() === ""
@@ -144,7 +169,13 @@ export default function NewOutingScreen() {
                       ? "That IBAN doesn't look right — check the numbers"
                       : ibanCompact && !accountName.trim()
                         ? "Add the name on the bank account"
-                        : null;
+                        : guestFee === undefined
+                          ? "The guest fee should be an amount, like 80"
+                          : !arriveOk
+                            ? "Arrive by is a time, like 09:15"
+                            : meals.length > 6 || meals.some((m) => m.length > 40)
+                              ? "Up to six meals, 40 characters each"
+                              : null;
 
   async function save() {
     if (problem) return;
@@ -167,6 +198,17 @@ export default function NewOutingScreen() {
         payAccountName: ibanCompact ? accountName.trim() : null,
         payCash,
         payNote: payNote.trim() || null,
+        entryMode,
+        waitingList,
+        autoOffer,
+        guestsAllowed,
+        guestFeeCents: guestsAllowed ? (guestFee ?? null) : null,
+        // N days before: midnight at the start of the day N−1 days before.
+        entriesCloseAt: closeDays === 0 ? null : entriesCloseAt(addDays(playsOn, -(closeDays - 1))).toISOString(),
+        arriveBy: trip ? null : arriveBy.trim() || null,
+        formatLabel: trip ? null : formatLabel.trim() || null,
+        dressCode: dressCode.trim() || null,
+        mealOptions: trip ? [] : meals,
       });
       if (trip && editId == null) {
         // Straight into building the itinerary, with the outing page behind it.
@@ -379,6 +421,84 @@ export default function NewOutingScreen() {
         </View>
 
         <View style={styles.pay}>
+          <Text style={styles.payTitle}>How members get a place</Text>
+          {(
+            [
+              { mode: "join", label: "Join straight away", hint: "First come, first served." },
+              { mode: "request", label: "Request a place", hint: "Members ask; you approve each one, or put them on the waiting list." },
+            ] as const
+          ).map((o) => (
+            <Pressable key={o.mode} style={[styles.choice, entryMode === o.mode && styles.choiceOn]} onPress={() => setEntryMode(o.mode)} accessibilityRole="radio" accessibilityState={{ selected: entryMode === o.mode }}>
+              <Ionicons name={entryMode === o.mode ? "radio-button-on" : "radio-button-off"} size={20} color={colors.navy900} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.cashTitle}>{o.label}</Text>
+                <Text style={styles.payHint}>{o.hint}</Text>
+              </View>
+            </Pressable>
+          ))}
+          <View style={styles.cashRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.cashTitle}>Waiting list when it&apos;s full</Text>
+              <Text style={styles.payHint}>Needs a limit on places.</Text>
+            </View>
+            <Switch value={waitingList} onValueChange={setWaitingList} trackColor={{ true: colors.green600, false: colors.line }} accessibilityLabel="Waiting list when it's full" />
+          </View>
+          {waitingList ? (
+            <View style={styles.cashRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.cashTitle}>Offer freed places automatically</Text>
+                <Text style={styles.payHint}>The next in line gets 24 hours to take it.</Text>
+              </View>
+              <Switch value={autoOffer} onValueChange={setAutoOffer} trackColor={{ true: colors.green600, false: colors.line }} accessibilityLabel="Offer freed places automatically" />
+            </View>
+          ) : null}
+          <View style={styles.cashRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.cashTitle}>Members can bring guests</Text>
+            </View>
+            <Switch value={guestsAllowed} onValueChange={setGuestsAllowed} trackColor={{ true: colors.green600, false: colors.line }} accessibilityLabel="Members can bring guests" />
+          </View>
+          {guestsAllowed ? (
+            <Section title="Guest fee" hint="Optional. Blank: the same as the entry fee.">
+              <TextInput value={guestFeeText} onChangeText={setGuestFeeText} placeholder="e.g. 80" placeholderTextColor={colors.ink500} keyboardType="decimal-pad" style={[styles.input, guestFee === undefined && styles.inputBad]} accessibilityLabel="Guest fee in euro" />
+            </Section>
+          ) : null}
+          <Section title="Entries close" hint="Members can join, ask or cancel until then; you can change the list any time.">
+            <View style={styles.chips}>
+              {[0, 2, 3, 5, 7].map((d) => (
+                <Pressable key={d} style={[styles.chipPick, closeDays === d && styles.chipPickOn]} onPress={() => setCloseDays(d)} accessibilityRole="radio" accessibilityState={{ selected: closeDays === d }}>
+                  <Text style={[styles.chipPickText, closeDays === d && styles.chipPickTextOn]}>{d === 0 ? "Midnight before" : d === 7 ? "A week before" : `${d} days before`}</Text>
+                </Pressable>
+              ))}
+            </View>
+          </Section>
+        </View>
+
+        {!trip ? (
+          <View style={styles.pay}>
+            <Text style={styles.payTitle}>On the day</Text>
+            <View style={styles.pair}>
+              <View style={{ flex: 1 }}>
+                <Section title="Arrive by" hint="Optional.">
+                  <TextInput value={arriveBy} onChangeText={setArriveBy} placeholder="09:15" placeholderTextColor={colors.ink500} keyboardType="numbers-and-punctuation" maxLength={5} style={[styles.input, !arriveOk && styles.inputBad]} accessibilityLabel="Arrive by, a time like 09:15" />
+                </Section>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Section title="Format" hint="Optional.">
+                  <TextInput value={formatLabel} onChangeText={setFormatLabel} placeholder="Stableford" placeholderTextColor={colors.ink500} maxLength={60} style={styles.input} accessibilityLabel="Format" />
+                </Section>
+              </View>
+            </View>
+            <Section title="Dress code" hint="Optional.">
+              <TextInput value={dressCode} onChangeText={setDressCode} placeholder="Collared shirts, no denim, soft spikes" placeholderTextColor={colors.ink500} maxLength={200} style={styles.input} accessibilityLabel="Dress code" />
+            </Section>
+            <Section title="Meal choices" hint="Optional, separated by commas — members pick one when they get a place.">
+              <TextInput value={mealsText} onChangeText={setMealsText} placeholder="Beef, Salmon, Vegetarian" placeholderTextColor={colors.ink500} maxLength={260} style={styles.input} accessibilityLabel="Meal choices, separated by commas" />
+            </Section>
+          </View>
+        ) : null}
+
+        <View style={styles.pay}>
           <Text style={styles.payTitle}>How members pay</Text>
           <Text style={styles.payHint}>Members see these on the {noun}&apos;s page with a Pay button. Only people in the group can see them.</Text>
           <Section title="Revolut username" hint="Optional. Your @name in Revolut — members tap to open Revolut and pay you.">
@@ -488,6 +608,13 @@ export default function NewOutingScreen() {
 }
 
 const styles = StyleSheet.create({
+  choice: { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, minHeight: 50, borderRadius: radii.md, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface },
+  choiceOn: { borderColor: colors.navy900, backgroundColor: colors.cream100 },
+  chips: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  chipPick: { minHeight: 40, paddingHorizontal: 12, justifyContent: "center", borderRadius: radii.pill, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface },
+  chipPickOn: { borderColor: colors.navy900, backgroundColor: colors.navy900 },
+  chipPickText: { fontFamily: fonts.bodySemi, fontSize: 14, color: colors.navy900 },
+  chipPickTextOn: { color: colors.cream50 },
   fill: { flex: 1, backgroundColor: colors.cream50 },
   body: { padding: spacing.md, gap: spacing.md, paddingBottom: spacing.xl * 2 },
   input: { minHeight: 48, borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: colors.surface, paddingHorizontal: spacing.md, fontFamily: fonts.body, fontSize: type.body, color: colors.ink900 },

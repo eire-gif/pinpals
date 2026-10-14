@@ -21,10 +21,10 @@ import {
   setLiveHole,
   queueHighlight,
   setHighlightAlertsOn,
-  setLiveScore,
   subscribeToLiveRound,
   type LiveRoundData,
 } from "@/lib/live-rounds";
+import { onPendingChange, pendingCount, pendingFor, sendScore } from "@/lib/score-queue";
 import {
   buildBoard,
   driveCounts,
@@ -75,6 +75,9 @@ export default function LiveRoundScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const roundId = Number(id);
   const [data, setData] = useState<LiveRoundData | null | undefined>(undefined);
+  /** Scores saved on the phone with no signal, still to send. */
+  const [waitingScores, setWaitingScores] = useState(pendingCount());
+  useEffect(() => onPendingChange(setWaitingScores), []);
   const [failed, setFailed] = useState(false);
   const [view, setView] = useState<"score" | "board">("score");
   const [hole, setHole] = useState(1);
@@ -96,7 +99,20 @@ export default function LiveRoundScreen() {
   const load = useCallback(async () => {
     try {
       setFailed(false);
-      const d = await loadLiveRound(roundId);
+      const raw = await loadLiveRound(roundId);
+      // Scores entered with no signal and not sent yet stay on the card.
+      const waiting = raw ? await pendingFor(roundId) : [];
+      let d = raw;
+      if (d && waiting.length) {
+        const scores = new Map(d.scores);
+        for (const w of waiting) {
+          const mine = new Map(scores.get(w.playerId) ?? []);
+          if (w.clear) mine.delete(w.hole);
+          else mine.set(w.hole, w.strokes);
+          scores.set(w.playerId, mine);
+        }
+        d = { ...d, scores };
+      }
       setData(d);
       // Scores change here (ours, or the group's via the live ping): the
       // Home Screen widget fetches again (throttled, lib/widgets.ts).
@@ -240,12 +256,13 @@ export default function LiveRoundScreen() {
       return { ...d, scores: next };
     });
     try {
-      await setLiveScore(round.id, playerId, h.hole, strokes, clear);
+      const how = await sendScore(round.id, playerId, h.hole, strokes, clear);
+      if (how === "queued") return;
       // A birdie or better: everyone in the game hears, a few seconds later
       // (a correction in the meantime cancels it). See queueHighlight().
       queueHighlight(round.id, playerId, h.hole, clear ? null : strokes, h.par);
     } catch (e) {
-      Alert.alert("That score didn't save", e instanceof Error ? e.message : "Check your signal and try again.");
+      Alert.alert("That score didn't save", e instanceof Error ? e.message : (e as { message?: string })?.message ?? "Please try again.");
       void load();
     }
   };
@@ -548,6 +565,14 @@ export default function LiveRoundScreen() {
 
       {view === "score" ? (
         <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
+          {waitingScores > 0 ? (
+            <View style={styles.offline} accessibilityLiveRegion="polite">
+              <Ionicons name="cloud-offline-outline" size={18} color="#6b4403" />
+              <Text style={styles.offlineText}>
+                {`No signal — ${waitingScores} score${waitingScores === 1 ? "" : "s"} saved on your phone. They send by themselves when you're back in range.`}
+              </Text>
+            </View>
+          ) : null}
           <View style={styles.holeCard}>
             <View style={styles.holeTop}>
               <Text style={styles.holeMeta}>
@@ -1229,6 +1254,8 @@ function StepButton({ label, a11y, dark = false, onPress }: { label: string; a11
 }
 
 const styles = StyleSheet.create({
+  offline: { flexDirection: "row", gap: 8, alignItems: "flex-start", padding: 10, borderRadius: 12, backgroundColor: "#f5e6c6" },
+  offlineText: { flex: 1, fontFamily: fonts.bodySemi, fontSize: 13, color: "#4d3203" },
   dayLink: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: spacing.md, paddingTop: spacing.sm, minHeight: 36 },
   sideTag: { alignSelf: "flex-start", paddingHorizontal: 12, paddingVertical: 4, borderRadius: radii.pill, marginTop: spacing.xs },
   sideTagText: { fontFamily: fonts.bodyBold, fontSize: 12, letterSpacing: 1, textTransform: "uppercase" },

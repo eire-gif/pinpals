@@ -10,7 +10,7 @@ import { GroupPastResults } from "@/components/group-past-results";
 import { LoadError, StateMessage } from "@/components/state-message";
 import { useAuth } from "@/lib/auth";
 import { isOn } from "@/lib/features";
-import { GROUP_KIND_INFO, GROUP_OFFICE_LABELS, GROUP_OFFICES, canStyleGroup, groupCan, hasEvents, joinState, roleLabel, type GroupRole, type GroupSettings } from "@/lib/groups";
+import { GROUP_KIND_INFO, GROUP_OFFICE_LABELS, GROUP_OFFICES, canStyleGroup, groupCan, hasEvents, joinState, officeAreas, roleLabel, type GroupRole, type GroupSettings, type SocietyArea } from "@/lib/groups";
 import { PHOTO_PICKER_OPTIONS, preparePhotoForUpload } from "@/lib/photo-picking";
 import {
   canDrawFrom,
@@ -32,6 +32,9 @@ import {
 } from "@/lib/groups-data";
 import { irishToday } from "@/lib/outing-rules";
 import { listOutings } from "@/lib/outings";
+import { indexLabel } from "@/lib/live-scoring";
+import { listNotices, loadMembershipSettings, myDues, mySocietyHandicap, type Due, type Notice } from "@/lib/society";
+import { Chip, euro } from "@/components/society-bits";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 
 /** What's on its way to a group's page, in the order it arrives (steps C–E). */
@@ -64,6 +67,8 @@ export default function GroupScreen() {
   const [refreshing, setRefreshing] = useState(false);
   /** Upcoming events and your tee times among them (0125; crews and trips since 0129). */
   const [outingCounts, setOutingCounts] = useState<{ upcoming: number; mine: number; teeTimes: number } | null>(null);
+  /** A society's extras (0143–0145): what you owe, the latest notice, your society handicap, membership. */
+  const [extras, setExtras] = useState<{ dues: Due[]; notice: Notice | null; noticeCount: number; handicap: number | null; membership: boolean } | null>(null);
 
   const load = useCallback(async () => {
     if (!userId || !Number.isInteger(groupId) || groupId <= 0 || !isOn("groups")) {
@@ -82,6 +87,15 @@ export default function GroupScreen() {
             ? { upcoming: open.length, mine: open.filter((o) => o.mine).length, teeTimes: open.filter((o) => o.mine && o.myTeeGroup != null && o.drawPublishedAt).length }
             : null
         );
+      }
+      if (p && p.group.kind === "society" && p.myRole) {
+        const [dues, notices, hc, ms] = await Promise.all([
+          myDues(groupId).catch(() => []),
+          listNotices(groupId, 5).catch(() => []),
+          mySocietyHandicap(groupId).catch(() => null),
+          loadMembershipSettings(groupId).catch(() => null),
+        ]);
+        setExtras({ dues, notice: notices[0] ?? null, noticeCount: notices.length, handicap: hc?.index ?? null, membership: !!ms?.enabled });
       }
     } catch {
       setFailed(true);
@@ -194,6 +208,10 @@ export default function GroupScreen() {
   });
   const detail = [info.label, membersLabel(group.memberCount), group.clubName].filter(Boolean).join(" · ");
   const canStyle = canStyleGroup(group.kind, myRole, page.myOffice);
+  /** Your committee areas (0144): the same rule as the database's society_can. */
+  const areas: SocietyArea[] = society ? officeAreas(myRole, page.myOffice) : [];
+  const owed = (extras?.dues ?? []).reduce((a, d) => a + d.amountCents, 0);
+  const go = (pathname: string, params: Record<string, string> = {}) => router.push({ pathname, params: { id: String(groupId), ...params } } as never);
 
   function memberMenu(m: GroupMember) {
     if (m.id === userId) {
@@ -218,7 +236,7 @@ export default function GroupScreen() {
       // each — a new one stands the old one down).
       for (const office of GROUP_OFFICES) {
         if (m.office === office) continue;
-        const current = members.find((x) => x.office === office);
+        const current = office === "event_organiser" ? undefined : members.find((x) => x.office === office);
         options.push({
           text: `Make ${GROUP_OFFICE_LABELS[office].toLowerCase()}`,
           onPress: () => {
@@ -408,6 +426,92 @@ export default function GroupScreen() {
             ) : society ? (
               <Text style={styles.hint}>The captain or secretary brings new members in — ask them, or share the society&apos;s name so golfers can find it.</Text>
             ) : null}
+            {society && extras ? (
+              <>
+                {owed > 0 ? (
+                  <Pressable
+                    style={styles.owe}
+                    onPress={() => {
+                      const first = extras.dues[0];
+                      if (first?.kind === "membership" || !first?.outingId) go("/group/[id]/membership");
+                      else go("/group/[id]/outing/[outingId]", { outingId: String(first.outingId) });
+                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel={`What you owe, ${euro(owed)}`}
+                  >
+                    <View style={styles.oweTop}>
+                      <Text style={styles.oweKicker}>WHAT YOU OWE</Text>
+                      <Text style={styles.oweTotal}>{euro(owed)}</Text>
+                    </View>
+                    {extras.dues.slice(0, 4).map((d, i) => (
+                      <View key={i} style={styles.oweRow}>
+                        <Text style={styles.oweLabel} numberOfLines={1}>
+                          {d.label}
+                        </Text>
+                        <Text style={styles.oweAmount}>{d.claimed ? "Says paid" : euro(d.amountCents)}</Text>
+                      </View>
+                    ))}
+                    <Text style={styles.oweHint}>Tap to see how to pay</Text>
+                  </Pressable>
+                ) : null}
+
+                {extras.notice ? (
+                  <Pressable style={[styles.notice, extras.notice.pinned && styles.noticePinned]} onPress={() => go("/group/[id]/noticeboard")} accessibilityRole="button" accessibilityLabel={`Noticeboard: ${extras.notice.title}`}>
+                    <View style={styles.oweTop}>
+                      <Text style={styles.noticeKicker}>{extras.notice.pinned ? "NOTICEBOARD · PINNED" : "NOTICEBOARD"}</Text>
+                      {extras.notice.kind === "change" ? <Chip tone="wait">Change</Chip> : null}
+                    </View>
+                    <Text style={styles.noticeTitle}>{extras.notice.title}</Text>
+                    {extras.notice.body ? (
+                      <Text style={styles.noticeBody} numberOfLines={2}>
+                        {extras.notice.body}
+                      </Text>
+                    ) : null}
+                  </Pressable>
+                ) : null}
+
+                <View style={styles.soon}>
+                  <Pressable style={[styles.soonItem, styles.liveItem]} onPress={() => go("/group/[id]/noticeboard")} accessibilityRole="button" accessibilityLabel="Noticeboard and alerts">
+                    <Ionicons name="megaphone-outline" size={18} color={colors.navy900} />
+                    <Text style={[styles.soonLabel, styles.liveLabel]}>Noticeboard</Text>
+                    <Text style={styles.soonTag}>{extras.noticeCount ? `${extras.noticeCount}${extras.noticeCount >= 5 ? "+" : ""} posts` : "Alerts"}</Text>
+                  </Pressable>
+                  <Pressable style={[styles.soonItem, styles.liveItem]} onPress={() => go("/group/[id]/merit")} accessibilityRole="button" accessibilityLabel="Order of merit">
+                    <Ionicons name="podium-outline" size={18} color={colors.navy900} />
+                    <Text style={[styles.soonLabel, styles.liveLabel]}>Order of merit</Text>
+                    <Text style={styles.soonTag}>Season table</Text>
+                  </Pressable>
+                  {extras.membership || runsIt ? (
+                    <Pressable style={[styles.soonItem, styles.liveItem]} onPress={() => go("/group/[id]/membership")} accessibilityRole="button" accessibilityLabel="Annual membership">
+                      <Ionicons name="card-outline" size={18} color={colors.navy900} />
+                      <Text style={[styles.soonLabel, styles.liveLabel]}>Membership</Text>
+                      <Text style={styles.soonTag}>{extras.membership ? (extras.dues.some((d) => d.kind === "membership") ? "Due" : "Paid up") : "Off"}</Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+
+                {extras.handicap != null ? (
+                  <Text style={styles.hint}>{`The society plays you off ${indexLabel(extras.handicap)}.`}</Text>
+                ) : null}
+
+                {areas.length > 0 ? (
+                  <View style={styles.committee}>
+                    <View style={styles.oweTop}>
+                      <Text style={styles.committeeKicker}>RUN THE SOCIETY</Text>
+                      <Text style={styles.committeeHint}>Committee only</Text>
+                    </View>
+                    <View style={styles.committeeRow}>
+                      {areas.includes("people") || areas.includes("money") ? <CommitteeTool icon="people-outline" label="Members" onPress={() => go("/group/[id]/committee")} /> : null}
+                      {areas.includes("money") ? <CommitteeTool icon="cash-outline" label="Money" onPress={() => go("/group/[id]/money")} /> : null}
+                      {areas.includes("messages") ? <CommitteeTool icon="paper-plane-outline" label="Message" onPress={() => go("/group/[id]/message")} /> : null}
+                      <CommitteeTool icon="download-outline" label="Export" onPress={() => go("/group/[id]/exports")} />
+                      {runsIt ? <CommitteeTool icon="card-outline" label="Membership" onPress={() => go("/group/[id]/membership-settings")} /> : null}
+                    </View>
+                  </View>
+                ) : null}
+              </>
+            ) : null}
+
             <View style={styles.tools}>
               {group.conversationId ? (
                 <Pressable style={styles.tool} onPress={() => router.push(`/conversation/${group.conversationId}`)} accessibilityRole="button">
@@ -421,7 +525,7 @@ export default function GroupScreen() {
                   <Text style={styles.buttonText} numberOfLines={1}>Settings</Text>
                 </Pressable>
               ) : null}
-              {society && runsIt ? (
+              {society && areas.includes("handicaps") ? (
                 <Pressable style={styles.tool} onPress={() => router.push({ pathname: "/group/[id]/handicaps", params: { id: String(groupId) } })} accessibilityRole="button">
                   <Ionicons name="stats-chart-outline" size={18} color={colors.navy900} />
                   <Text style={styles.buttonText} numberOfLines={1}>Handicaps</Text>
@@ -439,7 +543,7 @@ export default function GroupScreen() {
                 </Pressable>
               ) : null}
             </View>
-            {myRole && canDrawFrom({ kind: group.kind, role: myRole }) && isOn("liveScoring") ? (
+            {myRole && canDrawFrom({ kind: group.kind, role: myRole, office: page.myOffice }) && isOn("liveScoring") ? (
               <Pressable
                 style={styles.play}
                 onPress={() => router.push({ pathname: "/live/day/group", params: { group: String(groupId) } })}
@@ -553,7 +657,7 @@ export default function GroupScreen() {
 
             {society ? (
               <Text style={[styles.hint, styles.privacy]}>
-                The society&apos;s owner, captain and secretary can see each member&apos;s handicap and PinPals handicap indicator, to set the handicaps the society plays off.
+                The society&apos;s owner, captain, secretary and handicap secretary can see each member&apos;s handicap and PinPals handicap indicator, to set the handicaps the society plays off. The treasurer sees who has paid.
               </Text>
             ) : null}
 
@@ -575,7 +679,40 @@ export default function GroupScreen() {
   );
 }
 
+function CommitteeTool({ icon, label, onPress }: { icon: keyof typeof Ionicons.glyphMap; label: string; onPress: () => void }) {
+  return (
+    <Pressable style={styles.committeeTool} onPress={onPress} accessibilityRole="button" accessibilityLabel={label}>
+      <View style={styles.committeeIcon}>
+        <Ionicons name={icon} size={20} color={colors.cream50} />
+      </View>
+      <Text style={styles.committeeLabel} numberOfLines={1}>
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
+  owe: { gap: 6, padding: spacing.md, borderRadius: radii.lg, borderWidth: 1, borderColor: "#e7c9c5", backgroundColor: colors.surface },
+  oweTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.sm },
+  oweKicker: { fontFamily: fonts.bodyBold, fontSize: 11.5, letterSpacing: 1.2, color: "#8c1d16" },
+  oweTotal: { fontFamily: fonts.display, fontSize: 24, color: colors.ink900 },
+  oweRow: { flexDirection: "row", justifyContent: "space-between", gap: spacing.sm },
+  oweLabel: { flex: 1, fontFamily: fonts.body, fontSize: type.small, color: colors.ink900 },
+  oweAmount: { fontFamily: fonts.bodySemi, fontSize: type.small, color: colors.ink900 },
+  oweHint: { fontFamily: fonts.bodySemi, fontSize: 13, color: colors.navy900 },
+  notice: { gap: 4, padding: spacing.md, borderRadius: radii.lg, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
+  noticePinned: { borderColor: colors.gold500, backgroundColor: "#fbf4e2" },
+  noticeKicker: { fontFamily: fonts.bodyBold, fontSize: 11.5, letterSpacing: 1.2, color: "#7e5f14" },
+  noticeTitle: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.ink900 },
+  noticeBody: { fontFamily: fonts.body, fontSize: type.small, color: colors.ink500 },
+  committee: { gap: spacing.sm, padding: spacing.md, borderRadius: radii.lg, backgroundColor: colors.navy900 },
+  committeeKicker: { fontFamily: fonts.bodyBold, fontSize: 11.5, letterSpacing: 1.2, color: colors.gold400 },
+  committeeHint: { fontFamily: fonts.body, fontSize: 12, color: colors.cream100 },
+  committeeRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
+  committeeTool: { alignItems: "center", gap: 4, width: 62, minHeight: 60 },
+  committeeIcon: { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: colors.navy800 },
+  committeeLabel: { fontFamily: fonts.bodySemi, fontSize: 11.5, color: colors.cream50 },
   fill: { flex: 1, backgroundColor: colors.cream50 },
   spinner: { marginTop: spacing.xl },
   body: { padding: spacing.md, paddingBottom: spacing.xl * 2, gap: spacing.sm },

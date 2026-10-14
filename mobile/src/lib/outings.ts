@@ -755,3 +755,55 @@ export async function loadDrawWishes(outingId: number, groupId: number): Promise
     met: [...met.entries()],
   };
 }
+
+// ---------------------------------------------------------------------------
+// Kept on the phone for no signal (Oct 2026)
+// ---------------------------------------------------------------------------
+
+const CACHE_KEY = (id: number) => `pinpals.outing.${id}.v1`;
+
+/**
+ * Keeps an event's details and your own tee group on the phone after each
+ * load, so the event page still opens on the course with no signal. Small on
+ * purpose (SecureStore values are meant to stay under a couple of KB): the
+ * event itself, and only the people in your tee group.
+ */
+export async function keepOutingOnPhone(page: OutingPage, userId: string): Promise<void> {
+  try {
+    const me = page.entries.find((e) => e.memberId === userId);
+    if (!me) return;
+    const mine = me.teeGroup
+      ? page.entries.filter((e) => e.teeGroup === me.teeGroup).map((e) => ({ ...e, avatarUrl: null, homeClub: null }))
+      : [{ ...me, avatarUrl: null, homeClub: null }];
+    const guests = me.teeGroup ? page.guests.filter((g) => g.teeGroup === me.teeGroup) : [];
+    const outing = { ...page.outing, details: page.outing.details ? page.outing.details.slice(0, 300) : null };
+    const SecureStore = await import("expo-secure-store");
+    await SecureStore.setItemAsync(CACHE_KEY(page.outing.id), JSON.stringify({ outing, entries: mine, guests, at: Date.now() }));
+  } catch {
+    // Best effort.
+  }
+}
+
+/** The copy kept on the phone, as a page with only your group in it; null if none. */
+export async function outingFromPhone(outingId: number): Promise<(OutingPage & { savedAt: number }) | null> {
+  try {
+    const SecureStore = await import("expo-secure-store");
+    const raw = await SecureStore.getItemAsync(CACHE_KEY(outingId));
+    if (!raw) return null;
+    const v = JSON.parse(raw) as { outing: Outing; entries: OutingEntry[]; guests: OutingGuest[]; at: number };
+    return {
+      outing: v.outing,
+      entries: v.entries,
+      guests: v.guests,
+      guestPayments: new Map(),
+      payments: new Map(),
+      claims: new Map(),
+      queue: [],
+      choices: new Map(),
+      withdrawals: [],
+      savedAt: v.at,
+    };
+  } catch {
+    return null;
+  }
+}

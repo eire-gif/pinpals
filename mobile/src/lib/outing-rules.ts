@@ -84,13 +84,15 @@ export function parseFee(text: string): number | null | undefined {
   return cents <= 100000 ? cents : undefined;
 }
 
-export type PaidStatus = "cash" | "transfer" | "card" | "waived";
+/** "refunded" (0142): a withdrawn member's payment was handed back. */
+export type PaidStatus = "cash" | "transfer" | "card" | "waived" | "refunded";
 
 export const PAID_LABELS: Record<PaidStatus, string> = {
   cash: "Paid cash",
   transfer: "Paid by transfer",
   card: "Paid by card",
   waived: "Fee waived",
+  refunded: "Refunded",
 };
 
 /** "09:00:00" → "09:00". */

@@ -17,7 +17,13 @@ import type { Href } from "expo-router";
  *    start    → app/groups/index.tsx, app/groups/new.tsx, app/group/[id]/index.tsx,
  *               app/group/[id]/invite.tsx
  *    run      → app/group/[id]/index.tsx, app/group/[id]/settings.tsx,
- *               app/group/[id]/handicaps.tsx, app/group/[id]/contacts.tsx
+ *               app/group/[id]/handicaps.tsx, app/group/[id]/contacts.tsx,
+ *               app/group/[id]/committee.tsx, app/group/[id]/money.tsx,
+ *               app/group/[id]/membership-settings.tsx, app/group/[id]/noticeboard.tsx,
+ *               app/group/[id]/message.tsx, app/group/[id]/exports.tsx, app/group/[id]/merit.tsx
+ *    enter    → app/group/[id]/events.tsx, app/group/[id]/outing/[outingId].tsx,
+ *               app/group/[id]/outing/request.tsx, app/group/[id]/membership.tsx,
+ *               app/group/[id]/noticeboard.tsx
  *    join     → app/groups/find.tsx, app/groups/index.tsx, app/group/[id]/index.tsx
  *    event    → app/group/[id]/events.tsx, app/group/[id]/outing/new.tsx,
  *               app/group/[id]/outing/[outingId].tsx, components/outing-pay-card.tsx,
@@ -279,22 +285,23 @@ export const GUIDES: Guide[] = [
     section: "groups",
     audiences: ["society"],
     title: "Run your society",
-    blurb: "Captain and secretary, join requests, handicaps and settings.",
+    blurb: "Your committee, join requests, membership, money, messages and handicaps.",
     icon: "ribbon",
     tone: "navy",
     audience: "Owner, captain, secretary",
     next: "event",
     steps: [
       {
-        title: "Appoint a captain and secretary",
-        body: "On the society's page, tap a member's name under Members and choose Make captain or Make secretary. There is one of each.",
+        title: "Appoint your committee",
+        body: "On the society's page, tap a member's name under Members and choose Make captain, Make secretary, Make vice-captain, Make treasurer, Make handicap secretary or Make event organiser. There's one of each, except event organisers — have as many as you like.",
         path: [MENU, GROUPS, YOUR_GROUP],
         look: [
           { style: "link", label: "Make captain" },
-          { style: "link", label: "Make secretary" },
+          { style: "link", label: "Make treasurer" },
+          { style: "link", label: "Make event organiser" },
         ],
         who: "The owner (whoever started the society)",
-        tip: "Only the owner, captain and secretary can invite or add people.",
+        tip: "Captain and secretary run everything. The vice-captain and event organisers run events, the treasurer the money, the handicap secretary the handicaps. Only the owner, captain and secretary invite people.",
       },
       {
         title: "Approve people who ask to join",
@@ -309,8 +316,48 @@ export const GUIDES: Guide[] = [
         title: "Set society handicaps",
         body: "Tap Handicaps on the society's page. Enter a society handicap index for any member — it's used in your rounds instead of their own, which stays as it is.",
         look: [{ style: "outline", label: "Handicaps", icon: "stats-chart-outline" }],
+        who: "Captain, secretary or handicap secretary",
+        tip: "Pick a course and tees to see everyone's course handicap for that day. Members see the figure the society plays them off on its page.",
+      },
+      {
+        title: "Annual membership",
+        body: "Under Run the society, tap Membership. Switch on Annual membership, set the fee, the month the season starts and when it's due, and how members pay you. Choose whether someone who hasn't paid can still enter events.",
+        look: [
+          { style: "tile", label: "Membership", icon: "card-outline" },
+          { style: "outline", label: "Annual membership", icon: "toggle-outline" },
+        ],
         who: "Captain or secretary",
-        tip: "Pick a course and tees to see everyone's course handicap for that day.",
+        tip: "Leave it off if your society charges per event only. Members get reminders before it's due.",
+      },
+      {
+        title: "Members, money and exports",
+        body: "Members shows everyone's membership — Paid up, Unpaid, Says paid, Honorary, Lapsed — and tap a name to mark it or remind them. Money shows the season: collected, outstanding and refunded, event by event, with everyone who says they've paid to confirm. Export gives you CSV files: members, a course booking sheet, attendance, accounts and results.",
+        look: [
+          { style: "tile", label: "Members", icon: "people-outline" },
+          { style: "tile", label: "Money", icon: "cash-outline" },
+          { style: "tile", label: "Export", icon: "download-outline" },
+        ],
+        who: "Captain, secretary or treasurer",
+        tip: "Every export is recorded, and mobile numbers appear only where you can already see them.",
+      },
+      {
+        title: "Noticeboard and messages",
+        body: "Post on the Noticeboard — a change, a reminder, the AGM — and pin the one that matters. To reach just some people, tap Message: everyone, an event's entrants or waiting list, those who owe a fee or membership, or the committee.",
+        look: [
+          { style: "tile", label: "Noticeboard", icon: "megaphone-outline" },
+          { style: "tile", label: "Message", icon: "paper-plane-outline" },
+        ],
+        who: "The committee",
+        tip: "A message about money goes only to the people it's for — never on the noticeboard.",
+      },
+      {
+        title: "Order of merit",
+        body: "Tap Order of merit for the season's table, built from the results you publish to the society's page. Tap Rules to set the points for each place, points for playing, and whether only the best few events count.",
+        look: [
+          { style: "tile", label: "Order of merit", icon: "podium-outline" },
+          { style: "outline", label: "Rules" },
+        ],
+        who: "Captain or secretary set the rules; everyone sees the table",
       },
       {
         title: "Phone your members",
@@ -450,6 +497,27 @@ export const GUIDES: Guide[] = [
         },
       },
       {
+        title: "Choose how members get a place",
+        body: "Under How members get a place, pick Join straight away (first come, first served) or Request a place (you approve each one). Keep a waiting list for when it's full, choose whether members can bring guests and what guests pay, and when entries close.",
+        only: ["society"],
+        look: [
+          { style: "outline", label: "Join straight away", icon: "radio-button-off" },
+          { style: "outline", label: "Request a place", icon: "radio-button-on" },
+          { style: "outline", label: "Waiting list when it's full", icon: "toggle-outline" },
+        ],
+        tip: "With Offer freed places automatically on, a place someone gives up goes to the first on the waiting list, who has 24 hours to take it.",
+      },
+      {
+        title: "On the day",
+        body: "Add the arrive-by time, the format, the dress code and the meal choices. Members see them on the event with a Directions button, and pick their meal when they get a place.",
+        only: ["society"],
+        look: [
+          { style: "field", label: "Arrive by", icon: "time-outline" },
+          { style: "field", label: "Dress code", icon: "shirt-outline" },
+          { style: "field", label: "Meal choices", icon: "restaurant-outline" },
+        ],
+      },
+      {
         title: "Say how members pay you",
         body: "Under How members pay, add your Revolut @name, your IBAN and account name for a bank transfer, and tick Cash is fine. Members see these on the event, and Revolut opens with one tap.",
         look: [
@@ -484,6 +552,16 @@ export const GUIDES: Guide[] = [
         tip: "You can also add a guest on the draw screen — they're put on the event when you publish the tee times.",
       },
       {
+        title: "Answer requests and the waiting list",
+        body: "Open the event: Asking for a place lists each request with their guest, meal and note — tap a name to give them a place, put them on the waiting list or decline. On the Waiting list, tap Promote to give someone a place now.",
+        only: ["society"],
+        look: [
+          { style: "outline", label: "Requested" },
+          { style: "primary", label: "Promote" },
+        ],
+        tip: "Everyone hears straight away — confirmed, declined, or that a place has opened for them.",
+      },
+      {
         title: "Track who's in and who's paid",
         body: "Open the event to see Who's in. When someone taps I've paid, they show as Says paid — tap their name to confirm it, mark them paid by cash or transfer, or waive the fee.",
         look: [
@@ -491,7 +569,7 @@ export const GUIDES: Guide[] = [
           { style: "link", label: "Paid cash" },
           { style: "link", label: "Waive the fee" },
         ],
-        tip: "Entries close at midnight before the day.",
+        tip: "Entries close at midnight before the day, unless you chose earlier. Someone who withdraws after paying shows under Withdrew — tap Mark refunded once you've paid them back.",
       },
       {
         title: "Make the draw",
@@ -502,6 +580,57 @@ export const GUIDES: Guide[] = [
           { style: "primary", label: "Publish tee times" },
         ],
         tip: "The next guide, Play a round together, walks through the draw.",
+      },
+    ],
+  },
+
+  {
+    id: "enter",
+    section: "groups",
+    audiences: ["society"],
+    title: "Get a place on an event",
+    blurb: "Join or request a place, the waiting list, guests, paying, and alerts.",
+    icon: "golf",
+    tone: "green",
+    audience: "Every member",
+    steps: [
+      {
+        title: "Find the fixtures",
+        body: "On the society's page, tap Events for the season's fixtures. Each shows where you stand: Confirmed, Requested, Waiting list, or Payment due.",
+        path: [MENU, GROUPS, YOUR_GROUP, EVENTS],
+        look: [
+          { style: "tile", label: "Events", icon: "calendar-outline" },
+          { style: "outline", label: "Confirmed" },
+          { style: "outline", label: "Waiting list" },
+        ],
+      },
+      {
+        title: "Join, or request a place",
+        body: "Tap Join to get a place straight away, or Request a place where the captain gives them out. Choose your meal, bring a guest, ask to play with someone or for an early or late tee, and leave a note.",
+        look: [
+          { style: "primary", label: "Join" },
+          { style: "primary", label: "Request a place" },
+          { style: "outline", label: "Bring a guest", icon: "person-add-outline" },
+        ],
+        tip: "Nothing to pay until you're confirmed.",
+      },
+      {
+        title: "The waiting list",
+        body: "If it's full you go on the waiting list, and see where you are in the line. When a place opens you get a notification and 24 hours to Take the place — or Let it go to the next person.",
+        look: [
+          { style: "primary", label: "Take the place" },
+          { style: "outline", label: "Let it go" },
+        ],
+      },
+      {
+        title: "Pay and keep up",
+        body: "What you owe is at the top of the society's page — membership and any event fees. Tap it to see how to pay, then tap I've paid. The Noticeboard has the society's news; switch alerts on or off there.",
+        look: [
+          { style: "outline", label: "What you owe" },
+          { style: "primary", label: "I've paid" },
+          { style: "tile", label: "Noticeboard", icon: "megaphone-outline" },
+        ],
+        tip: "You'll always hear when your place is confirmed, a place opens, or an event changes.",
       },
     ],
   },
@@ -1362,6 +1491,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-14", text: "New guide: Get a place on an event — join or request a place, the waiting list, guests and paying. Create an event: how members get a place, the day's details, answering requests. Run your society: committee roles, annual membership, money, exports, noticeboard and messages, order of merit." },
   { on: "2026-10-14", text: "Score a game live: start from a tee time with Start live scoring — your fourball is added, untick anyone not playing. The Hole map button is now Yardage & shot map. Find PinPals: your QR code is on Home too." },
   { on: "2026-10-13", text: "Publish the results: Past results on a group's page now folds away (tap to open, See all results for the full list), and the results page ends with a Saved panel and Back to Home / Back to the group." },
   { on: "2026-10-13", text: "Publish the results: amend a card (shown as Amended) and show results on your group's page under Past results. Play a round together: certify a foursomes or scramble pair's card." },

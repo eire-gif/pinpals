@@ -83,7 +83,7 @@ const EXACT: Record<string, string> = {
  * to the web view, which is the honest answer for a path this app has never
  * heard of.
  */
-const PATTERNS: { match: RegExp; to: (id: string) => string }[] = [
+const PATTERNS: { match: RegExp; to: (id: string, id2: string) => string }[] = [
   { match: /^\/conversations\/(\d+)$/, to: (id) => `/conversation/${id}` },
   { match: /^\/marketplace\/(\d+)$/, to: (id) => `/listing/${id}` },
   { match: /^\/tee-times\/(\d+)$/, to: (id) => `/invite/${id}` },
@@ -101,6 +101,10 @@ const PATTERNS: { match: RegExp; to: (id: string) => string }[] = [
   { match: /^\/scorecards\/(\d+)$/, to: (id) => `/scorecards/${id}` },
   // Groups (0120): an invitation, a join request or an approval opens the group.
   { match: /^\/groups\/(\d+)$/, to: (id) => `/group/${id}` },
+  // Societies (0142–0144): an event, the noticeboard, membership.
+  { match: /^\/groups\/(\d+)\/events\/(\d+)$/, to: (id, outing) => `/group/${id}/outing/${outing}` },
+  { match: /^\/groups\/(\d+)\/noticeboard$/, to: (id) => `/group/${id}/noticeboard` },
+  { match: /^\/groups\/(\d+)\/membership$/, to: (id) => `/group/${id}/membership` },
   // A shared tee time link (0132): "X invited you to play" opens the round,
   // through tee-link, which adds you to it first. A signed token, not an id.
   { match: /^\/t\/([A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)$/, to: (token) => `/tee-link?token=${encodeURIComponent(token)}` },
@@ -147,7 +151,7 @@ export function appRouteFor(href: string): AlertRoute {
 
   for (const { match, to } of PATTERNS) {
     const found = path.match(match);
-    if (found) return native(to(found[1]));
+    if (found) return native(to(found[1], found[2]));
   }
 
   // No native screen for this one: golf news, notification settings, a
