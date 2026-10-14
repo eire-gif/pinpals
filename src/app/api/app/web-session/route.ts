@@ -87,6 +87,9 @@ export async function POST(request: Request) {
   const url = new URL("/auth/app-session", origin);
   url.searchParams.set("token_hash", data.properties.hashed_token);
   url.searchParams.set("next", next);
+  // Lets /auth/app-session keep a session this web view already has for the
+  // same member, rather than replacing it — see that route.
+  url.searchParams.set("uid", auth.user.id);
 
   return Response.json({ url: url.toString() }, { status: 200 });
 }

@@ -23,6 +23,7 @@ export async function proxy(request: NextRequest) {
   }
 
   applyShellFlag(request, response);
+  rememberAdminPage(request, response);
 
   return response;
 }
@@ -57,6 +58,31 @@ function applyShellFlag(request: NextRequest, response: NextResponse): void {
     secure: process.env.NODE_ENV === "production",
     // Deliberately no maxAge: a session cookie lasts as long as the web view,
     // and does not follow somebody into their own browser a week later.
+  });
+}
+
+/**
+ * Remembers which admin page was asked for, so two-step sign-in can return
+ * there afterwards instead of to the Overview. Most useful in the app, where
+ * the site's admin menu is hidden: without it, Admin → Advertising landed on
+ * the code page and then on Overview, with no way across to Advertising.
+ * Only /admin paths, read back and checked again by the two-step page.
+ */
+function rememberAdminPage(request: NextRequest, response: NextResponse): void {
+  const path = request.nextUrl.pathname;
+  if (request.method !== "GET" || !(path === "/admin" || path.startsWith("/admin/"))) return;
+  // Page loads only — not the background fetches Next makes when it
+  // prefetches links, which would overwrite it with wherever the menu points.
+  if (request.headers.get("rsc") || request.headers.get("next-router-prefetch")) return;
+  const params = new URLSearchParams(request.nextUrl.searchParams);
+  params.delete("shell");
+  const query = params.toString();
+  response.cookies.set("pp_admin_next", query ? `${path}?${query}` : path, {
+    path: "/",
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    maxAge: 60 * 30,
   });
 }
 

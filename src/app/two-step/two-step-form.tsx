@@ -14,7 +14,7 @@ type Setup = { factorId: string; qr: string; secret: string };
  * QR code into one (Google Authenticator, 1Password, Authy, Microsoft
  * Authenticator) and confirm it with its first code.
  */
-export default function TwoStepForm({ hasFactor }: { hasFactor: boolean }) {
+export default function TwoStepForm({ hasFactor, next = "/admin" }: { hasFactor: boolean; next?: string }) {
   const supabase = createClient();
   const router = useRouter();
   const [factorId, setFactorId] = useState<string | null>(null);
@@ -61,7 +61,7 @@ export default function TwoStepForm({ hasFactor }: { hasFactor: boolean }) {
       return setError("That code didn't work. Codes change every 30 seconds — try the current one.");
     }
     // The session is now aal2, in the cookie the server reads.
-    router.replace("/admin");
+    router.replace(next);
     router.refresh();
   };
 

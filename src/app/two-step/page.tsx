@@ -1,6 +1,8 @@
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { requireStaff } from "@/lib/admin/authorization";
 import { createClient } from "@/lib/supabase/server";
+import { adminReturnPath } from "@/lib/admin/return-path";
 import TwoStepForm from "./two-step-form";
 
 export const metadata = { title: "Two-step sign-in · PinPals", robots: { index: false, follow: false } };
@@ -14,9 +16,14 @@ export const dynamic = "force-dynamic";
 export default async function TwoStepPage() {
   await requireStaff({ requiredAal: "aal1" });
 
+  // Where to go afterwards: the admin page that sent them here (set by
+  // src/proxy.ts), if it is one; otherwise the Overview.
+  const remembered = (await cookies()).get("pp_admin_next")?.value ?? "";
+  const next = adminReturnPath(remembered);
+
   const supabase = await createClient();
   const { data } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-  if (data?.currentLevel === "aal2") redirect("/admin");
+  if (data?.currentLevel === "aal2") redirect(next);
 
   return (
     <div className="max-w-md mx-auto px-6 py-20">
@@ -30,8 +37,9 @@ export default async function TwoStepPage() {
         </p>
       </div>
       <div className="bg-surface rounded-2xl shadow-lg p-8">
-        <TwoStepForm hasFactor={data?.nextLevel === "aal2"} />
+        <TwoStepForm hasFactor={data?.nextLevel === "aal2"} next={next} />
       </div>
     </div>
   );
 }
+

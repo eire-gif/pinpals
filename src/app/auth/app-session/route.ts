@@ -38,6 +38,20 @@ export async function GET(request: Request) {
   }
 
   const supabase = await createClient();
+
+  // Already signed in here as the same member? Keep that session. Swapping it
+  // for a fresh magic-link session throws away a staff member's two-step
+  // sign-in (aal2), so every Admin row the app opened asked for a code again.
+  // Safe: this only skips the swap for a browser that already holds that
+  // member's own session — the uid in the URL grants nothing by itself.
+  const uid = url.searchParams.get("uid");
+  if (uid) {
+    const { data: current } = await supabase.auth.getUser();
+    if (current.user?.id === uid) {
+      return NextResponse.redirect(new URL(next, url.origin));
+    }
+  }
+
   const { error } = await supabase.auth.verifyOtp({
     token_hash: tokenHash,
     type: "magiclink",
