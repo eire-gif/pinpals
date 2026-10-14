@@ -24,6 +24,8 @@ import {
   type TakeoverPlacement,
 } from "@/lib/advertising";
 import type { PaymentStatus, PricingModel } from "@/lib/advertising-revenue";
+import { CENTRED, hasSlotShape, openImage, renderCreative, type CropChoice } from "@/lib/images/fit-creative";
+import CreativeCropper from "./creative-cropper";
 import PhonePreview from "./phone-preview";
 import type { AdActionState } from "./actions";
 
@@ -495,27 +497,63 @@ function Upload({
   const spec = CREATIVE_SPECS[slot];
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // An image being cropped: its decoded pixels and what it was called.
+  const [cropping, setCropping] = useState<{ bitmap: ImageBitmap; name: string; type: string } | null>(null);
 
-  async function upload(file: File) {
+  // Chosen from the photo library or files. If it's already the slot's shape
+  // it is just scaled and compressed; otherwise the cropper opens. Either way
+  // what's sent is the slot's size and under 2 MB (src/lib/images/fit-creative.ts),
+  // so a 3:4, 5 MB iPhone photo works as well as a designer's export.
+  async function choose(file: File) {
     setError(null);
-    if (file.size > MAX_CREATIVE_BYTES) {
-      setError("Advert images must be 2 MB or smaller.");
+    let bitmap: ImageBitmap;
+    try {
+      bitmap = await openImage(file);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't open that image.");
       return;
     }
+    const source = { name: file.name, type: file.type };
+    if (hasSlotShape(slot, bitmap.width, bitmap.height)) {
+      await finish(bitmap, CENTRED, source);
+    } else {
+      setCropping({ bitmap, ...source });
+    }
+  }
+
+  async function finish(bitmap: ImageBitmap, choice: CropChoice, source: { name: string; type: string }) {
+    setCropping(null);
     setBusy(true);
     try {
-      const body = new FormData();
-      body.append("slot", slot);
-      body.append("file", file);
-      const res = await fetch("/admin/advertising/upload", { method: "POST", body });
-      const json = (await res.json().catch(() => ({}))) as { url?: string; error?: string };
-      if (!res.ok || !json.url) throw new Error(json.error ?? "Couldn't upload that image.");
-      onChange(json.url);
+      const fitted = await renderCreative(bitmap, slot, choice, source);
+      await send(fitted);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't upload that image.");
     } finally {
+      bitmap.close();
       setBusy(false);
     }
+  }
+
+  async function send(file: File) {
+    if (file.size > MAX_CREATIVE_BYTES) throw new Error("Advert images must be 2 MB or smaller.");
+    const body = new FormData();
+    body.append("slot", slot);
+    body.append("file", file);
+    let res: Response;
+    try {
+      res = await fetch("/admin/advertising/upload", { method: "POST", body });
+    } catch {
+      throw new Error("Couldn't upload that image — check your connection and try again.");
+    }
+    // requireStaff() answers a lapsed two-step sign-in with a redirect, which
+    // fetch follows to an HTML page — not a JSON error. Say what to do.
+    if (res.redirected || !(res.headers.get("content-type") ?? "").includes("json")) {
+      throw new Error("Your admin sign-in has expired. Reload this page, sign in again, then upload.");
+    }
+    const json = (await res.json().catch(() => ({}))) as { url?: string; error?: string };
+    if (!res.ok || !json.url) throw new Error(json.error ?? "Couldn't upload that image.");
+    onChange(json.url);
   }
 
   return (
@@ -528,12 +566,12 @@ function Upload({
         </div>
         <div className="grid gap-1 text-xs text-ink-500">
           <span>
-            {spec.label} · {spec.recommended} ideal · min {spec.minWidth} px wide · JPEG/PNG/WEBP ≤ 2 MB
+            {spec.label} · {spec.recommended} ideal · min {spec.minWidth} px wide · any photo — you can crop it to fit
           </span>
           <span>{spec.hint}</span>
           {!disabled && (
-            <span className="flex gap-3">
-              <label className="cursor-pointer font-bold text-green-700 underline">
+            <span className="flex flex-wrap items-center gap-3">
+              <label className="cursor-pointer inline-flex items-center min-h-11 px-4 rounded-full border-[1.5px] border-green-700 font-bold text-green-700">
                 {busy ? "Uploading…" : value ? "Replace" : "Upload"}
                 <input
                   type="file"
@@ -543,12 +581,12 @@ function Upload({
                   onChange={(e) => {
                     const f = e.target.files?.[0];
                     e.target.value = "";
-                    if (f) void upload(f);
+                    if (f) void choose(f);
                   }}
                 />
               </label>
               {value && (
-                <button type="button" className="underline" onClick={() => onChange(null)}>
+                <button type="button" className="min-h-11 px-2 underline" onClick={() => onChange(null)}>
                   Remove
                 </button>
               )}
@@ -557,6 +595,17 @@ function Upload({
           {error && <span className="text-red-600">{error}</span>}
         </div>
       </div>
+      {cropping && (
+        <CreativeCropper
+          slot={slot}
+          bitmap={cropping.bitmap}
+          onCancel={() => {
+            cropping.bitmap.close();
+            setCropping(null);
+          }}
+          onConfirm={(choice) => void finish(cropping.bitmap, choice, cropping)}
+        />
+      )}
     </div>
   );
 }
