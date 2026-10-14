@@ -470,26 +470,6 @@ export default function GroupScreen() {
                   </Pressable>
                 ) : null}
 
-                <View style={styles.soon}>
-                  <Pressable style={[styles.soonItem, styles.liveItem]} onPress={() => go("/group/[id]/noticeboard")} accessibilityRole="button" accessibilityLabel="Noticeboard and alerts">
-                    <Ionicons name="megaphone-outline" size={18} color={colors.navy900} />
-                    <Text style={[styles.soonLabel, styles.liveLabel]}>Noticeboard</Text>
-                    <Text style={styles.soonTag}>{extras.noticeCount ? `${extras.noticeCount}${extras.noticeCount >= 5 ? "+" : ""} posts` : "Alerts"}</Text>
-                  </Pressable>
-                  <Pressable style={[styles.soonItem, styles.liveItem]} onPress={() => go("/group/[id]/merit")} accessibilityRole="button" accessibilityLabel="Order of merit">
-                    <Ionicons name="podium-outline" size={18} color={colors.navy900} />
-                    <Text style={[styles.soonLabel, styles.liveLabel]}>Order of merit</Text>
-                    <Text style={styles.soonTag}>Season table</Text>
-                  </Pressable>
-                  {extras.membership || runsIt ? (
-                    <Pressable style={[styles.soonItem, styles.liveItem]} onPress={() => go("/group/[id]/membership")} accessibilityRole="button" accessibilityLabel="Annual membership">
-                      <Ionicons name="card-outline" size={18} color={colors.navy900} />
-                      <Text style={[styles.soonLabel, styles.liveLabel]}>Membership</Text>
-                      <Text style={styles.soonTag}>{extras.membership ? (extras.dues.some((d) => d.kind === "membership") ? "Due" : "Paid up") : "Off"}</Text>
-                    </Pressable>
-                  ) : null}
-                </View>
-
                 {extras.handicap != null ? (
                   <Text style={styles.hint}>{`The society plays you off ${indexLabel(extras.handicap)}.`}</Text>
                 ) : null}
@@ -605,6 +585,36 @@ export default function GroupScreen() {
               })}
             </View>
 
+            {/* A society's second row of boxes (0143–0145): every member sees
+                the noticeboard and order of merit, and membership when the
+                society charges it (the committee always, to switch it on). */}
+            {society && myRole ? (
+              <View style={styles.soon}>
+                <Pressable style={[styles.soonItem, styles.liveItem]} onPress={() => go("/group/[id]/noticeboard")} accessibilityRole="button" accessibilityLabel="Noticeboard and alerts">
+                  <Ionicons name="megaphone-outline" size={18} color={colors.navy900} />
+                  <Text style={[styles.soonLabel, styles.liveLabel]}>Noticeboard</Text>
+                  <Text style={styles.soonTag}>{extras?.noticeCount ? `${extras.noticeCount}${extras.noticeCount >= 5 ? "+" : ""} posts` : "Alerts"}</Text>
+                </Pressable>
+                <Pressable style={[styles.soonItem, styles.liveItem]} onPress={() => go("/group/[id]/merit")} accessibilityRole="button" accessibilityLabel="Order of merit">
+                  <Ionicons name="podium-outline" size={18} color={colors.navy900} />
+                  <Text style={[styles.soonLabel, styles.liveLabel]}>Order of merit</Text>
+                  <Text style={styles.soonTag}>Season table</Text>
+                </Pressable>
+                {extras?.membership || runsIt ? (
+                  <Pressable
+                    style={[styles.soonItem, styles.liveItem, extras?.dues.some((d) => d.kind === "membership") && styles.oweTile]}
+                    onPress={() => go("/group/[id]/membership")}
+                    accessibilityRole="button"
+                    accessibilityLabel="Annual membership"
+                  >
+                    <Ionicons name="card-outline" size={18} color={colors.navy900} />
+                    <Text style={[styles.soonLabel, styles.liveLabel]}>Membership</Text>
+                    <Text style={styles.soonTag}>{extras?.membership ? (extras.dues.some((d) => d.kind === "membership") ? "Due" : "Paid up") : "Off"}</Text>
+                  </Pressable>
+                ) : null}
+              </View>
+            ) : null}
+
             {/* Past results (0138): competitions published to this group. */}
             {myRole !== null && isOn("liveScoring") ? <GroupPastResults groupId={groupId} /> : null}
 
@@ -693,6 +703,7 @@ function CommitteeTool({ icon, label, onPress }: { icon: keyof typeof Ionicons.g
 }
 
 const styles = StyleSheet.create({
+  oweTile: { borderColor: "#e7c9c5", backgroundColor: "#fbf0ee" },
   owe: { gap: 6, padding: spacing.md, borderRadius: radii.lg, borderWidth: 1, borderColor: "#e7c9c5", backgroundColor: colors.surface },
   oweTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.sm },
   oweKicker: { fontFamily: fonts.bodyBold, fontSize: 11.5, letterSpacing: 1.2, color: "#8c1d16" },
