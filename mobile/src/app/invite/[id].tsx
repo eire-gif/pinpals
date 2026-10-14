@@ -19,6 +19,7 @@ import { InviteTags } from "@/components/invite-card";
 import { StarRow } from "@/components/stars";
 import { useAuth } from "@/lib/auth";
 import { addToCalendar, offerCalendar } from "@/lib/calendar";
+import { isOn } from "@/lib/features";
 import {
   confirmedPlayersFor,
   coursePhotoIndex,
@@ -190,6 +191,10 @@ export default function InviteScreen() {
   const openSeats = Math.max(0, invite.spaces_available);
   // The host or anyone playing can fill a place, until the day is over (0132).
   const canFill = (isMine || playing) && openSeats > 0 && invite.status === "open" && invite.play_date >= todayIso();
+  // Live scoring from the tee time (0141): the host or anyone confirmed,
+  // from the day it's posted until the day after it's played.
+  const canScore =
+    isOn("liveScoring") && (isMine || playing) && invite.status !== "cancelled" && daysSince(invite.play_date) <= 1;
 
   return (
     <>
@@ -355,6 +360,28 @@ export default function InviteScreen() {
           )}
         </View>
 
+        {canScore ? (
+          <Pressable
+            onPress={() => router.push({ pathname: "/live/new", params: { teeTime: String(inviteId) } })}
+            style={({ pressed }) => [styles.scoreCta, pressed && styles.pressed]}
+            accessibilityRole="button"
+            accessibilityLabel="Start live scoring with this fourball"
+          >
+            <View style={styles.scoreIcon}>
+              <Ionicons name="podium" size={22} color={colors.navy900} />
+            </View>
+            <View style={{ flex: 1, gap: 2 }}>
+              <Text style={styles.scoreTitle}>Start live scoring</Text>
+              <Text style={styles.scoreBody}>
+                {others.length > 0 || !isMine
+                  ? "Everyone on this tee time is added — untick anyone not playing, pick the game and go."
+                  : "Score this round live — add your playing partners as they join."}
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={colors.gold400} />
+          </Pressable>
+        ) : null}
+
         {invite.notes ? (
           <View style={styles.notes}>
             <View style={styles.notesHead}>
@@ -501,6 +528,11 @@ export default function InviteScreen() {
 }
 
 /** "Today", "Tomorrow", "In 5 days" — nothing for a round in the past. */
+/** Whole days since a date: negative while it's still to come. */
+function daysSince(iso: string): number {
+  return Math.round((parseDate(todayIso()).getTime() - parseDate(iso).getTime()) / 86_400_000);
+}
+
 function daysUntil(iso: string): string | null {
   const today = parseDate(todayIso()).getTime();
   const days = Math.round((parseDate(iso).getTime() - today) / 86_400_000);
@@ -624,6 +656,19 @@ const styles = StyleSheet.create({
     backgroundColor: colors.cream50,
   },
   pressed: { opacity: 0.85 },
+  scoreCta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    padding: spacing.md,
+    borderRadius: radii.lg,
+    backgroundColor: colors.navy900,
+    borderWidth: 1.5,
+    borderColor: colors.gold400,
+  },
+  scoreIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.gold400, alignItems: "center", justifyContent: "center" },
+  scoreTitle: { fontFamily: fonts.bodyBold, fontSize: 17, color: colors.cream50 },
+  scoreBody: { fontFamily: fonts.body, fontSize: 13.5, lineHeight: 19, color: creamAlpha(0.8) },
 
   hero: {
     height: 210,

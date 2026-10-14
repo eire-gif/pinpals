@@ -579,12 +579,20 @@ export default function LiveRoundScreen() {
                     onPress={() =>
                       router.push({ pathname: "/hole-map", params: { clubId: String(round.clubId), hole: String(h.hole), roundId: String(round.id) } })
                     }
-                    style={styles.mapPill}
+                    style={({ pressed }) => [styles.mapPill, pressed && { opacity: 0.9 }]}
                     accessibilityRole="button"
-                    accessibilityLabel={`Hole ${h.hole} map and GPS yardages`}
+                    accessibilityLabel={`Hole ${h.hole} map: GPS yardages to the green and your shots`}
                   >
-                    <Ionicons name="map-outline" size={14} color={colors.navy900} />
-                    <Text style={styles.mapPillText}>Hole map</Text>
+                    {/* Oct 2026: was a small "Hole map" pill that read as a
+                        label. Now says what it does — yardage and shots. */}
+                    <View style={styles.mapPillIcon}>
+                      <Ionicons name="navigate" size={15} color={colors.gold400} />
+                    </View>
+                    <View>
+                      <Text style={styles.mapPillText}>Yardage & shot map</Text>
+                      <Text style={styles.mapPillSub}>Front · centre · back · track your shot</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={15} color={colors.navy900} />
                   </Pressable>
                 ) : null}
               </View>
@@ -1241,8 +1249,10 @@ const styles = StyleSheet.create({
   holeEyebrow: { fontFamily: fonts.bodyBold, fontSize: 11, letterSpacing: 1.6, textTransform: "uppercase", color: colors.gold400 },
   holeNumber: { fontFamily: fonts.display, fontSize: 48, lineHeight: 56, color: colors.cream50 },
   holeInfo: { fontFamily: fonts.body, fontSize: 13, color: creamAlpha(0.85), paddingVertical: 4 },
-  mapPill: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 4, paddingHorizontal: 12, minHeight: 30, borderRadius: radii.pill, backgroundColor: colors.gold400 },
-  mapPillText: { fontFamily: fonts.bodyBold, fontSize: 12.5, color: colors.navy900 },
+  mapPill: { flexDirection: "row", alignItems: "center", gap: 9, marginTop: 8, paddingLeft: 6, paddingRight: 12, paddingVertical: 6, borderRadius: radii.pill, backgroundColor: colors.gold400 },
+  mapPillIcon: { width: 30, height: 30, borderRadius: 15, backgroundColor: colors.navy900, alignItems: "center", justifyContent: "center" },
+  mapPillText: { fontFamily: fonts.bodyBold, fontSize: 14, color: colors.navy900 },
+  mapPillSub: { fontFamily: fonts.body, fontSize: 11, color: colors.navy900, opacity: 0.75 },
   roundButton: { width: 44, height: 44, borderRadius: 22, borderWidth: 1, borderColor: creamAlpha(0.25), alignItems: "center", justifyContent: "center" },
   strip: { flexDirection: "row", gap: 3 },
   stripCell: { flex: 1, height: 6, borderRadius: 3, backgroundColor: creamAlpha(0.18) },

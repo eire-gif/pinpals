@@ -157,10 +157,23 @@ export default function HomeScreen() {
               some phones the italic rendered wider than it measured — "ball"
               ran off the edge of the screen. A fixed break leaves each line
               well short of the edge whatever the font does. */}
-          <Text style={styles.heroTitle}>
-            Find your{"\n"}
-            <Text style={styles.heroTitleAccent}>next fourball.</Text>
-          </Text>
+          <View style={styles.heroTitleRow}>
+            <Text style={[styles.heroTitle, { flex: 1 }]}>
+              Find your{"\n"}
+              <Text style={styles.heroTitleAccent}>next fourball.</Text>
+            </Text>
+            {/* Your invite QR code — same button as on Find PinPals, so a
+                golfer in the clubhouse can be signed up from Home. */}
+            <Pressable
+              onPress={() => router.push("/invite-friends")}
+              style={({ pressed }) => [styles.heroQr, pressed && { opacity: 0.8 }]}
+              hitSlop={6}
+              accessibilityRole="button"
+              accessibilityLabel="Your PinPals QR code to invite someone"
+            >
+              <Ionicons name="qr-code-outline" size={20} color={colors.gold400} />
+            </Pressable>
+          </View>
 
           {courses ? (
             <Text style={styles.heroSub}>
@@ -467,8 +480,8 @@ function PinPalsNearYou({
         </>
       ) : (
         <InviteBanner
-          title="You're early — bring your fourball"
-          body="Nobody near your club has joined yet. Invite the people you play with."
+          title="Score live with your fourball"
+          body="Invite your friends and club members to join you for live-scored rounds, tee times and more."
         />
       )}
     </View>
@@ -640,6 +653,18 @@ const styles = StyleSheet.create({
   },
   // fontStyle: "italic" does nothing once fontFamily is set — the italic is
   // a separate registered family, not a style on this one.
+  heroTitleRow: { flexDirection: "row", alignItems: "flex-start", gap: spacing.sm },
+  heroQr: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    marginTop: 6,
+    borderWidth: 1.5,
+    borderColor: colors.gold400,
+    backgroundColor: "rgba(11, 22, 40, 0.45)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   heroTitleAccent: { color: colors.gold400, fontFamily: fonts.displayItalic },
   heroSub: {
     fontFamily: fonts.body,

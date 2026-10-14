@@ -55,6 +55,13 @@ async function rejects(c: PoolClient, sql: string, params: unknown[], pattern?: 
 
 async function setUp(c: PoolClient): Promise<void> {
   await asService(c, async () => {
+    // The fixture seed puts STRANGER on ME's tee time, and players on the
+    // same tee time may be added to a round (0141). Take them off it so the
+    // stranger here is a true stranger.
+    await c.query(
+      `update public.tee_time_interests set status = 'declined' where member_id = $1 and status = 'confirmed'`,
+      [STRANGER],
+    );
     for (const other of [PAL, PAL2, BLOCKED_PAL]) {
       await c.query(
         `insert into public.connections (requester_id, recipient_id, status) values ($1, $2, 'accepted')
