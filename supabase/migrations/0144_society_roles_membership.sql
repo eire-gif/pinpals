@@ -182,6 +182,27 @@ $$;
 revoke all on function public.set_group_office(bigint, uuid, text) from public, anon, authenticated;
 grant execute on function public.set_group_office(bigint, uuid, text) to authenticated;
 
+-- The cover and logo stay with the owner, captain and secretary (replaces
+-- 0124's, which allowed any office — there were only those two then).
+create or replace function public.group_can_style(p_group_id bigint, p_user_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select coalesce((
+    select case
+             when g.kind = 'society' then m.role = 'owner' or m.office in ('captain', 'secretary')
+             else m.role in ('owner', 'admin')
+           end
+      from public.groups g
+      join public.group_members m on m.group_id = g.id and m.member_id = p_user_id
+     where g.id = p_group_id and g.hidden_at is null
+  ), false);
+$$;
+revoke all on function public.group_can_style(bigint, uuid) from public, anon, authenticated;
+
 -- Messages (replaces 0143's).
 create or replace function public.society_can_message(p_group_id bigint, p_user uuid)
 returns boolean

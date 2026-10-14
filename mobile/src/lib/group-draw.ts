@@ -129,3 +129,91 @@ export function addMinutes(time: string, minutes: number): string {
 export function teeTimes(first: string, gap: number, groups: number): string[] {
   return Array.from({ length: groups }, (_, i) => addMinutes(first, gap * i));
 }
+
+// ---------------------------------------------------------------------------
+// Requests and repeat pairings (0142)
+// ---------------------------------------------------------------------------
+
+/**
+ * What a society's draw tries to honour, after the deal:
+ *   together  pairs who asked to play together ("with Darragh")
+ *   early / late  keys who asked for an early or a late tee time
+ *   met       how often two players have been drawn together recently,
+ *             keyed by pairKey(a, b) — the draw avoids repeating them
+ */
+export type DrawWishes = {
+  together: [string, string][];
+  early: ReadonlySet<string>;
+  late: ReadonlySet<string>;
+  met: ReadonlyMap<string, number>;
+};
+
+export const pairKey = (a: string, b: string) => (a < b ? `${a}|${b}` : `${b}|${a}`);
+
+const WEIGHT = { split: 10, wrongEnd: 3, repeat: 2 } as const;
+
+/** What a draw costs against the wishes: lower is better. */
+export function wishCost<T extends DrawPlayer>(groups: readonly T[][], wishes: DrawWishes): number {
+  const where = new Map<string, number>();
+  groups.forEach((g, i) => g.forEach((p) => where.set(p.key, i)));
+  let cost = 0;
+  for (const [a, b] of wishes.together) {
+    if (where.has(a) && where.has(b) && where.get(a) !== where.get(b)) cost += WEIGHT.split;
+  }
+  const half = groups.length / 2;
+  for (const [key, i] of where) {
+    if (wishes.early.has(key) && i >= half) cost += WEIGHT.wrongEnd;
+    if (wishes.late.has(key) && i < Math.floor(half)) cost += WEIGHT.wrongEnd;
+  }
+  for (const g of groups) {
+    for (let x = 0; x < g.length; x++) for (let y = x + 1; y < g.length; y++) cost += WEIGHT.repeat * (wishes.met.get(pairKey(g[x].key, g[y].key)) ?? 0);
+  }
+  return cost;
+}
+
+/**
+ * Improves a dealt draw against the wishes by swapping players between
+ * groups while it helps — group sizes never change. With `balanced`, only
+ * players within 3 shots of each other swap, so the teams stay even.
+ * Returns the new groups and what was achieved, for the screen to say.
+ */
+export function honourWishes<T extends DrawPlayer>(
+  dealt: readonly T[][],
+  wishes: DrawWishes,
+  opts: { balanced?: boolean; maxPasses?: number } = {}
+): { groups: T[][]; together: number; togetherAsked: number; repeats: number } {
+  const groups = dealt.map((g) => [...g]);
+  let cost = wishCost(groups, wishes);
+  const passes = opts.maxPasses ?? 6;
+  for (let pass = 0; pass < passes && cost > 0; pass++) {
+    let improved = false;
+    for (let gi = 0; gi < groups.length; gi++) {
+      for (let gj = gi + 1; gj < groups.length; gj++) {
+        for (let a = 0; a < groups[gi].length; a++) {
+          for (let b = 0; b < groups[gj].length; b++) {
+            const pa = groups[gi][a];
+            const pb = groups[gj][b];
+            if (opts.balanced && Math.abs((pa.index ?? 18) - (pb.index ?? 18)) > 3) continue;
+            groups[gi][a] = pb;
+            groups[gj][b] = pa;
+            const next = wishCost(groups, wishes);
+            if (next < cost) {
+              cost = next;
+              improved = true;
+            } else {
+              groups[gi][a] = pa;
+              groups[gj][b] = pb;
+            }
+          }
+        }
+      }
+    }
+    if (!improved) break;
+  }
+  const where = new Map<string, number>();
+  groups.forEach((g, i) => g.forEach((p) => where.set(p.key, i)));
+  const asked = wishes.together.filter(([a, b]) => where.has(a) && where.has(b));
+  let repeats = 0;
+  for (const g of groups) for (let x = 0; x < g.length; x++) for (let y = x + 1; y < g.length; y++) if ((wishes.met.get(pairKey(g[x].key, g[y].key)) ?? 0) > 0) repeats++;
+  return { groups, together: asked.filter(([a, b]) => where.get(a) === where.get(b)).length, togetherAsked: asked.length, repeats };
+}
