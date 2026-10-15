@@ -41,8 +41,8 @@ import {
 import { arrowOnScreen, KMH_PER_MPH, playsLikeM, windLevel, windLine, windOnShot, windSpeed, type Wind } from "@/lib/wind";
 import { useKeyboardHeight, FORM_SCROLL_KEYBOARD } from "@/components/keyboard";
 import { clubDistanceM, clubInfo, likelyClubs, suggestClub, type BagClub } from "@/lib/bag";
-import { loadMyBag, loadShotClubs, loadWind, tagShotClub } from "@/lib/hole-extras";
-import { ClubTagRow, PlaysLikeRow, TipsBlock, WindChip, WindCredit, WindStream, clubOrder } from "@/components/hole-map-extras";
+import { loadLongestShots, loadMyBag, loadShotClubs, loadWind, tagShotClub, taggable, type LongestShot } from "@/lib/hole-extras";
+import { ClubTagRow, ClubTagTooFar, PlaysLikeRow, TipsBlock, WindChip, WindCredit, WindStream, clubOrder } from "@/components/hole-map-extras";
 import { addShot, loadCourseLayouts, loadRoundShots, saveHoleFix, shotKey, undoShot, type CourseLayout } from "@/lib/hole-maps";
 import { isSuperAdmin } from "@/lib/admin";
 import { osmLayoutPoints, outlinesNear, type OsmFeature } from "@/lib/osm-course";
@@ -143,6 +143,8 @@ export default function HoleMapScreen() {
   const [bag, setBag] = useState<BagClub[] | null>(null);
   const [arcsMode, setArcsMode] = useState<ArcsMode>(rememberedArcs);
   const [shotClubs, setShotClubs] = useState<Map<string, string>>(new Map());
+  // Your longest shot with each club this round (0154), for the trophy line.
+  const [roundLongest, setRoundLongest] = useState<LongestShot[]>([]);
   const [tagging, setTagging] = useState(false);
   const [savingFix, setSavingFix] = useState(false);
   useEffect(() => {
@@ -266,6 +268,9 @@ export default function HoleMapScreen() {
     if (roundId == null) return;
     void loadShotClubs(roundId)
       .then(setShotClubs)
+      .catch(() => {});
+    void loadLongestShots(roundId)
+      .then(setRoundLongest)
       .catch(() => {});
   }, [roundId, shots]);
   useEffect(() => {
@@ -469,9 +474,13 @@ export default function HoleMapScreen() {
   // Which club was the last shot? Only for your own shots (0153).
   const lastClubKey = lastEnd && player ? `${player.id}-${hole}-${lastEnd.n}` : null;
   const lastClub = lastClubKey ? (shotClubs.get(lastClubKey) ?? null) : null;
-  const canTag = round != null && player != null && player.memberId === me && lastEnd?.distance != null;
+  const ownShot = round != null && player != null && player.memberId === me && lastEnd?.distance != null;
+  // Over 450 m isn't one shot (a mark missed, or marked away from the course).
+  const canTag = ownShot && taggable(lastEnd?.distance);
+  const best = lastClub ? roundLongest.find((x) => x.club === lastClub) : undefined;
+  const longestLine = best && best.hole === hole && best.shotNo === lastEnd?.n ? `Your longest ${clubInfo(lastClub!).name.toLowerCase()} this round` : null;
   const tagLast = async (club: string | null) => {
-    if (!round || !player || !lastEnd || lastEnd.distance == null || !lastClubKey) return;
+    if (!round || !player || !lastEnd || !taggable(lastEnd.distance) || !lastClubKey) return;
     setTagging(true);
     setShotClubs((m) => {
       const next = new Map(m);
@@ -484,8 +493,12 @@ export default function HoleMapScreen() {
       void loadMyBag()
         .then(setBag)
         .catch(() => {});
-    } catch {
-      Alert.alert("Couldn't save the club", "Please try again.");
+      void loadLongestShots(round.round.id)
+        .then(setRoundLongest)
+        .catch(() => {});
+    } catch (e) {
+      const msg = (e as { message?: unknown } | null)?.message;
+      Alert.alert("Couldn't save the club", typeof msg === "string" && msg ? msg : "Check your signal and try again.");
       void loadShotClubs(round.round.id).then(setShotClubs).catch(() => {});
     } finally {
       setTagging(false);
@@ -672,7 +685,9 @@ export default function HoleMapScreen() {
           ]}
         >
           {canTag ? (
-            <ClubTagRow order={clubOrder(lastClub ? [lastClub] : likelyClubs(bag ?? [], lastEnd.distance!), bag)} chosen={lastClub} busy={tagging} onPick={(c) => void tagLast(c)} />
+            <ClubTagRow order={clubOrder(lastClub ? [lastClub] : likelyClubs(bag ?? [], lastEnd.distance!), bag)} chosen={lastClub} busy={tagging} onPick={(c) => void tagLast(c)} longest={longestLine} />
+          ) : ownShot ? (
+            <ClubTagTooFar />
           ) : null}
         </ShotCard>
       ) : null}

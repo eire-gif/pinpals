@@ -177,10 +177,10 @@ export function PlaysLikeRow({
 }
 
 /** In the shot card: which club was that? Likeliest first; scrolls for the rest. */
-export function ClubTagRow({ order, chosen, busy, onPick }: { order: string[]; chosen: string | null; busy: boolean; onPick: (club: string | null) => void }) {
+export function ClubTagRow({ order, chosen, busy, onPick, longest }: { order: string[]; chosen: string | null; busy: boolean; onPick: (club: string | null) => void; /** "Your longest 3 wood this round" — set when this shot is. */ longest?: string | null }) {
   return (
     <View style={styles.tagWrap}>
-      <Text style={styles.tagLabel}>{chosen ? "Club" : "Which club?"}</Text>
+      <Text style={styles.tagLabel}>{chosen ? "Club · saved to your round" : "Which club?"}</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tagRow} keyboardShouldPersistTaps="handled">
         {order.map((k) => {
           const on = chosen === k;
@@ -199,6 +199,23 @@ export function ClubTagRow({ order, chosen, busy, onPick }: { order: string[]; c
           );
         })}
       </ScrollView>
+      {longest ? (
+        <View style={styles.longestRow}>
+          <Ionicons name="trophy" size={13} color={colors.gold400} />
+          <Text style={styles.longestText}>{longest}</Text>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+/** A marked shot too long to be one shot (a mark missed, or the map opened
+ *  away from the course): say why there's no club to pick. */
+export function ClubTagTooFar() {
+  return (
+    <View style={styles.tagWrap}>
+      <Text style={styles.tagLabel}>Which club?</Text>
+      <Text style={styles.tooFarText}>Too far for one shot — mark where each ball finishes to save the club.</Text>
     </View>
   );
 }
@@ -386,6 +403,9 @@ const styles = StyleSheet.create({
   tagWrap: { marginTop: 8, gap: 4 },
   tagLabel: { fontFamily: fonts.bodyBold, fontSize: 10.5, letterSpacing: 1.1, textTransform: "uppercase", color: colors.gold400 },
   tagRow: { gap: 6, paddingRight: 4 },
+  longestRow: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 2 },
+  longestText: { fontFamily: fonts.bodySemi, fontSize: 12.5, color: colors.gold400 },
+  tooFarText: { fontFamily: fonts.body, fontSize: 12.5, lineHeight: 17, color: creamAlpha(0.8), maxWidth: 220 },
   tagChip: { minWidth: 38, height: 32, paddingHorizontal: 8, borderRadius: 16, borderWidth: 1, borderColor: creamAlpha(0.35), alignItems: "center", justifyContent: "center" },
   tagChipOn: { backgroundColor: colors.gold400, borderColor: colors.gold400 },
   tagChipText: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.cream50 },

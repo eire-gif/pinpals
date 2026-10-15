@@ -3,6 +3,7 @@ import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleS
 import { useFocusEffect } from "expo-router";
 
 import { KEYBOARD_DISMISS_MODE } from "@/components/keyboard";
+import { LongestShots } from "@/components/longest-shots";
 import { CLUBS, LEARNED_FROM, clubDistanceM, type BagClub } from "@/lib/bag";
 import { loadMyBag, saveBagClub } from "@/lib/hole-extras";
 import { METRES_PER_YARD } from "@/lib/hole-geo";
@@ -158,6 +159,8 @@ export default function MyBagScreen() {
           })}
         </View>
       ) : null}
+
+      <LongestShots />
 
       <View style={styles.card}>
         <Text style={styles.head}>Add clubs</Text>
