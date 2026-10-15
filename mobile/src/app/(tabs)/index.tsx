@@ -38,6 +38,8 @@ import {
 } from "@/lib/home-social";
 import { dateLabel } from "@/lib/tee-times";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
+import { TwoPane } from "@/components/two-pane";
+import { pageColumn, useWideLayout } from "@/lib/content-width";
 import { describeUnread } from "@/lib/inbox";
 import { useInboxUnread } from "@/lib/unread";
 
@@ -116,6 +118,9 @@ export default function HomeScreen() {
   );
 
   const courses = summary?.courseCount;
+  // iPad: the photo runs edge to edge; on its side the cards go in two
+  // columns under it (claude/ipad.md). A phone is unchanged.
+  const wide = useWideLayout();
 
   return (
     <ScrollView
@@ -146,7 +151,7 @@ export default function HomeScreen() {
             build of the app for every member. Not worth it for a fade. */}
         <View style={styles.scrim} />
 
-        <View style={[styles.heroBody, styles.heroBodyUnderComposer]}>
+        <View style={[styles.heroBody, styles.heroBodyUnderComposer, pageColumn(wide)]}>
           <View style={styles.eyebrowRow}>
             <View style={styles.rule} />
             <Text style={styles.eyebrow}>Ireland · UK · Spain · Portugal</Text>
@@ -226,6 +231,14 @@ export default function HomeScreen() {
         </View>
       </ImageBackground>
 
+      <View style={pageColumn(wide)}>
+      <TwoPane
+        wide={wide}
+        inner={0}
+        gap={0}
+        leftFlex={1}
+        left={
+      <>
       {/* Overlaps the hero's bottom edge (the hero leaves room for it). */}
       <ShareComposer me={me} />
 
@@ -235,8 +248,10 @@ export default function HomeScreen() {
       {/* Groups (0120): an invitation waiting, or the groups you're in.
           Renders nothing for a member in no groups. */}
       <HomeGroups />
-
-      {loading ? (
+      </>
+        }
+        right={
+      loading ? (
         <ActivityIndicator color={colors.green700} style={styles.spinner} />
       ) : (
         <View style={styles.body}>
@@ -358,7 +373,10 @@ export default function HomeScreen() {
             onPress={() => router.push("/marketplace")}
           />
         </View>
-      )}
+      )
+        }
+      />
+      </View>
     </ScrollView>
   );
 }
