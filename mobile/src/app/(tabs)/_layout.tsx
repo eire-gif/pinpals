@@ -84,6 +84,8 @@ export default function TabsLayout() {
         name="index"
         options={{
           title: "Home",
+          // Full width: on an iPad the photo runs edge to edge and Home centres its own cards.
+          sceneStyle: { backgroundColor: colors.cream50 },
           // Drawn by us rather than by the header: on iOS the bar measured
           // "Home" before the brand font had loaded and kept that width, so it
           // showed as "Ho…". A fixed minimum width can't be squeezed (Oct 2026).
