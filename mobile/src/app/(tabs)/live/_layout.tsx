@@ -32,6 +32,8 @@ export default function LiveLayout() {
           stack, which leaves iOS nothing to go back to: always draw one. */}
       <Stack.Screen name="day/group" options={{ title: "From a group", ...headerButtons({ left: <BackPill /> }) }} />
       <Stack.Screen name="day/[id]" options={{ title: "Leaderboard" }} />
+      {/* Opened from the QR on a clubhouse TV it can be first: draw a back. */}
+      <Stack.Screen name="tv" options={{ title: "Show on TV", ...headerButtons({ left: <BackPill /> }) }} />
       {/* Opened from a "results are in" notification it can be first: draw a back. */}
       <Stack.Screen name="day/results/[id]" options={{ title: "Results", ...headerButtons({ left: <BackPill /> }) }} />
     </Stack>

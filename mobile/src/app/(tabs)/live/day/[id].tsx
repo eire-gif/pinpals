@@ -189,6 +189,18 @@ export default function MatchDayBoard() {
         </Pressable>
       ) : null}
 
+      {isOn("clubhouseTv") ? (
+        <Pressable
+          onPress={() => router.push({ pathname: "/live/tv", params: { day: String(day.id) } })}
+          style={({ pressed }) => [styles.calendar, pressed && { opacity: 0.85 }]}
+          accessibilityRole="button"
+          accessibilityHint="Puts this leaderboard on a clubhouse TV"
+        >
+          <Ionicons name="tv-outline" size={18} color={colors.green700} />
+          <Text style={styles.calendarLabel}>Show on TV</Text>
+        </Pressable>
+      ) : null}
+
       <ResultsEntry data={data} me={me} />
 
       {scramble ? <ScrambleBoard matches={matches} isMine={mine} /> : null}

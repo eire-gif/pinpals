@@ -37,7 +37,8 @@ import type { Href } from "expo-router";
  *    teeJoin  → app/(tabs)/tee-times.tsx, app/invite/[id].tsx, app/my-requests.tsx
  *    fill     → app/invite/[id].tsx, app/round-invite.tsx, app/tee-link.tsx
  *    live     → app/(tabs)/live/index.tsx, app/(tabs)/live/new.tsx, app/(tabs)/live/round/[id].tsx,
- *               app/invite/[id].tsx (Start live scoring)
+ *               app/invite/[id].tsx (Start live scoring), app/(tabs)/live/tv.tsx,
+ *               app/(tabs)/live/day/[id].tsx (Show on TV)
  *    holeMap  → app/hole-map.tsx, components/hole-map-page.ts, app/course/[id].tsx
  *    messages → app/(tabs)/inbox.tsx, app/new-chat.tsx, app/new-group.tsx,
  *               app/conversation/[id].tsx
@@ -1052,6 +1053,20 @@ export const GUIDES: Guide[] = [
           { style: "outline", label: "Share scorecard", icon: "share-outline" },
         ],
       },
+      {
+        title: "Put the leaderboard on a TV",
+        body: "In the clubhouse or the bar, open pinpals.ie/tv on the TV. It shows a code. In your round, tap Show the leaderboard on TV, type the code and tap Connect the TV. The board updates as you score, and birdies flash up on the screen.",
+        look: [
+          { style: "outline", label: "Show the leaderboard on TV", icon: "tv-outline" },
+          { style: "field", label: "Code on the TV" },
+          { style: "primary", label: "Connect the TV" },
+        ],
+        go: { label: "Show on TV", to: "/live/tv" },
+        tip: "A society day or match day has Show on TV on its leaderboard too. No TV browser? Tap Share the TV link instead and open it on a laptop, or an iPad with AirPlay.",
+        as: {
+          society: { tip: "On the day's leaderboard, tap Show on TV — every group is on one board. No TV browser? Tap Share the TV link instead and open it on a laptop, or an iPad with AirPlay." },
+        },
+      },
     ],
   },
 
@@ -1491,6 +1506,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-15", text: "Score a game live: new last step, Put the leaderboard on a TV — Show on TV, the code from pinpals.ie/tv, or share the TV link." },
   { on: "2026-10-14", text: "Score a game live: when a course has a saved card, a tee is now picked for you so the stroke indexes are filled in (choose Other tees for a blank card). In a society day, a stroke index entered on one card now fills in on every group's card." },
   { on: "2026-10-14", text: "New guide: Get a place on an event — join or request a place, the waiting list, guests and paying. Create an event: how members get a place, the day's details, answering requests. Run your society: committee roles, annual membership, money, exports, noticeboard and messages, order of merit." },
   { on: "2026-10-14", text: "Score a game live: start from a tee time with Start live scoring — your fourball is added, untick anyone not playing. The Hole map button is now Yardage & shot map. Find PinPals: your QR code is on Home too." },
