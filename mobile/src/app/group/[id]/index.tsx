@@ -8,6 +8,8 @@ import { Avatar } from "@/components/avatar";
 import { GroupIcon, RoleBadge, SectionTitle, membersLabel } from "@/components/group-bits";
 import { GroupPastResults } from "@/components/group-past-results";
 import { LoadError, StateMessage } from "@/components/state-message";
+import { TwoPane } from "@/components/two-pane";
+import { FULL_WIDTH_CONTENT, pageColumn, useWideLayout } from "@/lib/content-width";
 import { useAuth } from "@/lib/auth";
 import { isOn } from "@/lib/features";
 import { GROUP_KIND_INFO, GROUP_OFFICE_LABELS, GROUP_OFFICES, canStyleGroup, groupCan, hasEvents, joinState, officeAreas, roleLabel, type GroupRole, type GroupSettings, type SocietyArea } from "@/lib/groups";
@@ -65,6 +67,8 @@ export default function GroupScreen() {
   const [failed, setFailed] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  // iPad on its side: the page in two columns (stage 2, claude/ipad.md).
+  const wide = useWideLayout();
   /** Upcoming events and your tee times among them (0125; crews and trips since 0129). */
   const [outingCounts, setOutingCounts] = useState<{ upcoming: number; mine: number; teeTimes: number } | null>(null);
   /** A society's extras (0143–0145): what you owe, the latest notice, your society handicap, membership. */
@@ -301,9 +305,9 @@ export default function GroupScreen() {
 
   return (
     <View style={styles.fill}>
-      <Stack.Screen options={{ title: group.name, headerBackTitle: "Back" }} />
+      <Stack.Screen options={{ title: group.name, headerBackTitle: "Back", contentStyle: FULL_WIDTH_CONTENT }} />
       <ScrollView
-        contentContainerStyle={styles.body}
+        contentContainerStyle={[styles.body, pageColumn(wide)]}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -332,6 +336,10 @@ export default function GroupScreen() {
           </Pressable>
         ) : null}
 
+        <TwoPane
+          wide={wide}
+          left={
+        <>
         <View style={[styles.hero, group.coverUrl ? styles.heroOnCover : null]}>
           <Pressable
             onPress={() => imageMenu("logo", group.logoUrl)}
@@ -615,6 +623,13 @@ export default function GroupScreen() {
               </View>
             ) : null}
 
+          </>
+        ) : null}
+        </>
+          }
+          right={
+        myRole ? (
+          <>
             {/* Past results (0138): competitions published to this group. */}
             {myRole !== null && isOn("liveScoring") ? <GroupPastResults groupId={groupId} /> : null}
 
@@ -683,7 +698,9 @@ export default function GroupScreen() {
               <Text style={styles.leaveText}>Leave group</Text>
             </Pressable>
           </>
-        ) : null}
+        ) : null
+          }
+        />
       </ScrollView>
     </View>
   );

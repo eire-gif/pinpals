@@ -7,6 +7,8 @@ import { DayBoard } from "@/components/day-board";
 import { ResultsEntry } from "@/components/results-entry";
 import { ScrambleBoard } from "@/components/scramble-board";
 import { LoadError, StateMessage } from "@/components/state-message";
+import { TwoPane } from "@/components/two-pane";
+import { FULL_WIDTH_CONTENT, pageColumn, useWideLayout } from "@/lib/content-width";
 import { useAuth } from "@/lib/auth";
 import { addToCalendar, offerCalendar } from "@/lib/calendar";
 import { todayIso } from "@/lib/tee-times";
@@ -35,6 +37,8 @@ export default function MatchDayBoard() {
   const [data, setData] = useState<MatchDayData | null | undefined>(undefined);
   const [failed, setFailed] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  // iPad on its side: the leaderboard on the left, the day beside it (claude/ipad.md).
+  const wide = useWideLayout();
 
   const load = useCallback(async () => {
     try {
@@ -109,7 +113,7 @@ export default function MatchDayBoard() {
 
   return (
     <ScrollView
-      contentContainerStyle={styles.page}
+      contentContainerStyle={[styles.page, pageColumn(wide)]}
       refreshControl={
         <RefreshControl
           refreshing={refreshing}
@@ -122,8 +126,14 @@ export default function MatchDayBoard() {
         />
       }
     >
-      <Stack.Screen options={{ title: day.title }} />
+      <Stack.Screen options={{ title: day.title, contentStyle: FULL_WIDTH_CONTENT }} />
 
+      <TwoPane
+        wide={wide}
+        stackRightFirst
+        inner={spacing.md}
+        right={
+      <>
       <View style={styles.hero}>
         <View style={styles.heroTop}>
           <Text style={styles.heroMeta}>
@@ -202,6 +212,10 @@ export default function MatchDayBoard() {
       ) : null}
 
       <ResultsEntry data={data} me={me} />
+      </>
+        }
+        left={
+      <>
 
       {scramble ? <ScrambleBoard matches={matches} isMine={mine} /> : null}
       {fourballs ? <DayBoard matches={matches} me={me} /> : null}
@@ -273,6 +287,9 @@ export default function MatchDayBoard() {
       })}
 
       {scramble || fourballs ? null : <Text style={styles.footNote}>Each hole is coloured by the side that won it. Tap a match to see or score it.</Text>}
+      </>
+        }
+      />
 
       {isOrganiser ? (
         <Pressable onPress={remove} style={styles.delete} accessibilityRole="button">

@@ -23,11 +23,35 @@ portrait only, with phone layouts stretched across the screen.
 
 JS only: `eas update` delivers it; no new build.
 
+## Stage 2 — side by side on an iPad on its side (Oct 2026)
+
+Mock-ups: canvas *PinPals iPad Society Screens* (5 boards).
+
+- **Landscape and Split View were already on.** With `orientation: portrait`
+  and `supportsTablet: true`, Expo's prebuild writes portrait-only for iPhone
+  but all four orientations for iPad (`UISupportedInterfaceOrientations~ipad`)
+  and `UIRequiresFullScreen` false — checked by running `expo prebuild` on a
+  copy. So iPads already turn and multitask; no new build was needed.
+- `useWideLayout()` (window ≥ 900 pt: an iPad on its side, or a wide Split
+  View) and `<TwoPane>` (`components/two-pane.tsx`). Narrower than that —
+  every phone, an iPad upright — the same blocks stack in the order they
+  always did.
+- Two columns, up to 1,240 pt wide (`pageColumn`), on:
+  - the group / society page — about, what you owe, noticeboard, committee
+    tools, events on the left; past results, join requests and members on
+    the right
+  - an event — details, itinerary, paying on the left; requests, waiting
+    list and who's in on the right
+  - the day board (society day, scramble, match day) — the leaderboard or
+    matches on the left; the day, calendar, Show on TV and results on the
+    right
+- Those screens set `contentStyle: FULL_WIDTH_CONTENT` (and the live tab's
+  `sceneStyle`) so they can be wider than the 680 column.
+
 ## Next
 
-- Stage 2: society screens designed for iPad (two-pane members, board and
-  results side by side, itinerary dashboard), from mock-ups; landscape on
-  (`orientation` in app.json → needs a new TestFlight build).
+- Members as list + detail (mock-up 2) and the group's hole-by-hole card
+  beside the day board (mock-up 4).
 - Full-width hero photos on iPad (Home, Marketplace) instead of boxed.
 - Stage 3 (optional): the TV board full screen on the iPad.
 - App Store: iPad screenshots are needed at submission since iPad is supported.

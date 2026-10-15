@@ -288,7 +288,8 @@ export default function TabsLayout() {
       {/* Live scoring: a stack of its own inside the tab group so the tab
           bar stays on all its screens, but not a tab (href: null) — six is
           the most that fit. Reached from the Home card and the menu. */}
-      <Tabs.Screen name="live" options={{ href: null, headerShown: false }} />
+      {/* Full width: the live stack centres its own screens (and the day board goes two columns on an iPad on its side). */}
+      <Tabs.Screen name="live" options={{ href: null, headerShown: false, sceneStyle: { backgroundColor: colors.cream50 } }} />
       <Tabs.Screen
         name="profile"
         options={{

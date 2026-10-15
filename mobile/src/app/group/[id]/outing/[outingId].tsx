@@ -7,6 +7,8 @@ import { DoneHome } from "@/components/done-home";
 import { Avatar } from "@/components/avatar";
 import { OutingPayCard } from "@/components/outing-pay-card";
 import { SectionTitle } from "@/components/group-bits";
+import { TwoPane } from "@/components/two-pane";
+import { FULL_WIDTH_CONTENT, pageColumn, useWideLayout } from "@/lib/content-width";
 import { Chip, PlaceChip, euro, ordinal } from "@/components/society-bits";
 import { LoadError, StateMessage } from "@/components/state-message";
 import { useAuth } from "@/lib/auth";
@@ -84,6 +86,8 @@ export default function OutingScreen() {
   /** The guest form: closed, adding a new guest, or changing one. */
   const [guestForm, setGuestForm] = useState<null | { id: number | null; name: string; index: string }>(null);
   const [refreshing, setRefreshing] = useState(false);
+  // iPad on its side: the event on the left, places and entries on the right (claude/ipad.md).
+  const wide = useWideLayout();
   /** Shown from the copy on the phone (no signal): when it was saved. */
   const [offlineAt, setOfflineAt] = useState<number | null>(null);
 
@@ -425,6 +429,7 @@ export default function OutingScreen() {
         options={{
           title: outing.title,
           headerBackTitle: "Back",
+          contentStyle: FULL_WIDTH_CONTENT,
           headerRight: cancelled
             ? undefined
             : () => (
@@ -435,7 +440,7 @@ export default function OutingScreen() {
         }}
       />
       <ScrollView
-        contentContainerStyle={styles.body}
+        contentContainerStyle={[styles.body, pageColumn(wide)]}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -447,6 +452,10 @@ export default function OutingScreen() {
           />
         }
       >
+        <TwoPane
+          wide={wide}
+          left={
+        <>
         {offlineAt ? (
           <View style={styles.warnRow}>
             <Ionicons name="cloud-offline-outline" size={18} color="#4d3203" />
@@ -776,6 +785,10 @@ export default function OutingScreen() {
           </View>
         ) : null}
 
+        </>
+          }
+          right={
+        <>
         {/* Requests and the waiting list (0142): the officers. */}
         {officer && !cancelled && requests.length > 0 ? (
           <>
@@ -839,6 +852,9 @@ export default function OutingScreen() {
             {inCount === 0 ? <Text style={styles.note}>Nobody yet{open ? " — be the first." : "."}</Text> : groups.all.map(person)}
           </>
         )}
+        </>
+          }
+        />
         <DoneHome saved={saved ? "Saved — everyone in the group can see it under Events" : null} />
       </ScrollView>
     </View>
