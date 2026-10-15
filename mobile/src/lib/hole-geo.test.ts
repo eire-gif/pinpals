@@ -20,6 +20,8 @@ import {
   withTee,
   withPin,
   pinZone,
+  greenFromPin,
+  DEFAULT_GREEN_HALF_DEPTH_M,
   type LayoutPoint,
 } from "./hole-geo";
 
@@ -231,5 +233,33 @@ describe("the flag", () => {
     expect(greenDistancesM(moved, TEE).centre).toBeCloseTo(377, -1);
     expect(greenDistancesM(moved, TEE).front).toBeCloseTo(352, -1);
     expect(withPin(g, null)).toBe(g);
+  });
+});
+
+describe("saving a moved flag as the green (0152)", () => {
+  const g = holeGeometry(HOLE_1, 1); // green 352–380 m up, so 14 m either side of the centre
+  const east = (m: number, from = TEE) => ({ lat: from.lat, lng: from.lng + m / (111_320 * Math.cos((from.lat * Math.PI) / 180)) });
+
+  it("puts front and back on the line from the tee, as deep as the green on file", () => {
+    const pin = east(300); // a green off to the right of the tee
+    const { front, centre, back } = greenFromPin(g, pin);
+    expect(centre).toEqual(pin);
+    expect(distanceM(TEE, front)).toBeCloseTo(286, 0);
+    expect(distanceM(TEE, back)).toBeCloseTo(314, 0);
+    expect(bearingDeg(TEE, front)).toBeCloseTo(90, 0);
+  });
+
+  it("uses a usual green depth when the map has no front and back", () => {
+    const bare = holeGeometry([p(1, "tee_back", TEE), p(1, "green_centre", north(300))], 1);
+    const { front, back } = greenFromPin(bare, north(200));
+    expect(distanceM(TEE, front)).toBeCloseTo(200 - DEFAULT_GREEN_HALF_DEPTH_M, 0);
+    expect(distanceM(TEE, back)).toBeCloseTo(200 + DEFAULT_GREEN_HALF_DEPTH_M, 0);
+  });
+
+  it("moves the green over when there's no tee to measure from", () => {
+    const noTee = holeGeometry(HOLE_1.filter((x) => !x.kind.startsWith("tee")), 1);
+    const { front, back } = greenFromPin(noTee, north(400));
+    expect(distanceM(north(400), front)).toBeCloseTo(14, 0);
+    expect(distanceM(north(400), back)).toBeCloseTo(14, 0);
   });
 });

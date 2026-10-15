@@ -1589,6 +1589,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-15", text: "Hole map: no change to the member steps — the new Save for everyone button (cloud) shows only for super admins, to keep a corrected flag or tee." },
   { on: "2026-10-15", text: "New guide: Play in a league, ladder or open — enter, arrange and report matchplay, the knockout, ladder challenges, opens and finding a partner, and running one for your group." },
   { on: "2026-10-15", text: "Run your society: new step, Run it from a computer — society admin on the website at pinpals.ie/society, with your PinPals login." },
   { on: "2026-10-15", text: "Score a game live: new last step, Put the leaderboard on a TV — Show on TV, the code from pinpals.ie/tv, or share the TV link." },

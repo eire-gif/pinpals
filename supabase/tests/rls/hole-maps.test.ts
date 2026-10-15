@@ -230,3 +230,60 @@ describe("live round shots", () => {
     });
   });
 });
+
+// 0152: a super admin keeps a dragged flag / T for everyone.
+describe("fixing a hole (course_layout_fix_hole)", () => {
+  const FIX = "select public.course_layout_fix_hole($1, $2::smallint, $3::jsonb, $4::jsonb)";
+  const green = JSON.stringify({ front: { lat: 53.4329, lng: -6.119 }, centre: { lat: 53.433, lng: -6.119 }, back: { lat: 53.4331, lng: -6.119 } });
+
+  it("only a super admin can change a hole, and the old position goes to the audit log", async () => {
+    await withRole("authenticated", ME, async (c) => {
+      const layoutId = await asService(c, async () => {
+        const club = await c.query<{ id: string }>("select id from public.clubs order by id limit 1");
+        const { rows } = await c.query<{ id: string }>(
+          `insert into public.course_layouts (club_id, name, source, provider, provider_course_id)
+           values ($1, 'Links', 'provider', 'golfapi', 'test-fix') returning id`,
+          [club.rows[0].id],
+        );
+        await c.query(
+          `insert into public.course_layout_points (layout_id, hole, kind, lat, lng) values
+             ($1, 8, 'tee_back', 53.4300, -6.1200), ($1, 8, 'green_centre', 53.4400, -6.1300)`,
+          [rows[0].id],
+        );
+        return rows[0].id;
+      });
+
+      // A member — even one who can drag the flag on their own phone — can't.
+      await as(c, STRANGER);
+      await rejects(c, FIX, [layoutId, 8, green, null], /super admin/);
+
+      // An inactive super admin can't either.
+      await asService(c, () => c.query("insert into public.staff_roles (user_id, role, status) values ($1, 'super_admin', 'disabled') on conflict (user_id) do update set role = 'super_admin', status = 'disabled'", [STRANGER]));
+      await rejects(c, FIX, [layoutId, 8, green, null], /super admin/);
+
+      await asService(c, () => c.query("update public.staff_roles set status = 'active' where user_id = $1", [STRANGER]));
+      await rejects(c, FIX, [layoutId, 19, green, null], /1 to 18/);
+      await rejects(c, FIX, [layoutId, 8, null, null], /Nothing to save/);
+      await rejects(c, FIX, [layoutId, 8, JSON.stringify({ centre: { lat: 123, lng: 0 } }), null], /Bad position/);
+
+      await c.query(FIX, [layoutId, 8, green, JSON.stringify({ lat: 53.431, lng: -6.12 })]);
+
+      const pts = await asService(c, () =>
+        c.query<{ kind: string; lat: number }>("select kind, lat from public.course_layout_points where layout_id = $1 and hole = 8 order by kind", [layoutId]),
+      );
+      expect(pts.rows.map((r) => [r.kind, r.lat])).toEqual([
+        ["green_back", 53.4331],
+        ["green_centre", 53.433],
+        ["green_front", 53.4329],
+        ["tee_back", 53.431],
+      ]);
+      const audit = await asService(c, () =>
+        c.query<{ metadata: { before: Array<{ kind: string; lat: number }> } }>(
+          "select metadata from public.admin_audit_log where action = 'course_map.fix_hole' and target_id = $1",
+          [String(layoutId)],
+        ),
+      );
+      expect(audit.rows[0].metadata.before).toEqual(expect.arrayContaining([{ kind: "green_centre", lat: 53.44, lng: -6.13 }]));
+    });
+  });
+});
