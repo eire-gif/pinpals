@@ -154,6 +154,9 @@ export const NOTIFICATION_TYPES = [
   "society_reminder",
   "society_notice",
   "society_message",
+  // Competitions (0148): a draw, a result to confirm, a challenge, a dispute
+  // to settle. From the competition alert outbox; the app only.
+  "competition",
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 
@@ -206,6 +209,7 @@ export const NOTIFICATION_TYPE_CATEGORY: Record<NotificationType, NotificationCa
   society_reminder: "tee_times",
   society_notice: "feed",
   society_message: "feed",
+  competition: "tee_times",
 };
 
 /** Which preference category (if any) governs delivery for this notification

@@ -62,6 +62,8 @@ export const MENU: MenuSection[] = [
       // do I put my score" is the question, not "find me a game".
       { kind: "native", label: "Live scoring", icon: "podium-outline", to: "/live", feature: "liveScoring" },
       { kind: "native", label: "My scorecards", icon: "document-text-outline", to: "/scorecards", feature: "scorecards" },
+      // Competitions (0148): matchplay leagues, ladders and opens.
+      { kind: "native", label: "Competitions", icon: "trophy-outline", to: "/compete", feature: "competitions" },
       {
         kind: "native",
         label: "My confirmed tee times",

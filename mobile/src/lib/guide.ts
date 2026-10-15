@@ -39,6 +39,8 @@ import type { Href } from "expo-router";
  *    live     → app/(tabs)/live/index.tsx, app/(tabs)/live/new.tsx, app/(tabs)/live/round/[id].tsx,
  *               app/invite/[id].tsx (Start live scoring), app/(tabs)/live/tv.tsx,
  *               app/(tabs)/live/day/[id].tsx (Show on TV)
+ *    compete  → app/compete/index.tsx, app/compete/[id].tsx, app/compete/match/[id].tsx,
+ *               app/compete/new.tsx, app/compete/opens.tsx, app/compete/share-open.tsx
  *    holeMap  → app/hole-map.tsx, components/hole-map-page.ts, app/course/[id].tsx
  *    messages → app/(tabs)/inbox.tsx, app/new-chat.tsx, app/new-group.tsx,
  *               app/conversation/[id].tsx
@@ -1078,6 +1080,80 @@ export const GUIDES: Guide[] = [
   },
 
   {
+    id: "compete",
+    section: "play",
+    title: "Play in a league, ladder or open",
+    blurb: "Matchplay leagues and ladders played at your clubs and reported here, and opens with a partner.",
+    icon: "trophy",
+    tone: "gold",
+    audience: "Everyone",
+    steps: [
+      {
+        title: "Find a competition",
+        body: "Open Competitions. Leagues and Ladders show what you're in and what's open to enter — PinPals leagues for everyone, and any your society or group runs. Tap one, then Enter (or Join at the bottom for a ladder).",
+        path: [MENU, { icon: "trophy-outline", label: "Competitions" }],
+        look: [
+          { style: "outline", label: "Leagues" },
+          { style: "outline", label: "Ladders" },
+          { style: "primary", label: "Enter" },
+        ],
+        go: { label: "Competitions", to: "/compete" },
+        tip: "Your handicap index comes from your profile; type a different one if it has changed. Shots in every match come from it.",
+      },
+      {
+        title: "Your group and the table",
+        body: "When entries close the organiser publishes the draw and you're told your group. Everyone in it plays everyone once, each round by its Play by date. The table counts Win 3, Half 1, then holes up or down. Above the gold line goes through to the knockout.",
+        tip: "A * next to a name means a result in their line is reported but not confirmed yet.",
+      },
+      {
+        title: "Arrange your match",
+        body: "Your matches sit at the top of Competitions. Open one: it shows about how many shots one of you gives — the full difference, as Golf Ireland plays singles matchplay. Message your opponent, agree a day and a course, then Set a time so you both have it.",
+        look: [
+          { style: "outline", label: "Message" },
+          { style: "primary", label: "Set a time" },
+        ],
+      },
+      {
+        title: "Report the result",
+        body: "After you play, either of you taps Report the result, picks who won and by how much (3&2, 1 up, or Halved in the groups) and sends it. The other gets Confirm result or Dispute. If nobody disputes it, it stands after 48 hours.",
+        look: [
+          { style: "primary", label: "Report the result" },
+          { style: "outline", label: "Confirm result" },
+        ],
+        tip: "If you both report and the results don't match, it goes to the organiser to settle.",
+      },
+      {
+        title: "The knockout",
+        body: "When every group match is settled, the organiser starts the knockout: group winners are seeded so they don't meet their own runner-up first. Knockout matches can't be halved — if you're level after 18, play on and report 19th, 20th and so on.",
+      },
+      {
+        title: "Ladders",
+        body: "On a ladder you join at the bottom. Tap Challenge next to anyone up to a few places above you. Win and you take their place, and everyone between moves down one; lose or halve and nothing changes.",
+        look: [{ style: "outline", label: "Challenge" }],
+      },
+      {
+        title: "Opens, and a partner",
+        body: "Open competitions lists club opens by date and province. Tap Need a partner and others see you're looking; tap the partner count to see who else is, and message them. Book with club opens the club's own booking page — you enter and pay there.",
+        look: [
+          { style: "outline", label: "Need a partner" },
+          { style: "primary", label: "Book with club" },
+        ],
+        tip: "Spotted an open on a club's site? Share it from the top of Open competitions so others can find it.",
+      },
+      {
+        title: "Run one for your group",
+        body: "If you run a society or group, tap Start a league or ladder at the bottom of Competitions and choose your group. Once entries close, open the league and tap Make the draw: check the groups, Reshuffle if you like, then Publish the draw. Tap an entrant to mark their fee paid, and open any match to Settle this match — a dispute, a walkover or a void.",
+        look: [
+          { style: "outline", label: "Start a league or ladder" },
+          { style: "primary", label: "Make the draw" },
+          { style: "primary", label: "Start the knockout" },
+        ],
+        who: "A group's owner or admins. PinPals runs the leagues open to everyone.",
+      },
+    ],
+  },
+
+  {
     id: "holeMap",
     section: "play",
     title: "Use the hole map",
@@ -1513,6 +1589,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-15", text: "New guide: Play in a league, ladder or open — enter, arrange and report matchplay, the knockout, ladder challenges, opens and finding a partner, and running one for your group." },
   { on: "2026-10-15", text: "Run your society: new step, Run it from a computer — society admin on the website at pinpals.ie/society, with your PinPals login." },
   { on: "2026-10-15", text: "Score a game live: new last step, Put the leaderboard on a TV — Show on TV, the code from pinpals.ie/tv, or share the TV link." },
   { on: "2026-10-14", text: "Score a game live: when a course has a saved card, a tee is now picked for you so the stroke indexes are filled in (choose Other tees for a blank card). In a society day, a stroke index entered on one card now fills in on every group's card." },

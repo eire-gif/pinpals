@@ -72,6 +72,7 @@ const EXACT: Record<string, string> = {
   "/community": "/members",
   "/members": "/members",
   "/courses": "/courses",
+  "/compete": "/compete",
 };
 
 /**
@@ -95,6 +96,10 @@ const PATTERNS: { match: RegExp; to: (id: string, id2: string) => string }[] = [
   { match: /^\/live\/days\/(\d+)$/, to: (id) => `/live/day/${id}` },
   // Competition results (0137): "the results are in" opens them.
   { match: /^\/live\/days\/(\d+)\/results$/, to: (id) => `/live/day/results/${id}` },
+  // Competitions (0148): a draw, a result to confirm, a challenge. These
+  // hrefs exist only in the app; `match` before the plain id.
+  { match: /^\/compete\/match\/(\d+)$/, to: (id) => `/compete/match/${id}` },
+  { match: /^\/compete\/(\d+)$/, to: (id) => `/compete/${id}` },
   // Scorecard certification (0128): "certify my card" opens the request; the
   // answer opens your card. `certify` before the plain id, which is \d+ only.
   { match: /^\/scorecards\/certify\/(\d+)$/, to: (id) => `/scorecards/certify/${id}` },
