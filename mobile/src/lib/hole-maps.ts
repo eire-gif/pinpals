@@ -1,4 +1,4 @@
-import type { LayoutPoint, PointKind, Shot } from "./hole-geo";
+import type { LatLng, LayoutPoint, PointKind, Shot } from "./hole-geo";
 import { supabase } from "./supabase";
 
 /**
@@ -43,6 +43,21 @@ export async function loadCourseLayouts(clubId: number): Promise<CourseLayout[]>
     verified: l.verified,
     points: l.points.map((p) => ({ hole: p.hole, kind: p.kind, lat: Number(p.lat), lng: Number(p.lng), label: p.label })),
   }));
+}
+
+/**
+ * Super admins only (0152): keep a dragged flag and/or T as the hole's real
+ * green and back tee, for everyone. The database checks the role and logs
+ * the old positions.
+ */
+export async function saveHoleFix(
+  layoutId: number,
+  hole: number,
+  green: { front: LatLng; centre: LatLng; back: LatLng } | null,
+  tee: LatLng | null
+): Promise<void> {
+  const { error } = await supabase.rpc("course_layout_fix_hole", { p_layout_id: layoutId, p_hole: hole, p_green: green, p_tee: tee });
+  if (error) throw error;
 }
 
 /** Every shot marked in a round, by player. */

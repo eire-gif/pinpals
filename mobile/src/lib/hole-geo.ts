@@ -164,6 +164,37 @@ export function withPin(g: HoleGeometry, pin: LatLng | null): HoleGeometry {
   return { ...g, greenCentre: pin };
 }
 
+/** Half a green's depth when the map has no front and back to go by. */
+export const DEFAULT_GREEN_HALF_DEPTH_M = 12;
+
+/**
+ * The green's front, centre and back if the flag the member dragged is its
+ * centre (Oct 2026: a super admin saving a moved flag for everyone, 0152).
+ * Front and back sit on the line from the tee through the flag, as far
+ * apart as the green on file was (clamped to a real green's 10–40 m), so
+ * front / centre / back keep reading sensibly from the tee. Without a tee
+ * the green on file is simply moved over.
+ */
+export function greenFromPin(g: HoleGeometry, pin: LatLng): { front: LatLng; centre: LatLng; back: LatLng } {
+  const onFile = g.greenFront && g.greenBack ? distanceM(g.greenFront, g.greenBack) / 2 : null;
+  const half = onFile == null ? DEFAULT_GREEN_HALF_DEPTH_M : Math.min(20, Math.max(5, onFile));
+  const k = Math.cos((pin.lat * Math.PI) / 180);
+  const M_PER_DEG = 111_320;
+  if (g.tee && distanceM(g.tee, pin) > 1) {
+    const east = (pin.lng - g.tee.lng) * k * M_PER_DEG;
+    const north = (pin.lat - g.tee.lat) * M_PER_DEG;
+    const len = Math.hypot(east, north);
+    const dLat = ((north / len) * half) / M_PER_DEG;
+    const dLng = ((east / len) * half) / (M_PER_DEG * k);
+    return { front: { lat: pin.lat - dLat, lng: pin.lng - dLng }, centre: pin, back: { lat: pin.lat + dLat, lng: pin.lng + dLng } };
+  }
+  if (g.greenCentre && g.greenFront && g.greenBack) {
+    const shift = (p: LatLng): LatLng => ({ lat: p.lat + pin.lat - g.greenCentre!.lat, lng: p.lng + pin.lng - g.greenCentre!.lng });
+    return { front: shift(g.greenFront), centre: pin, back: shift(g.greenBack) };
+  }
+  return { front: pin, centre: pin, back: pin };
+}
+
 /** Holes in the layout that can be drawn, in order. */
 export function mappedHoles(points: readonly LayoutPoint[]): number[] {
   return [...new Set(points.map((p) => p.hole))].sort((a, b) => a - b).filter((h) => holeGeometry(points, h).mapped);

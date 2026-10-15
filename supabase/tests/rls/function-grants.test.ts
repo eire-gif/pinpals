@@ -223,6 +223,8 @@ const EXPECTED: Record<string, Expectation> = {
   "live_round_delete(p_round_id bigint)": { anon: false, authenticated: true },
   // 0108 hole maps
   "course_layout_get(p_club_id bigint)": { anon: false, authenticated: true },
+  // 0152: super admins fix a hole's green / tee from the hole map (checked inside)
+  "course_layout_fix_hole(p_layout_id bigint, p_hole smallint, p_green jsonb, p_tee jsonb)": { anon: false, authenticated: true },
   // 0149 course cards, one club at a time
   "course_cards_for_club(p_club_id bigint)": { anon: false, authenticated: true },
   "live_round_shot_add(p_round_id bigint, p_player_id bigint, p_hole smallint, p_lat double precision, p_lng double precision, p_accuracy_m numeric)": { anon: false, authenticated: true },

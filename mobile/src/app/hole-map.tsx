@@ -32,9 +32,11 @@ import {
   type Unit,
   pinZone,
   withPin,
+  greenFromPin,
   PIN_COLOURS,
 } from "@/lib/hole-geo";
-import { addShot, loadCourseLayouts, loadRoundShots, shotKey, undoShot, type CourseLayout } from "@/lib/hole-maps";
+import { addShot, loadCourseLayouts, loadRoundShots, saveHoleFix, shotKey, undoShot, type CourseLayout } from "@/lib/hole-maps";
+import { isSuperAdmin } from "@/lib/admin";
 import { osmLayoutPoints, outlinesNear, type OsmFeature } from "@/lib/osm-course";
 import { loadCourseShapes } from "@/lib/osm-fetch";
 import { loadLiveRound, subscribeToLiveRound, type LiveRoundData } from "@/lib/live-rounds";
@@ -117,6 +119,19 @@ export default function HoleMapScreen() {
   const [movedTees, setMovedTees] = useState<Map<string, LatLng>>(new Map());
   // …and where they put the flag (today's pin position).
   const [movedPins, setMovedPins] = useState<Map<string, LatLng>>(new Map());
+  // Super admins can keep a moved flag / T for everyone (0152): golfapi's
+  // greens are sometimes on the wrong spot (Portmarnock Links, Oct 2026).
+  const [superAdmin, setSuperAdmin] = useState(false);
+  const [savingFix, setSavingFix] = useState(false);
+  useEffect(() => {
+    let on = true;
+    void isSuperAdmin()
+      .then((yes) => on && setSuperAdmin(yes))
+      .catch(() => {});
+    return () => {
+      on = false;
+    };
+  }, []);
   // The bottom sheet's height, so the hole is fitted above it, not under it.
   const [sheetH, setSheetH] = useState(220);
 
@@ -221,6 +236,44 @@ export default function HoleMapScreen() {
   );
   const moveTee = (at: LatLng) => setMovedTees((m) => new Map(m).set(teeKey, at));
   const movePin = (at: LatLng) => setMovedPins((m) => new Map(m).set(teeKey, at));
+  const forgetMoves = () => {
+    const drop = (m: Map<string, LatLng>) => {
+      const next = new Map(m);
+      next.delete(teeKey);
+      return next;
+    };
+    setMovedTees(drop);
+    setMovedPins(drop);
+  };
+  const canSaveFix = superAdmin && layout != null && mappedGeo.mapped && (movedPin != null || movedTee != null);
+  const saveFix = () => {
+    if (!layout || savingFix) return;
+    const what = movedPin && movedTee ? "the green and the tee" : movedPin ? "the green" : "the tee";
+    Alert.alert(`Save ${what} for everyone?`, `Hole ${hole} at ${course?.name ?? "this course"} will show ${what} where you've put it, for every member. The old position is kept in the admin log.`, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Save",
+        onPress: async () => {
+          setSavingFix(true);
+          try {
+            const inLayout = holeGeometry(layout.points, hole).mapped;
+            const green = movedPin ? greenFromPin(withTee(mappedGeo, movedTee), movedPin) : null;
+            // A hole drawn from OpenStreetMap isn't in the map on file yet:
+            // save its tee too, so the hole stands on its own.
+            const tee = movedTee ?? (inLayout ? null : mappedGeo.tee);
+            await saveHoleFix(layout.id, hole, green ?? (inLayout ? null : greenFromPin(mappedGeo, mappedGeo.greenCentre!)), tee);
+            setLayouts(await loadCourseLayouts(clubId));
+            forgetMoves();
+            Alert.alert("Saved", `Hole ${hole} now shows ${what} where you put it, for everyone.`);
+          } catch {
+            Alert.alert("Couldn't save", "Nothing was changed. Please try again.");
+          } finally {
+            setSavingFix(false);
+          }
+        },
+      },
+    ]);
+  };
   const zone = geo.greenCentre ? pinZone(geo, geo.greenCentre) : "middle";
   const fromOsm = !holeGeometry(layout?.points ?? [], hole).mapped && geo.mapped;
   const origin = measuringFrom(geo, fix);
@@ -411,15 +464,12 @@ export default function HoleMapScreen() {
             label="Put the tee, flag and aim back"
             onPress={() => {
               setTap(null);
-              const drop = (m: Map<string, LatLng>) => {
-                const next = new Map(m);
-                next.delete(teeKey);
-                return next;
-              };
-              setMovedTees(drop);
-              setMovedPins(drop);
+              forgetMoves();
             }}
           />
+        ) : null}
+        {canSaveFix ? (
+          <MapButton icon="cloud-upload-outline" label="Save the flag and tee for everyone" onPress={saveFix} disabled={savingFix} />
         ) : null}
       </View>
 

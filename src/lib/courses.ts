@@ -56,7 +56,8 @@ export async function listCourses(filters: CourseListFilters): Promise<CourseLis
   let query = supabase
     .from("clubs")
     .select(SUMMARY_COLUMNS, { count: "exact" })
-    .eq("country", filters.country);
+    .eq("country", filters.country)
+    .is("hidden_at", null);
 
   if (filters.region) {
     query = query.eq("region", filters.region);
@@ -103,7 +104,8 @@ export async function countCoursesByCountry(): Promise<Record<CountryCode, numbe
       const { count } = await supabase
         .from("clubs")
         .select("id", { count: "exact", head: true })
-        .eq("country", code);
+        .eq("country", code)
+        .is("hidden_at", null);
       return [code, count ?? 0] as const;
     })
   );
@@ -129,6 +131,7 @@ export async function listRegionsWithCourses(
     .from("clubs")
     .select("region")
     .eq("country", country)
+    .is("hidden_at", null)
     .not("region", "is", null)
     .returns<{ region: string }[]>();
 
@@ -244,6 +247,7 @@ export async function searchClubsInCountry(
     .select(SUMMARY_COLUMNS)
     .eq("country", country)
     .order("name", { ascending: true })
+    .is("hidden_at", null)
     .limit(limit);
 
   if (escaped) {

@@ -44,6 +44,7 @@ export async function searchClubs(query: string): Promise<ClubHit[]> {
     .from("clubs")
     .select("id, name, town, country")
     .ilike("name", `%${q}%`)
+    .is("hidden_at", null)
     .order("name")
     .limit(20)
     .overrideTypes<ClubHit[]>();

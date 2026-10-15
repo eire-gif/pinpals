@@ -107,6 +107,7 @@ export async function listCourses(
     .from("clubs")
     .select(SELECT, { count: "exact" })
     .eq("country", country)
+    .is("hidden_at", null)
     .order("name")
     .range(from, from + PAGE_SIZE - 1)
     .overrideTypes<Club[]>();
@@ -153,6 +154,7 @@ export async function searchCourses(query: string, limit = 60): Promise<Club[]> 
     .from("clubs")
     .select(SELECT)
     .or(`name.ilike.%${q}%,town.ilike.%${q}%`)
+    .is("hidden_at", null)
     .order("name")
     .limit(limit)
     .overrideTypes<Club[]>();
@@ -217,6 +219,7 @@ export async function coursesNear(
     .from("clubs")
     .select(SELECT)
     .gte("latitude", lat - dLat)
+    .is("hidden_at", null)
     .lte("latitude", lat + dLat)
     .gte("longitude", lng - dLng)
     .lte("longitude", lng + dLng)

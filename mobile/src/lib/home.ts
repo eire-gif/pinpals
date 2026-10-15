@@ -198,7 +198,8 @@ async function offersWaiting(userId: string): Promise<number> {
 async function courseCount(): Promise<number | null> {
   const { count, error } = await supabase
     .from("clubs")
-    .select("id", { count: "exact", head: true });
+    .select("id", { count: "exact", head: true })
+    .is("hidden_at", null);
 
   return error ? null : (count ?? null);
 }
