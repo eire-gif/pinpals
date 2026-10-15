@@ -38,7 +38,8 @@ import {
   METRES_PER_YARD,
   PIN_COLOURS,
 } from "@/lib/hole-geo";
-import { arrowOnScreen, KMH_PER_MPH, playsLikeM, windLine, windOnShot, windSpeed, type Wind } from "@/lib/wind";
+import { arrowOnScreen, KMH_PER_MPH, playsLikeM, windLevel, windLine, windOnShot, windSpeed, type Wind } from "@/lib/wind";
+import { useKeyboardHeight, FORM_SCROLL_KEYBOARD } from "@/components/keyboard";
 import { clubDistanceM, clubInfo, likelyClubs, suggestClub, type BagClub } from "@/lib/bag";
 import { loadMyBag, loadShotClubs, loadWind, tagShotClub } from "@/lib/hole-extras";
 import { ClubTagRow, PlaysLikeRow, TipsBlock, WindChip, WindCredit, clubOrder } from "@/components/hole-map-extras";
@@ -87,7 +88,7 @@ const HAZARD_NAMES: Partial<Record<PointKind, string>> = {
 
 let rememberedUnit: Unit | null = null;
 let rememberedOutlines = true;
-let rememberedWindOpen = true;
+let rememberedWindShow = false;
 type ArcsMode = "off" | "50" | "clubs";
 let rememberedArcs: ArcsMode = "off";
 
@@ -134,7 +135,10 @@ export default function HoleMapScreen() {
   const [superAdmin, setSuperAdmin] = useState(false);
   // Wind, My bag, distance arcs and club tags (Oct 2026, 0153).
   const [wind, setWind] = useState<Wind | null>(null);
-  const [windOpen, setWindOpen] = useState(rememberedWindOpen);
+  // Tap the wind to see it blowing across the map (Oct 2026).
+  const [windShow, setWindShow] = useState(rememberedWindShow);
+  const keyboardH = useKeyboardHeight();
+  const detailsScroll = useRef<ScrollView>(null);
   const [bag, setBag] = useState<BagClub[] | null>(null);
   const [arcsMode, setArcsMode] = useState<ArcsMode>(rememberedArcs);
   const [shotClubs, setShotClubs] = useState<Map<string, string>>(new Map());
@@ -339,6 +343,10 @@ export default function HoleMapScreen() {
   // The shot being planned: from the aim circle if it's been moved, else from you or the tee.
   const shotFrom = fromAim ? tap : (origin?.point ?? null);
   const windShot = wind && shotFrom && geo.greenCentre ? windOnShot(wind.speedKmh / KMH_PER_MPH, wind.fromDeg, bearingDeg(shotFrom, geo.greenCentre)) : null;
+  const level = windShot && wind ? windLevel(wind.speedKmh / KMH_PER_MPH) : null;
+  const windFx = windShow && wind && level ? { deg: arrowOnScreen(wind.fromDeg, mapRotation), level } : null;
+  // From you, how far you are from the tee — the drive, before it's marked.
+  const fromTeeM = origin?.from === "you" && geo.tee ? distanceM(geo.tee, origin.point) : null;
   const centreM = geo.mapped && greens?.centre != null ? greens.centre : null;
   const playsLike = windShot && centreM != null && windShot.along !== "calm" ? playsLikeM(centreM, windShot.head) : null;
   const windDelta = playsLike != null && centreM != null ? inUnit(playsLike, unit) - inUnit(centreM, unit) : null;
@@ -403,6 +411,7 @@ export default function HoleMapScreen() {
             }
           : null,
       arcs,
+      windFx,
       greenLine:
         !aim && origin && geo.greenCentre && toGreenFromOrigin?.centre != null ? { origin: origin.point, label: `${fmt(toGreenFromOrigin.centre)} ${u}` } : null,
       hole,
@@ -414,7 +423,7 @@ export default function HoleMapScreen() {
       frameKey: `${layout?.id ?? "none"}-${hole}-${fix ? "fix" : "nofix"}-${geo.mapped ? "m" : "u"}`,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [geo, mappedGeo, zone, fix, course, ends, aim?.lat, aim?.lng, origin?.point, unit, layout?.id, hole, shapes, showOutlines, sheetH, insets.top, arcs]);
+  }, [geo, mappedGeo, zone, fix, course, ends, aim?.lat, aim?.lng, origin?.point, unit, layout?.id, hole, shapes, showOutlines, sheetH, insets.top, arcs, windFx?.deg, windFx?.level]);
 
   // ---- Shots ----
   const player = round?.players.find((p) => p.id === playerId) ?? null;
@@ -511,7 +520,7 @@ export default function HoleMapScreen() {
   const fixLine = fromAim
     ? "From the aim circle"
     : origin?.from === "you"
-      ? `From you${fix?.accuracyM != null ? ` · ±${Math.round(fix.accuracyM)} m` : ""}`
+      ? `From you${fix?.accuracyM != null ? ` · ±${Math.round(fix.accuracyM)} m` : ""}${fromTeeM != null && fromTeeM > 20 ? ` · ${fmt(fromTeeM)} ${u} from the tee` : ""}`
       : origin?.from === "tee"
         ? movedTee
           ? "From your tee"
@@ -585,10 +594,11 @@ export default function HoleMapScreen() {
           speed={windSpeed(wind.speedKmh, unit === "yards")}
           gust={wind.gustKmh != null && wind.gustKmh > wind.speedKmh + 5 ? windSpeed(wind.gustKmh, unit === "yards").split(" ")[0] : null}
           line={windLine(windShot)}
-          open={windOpen}
+          showing={windShow}
+          level={level}
           onToggle={() => {
-            rememberedWindOpen = !windOpen;
-            setWindOpen(!windOpen);
+            rememberedWindShow = !windShow;
+            setWindShow(!windShow);
           }}
         />
       ) : null}
@@ -715,9 +725,9 @@ export default function HoleMapScreen() {
 
       <Modal visible={detailsOpen} transparent animationType="slide" onRequestClose={() => setDetailsOpen(false)}>
         <Pressable style={styles.backdrop} onPress={() => setDetailsOpen(false)} accessibilityRole="button" accessibilityLabel="Close" />
-        <View style={[styles.details, { paddingBottom: insets.bottom + spacing.md }]}>
+        <View style={[styles.details, keyboardH > 0 && styles.detailsTyping, { paddingBottom: keyboardH > 0 ? keyboardH + spacing.sm : insets.bottom + spacing.md }]}>
           <View style={styles.grabber} />
-          <ScrollView contentContainerStyle={styles.detailsContent}>
+          <ScrollView ref={detailsScroll} contentContainerStyle={styles.detailsContent} {...FORM_SCROLL_KEYBOARD} automaticallyAdjustKeyboardInsets={false}>
             {layouts.length > 1 ? (
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
                 {layouts.map((l) => (
@@ -772,7 +782,7 @@ export default function HoleMapScreen() {
               </View>
             ) : null}
 
-            {Number.isFinite(clubId) ? <TipsBlock clubId={clubId} hole={hole} /> : null}
+            {Number.isFinite(clubId) ? <TipsBlock clubId={clubId} hole={hole} onTyping={() => setTimeout(() => detailsScroll.current?.scrollToEnd({ animated: true }), 300)} /> : null}
 
             {wind ? <WindCredit wind={wind} /> : null}
 
@@ -992,6 +1002,7 @@ const styles = StyleSheet.create({
   detailsLabel: { fontFamily: fonts.bodySemi, fontSize: 14, color: colors.cream50 },
 
   backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.3)" },
+  detailsTyping: { maxHeight: "92%" },
   details: { maxHeight: "70%", backgroundColor: colors.navy900, borderTopLeftRadius: 22, borderTopRightRadius: 22, paddingTop: 8 },
   grabber: { alignSelf: "center", width: 40, height: 5, borderRadius: 3, backgroundColor: creamAlpha(0.3), marginBottom: 6 },
   detailsContent: { padding: spacing.md, gap: spacing.sm + 2 },

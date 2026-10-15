@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { arrowOnScreen, playsLikeM, windLine, windOnShot, windSpeed } from "./wind";
+import { arrowOnScreen, playsLikeM, windLevel, windLine, windOnShot, windSpeed } from "./wind";
 
 describe("wind on a shot", () => {
   // A hole playing due north (bearing 0).
@@ -61,5 +61,14 @@ describe("speed in the member's unit", () => {
   it("mph with yards, km/h with metres", () => {
     expect(windSpeed(22.5, true)).toBe("14 mph");
     expect(windSpeed(22.5, false)).toBe("23 km/h");
+  });
+});
+
+describe("how strong", () => {
+  it("calm, light, moderate, strong", () => {
+    expect(windLevel(2)).toBeNull();
+    expect(windLevel(6)).toBe(1);
+    expect(windLevel(14)).toBe(2);
+    expect(windLevel(25)).toBe(3);
   });
 });

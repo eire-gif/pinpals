@@ -12,7 +12,8 @@ const ON_PHOTO = "rgba(12,32,56,0.82)";
 /**
  * The wind, over the map, top left (Oct 2026): an arrow turned to show
  * where it's blowing on this hole, the speed and gusts, and one line —
- * "Into you, left to right". Tap to fold it to just the arrow.
+ * "Into you, left to right". Tap it to see the wind blowing across the map:
+ * one chevron light, two moderate, three strong.
  */
 export function WindChip({
   top,
@@ -20,7 +21,8 @@ export function WindChip({
   speed,
   gust,
   line,
-  open,
+  showing,
+  level,
   onToggle,
 }: {
   top: number;
@@ -28,30 +30,36 @@ export function WindChip({
   speed: string;
   gust: string | null;
   line: string;
-  open: boolean;
+  showing: boolean;
+  level: 1 | 2 | 3 | null;
   onToggle: () => void;
 }) {
+  const tint = level === 3 ? "#ff8a6b" : level === 2 ? colors.gold400 : colors.cream50;
+  const strength = level === 3 ? "Strong" : level === 2 ? "Moderate" : level === 1 ? "Light" : "Calm";
   return (
     <Pressable
       onPress={onToggle}
-      style={({ pressed }) => [styles.windChip, { top }, !open && styles.windChipClosed, pressed && { opacity: 0.85 }]}
+      style={({ pressed }) => [styles.windChip, { top }, showing && { borderColor: tint }, pressed && { opacity: 0.85 }]}
       accessibilityRole="button"
-      accessibilityLabel={`Wind ${speed}${gust ? `, gusts ${gust}` : ""}. ${line}. ${open ? "Fold away" : "Show"}.`}
+      accessibilityState={{ selected: showing }}
+      accessibilityLabel={`Wind ${speed}${gust ? `, gusts ${gust}` : ""}, ${strength}. ${line}. ${showing ? "Hide the wind on the map" : "Show the wind on the map"}.`}
     >
       <View style={styles.windDisc}>
-        <View style={{ transform: [{ rotate: `${arrowDeg}deg` }] }}>
-          <Ionicons name="arrow-up" size={20} color={colors.navy900} />
+        <View style={{ transform: [{ rotate: `${arrowDeg}deg` }], alignItems: "center" }}>
+          {/* One chevron for light, two moderate, three strong. */}
+          {Array.from({ length: Math.max(1, level ?? 1) }).map((_, i) => (
+            <Ionicons key={i} name="chevron-up" size={level && level >= 3 ? 12 : 15} color={colors.navy900} style={i > 0 ? { marginTop: level && level >= 3 ? -7 : -9 } : undefined} />
+          ))}
         </View>
       </View>
-      {open ? (
-        <View>
-          <Text style={styles.windSpeed}>
-            {speed}
-            {gust ? <Text style={styles.windGust}>{`  gusts ${gust}`}</Text> : null}
-          </Text>
-          <Text style={styles.windLine}>{line}</Text>
-        </View>
-      ) : null}
+      <View>
+        <Text style={styles.windSpeed}>
+          {speed}
+          {gust ? <Text style={styles.windGust}>{`  gusts ${gust}`}</Text> : null}
+        </Text>
+        <Text style={[styles.windLine, { color: tint }]}>{line}</Text>
+        <Text style={styles.windHint}>{showing ? "Tap to hide" : "Tap to see it blow"}</Text>
+      </View>
     </Pressable>
   );
 }
@@ -146,7 +154,7 @@ export function clubOrder(likely: string[], bag: readonly BagClub[] | null): str
  * Local knowledge for one hole, in the hole map's pull-up list: members'
  * tips, most useful first. Tap "Useful" on someone else's; delete your own.
  */
-export function TipsBlock({ clubId, hole }: { clubId: number; hole: number }) {
+export function TipsBlock({ clubId, hole, onTyping }: { clubId: number; hole: number; /** The field got focus: scroll it above the keyboard. */ onTyping?: () => void }) {
   const [tips, setTips] = useState<HoleTip[] | null>(null);
   const [writing, setWriting] = useState(false);
   const [draft, setDraft] = useState("");
@@ -249,6 +257,7 @@ export function TipsBlock({ clubId, hole }: { clubId: number; hole: number }) {
             multiline
             maxLength={280}
             autoFocus
+            onFocus={onTyping}
           />
           <View style={styles.tipFormRow}>
             <Text style={styles.muted}>{280 - draft.length} left</Text>
@@ -291,8 +300,10 @@ const styles = StyleSheet.create({
     paddingRight: 14,
     borderRadius: radii.lg,
     backgroundColor: ON_PHOTO,
+    borderWidth: 1.5,
+    borderColor: "transparent",
   },
-  windChipClosed: { paddingRight: 7, borderRadius: 26 },
+  windHint: { fontFamily: fonts.body, fontSize: 10.5, color: creamAlpha(0.6) },
   windDisc: { width: 38, height: 38, borderRadius: 19, backgroundColor: colors.cream50, alignItems: "center", justifyContent: "center" },
   windSpeed: { fontFamily: fonts.bodyBold, fontSize: 16, color: colors.cream50 },
   windGust: { fontFamily: fonts.body, fontSize: 12, color: creamAlpha(0.75) },

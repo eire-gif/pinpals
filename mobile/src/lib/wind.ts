@@ -66,3 +66,12 @@ export function windLine(w: WindOnShot): string {
   const a = w.along === "into" ? "Into you" : w.along === "behind" ? "Behind you" : "Across";
   return w.push ? `${a}, ${w.push}` : a;
 }
+
+/** How strong, for the arrows across the map: 1 light (under 10 mph),
+ *  2 moderate (10–17), 3 strong (18+). Null when it's calm. */
+export function windLevel(mph: number): 1 | 2 | 3 | null {
+  if (mph < 3) return null;
+  if (mph < 10) return 1;
+  if (mph < 18) return 2;
+  return 3;
+}
