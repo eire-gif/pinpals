@@ -12,9 +12,9 @@ export function AppTrio({ courseCount }: { courseCount: string }) {
     <div
       role="img"
       aria-label="The PinPals app: the Home screen, a hole map with GPS yardages on satellite imagery, and a certified scorecard"
-      className="relative w-[306px] h-[288px] sm:w-[462px] sm:h-[435px] lg:w-[680px] lg:h-[640px] shrink-0"
+      className="relative mx-auto lg:mx-0 w-[306px] h-[288px] min-[480px]:w-[408px] min-[480px]:h-[384px] sm:w-[462px] sm:h-[435px] lg:w-[680px] lg:h-[640px] shrink-0"
     >
-      <div aria-hidden="true" className="absolute left-0 top-0 origin-top-left scale-[0.45] sm:scale-[0.68] lg:scale-100">
+      <div aria-hidden="true" className="absolute left-0 top-0 origin-top-left scale-[0.45] min-[480px]:scale-[0.6] sm:scale-[0.68] lg:scale-100">
 <div style={{ position: "relative", width: "680px", height: "640px" }}>
 
 
@@ -104,7 +104,7 @@ export function AppTrio({ courseCount }: { courseCount: string }) {
 </div>
 
 
-<div style={{ position: "absolute", left: "-30px", top: "6px", zIndex: "3", background: "#F2ECE0", color: "#0A1628", borderRadius: "16px", padding: "10px 14px", boxShadow: "0 20px 40px rgba(0,0,0,.35)", display: "flex", gap: "10px", alignItems: "center", transform: "rotate(-3deg)" }}>
+<div style={{ position: "absolute", left: "0", top: "6px", zIndex: "3", background: "#F2ECE0", color: "#0A1628", borderRadius: "16px", padding: "10px 14px", boxShadow: "0 20px 40px rgba(0,0,0,.35)", display: "flex", gap: "10px", alignItems: "center", transform: "rotate(-3deg)" }}>
 <span style={{ width: "30px", height: "30px", borderRadius: "50%", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: "11px", fontWeight: "700", color: "#0A1628", border: "2px solid #0B1A33", flex: "none", background: "#D9AE4A", borderColor: "#F2ECE0" }}>NK</span>
 <span style={{ fontSize: "13px", lineHeight: "1.3" }}><b>Niamh</b> birdied the 11th<br /><span style={{ color: "#55627A" }}>Live in Captain&rsquo;s Prize</span></span>
 </div>
