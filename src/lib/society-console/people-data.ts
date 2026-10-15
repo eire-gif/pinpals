@@ -49,16 +49,12 @@ export async function loadMyAlerts(db: Db, groupId: number, userId: string): Pro
 
 export type CourseCardTee = { id: number; teeName: string; holes: number; parTotal: number | null; courseRating: number | null; slope: number | null; verified: boolean };
 
-/** Every saved card (tee) for a club (course_cards, 0103 — readable by any member), as the app's loadCourseCards. */
+/** Every saved card (tee) for a club, as the app's loadCourseCards — one club per call through course_cards_for_club (0149); the tables are closed to members (0150). */
 export async function loadCourseTees(db: Db, clubId: number): Promise<CourseCardTee[]> {
-  const { data, error } = await db
-    .from("course_cards")
-    .select("id, tee_name, holes, par_total, course_rating, slope, verified_at")
-    .eq("club_id", clubId)
-    .order("tee_name")
-    .overrideTypes<{ id: number; tee_name: string; holes: number; par_total: number | null; course_rating: number | string | null; slope: number | null; verified_at: string | null }[]>();
+  const { data, error } = await db.rpc("course_cards_for_club", { p_club_id: clubId });
   if (error) return [];
-  return (data ?? []).map((c) => ({
+  const rows = (data ?? []) as { id: number; tee_name: string; holes: number; par_total: number | null; course_rating: number | string | null; slope: number | null; verified_at: string | null }[];
+  return rows.map((c) => ({
     id: c.id,
     teeName: c.tee_name,
     holes: c.holes === 9 ? 9 : 18,

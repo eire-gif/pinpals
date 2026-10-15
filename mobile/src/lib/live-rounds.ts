@@ -2,6 +2,7 @@ import type { RealtimeChannel } from "@supabase/supabase-js";
 
 import { postToSite } from "./api";
 import type { CardHole, FoursomesScoring, LiveFormat, LivePlayer, MatchFormat, ScoreSheet, ScrambleSize } from "./live-scoring";
+import type { ClubCardRow } from "./scorecards";
 import { supabase } from "./supabase";
 
 /**
@@ -445,25 +446,10 @@ export type CourseCard = {
 
 /** Every card on file for a club, each tee once. */
 export async function loadCourseCards(clubId: number): Promise<CourseCard[]> {
-  const { data, error } = await supabase
-    .from("course_cards")
-    .select("id, tee_name, holes, par_total, course_rating, slope, verified_at, course_card_holes (hole, par, stroke_index)")
-    .eq("club_id", clubId)
-    .order("tee_name")
-    .overrideTypes<
-      {
-        id: number;
-        tee_name: string;
-        holes: number;
-        par_total: number | null;
-        course_rating: number | null;
-        slope: number | null;
-        verified_at: string | null;
-        course_card_holes: { hole: number; par: number; stroke_index: number }[];
-      }[]
-    >();
+  // One club per call (0149); the tables are closed to members (0150).
+  const { data, error } = await supabase.rpc("course_cards_for_club", { p_club_id: clubId });
   if (error) throw error;
-  return (data ?? []).map((c) => ({
+  return ((data ?? []) as ClubCardRow[]).map((c) => ({
     id: c.id,
     teeName: c.tee_name,
     holes: c.holes === 9 ? 9 : 18,
