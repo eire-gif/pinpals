@@ -197,7 +197,7 @@ export default async function HomePage() {
                 fill
                 sizes="(max-width: 640px) 90vw, (max-width: 1024px) 45vw, 240px"
                 className="object-cover"
-                style={{ objectPosition: "50% 33%" }}
+                style={{ objectPosition: "50% 27%" }}
               />
             </FeatureTile>
 
@@ -371,7 +371,7 @@ export default async function HomePage() {
 <div style={{ background: "#0E1F3B", color: "#F2ECE0", borderRadius: "22px", padding: "24px", boxShadow: "0 20px 50px rgba(14,31,59,.18)", display: "flex", flexDirection: "column", gap: "12px" }}>
 <div style={{ fontSize: "11px", letterSpacing: ".14em", fontWeight: "700", color: "#D9AE4A" }}>RESULTS · SINGLES STABLEFORD</div>
 <div className="font-display" style={{ fontSize: "20px" }}>Captain&rsquo;s Prize 2026</div>
-<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: "1px solid rgba(255,255,255,.08)", fontSize: "14px" }}><span><b style={{ color: "#D9AE4A", marginRight: "10px" }}>1st</b>Eire M.</span><b>38</b></div>
+<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: "1px solid rgba(255,255,255,.08)", fontSize: "14px" }}><span><b style={{ color: "#D9AE4A", marginRight: "10px" }}>1st</b>Niamh K.</span><b>38</b></div>
 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: "1px solid rgba(255,255,255,.08)", fontSize: "14px" }}><span><b style={{ color: "#D9AE4A", marginRight: "10px" }}>2nd</b>Ciarán R.</span><span><b>36</b> <span style={{ fontSize: "11px", color: "#9AA8BE" }}>B9 19</span></span></div>
 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: "1px solid rgba(255,255,255,.08)", fontSize: "14px" }}><span><b style={{ color: "#D9AE4A", marginRight: "10px" }}>3rd</b>Ruth K.</span><span><b>36</b> <span style={{ fontSize: "11px", color: "#9AA8BE" }}>B9 17</span></span></div>
 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: "1px solid rgba(255,255,255,.08)", fontSize: "14px", border: "0" }}><span><b style={{ color: "#9AA8BE", marginRight: "10px" }}>4th</b>Darragh O.</span><span><span style={{ display: "inline-flex", alignItems: "center", gap: "6px", borderRadius: "999px", fontWeight: "600", background: "#5A3A12", color: "#F5D08A", padding: "3px 8px", fontSize: "11px" }}>Amended</span> <b>35</b></span></div>

@@ -60,11 +60,11 @@ function ScoreMark({ score, par }: { score: number; par: number }) {
 
 export function MiniScorecard() {
   return (
-    <div aria-hidden="true" className="h-full bg-[#F4F0E6] text-[#13203A] p-3 flex flex-col gap-2">
+    <div aria-hidden="true" className="h-full bg-[#F4F0E6] text-[#13203A] p-3 flex flex-col justify-center gap-2.5">
       <div className="rounded-lg bg-[#13203A] text-white px-3 py-2">
         <div className="flex justify-between items-baseline gap-2">
           <span className="font-display font-bold text-[15px] truncate">Portmarnock Links</span>
-          <span className="text-[9px] font-bold tracking-[.12em] text-gold-400 shrink-0">SAT 11 OCT</span>
+          <span className="shrink-0 inline-flex items-center rounded-full bg-[#173A2A] px-2 py-0.5 text-[9px] font-bold text-[#7BE08F]">✓ Certified</span>
         </div>
         <div className="mt-1.5 grid grid-cols-4 gap-1 text-center">
           {[
@@ -101,14 +101,6 @@ export function MiniScorecard() {
             </span>
           ))}
         </div>
-      </div>
-      <div className="mt-auto flex items-center gap-1.5 text-[11px] font-semibold text-[#1F4A2C]">
-        <span className="w-4 h-4 rounded-full bg-[#2E6B3A] inline-flex items-center justify-center">
-          <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3.5">
-            <path d="M5 12l5 5L20 7" />
-          </svg>
-        </span>
-        Certified by Tom Byrne · Face ID
       </div>
     </div>
   );
