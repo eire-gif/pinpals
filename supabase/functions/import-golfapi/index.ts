@@ -4,7 +4,7 @@
 //
 //   bulk     (cards only) Many clubs at once: search each, import the
 //                        confident matches, list the rest for review
-//                        (bulk.ts, progress in golfapi_bulk_clubs, 0147).
+//                        (bulk.ts, progress in golfapi_bulk_clubs, 0148).
 //   search   (0.1 call)  Our club → golfapi.io's candidate clubs, nearest
 //                        first, with their courses. Writes nothing. A human
 //                        (staff) picks the match; this never guesses, for
@@ -79,7 +79,7 @@ type Body =
     }
   | {
       /** Cards only (no GPS) for many clubs at once — see bulk.ts for how it
-       *  decides, and 0147 for the progress it keeps. */
+       *  decides, and 0148 for the progress it keeps. */
       action: "bulk";
       /** Clubs to work through in this request (default 20, max 50). */
       limit?: number;
@@ -375,7 +375,7 @@ async function write(db: SupabaseClient, club: ClubRow, course: MappedCourse, po
 //
 // Cards only, many clubs, as few calls as possible: one search per club
 // (0.1), then one call per course of a confident match (bulk.ts decides).
-// Progress per club goes to golfapi_bulk_clubs (0147), so a run picks up
+// Progress per club goes to golfapi_bulk_clubs (0148), so a run picks up
 // where it stopped and never pays twice for a club. Stops before going over
 // max_calls, before golfapi's balance falls below `keep`, at the first
 // error from golfapi (a 429 or an empty balance would fail every club after

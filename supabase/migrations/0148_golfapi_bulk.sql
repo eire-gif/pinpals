@@ -1,4 +1,4 @@
--- 0147 — golfapi bulk import: progress per club (Oct 2026).
+-- 0148 — golfapi bulk import: progress per club (Oct 2026).
 --
 -- The `bulk` action of the import-golfapi Edge Function works through every
 -- club in the directory, cards only (no GPS), and records here what happened
