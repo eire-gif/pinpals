@@ -42,6 +42,10 @@ export function pageHtml(source: TileSource): string {
   .aim:after{content:"";width:4px;height:4px;border-radius:2px;background:#fff;}
   .label{white-space:nowrap;padding:3px 9px;border-radius:999px;background:rgba(12,32,56,.85);color:${colors.cream50};font-size:13px;font-weight:700;transform:translate(-50%,-50%);display:inline-block;}
   .label.gold{background:${colors.gold400};color:${colors.navy900};}
+  #windfx{position:absolute;left:0;top:0;right:0;bottom:0;pointer-events:none;overflow:hidden;z-index:450;display:none;}
+  #windfx .spin{position:absolute;left:50%;top:50%;width:200vmax;height:200vmax;margin:-100vmax 0 0 -100vmax;}
+  #windfx .wa{position:absolute;width:30px;height:30px;opacity:0;animation-name:blow;animation-timing-function:linear;animation-iteration-count:infinite;}
+  @keyframes blow{0%{transform:translateY(0);opacity:0;}12%{opacity:.85;}80%{opacity:.85;}100%{transform:translateY(-34vmax);opacity:0;}}
   .label.arc{font-size:11.5px;padding:2px 7px;background:rgba(12,32,56,.8);}
   .label.big{font-size:18px;padding:5px 12px;box-shadow:0 2px 6px rgba(0,0,0,.35);}
   .teemove{width:52px;height:52px;filter:drop-shadow(0 1px 3px rgba(0,0,0,.5));}
@@ -53,7 +57,7 @@ export function pageHtml(source: TileSource): string {
   .hz.trees{background:#2f6b3a;}
   .hz.marker_100{background:#ffffff;} .hz.marker_150{background:#ffd23f;} .hz.marker_200{background:#e2483d;}
   .hz.dogleg,.hz.other{background:#c9c3b6;}
-</style></head><body><div id="map"></div>
+</style></head><body><div id="map"></div><div id="windfx"><div class="spin"></div></div>
 <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/leaflet-rotate@0.2.8/dist/leaflet-rotate.js"></script>
 <script>
@@ -163,6 +167,71 @@ export function pageHtml(source: TileSource): string {
 
   function label(at, text, gold, big){ return L.marker([at.lat,at.lng], { interactive:false, icon:L.divIcon({ className:"", html:'<span class="label'+(gold?' gold':'')+(big?' big':'')+'">'+text+'</span>', iconSize:[0,0] }) }); }
   function mid(a,b){ return { lat:(a.lat+b.lat)/2, lng:(a.lng+b.lng)/2 }; }
+
+  // Labels on a line (Oct 2026): kept at the middle of the part of the line
+  // that's on screen, so zooming in on the ball never hides "245 yds"
+  // off the edge. Re-placed whenever the view moves, zooms or turns.
+  var floating = [];
+  function lineLabel(a, b, text, gold, big){
+    var m = label(mid(a,b), text, gold, big);
+    floating.push({ m:m, a:a, b:b });
+    return m;
+  }
+  function clip(p, q, box){
+    var t0 = 0, t1 = 1, dx = q.x-p.x, dy = q.y-p.y;
+    var tests = [[-dx, p.x-box.l], [dx, box.r-p.x], [-dy, p.y-box.t], [dy, box.b-p.y]];
+    for(var i = 0; i < 4; i++){
+      var pp = tests[i][0], qq = tests[i][1];
+      if(pp === 0){ if(qq < 0) return null; continue; }
+      var r = qq/pp;
+      if(pp < 0){ if(r > t1) return null; if(r > t0) t0 = r; }
+      else { if(r < t0) return null; if(r < t1) t1 = r; }
+    }
+    return { x:p.x+dx*(t0+t1)/2, y:p.y+dy*(t0+t1)/2 };
+  }
+  function placeFloating(){
+    if(!floating.length) return;
+    var size = map.getSize(), ins = (last && last.inset) || { top:36, bottom:36 };
+    var box = { l:30, t:ins.top+10, r:size.x-30, b:size.y-ins.bottom-10 };
+    floating.forEach(function(f){
+      if(!layer.hasLayer(f.m)) return;
+      var pa = map.latLngToContainerPoint([f.a.lat,f.a.lng]), pb = map.latLngToContainerPoint([f.b.lat,f.b.lng]);
+      var c = clip(pa, pb, box);
+      var el = f.m.getElement();
+      if(!c){ if(el) el.style.visibility = "hidden"; return; }
+      if(el) el.style.visibility = "";
+      f.m.setLatLng(map.containerPointToLatLng([c.x, c.y]));
+    });
+  }
+  map.on("move zoom zoomend moveend rotate viewreset resize", placeFloating);
+
+  // The wind across the screen (Oct 2026): arrows blowing the way the wind
+  // is, more and faster the stronger it is. deg: screen degrees clockwise
+  // from up; level 1 light, 2 moderate, 3 strong.
+  var windKey = null;
+  function windFx(w){
+    var box = document.getElementById("windfx");
+    var key = w ? (Math.round(w.deg) + ":" + w.level) : "off";
+    if(key === windKey) return;
+    windKey = key;
+    var spin = box.firstChild;
+    spin.innerHTML = "";
+    if(!w){ box.style.display = "none"; return; }
+    box.style.display = "block";
+    spin.style.transform = "rotate(" + w.deg + "deg)";
+    var colour = w.level >= 3 ? "#ff8a6b" : w.level === 2 ? "${colors.gold400}" : "#ffffff";
+    var chev = function(y){ return '<path d="M5 '+(y+9)+'L15 '+y+'L25 '+(y+9)+'" fill="none" stroke="'+colour+'" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>'; };
+    var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 30 30" style="filter:drop-shadow(0 0 2px rgba(0,0,0,.7))">' + chev(3) + (w.level >= 2 ? chev(11) : "") + (w.level >= 3 ? chev(19) : "") + '</svg>';
+    var n = w.level === 1 ? 26 : w.level === 2 ? 38 : 50;
+    var dur = w.level === 1 ? 6 : w.level === 2 ? 4.2 : 2.8;
+    var html = "";
+    for(var i = 0; i < n; i++){
+      // A steady scatter (no Math.random: the same every time it draws).
+      var x = ((i * 37) % 100), y = ((i * 61) % 100);
+      html += '<div class="wa" style="left:'+x+'%;top:'+y+'%;animation-duration:'+dur+'s;animation-delay:-'+((i * 0.37) % dur).toFixed(2)+'s">'+svg+'</div>';
+    }
+    spin.innerHTML = html;
+  }
   function esc(s){ return String(s).replace(/[&<>"]/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]; }); }
 
   // Turn the map so tee → green points up, then check it did: leaflet-rotate
@@ -254,21 +323,23 @@ export function pageHtml(source: TileSource): string {
     lift(((s.inset && s.inset.bottom) || 36) - 24);
     drawShapes(s.outlines, s.hole, s.showOutlines !== false);
     layer.clearLayers();
+    floating = [];
+    windFx(s.windFx || null);
     var g = s.green || {};
     var greenLine = null, greenLabel = null, toLine = null, toLabel = null;
     if(s.greenLine && g.centre){
       var o = s.greenLine.origin;
       greenLine = L.polyline([[o.lat,o.lng],[g.centre.lat,g.centre.lng]], { color:"#ffffff", weight:2.5, opacity:.95, interactive:false }).addTo(layer);
-      greenLabel = label(mid(o,g.centre), esc(s.greenLine.label), true, true).addTo(layer);
+      greenLabel = lineLabel(o, g.centre, esc(s.greenLine.label), true, true).addTo(layer);
     }
     if(s.tap){
       var t = s.tap;
       toLine = L.polyline([[t.origin.lat,t.origin.lng],[t.lat,t.lng]], { color:"#ffffff", weight:2.5, opacity:.95, interactive:false }).addTo(layer);
-      toLabel = label(mid(t.origin,t), esc(t.toLabel)).addTo(layer);
+      toLabel = lineLabel(t.origin, t, esc(t.toLabel)).addTo(layer);
       var onLine = null, onLabel = null;
       if(t.green){
         onLine = L.polyline([[t.lat,t.lng],[t.green.lat,t.green.lng]], { color:"#ffffff", weight:2.5, opacity:.95, interactive:false }).addTo(layer);
-        if(t.onLabel) onLabel = label(mid(t,t.green), esc(t.onLabel), true, true).addTo(layer);
+        if(t.onLabel) onLabel = lineLabel(t, t.green, esc(t.onLabel), true, true).addTo(layer);
       }
       // Drag the circle: the lines follow, the numbers come back from the
       // app on release (it does the sums, as for everything else here).
@@ -305,7 +376,7 @@ export function pageHtml(source: TileSource): string {
       L.polyline(path.map(function(p){ return [p.lat,p.lng]; }), { color:"${colors.navy900}", weight:3, opacity:.85, interactive:false }).addTo(layer);
       s.shots.forEach(function(p,i){
         var prev = i > 0 ? s.shots[i-1] : s.shotStart;
-        if(prev && p.label) label(mid(prev,p), esc(p.label)).addTo(layer);
+        if(prev && p.label) lineLabel(prev, p, esc(p.label)).addTo(layer);
         L.marker([p.lat,p.lng], { interactive:false, icon:icon("shot", p.n, 20) }).addTo(layer);
       });
     }
@@ -352,6 +423,7 @@ export function pageHtml(source: TileSource): string {
       L.circleMarker([s.me.lat,s.me.lng], { radius:7, color:"#ffffff", weight:2.5, fillColor:"#1d8cf8", fillOpacity:1, interactive:false }).addTo(layer);
     }
     if(s.frameKey !== lastKey){ lastKey = s.frameKey; refit(); }
+    placeFloating();
   }
 
   map.on("click", function(e){ post({ type:"tap", lat:e.latlng.lat, lng:e.latlng.lng }); });
