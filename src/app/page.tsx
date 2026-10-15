@@ -197,7 +197,7 @@ export default async function HomePage() {
                 fill
                 sizes="(max-width: 640px) 90vw, (max-width: 1024px) 45vw, 240px"
                 className="object-cover"
-                style={{ objectPosition: "50% 27%" }}
+                style={{ objectPosition: "50% 23%" }}
               />
             </FeatureTile>
 
