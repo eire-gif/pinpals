@@ -73,6 +73,9 @@ export default async function SiteHeader() {
     { href: "/tee-times/requests", label: "My tee-time requests" },
     { href: "/dashboard/listings", label: "My listings" },
     { href: "/dashboard/connections", label: "My connections" },
+    // The committee's own console (/society) — lists only the societies you
+    // help run, and says plainly when that's none.
+    { href: "/society", label: "Society admin" },
   ];
 
   const navLinks: {

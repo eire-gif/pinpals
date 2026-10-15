@@ -16,9 +16,10 @@ export async function proxy(request: NextRequest) {
   // response (just requires revalidation), which is not an acceptable
   // default for admin data.
   // The same for two-step sign-in (a QR secret) and the member's own
-  // privacy pages (their mobile number, their data file).
+  // privacy pages (their mobile number, their data file), and the society
+  // console (/society — a committee's members, phones and money).
   const path = request.nextUrl.pathname;
-  if (path.startsWith("/admin") || path.startsWith("/two-step") || path.startsWith("/profile")) {
+  if (path.startsWith("/admin") || path.startsWith("/two-step") || path.startsWith("/profile") || path === "/society" || path.startsWith("/society/")) {
     response.headers.set("Cache-Control", "private, no-store");
   }
 

@@ -377,6 +377,13 @@ export const GUIDES: Guide[] = [
         who: "Owner, captain or secretary",
       },
       {
+        title: "Run it from a computer",
+        body: "Everything here is also on the website: go to pinpals.ie/society, sign in with your PinPals email and password, and pick your society. Events and entries, the waiting list, the draw, payments, membership, handicaps, the noticeboard and the committee — on a big screen.",
+        look: [{ style: "outline", label: "Society admin", icon: "desktop-outline" }],
+        who: "The committee — each sees only their own areas",
+        tip: "It's the same society and the same rules as the app: a change on one shows on the other straight away.",
+      },
+      {
         title: "Hand it over or step away",
         body: "To pass the society on, tap a member's name and choose Hand the group to them. You become an admin. Delete group is at the bottom of Settings.",
         look: [{ style: "link", label: "Hand the group to them" }],
@@ -1506,6 +1513,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-15", text: "Run your society: new step, Run it from a computer — society admin on the website at pinpals.ie/society, with your PinPals login." },
   { on: "2026-10-15", text: "Score a game live: new last step, Put the leaderboard on a TV — Show on TV, the code from pinpals.ie/tv, or share the TV link." },
   { on: "2026-10-14", text: "Score a game live: when a course has a saved card, a tee is now picked for you so the stroke indexes are filled in (choose Other tees for a blank card). In a society day, a stroke index entered on one card now fills in on every group's card." },
   { on: "2026-10-14", text: "New guide: Get a place on an event — join or request a place, the waiting list, guests and paying. Create an event: how members get a place, the day's details, answering requests. Run your society: committee roles, annual membership, money, exports, noticeboard and messages, order of merit." },
