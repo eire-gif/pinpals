@@ -12,6 +12,11 @@
 -- scorecard_from_live_round, golfapi_bulk_next) and the importer (service
 -- role) are unaffected.
 --
+-- Applied to production 15 Oct 2026 as the REVOKE only: the Supabase tool
+-- cancels any batch containing DROP, so the two now-inert policies are still
+-- there (with no SELECT grant they open nothing) — drop them by hand in the
+-- SQL editor when convenient.
+--
 -- Rollback (re-opens them):
 --   create policy "Members read course cards" on public.course_cards for select to authenticated using (true);
 --   create policy "Members read course card holes" on public.course_card_holes for select to authenticated using (true);
