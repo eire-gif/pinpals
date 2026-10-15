@@ -227,6 +227,7 @@ const EXPECTED: Record<string, Expectation> = {
   "course_layout_fix_hole(p_layout_id bigint, p_hole smallint, p_green jsonb, p_tee jsonb)": { anon: false, authenticated: true },
   // 0153: My bag, club tags on shots, local knowledge — all scoped to auth.uid() inside
   "my_bag()": { anon: false, authenticated: true },
+  "my_longest_shots(p_round_id bigint)": { anon: false, authenticated: true },
   "live_round_shot_club(p_round_id bigint, p_player_id bigint, p_hole smallint, p_shot_no smallint, p_club text, p_distance_m numeric)": { anon: false, authenticated: true },
   "hole_tips_for(p_club_id bigint, p_hole smallint)": { anon: false, authenticated: true },
   // 0149 course cards, one club at a time

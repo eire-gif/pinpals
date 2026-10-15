@@ -6,6 +6,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { CertifyPanel } from "@/components/certify-panel";
 import { HeaderPill, headerButtons } from "@/components/header-actions";
 import { LoadError, StateMessage } from "@/components/state-message";
+import { LongestShots } from "@/components/longest-shots";
 import { TeeDot } from "@/components/tee-chip";
 import { goHome } from "@/lib/go-home";
 import { Nine } from "@/components/scorecard-grid";
@@ -200,6 +201,8 @@ export default function ScorecardScreen() {
             </View>
           ))}
         </View>
+
+        {mine && card.liveRoundId != null ? <LongestShots roundId={card.liveRoundId} /> : null}
 
         {mine ? (
           <>

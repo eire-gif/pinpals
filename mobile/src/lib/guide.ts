@@ -1220,7 +1220,7 @@ export const GUIDES: Guide[] = [
       },
       {
         title: "Mark your shots",
-        body: "In a live round, walk to your ball and tap Mark shot. The map draws each shot and how far it went. Under Which club?, tap the club you hit — My bag learns your real distances from these. The undo arrow takes back the last shot.",
+        body: "In a live round, walk to your ball and tap Mark shot. The map draws each shot and how far it went. Under Which club?, tap the club you hit — it's saved to your round, and My bag learns your real distances from these. Your longest shot with each club shows under the round's scorecard and in My bag. The undo arrow takes back the last shot.",
         art: "holeShots",
         look: [{ style: "primary", label: "Mark shot 2", icon: "locate" }],
         tip: "Distances are GPS estimates — check the course's own markers before an important shot.",
@@ -1613,6 +1613,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
   { on: "2026-10-15", text: "Hole map: drag the bottom panel down to see more of the map; the wind now blows across the whole screen." },
   { on: "2026-10-15", text: "Hole map: tap the wind to see it blowing across the map (one to three chevrons for its strength); distance labels stay on screen when you zoom in; how far you are from the tee shows under the numbers." },
+  { on: "2026-10-15", text: "Mark shot: the club you tap is saved to your round; longest shot with each club shows under the scorecard and in My bag." },
   { on: "2026-10-15", text: "Hole map: new steps — Check the wind (arrow, speed, Plays like), Get a club for the shot (My bag), Show distance arcs, Local knowledge tips in Hazards and more, and Which club? after Mark shot." },
   { on: "2026-10-15", text: "Hole map: no change to the member steps — the new Save for everyone button (cloud) shows only for super admins, to keep a corrected flag or tee." },
   { on: "2026-10-15", text: "New guide: Play in a league, ladder or open — enter, arrange and report matchplay, the knockout, ladder challenges, opens and finding a partner, and running one for your group." },

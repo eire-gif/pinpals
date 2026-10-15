@@ -113,10 +113,18 @@ describe("My bag", () => {
       await rejects(c, TAG, [roundId, mine, "putter", 10], /Unknown club/);
       await rejects(c, TAG, [roundId, mine, "7i", null], /no distance/);
 
+      // Longest shots: the player's own, for this round and ever.
+      const longest = await c.query<{ club: string; distance_m: string; hole: number }>("select club, distance_m, hole from public.my_longest_shots($1)", [roundId]);
+      expect(longest.rows).toHaveLength(1);
+      expect(longest.rows[0]).toMatchObject({ club: "7i" });
+      expect(Number(longest.rows[0].distance_m)).toBeCloseTo(137.6);
+      expect((await c.query("select * from public.my_longest_shots()")).rowCount).toBe(1);
+
       // A stranger can't, and can't see it.
       await as(c, STRANGER);
       await rejects(c, TAG, [roundId, mine, "driver", 230], /your own shots/);
       expect((await c.query("select * from public.my_bag() where club = '7i'")).rowCount).toBe(0);
+      expect((await c.query("select * from public.my_longest_shots($1)", [roundId])).rowCount).toBe(0);
 
       // Clearing it takes it out of the bag's sums.
       await as(c, ME);

@@ -67,6 +67,29 @@ export async function tagShotClub(roundId: number, playerId: number, hole: numbe
   if (error) throw error;
 }
 
+/** A club can be kept with a shot of up to this many metres (0153 checks it too). */
+export const TAG_MAX_M = 450;
+
+/** Whether a marked shot's distance is one a club can be kept with. */
+export const taggable = (distanceM: number | null | undefined): distanceM is number => distanceM != null && distanceM >= 1 && distanceM <= TAG_MAX_M;
+
+/** The member's longest tagged shot with each club: in one round, or ever (0154). */
+export type LongestShot = { club: string; distanceM: number; roundId: number; hole: number; shotNo: number; playedOn: string | null; courseName: string | null };
+
+export async function loadLongestShots(roundId: number | null = null): Promise<LongestShot[]> {
+  const { data, error } = await supabase.rpc("my_longest_shots", roundId == null ? {} : { p_round_id: roundId });
+  if (error) throw error;
+  return ((data ?? []) as Array<{ club: string; distance_m: number | string; round_id: number; hole: number; shot_no: number; played_on: string | null; course_name: string | null }>).map((r) => ({
+    club: r.club,
+    distanceM: Number(r.distance_m),
+    roundId: r.round_id,
+    hole: r.hole,
+    shotNo: r.shot_no,
+    playedOn: r.played_on,
+    courseName: r.course_name,
+  }));
+}
+
 /** The clubs already tagged on this round's shots, by player and hole. */
 export async function loadShotClubs(roundId: number): Promise<Map<string, string>> {
   const { data, error } = await supabase.from("live_round_shots").select("player_id, hole, shot_no, club").eq("round_id", roundId).not("club", "is", null);
