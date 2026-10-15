@@ -1,6 +1,7 @@
 import Link from "next/link";
 
-import { ActionButton, ConsoleForm, Field, SubmitButton, Toggle, inputClass } from "@/components/society-console/forms";
+import { ActionButton, ConsoleForm, Field, SubmitButton, Toggle } from "@/components/society-console/forms";
+import { inputClass } from "@/components/society-console/styles";
 import { Avatar, Card, Empty, PageHeader, Pill, Table, Td, type PillTone } from "@/components/society-console/ui";
 import { requireConsole } from "@/lib/society-console/access";
 import { billingSeason, loadMembers, loadMembershipSettings, MEMBERSHIP_LABELS, seasonLabel, type MembershipSettings, type MembershipStatus } from "@/lib/society-console/data";

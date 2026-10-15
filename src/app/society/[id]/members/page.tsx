@@ -1,6 +1,7 @@
 import Link from "next/link";
 
-import { ActionButton, ConsoleForm, SubmitButton, buttonClass, inputClass } from "@/components/society-console/forms";
+import { ActionButton, ConsoleForm, SubmitButton } from "@/components/society-console/forms";
+import { buttonClass, inputClass } from "@/components/society-console/styles";
 import { Avatar, Card, Empty, PageHeader, Pill, Table, Td, type PillTone } from "@/components/society-console/ui";
 import { groupInvitePath } from "@/lib/groups";
 import { formatPhone, smsUrl, telUrl, whatsappUrl } from "@/lib/phone";

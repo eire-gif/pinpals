@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { buttonClass } from "@/components/society-console/forms";
+import { buttonClass } from "@/components/society-console/styles";
 import { Card, PageHeader } from "@/components/society-console/ui";
 import { requireConsole } from "@/lib/society-console/access";
 import { loadDrawHistory, loadEvent } from "@/lib/society-console/data";
