@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, Text, View } from "react-native";
+import { useContentWidth } from "@/lib/content-width";
 import { router, useFocusEffect } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
@@ -18,7 +19,7 @@ import { usePostActions } from "@/lib/use-post-actions";
 export default function SavedScreen() {
   const { session } = useAuth();
   const userId = session?.user?.id ?? null;
-  const { width } = useWindowDimensions();
+  const { width } = useContentWidth();
   const [posts, setPosts] = useState<FeedPost[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);

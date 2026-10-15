@@ -17,7 +17,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { KEYBOARD_DISMISS_MODE } from "@/components/keyboard";
 import { SITE_URL } from "@/lib/config";
 import { cleanCode, confirmWithCode, isCompleteCode, resendSignupCode } from "@/lib/signup-code";
-import { colors, fonts, radii, spacing, type } from "@/lib/theme";
+import { colors, fonts, radii, spacing, type, AUTH_COLUMN } from "@/lib/theme";
 
 const MIN_PASSWORD = 6;
 
@@ -362,7 +362,7 @@ function ConfirmCode({ email, onBack }: { email: string; onBack: () => void }) {
 
 const styles = StyleSheet.create({
   fill: { flex: 1, backgroundColor: colors.navy900 },
-  scroll: { flexGrow: 1, justifyContent: "center", padding: spacing.lg },
+  scroll: { flexGrow: 1, justifyContent: "center", padding: spacing.lg, ...AUTH_COLUMN },
   eyebrowRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   rule: { width: 20, height: 2, backgroundColor: colors.gold400 },
   eyebrow: {

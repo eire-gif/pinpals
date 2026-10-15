@@ -10,8 +10,8 @@ import {
   StyleSheet,
   Text,
   View,
-  useWindowDimensions,
 } from "react-native";
+import { useContentWidth } from "@/lib/content-width";
 import { Stack, router, useLocalSearchParams } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
@@ -66,7 +66,7 @@ export default function MemberScreen() {
   const { session } = useAuth();
   const userId = session?.user?.id ?? null;
   const isMe = userId === id;
-  const { width } = useWindowDimensions();
+  const { width } = useContentWidth();
 
   const [profile, setProfile] = useState<MemberProfile | null>(null);
   const [posts, setPosts] = useState<FeedPost[]>([]);

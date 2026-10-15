@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Image, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { Image, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useContentWidth } from "@/lib/content-width";
 
 import { useKeyboardHeight } from "@/components/keyboard";
 import { PostVideo } from "@/components/post-video";
@@ -17,7 +18,7 @@ import { colors, fonts, navyAlpha } from "@/lib/theme";
  * between several. A post with neither shows nothing.
  */
 export function PostMediaPane({ post }: { post: FeedPost }) {
-  const { width, height: screen } = useWindowDimensions();
+  const { width, height: screen } = useContentWidth();
   const keyboard = useKeyboardHeight();
   const photos = post.photos.filter((p) => p.url);
   const [page, setPage] = useState(0);

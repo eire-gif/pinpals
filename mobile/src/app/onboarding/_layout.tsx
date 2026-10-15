@@ -1,6 +1,6 @@
 import { Stack } from "expo-router";
 
-import { colors } from "@/lib/theme";
+import { colors, contentColumn } from "@/lib/theme";
 
 /** The profile builder: five steps, no header — each step draws its own back and Skip. */
 export default function OnboardingLayout() {
@@ -8,7 +8,7 @@ export default function OnboardingLayout() {
     <Stack
       screenOptions={{
         headerShown: false,
-        contentStyle: { backgroundColor: colors.cream50 },
+        contentStyle: { backgroundColor: colors.cream50, ...contentColumn },
       }}
     />
   );

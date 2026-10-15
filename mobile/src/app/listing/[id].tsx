@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  Dimensions,
   Image,
   Pressable,
   ScrollView,
@@ -10,6 +9,7 @@ import {
   Text,
   View,
 } from "react-native";
+import { contentWidthNow } from "@/lib/content-width";
 import { Stack, router, useLocalSearchParams } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
@@ -47,7 +47,7 @@ import { colors, fonts, radii, spacing, type } from "@/lib/theme";
  * implementation of the offer and auction state machines, on the server.
  * The one step that opens the website is Stripe's card form, at the end.
  */
-const GALLERY_WIDTH = Dimensions.get("window").width;
+const GALLERY_WIDTH = contentWidthNow();
 
 export default function ListingScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();

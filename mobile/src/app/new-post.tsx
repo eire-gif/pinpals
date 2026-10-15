@@ -11,8 +11,8 @@ import {
   Text,
   TextInput,
   View,
-  useWindowDimensions,
 } from "react-native";
+import { useContentWidth } from "@/lib/content-width";
 import { Stack, router, useLocalSearchParams } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -338,7 +338,7 @@ export default function NewPostScreen() {
   const detailsIssue = structured ? draftDetailsProblem(kind, details) : null;
   const problem = detailsIssue ?? draftProblem(body, photos.length + (video ? 1 : 0), structured);
   const canPost = !posting && !uploading && !failed && problem === null;
-  const { width: screenWidth } = useWindowDimensions();
+  const { width: screenWidth } = useContentWidth();
   // Phase 8: a claimed achievement previews exactly as the feed will draw it.
   const achievement =
     structured && details.achievement

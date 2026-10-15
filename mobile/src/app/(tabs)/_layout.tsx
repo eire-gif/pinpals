@@ -5,7 +5,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { AppMenu, MenuButton } from "@/components/app-menu";
 import { useAuth } from "@/lib/auth";
-import { colors, fonts, radii, spacing, headerTitleStyle } from "@/lib/theme";
+import { colors, contentColumn, fonts, radii, spacing, headerTitleStyle } from "@/lib/theme";
 import { useInboxUnread } from "@/lib/unread";
 
 /**
@@ -72,7 +72,8 @@ export default function TabsLayout() {
           backgroundColor: colors.cream50,
           borderTopColor: colors.line,
         },
-        sceneStyle: { backgroundColor: colors.cream50 },
+        // iPad: a centred column, as every other screen (theme.ts).
+        sceneStyle: { backgroundColor: colors.cream50, ...contentColumn },
         // On every tab, not just Home. A menu that is only on one screen is
         // a menu people have to navigate to in order to navigate, which is
         // the problem it exists to solve.

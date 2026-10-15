@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Image, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useContentWidth } from "@/lib/content-width";
 import { router } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
@@ -176,7 +177,7 @@ function PhotoTile({ post }: { post: FeedPost }) {
 
 /** The week's most-reacted post, as a full card with working actions. */
 export function MostLikedThisWeek({ post: initial }: { post: FeedPost | null }) {
-  const { width } = useWindowDimensions();
+  const { width } = useContentWidth();
   const [post, setPost] = useState<FeedPost | null>(initial);
   const [seen, setSeen] = useState<FeedPost | null>(initial);
   // A fresh post from Home's reload replaces the local copy.

@@ -9,8 +9,8 @@ import {
   StyleSheet,
   Text,
   View,
-  useWindowDimensions,
 } from "react-native";
+import { useContentWidth } from "@/lib/content-width";
 import { router, useFocusEffect } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
@@ -51,7 +51,7 @@ export default function FeedScreen() {
   const { scrollY, resetY, scrollProps } = useCollapsingHeader();
   const { session } = useAuth();
   const userId = session?.user?.id ?? null;
-  const { width } = useWindowDimensions();
+  const { width } = useContentWidth();
   const cardWidth = postCardWidth(width);
 
   const [scope, setScope] = useState<FeedScope>("all");
