@@ -16,7 +16,7 @@ import { useRouter } from "expo-router";
 
 import { useAuth } from "@/lib/auth";
 import { SITE_URL } from "@/lib/config";
-import { colors, radii, spacing, type } from "@/lib/theme";
+import { colors, radii, spacing, type, AUTH_COLUMN } from "@/lib/theme";
 import { KEYBOARD_DISMISS_MODE } from "@/components/keyboard";
 
 export default function LoginScreen() {
@@ -127,7 +127,7 @@ export default function LoginScreen() {
 
 const styles = StyleSheet.create({
   fill: { flex: 1, backgroundColor: colors.navy900 },
-  scroll: { flexGrow: 1, justifyContent: "center", padding: spacing.lg },
+  scroll: { flexGrow: 1, justifyContent: "center", padding: spacing.lg, ...AUTH_COLUMN },
   wordmark: {
     fontSize: 40,
     fontWeight: "800",

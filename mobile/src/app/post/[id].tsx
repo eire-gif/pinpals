@@ -5,8 +5,8 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  useWindowDimensions,
 } from "react-native";
+import { useContentWidth } from "@/lib/content-width";
 import { Stack, router, useLocalSearchParams } from "expo-router";
 
 import { CommentComposer, CommentList, useCommentThread } from "@/components/comment-thread";
@@ -39,7 +39,7 @@ export default function PostScreen() {
   const postId = Number(id);
   const { session } = useAuth();
   const userId = session?.user?.id ?? null;
-  const { width } = useWindowDimensions();
+  const { width } = useContentWidth();
 
   const [post, setPost] = useState<FeedPost | null>(null);
   const [loading, setLoading] = useState(true);

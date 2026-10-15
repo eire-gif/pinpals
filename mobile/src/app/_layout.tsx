@@ -26,7 +26,7 @@ import { applyUpdateAtLaunch } from "@/lib/app-updates";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { hrefFromNotification, registerForPush } from "@/lib/push";
 import { connectWidget } from "@/lib/widgets";
-import { colors, fonts, headerTitleStyle } from "@/lib/theme";
+import { colors, contentColumn, fonts, headerTitleStyle } from "@/lib/theme";
 
 void SplashScreen.preventAutoHideAsync();
 
@@ -195,13 +195,17 @@ function RootNavigator() {
         // Every screen's back button says "Back". Without this, a screen
         // opened from the tabs showed the route group's name: "(tabs)".
         headerBackTitle: "Back",
-        contentStyle: { backgroundColor: colors.cream50 },
+        // iPad: every screen's content a centred column (theme.ts). A phone
+        // is narrower than the column, so it changes nothing there.
+        contentStyle: { backgroundColor: colors.cream50, ...contentColumn },
       }}
     >
-      <Stack.Screen name="(tabs)" options={{ headerShown: false, title: "Back" }} />
-      <Stack.Screen name="login" options={{ headerShown: false }} />
-      <Stack.Screen name="signup" options={{ headerShown: false }} />
-      <Stack.Screen name="auth-confirm" options={{ headerShown: false, gestureEnabled: false }} />
+      {/* Full width: the tab bar spans the screen; the tabs centre their own content. */}
+      <Stack.Screen name="(tabs)" options={{ headerShown: false, title: "Back", contentStyle: { backgroundColor: colors.cream50 } }} />
+      {/* Full width navy; the form centres itself (AUTH_COLUMN). */}
+      <Stack.Screen name="login" options={{ headerShown: false, contentStyle: { backgroundColor: colors.navy900 } }} />
+      <Stack.Screen name="signup" options={{ headerShown: false, contentStyle: { backgroundColor: colors.navy900 } }} />
+      <Stack.Screen name="auth-confirm" options={{ headerShown: false, gestureEnabled: false, contentStyle: { backgroundColor: colors.navy900 } }} />
       {/* The profile builder. No swipe-back: going "back" out of step one
           would land on a signed-in screen the member hasn't seen yet. */}
       <Stack.Screen name="onboarding" options={{ headerShown: false, gestureEnabled: false }} />
@@ -210,7 +214,8 @@ function RootNavigator() {
       <Stack.Screen name="rate-course" options={{ title: "Rate a course", headerBackTitle: "Back" }} />
       {/* Hole maps (0108): no swipe-back — dragging the map from the left
           edge would otherwise leave the screen mid-pan. */}
-      <Stack.Screen name="hole-map" options={{ title: "Hole map", headerBackTitle: "Back", gestureEnabled: false }} />
+      {/* Full width: the satellite map uses the whole screen. */}
+      <Stack.Screen name="hole-map" options={{ title: "Hole map", headerBackTitle: "Back", gestureEnabled: false, contentStyle: { backgroundColor: colors.cream50 } }} />
       <Stack.Screen name="scorecards/index" options={{ title: "Scorecards", headerBackTitle: "Back" }} />
       <Stack.Screen name="scorecards/new" options={{ title: "New scorecard", headerBackTitle: "Back" }} />
       <Stack.Screen name="scorecards/[id]" options={{ title: "Scorecard", headerBackTitle: "Back" }} />
@@ -246,7 +251,7 @@ export default function RootLayout() {
     // app to use a gesture handler directly, and a missing root is the
     // failure where the gesture silently does nothing on a device while
     // everything still compiles.
-    <GestureHandlerRootView style={{ flex: 1 }}>
+    <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.cream50 }}>
       <SafeAreaProvider>
         <AuthProvider>
           <StatusBar style="dark" />

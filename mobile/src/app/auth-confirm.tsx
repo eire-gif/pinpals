@@ -81,7 +81,7 @@ const styles = StyleSheet.create({
   fill: { flex: 1, backgroundColor: colors.navy900 },
   centre: { flex: 1, alignItems: "center", justifyContent: "center", padding: spacing.lg, gap: spacing.md },
   waiting: { fontFamily: fonts.bodySemi, fontSize: type.body, color: colors.cream100 },
-  card: { backgroundColor: colors.cream50, borderRadius: radii.lg, padding: spacing.lg, gap: spacing.md, alignSelf: "stretch" },
+  card: { backgroundColor: colors.cream50, borderRadius: radii.lg, padding: spacing.lg, gap: spacing.md, alignSelf: "stretch", width: "100%", maxWidth: 520 },
   title: { fontFamily: fonts.display, fontSize: 24, color: colors.ink900 },
   body: { fontFamily: fonts.body, fontSize: type.body, lineHeight: 22, color: colors.ink500 },
   primary: {

@@ -1,4 +1,5 @@
-import { Dimensions, Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { contentWidthNow } from "@/lib/content-width";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 
@@ -9,7 +10,7 @@ import { colors, fonts, radii } from "@/lib/theme";
 
 /** Grids are two columns, 16 in from each edge, 12 between. */
 export const GRID_GAP = 12;
-const GRID_COLUMN = (Dimensions.get("window").width - 32 - GRID_GAP) / 2;
+const GRID_COLUMN = (contentWidthNow() - 32 - GRID_GAP) / 2;
 
 /**
  * One item in the marketplace (Oct 2026 redesign): a big soft photo tile,

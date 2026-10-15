@@ -3,9 +3,9 @@ import {
   Pressable,
   StyleSheet,
   Text,
-  useWindowDimensions,
   View,
 } from "react-native";
+import { useContentWidth } from "@/lib/content-width";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 
@@ -161,7 +161,7 @@ export function TileGrid({
   /** Extra horizontal padding around the grid (inside a card). */
   inset?: number;
 }) {
-  const { width } = useWindowDimensions();
+  const { width } = useContentWidth();
   const w = Math.floor((width - spacing.md * 2 - inset - spacing.sm * 2) / 3);
   return (
     <View style={styles.group}>
@@ -214,7 +214,7 @@ const COLUMNS = 4;
 const GridChipWidth = createContext(0);
 
 export function GridChipGroup({ children }: { children: ReactNode }) {
-  const { width } = useWindowDimensions();
+  const { width } = useContentWidth();
   const chipWidth = Math.floor(
     (width - spacing.md * 2 - spacing.sm * (COLUMNS - 1)) / COLUMNS
   );

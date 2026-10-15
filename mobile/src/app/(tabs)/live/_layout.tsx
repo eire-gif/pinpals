@@ -1,7 +1,7 @@
 import { Stack } from "expo-router";
 
 import { BackPill, headerButtons } from "@/components/header-actions";
-import { colors, fonts, headerTitleStyle } from "@/lib/theme";
+import { colors, contentColumn, fonts, headerTitleStyle } from "@/lib/theme";
 
 /**
  * Live scoring lives INSIDE the tab group, as a stack of its own, so the
@@ -19,7 +19,7 @@ export default function LiveLayout() {
         headerTintColor: colors.ink900,
         headerTitleStyle,
         headerBackTitle: "Back",
-        contentStyle: { backgroundColor: colors.cream50 },
+        contentStyle: { backgroundColor: colors.cream50, ...contentColumn },
       }}
     >
       {/* First in its own stack, so iOS draws no back button: add one. */}

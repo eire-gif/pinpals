@@ -11,8 +11,8 @@ import {
   Text,
   TextInput,
   View,
-  useWindowDimensions,
 } from "react-native";
+import { useContentWidth } from "@/lib/content-width";
 import { Stack, router, useLocalSearchParams } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
@@ -45,7 +45,7 @@ export default function ShareScreen() {
   const postId = Number(id);
   const { session } = useAuth();
   const userId = session?.user?.id ?? null;
-  const { width } = useWindowDimensions();
+  const { width } = useContentWidth();
 
   const [post, setPost] = useState<FeedPost | null>(null);
   const [link, setLink] = useState<{ url: string; imageUrl: string; rich: boolean } | null>(null);

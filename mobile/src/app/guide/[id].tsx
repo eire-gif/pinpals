@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
+import { useContentWidth } from "@/lib/content-width";
 import { Stack, router, useLocalSearchParams } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -32,7 +33,7 @@ export default function GuideScreen() {
   // a link) still opens — as written for whoever it is for.
   const guide: ResolvedGuide | null = raw ? (resolveGuide(raw, wanted) ?? resolveGuide(raw, raw.audiences?.[0] ?? "society")) : null;
   const audience: Audience = raw && resolveGuide(raw, wanted) ? wanted : (raw?.audiences?.[0] ?? wanted);
-  const { width } = useWindowDimensions();
+  const { width } = useContentWidth();
   const insets = useSafeAreaInsets();
   const pager = useRef<ScrollView>(null);
   const [page, setPage] = useState(0);

@@ -48,6 +48,21 @@ export const spacing = {
   xl: 32,
 } as const;
 
+/**
+ * iPad (Oct 2026). Every screen's content is a centred column at most this
+ * wide, so on an iPad text and cards don't stretch across 800–1,000 points;
+ * on a phone (always narrower) nothing changes. The navigation layouts apply
+ * it (contentColumn); anything sized from the screen width uses
+ * useContentWidth() (lib/content-width.ts) so it sizes to the column, not the
+ * glass. 680 sits inside an iPad page sheet, so modals fit too.
+ */
+export const MAX_CONTENT_WIDTH = 680;
+
+export const contentColumn = { width: "100%", maxWidth: MAX_CONTENT_WIDTH, alignSelf: "center" } as const;
+
+/** Sign-in screens run full width on navy; their form keeps to this. */
+export const AUTH_COLUMN = { width: "100%", maxWidth: 520, alignSelf: "center" } as const;
+
 export const radii = {
   sm: 8,
   md: 12,
