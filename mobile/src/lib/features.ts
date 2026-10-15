@@ -64,6 +64,10 @@ export const FEATURES = {
    *  pages): a round or society day's leaderboard on a clubhouse TV. Off
    *  hides the Show on TV buttons; the screen says "on its way". */
   clubhouseTv: true,
+  /** Competitions (claude/competitions.md, needs 0148): matchplay leagues,
+   *  ladders and open competitions. Off hides the menu entry;
+   *  the screens say "on its way". */
+  competitions: true,
 
   // ---- Gates (unfinished, off) ----
   /** Shared rounds (phase 9): model only — see claude/shared-round-model.md. */

@@ -440,6 +440,33 @@ const EXPECTED: Record<string, Expectation> = {
   "validate_listing_status_transition()": { anon: false, authenticated: false },
   "validate_message_content()": { anon: false, authenticated: false },
   "validate_review()": { anon: false, authenticated: false },
+
+  // --- Competitions (0148): leagues, ladders and opens. Every write a member
+  // --- makes goes through these, each checking who is calling inside. The
+  // --- sweep, the after-result step and the organiser list are internal.
+  "competition_staff()": { anon: false, authenticated: true },
+  "competition_can_view(p_league_id bigint)": { anon: false, authenticated: true },
+  "competition_is_organiser(p_league_id bigint)": { anon: false, authenticated: true },
+  "competition_league_save(p_id bigint, p jsonb)": { anon: false, authenticated: true },
+  "competition_cancel(p_league_id bigint)": { anon: false, authenticated: true },
+  "competition_enter(p_league_id bigint, p_in boolean, p_handicap numeric)": { anon: false, authenticated: true },
+  "competition_mark_paid(p_league_id bigint, p_user_id uuid, p_how text)": { anon: false, authenticated: true },
+  "competition_draw(p_league_id bigint, p_groups jsonb)": { anon: false, authenticated: true },
+  "competition_arrange(p_match_id bigint, p_at timestamp with time zone, p_club_id bigint)": { anon: false, authenticated: true },
+  "competition_report(p_match_id bigint, p_winner text, p_margin text)": { anon: false, authenticated: true },
+  "competition_confirm(p_match_id bigint, p_winner text, p_margin text)": { anon: false, authenticated: true },
+  "competition_dispute(p_match_id bigint, p_note text)": { anon: false, authenticated: true },
+  "competition_resolve(p_match_id bigint, p_winner text, p_margin text, p_void boolean)": { anon: false, authenticated: true },
+  "competition_start_knockout(p_league_id bigint, p_bracket jsonb)": { anon: false, authenticated: true },
+  "competition_challenge(p_league_id bigint, p_opponent uuid)": { anon: false, authenticated: true },
+  "competition_after_result(p_match_id bigint)": { anon: false, authenticated: false },
+  "competition_alert(p_member uuid, p_type text, p_title text, p_body text, p_data jsonb, p_dedupe text)": { anon: false, authenticated: false },
+  "competition_organisers(p_league_id bigint)": { anon: false, authenticated: false },
+  "competition_settle_due()": { anon: false, authenticated: false },
+  "open_competition_share(p jsonb)": { anon: false, authenticated: true },
+  "open_competition_remove(p_id bigint)": { anon: false, authenticated: true },
+  "open_competition_set_source(p_id bigint, p_source text)": { anon: false, authenticated: true },
+  "open_partner_request_set(p_open_id bigint, p_on boolean, p_note text)": { anon: false, authenticated: true },
 };
 
 type ActualRow = { signature: string; anon: boolean; authenticated: boolean };
