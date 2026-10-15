@@ -50,6 +50,9 @@ export const EXPORT_SOURCES: readonly ExportSource[] = [
   { section: "favourite_clubs", table: "club_favourites", column: "member_id", about: "Clubs you follow." },
   { section: "courses_played", table: "member_courses", column: "member_id", about: "Courses you have played." },
   { section: "course_reviews", table: "course_reviews", column: "member_id", about: "Course reviews you wrote." },
+  { section: "my_bag", table: "member_bag", column: "member_id", about: "Your clubs and how far you said you hit them (My bag)." },
+  { section: "hole_tips", table: "hole_tips", column: "member_id", about: "Tips you left for holes (local knowledge)." },
+  { section: "hole_tip_votes", table: "hole_tip_votes", column: "member_id", about: "Tips you marked useful." },
 
   { section: "posts", table: "posts", column: "author_id", about: "Your posts." },
   { section: "comments", table: "post_comments", column: "author_id", about: "Your comments." },

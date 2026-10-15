@@ -212,6 +212,7 @@ function RootNavigator() {
       <Stack.Screen name="course/[id]" options={{ title: "Course", headerBackTitle: "Back" }} />
       <Stack.Screen name="course/review" options={{ presentation: "modal", title: "Rate & review" }} />
       <Stack.Screen name="rate-course" options={{ title: "Rate a course", headerBackTitle: "Back" }} />
+      <Stack.Screen name="my-bag" options={{ title: "My bag", headerBackTitle: "Back" }} />
       {/* Hole maps (0108): no swipe-back — dragging the map from the left
           edge would otherwise leave the screen mid-pan. */}
       {/* Full width: the satellite map uses the whole screen. */}
