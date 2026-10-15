@@ -1,6 +1,7 @@
 import Link from "next/link";
 
-import { ActionButton, buttonClass } from "@/components/society-console/forms";
+import { ActionButton } from "@/components/society-console/forms";
+import { buttonClass } from "@/components/society-console/styles";
 import { Card, Empty, PageHeader, Pill, Stat, Table, Td } from "@/components/society-console/ui";
 import { requireConsole } from "@/lib/society-console/access";
 import { billingSeason, loadMembershipSettings, loadMoney, loadPaymentClaims, seasonLabel, type PaymentClaim } from "@/lib/society-console/data";

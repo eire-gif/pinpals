@@ -1,4 +1,5 @@
-import { ActionButton, ConsoleForm, Field, SubmitButton, inputClass } from "@/components/society-console/forms";
+import { ActionButton, ConsoleForm, Field, SubmitButton } from "@/components/society-console/forms";
+import { inputClass } from "@/components/society-console/styles";
 import { Avatar, Card, PageHeader, Pill } from "@/components/society-console/ui";
 import { requireConsole } from "@/lib/society-console/access";
 import { loadMembers } from "@/lib/society-console/data";

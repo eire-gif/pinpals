@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import { Card, Empty, PageHeader, Pill, Stat } from "@/components/society-console/ui";
-import { buttonClass } from "@/components/society-console/forms";
+import { buttonClass } from "@/components/society-console/styles";
 import { requireConsole } from "@/lib/society-console/access";
 import { listEvents, listNotices, loadJoinRequests, loadPaymentClaims, type EventSummary } from "@/lib/society-console/data";
 import { feeLabel, irishToday, outingDateLabel } from "@/lib/society-console/outing-rules";

@@ -2,7 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 
-import { ActionButton, ConsoleForm, Field, SubmitButton, buttonClass, inputClass } from "@/components/society-console/forms";
+import { ActionButton, ConsoleForm, Field, SubmitButton } from "@/components/society-console/forms";
+import { buttonClass, inputClass } from "@/components/society-console/styles";
 import { Avatar, Card, Empty, PageHeader, Pill, Stat, Table, Td } from "@/components/society-console/ui";
 import { requireConsole } from "@/lib/society-console/access";
 import { loadEvent, type Guest, type QueueEntry } from "@/lib/society-console/data";

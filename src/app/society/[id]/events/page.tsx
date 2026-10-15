@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { buttonClass } from "@/components/society-console/forms";
+import { buttonClass } from "@/components/society-console/styles";
 import { Card, Empty, PageHeader, Pill, Tabs } from "@/components/society-console/ui";
 import { requireConsole } from "@/lib/society-console/access";
 import { listEvents } from "@/lib/society-console/data";

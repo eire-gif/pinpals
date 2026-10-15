@@ -1,4 +1,5 @@
-import { ConsoleForm, Field, SubmitButton, Toggle, inputClass } from "@/components/society-console/forms";
+import { ConsoleForm, Field, SubmitButton, Toggle } from "@/components/society-console/forms";
+import { inputClass } from "@/components/society-console/styles";
 import { Card, Empty, PageHeader, Table, Td } from "@/components/society-console/ui";
 import { requireConsole } from "@/lib/society-console/access";
 import { loadMembers, loadMeritRules, loadSeasonResults } from "@/lib/society-console/data";
