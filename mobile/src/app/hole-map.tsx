@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Alert, Modal, PanResponder, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Animated, Modal, PanResponder, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Stack, router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
@@ -42,7 +42,7 @@ import { arrowOnScreen, KMH_PER_MPH, playsLikeM, windLevel, windLine, windOnShot
 import { useKeyboardHeight, FORM_SCROLL_KEYBOARD } from "@/components/keyboard";
 import { clubDistanceM, clubInfo, likelyClubs, suggestClub, type BagClub } from "@/lib/bag";
 import { loadMyBag, loadShotClubs, loadWind, tagShotClub } from "@/lib/hole-extras";
-import { ClubTagRow, PlaysLikeRow, TipsBlock, WindChip, WindCredit, clubOrder } from "@/components/hole-map-extras";
+import { ClubTagRow, PlaysLikeRow, TipsBlock, WindChip, WindCredit, WindStream, clubOrder } from "@/components/hole-map-extras";
 import { addShot, loadCourseLayouts, loadRoundShots, saveHoleFix, shotKey, undoShot, type CourseLayout } from "@/lib/hole-maps";
 import { isSuperAdmin } from "@/lib/admin";
 import { osmLayoutPoints, outlinesNear, type OsmFeature } from "@/lib/osm-course";
@@ -89,6 +89,7 @@ const HAZARD_NAMES: Partial<Record<PointKind, string>> = {
 let rememberedUnit: Unit | null = null;
 let rememberedOutlines = true;
 let rememberedWindShow = false;
+let rememberedTucked = false;
 type ArcsMode = "off" | "50" | "clubs";
 let rememberedArcs: ArcsMode = "off";
 
@@ -155,6 +156,28 @@ export default function HoleMapScreen() {
   }, []);
   // The bottom sheet's height, so the hole is fitted above it, not under it.
   const [sheetH, setSheetH] = useState(220);
+  // Drag the sheet down to see more of the map (Oct 2026): it follows the
+  // finger and settles either open or tucked down to the hole and the
+  // three numbers. peekH: how much stays showing when it's down.
+  const [peekH, setPeekH] = useState(150);
+  const [tucked, setTucked] = useState(rememberedTucked);
+  const sheetY = useRef(new Animated.Value(0)).current;
+  const tuckBy = Math.max(0, sheetH - peekH);
+  const sheetRef = useRef({ tuckBy, tucked });
+  sheetRef.current = { tuckBy, tucked };
+  const settle = useCallback(
+    (down: boolean) => {
+      rememberedTucked = down;
+      setTucked(down);
+      Animated.spring(sheetY, { toValue: down ? sheetRef.current.tuckBy : 0, useNativeDriver: true, bounciness: 4, speed: 16 }).start();
+    },
+    [sheetY]
+  );
+  // Keep it tucked by the right amount when the sheet's size changes.
+  useEffect(() => {
+    sheetY.setValue(tucked ? tuckBy : 0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tuckBy]);
 
   // ---- Location: watched while the screen is open, only once allowed ----
   const [fix, setFix] = useState<Fix | null>(null);
@@ -411,19 +434,18 @@ export default function HoleMapScreen() {
             }
           : null,
       arcs,
-      windFx,
       greenLine:
         !aim && origin && geo.greenCentre && toGreenFromOrigin?.centre != null ? { origin: origin.point, label: `${fmt(toGreenFromOrigin.centre)} ${u}` } : null,
       hole,
       showOutlines,
-      inset: { top: insets.top + 80, bottom: sheetH + 30 },
+      inset: { top: insets.top + 80, bottom: (tucked ? peekH : sheetH) + 30 },
       // The view moves when the hole or course changes, or the first time
       // the member's position arrives — never on every GPS tick.
       outlines: shapes ? outlinesNear(shapes, frame.points.length ? frame.points : clubAt ? [clubAt] : []) : [],
       frameKey: `${layout?.id ?? "none"}-${hole}-${fix ? "fix" : "nofix"}-${geo.mapped ? "m" : "u"}`,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [geo, mappedGeo, zone, fix, course, ends, aim?.lat, aim?.lng, origin?.point, unit, layout?.id, hole, shapes, showOutlines, sheetH, insets.top, arcs, windFx?.deg, windFx?.level]);
+  }, [geo, mappedGeo, zone, fix, course, ends, aim?.lat, aim?.lng, origin?.point, unit, layout?.id, hole, shapes, showOutlines, sheetH, insets.top, arcs, tucked, peekH]);
 
   // ---- Shots ----
   const player = round?.players.find((p) => p.id === playerId) ?? null;
@@ -491,17 +513,38 @@ export default function HoleMapScreen() {
   // Swipe the bottom sheet sideways for the next or previous hole.
   const holeRef = useRef({ hole, holeCount });
   holeRef.current = { hole, holeCount };
+  const gesture = useRef<"hole" | "sheet" | null>(null);
   const swipe = useMemo(
     () =>
       PanResponder.create({
-        onMoveShouldSetPanResponder: (_e, g) => Math.abs(g.dx) > 24 && Math.abs(g.dx) > Math.abs(g.dy) * 2,
+        onMoveShouldSetPanResponder: (_e, g) =>
+          (Math.abs(g.dx) > 24 && Math.abs(g.dx) > Math.abs(g.dy) * 2) || (Math.abs(g.dy) > 8 && Math.abs(g.dy) > Math.abs(g.dx) * 1.5),
+        onPanResponderGrant: (_e, g) => {
+          gesture.current = Math.abs(g.dy) > Math.abs(g.dx) ? "sheet" : "hole";
+        },
+        onPanResponderMove: (_e, g) => {
+          if (gesture.current !== "sheet") return;
+          const { tuckBy: by, tucked: down } = sheetRef.current;
+          sheetY.setValue(Math.max(0, Math.min(by, (down ? by : 0) + g.dy)));
+        },
         onPanResponderRelease: (_e, g) => {
-          const { hole: h, holeCount: n } = holeRef.current;
-          if (g.dx < -60 && h < n) setHole(h + 1);
-          else if (g.dx > 60 && h > 1) setHole(h - 1);
+          if (gesture.current === "sheet") {
+            const { tuckBy: by, tucked: down } = sheetRef.current;
+            const at = (down ? by : 0) + g.dy;
+            settle(g.vy > 0.4 ? true : g.vy < -0.4 ? false : at > by / 2);
+          } else {
+            const { hole: h, holeCount: n } = holeRef.current;
+            if (g.dx < -60 && h < n) setHole(h + 1);
+            else if (g.dx > 60 && h > 1) setHole(h - 1);
+          }
+          gesture.current = null;
+        },
+        onPanResponderTerminate: () => {
+          if (gesture.current === "sheet") settle(sheetRef.current.tucked);
+          gesture.current = null;
         },
       }),
-    []
+    [sheetY, settle]
   );
 
   const switchUnit = () => {
@@ -544,6 +587,8 @@ export default function HoleMapScreen() {
       <View style={StyleSheet.absoluteFill}>
         <HoleMapView ref={mapRef} scene={scene} onTap={setTap} onTee={moveTee} onPin={movePin} />
       </View>
+      {/* The wind across the map: over the photo, under every button. */}
+      {windFx ? <WindStream deg={windFx.deg} level={windFx.level} /> : null}
 
       {/* Over the map, top: back, the course, and the map's own buttons. */}
       <View style={[styles.topBar, { top: insets.top + 6 }]} pointerEvents="box-none">
@@ -633,7 +678,20 @@ export default function HoleMapScreen() {
       ) : null}
 
       {/* Over the map, bottom: the hole and the three numbers. Swipe for the next hole. */}
-      <View style={[styles.sheet, { paddingBottom: insets.bottom + 10 }]} onLayout={(e) => setSheetH(e.nativeEvent.layout.height)} {...swipe.panHandlers}>
+      <Animated.View
+        style={[styles.sheet, { paddingBottom: insets.bottom + 10, transform: [{ translateY: sheetY }] }]}
+        onLayout={(e) => setSheetH(e.nativeEvent.layout.height)}
+        {...swipe.panHandlers}
+      >
+        <Pressable
+          onPress={() => settle(!tucked)}
+          hitSlop={{ top: 10, bottom: 6, left: 60, right: 60 }}
+          style={styles.handleHit}
+          accessibilityRole="button"
+          accessibilityLabel={tucked ? "Show the rest of the panel" : "Tuck the panel down to see more of the map"}
+        >
+          <View style={styles.handle} />
+        </Pressable>
         {!geo.mapped ? (
           <Text style={styles.notMappedText}>
             {shapes === null ? "Loading the course… " : layout || osmPoints.length ? "This hole isn't mapped yet. " : "This course isn't mapped yet. "}
@@ -652,7 +710,7 @@ export default function HoleMapScreen() {
           <MapButton icon="chevron-forward" label="Next hole" disabled={hole >= holeCount} onPress={() => setHole(hole + 1)} flat />
         </View>
 
-        <View style={styles.greenRow}>
+        <View style={styles.greenRow} onLayout={(e) => setPeekH(Math.round(e.nativeEvent.layout.y + e.nativeEvent.layout.height + 12))}>
           <Yardage label="Front" value={geo.mapped && greens ? fmt(greens.front) : "–"} />
           <Yardage
             label={movedPin ? "Pin" : "Centre"}
@@ -721,7 +779,7 @@ export default function HoleMapScreen() {
             ) : null}
           </View>
         ) : null}
-      </View>
+      </Animated.View>
 
       <Modal visible={detailsOpen} transparent animationType="slide" onRequestClose={() => setDetailsOpen(false)}>
         <Pressable style={styles.backdrop} onPress={() => setDetailsOpen(false)} accessibilityRole="button" accessibilityLabel="Close" />
@@ -973,10 +1031,12 @@ const styles = StyleSheet.create({
     backgroundColor: SHEET,
     borderTopLeftRadius: 22,
     borderTopRightRadius: 22,
-    paddingTop: 8,
+    paddingTop: 2,
     paddingHorizontal: spacing.md,
     gap: 6,
   },
+  handleHit: { alignSelf: "center", paddingVertical: 4, paddingHorizontal: 20 },
+  handle: { width: 40, height: 5, borderRadius: 3, backgroundColor: creamAlpha(0.35) },
   notMappedText: { fontFamily: fonts.body, fontSize: 13, lineHeight: 18, color: creamAlpha(0.85), textAlign: "center", paddingTop: 4 },
   holeRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   holeMid: { alignItems: "center", flex: 1 },
