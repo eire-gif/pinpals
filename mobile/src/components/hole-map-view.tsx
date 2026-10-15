@@ -49,9 +49,6 @@ export type MapScene = {
   /** Distance arcs (Oct 2026): rings across the line of play, each labelled
    *  at its right-hand end ("150", or a club: "7i"). */
   arcs?: Array<{ points: LatLng[]; end: LatLng; label: string }>;
-  /** The wind blowing across the screen, when the member taps the wind:
-   *  deg = screen degrees clockwise from up (where it blows to); level 1–3. */
-  windFx?: { deg: number; level: 1 | 2 | 3 } | null;
   /** Which hole's OSM line to draw (the others are left off: clutter). */
   hole: number;
   /** Outlines on or off (the layers button). */

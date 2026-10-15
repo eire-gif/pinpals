@@ -1177,7 +1177,7 @@ export const GUIDES: Guide[] = [
         title: "Read your numbers",
         body: "The panel at the bottom gives the distance to the Front, Centre and Back of the green. Within 750 m of the green they're measured from you, using your phone's GPS; further away, from the tee. Standing at your ball, the line under the numbers also says how far you are from the tee — your drive. Distances on the map stay on screen as you zoom in.",
         art: "holeNumbers",
-        tip: "Tap yds to switch to metres.",
+        tip: "Drag the panel down to see more of the map — the hole and the three numbers stay. Drag it up, or tap the handle, to bring the rest back. Tap yds to switch to metres.",
       },
       {
         title: "Set today's pin and your tee",
@@ -1611,6 +1611,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-15", text: "Hole map: drag the bottom panel down to see more of the map; the wind now blows across the whole screen." },
   { on: "2026-10-15", text: "Hole map: tap the wind to see it blowing across the map (one to three chevrons for its strength); distance labels stay on screen when you zoom in; how far you are from the tee shows under the numbers." },
   { on: "2026-10-15", text: "Hole map: new steps — Check the wind (arrow, speed, Plays like), Get a club for the shot (My bag), Show distance arcs, Local knowledge tips in Hazards and more, and Which club? after Mark shot." },
   { on: "2026-10-15", text: "Hole map: no change to the member steps — the new Save for everyone button (cloud) shows only for super admins, to keep a corrected flag or tee." },

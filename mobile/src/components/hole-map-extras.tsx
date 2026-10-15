@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Alert, Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ActivityIndicator, Alert, Animated, Easing, Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { CLUBS, clubInfo, type BagClub, type Suggestion } from "@/lib/bag";
@@ -61,6 +61,68 @@ export function WindChip({
         <Text style={styles.windHint}>{showing ? "Tap to hide" : "Tap to see it blow"}</Text>
       </View>
     </Pressable>
+  );
+}
+
+/**
+ * The wind blowing across the whole map (Oct 2026): chevrons drifting the
+ * way the wind is going — one light (white), two moderate (gold), three
+ * strong (coral), more of them and faster the stronger it is. Drawn by the
+ * app over the map (not inside the map's web page), so it covers the whole
+ * screen on every phone. Taps go straight through to the map.
+ */
+export function WindStream({ deg, level }: { deg: number; level: 1 | 2 | 3 }) {
+  const { width, height } = useWindowDimensions();
+  // A square big enough to cover the screen at any angle.
+  const side = Math.ceil(Math.hypot(width, height)) + 60;
+  const travel = side / 3;
+  const t = useRef(new Animated.Value(0)).current;
+  const duration = level === 1 ? 6500 : level === 2 ? 4500 : 3000;
+  useEffect(() => {
+    t.setValue(0);
+    const loop = Animated.loop(Animated.timing(t, { toValue: 1, duration, easing: Easing.linear, useNativeDriver: true }));
+    loop.start();
+    return () => loop.stop();
+  }, [t, duration]);
+  const n = level === 1 ? 22 : level === 2 ? 32 : 44;
+  const colour = level === 3 ? "#ff8a6b" : level === 2 ? colors.gold400 : colors.cream50;
+  const arrows = useMemo(
+    () =>
+      Array.from({ length: n }, (_, i) => {
+        const phase = ((i * 0.37) % 1 + 1) % 1;
+        // Where this arrow is in its run, 0→1, wrapping round.
+        const q = t.interpolate({ inputRange: [0, 1 - phase, Math.min(1, 1 - phase + 0.0001), 1], outputRange: [phase, 1, 0, phase] });
+        return {
+          key: i,
+          left: ((i * 37) % 100) / 100 * side,
+          top: ((i * 61) % 100) / 100 * side,
+          translateY: q.interpolate({ inputRange: [0, 1], outputRange: [0, -travel] }),
+          opacity: q.interpolate({ inputRange: [0, 0.12, 0.8, 1], outputRange: [0, 0.85, 0.85, 0] }),
+        };
+      }),
+    [n, side, travel, t]
+  );
+  return (
+    <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+      <View
+        style={{
+          position: "absolute",
+          width: side,
+          height: side,
+          left: (width - side) / 2,
+          top: (height - side) / 2,
+          transform: [{ rotate: `${deg}deg` }],
+        }}
+      >
+        {arrows.map((a) => (
+          <Animated.View key={a.key} style={{ position: "absolute", left: a.left, top: a.top, opacity: a.opacity, transform: [{ translateY: a.translateY }], alignItems: "center" }}>
+            {Array.from({ length: level }).map((_, i) => (
+              <Ionicons key={i} name="chevron-up" size={22} color={colour} style={[styles.windShadow, i > 0 ? { marginTop: -13 } : null]} />
+            ))}
+          </Animated.View>
+        ))}
+      </View>
+    </View>
   );
 }
 
@@ -303,6 +365,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: "transparent",
   },
+  windShadow: { textShadowColor: "rgba(0,0,0,0.75)", textShadowRadius: 3, textShadowOffset: { width: 0, height: 0 } },
   windHint: { fontFamily: fonts.body, fontSize: 10.5, color: creamAlpha(0.6) },
   windDisc: { width: 38, height: 38, borderRadius: 19, backgroundColor: colors.cream50, alignItems: "center", justifyContent: "center" },
   windSpeed: { fontFamily: fonts.bodyBold, fontSize: 16, color: colors.cream50 },
