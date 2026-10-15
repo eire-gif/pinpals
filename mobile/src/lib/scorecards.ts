@@ -190,24 +190,11 @@ export type TeeCard = {
 };
 
 export async function loadTeeCards(clubId: number): Promise<TeeCard[]> {
-  const { data, error } = await supabase
-    .from("course_cards")
-    .select("tee_name, holes, par_total, course_rating, slope, verified_at, course_card_holes (hole, par, stroke_index, yards)")
-    .eq("club_id", clubId)
-    .order("tee_name")
-    .overrideTypes<
-      {
-        tee_name: string;
-        holes: number;
-        par_total: number | null;
-        course_rating: number | string | null;
-        slope: number | null;
-        verified_at: string | null;
-        course_card_holes: { hole: number; par: number; stroke_index: number; yards: number | null }[];
-      }[]
-    >();
+  // One club per call, through 0149's function: the tables themselves are
+  // closed (0150, golfapi terms — no copying the whole set out).
+  const { data, error } = await supabase.rpc("course_cards_for_club", { p_club_id: clubId });
   if (error) throw error;
-  return (data ?? []).map((c) => ({
+  return ((data ?? []) as ClubCardRow[]).map((c) => ({
     teeName: c.tee_name,
     holes: c.holes === 9 ? 9 : 18,
     parTotal: c.par_total,
@@ -219,6 +206,18 @@ export async function loadTeeCards(clubId: number): Promise<TeeCard[]> {
       .map((h) => ({ hole: h.hole, par: h.par, strokeIndex: h.stroke_index, yards: h.yards ?? null, strokes: null, putts: null })),
   }));
 }
+
+/** A card as course_cards_for_club (0149) returns it. */
+export type ClubCardRow = {
+  id: number;
+  tee_name: string;
+  holes: number;
+  par_total: number | null;
+  course_rating: number | string | null;
+  slope: number | null;
+  verified_at: string | null;
+  course_card_holes: { hole: number; par: number; stroke_index: number; yards: number | null }[];
+};
 
 // ---------------------------------------------------------------------------
 // The handicap indicator (0122): your own, from your last 20 scorecards

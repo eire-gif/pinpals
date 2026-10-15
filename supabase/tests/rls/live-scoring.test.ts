@@ -335,12 +335,17 @@ describe("course cards", () => {
       await rejects(c, "select public.course_card_save($1, 'White', 18::smallint, 72::smallint, null, null, $2::jsonb)", [clubId, bad], /own stroke index/);
       await save(c, clubId, card(18, true));
 
+      // Read one club at a time through course_cards_for_club (0149); the
+      // tables themselves are closed to members (0150).
       await as(c, STRANGER);
-      const { rows } = await c.query(
-        "select cc.source, cc.submitted_by, count(h.*)::int as holes from public.course_cards cc join public.course_card_holes h on h.card_id = cc.id where cc.club_id = $1 group by cc.id",
-        [clubId],
+      const { rows } = await c.query("select public.course_cards_for_club($1) as cards", [clubId]);
+      expect(rows[0].cards).toHaveLength(1);
+      expect(rows[0].cards[0]).toMatchObject({ tee_name: "White", holes: 18 });
+      expect(rows[0].cards[0].course_card_holes).toHaveLength(18);
+      const who = await asService(c, () =>
+        c.query("select cc.source, cc.submitted_by from public.course_cards cc where cc.club_id = $1", [clubId]),
       );
-      expect(rows).toEqual([{ source: "member", submitted_by: ME, holes: 18 }]);
+      expect(who.rows).toEqual([{ source: "member", submitted_by: ME }]);
     });
   });
 
@@ -373,6 +378,29 @@ describe("course cards", () => {
       const clubId = await club(c);
       await as(c, ME);
       await rejects(c, "insert into public.course_cards (club_id, tee_name, holes) values ($1, 'Blue', 18)", [clubId], /permission denied/);
+    });
+  });
+
+  // 0149/0150 — golfapi.io's terms: no copying the whole set of cards out.
+  it("no direct reads: the tables are closed, cards come one club at a time", async () => {
+    await withRole("authenticated", ME, async (c) => {
+      const clubId = await club(c);
+      await as(c, ME);
+      await save(c, clubId, card(18, true));
+      await rejects(c, "select * from public.course_cards", [], /permission denied/);
+      await rejects(c, "select * from public.course_card_holes", [], /permission denied/);
+      const { rows } = await c.query("select jsonb_array_length(public.course_cards_for_club($1)) as n", [clubId]);
+      expect(rows[0].n).toBe(1);
+      const none = await c.query("select public.course_cards_for_club(-1) as cards");
+      expect(none.rows[0].cards).toEqual([]);
+    });
+  });
+
+  it("signed-out callers get nothing", async () => {
+    await withRole("authenticated", ME, async (c) => {
+      const clubId = await club(c);
+      await c.query("select set_config('request.jwt.claim.sub', '', true)");
+      await rejects(c, "select public.course_cards_for_club($1)", [clubId], /Sign in/);
     });
   });
 });
