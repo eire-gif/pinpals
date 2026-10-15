@@ -3,7 +3,8 @@ import Link from "next/link";
 import { countCoursesByCountry } from "@/lib/courses";
 import { createClient } from "@/lib/supabase/server";
 import type { ReactNode } from "react";
-import { AppTrio, LiveScoringPhones, TripPhone } from "@/components/home/app-screens";
+import { AppTrio, TripPhone } from "@/components/home/app-screens";
+import { Avatar, Chip, Eyebrow, FeatureTile, MiniPodium, MiniScorecard } from "@/components/home/feature-previews";
 
 export default async function HomePage() {
   // The hero's buttons depend on whether whoever is reading has an account
@@ -132,141 +133,224 @@ export default async function HomePage() {
 </section>
 
 
-<section style={{ padding: "120px 0 110px" }} id="features">
-<div className="max-w-[1240px] mx-auto px-5 md:px-10 box-border" style={{ display: "flex", flexDirection: "column", gap: "56px" }}>
-<div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: "30px", flexWrap: "wrap" }}>
-<div style={{ maxWidth: "640px", display: "flex", flexDirection: "column", gap: "16px" }}>
-<div style={{ fontWeight: "600", fontSize: "13px", letterSpacing: ".18em", textTransform: "uppercase", color: "#D9AE4A" }}>Everything in the app</div>
-<h2 className="font-display text-4xl md:text-[52px]" style={{ margin: "0", lineHeight: "1.08", fontWeight: "600", color: "#fff" }}>One app for the whole golfing year.</h2>
-</div>
-<p style={{ margin: "0", maxWidth: "420px", fontSize: "17px", lineHeight: "1.6", color: "#B9C3D3" }}>From the first tee time of spring to the trip away in autumn: eight things PinPals does for you and the people you play with.</p>
-</div>
+{/* FEATURES — eight tiles, each with a small, real-looking piece of the app.
+          Every preview sits in the same 200px window so the headings line up. */}
+      <section id="features" className="py-24 md:py-28">
+        <div className="max-w-[1240px] mx-auto px-5 md:px-10">
+          <div className="flex flex-wrap items-end justify-between gap-8">
+            <div className="max-w-[640px] flex flex-col gap-4">
+              <Eyebrow>Everything in the app</Eyebrow>
+              <h2 className="font-display font-semibold text-4xl md:text-[52px] leading-[1.08] text-white">
+                One app for the whole golfing year.
+              </h2>
+            </div>
+            <p className="max-w-[420px] text-[17px] leading-relaxed text-[#B9C3D3]">
+              From the first tee time of spring to the trip away in autumn: eight things PinPals does for
+              you and the people you play with.
+            </p>
+          </div>
 
-<div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(270px,1fr))", gap: "22px" }}>
+          <div className="mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+            <FeatureTile
+              title="Societies"
+              body="Captain and secretary run the show: members, events, entry fees, waiting lists and society handicaps."
+            >
+              <div className="h-full p-5 flex flex-col justify-between">
+                <div className="flex items-center gap-3">
+                  <span className="font-display font-bold w-12 h-12 rounded-full bg-gold-400 text-navy-900 flex items-center justify-center shrink-0">
+                    PGS
+                  </span>
+                  <span>
+                    <span className="block font-bold text-[15px]">Portmarnock GS</span>
+                    <span className="block text-xs text-[#9AA8BE]">Society · 42 members</span>
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Chip tone="gold">Captain</Chip>
+                  <Chip tone="navy">Secretary</Chip>
+                  <Chip tone="navy">Handicaps</Chip>
+                </div>
+                <div className="rounded-xl bg-[#13284A] px-3 py-2.5 text-[13px] flex items-center justify-between gap-3">
+                  <span>
+                    <span className="block font-semibold">Old Head · Sat 8 Nov</span>
+                    <span className="block text-[#9AA8BE] text-xs">Waiting list: 3</span>
+                  </span>
+                  <Chip tone="green">28 / 32</Chip>
+                </div>
+              </div>
+            </FeatureTile>
 
+            <FeatureTile
+              title="Scorecards"
+              body="Enter your handicap once; points come from each hole’s stroke index. A playing partner certifies the card with Face ID."
+            >
+              <MiniScorecard />
+            </FeatureTile>
 
-<article style={{ background: "#11264A", border: "1px solid rgba(255,255,255,.09)", borderRadius: "24px", padding: "26px", display: "flex", flexDirection: "column", gap: "18px", color: "#F2ECE0" }}>
-<div style={{ background: "#0B1A33", borderRadius: "16px", padding: "16px", border: "1px solid rgba(255,255,255,.06)", minHeight: "150px", boxSizing: "border-box", display: "flex", flexDirection: "column", gap: "12px" }}>
-<div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
-<div className="font-display" style={{ width: "46px", height: "46px", borderRadius: "50%", background: "#D9AE4A", color: "#0A1628", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: "700", fontSize: "16px" }}>PGS</div>
-<div><div style={{ fontWeight: "700", fontSize: "15px" }}>Portmarnock GS</div><div style={{ fontSize: "12px", color: "#9AA8BE" }}>Society · 42 members</div></div>
-</div>
-<div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}><span style={{ display: "inline-flex", alignItems: "center", gap: "6px", borderRadius: "999px", fontWeight: "600", background: "#20385E", color: "#E6C46A" }}>Captain</span><span style={{ display: "inline-flex", alignItems: "center", gap: "6px", borderRadius: "999px", fontWeight: "600", background: "#20385E", color: "#C8D0DD" }}>Secretary</span><span style={{ display: "inline-flex", alignItems: "center", gap: "6px", borderRadius: "999px", fontWeight: "600", background: "#173A2A", color: "#7BE08F" }}>Next: 8 Nov</span></div>
-</div>
-<div><h3 className="font-display" style={{ margin: "0 0 6px", fontSize: "24px", fontWeight: "600" }}>Societies</h3><p style={{ margin: "0", fontSize: "15px", lineHeight: "1.55", color: "#B9C3D3" }}>Captain and secretary run the show: members, events, entry fees, waiting lists and society handicaps.</p></div>
-</article>
+            <FeatureTile
+              title="Hole overview"
+              body="Satellite view of every hole with GPS yardages to the green and hazards, and your shots marked as you go."
+            >
+              <Image
+                src="/images/app/hole-map.jpg"
+                alt="Hole map in the app: satellite view of Portmarnock Links hole 1 with yardages to the aim circle and green"
+                fill
+                sizes="(max-width: 640px) 90vw, (max-width: 1024px) 45vw, 240px"
+                className="object-cover"
+                style={{ objectPosition: "50% 33%" }}
+              />
+            </FeatureTile>
 
+            <FeatureTile
+              title="Results"
+              body="1st, 2nd and 3rd the moment the last card is in, with countbacks shown in full. Any change is marked “Amended”."
+            >
+              <MiniPodium />
+            </FeatureTile>
 
-<article style={{ background: "#11264A", border: "1px solid rgba(255,255,255,.09)", borderRadius: "24px", padding: "26px", display: "flex", flexDirection: "column", gap: "18px", color: "#F2ECE0" }}>
-<div style={{ background: "#0B1A33", borderRadius: "16px", padding: "16px", border: "1px solid rgba(255,255,255,.06)", minHeight: "150px", boxSizing: "border-box" }}>
-<div style={{ display: "grid", gridTemplateColumns: "repeat(10,minmax(0,1fr))", gap: "3px", fontSize: "11px", textAlign: "center" }}>
-<span style={{ color: "#8D9BB2" }}>H</span><span style={{ color: "#8D9BB2" }}>1</span><span style={{ color: "#8D9BB2" }}>2</span><span style={{ color: "#8D9BB2" }}>3</span><span style={{ color: "#8D9BB2" }}>4</span><span style={{ color: "#8D9BB2" }}>5</span><span style={{ color: "#8D9BB2" }}>6</span><span style={{ color: "#8D9BB2" }}>7</span><span style={{ color: "#8D9BB2" }}>8</span><span style={{ color: "#8D9BB2" }}>9</span>
-<span style={{ color: "#8D9BB2" }}>Pts</span><span>2</span><span style={{ background: "#D9AE4A", color: "#0A1628", borderRadius: "50%", fontWeight: "700" }}>3</span><span>2</span><span>1</span><span>2</span><span>2</span><span>0</span><span>2</span><span>3</span>
-</div>
-<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "16px" }}>
-<span style={{ fontSize: "13px", color: "#9AA8BE" }}>Out <b className="font-display" style={{ fontSize: "22px", color: "#fff", marginLeft: "6px" }}>17</b> pts</span>
-<span style={{ display: "inline-flex", alignItems: "center", gap: "6px", borderRadius: "999px", fontWeight: "600", background: "#173A2A", color: "#7BE08F" }}>✓ Certified</span>
-</div>
-</div>
-<div><h3 className="font-display" style={{ margin: "0 0 6px", fontSize: "24px", fontWeight: "600" }}>Scorecards</h3><p style={{ margin: "0", fontSize: "15px", lineHeight: "1.55", color: "#B9C3D3" }}>Enter your handicap once; points come from each hole&rsquo;s stroke index. A playing partner certifies the card with Face ID.</p></div>
-</article>
+            <FeatureTile
+              title="Social"
+              body="A feed of rounds, photos and banter from your pals, plus group chat for every crew, society and trip."
+            >
+              <div className="h-full p-4 flex flex-col gap-3">
+                <div className="flex items-center gap-2.5 text-[13px]">
+                  <Avatar initials="TB" colour="#7BE08F" />
+                  <span>
+                    <b>Tom</b> <span className="text-[#9AA8BE]">at Old Head</span>
+                  </span>
+                </div>
+                <div className="relative flex-1 rounded-xl overflow-hidden">
+                  <Image src="/images/old-head-kinsale.jpg" alt="" fill sizes="240px" className="object-cover" />
+                </div>
+                <div className="flex gap-4 text-xs text-[#9AA8BE]">
+                  <span>♥ 24</span>
+                  <span>8 comments</span>
+                  <span>34 pts</span>
+                </div>
+              </div>
+            </FeatureTile>
 
+            <FeatureTile
+              title="Buy & sell"
+              body="List the clubs gathering dust in minutes. Buyers pay through PinPals and the money is held until they have the item."
+            >
+              <div className="h-full p-4 grid grid-cols-2 gap-3">
+                {[
+                  ["Driver", "10.5° · Stiff", "€180"],
+                  ["Irons", "5–PW · Reg", "€320"],
+                ].map(([item, spec, price]) => (
+                  <div key={item} className="rounded-xl bg-[#13284A] p-2.5 flex flex-col text-xs">
+                    <span className="flex-1 rounded-lg bg-[#1E3A60] flex items-center justify-center text-[#9AA8BE] font-semibold">
+                      {item}
+                    </span>
+                    <span className="mt-2">{spec}</span>
+                    <b className="font-display text-lg text-gold-400">{price}</b>
+                  </div>
+                ))}
+              </div>
+            </FeatureTile>
 
-<article style={{ background: "#11264A", border: "1px solid rgba(255,255,255,.09)", borderRadius: "24px", padding: "26px", display: "flex", flexDirection: "column", gap: "18px", color: "#F2ECE0" }}>
-<div style={{ background: "#0B1A33", borderRadius: "16px", padding: "12px 16px", border: "1px solid rgba(255,255,255,.06)", minHeight: "150px", boxSizing: "border-box", display: "flex", gap: "14px", alignItems: "center" }}>
-<svg width="74" height="128" viewBox="0 0 74 128" role="img" aria-label="Hole map with yardages">
-<rect width="74" height="128" rx="10" fill="#244A2A"></rect>
-<path d="M30 118 C24 90 40 70 34 50 C30 36 44 26 40 16" stroke="#5DA34E" strokeWidth="18" fill="none" strokeLinecap="round"></path>
-<circle cx="40" cy="15" r="10" fill="#8AD07A"></circle>
-<ellipse cx="54" cy="24" rx="6" ry="4" fill="#E9DDAF"></ellipse>
-<ellipse cx="22" cy="62" rx="6" ry="4" fill="#E9DDAF"></ellipse>
-<rect x="25" y="114" width="10" height="6" rx="2" fill="#D9AE4A"></rect>
-<path d="M30 116 L35 64 L40 16" stroke="#fff" strokeWidth="1.4" strokeDasharray="3 3" fill="none"></path>
-<circle cx="35" cy="64" r="3" fill="#fff"></circle>
-</svg>
-<div style={{ display: "flex", flexDirection: "column", gap: "8px", fontSize: "13px" }}>
-<div><span style={{ color: "#9AA8BE" }}>Hole 7 · Par 4</span></div>
-<div><b className="font-display" style={{ fontSize: "26px", color: "#fff" }}>162</b> <span style={{ color: "#9AA8BE" }}>to green</span></div>
-<div style={{ color: "#9AA8BE" }}>Front 151 · Back 174</div>
-</div>
-</div>
-<div><h3 className="font-display" style={{ margin: "0 0 6px", fontSize: "24px", fontWeight: "600" }}>Hole overview</h3><p style={{ margin: "0", fontSize: "15px", lineHeight: "1.55", color: "#B9C3D3" }}>Satellite view of every hole with GPS yardages to the green and hazards, and your shots marked as you go.</p></div>
-</article>
+            <FeatureTile
+              title="Groups"
+              body="Start a crew with your four-ball, book rounds weeks ahead and fill an empty spot by offering the tee time to members."
+            >
+              <div className="h-full p-5 flex flex-col justify-between">
+                <div className="flex flex-wrap gap-2">
+                  <Chip tone="gold">Crews</Chip>
+                  <Chip tone="navy">Societies</Chip>
+                  <Chip tone="navy">Trips</Chip>
+                </div>
+                <div>
+                  <span className="block font-bold text-[15px]">Saturday Swingers</span>
+                  <span className="block text-xs text-[#9AA8BE]">Round booked · Sat 7:42</span>
+                </div>
+                <div className="flex items-center">
+                  <Avatar initials="EM" colour="#E8C46B" />
+                  <Avatar initials="TB" colour="#7BE08F" overlap />
+                  <Avatar initials="CR" colour="#9AB8E6" overlap />
+                  <Avatar initials="+1" colour="#E6A08A" overlap />
+                  <span className="ml-3 text-xs text-[#9AA8BE]">Four-ball full</span>
+                </div>
+              </div>
+            </FeatureTile>
 
+            <FeatureTile
+              title="Trips away"
+              body="A full day-by-day itinerary: flights, hotel, courses and start times, with payment details for the organiser."
+            >
+              <div className="h-full p-5 flex flex-col justify-between text-[13px]">
+                {[
+                  ["Fri", "Fly DUB → FAO", "07:10"],
+                  ["Sat", "Quinta South · first tee", "09:20"],
+                  ["Sun", "Second round", "10:00"],
+                ].map(([day, what, time]) => (
+                  <div key={day} className="grid grid-cols-[36px_1fr_auto] gap-2 items-baseline">
+                    <b className="text-gold-500">{day}</b>
+                    <span>{what}</span>
+                    <span className="text-[#9AA8BE]">{time}</span>
+                  </div>
+                ))}
+                <div className="flex items-center justify-between border-t border-white/10 pt-3 text-xs">
+                  <span className="text-[#9AA8BE]">8 golfers · 3 nights</span>
+                  <Chip tone="green">Pay via Revolut</Chip>
+                </div>
+              </div>
+            </FeatureTile>
+          </div>
+        </div>
+      </section>
 
-<article style={{ background: "#11264A", border: "1px solid rgba(255,255,255,.09)", borderRadius: "24px", padding: "26px", display: "flex", flexDirection: "column", gap: "18px", color: "#F2ECE0" }}>
-<div style={{ background: "#0B1A33", borderRadius: "16px", padding: "16px", border: "1px solid rgba(255,255,255,.06)", minHeight: "150px", boxSizing: "border-box", display: "flex", alignItems: "flex-end", justifyContent: "center", gap: "10px", paddingBottom: "0" }}>
-<div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "6px", fontSize: "12px" }}><span>Ciarán · 36</span><div style={{ width: "64px", height: "54px", background: "#9AA8BE", color: "#0A1628", borderRadius: "8px 8px 0 0", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: "700" }}>2nd</div></div>
-<div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "6px", fontSize: "12px" }}><span style={{ color: "#E6C46A", fontWeight: "700" }}>Eire · 38</span><div style={{ width: "64px", height: "80px", background: "#D9AE4A", color: "#0A1628", borderRadius: "8px 8px 0 0", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: "700" }}>1st</div></div>
-<div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "6px", fontSize: "12px" }}><span>Ruth · 36*</span><div style={{ width: "64px", height: "40px", background: "#B07A4A", color: "#0A1628", borderRadius: "8px 8px 0 0", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: "700" }}>3rd</div></div>
-</div>
-<div><h3 className="font-display" style={{ margin: "0 0 6px", fontSize: "24px", fontWeight: "600" }}>Results</h3><p style={{ margin: "0", fontSize: "15px", lineHeight: "1.55", color: "#B9C3D3" }}>1st, 2nd and 3rd the moment the last card is in, with countbacks shown in full. Any change is marked &ldquo;Amended&rdquo;.</p></div>
-</article>
+      {/* LIVE SCORING — the clubhouse TV board, full width. Sample data; the
+          QR code on it points at pinpals.ie. */}
+      <section className="bg-[#0E1F3B] py-24 md:py-28 border-t border-white/5">
+        <div className="max-w-[1240px] mx-auto px-5 md:px-10">
+          <div className="flex flex-wrap items-end justify-between gap-10">
+            <div className="max-w-[620px] flex flex-col gap-5">
+              <Eyebrow>Live scoring</Eyebrow>
+              <h2 className="font-display font-semibold text-4xl md:text-[52px] leading-[1.08] text-white">
+                Score it live.
+                <br />
+                Watch it from the bar.
+              </h2>
+              <p className="text-lg leading-relaxed text-[#C8D0DD]">
+                Pick a format, tee it up, and every card feeds one live leaderboard. Put it on the clubhouse
+                TV and the room lights up when someone makes a birdie.
+              </p>
+            </div>
+            <ol className="max-w-[440px] flex flex-col gap-3.5">
+              {[
+                "Stableford, stroke play, matchplay, Scotch foursomes and scrambles",
+                "Shots and points worked out from your handicap and each hole’s index",
+                "A TV board for the clubhouse, with side prizes and a QR code to follow on your phone",
+              ].map((line, i) => (
+                <li key={line} className="flex gap-3.5 text-base leading-snug text-[#E8E2D4]">
+                  <span className="text-gold-500 font-bold w-6 shrink-0">0{i + 1}</span>
+                  {line}
+                </li>
+              ))}
+            </ol>
+          </div>
 
+          <figure className="mt-14">
+            <div className="rounded-[20px] md:rounded-[28px] bg-[#05080D] p-2 md:p-4 shadow-[0_40px_90px_rgba(0,0,0,.5)] ring-1 ring-white/10">
+              <Image
+                src="/images/app/tv-leaderboard.jpg"
+                alt="The PinPals clubhouse TV leaderboard: live Stableford positions, recent birdies, side prizes and a QR code to follow on your phone"
+                width={2000}
+                height={1124}
+                sizes="(max-width: 1240px) 100vw, 1160px"
+                className="w-full h-auto rounded-xl md:rounded-2xl"
+              />
+            </div>
+            <div aria-hidden="true" className="mx-auto w-28 md:w-44 h-5 md:h-8 bg-gradient-to-b from-[#1a222e] to-[#0b0f15]" />
+            <div aria-hidden="true" className="mx-auto w-56 md:w-80 h-2 md:h-3 rounded-full bg-[#0b0f15]" />
+            <figcaption className="mt-5 text-center text-sm text-[#9AA8BE]">
+              The society board on the clubhouse TV. Sample names and scores.
+            </figcaption>
+          </figure>
+        </div>
+      </section>
 
-<article style={{ background: "#11264A", border: "1px solid rgba(255,255,255,.09)", borderRadius: "24px", padding: "26px", display: "flex", flexDirection: "column", gap: "18px", color: "#F2ECE0" }}>
-<div style={{ background: "#0B1A33", borderRadius: "16px", padding: "16px", border: "1px solid rgba(255,255,255,.06)", minHeight: "150px", boxSizing: "border-box", display: "flex", flexDirection: "column", gap: "10px" }}>
-<div style={{ display: "flex", gap: "10px", alignItems: "center" }}><span style={{ width: "30px", height: "30px", borderRadius: "50%", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: "11px", fontWeight: "700", color: "#0A1628", border: "2px solid #0B1A33", flex: "none", background: "#7BE08F" }}>TB</span><div style={{ fontSize: "13px" }}><b>Tom</b> <span style={{ color: "#9AA8BE" }}>at Old Head</span></div></div>
-<div style={{ position: "relative", width: "100%", height: "74px", borderRadius: "10px", overflow: "hidden" }}><Image src="/images/old-head-kinsale.jpg" alt="" fill sizes="300px" className="object-cover" /></div>
-<div style={{ display: "flex", gap: "16px", fontSize: "12px", color: "#9AA8BE" }}><span>♥ 24</span><span>8 comments</span><span>34 pts</span></div>
-</div>
-<div><h3 className="font-display" style={{ margin: "0 0 6px", fontSize: "24px", fontWeight: "600" }}>Social</h3><p style={{ margin: "0", fontSize: "15px", lineHeight: "1.55", color: "#B9C3D3" }}>A feed of rounds, photos and banter from your pals, plus group chat for every crew, society and trip.</p></div>
-</article>
-
-
-<article style={{ background: "#11264A", border: "1px solid rgba(255,255,255,.09)", borderRadius: "24px", padding: "26px", display: "flex", flexDirection: "column", gap: "18px", color: "#F2ECE0" }}>
-<div style={{ background: "#0B1A33", borderRadius: "16px", padding: "16px", border: "1px solid rgba(255,255,255,.06)", minHeight: "150px", boxSizing: "border-box", display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: "10px" }}>
-<div style={{ background: "#13284A", borderRadius: "10px", padding: "10px", fontSize: "12px" }}><div style={{ height: "46px", borderRadius: "6px", background: "#1E3A60", display: "flex", alignItems: "center", justifyContent: "center", color: "#8D9BB2" }}>Driver</div><div style={{ marginTop: "8px" }}>10.5° · Stiff</div><b style={{ color: "#E6C46A" }}>€180</b></div>
-<div style={{ background: "#13284A", borderRadius: "10px", padding: "10px", fontSize: "12px" }}><div style={{ height: "46px", borderRadius: "6px", background: "#1E3A60", display: "flex", alignItems: "center", justifyContent: "center", color: "#8D9BB2" }}>Irons</div><div style={{ marginTop: "8px" }}>5–PW · Reg</div><b style={{ color: "#E6C46A" }}>€320</b></div>
-</div>
-<div><h3 className="font-display" style={{ margin: "0 0 6px", fontSize: "24px", fontWeight: "600" }}>Buy &amp; sell</h3><p style={{ margin: "0", fontSize: "15px", lineHeight: "1.55", color: "#B9C3D3" }}>List the clubs gathering dust in minutes. Buyers pay through PinPals and the money is held until they have the item.</p></div>
-</article>
-
-
-<article style={{ background: "#11264A", border: "1px solid rgba(255,255,255,.09)", borderRadius: "24px", padding: "26px", display: "flex", flexDirection: "column", gap: "18px", color: "#F2ECE0" }}>
-<div style={{ background: "#0B1A33", borderRadius: "16px", padding: "16px", border: "1px solid rgba(255,255,255,.06)", minHeight: "150px", boxSizing: "border-box", display: "flex", flexDirection: "column", gap: "12px" }}>
-<div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}><span style={{ display: "inline-flex", alignItems: "center", gap: "6px", borderRadius: "999px", fontWeight: "600", background: "#D9AE4A", color: "#0A1628" }}>Crews</span><span style={{ display: "inline-flex", alignItems: "center", gap: "6px", borderRadius: "999px", fontWeight: "600", background: "#20385E", color: "#C8D0DD" }}>Societies</span><span style={{ display: "inline-flex", alignItems: "center", gap: "6px", borderRadius: "999px", fontWeight: "600", background: "#20385E", color: "#C8D0DD" }}>Trips</span></div>
-<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-<div><div style={{ fontWeight: "700", fontSize: "14px" }}>Saturday Swingers</div><div style={{ fontSize: "12px", color: "#9AA8BE" }}>Round booked · Sat 7:42</div></div>
-<div style={{ display: "flex" }}><span style={{ width: "30px", height: "30px", borderRadius: "50%", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: "11px", fontWeight: "700", color: "#0A1628", border: "2px solid #0B1A33", flex: "none", background: "#D9AE4A" }}>EM</span><span style={{ width: "30px", height: "30px", borderRadius: "50%", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: "11px", fontWeight: "700", color: "#0A1628", border: "2px solid #0B1A33", flex: "none", background: "#7BE08F", marginLeft: "-8px" }}>TB</span><span style={{ width: "30px", height: "30px", borderRadius: "50%", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: "11px", fontWeight: "700", color: "#0A1628", border: "2px solid #0B1A33", flex: "none", background: "#9AB8E6", marginLeft: "-8px" }}>CR</span><span style={{ width: "30px", height: "30px", borderRadius: "50%", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: "11px", fontWeight: "700", color: "#0A1628", border: "2px solid #0B1A33", flex: "none", background: "#E6A08A", marginLeft: "-8px" }}>+1</span></div>
-</div>
-</div>
-<div><h3 className="font-display" style={{ margin: "0 0 6px", fontSize: "24px", fontWeight: "600" }}>Groups</h3><p style={{ margin: "0", fontSize: "15px", lineHeight: "1.55", color: "#B9C3D3" }}>Start a crew with your four-ball, book rounds weeks ahead and fill an empty spot by offering the tee time to members.</p></div>
-</article>
-
-
-<article style={{ background: "#11264A", border: "1px solid rgba(255,255,255,.09)", borderRadius: "24px", padding: "26px", display: "flex", flexDirection: "column", gap: "18px", color: "#F2ECE0" }}>
-<div style={{ background: "#0B1A33", borderRadius: "16px", padding: "16px", border: "1px solid rgba(255,255,255,.06)", minHeight: "150px", boxSizing: "border-box", display: "flex", flexDirection: "column", gap: "10px", fontSize: "13px" }}>
-<div style={{ display: "flex", gap: "10px" }}><b style={{ color: "#D9AE4A", width: "44px" }}>Fri</b><span>Fly DUB → FAO · 07:10</span></div>
-<div style={{ display: "flex", gap: "10px" }}><b style={{ color: "#D9AE4A", width: "44px" }}>Sat</b><span>Quinta course · first tee 09:20</span></div>
-<div style={{ display: "flex", gap: "10px" }}><b style={{ color: "#D9AE4A", width: "44px" }}>Sun</b><span>Second round · 10:00</span></div>
-<div style={{ display: "flex", justifyContent: "space-between", color: "#9AA8BE" }}><span>8 golfers · 3 nights</span><span style={{ color: "#7BE08F" }}>Pay via Revolut</span></div>
-</div>
-<div><h3 className="font-display" style={{ margin: "0 0 6px", fontSize: "24px", fontWeight: "600" }}>Trips away</h3><p style={{ margin: "0", fontSize: "15px", lineHeight: "1.55", color: "#B9C3D3" }}>A full day-by-day itinerary: flights, hotel, courses and start times, with payment details for the organiser.</p></div>
-</article>
-
-</div>
-</div>
-</section>
-
-
-<section style={{ background: "#0E1F3B", padding: "120px 0", borderTop: "1px solid rgba(255,255,255,.06)" }}>
-<div className="max-w-[1240px] mx-auto px-5 md:px-10 box-border" style={{ display: "flex", gap: "70px", alignItems: "center", flexWrap: "wrap" }}>
-<div style={{ flex: "1 1 440px", display: "flex", flexDirection: "column", gap: "22px" }}>
-<div style={{ fontWeight: "600", fontSize: "13px", letterSpacing: ".18em", textTransform: "uppercase", color: "#D9AE4A" }}>Live scoring</div>
-<h2 className="font-display text-4xl md:text-[52px]" style={{ margin: "0", lineHeight: "1.08", fontWeight: "600", color: "#fff" }}>Score it live.<br />Watch it from the bar.</h2>
-<p style={{ margin: "0", fontSize: "18px", lineHeight: "1.6", color: "#C8D0DD" }}>Pick a format, tee it up, and every card feeds one live leaderboard. Put it on the clubhouse TV and the room lights up when someone makes a birdie.</p>
-<div style={{ display: "flex", flexDirection: "column", gap: "14px", marginTop: "6px" }}>
-<div style={{ display: "flex", gap: "14px", alignItems: "flex-start" }}><span style={{ color: "#D9AE4A", fontWeight: "700", width: "26px" }}>01</span><span style={{ fontSize: "16px", lineHeight: "1.5", color: "#E8E2D4" }}>Stableford, stroke play, matchplay, Scotch foursomes and scrambles</span></div>
-<div style={{ display: "flex", gap: "14px", alignItems: "flex-start" }}><span style={{ color: "#D9AE4A", fontWeight: "700", width: "26px" }}>02</span><span style={{ fontSize: "16px", lineHeight: "1.5", color: "#E8E2D4" }}>Shots and points worked out from your handicap and each hole&rsquo;s index</span></div>
-<div style={{ display: "flex", gap: "14px", alignItems: "flex-start" }}><span style={{ color: "#D9AE4A", fontWeight: "700", width: "26px" }}>03</span><span style={{ fontSize: "16px", lineHeight: "1.5", color: "#E8E2D4" }}>A TV leaderboard for the clubhouse, with a flash for every birdie</span></div>
-</div>
-</div>
-<div style={{ flex: "1 1 560px", display: "flex", gap: "26px", justifyContent: "center", flexWrap: "wrap" }}>
-<LiveScoringPhones />
-</div>
-</div>
-</section>
 
 
 <section style={{ background: "#F2ECE0", color: "#0A1628", padding: "120px 0" }}>
@@ -279,7 +363,7 @@ export default async function HomePage() {
 <div><div style={{ fontWeight: "700" }}>Portmarnock Golf Society</div><div style={{ fontSize: "13px", color: "#55627A" }}>Est. 2019 · Annual membership</div></div>
 </div>
 <div style={{ fontSize: "11px", letterSpacing: ".14em", fontWeight: "700", color: "#8A6A1F" }}>NEXT OUTING</div>
-<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><div><div className="font-display" style={{ fontSize: "20px", fontWeight: "600" }}>Old Head Links</div><div style={{ fontSize: "13px", color: "#55627A" }}>Sat 8 Nov · first tee 10:30</div></div><span style={{ display: "inline-flex", alignItems: "center", gap: "6px", borderRadius: "999px", fontWeight: "600", background: "#E7F2E4", color: "#1F6A2E" }}>28 / 32</span></div>
+<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><div><div className="font-display" style={{ fontSize: "20px", fontWeight: "600" }}>Old Head Links</div><div style={{ fontSize: "13px", color: "#55627A" }}>Sat 8 Nov · first tee 10:30</div></div><span style={{ display: "inline-flex", alignItems: "center", gap: "6px", borderRadius: "999px", fontWeight: "600", background: "#E7F2E4", color: "#1F6A2E", padding: "5px 12px", fontSize: "13px", whiteSpace: "nowrap" }}>28 / 32</span></div>
 <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", borderTop: "1px solid #E6DECF", paddingTop: "14px" }}><span>Waiting list: 3</span><span style={{ color: "#8A6A1F", fontWeight: "600" }}>Offer expires in 24h</span></div>
 <span style={{ background: "#0E1F3B", color: "#fff", textAlign: "center", borderRadius: "12px", padding: "13px", fontWeight: "600" }}>Request a place</span>
 </div>
@@ -300,10 +384,11 @@ export default async function HomePage() {
 <p style={{ margin: "0", fontSize: "18px", lineHeight: "1.6", color: "#3A4A63" }}>Members request places, the waiting list moves itself, and entry fees are paid by Revolut, bank transfer or cash. When the last card is in, the podium is published to every member. Captains and secretaries also get a full society console here on the web.</p>
 <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
 {user ? (
-<Link href="/society" style={{ background: "#0E1F3B", color: "#fff", padding: "14px 22px", borderRadius: "999px", fontWeight: "600" }}>Open society admin</Link>
+<Link href="/society" className="inline-flex items-center px-6 py-3.5 rounded-full font-bold bg-navy-900 text-white hover:bg-navy-800 transition">Open society admin</Link>
 ) : (
-<Link href="/signup" style={{ background: "#0E1F3B", color: "#fff", padding: "14px 22px", borderRadius: "999px", fontWeight: "600" }}>Join free</Link>
+<Link href="/signup" className="inline-flex items-center px-6 py-3.5 rounded-full font-bold bg-navy-900 text-white hover:bg-navy-800 transition">Join free</Link>
 )}
+<Link href="/courses" className="inline-flex items-center px-6 py-3.5 rounded-full font-bold border-[1.5px] border-navy-900 text-navy-900 hover:bg-navy-900 hover:text-white transition">Find your home club</Link>
 </div>
 </div>
 </div>
