@@ -60,6 +60,10 @@ export const FEATURES = {
    *  show. Off: nothing is fetched and nothing draws. On since 13 Oct 2026;
    *  the master switch in /admin/advertising is the kill switch. */
   ads: true,
+  /** Show on TV (claude/clubhouse-tv.md, needs 0147 and the website's /tv
+   *  pages): a round or society day's leaderboard on a clubhouse TV. Off
+   *  hides the Show on TV buttons; the screen says "on its way". */
+  clubhouseTv: true,
 
   // ---- Gates (unfinished, off) ----
   /** Shared rounds (phase 9): model only — see claude/shared-round-model.md. */

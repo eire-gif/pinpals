@@ -911,6 +911,23 @@ export default function LiveRoundScreen() {
             <Text style={styles.shareLabel}>Share scorecard</Text>
           </Pressable>
 
+          {isOn("clubhouseTv") ? (
+            <Pressable
+              onPress={() =>
+                router.push({
+                  pathname: "/live/tv",
+                  params: round.matchDayId != null ? { day: String(round.matchDayId) } : { round: String(round.id) },
+                })
+              }
+              style={styles.secondary}
+              accessibilityRole="button"
+              accessibilityHint="Puts the leaderboard on a clubhouse TV"
+            >
+              <Ionicons name="tv-outline" size={18} color={colors.green700} />
+              <Text style={styles.link}>Show the leaderboard on TV</Text>
+            </Pressable>
+          ) : null}
+
           {/* Scorecards (0110): your own line as a card in your profile.
               Saving again later refreshes the same card. */}
           {isOn("scorecards") && me != null && players.some((p) => p.memberId === me) ? (
