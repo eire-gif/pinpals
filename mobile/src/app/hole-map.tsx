@@ -33,8 +33,15 @@ import {
   pinZone,
   withPin,
   greenFromPin,
+  bearingDeg,
+  distanceArcs,
+  METRES_PER_YARD,
   PIN_COLOURS,
 } from "@/lib/hole-geo";
+import { arrowOnScreen, KMH_PER_MPH, playsLikeM, windLine, windOnShot, windSpeed, type Wind } from "@/lib/wind";
+import { clubDistanceM, clubInfo, likelyClubs, suggestClub, type BagClub } from "@/lib/bag";
+import { loadMyBag, loadShotClubs, loadWind, tagShotClub } from "@/lib/hole-extras";
+import { ClubTagRow, PlaysLikeRow, TipsBlock, WindChip, WindCredit, clubOrder } from "@/components/hole-map-extras";
 import { addShot, loadCourseLayouts, loadRoundShots, saveHoleFix, shotKey, undoShot, type CourseLayout } from "@/lib/hole-maps";
 import { isSuperAdmin } from "@/lib/admin";
 import { osmLayoutPoints, outlinesNear, type OsmFeature } from "@/lib/osm-course";
@@ -80,6 +87,9 @@ const HAZARD_NAMES: Partial<Record<PointKind, string>> = {
 
 let rememberedUnit: Unit | null = null;
 let rememberedOutlines = true;
+let rememberedWindOpen = true;
+type ArcsMode = "off" | "50" | "clubs";
+let rememberedArcs: ArcsMode = "off";
 
 export default function HoleMapScreen() {
   const params = useLocalSearchParams<{ clubId: string; hole?: string; roundId?: string; layoutId?: string }>();
@@ -122,6 +132,13 @@ export default function HoleMapScreen() {
   // Super admins can keep a moved flag / T for everyone (0152): golfapi's
   // greens are sometimes on the wrong spot (Portmarnock Links, Oct 2026).
   const [superAdmin, setSuperAdmin] = useState(false);
+  // Wind, My bag, distance arcs and club tags (Oct 2026, 0153).
+  const [wind, setWind] = useState<Wind | null>(null);
+  const [windOpen, setWindOpen] = useState(rememberedWindOpen);
+  const [bag, setBag] = useState<BagClub[] | null>(null);
+  const [arcsMode, setArcsMode] = useState<ArcsMode>(rememberedArcs);
+  const [shotClubs, setShotClubs] = useState<Map<string, string>>(new Map());
+  const [tagging, setTagging] = useState(false);
   const [savingFix, setSavingFix] = useState(false);
   useEffect(() => {
     let on = true;
@@ -202,8 +219,28 @@ export default function HoleMapScreen() {
   useFocusEffect(
     useCallback(() => {
       void load();
+      // My bag may have changed on its own screen.
+      void loadMyBag()
+        .then(setBag)
+        .catch(() => setBag(null));
     }, [load])
   );
+  useEffect(() => {
+    if (course?.latitude == null || course.longitude == null) return;
+    let on = true;
+    void loadWind({ lat: course.latitude, lng: course.longitude })
+      .then((w) => on && setWind(w))
+      .catch(() => {});
+    return () => {
+      on = false;
+    };
+  }, [course?.latitude, course?.longitude]);
+  useEffect(() => {
+    if (roundId == null) return;
+    void loadShotClubs(roundId)
+      .then(setShotClubs)
+      .catch(() => {});
+  }, [roundId, shots]);
   useEffect(() => {
     if (course?.latitude == null || course.longitude == null || shapes !== null) return;
     void loadCourseShapes(clubId, { lat: course.latitude, lng: course.longitude }).then(setShapes);
@@ -297,6 +334,37 @@ export default function HoleMapScreen() {
   const tapped = aim && origin ? tapDistancesM(geo, origin.point, aim) : null;
   const length = holeLengthM(geo);
 
+  // ---- Wind, plays like, the club, arcs ----
+  const mapRotation = useMemo(() => holeFrame(mappedGeo, fix).rotation, [mappedGeo, fix]);
+  // The shot being planned: from the aim circle if it's been moved, else from you or the tee.
+  const shotFrom = fromAim ? tap : (origin?.point ?? null);
+  const windShot = wind && shotFrom && geo.greenCentre ? windOnShot(wind.speedKmh / KMH_PER_MPH, wind.fromDeg, bearingDeg(shotFrom, geo.greenCentre)) : null;
+  const centreM = geo.mapped && greens?.centre != null ? greens.centre : null;
+  const playsLike = windShot && centreM != null && windShot.along !== "calm" ? playsLikeM(centreM, windShot.head) : null;
+  const windDelta = playsLike != null && centreM != null ? inUnit(playsLike, unit) - inUnit(centreM, unit) : null;
+  const suggestion = bag && centreM != null ? suggestClub(bag, playsLike ?? centreM) : null;
+  const bagWithDistances = (bag ?? []).filter((c) => c.inBag && clubDistanceM(c) != null);
+  const arcs = useMemo(() => {
+    if (arcsMode === "off" || !origin || !geo.mapped || !geo.greenCentre) return [];
+    if (arcsMode === "clubs") {
+      return bagWithDistances.flatMap((c) =>
+        distanceArcs(origin.point, geo.greenCentre!, [clubDistanceM(c)!]).map((a) => ({ points: a.points, end: a.end, label: clubInfo(c.club).short }))
+      );
+    }
+    const step = unit === "yards" ? METRES_PER_YARD : 1;
+    return distanceArcs(origin.point, geo.greenCentre, [100, 150, 200, 250, 300].map((v) => v * step)).map((a) => ({
+      points: a.points,
+      end: a.end,
+      label: String(inUnit(a.radiusM, unit)),
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [arcsMode, origin?.point?.lat, origin?.point?.lng, geo, unit, bag]);
+  const cycleArcs = () => {
+    const next: ArcsMode = arcsMode === "off" ? "50" : arcsMode === "50" && bagWithDistances.length > 0 ? "clubs" : "off";
+    rememberedArcs = next;
+    setArcsMode(next);
+  };
+
   const scene: MapScene = useMemo(() => {
     // Framed on the mapped hole, so dragging the T doesn't move the view.
     const frame = holeFrame(mappedGeo, fix);
@@ -334,6 +402,7 @@ export default function HoleMapScreen() {
               green: geo.greenCentre,
             }
           : null,
+      arcs,
       greenLine:
         !aim && origin && geo.greenCentre && toGreenFromOrigin?.centre != null ? { origin: origin.point, label: `${fmt(toGreenFromOrigin.centre)} ${u}` } : null,
       hole,
@@ -345,7 +414,7 @@ export default function HoleMapScreen() {
       frameKey: `${layout?.id ?? "none"}-${hole}-${fix ? "fix" : "nofix"}-${geo.mapped ? "m" : "u"}`,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [geo, mappedGeo, zone, fix, course, ends, aim?.lat, aim?.lng, origin?.point, unit, layout?.id, hole, shapes, showOutlines, sheetH, insets.top]);
+  }, [geo, mappedGeo, zone, fix, course, ends, aim?.lat, aim?.lng, origin?.point, unit, layout?.id, hole, shapes, showOutlines, sheetH, insets.top, arcs]);
 
   // ---- Shots ----
   const player = round?.players.find((p) => p.id === playerId) ?? null;
@@ -364,6 +433,31 @@ export default function HoleMapScreen() {
       Alert.alert("That shot didn't save", typeof msg === "string" && msg ? msg : "Check your signal and try again.");
     } finally {
       setBusy(false);
+    }
+  };
+  // Which club was the last shot? Only for your own shots (0153).
+  const lastClubKey = lastEnd && player ? `${player.id}-${hole}-${lastEnd.n}` : null;
+  const lastClub = lastClubKey ? (shotClubs.get(lastClubKey) ?? null) : null;
+  const canTag = round != null && player != null && player.memberId === me && lastEnd?.distance != null;
+  const tagLast = async (club: string | null) => {
+    if (!round || !player || !lastEnd || lastEnd.distance == null || !lastClubKey) return;
+    setTagging(true);
+    setShotClubs((m) => {
+      const next = new Map(m);
+      if (club) next.set(lastClubKey, club);
+      else next.delete(lastClubKey);
+      return next;
+    });
+    try {
+      await tagShotClub(round.round.id, player.id, hole, lastEnd.n, club, lastEnd.distance);
+      void loadMyBag()
+        .then(setBag)
+        .catch(() => {});
+    } catch {
+      Alert.alert("Couldn't save the club", "Please try again.");
+      void loadShotClubs(round.round.id).then(setShotClubs).catch(() => {});
+    } finally {
+      setTagging(false);
     }
   };
   const undo = async () => {
@@ -430,7 +524,8 @@ export default function HoleMapScreen() {
     card?.strokeIndex != null ? `SI ${card.strokeIndex}` : null,
     length != null ? `${fmt(length)} ${u}` : null,
   ].filter(Boolean);
-  const hasDetails = layouts.length > 1 || ahead.length > 0 || round != null;
+  // Always: local knowledge lives in the list.
+  const hasDetails = true;
 
   return (
     <View style={styles.screen}>
@@ -455,6 +550,14 @@ export default function HoleMapScreen() {
       </View>
       <View style={[styles.sideButtons, { top: insets.top + 62 }]} pointerEvents="box-none">
         <MapButton icon="scan-outline" label="Show the whole hole" onPress={() => mapRef.current?.recentre()} />
+        {geo.mapped ? (
+          <MapButton
+            icon={arcsMode === "off" ? "radio-button-off" : "radio-button-on"}
+            label={arcsMode === "off" ? "Show distance arcs" : arcsMode === "50" ? "Distance arcs every 50. Show my clubs" : "Arcs at my clubs. Hide arcs"}
+            onPress={cycleArcs}
+            on={arcsMode !== "off"}
+          />
+        ) : null}
         {shapes && shapes.length > 0 ? (
           <MapButton icon={showOutlines ? "layers" : "layers-outline"} label={showOutlines ? "Hide course outlines" : "Show course outlines"} onPress={toggleOutlines} />
         ) : null}
@@ -475,9 +578,24 @@ export default function HoleMapScreen() {
 
       {/* Over the map, left: how far the last marked shot went. Tap for
           the rest from that spot: from the tee, and to the green. */}
+      {wind && windShot ? (
+        <WindChip
+          top={insets.top + 62}
+          arrowDeg={arrowOnScreen(wind.fromDeg, mapRotation)}
+          speed={windSpeed(wind.speedKmh, unit === "yards")}
+          gust={wind.gustKmh != null && wind.gustKmh > wind.speedKmh + 5 ? windSpeed(wind.gustKmh, unit === "yards").split(" ")[0] : null}
+          line={windLine(windShot)}
+          open={windOpen}
+          onToggle={() => {
+            rememberedWindOpen = !windOpen;
+            setWindOpen(!windOpen);
+          }}
+        />
+      ) : null}
+
       {lastEnd && !shotCardHidden ? (
         <ShotCard
-          top={insets.top + 62}
+          top={insets.top + 62 + (wind && windShot ? 64 : 0)}
           n={lastEnd.n}
           distance={lastEnd.distance != null ? fmt(lastEnd.distance) : null}
           unit={u}
@@ -497,7 +615,11 @@ export default function HoleMapScreen() {
                 })()
               : []),
           ]}
-        />
+        >
+          {canTag ? (
+            <ClubTagRow order={clubOrder(lastClub ? [lastClub] : likelyClubs(bag ?? [], lastEnd.distance!), bag)} chosen={lastClub} busy={tagging} onPick={(c) => void tagLast(c)} />
+          ) : null}
+        </ShotCard>
       ) : null}
 
       {/* Over the map, bottom: the hole and the three numbers. Swipe for the next hole. */}
@@ -543,6 +665,10 @@ export default function HoleMapScreen() {
             </Pressable>
           ) : null}
         </View>
+
+        {geo.mapped ? (
+          <PlaysLikeRow playsLike={playsLike} windDelta={windDelta} suggestion={suggestion} fmt={(m) => fmt(m)} unit={u} onBag={() => router.push("/my-bag")} />
+        ) : null}
 
         <YardagesSponsor ad={partner} />
 
@@ -646,6 +772,10 @@ export default function HoleMapScreen() {
               </View>
             ) : null}
 
+            {Number.isFinite(clubId) ? <TipsBlock clubId={clubId} hole={hole} /> : null}
+
+            {wind ? <WindCredit wind={wind} /> : null}
+
             <Text style={styles.footnote}>
               {fromOsm
                 ? "This hole's map comes from OpenStreetMap volunteers. Distances are GPS estimates — check the course's markers before an important shot."
@@ -701,7 +831,9 @@ function ShotCard({
   onToggle,
   onClose,
   rows,
+  children,
 }: {
+  children?: React.ReactNode;
   top: number;
   n: number;
   distance: string | null;
@@ -745,6 +877,7 @@ function ShotCard({
           <Text style={styles.shotCardHint}>Tap for more</Text>
         )}
       </Pressable>
+      {children}
       <Pressable onPress={onClose} hitSlop={10} style={styles.shotCardClose} accessibilityRole="button" accessibilityLabel="Hide the shot distance">
         <Ionicons name="close" size={14} color={creamAlpha(0.7)} />
       </Pressable>
@@ -758,11 +891,14 @@ function MapButton({
   onPress,
   disabled = false,
   flat = false,
+  on = false,
 }: {
   icon: keyof typeof Ionicons.glyphMap;
   label: string;
   onPress: () => void;
   disabled?: boolean;
+  /** A switch that's on: gold ring. */
+  on?: boolean;
   /** On the sheet rather than the photo: no disc behind it. */
   flat?: boolean;
 }) {
@@ -770,12 +906,12 @@ function MapButton({
     <Pressable
       onPress={onPress}
       disabled={disabled}
-      style={({ pressed }) => [styles.mapButton, flat && styles.flatButton, disabled && styles.disabled, pressed && styles.pressed]}
+      style={({ pressed }) => [styles.mapButton, flat && styles.flatButton, on && styles.mapButtonOn, disabled && styles.disabled, pressed && styles.pressed]}
       accessibilityRole="button"
       accessibilityLabel={label}
       hitSlop={6}
     >
-      <Ionicons name={icon} size={20} color={colors.cream50} />
+      <Ionicons name={icon} size={20} color={on ? colors.gold400 : colors.cream50} />
     </Pressable>
   );
 }
@@ -790,6 +926,7 @@ const styles = StyleSheet.create({
   titleText: { fontFamily: fonts.display, fontSize: 15.5, color: colors.cream50, textAlign: "center" },
   mapButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: ON_PHOTO, alignItems: "center", justifyContent: "center" },
   flatButton: { backgroundColor: "transparent" },
+  mapButtonOn: { borderWidth: 2, borderColor: colors.gold400 },
   shotCard: {
     position: "absolute",
     left: spacing.sm + 2,

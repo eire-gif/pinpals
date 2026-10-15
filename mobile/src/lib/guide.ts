@@ -41,7 +41,8 @@ import type { Href } from "expo-router";
  *               app/(tabs)/live/day/[id].tsx (Show on TV)
  *    compete  → app/compete/index.tsx, app/compete/[id].tsx, app/compete/match/[id].tsx,
  *               app/compete/new.tsx, app/compete/opens.tsx, app/compete/share-open.tsx
- *    holeMap  → app/hole-map.tsx, components/hole-map-page.ts, app/course/[id].tsx
+ *    holeMap  → app/hole-map.tsx, components/hole-map-page.ts, components/hole-map-extras.tsx,
+ *               app/my-bag.tsx, app/course/[id].tsx
  *    messages → app/(tabs)/inbox.tsx, app/new-chat.tsx, app/new-group.tsx,
  *               app/conversation/[id].tsx
  *    connect  → app/members.tsx, app/connections.tsx, app/invite-friends.tsx
@@ -1191,14 +1192,35 @@ export const GUIDES: Guide[] = [
         tip: "Tap Reset to put it back.",
       },
       {
+        title: "Check the wind",
+        body: "Top left, the arrow shows which way the wind is blowing on this hole, with its speed and gusts — \"Into you, left to right\". Under the numbers, Plays like is how far the shot really plays with that wind. Tap the wind to fold it away.",
+        look: [{ style: "outline", label: "Plays like 149" }],
+        tip: "A rule of thumb: into the wind adds about 1% per mph, downwind takes off about half that.",
+      },
+      {
+        title: "Get a club for the shot",
+        body: "Beside Plays like, PinPals suggests the club from My bag nearest that distance. Set up My bag once — the clubs you carry and how far you hit them — from the menu, or tap the club.",
+        path: [MENU, { icon: "briefcase-outline", label: "My bag" }],
+        look: [{ style: "outline", label: "8 iron" }],
+        go: { label: "My bag", to: "/my-bag" },
+      },
+      {
+        title: "Show distance arcs",
+        body: "Tap the circle button on the right for rings every 50 yards across the hole, again for rings at your own clubs' distances, and again to hide them.",
+        look: [{ style: "outline", label: "Distance arcs", icon: "radio-button-on" }],
+      },
+      {
         title: "See what's in play",
-        body: "Bunkers, water and trees are marked, with the distance to each one still ahead of you. Tap Hazards and more for the list.",
+        body: "Bunkers, water and trees are marked, with the distance to each one still ahead of you. Tap Hazards and more for the list — and Local knowledge: tips from members who know the hole. Add your own, and tap Useful on the good ones.",
         art: "holeHazards",
-        look: [{ style: "outline", label: "Hazards and more", icon: "list" }],
+        look: [
+          { style: "outline", label: "Hazards and more", icon: "list" },
+          { style: "outline", label: "Add a tip for this hole", icon: "add" },
+        ],
       },
       {
         title: "Mark your shots",
-        body: "In a live round, walk to your ball and tap Mark shot. The map draws each shot and how far it went. The undo arrow takes back the last one.",
+        body: "In a live round, walk to your ball and tap Mark shot. The map draws each shot and how far it went. Under Which club?, tap the club you hit — My bag learns your real distances from these. The undo arrow takes back the last shot.",
         art: "holeShots",
         look: [{ style: "primary", label: "Mark shot 2", icon: "locate" }],
         tip: "Distances are GPS estimates — check the course's own markers before an important shot.",
@@ -1589,6 +1611,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-15", text: "Hole map: new steps — Check the wind (arrow, speed, Plays like), Get a club for the shot (My bag), Show distance arcs, Local knowledge tips in Hazards and more, and Which club? after Mark shot." },
   { on: "2026-10-15", text: "Hole map: no change to the member steps — the new Save for everyone button (cloud) shows only for super admins, to keep a corrected flag or tee." },
   { on: "2026-10-15", text: "New guide: Play in a league, ladder or open — enter, arrange and report matchplay, the knockout, ladder challenges, opens and finding a partner, and running one for your group." },
   { on: "2026-10-15", text: "Run your society: new step, Run it from a computer — society admin on the website at pinpals.ie/society, with your PinPals login." },

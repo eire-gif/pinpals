@@ -340,6 +340,7 @@ export default function ProfileScreen() {
           <NativeLink icon="golf-outline" label="My tee times" to="/my-rounds" />
           <NativeLink icon="people-outline" label="Requests to join" to="/tee-time-requests" />
           <NativeLink icon="document-text-outline" label="My scorecards" to="/scorecards" />
+          <NativeLink icon="briefcase-outline" label="My bag" to="/my-bag" />
           <NativeLink icon="flag-outline" label="Courses & favourites" to="/courses" last />
         </View>
 

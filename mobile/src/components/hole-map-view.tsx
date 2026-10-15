@@ -46,6 +46,9 @@ export type MapScene = {
   tap: (LatLng & { origin: LatLng; toLabel: string; onLabel: string | null; green: LatLng | null }) | null;
   /** No aim (the green is in reach): one line straight to the green. */
   greenLine: { origin: LatLng; label: string } | null;
+  /** Distance arcs (Oct 2026): rings across the line of play, each labelled
+   *  at its right-hand end ("150", or a club: "7i"). */
+  arcs?: Array<{ points: LatLng[]; end: LatLng; label: string }>;
   /** Which hole's OSM line to draw (the others are left off: clutter). */
   hole: number;
   /** Outlines on or off (the layers button). */

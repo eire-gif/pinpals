@@ -35,7 +35,7 @@ export type LayoutPoint = LatLng & { hole: number; kind: PointKind; label: strin
 export type Unit = "yards" | "metres";
 
 const EARTH_RADIUS_M = 6_371_008.8;
-const METRES_PER_YARD = 0.9144;
+export const METRES_PER_YARD = 0.9144;
 
 const rad = (d: number) => (d * Math.PI) / 180;
 const deg = (r: number) => (r * 180) / Math.PI;
@@ -193,6 +193,38 @@ export function greenFromPin(g: HoleGeometry, pin: LatLng): { front: LatLng; cen
     return { front: shift(g.greenFront), centre: pin, back: shift(g.greenBack) };
   }
   return { front: pin, centre: pin, back: pin };
+}
+
+/** The point `distance` metres from `from` on compass `bearing`. */
+export function destination(from: LatLng, bearing: number, distance: number): LatLng {
+  const R = 6_371_000;
+  const d = distance / R;
+  const b = (bearing * Math.PI) / 180;
+  const la = (from.lat * Math.PI) / 180;
+  const lo = (from.lng * Math.PI) / 180;
+  const la2 = Math.asin(Math.sin(la) * Math.cos(d) + Math.cos(la) * Math.sin(d) * Math.cos(b));
+  const lo2 = lo + Math.atan2(Math.sin(b) * Math.sin(d) * Math.cos(la), Math.cos(d) - Math.sin(la) * Math.sin(la2));
+  return { lat: (la2 * 180) / Math.PI, lng: (lo2 * 180) / Math.PI };
+}
+
+export type Arc = { radiusM: number; points: LatLng[]; /** Where its label sits: the right-hand end. */ end: LatLng };
+
+/**
+ * Distance arcs (Oct 2026): rings at `radiiM` from `from`, drawn only
+ * across the line of play (±`halfSpan` degrees either side of the bearing
+ * to `toward`), like a yardage book. Rings past the green (+20 m) are left
+ * off: they'd only clutter the far side.
+ */
+export function distanceArcs(from: LatLng, toward: LatLng, radiiM: readonly number[], halfSpan = 28): Arc[] {
+  const bearing = bearingDeg(from, toward);
+  const limit = distanceM(from, toward) + 20;
+  return radiiM
+    .filter((r) => r > 20 && r <= limit)
+    .map((r) => {
+      const points: LatLng[] = [];
+      for (let i = 0; i <= 14; i++) points.push(destination(from, bearing - halfSpan + (i * 2 * halfSpan) / 14, r));
+      return { radiusM: r, points, end: points[points.length - 1] };
+    });
 }
 
 /** Holes in the layout that can be drawn, in order. */

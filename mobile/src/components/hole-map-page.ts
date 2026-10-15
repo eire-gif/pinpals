@@ -42,6 +42,7 @@ export function pageHtml(source: TileSource): string {
   .aim:after{content:"";width:4px;height:4px;border-radius:2px;background:#fff;}
   .label{white-space:nowrap;padding:3px 9px;border-radius:999px;background:rgba(12,32,56,.85);color:${colors.cream50};font-size:13px;font-weight:700;transform:translate(-50%,-50%);display:inline-block;}
   .label.gold{background:${colors.gold400};color:${colors.navy900};}
+  .label.arc{font-size:11.5px;padding:2px 7px;background:rgba(12,32,56,.8);}
   .label.big{font-size:18px;padding:5px 12px;box-shadow:0 2px 6px rgba(0,0,0,.35);}
   .teemove{width:52px;height:52px;filter:drop-shadow(0 1px 3px rgba(0,0,0,.5));}
   .hzw{position:relative;width:10px;height:10px;}
@@ -287,6 +288,11 @@ export function pageHtml(source: TileSource): string {
         post({ type:"tap", lat:p.lat, lng:p.lng });
       });
     }
+    // Distance arcs, under the hazards and markers: thin, so the photo shows through.
+    (s.arcs||[]).forEach(function(a){
+      L.polyline(a.points.map(function(p){ return [p.lat,p.lng]; }), { color:"#ffffff", weight:1.6, opacity:.8, interactive:false }).addTo(layer);
+      L.marker([a.end.lat,a.end.lng], { interactive:false, icon:L.divIcon({ className:"", html:'<span class="label arc">'+esc(a.label)+'</span>', iconSize:[0,0] }) }).addTo(layer);
+    });
     (s.hazards||[]).forEach(function(h){
       // The distance to it, small, beside it (Oct 2026) — readable zoomed in.
       var html = '<div class="hzw"><div class="pin hz '+h.kind+'" style="width:10px;height:10px;box-sizing:border-box"></div>'+(h.dist ? '<span class="hzd">'+esc(h.dist)+'</span>' : '')+'</div>';
