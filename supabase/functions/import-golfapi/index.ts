@@ -96,6 +96,23 @@ type Body =
       recheck_review?: boolean;
       /** Search and decide, but fetch no cards and record nothing. */
       dry_run?: boolean;
+      /** Also fetch each imported course's hole positions (1 more call per
+       *  course golfapi has GPS for). Off by default. */
+      gps?: boolean;
+      /** Only these of our countries ("ireland", "northern-ireland",
+       *  "england", …). The run goes country by country (Ireland first), so
+       *  it stops at the first club from a country not listed. */
+      countries?: string[];
+    }
+  | {
+      /** Hole positions for clubs the bulk run already imported cards-only:
+       *  1 call per course golfapi has GPS for. */
+      action: "bulk_gps";
+      limit?: number;
+      max_calls?: number;
+      keep?: number;
+      countries?: string[];
+      club_ids?: number[];
     };
 
 /** Space between golfapi requests — under its burst limit. */
@@ -130,7 +147,13 @@ class Golfapi {
       this.last = Date.now();
       res = await fetch(url, { headers: { Authorization: `Bearer ${this.key}`, Accept: "application/json" } });
       if (res.status !== 429 || attempt >= waits.length) break;
-      await res.body?.cancel();
+      // golfapi answers 429 both for "too fast" ("API rate limit exceeded")
+      // and for "plan used up" ("API request quota exceeded", seen 15 Oct
+      // 2026). Only the first is worth waiting out.
+      const why = await res.text();
+      if (/quota/i.test(why)) {
+        throw new Error(`golfapi ${path} answered 429: ${why.slice(0, 300)} — the plan's calls are used up`);
+      }
       await sleep(waits[attempt]);
     }
     if (res.status !== 429) this.used += cost;
@@ -179,7 +202,8 @@ Deno.serve(async (request) => {
     if (body.action === "inspect") return json({ ...(await inspect(api, body)), calls_used: api.used, calls_left: api.left });
     if (body.action === "import") return json({ ...(await runImport(db, api, body)), calls_used: api.used, calls_left: api.left });
     if (body.action === "bulk") return json({ ...(await runBulk(db, api, body)), calls_used: Math.round(api.used * 10) / 10, calls_left: api.left });
-    return json({ error: "action must be search, inspect, import or bulk" }, 400);
+    if (body.action === "bulk_gps") return json({ ...(await runBulkGps(db, api, body)), calls_used: Math.round(api.used * 10) / 10, calls_left: api.left });
+    return json({ error: "action must be search, inspect, import, bulk or bulk_gps" }, 400);
   } catch (e) {
     return json({ error: e instanceof Error ? e.message : String(e), calls_used: api.used, calls_left: api.left }, 502);
   }
@@ -391,6 +415,8 @@ async function runBulk(db: SupabaseClient, api: Golfapi, body: Extract<Body, { a
   const maxCalls = body.max_calls ?? 25;
   const keep = body.keep ?? 0;
   const dry = body.dry_run === true;
+  const gps = body.gps === true;
+  const countries = body.countries?.length ? new Set(body.countries.map((c) => c.toLowerCase())) : null;
 
   const { data: due, error: dueErr } = await db.rpc("golfapi_bulk_next", {
     p_limit: limit,
@@ -420,6 +446,12 @@ async function runBulk(db: SupabaseClient, api: Golfapi, body: Extract<Body, { a
   for (const club of clubs) {
     if (Date.now() - started > BULK_TIME_MS) {
       stopped = "time limit for one request — call bulk again to carry on";
+      break;
+    }
+    if (countries && !countries.has(club.country)) {
+      // Clubs come country by country, so every club after this one is
+      // outside the list too.
+      stopped = `reached ${club.country}, which isn't in countries — done for those countries`;
       break;
     }
     if (club.has_provider_cards) {
@@ -456,7 +488,8 @@ async function runBulk(db: SupabaseClient, api: Golfapi, body: Extract<Body, { a
         continue;
       }
 
-      const cost = decision.courseIds.length;
+      const gpsIds = gps ? new Set(decision.candidate.courses.filter((k) => k.hasGps !== false).map((k) => k.providerCourseId)) : new Set<string>();
+      const cost = decision.courseIds.length + gpsIds.size;
       const cardStop = over(cost);
       if (cardStop) {
         // The search is spent; the club stays due (no row) and is searched
@@ -465,12 +498,13 @@ async function runBulk(db: SupabaseClient, api: Golfapi, body: Extract<Body, { a
         break;
       }
       if (dry) {
-        done.push({ club_id: club.id, name: club.name, status: "would import", golfapi_club: decision.candidate.name, km_away: decision.candidate.km_away, courses: decision.candidate.courses.map((c) => c.name) });
+        done.push({ club_id: club.id, name: club.name, status: "would import", golfapi_club: decision.candidate.name, golfapi_town: decision.candidate.town, courses: decision.candidate.courses.map((c) => c.name) });
         continue;
       }
 
       const imported: unknown[] = [];
       let cardsWritten = 0;
+      let pointsWritten = 0;
       for (const id of decision.courseIds) {
         const raw = await api.get(`/courses/${encodeURIComponent(id)}`);
         const { course, report } = mapCourse(raw, decision.courseIds.length);
@@ -478,16 +512,19 @@ async function runBulk(db: SupabaseClient, api: Golfapi, body: Extract<Body, { a
           imported.push({ golfapi_course_id: id, error: "couldn't read the course", missing: report.missing });
           continue;
         }
-        const result = await write(db, club, course, [], false, false);
+        const withGps = gpsIds.has(id);
+        const points = withGps ? mapCoordinates(await api.get(`/coordinates/${encodeURIComponent(id)}`)).points : [];
+        const result = await write(db, club, course, points, withGps, false);
         cardsWritten += result.cards.filter((c) => c.outcome === "added" || c.outcome === "updated").length;
-        imported.push({ golfapi_course_id: id, course: result.course, cards: result.cards });
+        pointsWritten += result.points_written;
+        imported.push({ golfapi_course_id: id, course: result.course, cards: result.cards, points: result.points_written });
       }
       const calls = Math.round((api.used - usedBefore) * 10) / 10;
       const status = cardsWritten > 0 ? "imported" : "review";
       const kept = imported.some((i) => (i as { cards?: Array<{ outcome: string }> }).cards?.some((c) => c.outcome.startsWith("kept")));
       const reason = cardsWritten > 0 ? null : kept ? "only tees a member had already entered — kept theirs" : "golfapi's cards have no complete stroke indexes";
-      await record(club.id, { status, reason, provider_club_id: decision.candidate.providerClubId, candidates: [decision.candidate], imported, calls });
-      done.push({ club_id: club.id, name: club.name, status, reason, golfapi_club: decision.candidate.name, km_away: decision.candidate.km_away, cards: cardsWritten, calls });
+      await record(club.id, { status, reason, provider_club_id: decision.candidate.providerClubId, candidates: [decision.candidate], imported, calls, ...(gps ? { gps_at: new Date().toISOString() } : {}) });
+      done.push({ club_id: club.id, name: club.name, status, reason, golfapi_club: decision.candidate.name, golfapi_town: decision.candidate.town, cards: cardsWritten, points: pointsWritten, calls });
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
       const calls = Math.round((api.used - usedBefore) * 10) / 10;
@@ -545,4 +582,86 @@ async function ourNameCounts(db: SupabaseClient): Promise<Map<string, number>> {
     if (!data || data.length < 1000) break;
   }
   return counts;
+}
+
+// ============ bulk_gps ============
+//
+// Hole positions for clubs `bulk` imported cards-only (gps_at still empty):
+// for each of the club's golfapi courses (course_layouts, which the card
+// import already linked), 1 call to /coordinates unless golfapi said the
+// course has no GPS. Ireland first, like `bulk`. gps_at is set once a club
+// is done, so nothing is fetched twice.
+
+type GpsDue = { club_id: number; country: string; name: string; candidates: Located[] | null };
+
+async function runBulkGps(db: SupabaseClient, api: Golfapi, body: Extract<Body, { action: "bulk_gps" }>) {
+  const started = Date.now();
+  const limit = Math.max(1, Math.min(50, Math.floor(body.limit ?? 20)));
+  const maxCalls = body.max_calls ?? 25;
+  const keep = body.keep ?? 0;
+  const countries = body.countries?.length ? body.countries.map((c) => c.toLowerCase()) : null;
+
+  const { data: due, error: dueErr } = await db.rpc("golfapi_bulk_gps_next", {
+    p_limit: limit,
+    p_countries: countries,
+    p_club_ids: body.club_ids?.length ? body.club_ids : null,
+  });
+  if (dueErr) throw dueErr;
+
+  const done: unknown[] = [];
+  let stopped: string | null = null;
+  const over = (cost: number): string | null => {
+    if (api.used + cost > maxCalls + 1e-9) return `max_calls (${maxCalls}) reached`;
+    if (api.left != null && api.left - cost < keep - 1e-9) return `golfapi balance would fall below keep (${keep}); ${api.left} left`;
+    return null;
+  };
+
+  for (const club of (due ?? []) as GpsDue[]) {
+    if (Date.now() - started > BULK_TIME_MS) {
+      stopped = "time limit for one request — call bulk_gps again to carry on";
+      break;
+    }
+    const { data: layouts, error } = await db.from("course_layouts").select("id, provider_course_id").eq("club_id", club.club_id).eq("provider", "golfapi");
+    if (error) throw error;
+    const noGps = new Set(
+      (club.candidates ?? []).flatMap((c) => c.courses ?? []).filter((k) => k.hasGps === false).map((k) => k.providerCourseId)
+    );
+    const todo = ((layouts ?? []) as Array<{ id: number; provider_course_id: string }>).filter((l) => !noGps.has(l.provider_course_id));
+    const stop = over(todo.length);
+    if (stop) {
+      stopped = stop;
+      break;
+    }
+    let written = 0;
+    try {
+      for (const l of todo) {
+        const { points } = mapCoordinates(await api.get(`/coordinates/${encodeURIComponent(l.provider_course_id)}`));
+        const { error: delErr } = await db.from("course_layout_points").delete().eq("layout_id", l.id);
+        if (delErr) throw delErr;
+        if (points.length) {
+          const { error: insErr } = await db
+            .from("course_layout_points")
+            .insert(points.map((p) => ({ layout_id: l.id, hole: p.hole, kind: p.kind, lat: p.lat, lng: p.lng, label: p.label })));
+          if (insErr) throw insErr;
+          written += points.length;
+        }
+      }
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      done.push({ club_id: club.club_id, name: club.name, status: "error", reason: message });
+      if (message.startsWith("golfapi ")) {
+        stopped = "golfapi refused a request — stopped so the rest aren't failed too";
+        break;
+      }
+      continue;
+    }
+    const { error: markErr } = await db
+      .from("golfapi_bulk_clubs")
+      .update({ gps_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+      .eq("club_id", club.club_id);
+    if (markErr) throw markErr;
+    done.push({ club_id: club.club_id, name: club.name, courses: todo.length, points: written });
+  }
+
+  return { clubs: done, stopped, more: (due ?? []).length === limit || stopped != null };
 }

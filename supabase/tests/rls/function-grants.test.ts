@@ -230,6 +230,7 @@ const EXPECTED: Record<string, Expectation> = {
   "live_round_player_forget_shots()": { anon: false, authenticated: false },
   // 0109
   "golfapi_import_secret_ok(p_secret text)": { anon: false, authenticated: false },
+  "golfapi_bulk_gps_next(p_limit integer, p_countries text[], p_club_ids bigint[])": { anon: false, authenticated: false },
   // 0148 golfapi bulk import — service role only
   "golfapi_bulk_next(p_limit integer, p_club_ids bigint[], p_retry_errors boolean, p_recheck_review boolean)": { anon: false, authenticated: false },
   // 0110 scorecards
