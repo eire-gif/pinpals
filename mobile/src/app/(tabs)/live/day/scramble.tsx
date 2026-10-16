@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { router } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
@@ -16,6 +16,7 @@ import { listConnections, type Member } from "@/lib/members";
 import { loadMyProfile } from "@/lib/profile";
 import { clockLabel } from "@/lib/tee-time-post";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
+import { explainStartError } from "@/lib/open-game-alert";
 
 /**
  * Set up a scramble day (0113): several scramble teams at one course, one
@@ -163,7 +164,7 @@ export default function NewScrambleDay() {
       );
       router.replace({ pathname: "/live/day/[id]", params: { id: String(id), created: "1" } });
     } catch (e) {
-      Alert.alert("Couldn't start the scramble", e instanceof Error ? e.message : "Please try again.");
+      explainStartError(e, "Couldn't start the scramble");
     } finally {
       setSaving(false);
     }

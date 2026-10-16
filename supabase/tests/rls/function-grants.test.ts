@@ -168,6 +168,10 @@ const EXPECTED: Record<string, Expectation> = {
   "course_card_save(p_club_id bigint, p_tee_name text, p_holes smallint, p_par_total smallint, p_course_rating numeric, p_slope smallint, p_card jsonb)": { anon: false, authenticated: true },
   "live_round_broadcast()": { anon: false, authenticated: false },
   "live_round_create(p_round jsonb, p_players jsonb, p_card jsonb)": { anon: false, authenticated: true },
+  // 0157: one open game per player — two triggers, and your own open game.
+  "live_game_start_lock()": { anon: false, authenticated: false },
+  "live_round_players_one_open_game()": { anon: false, authenticated: false },
+  "my_open_live_game()": { anon: false, authenticated: true },
   "live_round_finish(p_round_id bigint)": { anon: false, authenticated: true },
   "live_round_set_hole(p_round_id bigint, p_hole smallint, p_par smallint, p_stroke_index smallint)": { anon: false, authenticated: true },
   "live_round_set_score(p_round_id bigint, p_player_id bigint, p_hole smallint, p_strokes smallint, p_clear boolean)": { anon: false, authenticated: true },

@@ -40,6 +40,12 @@ async function asService<T>(c: PoolClient, fn: () => Promise<T>): Promise<T> {
   }
 }
 
+/** 0157: one open game per player. Earlier rounds in a test are made older
+ *  than the 8-hour window, so the next one can start with the same people. */
+async function ageOpenGames(c: PoolClient): Promise<void> {
+  await asService(c, () => c.query("update public.live_rounds set created_at = now() - interval '9 hours' where status = 'live'"));
+}
+
 async function rejects(c: PoolClient, sql: string, params: unknown[], pattern?: RegExp): Promise<void> {
   await c.query("savepoint attempt");
   let message: string | null = null;
@@ -93,6 +99,7 @@ describe("who can be put on a card, now that there are groups", () => {
       const { rows } = await c.query<{ id: string }>(createRound, [round, JSON.stringify([p(SECRETARY, "Eire"), p(MEMBER2, "Niall")]), card]);
       expect(rows[0].id).toBeTruthy();
       // So can the committee.
+      await ageOpenGames(c);
       await as(c, COMMITTEE);
       expect((await c.query(createRound, [round, JSON.stringify([p(COMMITTEE, "Dave"), p(MEMBER2, "Niall")]), card])).rowCount).toBe(1);
     });
