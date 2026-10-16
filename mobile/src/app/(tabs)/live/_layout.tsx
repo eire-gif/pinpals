@@ -36,6 +36,10 @@ export default function LiveLayout() {
       <Stack.Screen name="tv" options={{ title: "Show on TV", ...headerButtons({ left: <BackPill /> }) }} />
       {/* Opened from a "results are in" notification it can be first: draw a back. */}
       <Stack.Screen name="day/results/[id]" options={{ title: "Results", ...headerButtons({ left: <BackPill /> }) }} />
+      {/* Follow my round (0158). Opened from a "follow along" notification
+          it can be first: draw a back. */}
+      <Stack.Screen name="share/[id]" options={{ title: "Share live" }} />
+      <Stack.Screen name="follow/[id]" options={{ title: "Following", ...headerButtons({ left: <BackPill /> }) }} />
     </Stack>
   );
 }

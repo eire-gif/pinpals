@@ -40,7 +40,9 @@ import type { Href } from "expo-router";
  *               components/voice-scores-sheet.tsx (Say scores), targets/widget (lock screen card),
  *               targets/watch (Apple Watch app),
  *               app/invite/[id].tsx (Start live scoring), app/(tabs)/live/tv.tsx,
- *               app/(tabs)/live/day/[id].tsx (Show on TV)
+ *               app/(tabs)/live/day/[id].tsx (Show on TV),
+ *               app/(tabs)/live/share/[id].tsx, components/share-live-row.tsx,
+ *               app/(tabs)/live/follow/[id].tsx (Share live / Following)
  *    compete  → app/compete/index.tsx, app/compete/[id].tsx, app/compete/match/[id].tsx,
  *               app/compete/new.tsx, app/compete/opens.tsx, app/compete/share-open.tsx
  *    holeMap  → app/hole-map.tsx, components/hole-map-page.ts, components/hole-map-extras.tsx,
@@ -1099,6 +1101,16 @@ export const GUIDES: Guide[] = [
         tip: "Any card in Menu → My scorecards does the same: tap Send, then Photo of the card. On Android, use that one — the picture opens as a download and lands in your gallery.",
       },
       {
+        title: "Let family or a friend follow along",
+        body: "Someone at home who'd love to watch — a parent, a friend at work? While you're playing, tap Share live on the scorecard. Share a link texts them a page that updates hole by hole — no app needed. Or tick PinPals and tap Share: it opens in their app and on their Home Screen widget, and they hear about birdies and the finish.",
+        look: [
+          { style: "raised", label: "Share live", icon: "radio", subtitle: "Let family or a friend follow your card, hole by hole" },
+          { style: "primary", label: "Share a link", icon: "link" },
+          { style: "outline", label: "Send to PinPals", icon: "people" },
+        ],
+        tip: "They see your card and your place (\"2nd of 4\") — never anyone else's scores, and never where you are. Who's watching lists everyone, with Stop; it all stops by itself after the round. Started the round? You can share a guest's card too — handy for a junior playing as a guest. Shared with you? It's under Following in Live scoring.",
+      },
+      {
         title: "Put the leaderboard on a TV",
         body: "In the clubhouse or the bar, open pinpals.ie/tv on the TV. It shows a code. In your round, tap Show the leaderboard on TV, type the code and tap Connect the TV. The board updates as you score, and birdies flash up on the screen.",
         look: [
@@ -1646,6 +1658,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-16", text: "Score a game live: new step, Let family or a friend follow along — Share live sends your card as a link anyone can open, or to PinPals in their app and widget; Who's watching has Stop, and it ends by itself after the round." },
   { on: "2026-10-16", text: "Score a game live: one game per player. If someone on your tee time has already started the game, Start live scoring becomes Open the live game, and a second game with the same players can't be started." },
   { on: "2026-10-16", text: "Tee times: tapping an alert about a request or an offer now opens that one round — the tee time with Confirm my place on it, or the requests for that round — instead of the whole list." },
   { on: "2026-10-16", text: "Score a game live: new step, Score from your Apple Watch — your round on your wrist with the distance to the green; Digital Crown or − / +, then Save; swipe left for your card." },

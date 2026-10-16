@@ -48,6 +48,7 @@ import { createScorecardShareLink, loadScorecard, scorecardFromLiveRound } from 
 import { shareText } from "@/lib/scorecard-math";
 import { saveScorecardPhoto } from "@/lib/scorecard-photo";
 import { liveGameShareText } from "@/lib/live-share";
+import { ShareLiveRow } from "@/components/share-live-row";
 import { SITE_URL } from "@/lib/config";
 import { useLiveRefresh } from "@/lib/use-live-refresh";
 import { goHome } from "@/lib/go-home";
@@ -485,6 +486,17 @@ export default function LiveRoundScreen() {
   // one saves (or refreshes) it on the way.
   const iPlay = me != null && players.some((p) => p.memberId === me);
   const canShareMine = isOn("scorecards") && iPlay;
+  // Follow my round (0158): your own card, or — if you run the game — a
+  // guest's (a junior playing as a guest). Live rounds only.
+  const runsGame = me != null && (round.createdBy === me || dayHeader?.createdBy === me);
+  const hasGuests = players.some((p) => p.memberId == null);
+  const canShareLive = isOn("liveFollow") && live && (iPlay || (runsGame && hasGuests));
+  const openShareLive = () =>
+    router.push({
+      pathname: "/live/share/[id]",
+      params: dayHeader?.createdBy === me ? { id: String(round.id), org: "1" } : { id: String(round.id) },
+    });
+  const shareLiveRow = canShareLive ? <ShareLiveRow roundId={round.id} organiser={dayHeader?.createdBy === me} guestOnly={!iPlay} /> : null;
   const shareGame = async () => {
     const text = liveGameShareText({
       courseName: round.courseName,
@@ -556,6 +568,16 @@ export default function LiveRoundScreen() {
   const share = () => {
     if (sharing) return;
     if (!canShareMine) {
+      if (canShareLive && Platform.OS === "ios") {
+        ActionSheetIOS.showActionSheetWithOptions(
+          { title: "Share scorecard", options: ["Share live…", rows.length > 1 ? "Everyone's card" : "This card", "Cancel"], cancelButtonIndex: 2 },
+          (i) => {
+            if (i === 0) openShareLive();
+            if (i === 1) void shareGame();
+          }
+        );
+        return;
+      }
       void shareGame();
       return;
     }
@@ -563,8 +585,16 @@ export default function LiveRoundScreen() {
     const message = live ? "Send the card as it stands right now." : "Send the final card.";
     if (Platform.OS === "ios") {
       ActionSheetIOS.showActionSheetWithOptions(
-        { title: "Share scorecard", message, options: [everyone, "My card as a photo", "My card, with a link", "Cancel"], cancelButtonIndex: 3 },
-        (i) => {
+        {
+          title: "Share scorecard",
+          message,
+          options: [...(canShareLive ? ["Share live…"] : []), everyone, "My card as a photo", "My card, with a link", "Cancel"],
+          cancelButtonIndex: canShareLive ? 4 : 3,
+        },
+        (n) => {
+          // "Share live…" comes first when it's on offer.
+          if (canShareLive && n === 0) return openShareLive();
+          const i = canShareLive ? n - 1 : n;
           if (i === 0) void shareGame();
           if (i === 1) void shareMinePhoto();
           if (i === 2) void shareMine();
@@ -983,6 +1013,7 @@ export default function LiveRoundScreen() {
               )}
             </View>
           ) : null}
+          {shareLiveRow}
           {backToLiveButton}
           {alertsSwitch}
         </ScrollView>
@@ -1067,6 +1098,8 @@ export default function LiveRoundScreen() {
               <Text style={styles.link}>Save this card for {round.courseName}</Text>
             </Pressable>
           ) : null}
+
+          {shareLiveRow}
 
           <Pressable onPress={share} disabled={sharing} style={styles.shareButton} accessibilityRole="button" accessibilityLabel="Share scorecard">
             {sharing ? <ActivityIndicator color={colors.navy900} /> : <Ionicons name="share-outline" size={18} color={colors.navy900} />}

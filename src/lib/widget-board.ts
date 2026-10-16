@@ -119,7 +119,7 @@ function matchLine(g: WidgetGame, sideName: (n: 1 | 2) => string) {
 
 /** Rank scramble teams by net to par (as the app's scramble board does);
  *  foursomes Stableford pairs (0136) by points. */
-function teamBoard(games: WidgetGame[], onPoints: boolean) {
+export function teamBoard(games: WidgetGame[], onPoints: boolean) {
   const rows = games.map((g) => {
     const scr = g.round.scramble;
     const lead = [...g.players].sort((a, b) => a.position - b.position)[0];

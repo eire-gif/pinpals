@@ -1,4 +1,5 @@
 import { asId, authenticateAppRequest, badRequest, unauthenticated } from "@/lib/app-api";
+import { notifyFollowersFinished } from "@/lib/follow-notifications";
 import { notifyMatchResult } from "@/lib/live-match-notifications";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -10,6 +11,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
  * score. Anyone who can see the round can ask, but nothing is sent unless
  * the round really is a finished match in a match day — and each member
  * hears about each match once, whoever asks and however often (dedupe).
+ * Any finished round also tells the PinPals following a card on it (0158).
  */
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const auth = await authenticateAppRequest(request);
@@ -23,8 +25,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     .eq("id", roundId)
     .maybeSingle<{ id: number; status: string; match_day_id: number | null }>();
   if (!round) return Response.json({ error: "Round not found" }, { status: 404 });
-  if (round.status !== "finished" || round.match_day_id == null) return Response.json({ sent: 0 });
+  if (round.status !== "finished") return Response.json({ sent: 0 });
 
-  const sent = await notifyMatchResult(createAdminClient(), roundId);
-  return Response.json({ sent });
+  const admin = createAdminClient();
+  // PinPals following a card in this round (0158) hear the final score.
+  const followers = await notifyFollowersFinished(admin, roundId).catch((e) => {
+    console.error("follow: finished alerts failed", e);
+    return 0;
+  });
+  if (round.match_day_id == null) return Response.json({ sent: followers });
+
+  const sent = await notifyMatchResult(admin, roundId);
+  return Response.json({ sent: sent + followers });
 }

@@ -94,6 +94,8 @@ const PATTERNS: { match: RegExp; to: (id: string, id2: string) => string }[] = [
   // match result opens the match-day board.
   { match: /^\/live\/rounds\/(\d+)$/, to: (id) => `/live/round/${id}` },
   { match: /^\/live\/days\/(\d+)$/, to: (id) => `/live/day/${id}` },
+  // Follow my round (0158): a PinPal shared their card, a birdie on it, the finish.
+  { match: /^\/live\/follow\/(\d+)$/, to: (id) => `/live/follow/${id}` },
   // Competition results (0137): "the results are in" opens them.
   { match: /^\/live\/days\/(\d+)\/results$/, to: (id) => `/live/day/results/${id}` },
   // Competitions (0148): a draw, a result to confirm, a challenge. These

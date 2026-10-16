@@ -2,6 +2,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { highlightKind, highlightMessage, scorerLabel } from "./live-highlight-rules";
+import { notifyFollowersOfHighlight } from "./follow-notifications";
 import { notifyUser } from "./notifications-server";
 
 /**
@@ -112,5 +113,29 @@ export async function notifyHighlight(
       dedupeKey: `live_highlight:${round.id}:${input.playerId}:${input.hole}:${kind}:${userId}`,
     });
   }
-  return { sent: recipients.length, kind };
+  // Follow my round (0158): PinPals following this ball's card. Anyone
+  // already told above (or who made the score) isn't told twice.
+  const ballIds = (
+    round.scramble_size != null
+      ? inRound
+      : round.match_type === "foursomes" || round.match_type === "greensomes"
+        ? inRound.filter((p) => p.side === scorer.side)
+        : [scorer]
+  ).map((p) => p.id);
+  const teamName = round.scramble_size != null ? (round.team_name ?? `Team ${round.team_number ?? ""}`.trim()) : null;
+  const firstOf = (id: number) => (inRound.find((p) => p.id === id)?.display_name ?? "").trim().split(/\s+/)[0] || "your player";
+  const followers = await notifyFollowersOfHighlight(admin, {
+    roundId: round.id,
+    playerIds: ballIds,
+    hole: input.hole,
+    kind,
+    par: holeRow.par,
+    strokes: score.strokes!,
+    course: round.course_name,
+    // Only the player they follow — never their partner's name.
+    whoFor: (playerId) => teamName ?? firstOf(playerId),
+    // Muted game members stay muted, here too.
+    skip: new Set([...recipients, ...makers, ...muted, input.triggeredBy]),
+  });
+  return { sent: recipients.length + followers, kind };
 }

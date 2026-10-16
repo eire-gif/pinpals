@@ -136,6 +136,10 @@ export const NOTIFICATION_TYPES = [
   // Oct 2026: a birdie, eagle, albatross or hole in one, to everyone in the
   // game. The app only (Inbox + phone push) — never email or browser push.
   "live_highlight",
+  // Follow my round (0158): a PinPal shared their card with you; then a
+  // birdie or better on it, and the finish. The app only, like highlights.
+  "live_follow_started",
+  "live_follow_update",
   // Groups (0120). Under feed: they're the social side of PinPals, and a
   // member who wants fewer social alerts silences them together.
   "group_invited",
@@ -199,6 +203,8 @@ export const NOTIFICATION_TYPE_CATEGORY: Record<NotificationType, NotificationCa
   live_match_added: "tee_times",
   live_match_result: "tee_times",
   live_highlight: "tee_times",
+  live_follow_started: "tee_times",
+  live_follow_update: "tee_times",
   group_invited: "feed",
   group_join_request: "feed",
   group_request_approved: "feed",

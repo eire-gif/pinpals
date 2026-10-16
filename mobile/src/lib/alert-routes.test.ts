@@ -288,6 +288,7 @@ describe("every native destination is a screen that exists", () => {
     expect(appRouteFor("/scorecards/31")).toEqual({ kind: "native", path: "/scorecards/31" });
     expect(appRouteFor("/live/days/3")).toEqual({ kind: "native", path: "/live/day/3" });
     expect(appRouteFor("/live/days/3/results")).toEqual({ kind: "native", path: "/live/day/results/3" });
+    expect(appRouteFor("/live/follow/42")).toEqual({ kind: "native", path: "/live/follow/42" });
     expect(appRouteFor("/live/days/x").kind).toBe("web");
     // Competitions (0148).
     expect(appRouteFor("/compete")).toEqual({ kind: "native", path: "/compete" });

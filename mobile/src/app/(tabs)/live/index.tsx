@@ -10,6 +10,7 @@ import { useAuth } from "@/lib/auth";
 import { isOn } from "@/lib/features";
 import { deleteMatchDay, loadMyMatchDays, type MatchDaySummary } from "@/lib/live-match-days";
 import { deleteLiveRound, loadMyLiveRounds, type LiveRoundSummary } from "@/lib/live-rounds";
+import { loadFollowing, type FollowingItem } from "@/lib/live-follow";
 import { formatInfo } from "@/lib/live-scoring";
 import { dateLabel } from "@/lib/tee-times";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
@@ -27,6 +28,7 @@ export default function LiveScoringHub() {
   const userId = session?.user?.id ?? null;
   const [rounds, setRounds] = useState<LiveRoundSummary[] | null>(null);
   const [days, setDays] = useState<MatchDaySummary[] | null>(null);
+  const [following, setFollowing] = useState<FollowingItem[]>([]);
   const [failed, setFailed] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -37,6 +39,9 @@ export default function LiveScoringHub() {
       const [r, d] = await Promise.all([loadMyLiveRounds(userId), loadMyMatchDays()]);
       setRounds(r);
       setDays(d);
+      // Follow my round (0158): cards PinPals have shared with you. Never
+      // holds up the rest of the screen.
+      if (isOn("liveFollow")) loadFollowing().then(setFollowing).catch(() => setFollowing([]));
     } catch {
       setFailed(true);
     }
@@ -151,6 +156,8 @@ export default function LiveScoringHub() {
         {isOn("groups") ? <GuideLink id="live" lead="First time?" /> : null}
       </View>
 
+      {following.length > 0 ? <FollowingList items={following} /> : null}
+
       {failed ? (
         <LoadError what="your rounds" onRetry={() => void load()} />
       ) : rounds == null ? (
@@ -174,6 +181,55 @@ export default function LiveScoringHub() {
         </>
       )}
     </ScrollView>
+  );
+}
+
+/** Cards PinPals are sharing with you right now (0158). */
+function FollowingList({ items }: { items: FollowingItem[] }) {
+  return (
+    <Section title="Following" count={items.length}>
+      {items.map((f, i) => {
+        const c = f.card;
+        const live = c.state === "live";
+        return (
+          <Pressable
+            key={f.followId}
+            onPress={() => router.push({ pathname: "/live/follow/[id]", params: { id: String(f.followId) } })}
+            style={({ pressed }) => [styles.row, i > 0 && styles.rowDivider, live && styles.rowLive, pressed && styles.rowPressed]}
+            accessibilityRole="button"
+            accessibilityLabel={`Following ${c.name} at ${c.course}, ${c.summary.big} ${c.summary.unit}, ${c.summary.progress}`}
+          >
+            <View style={[styles.dateTile, live && styles.dateTileLive, styles.followTile]}>
+              <Text style={styles.followBig} numberOfLines={1} adjustsFontSizeToFit>
+                {c.summary.big}
+              </Text>
+              <Text style={styles.dateMonth}>{c.summary.unit || c.valueHeading}</Text>
+            </View>
+            <View style={styles.rowBody}>
+              <View style={styles.titleLine}>
+                <Text style={styles.rowTitle} numberOfLines={1}>
+                  {c.name}
+                </Text>
+                {live ? (
+                  <View style={styles.livePill}>
+                    <View style={styles.liveDot} />
+                    <Text style={styles.livePillText}>Live</Text>
+                  </View>
+                ) : null}
+              </View>
+              <Text style={styles.rowPlace} numberOfLines={1}>
+                {c.course}
+              </Text>
+              <Text style={styles.rowMeta} numberOfLines={1}>
+                {[c.summary.progress, c.summary.place].filter(Boolean).join(" · ")}
+                {f.sharedBy && f.sharedBy !== c.firstName ? ` · shared by ${f.sharedBy}` : ""}
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.ink500} />
+          </Pressable>
+        );
+      })}
+    </Section>
   );
 }
 
@@ -411,6 +467,8 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.cream50 },
+  followTile: { width: 56, paddingHorizontal: 4 },
+  followBig: { fontFamily: fonts.bodyBold, fontSize: 18, lineHeight: 22, color: colors.gold400 },
   livePillText: { fontFamily: fonts.bodyBold, fontSize: 10, letterSpacing: 0.8, textTransform: "uppercase", color: colors.cream50 },
 });
 

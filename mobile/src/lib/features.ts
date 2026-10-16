@@ -73,6 +73,10 @@ export const FEATURES = {
    *  path as tapping them in. Also needs a binary with the speech recogniser —
    *  see native-capabilities.ts. Off hides the button and the card's mic. */
   voiceScoring: true,
+  /** Follow my round (claude/follow-my-round.md, needs 0158 and the
+   *  website's /follow pages): Share live on the scoring screen, and
+   *  Following in Live scoring. Off hides both. */
+  liveFollow: true,
 
   // ---- Gates (unfinished, off) ----
   /** Shared rounds (phase 9): model only — see claude/shared-round-model.md. */
