@@ -51,6 +51,8 @@ import { SITE_URL } from "@/lib/config";
 import { useLiveRefresh } from "@/lib/use-live-refresh";
 import { goHome } from "@/lib/go-home";
 import { refreshWidget } from "@/lib/widgets";
+import { drainLockScreenScores, endLockScreen, syncLockScreen } from "@/lib/lock-screen";
+import { positionLine } from "@/lib/lock-screen-rules";
 
 /**
  * Scoring a round, and its leaderboard.
@@ -99,6 +101,9 @@ export default function LiveRoundScreen() {
   const load = useCallback(async () => {
     try {
       setFailed(false);
+      // Scores saved on the lock screen with no signal join the app's queue
+      // first, so they're on the card below (lib/lock-screen.ts).
+      await drainLockScreenScores();
       const raw = await loadLiveRound(roundId);
       // Scores entered with no signal and not sent yet stay on the card.
       const waiting = raw ? await pendingFor(roundId) : [];
@@ -170,6 +175,42 @@ export default function LiveRoundScreen() {
     },
     [data]
   );
+
+  // The lock screen card (lib/lock-screen.ts): this member's own ball, as the
+  // round stands. It starts the first time the round opens, follows every
+  // score, and goes when the round is finished or deleted.
+  useEffect(() => {
+    if (data === null) {
+      endLockScreen(roundId, undefined, true);
+      return;
+    }
+    if (!data || me == null) return;
+    const mine = data.players.find((p) => p.memberId === me);
+    if (!mine) return;
+    const mf = data.round.matchFormat;
+    const comp = mf ? matchCompetitors(mf, asMatchPlayers(data.players)).find((c) => c.playerIds.includes(mine.id)) : null;
+    const shots = shotsSoFar(comp ? comp.shots : mine.playingHandicap, data.card);
+    let status: string | null = null;
+    if (mf) {
+      const m = teamMatchState(mf, data.card, asMatchPlayers(data.players), data.scores);
+      if (m && m.holes.length > 0) {
+        const side = (n: number) =>
+          dayHeader?.teamNames?.[n - 1] ?? data.players.filter((p) => p.side === n).map((p) => p.name.split(" ")[0]).join(" & ");
+        status = m.leader === 0 ? m.margin : `${side(m.leader)} ${m.margin}`;
+      }
+    } else if (board) {
+      const row = board.rows.find((r) => r.playerId === mine.id);
+      status = row ? positionLine(row.position, board.rows.length) : null;
+    }
+    void syncLockScreen({
+      round: data.round,
+      card: data.card,
+      playerId: mine.id,
+      shotsAt: (hole) => shots?.get(hole) ?? null,
+      scores: data.scores.get(mine.id) ?? new Map<number, number | null>(),
+      status,
+    });
+  }, [data, board, me, dayHeader, roundId]);
 
   if (!isOn("liveScoring")) return <StateMessage size="screen" icon="podium-outline" title="Live scoring is on its way" />;
   if (failed) return <LoadError size="screen" what="this round" onRetry={() => void load()} />;
@@ -516,6 +557,7 @@ export default function LiveRoundScreen() {
           onPress: async () => {
             try {
               await deleteLiveRound(round.id);
+              endLockScreen(round.id, undefined, true);
               // Home, not the match day or the hub: the game is gone, and
               // Back shouldn't lead to its empty screen either.
               goHome();

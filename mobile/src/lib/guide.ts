@@ -1055,6 +1055,17 @@ export const GUIDES: Guide[] = [
         tip: "Tap the gold Yardage & shot map button under the hole number for front, centre and back of the green, and to mark each shot.",
       },
       {
+        title: "Score from your lock screen",
+        body: "On an iPhone, your round appears on the lock screen once you open it. Lift the phone, use − and + if you need to, and tap Save — no need to unlock. It moves on to the next hole by itself. Picked up is underneath, and Undo takes you back to the hole you just saved.",
+        look: [
+          { style: "outline", label: "−" },
+          { style: "primary", label: "5" },
+          { style: "outline", label: "+" },
+          { style: "primary", label: "Save", icon: "checkmark" },
+        ],
+        tip: "It's your own score only, and not for scrambles or foursomes. No signal? It's kept and sent when there is. The card goes when you tap Finish round. Not showing? Settings → PinPals → Live Activities.",
+      },
+      {
         title: "Leaderboard, finish and share",
         body: "The Leaderboard tab updates as everyone scores. After the last hole, tap Finish round, then get your card certified and Share scorecard to WhatsApp.",
         look: [
@@ -1611,6 +1622,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-16", text: "Score a game live: new step, Score from your lock screen — on an iPhone, save your own score with − / + and Save without unlocking; Picked up and Undo underneath." },
   { on: "2026-10-15", text: "Hole map: drag the bottom panel down to see more of the map; the wind now blows across the whole screen." },
   { on: "2026-10-15", text: "Hole map: tap the wind to see it blowing across the map (one to three chevrons for its strength); distance labels stay on screen when you zoom in; how far you are from the tee shows under the numbers." },
   { on: "2026-10-15", text: "Mark shot: the club you tap is saved to your round; longest shot with each club shows under the scorecard and in My bag." },

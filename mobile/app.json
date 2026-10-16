@@ -21,7 +21,8 @@
         "NSCameraUsageDescription": "PinPals uses your camera to take photos and videos for your posts and listings.",
         "NSPhotoLibraryUsageDescription": "PinPals uses your photo library to add photos and videos to your posts and listings.",
         "NSMicrophoneUsageDescription": "PinPals uses your microphone to record sound with videos you post.",
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSSupportsLiveActivities": true
       },
       "entitlements": {
         "com.apple.security.application-groups": [

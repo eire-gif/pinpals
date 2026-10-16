@@ -402,6 +402,8 @@ struct PinPalsLiveWidget: Widget {
 struct PinPalsWidgetBundle: WidgetBundle {
   var body: some Widget {
     PinPalsLiveWidget()
+    // Scoring from the lock screen (LiveScoreLiveActivity.swift).
+    LiveScoreLiveActivity()
   }
 }
 
