@@ -68,6 +68,11 @@ export const FEATURES = {
    *  ladders and open competitions. Off hides the menu entry;
    *  the screens say "on its way". */
   competitions: true,
+  /** Voice scoring (claude/voice-scoring.md): "Say scores" on the round screen
+   *  and the lock screen card's mic. No migration: scores go through the same
+   *  path as tapping them in. Also needs a binary with the speech recogniser —
+   *  see native-capabilities.ts. Off hides the button and the card's mic. */
+  voiceScoring: true,
 
   // ---- Gates (unfinished, off) ----
   /** Shared rounds (phase 9): model only — see claude/shared-round-model.md. */

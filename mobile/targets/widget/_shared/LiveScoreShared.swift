@@ -20,6 +20,13 @@ import Foundation
 // Positions and match status come from the app, and are cleared as soon as a
 // score goes in from the lock screen so they're never shown stale.
 //
+// Voice scoring (Oct 2026, claude/voice-scoring.md) adds two links to the
+// card — a mic that opens the round on the card's hole already listening, and
+// the distance to the green, which opens the hole map. The distance comes
+// from location updates the app's JavaScript started (lock-screen-location.ts):
+// each fix arrives here (setLocation), and the sum is done against the hole
+// the card is on now, which may have moved on from the lock screen.
+//
 // Saving: every score is kept in the App Group first, then sent to
 // POST /api/widget/live/score with a key for this member and round. No
 // signal → it stays queued, is retried on the next tap, and the app sends it
@@ -62,6 +69,10 @@ struct LiveScoreAttributes: ActivityAttributes {
     var finished: Bool
     /** Undo after the last hole: show the − / + row again although every hole has a score. */
     var editing: Bool
+    /** Yards to the centre of the green: from the member when they're on the hole, else the hole's length from the tee. nil = no map. */
+    var distance: Int? = nil
+    /** "you" or "tee": where `distance` is measured from. */
+    var distanceFrom: String? = nil
   }
 
   let roundId: Int
@@ -71,6 +82,10 @@ struct LiveScoreAttributes: ActivityAttributes {
   let holes: [LiveScoreHole]
   /** Opens this round in the app. */
   let url: String
+  /** The mic: append the hole number. Opens the round on that hole, listening. nil = voice scoring off. */
+  let voiceUrl: String?
+  /** The distance: append the hole number. Opens the hole map. nil = hole maps off or no club. */
+  let mapUrl: String?
 }
 
 @available(iOS 16.1, *)
@@ -196,6 +211,45 @@ enum LiveScoreStore {
 
   static func forget(roundId: Int) {
     defaults?.removeObject(forKey: configKey(roundId))
+    defaults?.removeObject(forKey: geometryKey(roundId))
+  }
+
+  // MARK: Greens and the member's last position, for the distance
+
+  /** A hole's green centre and tee as [lat, lng]; nil where it isn't mapped. */
+  struct Spot: Codable {
+    let n: Int
+    let green: [Double]?
+    let tee: [Double]?
+  }
+
+  struct Fix: Codable {
+    let lat: Double
+    let lng: Double
+    let at: Double
+  }
+
+  private static func geometryKey(_ roundId: Int) -> String { "liveScoreGeometry.\(roundId)" }
+  private static let fixKey = "liveScoreLastFix"
+  /** An older position says nothing about where the member is now. */
+  private static let fixLifetime: Double = 10 * 60
+
+  static func setGeometry(_ spots: [Spot], roundId: Int) {
+    if let data = try? JSONEncoder().encode(spots) { defaults?.set(data, forKey: geometryKey(roundId)) }
+  }
+
+  static func geometry(_ roundId: Int) -> [Spot] {
+    guard let data = defaults?.data(forKey: geometryKey(roundId)) else { return [] }
+    return (try? JSONDecoder().decode([Spot].self, from: data)) ?? []
+  }
+
+  static func setFix(_ fix: Fix) {
+    if let data = try? JSONEncoder().encode(fix) { defaults?.set(data, forKey: fixKey) }
+  }
+
+  static func lastFix() -> Fix? {
+    guard let data = defaults?.data(forKey: fixKey), let fix = try? JSONDecoder().decode(Fix.self, from: data) else { return nil }
+    return Date().timeIntervalSince1970 - fix.at < fixLifetime ? fix : nil
   }
 
   private static func readPending() -> [Pending] {
@@ -247,7 +301,10 @@ enum LiveScoreStore {
     lock.lock(); defer { lock.unlock() }
     writePending([])
     guard let d = defaults else { return }
-    for key in d.dictionaryRepresentation().keys where key.hasPrefix("liveScoreConfig.") { d.removeObject(forKey: key) }
+    for key in d.dictionaryRepresentation().keys where key.hasPrefix("liveScoreConfig.") || key.hasPrefix("liveScoreGeometry.") {
+      d.removeObject(forKey: key)
+    }
+    d.removeObject(forKey: fixKey)
   }
 
   /** Sends this round's waiting scores, oldest first. Stops at the first that can't go. */
@@ -301,6 +358,40 @@ enum LiveScoreStore {
   }
 }
 
+// MARK: - The distance to the green
+
+enum LiveScoreDistance {
+  /** Further than this from the green, the member isn't on the hole: show its length from the tee (hole-geo.ts ON_HOLE_RADIUS_M). */
+  static let onHoleMetres = 750.0
+  static let metresPerYard = 0.9144
+
+  static func metres(_ a: [Double], _ b: [Double]) -> Double {
+    let r = 6_371_000.0
+    let lat1 = a[0] * .pi / 180, lat2 = b[0] * .pi / 180
+    let dLat = (b[0] - a[0]) * .pi / 180, dLng = (b[1] - a[1]) * .pi / 180
+    let h = sin(dLat / 2) * sin(dLat / 2) + cos(lat1) * cos(lat2) * sin(dLng / 2) * sin(dLng / 2)
+    return 2 * r * asin(min(1, sqrt(h)))
+  }
+
+  /** Yards and where from ("you" / "tee") for hole `n`, or nils when the hole isn't mapped. */
+  static func measure(roundId: Int, hole n: Int) -> (Int?, String?) {
+    guard let spot = LiveScoreStore.geometry(roundId).first(where: { $0.n == n }), let green = spot.green, green.count == 2 else { return (nil, nil) }
+    if let fix = LiveScoreStore.lastFix() {
+      let d = metres([fix.lat, fix.lng], green)
+      if d <= onHoleMetres { return (Int((d / metresPerYard).rounded()), "you") }
+    }
+    if let tee = spot.tee, tee.count == 2 { return (Int((metres(tee, green) / metresPerYard).rounded()), "tee") }
+    return (nil, nil)
+  }
+
+  @available(iOS 16.1, *)
+  static func apply(_ s: inout LiveScoreAttributes.ContentState, roundId: Int) {
+    let (d, from) = measure(roundId: roundId, hole: s.hole)
+    s.distance = d
+    s.distanceFrom = from
+  }
+}
+
 // MARK: - What the buttons do
 
 @available(iOS 17.0, *)
@@ -337,12 +428,14 @@ enum LiveScoreEngine {
     let hole = s.hole
     let value: Int? = pickedUp ? nil : (s.draft ?? attrs.netPar(hole))
     s.strokes[String(hole)] = value ?? 0
-    s.saved = "Hole \(hole) saved · \(attrs.short(value, hole))"
+    // Short: it shares the bottom row with the distance and the mic.
+    s.saved = "Hole \(hole) · \(attrs.short(value, hole))"
     s.undoHole = hole
     s.draft = nil
     s.status = nil
     s.editing = false
     s.hole = attrs.nextHole(after: hole, strokes: s.strokes) ?? hole
+    LiveScoreDistance.apply(&s, roundId: roundId)
     LiveScoreStore.enqueue(roundId: roundId, hole: hole, strokes: value, clear: false)
     s.waiting = LiveScoreStore.waiting(roundId: roundId)
     // Show it straight away; the send can take a moment on a weak signal.
@@ -372,6 +465,7 @@ enum LiveScoreEngine {
     guard let back = s.undoHole, !s.finished else { return }
     let had = s.strokes[String(back)]
     s.hole = back
+    LiveScoreDistance.apply(&s, roundId: roundId)
     s.draft = (had ?? 0) > 0 ? had : nil
     s.undoHole = nil
     s.saved = nil
@@ -482,6 +576,19 @@ public class PinPalsLiveActivityBridge: NSObject {
     let hole: Int
     let strokes: [String: Int]
     let status: String?
+    let voiceUrl: String?
+    let mapUrl: String?
+  }
+
+  struct GeometryInput: Decodable {
+    let roundId: Int
+    let holes: [LiveScoreStore.Spot]
+  }
+
+  struct LocationInput: Decodable {
+    let lat: Double
+    let lng: Double
+    let accuracy: Double?
   }
 
   struct UpdateInput: Decodable {
@@ -521,19 +628,23 @@ public class PinPalsLiveActivityBridge: NSObject {
     LiveScoreStore.setConfig(.init(api: input.api, token: input.token, playerId: input.playerId), roundId: input.roundId)
 
     let waiting = LiveScoreStore.waiting(roundId: input.roundId)
-    let state = LiveScoreAttributes.ContentState(
+    var state = LiveScoreAttributes.ContentState(
       hole: input.hole, draft: nil, strokes: input.strokes, saved: nil, undoHole: nil,
       status: input.status, waiting: waiting, notice: nil, finished: false, editing: false
     )
+    LiveScoreDistance.apply(&state, roundId: input.roundId)
 
     for other in Activity<LiveScoreAttributes>.activities where other.attributes.roundId != input.roundId {
       Task { await other.end(nil, dismissalPolicy: .immediate) }
     }
     if let existing = LiveScoreEngine.activity(input.roundId) {
-      Task { await LiveScoreEngine.push(existing, state) }
+      Task { [state] in await LiveScoreEngine.push(existing, state) }
       return nil
     }
-    let attributes = LiveScoreAttributes(roundId: input.roundId, course: input.course, format: input.format, holes: input.holes, url: input.url)
+    let attributes = LiveScoreAttributes(
+      roundId: input.roundId, course: input.course, format: input.format, holes: input.holes, url: input.url,
+      voiceUrl: input.voiceUrl, mapUrl: input.mapUrl
+    )
     do {
       _ = try Activity<LiveScoreAttributes>.request(attributes: attributes, content: ActivityContent(state: state, staleDate: nil), pushType: nil)
       return nil
@@ -552,6 +663,7 @@ public class PinPalsLiveActivityBridge: NSObject {
     guard let a = LiveScoreEngine.activity(input.roundId) else { return "not running" }
     var s = a.content.state
     s.hole = input.hole
+    LiveScoreDistance.apply(&s, roundId: input.roundId)
     s.strokes = input.strokes
     s.status = input.status
     s.draft = nil
@@ -560,7 +672,7 @@ public class PinPalsLiveActivityBridge: NSObject {
     s.notice = nil
     s.editing = false
     s.waiting = LiveScoreStore.waiting(roundId: input.roundId)
-    Task {
+    Task { [s] in
       await LiveScoreEngine.push(a, s)
       await LiveScoreEngine.retry(roundId: input.roundId)
     }
@@ -585,6 +697,43 @@ public class PinPalsLiveActivityBridge: NSObject {
       LiveScoreStore.forget(roundId: a.attributes.roundId)
     }
     if input.roundId == nil { LiveScoreStore.clearEverything() }
+    return nil
+  }
+
+  /** Where each hole's green and tee are, for the card's distance. Stored in the App Group; the card recalculates. */
+  @objc public static func setGeometry(_ json: String) -> NSString? {
+    guard let input = decode(GeometryInput.self, json) else { return "bad input" }
+    LiveScoreStore.setGeometry(input.holes, roundId: input.roundId)
+    guard #available(iOS 17.0, *) else { return "unsupported" }
+    guard let a = LiveScoreEngine.activity(input.roundId) else { return "not running" }
+    var s = a.content.state
+    LiveScoreDistance.apply(&s, roundId: input.roundId)
+    Task { [s] in await LiveScoreEngine.push(a, s) }
+    return nil
+  }
+
+  /**
+   * A new position from the app's location updates (running in the
+   * background while the phone is locked). "not running" tells the app to
+   * stop them: there's no card to show a distance on.
+   */
+  @objc public static func setLocation(_ json: String) -> NSString? {
+    guard #available(iOS 17.0, *) else { return "unsupported" }
+    guard let input = decode(LocationInput.self, json) else { return "bad input" }
+    LiveScoreStore.setFix(.init(lat: input.lat, lng: input.lng, at: Date().timeIntervalSince1970))
+    let running = Activity<LiveScoreAttributes>.activities.filter {
+      ($0.activityState == .active || $0.activityState == .stale) && !$0.content.state.finished
+    }
+    guard !running.isEmpty else { return "not running" }
+    for a in running {
+      var s = a.content.state
+      let before = s.distance
+      let beforeFrom = s.distanceFrom
+      LiveScoreDistance.apply(&s, roundId: a.attributes.roundId)
+      // Walking changes it every few seconds; a yard or two either way isn't worth redrawing.
+      let moved = abs((s.distance ?? 0) - (before ?? 0)) >= 2 || (s.distance == nil) != (before == nil)
+      if moved || s.distanceFrom != beforeFrom { Task { [s] in await LiveScoreEngine.push(a, s) } }
+    }
     return nil
   }
 

@@ -26,6 +26,8 @@ import { applyUpdateAtLaunch } from "@/lib/app-updates";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { hrefFromNotification, registerForPush } from "@/lib/push";
 import { connectWidget } from "@/lib/widgets";
+// Defines the lock screen distance task: iOS may wake the app just to deliver a location.
+import "@/lib/lock-screen-location";
 import { colors, contentColumn, fonts, headerTitleStyle } from "@/lib/theme";
 
 void SplashScreen.preventAutoHideAsync();

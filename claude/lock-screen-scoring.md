@@ -90,6 +90,9 @@ Scoring" design canvas (artboards 1–4).
 
 ## Not done yet
 
+- **Voice scoring's mic and the distance to the green** on this card:
+  built, see claude/voice-scoring.md (needs its own iOS build).
+
 - **Android** — the same idea as an ongoing notification with −1 / +1 / Save
   actions. Needs its own native module; no Android device to test on yet.
 - **Other players' scores on the lock screen** while it's locked (needs

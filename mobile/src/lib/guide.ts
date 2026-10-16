@@ -37,6 +37,7 @@ import type { Href } from "expo-router";
  *    teeJoin  → app/(tabs)/tee-times.tsx, app/invite/[id].tsx, app/my-requests.tsx
  *    fill     → app/invite/[id].tsx, app/round-invite.tsx, app/tee-link.tsx
  *    live     → app/(tabs)/live/index.tsx, app/(tabs)/live/new.tsx, app/(tabs)/live/round/[id].tsx,
+ *               components/voice-scores-sheet.tsx (Say scores), targets/widget (lock screen card),
  *               app/invite/[id].tsx (Start live scoring), app/(tabs)/live/tv.tsx,
  *               app/(tabs)/live/day/[id].tsx (Show on TV)
  *    compete  → app/compete/index.tsx, app/compete/[id].tsx, app/compete/match/[id].tsx,
@@ -1055,15 +1056,24 @@ export const GUIDES: Guide[] = [
         tip: "Tap the gold Yardage & shot map button under the hole number for front, centre and back of the green, and to mark each shot.",
       },
       {
+        title: "Or say the scores",
+        body: "Tap Say scores under the players and say everyone's, the way you'd tell the group: “Niamh bogey, I had par, Dec a five”. Then check each one — fix any with − and +, and tap Yes on any it wasn't sure of — and tap Save & go to the next hole.",
+        look: [
+          { style: "primary", label: "Say scores", icon: "mic" },
+          { style: "primary", label: "Save & go to hole 8", icon: "checkmark" },
+        ],
+        tip: "Birdie, par, bogey, double, picked up, “the same” and “the rest of us par” all work. It listens on your phone, so it works with no signal on most iPhones. Nothing saves until you tap Save.",
+      },
+      {
         title: "Score from your lock screen",
-        body: "On an iPhone, your round appears on the lock screen once you open it. Lift the phone, use − and + if you need to, and tap Save — no need to unlock. It moves on to the next hole by itself. Picked up is underneath, and Undo takes you back to the hole you just saved.",
+        body: "On an iPhone, your round appears on the lock screen once you open it. Lift the phone, use − and + if you need to, and tap Save — no need to unlock. It moves on to the next hole by itself. Picked up is underneath, and Undo takes you back to the hole you just saved. The gold mic opens the round listening, to say the group's scores, and the yardage is your distance to the centre of the green — tap it for the hole map.",
         look: [
           { style: "outline", label: "−" },
           { style: "primary", label: "5" },
           { style: "outline", label: "+" },
           { style: "primary", label: "Save", icon: "checkmark" },
         ],
-        tip: "It's your own score only, and not for scrambles or foursomes. No signal? It's kept and sent when there is. The card goes when you tap Finish round. Not showing? Settings → PinPals → Live Activities.",
+        tip: "It's your own score only, and not for scrambles or foursomes. No signal? It's kept and sent when there is. The yardage needs location: PinPals asks once, and it stops when the round ends (a flag means it's the hole's length from the tee). The card goes when you tap Finish round. Not showing? Settings → PinPals → Live Activities.",
       },
       {
         title: "Leaderboard, finish and share",
@@ -1622,6 +1632,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-16", text: "Score a game live: new step, Or say the scores — tap Say scores and say the group's scores, check them, Save. Score from your lock screen: the mic opens it listening, and the yardage to the green opens the hole map." },
   { on: "2026-10-16", text: "Score a game live: new step, Score from your lock screen — on an iPhone, save your own score with − / + and Save without unlocking; Picked up and Undo underneath." },
   { on: "2026-10-15", text: "Hole map: drag the bottom panel down to see more of the map; the wind now blows across the whole screen." },
   { on: "2026-10-15", text: "Hole map: tap the wind to see it blowing across the map (one to three chevrons for its strength); distance labels stay on screen when you zoom in; how far you are from the tee shows under the numbers." },

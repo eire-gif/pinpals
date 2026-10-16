@@ -3,6 +3,8 @@
 // The small translations between the round screen's data and the lock
 // screen card (lock-screen.ts → Swift in mobile/targets/widget/_shared).
 
+import { holeGeometry, type LayoutPoint } from "./hole-geo";
+
 type Hole = { hole: number };
 
 /** Scores for the card: hole number (as a string) → strokes, picked up = 0. */
@@ -31,4 +33,36 @@ export function positionLine(position: string, of: number): string | null {
   const n = Number(tied ? position.slice(1) : position);
   if (!Number.isInteger(n) || n < 1) return null;
   return tied ? `Joint ${ordinal(n)} of ${of}` : `${ordinal(n)} of ${of}`;
+}
+
+/**
+ * Where each hole's green centre and tee are, for the card's distance to
+ * the green: [lat, lng] pairs, null where the hole isn't mapped. The
+ * provider's points first (golfapi.io), OpenStreetMap's where it has none —
+ * the same order as the hole map.
+ */
+export type LockScreenSpot = { n: number; green: [number, number] | null; tee: [number, number] | null };
+
+export function lockScreenSpots(card: readonly Hole[], provider: readonly LayoutPoint[], osm: readonly LayoutPoint[]): LockScreenSpot[] {
+  const pair = (p: { lat: number; lng: number } | null): [number, number] | null => (p ? [p.lat, p.lng] : null);
+  return card.map(({ hole }) => {
+    const fromProvider = holeGeometry(provider, hole);
+    const g = fromProvider.mapped ? fromProvider : holeGeometry(osm, hole);
+    return { n: hole, green: pair(g.greenCentre), tee: pair(g.tee) };
+  });
+}
+
+/** Any hole with a green to measure to: worth sending to the card. */
+export const anySpots = (spots: readonly LockScreenSpot[]): boolean => spots.some((s) => s.green != null);
+
+/** The card's links: append the hole number. Voice opens the round listening; the map opens on the hole. */
+export function lockScreenLinks(
+  roundId: number,
+  clubId: number | null,
+  on: { voice: boolean; map: boolean }
+): { voiceUrl: string | null; mapUrl: string | null } {
+  return {
+    voiceUrl: on.voice ? `pinpals://live/round/${roundId}?voice=1&hole=` : null,
+    mapUrl: on.map && clubId != null ? `pinpals://hole-map?clubId=${clubId}&roundId=${roundId}&hole=` : null,
+  };
 }

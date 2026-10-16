@@ -33,6 +33,16 @@ public class PinPalsLiveActivityModule: Module {
       LiveActivityBridgeCall.call("end:", json)
     }
 
+    /** Each hole's green and tee, for the card's distance (voice scoring, Oct 2026). */
+    Function("setGeometry") { (json: String) -> String? in
+      LiveActivityBridgeCall.call("setGeometry:", json)
+    }
+
+    /** A new position; "not running" = no card, stop the updates. */
+    Function("setLocation") { (json: String) -> String? in
+      LiveActivityBridgeCall.call("setLocation:", json)
+    }
+
     /** JSON array of scores saved on the lock screen and not sent yet. */
     Function("takePending") { () -> String in
       LiveActivityBridgeCall.call("takePending", nil) ?? "[]"

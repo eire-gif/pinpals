@@ -52,6 +52,9 @@ import { useLiveRefresh } from "@/lib/use-live-refresh";
 import { goHome } from "@/lib/go-home";
 import { refreshWidget } from "@/lib/widgets";
 import { drainLockScreenScores, endLockScreen, syncLockScreen } from "@/lib/lock-screen";
+import { voiceScoringEnabled } from "@/lib/native-capabilities";
+import { voiceSupported } from "@/lib/voice-listening";
+import { VoiceScoresSheet, type VoiceRow } from "@/components/voice-scores-sheet";
 import { positionLine } from "@/lib/lock-screen-rules";
 
 /**
@@ -74,7 +77,8 @@ import { positionLine } from "@/lib/lock-screen-rules";
  * refuses a duplicate from any client.
  */
 export default function LiveRoundScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  // voice=1&hole=N: opened from the lock screen card's mic (voice scoring).
+  const { id, voice, hole: holeParam } = useLocalSearchParams<{ id: string; voice?: string; hole?: string }>();
   const roundId = Number(id);
   const [data, setData] = useState<LiveRoundData | null | undefined>(undefined);
   /** Scores saved on the phone with no signal, still to send. */
@@ -97,6 +101,12 @@ export default function LiveRoundScreen() {
   const alertsLoaded = useRef<number | null>(null);
   // The card view, so finishing can bring its top — the result — into view.
   const boardScroll = useRef<ScrollView>(null);
+  // Voice scoring (claude/voice-scoring.md): the hole "Say scores" was
+  // opened on, fixed for as long as the sheet is open — the screen's hole
+  // can move underneath (a reload, the group scoring) and the spoken scores
+  // must land on the hole they were said for. Null = closed.
+  const [voiceAt, setVoiceAt] = useState<number | null>(null);
+  const voiceLink = useRef<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -212,6 +222,29 @@ export default function LiveRoundScreen() {
     });
   }, [data, board, me, dayHeader, roundId]);
 
+  // The lock screen card's mic opens the round on its hole, already listening.
+  // Only for someone who can score it; anyone else just gets the round.
+  useEffect(() => {
+    if (voice !== "1") {
+      voiceLink.current = null;
+      return;
+    }
+    if (!data || me == null) return;
+    const key = `${data.round.id}-${holeParam ?? ""}`;
+    if (voiceLink.current === key) return;
+    voiceLink.current = key;
+    router.setParams({ voice: undefined, hole: undefined } as never);
+    const scorer = data.round.createdBy === me || data.players.some((p) => p.memberId === me);
+    if (data.round.status !== "live" || !scorer || !voiceScoringEnabled() || !voiceSupported()) return;
+    const n = Number(holeParam);
+    const at = n && data.card.some((c) => c.hole === n) ? n : null;
+    // The first load mustn't then jump to "the first hole anyone still has to score".
+    started.current = true;
+    if (at != null) setHole(at);
+    setView("score");
+    setVoiceAt(at ?? data.card.find((c) => data.players.some((p) => !data.scores.get(p.id)?.has(c.hole)))?.hole ?? data.card[0]?.hole ?? 1);
+  }, [data, me, voice, holeParam]);
+
   if (!isOn("liveScoring")) return <StateMessage size="screen" icon="podium-outline" title="Live scoring is on its way" />;
   if (failed) return <LoadError size="screen" what="this round" onRetry={() => void load()} />;
   if (data === undefined) return <ActivityIndicator color={colors.green700} style={{ marginTop: spacing.xl }} />;
@@ -284,27 +317,40 @@ export default function LiveRoundScreen() {
         }).filter((r) => r.id > 0)
       : [...players].sort((a, b) => (a.side ?? 0) - (b.side ?? 0) || a.position - b.position).map((p) => ({ id: p.id, name: p.name, side: p.side ?? null }));
 
-  /** Optimistic: draw it now, write it, reload on failure. */
-  const score = async (playerId: number, strokes: number | null, clear = false) => {
-    if (!live) return;
+  /**
+   * Optimistic: draw it now, write it, reload on failure. On this hole
+   * unless told otherwise (voice scoring names its hole). True when saved or
+   * queued for signal; false when refused — `quiet` leaves telling the
+   * member to the caller.
+   */
+  const score = async (
+    playerId: number,
+    strokes: number | null,
+    clear = false,
+    at: { hole: number; par: number } = h,
+    quiet = false
+  ): Promise<boolean> => {
+    if (!live) return false;
     setData((d) => {
       if (!d) return d;
       const next = new Map(d.scores);
       const mine = new Map(next.get(playerId) ?? []);
-      if (clear) mine.delete(h.hole);
-      else mine.set(h.hole, strokes);
+      if (clear) mine.delete(at.hole);
+      else mine.set(at.hole, strokes);
       next.set(playerId, mine);
       return { ...d, scores: next };
     });
     try {
-      const how = await sendScore(round.id, playerId, h.hole, strokes, clear);
-      if (how === "queued") return;
+      const how = await sendScore(round.id, playerId, at.hole, strokes, clear);
+      if (how === "queued") return true;
       // A birdie or better: everyone in the game hears, a few seconds later
       // (a correction in the meantime cancels it). See queueHighlight().
-      queueHighlight(round.id, playerId, h.hole, clear ? null : strokes, h.par);
+      queueHighlight(round.id, playerId, at.hole, clear ? null : strokes, at.par);
+      return true;
     } catch (e) {
-      Alert.alert("That score didn't save", e instanceof Error ? e.message : (e as { message?: string })?.message ?? "Please try again.");
+      if (!quiet) Alert.alert("That score didn't save", e instanceof Error ? e.message : (e as { message?: string })?.message ?? "Please try again.");
       void load();
+      return false;
     }
   };
 
@@ -325,6 +371,31 @@ export default function LiveRoundScreen() {
       Alert.alert("That drive didn't save", e instanceof Error ? e.message : "Check your signal and try again.");
       void load();
     }
+  };
+
+  // ---- Voice scoring ----
+  const voiceOn = canScore && voiceScoringEnabled() && voiceSupported();
+  const mineIn = (r: Row): boolean => {
+    if (me == null) return false;
+    if (scr) return players.some((x) => x.memberId === me);
+    if (matchFormat && isOneBallPerSide(matchFormat)) return players.some((x) => x.side === r.side && x.memberId === me);
+    return players.find((x) => x.id === r.id)?.memberId === me;
+  };
+  const vh = card.find((c) => c.hole === voiceAt) ?? h;
+  const voiceRows: VoiceRow[] = rows.map((r) => {
+    const mine = scores.get(r.id);
+    return { id: r.id, name: r.name, isMe: mineIn(r), shots: shotsAt(r.id, vh.hole), current: mine?.has(vh.hole) ? (mine.get(vh.hole) ?? null) : undefined };
+  });
+  const holeAfter = card[card.findIndex((c) => c.hole === vh.hole) + 1]?.hole ?? null;
+  /** Saved one by one through the same path as tapping them in, then on to the next hole. */
+  const saveVoice = async (list: Array<{ id: number; strokes: number | null }>) => {
+    for (const v of list) {
+      if (!(await score(v.id, v.strokes, false, vh, true))) {
+        throw new Error("A score didn't save. Check them on the card and try again.");
+      }
+    }
+    setVoiceAt(null);
+    setHole(holeAfter ?? vh.hole);
   };
 
   const editHole = async (par: number, strokeIndex: number | null) => {
@@ -816,6 +887,26 @@ export default function LiveRoundScreen() {
             );
           })}
 
+          {voiceOn ? (
+            <Pressable
+              onPress={() => setVoiceAt(h.hole)}
+              style={({ pressed }) => [styles.voice, pressed && { opacity: 0.9 }]}
+              accessibilityRole="button"
+              accessibilityLabel={`Say the scores for hole ${h.hole}`}
+            >
+              <View style={styles.voiceIcon}>
+                <Ionicons name="mic" size={22} color={colors.navy900} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.voiceLabel}>Say scores</Text>
+                <Text style={styles.voiceSub} numberOfLines={2}>
+                  {rows.length > 1 ? "Tap and say everyone's: “Niamh bogey, I had par…”" : "Tap and say your score"}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={colors.navy900} />
+            </Pressable>
+          ) : null}
+
           {scr && !scr.foursomes ? (
             <DrivePicker
               players={[...players].sort((a, b) => a.position - b.position)}
@@ -1008,6 +1099,17 @@ export default function LiveRoundScreen() {
           ) : null}
         </ScrollView>
       )}
+      {voiceOn ? (
+        <VoiceScoresSheet
+          visible={voiceAt != null}
+          hole={vh.hole}
+          par={vh.par}
+          nextHole={holeAfter}
+          rows={voiceRows}
+          onSave={saveVoice}
+          onClose={() => setVoiceAt(null)}
+        />
+      ) : null}
     </View>
   );
 }
@@ -1335,6 +1437,20 @@ const styles = StyleSheet.create({
   holeEyebrow: { fontFamily: fonts.bodyBold, fontSize: 11, letterSpacing: 1.6, textTransform: "uppercase", color: colors.gold400 },
   holeNumber: { fontFamily: fonts.display, fontSize: 48, lineHeight: 56, color: colors.cream50 },
   holeInfo: { fontFamily: fonts.body, fontSize: 13, color: creamAlpha(0.85), paddingVertical: 4 },
+  voice: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    minHeight: 64,
+    paddingLeft: 10,
+    paddingRight: 14,
+    paddingVertical: 10,
+    borderRadius: radii.pill,
+    backgroundColor: colors.gold400,
+  },
+  voiceIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: creamAlpha(0.55), alignItems: "center", justifyContent: "center" },
+  voiceLabel: { fontFamily: fonts.bodyBold, fontSize: 16, color: colors.navy900 },
+  voiceSub: { fontFamily: fonts.body, fontSize: 13, color: colors.navy900 },
   mapPill: { flexDirection: "row", alignItems: "center", gap: 9, marginTop: 8, paddingLeft: 6, paddingRight: 12, paddingVertical: 6, borderRadius: radii.pill, backgroundColor: colors.gold400 },
   mapPillIcon: { width: 30, height: 30, borderRadius: 15, backgroundColor: colors.navy900, alignItems: "center", justifyContent: "center" },
   mapPillText: { fontFamily: fonts.bodyBold, fontSize: 14, color: colors.navy900 },

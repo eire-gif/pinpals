@@ -6,7 +6,15 @@ import { SITE_URL } from "./config";
 import type { LiveRound } from "./live-rounds";
 import { isOneBallPerSide, type CardHole } from "./live-scoring";
 import { sendScore } from "./score-queue";
-import { lockScreenHole, lockScreenStrokes } from "./lock-screen-rules";
+import { anySpots, lockScreenHole, lockScreenLinks, lockScreenSpots, lockScreenStrokes } from "./lock-screen-rules";
+import { isOn } from "./features";
+import { loadCourseLayouts } from "./hole-maps";
+import type { LayoutPoint } from "./hole-geo";
+import { voiceScoringEnabled } from "./native-capabilities";
+import { loadCourse } from "./onboarding";
+import { loadCourseShapes } from "./osm-fetch";
+import { osmLayoutPoints } from "./osm-course";
+import { startLockScreenDistance, stopLockScreenDistance } from "./lock-screen-location";
 
 /**
  * Scoring from the lock screen (Oct 2026): the iPhone Live Activity.
@@ -26,6 +34,10 @@ import { lockScreenHole, lockScreenStrokes } from "./lock-screen-rules";
  *   - Here: when to start, refresh and end the card, and handing the app any
  *     lock screen scores that couldn't be sent for lack of signal.
  *
+ * Voice scoring (claude/voice-scoring.md) adds two links to the card: a mic
+ * that opens the round on the card's hole already listening, and the
+ * distance to the green (lock-screen-location.ts), which opens the hole map.
+ *
  * Only the member's own ball, and only in formats where everyone plays their
  * own ball — not a scramble team, a foursomes pair or a foursomes/greensomes
  * match, which are scored in the app. iPhone with iOS 17+ only; everywhere
@@ -38,6 +50,8 @@ type Native = {
   update(json: string): string | null;
   end(json: string): string | null;
   takePending(): string;
+  setGeometry(json: string): string | null;
+  setLocation(json: string): string | null;
 };
 
 const native: Native | null = Platform.OS === "ios" ? requireOptionalNativeModule<Native>("PinPalsLiveActivity") : null;
@@ -49,6 +63,8 @@ const keys = new Map<number, { token: string; expiresAt: number }>();
 const started = new Set<number>();
 /** Rounds where starting failed for a reason that won't change (format, not playing). */
 const refused = new Set<number>();
+/** Rounds whose greens have been handed to the card this session. */
+const mapped = new Set<number>();
 
 function supported(): boolean {
   try {
@@ -121,6 +137,7 @@ export async function syncLockScreen(input: LockScreenRound): Promise<void> {
 
   try {
     if (!started.has(round.id)) {
+      const links = lockScreenLinks(round.id, round.clubId, { voice: isOn("voiceScoring") && voiceScoringEnabled(), map: isOn("shotMaps") });
       const failure = native.start(
         JSON.stringify({
           roundId: round.id,
@@ -134,12 +151,15 @@ export async function syncLockScreen(input: LockScreenRound): Promise<void> {
           hole,
           strokes,
           status: input.status,
+          voiceUrl: links.voiceUrl,
+          mapUrl: links.mapUrl,
         })
       );
       if (failure == null) {
         // Starting one round's card ends any other's.
         started.clear();
         started.add(round.id);
+        void showDistance(round, input.card);
       }
       return;
     }
@@ -149,9 +169,43 @@ export async function syncLockScreen(input: LockScreenRound): Promise<void> {
     if (result === "not running") {
       started.delete(round.id);
       refused.add(round.id);
+      void stopLockScreenDistance();
+    } else if (!mapped.has(round.id)) {
+      void showDistance(round, input.card);
     }
   } catch {
     // The card is a convenience: scoring in the app carries on regardless.
+  }
+}
+
+/**
+ * The card's distance to the green: hand it where each green is (once a
+ * round), then start the location updates that keep it current. A course
+ * with no mapped greens gets neither — the card just has no distance.
+ */
+async function showDistance(round: LiveRound, card: readonly CardHole[]): Promise<void> {
+  if (!native || round.clubId == null || mapped.has(round.id)) return;
+  mapped.add(round.id);
+  try {
+    const layouts = await loadCourseLayouts(round.clubId).catch(() => []);
+    // A club with several loops: the one with as many holes as this card.
+    const layout = layouts.find((l) => l.holes === card.length) ?? layouts[0] ?? null;
+    let osm: LayoutPoint[] = [];
+    const provider = layout?.points ?? [];
+    if (!card.every((h) => provider.some((p) => p.hole === h.hole && p.kind === "green_centre"))) {
+      const club = await loadCourse(round.clubId).catch(() => null);
+      if (club?.latitude != null && club.longitude != null) {
+        const at = { lat: club.latitude, lng: club.longitude };
+        osm = osmLayoutPoints(await loadCourseShapes(round.clubId, at), at);
+      }
+    }
+    const spots = lockScreenSpots(card, provider, osm);
+    if (!anySpots(spots)) return;
+    native.setGeometry(JSON.stringify({ roundId: round.id, holes: spots }));
+    await startLockScreenDistance();
+  } catch {
+    // No distance on the card; scoring carries on.
+    mapped.delete(round.id);
   }
 }
 
@@ -159,6 +213,8 @@ export async function syncLockScreen(input: LockScreenRound): Promise<void> {
 export function endLockScreen(roundId: number, summary?: string, immediate = false): void {
   started.delete(roundId);
   keys.delete(roundId);
+  mapped.delete(roundId);
+  void stopLockScreenDistance();
   if (!native) return;
   try {
     native.end(JSON.stringify({ roundId, summary: summary ?? null, immediate }));
@@ -172,6 +228,8 @@ export function endAllLockScreens(): void {
   started.clear();
   keys.clear();
   refused.clear();
+  mapped.clear();
+  void stopLockScreenDistance();
   if (!native) return;
   try {
     native.end(JSON.stringify({ roundId: null, summary: null, immediate: true }));

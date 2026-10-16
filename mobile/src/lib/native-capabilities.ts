@@ -20,3 +20,15 @@ export const HAS_IMAGE_MANIPULATOR = requireOptionalNativeModule("ExpoImageManip
 
 /** Videos can be posted and played: the feature is on and the binary can. */
 export const videoEnabled = (): boolean => FEATURES.video && HAS_VIDEO_PLAYER;
+
+/**
+ * Voice scoring (Oct 2026): the speech recogniser (expo-speech-recognition)
+ * arrived in the build after lock screen scoring. Older binaries never see
+ * the "Say scores" button.
+ */
+export const HAS_SPEECH = requireOptionalNativeModule("ExpoSpeechRecognition") != null;
+
+/** Background location for the lock screen's distance to the green (same build). */
+export const HAS_TASK_MANAGER = requireOptionalNativeModule("ExpoTaskManager") != null;
+
+export const voiceScoringEnabled = (): boolean => FEATURES.voiceScoring && HAS_SPEECH;

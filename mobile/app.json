@@ -17,12 +17,14 @@
         "applinks:pinpals.ie"
       ],
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "PinPals uses your location to show tee times at courses near you.",
+        "NSLocationWhenInUseUsageDescription": "PinPals uses your location to show tee times near you and your distance to the green.",
         "NSCameraUsageDescription": "PinPals uses your camera to take photos and videos for your posts and listings.",
         "NSPhotoLibraryUsageDescription": "PinPals uses your photo library to add photos and videos to your posts and listings.",
-        "NSMicrophoneUsageDescription": "PinPals uses your microphone to record sound with videos you post.",
+        "NSMicrophoneUsageDescription": "PinPals uses your microphone to record sound with videos you post, and to hear the scores you say on the course.",
         "ITSAppUsesNonExemptEncryption": false,
-        "NSSupportsLiveActivities": true
+        "NSSupportsLiveActivities": true,
+        "NSSpeechRecognitionUsageDescription": "PinPals turns the scores you say on the course into your scorecard.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "During a live round, PinPals keeps your distance to the green up to date on your lock screen. It stops when the round ends."
       },
       "entitlements": {
         "com.apple.security.application-groups": [
@@ -150,7 +152,10 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "PinPals uses your location to show tee times at courses near you."
+          "locationWhenInUsePermission": "PinPals uses your location to show tee times near you and your distance to the green.",
+          "locationAlwaysAndWhenInUsePermission": "During a live round, PinPals keeps your distance to the green up to date on your lock screen. It stops when the round ends.",
+          "isIosBackgroundLocationEnabled": true,
+          "isAndroidBackgroundLocationEnabled": false
         }
       ],
       [
@@ -158,7 +163,7 @@
         {
           "photosPermission": "PinPals uses your photo library to add photos and videos to your posts and listings.",
           "cameraPermission": "PinPals uses your camera to take photos and videos for your posts and listings.",
-          "microphonePermission": "PinPals uses your microphone to record sound with videos you post."
+          "microphonePermission": "PinPals uses your microphone to record sound with videos you post, and to hear the scores you say on the course."
         }
       ],
       [
@@ -180,6 +185,17 @@
               "./node_modules/@expo-google-fonts/public-sans/700Bold/PublicSans_700Bold.ttf"
             ]
           }
+        }
+      ],
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "PinPals uses your microphone to record sound with videos you post, and to hear the scores you say on the course.",
+          "speechRecognitionPermission": "PinPals turns the scores you say on the course into your scorecard.",
+          "androidSpeechServicePackages": [
+            "com.google.android.googlequicksearchbox",
+            "com.google.android.as"
+          ]
         }
       ],
       "expo-video",
