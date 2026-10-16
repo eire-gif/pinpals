@@ -56,14 +56,26 @@ jobs:
           CI: 1
       - name: Build the Wear OS app
         working-directory: mobile/android
-        run: ./gradlew :wear:assembleDebug --stacktrace
+        shell: bash
+        run: |
+          set -o pipefail
+          ./gradlew :wear:assembleDebug 2>&1 | tee build.log || {
+            msg=$(grep -E "^e: |error:|What went wrong|^> " -A2 build.log | head -60 | sed -e 's/%/%25/g' | awk '{printf "%s%%0A", $0}')
+            echo "::error title=Wear OS build::$msg"
+            exit 1
+          }
       - name: Compile the phone side (modules/live-activity)
         working-directory: mobile/android
         run: |
           module=$(./gradlew -q projects | grep -o "':[^']*live-activity[^']*'" | head -1 | tr -d "'")
           echo "Module project: ${module:-not found}"
           test -n "$module"
-          ./gradlew "$module:compileDebugKotlin" --stacktrace
+          set -o pipefail
+          ./gradlew "$module:compileDebugKotlin" 2>&1 | tee module.log || {
+            msg=$(grep -E "^e: |error:|What went wrong|^> " -A2 module.log | head -60 | sed -e 's/%/%25/g' | awk '{printf "%s%%0A", $0}')
+            echo "::error title=Phone module build::$msg"
+            exit 1
+          }
       - name: Attach the watch app
         uses: actions/upload-artifact@v4
         with:
@@ -101,8 +113,12 @@ jobs:
         run: |
           project=$(ls -d ios/*.xcodeproj | head -1)
           xcodebuild -project "$project" -target PinPalsWatch -sdk watchsimulator -configuration Debug \
-            CODE_SIGNING_ALLOWED=NO build | tail -60
-          test "${PIPESTATUS[0]}" -eq 0
+            CODE_SIGNING_ALLOWED=NO build > watch.log 2>&1 || {
+            msg=$(grep -E "error:|BUILD FAILED" -A2 watch.log | head -60 | sed -e 's/%/%25/g' | awk '{printf "%s%%0A", $0}')
+            echo "::error title=Apple Watch build::$msg"
+            exit 1
+          }
+          tail -5 watch.log
         shell: bash
       - name: Install pods
         working-directory: mobile/ios
@@ -114,5 +130,10 @@ jobs:
           scheme=$(basename "$workspace" .xcworkspace)
           xcodebuild -workspace "$workspace" -scheme "$scheme" -configuration Debug \
             -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
-            CODE_SIGNING_ALLOWED=NO build 2>&1 | grep -E "error:|warning: .*PinPals|BUILD (SUCCEEDED|FAILED)|\*\* " | tail -80
-          test "${PIPESTATUS[0]}" -eq 0
+            CODE_SIGNING_ALLOWED=NO build > iphone.log 2>&1 || {
+            msg=$(grep -E "error:|BUILD FAILED" -A2 iphone.log | head -60 | sed -e 's/%/%25/g' | awk '{printf "%s%%0A", $0}')
+            echo "::error title=iPhone app build::$msg"
+            exit 1
+          }
+          grep -E "warning: .*(PinPals|Watch)" iphone.log | sort -u | head -40 || true
+          tail -5 iphone.log
