@@ -773,6 +773,61 @@ public class PinPalsLiveActivityBridge: NSObject {
     return nil
   }
 
+  struct WatchScoreInput: Decodable {
+    let roundId: Int
+    let hole: Int
+    /** nil = picked up. */
+    let strokes: Int?
+    let clear: Bool?
+    let playerId: Int?
+    let api: String?
+    let token: String?
+  }
+
+  /**
+   * A score saved on the Apple Watch (claude/apple-watch.md), handed over by
+   * PinPalsWatchLink. It joins the lock screen's queue — so it's sent,
+   * retried and drained by the app the same way — and shows on the card at
+   * once. nil = the phone has it now; the watch stops trying.
+   */
+  @objc public static func applyWatchScore(_ json: String) -> NSString? {
+    guard let input = decode(WatchScoreInput.self, json) else { return "bad input" }
+    // The watch's key came from this phone; it's only needed when the card
+    // never started here (Live Activities off).
+    if LiveScoreStore.config(input.roundId) == nil {
+      guard let api = input.api, let token = input.token else { return "no key" }
+      LiveScoreStore.setConfig(.init(api: api, token: token, playerId: input.playerId), roundId: input.roundId)
+    }
+    let clear = input.clear ?? false
+    LiveScoreStore.enqueue(roundId: input.roundId, hole: input.hole, strokes: input.strokes, clear: clear)
+
+    if #available(iOS 17.0, *), let a = LiveScoreEngine.activity(input.roundId) {
+      Task {
+        var s = LiveScoreEngine.current(a)
+        let attrs = a.attributes
+        if clear {
+          s.strokes.removeValue(forKey: String(input.hole))
+        } else {
+          s.strokes[String(input.hole)] = input.strokes ?? 0
+          s.saved = "Hole \(input.hole) · \(attrs.short(input.strokes, input.hole))"
+        }
+        // Undo on the card goes back to its own saves, not the watch's.
+        s.undoHole = nil
+        s.status = nil
+        if s.hole == input.hole, s.draft == nil {
+          s.hole = attrs.nextHole(after: input.hole, strokes: s.strokes) ?? input.hole
+          LiveScoreDistance.apply(&s, roundId: input.roundId)
+        }
+        s.waiting = LiveScoreStore.waiting(roundId: input.roundId)
+        await LiveScoreEngine.push(a, s)
+        await LiveScoreEngine.retry(roundId: input.roundId)
+      }
+    } else {
+      Task { _ = await LiveScoreStore.flush(roundId: input.roundId) }
+    }
+    return nil
+  }
+
   /** Scores saved on the lock screen that haven't reached the website yet, as JSON — handed to the app to send. */
   @objc public static func takePending() -> NSString {
     let items = LiveScoreStore.takeAll()

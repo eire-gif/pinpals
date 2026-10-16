@@ -1,7 +1,7 @@
 Pod::Spec.new do |s|
   s.name           = 'PinPalsLiveActivity'
   s.version        = '1.0.0'
-  s.summary        = 'Starts, updates and ends the PinPals lock screen scoring card.'
+  s.summary        = 'Starts, updates and ends the PinPals lock screen scoring card, and keeps the Apple Watch app on the same round.'
   s.description    = 'A thin bridge from JavaScript to PinPalsLiveActivityBridge, which lives in the app target (mobile/targets/widget/_shared).'
   s.author         = 'PinPals'
   s.homepage       = 'https://www.pinpals.ie'
@@ -12,6 +12,7 @@ Pod::Spec.new do |s|
   s.swift_version  = '5.9'
 
   s.dependency 'ExpoModulesCore'
+  s.frameworks = 'WatchConnectivity'
 
   s.pod_target_xcconfig = {
     'DEFINES_MODULE' => 'YES',
