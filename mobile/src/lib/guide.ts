@@ -1089,14 +1089,14 @@ export const GUIDES: Guide[] = [
       },
       {
         title: "Leaderboard, finish and share",
-        body: "The Leaderboard tab updates as everyone scores. After the last hole, tap Finish round, then get your card certified and Share scorecard to WhatsApp. To keep a picture of it, open the card and tap Save photo, then Save Image — it goes into your Photos, ready for Instagram.",
+        body: "The Leaderboard tab updates as everyone scores. After the last hole, tap Finish round, then get your card certified and Share scorecard to WhatsApp. For a picture of your card, choose My card as a photo, then Save Image — it goes into your Photos, ready for Instagram.",
         look: [
           { style: "outline", label: "Leaderboard" },
           { style: "primary", label: "Finish round" },
           { style: "outline", label: "Share scorecard", icon: "share-outline" },
-          { style: "outline", label: "Save photo", icon: "image-outline" },
+          { style: "outline", label: "My card as a photo", icon: "image-outline" },
         ],
-        tip: "Every card in Menu → My scorecards has Save photo too. On Android the picture opens as a download and lands in your gallery.",
+        tip: "Any card in Menu → My scorecards does the same: tap Send, then Photo of the card. On Android, use that one — the picture opens as a download and lands in your gallery.",
       },
       {
         title: "Put the leaderboard on a TV",
@@ -1647,6 +1647,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
   { on: "2026-10-16", text: "Score a game live: new step, Score from your Apple Watch — your round on your wrist with the distance to the green; Digital Crown or − / +, then Save; swipe left for your card." },
+  { on: "2026-10-16", text: "Score a game live: the scorecard photo is now inside Share scorecard (My card as a photo) and a card's Send (Photo of the card), instead of its own button." },
   { on: "2026-10-16", text: "Score a game live: Leaderboard, finish and share — new Save photo on a scorecard puts the whole card in your Photos as a picture, ready for Instagram or WhatsApp." },
   { on: "2026-10-16", text: "Score a game live: new step, Or say the scores — tap Say scores and say the group's scores, check them, Save. Score from your lock screen: the mic opens it listening, and the yardage to the green opens the hole map." },
   { on: "2026-10-16", text: "Score a game live: new step, Score from your lock screen — on an iPhone, save your own score with − / + and Save without unlocking; Picked up and Undo underneath." },

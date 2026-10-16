@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { FourballConnect } from "@/components/fourball-connect";
-import { ActivityIndicator, Alert, Pressable, ScrollView, Share, StyleSheet, Switch, Text, View } from "react-native";
+import { ActionSheetIOS, ActivityIndicator, Alert, Platform, Pressable, ScrollView, Share, StyleSheet, Switch, Text, View } from "react-native";
 import { Stack, router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
@@ -46,6 +46,7 @@ import {
 import { colors, creamAlpha, fonts, radii, spacing, type } from "@/lib/theme";
 import { createScorecardShareLink, loadScorecard, scorecardFromLiveRound } from "@/lib/scorecards";
 import { shareText } from "@/lib/scorecard-math";
+import { saveScorecardPhoto } from "@/lib/scorecard-photo";
 import { liveGameShareText } from "@/lib/live-share";
 import { SITE_URL } from "@/lib/config";
 import { useLiveRefresh } from "@/lib/use-live-refresh";
@@ -538,14 +539,42 @@ export default function LiveRoundScreen() {
       // Dismissed.
     }
   };
+  // My card as a picture (scorecard-photo.ts): saved as a scorecard first,
+  // like shareMine, then the share sheet with the image.
+  const shareMinePhoto = async () => {
+    setSharing(true);
+    try {
+      const id = await scorecardFromLiveRound(round.id);
+      await saveScorecardPhoto(id);
+    } catch (e) {
+      const msg = (e as { message?: unknown } | null)?.message;
+      Alert.alert("Couldn't make the photo", typeof msg === "string" && msg ? msg : "Please try again.");
+    } finally {
+      setSharing(false);
+    }
+  };
   const share = () => {
     if (sharing) return;
     if (!canShareMine) {
       void shareGame();
       return;
     }
-    Alert.alert("Share scorecard", live ? "Send the card as it stands right now." : "Send the final card.", [
-      { text: rows.length > 1 ? "Everyone's card" : "This card", onPress: () => void shareGame() },
+    const everyone = rows.length > 1 ? "Everyone's card" : "This card";
+    const message = live ? "Send the card as it stands right now." : "Send the final card.";
+    if (Platform.OS === "ios") {
+      ActionSheetIOS.showActionSheetWithOptions(
+        { title: "Share scorecard", message, options: [everyone, "My card as a photo", "My card, with a link", "Cancel"], cancelButtonIndex: 3 },
+        (i) => {
+          if (i === 0) void shareGame();
+          if (i === 1) void shareMinePhoto();
+          if (i === 2) void shareMine();
+        }
+      );
+      return;
+    }
+    // Android's alert has room for three buttons; the photo is on the card itself (My scorecards → Send).
+    Alert.alert("Share scorecard", message, [
+      { text: everyone, onPress: () => void shareGame() },
       { text: "My card, with a link", onPress: () => void shareMine() },
       { text: "Cancel", style: "cancel" },
     ]);
