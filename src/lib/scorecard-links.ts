@@ -53,3 +53,19 @@ export function verifyScorecardToken(token: string, secret: string = shareSecret
 
 export const scorecardLinkPath = (token: string) => `/c/${token}`;
 export const scorecardImagePath = (token: string) => `/c/${token}/opengraph-image`;
+/** The whole card as a portrait picture, for "Save as photo" (c/[token]/photo). */
+export const scorecardPhotoPath = (token: string) => `/c/${token}/photo`;
+
+/** "pinpals-portmarnock-links-2026-10-04.png" — plain ASCII, safe in a header. */
+export function scorecardPhotoFilename(courseName: string, playedOn: string): string {
+  const slug = courseName
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 48)
+    .replace(/-+$/, "");
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(playedOn) ? playedOn : "";
+  return `${["pinpals", slug || "scorecard", date].filter(Boolean).join("-")}.png`;
+}
