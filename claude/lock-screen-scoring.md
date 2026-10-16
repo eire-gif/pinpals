@@ -88,6 +88,16 @@ Scoring" design canvas (artboards 1–4).
 4. Test on the course: open a round, lock the phone, Save a few holes, turn on
    Airplane Mode for one, turn it off and open the app — it should send.
 
+## Fixed after the first build (16 Oct 2026)
+
+Scores entered in the app (tapped or by voice) didn't stick on the card: it
+stayed on the hole last saved from the lock screen. The Swift read the card
+back from `a.content.state` to change one thing — the waiting count after an
+update, the distance on every location fix — and that can lag behind an
+update, so it sent the old hole and total straight back. Now every change goes
+through `LiveScoreEngine.push`, which records the state in the App Group first,
+and everything reads `LiveScoreEngine.current(a)`. Needs a native build.
+
 ## Not done yet
 
 - **Voice scoring's mic and the distance to the green** on this card:

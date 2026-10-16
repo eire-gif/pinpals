@@ -212,6 +212,22 @@ enum LiveScoreStore {
   static func forget(roundId: Int) {
     defaults?.removeObject(forKey: configKey(roundId))
     defaults?.removeObject(forKey: geometryKey(roundId))
+    defaults?.removeObject(forKey: shownKey(roundId))
+  }
+
+  // MARK: What the card was last told to show
+
+  private static func shownKey(_ roundId: Int) -> String { "liveScoreShown.\(roundId)" }
+
+  @available(iOS 16.1, *)
+  static func setShown(_ state: LiveScoreAttributes.ContentState, roundId: Int) {
+    if let data = try? JSONEncoder().encode(state) { defaults?.set(data, forKey: shownKey(roundId)) }
+  }
+
+  @available(iOS 16.1, *)
+  static func shown(_ roundId: Int) -> LiveScoreAttributes.ContentState? {
+    guard let data = defaults?.data(forKey: shownKey(roundId)) else { return nil }
+    return try? JSONDecoder().decode(LiveScoreAttributes.ContentState.self, from: data)
   }
 
   // MARK: Greens and the member's last position, for the distance
@@ -301,7 +317,7 @@ enum LiveScoreStore {
     lock.lock(); defer { lock.unlock() }
     writePending([])
     guard let d = defaults else { return }
-    for key in d.dictionaryRepresentation().keys where key.hasPrefix("liveScoreConfig.") || key.hasPrefix("liveScoreGeometry.") {
+    for key in d.dictionaryRepresentation().keys where key.hasPrefix("liveScoreConfig.") || key.hasPrefix("liveScoreGeometry.") || key.hasPrefix("liveScoreShown.") {
       d.removeObject(forKey: key)
     }
     d.removeObject(forKey: fixKey)
@@ -404,14 +420,27 @@ enum LiveScoreEngine {
     }
   }
 
+  /**
+   * What the card shows now: the state last sent to it, kept in the App
+   * Group. Not `a.content.state`, which can lag a moment behind an update —
+   * reading it to change one thing (the distance, the waiting count) and
+   * sending it back put the old hole and total back on the card, so scores
+   * entered in the app (by hand or by voice) never stuck on the lock screen.
+   */
+  static func current(_ a: Activity<LiveScoreAttributes>) -> LiveScoreAttributes.ContentState {
+    LiveScoreStore.shown(a.attributes.roundId) ?? a.content.state
+  }
+
+  /** Every change to the card goes through here, so `current` is always the latest. */
   static func push(_ a: Activity<LiveScoreAttributes>, _ s: LiveScoreAttributes.ContentState) async {
+    LiveScoreStore.setShown(s, roundId: a.attributes.roundId)
     await a.update(ActivityContent(state: s, staleDate: nil))
   }
 
   /** − / +: change the number shown, 1 to 15. */
   static func step(roundId: Int, delta: Int) async {
     guard let a = activity(roundId) else { return }
-    var s = a.content.state
+    var s = LiveScoreEngine.current(a)
     guard !s.finished else { return }
     let now = s.draft ?? a.attributes.netPar(s.hole)
     s.draft = min(15, max(1, now + delta))
@@ -423,7 +452,7 @@ enum LiveScoreEngine {
   static func save(roundId: Int, pickedUp: Bool) async {
     guard let a = activity(roundId) else { return }
     let attrs = a.attributes
-    var s = a.content.state
+    var s = LiveScoreEngine.current(a)
     guard !s.finished else { return }
     let hole = s.hole
     let value: Int? = pickedUp ? nil : (s.draft ?? attrs.netPar(hole))
@@ -442,7 +471,7 @@ enum LiveScoreEngine {
     await push(a, s)
 
     let outcome = await LiveScoreStore.flush(roundId: roundId)
-    var latest = a.content.state
+    var latest = LiveScoreEngine.current(a)
     latest.waiting = LiveScoreStore.waiting(roundId: roundId)
     switch outcome {
     case .unauthorized: latest.notice = "Open PinPals to keep scoring here"
@@ -461,7 +490,7 @@ enum LiveScoreEngine {
   /** Back to the hole just saved, showing what was saved, to change it. */
   static func undo(roundId: Int) async {
     guard let a = activity(roundId) else { return }
-    var s = a.content.state
+    var s = LiveScoreEngine.current(a)
     guard let back = s.undoHole, !s.finished else { return }
     let had = s.strokes[String(back)]
     s.hole = back
@@ -477,7 +506,7 @@ enum LiveScoreEngine {
   static func retry(roundId: Int) async {
     guard let a = activity(roundId) else { return }
     _ = await LiveScoreStore.flush(roundId: roundId)
-    var s = a.content.state
+    var s = LiveScoreEngine.current(a)
     s.waiting = LiveScoreStore.waiting(roundId: roundId)
     await push(a, s)
   }
@@ -638,6 +667,7 @@ public class PinPalsLiveActivityBridge: NSObject {
       Task { await other.end(nil, dismissalPolicy: .immediate) }
     }
     if let existing = LiveScoreEngine.activity(input.roundId) {
+      LiveScoreStore.setShown(state, roundId: input.roundId)
       Task { [state] in await LiveScoreEngine.push(existing, state) }
       return nil
     }
@@ -647,6 +677,7 @@ public class PinPalsLiveActivityBridge: NSObject {
     )
     do {
       _ = try Activity<LiveScoreAttributes>.request(attributes: attributes, content: ActivityContent(state: state, staleDate: nil), pushType: nil)
+      LiveScoreStore.setShown(state, roundId: input.roundId)
       return nil
     } catch {
       return error.localizedDescription as NSString
@@ -661,7 +692,7 @@ public class PinPalsLiveActivityBridge: NSObject {
       LiveScoreStore.setConfig(.init(api: api, token: token, playerId: input.playerId), roundId: input.roundId)
     }
     guard let a = LiveScoreEngine.activity(input.roundId) else { return "not running" }
-    var s = a.content.state
+    var s = LiveScoreEngine.current(a)
     s.hole = input.hole
     LiveScoreDistance.apply(&s, roundId: input.roundId)
     s.strokes = input.strokes
@@ -672,6 +703,7 @@ public class PinPalsLiveActivityBridge: NSObject {
     s.notice = nil
     s.editing = false
     s.waiting = LiveScoreStore.waiting(roundId: input.roundId)
+    LiveScoreStore.setShown(s, roundId: input.roundId)
     Task { [s] in
       await LiveScoreEngine.push(a, s)
       await LiveScoreEngine.retry(roundId: input.roundId)
@@ -685,7 +717,7 @@ public class PinPalsLiveActivityBridge: NSObject {
     let input = decode(EndInput.self, json) ?? EndInput(roundId: nil, summary: nil, immediate: true)
     let immediate = input.immediate ?? false
     for a in Activity<LiveScoreAttributes>.activities where input.roundId == nil || a.attributes.roundId == input.roundId {
-      var s = a.content.state
+      var s = LiveScoreEngine.current(a)
       s.finished = true
       s.status = input.summary ?? a.attributes.total(s.strokes)
       s.notice = nil
@@ -706,8 +738,9 @@ public class PinPalsLiveActivityBridge: NSObject {
     LiveScoreStore.setGeometry(input.holes, roundId: input.roundId)
     guard #available(iOS 17.0, *) else { return "unsupported" }
     guard let a = LiveScoreEngine.activity(input.roundId) else { return "not running" }
-    var s = a.content.state
+    var s = LiveScoreEngine.current(a)
     LiveScoreDistance.apply(&s, roundId: input.roundId)
+    LiveScoreStore.setShown(s, roundId: input.roundId)
     Task { [s] in await LiveScoreEngine.push(a, s) }
     return nil
   }
@@ -722,17 +755,20 @@ public class PinPalsLiveActivityBridge: NSObject {
     guard let input = decode(LocationInput.self, json) else { return "bad input" }
     LiveScoreStore.setFix(.init(lat: input.lat, lng: input.lng, at: Date().timeIntervalSince1970))
     let running = Activity<LiveScoreAttributes>.activities.filter {
-      ($0.activityState == .active || $0.activityState == .stale) && !$0.content.state.finished
+      ($0.activityState == .active || $0.activityState == .stale) && !LiveScoreEngine.current($0).finished
     }
     guard !running.isEmpty else { return "not running" }
     for a in running {
-      var s = a.content.state
+      var s = LiveScoreEngine.current(a)
       let before = s.distance
       let beforeFrom = s.distanceFrom
       LiveScoreDistance.apply(&s, roundId: a.attributes.roundId)
       // Walking changes it every few seconds; a yard or two either way isn't worth redrawing.
       let moved = abs((s.distance ?? 0) - (before ?? 0)) >= 2 || (s.distance == nil) != (before == nil)
-      if moved || s.distanceFrom != beforeFrom { Task { [s] in await LiveScoreEngine.push(a, s) } }
+      if moved || s.distanceFrom != beforeFrom {
+        LiveScoreStore.setShown(s, roundId: a.attributes.roundId)
+        Task { [s] in await LiveScoreEngine.push(a, s) }
+      }
     }
     return nil
   }
