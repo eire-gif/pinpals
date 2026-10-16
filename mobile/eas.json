@@ -38,6 +38,24 @@
       "android": {
         "image": "latest"
       }
+    },
+    "wear-preview": {
+      "extends": "preview",
+      "channel": "preview",
+      "android": {
+        "gradleCommand": ":wear:assembleRelease",
+        "applicationArchivePath": "wear/build/outputs/apk/release/*.apk",
+        "image": "latest"
+      }
+    },
+    "wear-production": {
+      "extends": "production",
+      "channel": "production",
+      "android": {
+        "gradleCommand": ":wear:bundleRelease",
+        "applicationArchivePath": "wear/build/outputs/bundle/release/*.aab",
+        "image": "latest"
+      }
     }
   },
   "submit": {

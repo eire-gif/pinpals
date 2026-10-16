@@ -1,0 +1,118 @@
+# Builds the two watch apps on every pull request that touches them — the
+# check that the Swift and Kotlin actually compile, without a Mac, an Android
+# phone or a watch. Free on a public repo.
+#
+#   Wear OS       Linux:  the watch app (mobile/wear) and the phone side of
+#                         modules/live-activity. The watch .apk is attached to
+#                         the run, ready to drag onto a Wear OS emulator.
+#   Apple Watch   macOS:  the watch app (mobile/targets/watch) on its own,
+#                         then the whole iPhone app with it, for the Simulator.
+#
+# Nothing is signed or published; real builds are still `eas build`.
+
+name: Watch apps
+
+on:
+  pull_request:
+    paths:
+      - "mobile/wear/**"
+      - "mobile/targets/**"
+      - "mobile/modules/**"
+      - "mobile/plugins/**"
+      - "mobile/app.json"
+      - "mobile/package-lock.json"
+      - ".github/workflows/watch-apps.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: watch-apps-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  wear-os:
+    name: Wear OS
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Install packages
+        run: npm ci
+      - name: Generate the Android project
+        run: npx expo prebuild --platform android --no-install
+        env:
+          CI: 1
+      - name: Build the Wear OS app
+        working-directory: mobile/android
+        run: ./gradlew :wear:assembleDebug --stacktrace
+      - name: Compile the phone side (modules/live-activity)
+        working-directory: mobile/android
+        run: |
+          module=$(./gradlew -q projects | grep -o "':[^']*live-activity[^']*'" | head -1 | tr -d "'")
+          echo "Module project: ${module:-not found}"
+          test -n "$module"
+          ./gradlew "$module:compileDebugKotlin" --stacktrace
+      - name: Attach the watch app
+        uses: actions/upload-artifact@v4
+        with:
+          name: pinpals-wear-debug-apk
+          path: mobile/wear/build/outputs/apk/debug/*.apk
+          retention-days: 14
+
+  apple-watch:
+    name: Apple Watch
+    runs-on: macos-latest
+    timeout-minutes: 75
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - name: Use the newest Xcode on the runner
+        run: |
+          ls -d /Applications/Xcode*.app
+          xcode=$(ls -d /Applications/Xcode_*.app | grep -v -i beta | sort -V | tail -1)
+          sudo xcode-select -s "$xcode"
+          xcodebuild -version
+      - name: Install packages
+        run: npm ci
+      - name: Generate the iOS project
+        run: npx expo prebuild --platform ios --no-install
+        env:
+          CI: 1
+      - name: Build the watch app
+        run: |
+          project=$(ls -d ios/*.xcodeproj | head -1)
+          xcodebuild -project "$project" -target PinPalsWatch -sdk watchsimulator -configuration Debug \
+            CODE_SIGNING_ALLOWED=NO build | tail -60
+          test "${PIPESTATUS[0]}" -eq 0
+        shell: bash
+      - name: Install pods
+        working-directory: mobile/ios
+        run: pod install
+      - name: Build the iPhone app with the watch app inside
+        shell: bash
+        run: |
+          workspace=$(ls -d ios/*.xcworkspace | head -1)
+          scheme=$(basename "$workspace" .xcworkspace)
+          xcodebuild -workspace "$workspace" -scheme "$scheme" -configuration Debug \
+            -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO build 2>&1 | grep -E "error:|warning: .*PinPals|BUILD (SUCCEEDED|FAILED)|\*\* " | tail -80
+          test "${PIPESTATUS[0]}" -eq 0

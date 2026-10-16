@@ -1153,15 +1153,15 @@ export const GUIDES: Guide[] = [
         tip: "It's your own score — or, in a foursomes or greensomes pair or a scramble team, your pair's or team's card, which either of you can save. Not for a foursomes or greensomes match. No signal? It's kept and sent when there is. The yardage needs location: PinPals asks once, and it stops when the round ends (a flag means it's the hole's length from the tee). Tap the card after the last hole and the round opens on Complete scorecard; the card goes when you tap it. Not showing? Settings → PinPals → Live Activities.",
       },
       {
-        title: "Score from your Apple Watch",
-        body: "With PinPals on your Apple Watch, the round you open on your iPhone is on your wrist too. It shows the hole, par and your distance to the centre of the green. Turn the Digital Crown or use − and +, then tap Save — it moves on to the next hole. Swipe left for your card: your total, Undo, NR (no return), and any hole to change.",
+        title: "Score from your watch",
+        body: "With PinPals on your Apple Watch or Wear OS watch, the round you open on your phone is on your wrist too. It shows the hole, par and your distance to the centre of the green. Turn the crown (or the bezel) or use − and +, then tap Save — it moves on to the next hole. Swipe left for your card: your total, Undo, NR (no return), and any hole to change.",
         look: [
           { style: "outline", label: "−" },
           { style: "primary", label: "4" },
           { style: "outline", label: "+" },
           { style: "primary", label: "Save", icon: "watch-outline" },
         ],
-        tip: "Your own score only, as on the lock screen. Scores go through your iPhone, or straight from the watch on Wi-Fi or mobile data, and are kept on the watch until there's signal. Get it from the Watch app on your iPhone → PinPals → Install.",
+        tip: "Your own score only, as on the lock screen. No signal? Scores are kept on the watch and sent when there is. Apple Watch: Watch app on your iPhone → PinPals → Install. Wear OS: Play Store on the watch → PinPals.",
       },
       {
         title: "Leaderboard, finish and share",

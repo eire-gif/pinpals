@@ -42,6 +42,11 @@ import { startLockScreenDistance, stopLockScreenDistance } from "./lock-screen-l
  * kept on the team's first player) — not a foursomes/greensomes match, which
  * is scored in the app. iPhone with iOS 17+ only; everywhere
  * else every call here does nothing.
+ *
+ * Watches (Oct 2026): the same calls also put the round on an Apple Watch
+ * (claude/apple-watch.md) or a Wear OS watch (claude/wear-os.md). With a
+ * watch, isSupported() is true even where the card isn't — on Android, or
+ * with Live Activities turned off.
  */
 
 type Native = {
@@ -54,7 +59,10 @@ type Native = {
   setLocation(json: string): string | null;
 };
 
-const native: Native | null = Platform.OS === "ios" ? requireOptionalNativeModule<Native>("PinPalsLiveActivity") : null;
+// Android has no lock screen card, but the same calls keep a Wear OS watch on
+// the round (modules/live-activity/android, claude/wear-os.md).
+const native: Native | null =
+  Platform.OS === "ios" || Platform.OS === "android" ? requireOptionalNativeModule<Native>("PinPalsLiveActivity") : null;
 
 /** A key is swapped for a fresh one when it has less than this left (they last 18 hours). */
 const RENEW_WITHIN_MS = 2 * 3600 * 1000;
