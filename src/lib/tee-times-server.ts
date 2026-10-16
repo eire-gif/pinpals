@@ -219,10 +219,16 @@ export type InviteRef = {
   playDate: string;
 };
 
-/** Where a member goes to answer requests on their own tee times. */
-const HOST_HREF = "/tee-times/interested";
-/** Where a member goes to see requests they've made on other people's. */
-const APPLICANT_HREF = "/tee-times/requests";
+/**
+ * Where a member goes to answer requests on their own tee times — opened on
+ * the ONE round the alert is about (?invite=<id>), not the whole list: the
+ * app opens that round's requests, the website shows only that round.
+ */
+const hostHref = (invite: InviteRef) => `/tee-times/interested?invite=${invite.inviteId}`;
+/** Where a member goes to answer an offer — the tee time itself in the app
+ *  (Confirm my place is on it, and it stays there after), that round's row
+ *  on the website. */
+const applicantHref = (invite: InviteRef) => `/tee-times/requests?invite=${invite.inviteId}`;
 
 function whenAt(invite: InviteRef): string {
   return `${invite.clubName} on ${formatInviteDate(invite.playDate)}`;
@@ -259,7 +265,7 @@ export async function notifyInterestReceived(
       type: "tee_time_interest_received",
       title: `${applicantName} wants to join your round`,
       body: `${applicantName} has asked for a place at ${whenAt(input.invite)}.`,
-      href: HOST_HREF,
+      href: hostHref(input.invite),
       data: { inviteId: input.invite.inviteId, interestId: input.interestId },
       dedupeKey: buildDedupeKey(
         input.repeat === undefined
@@ -283,7 +289,7 @@ export async function notifyPlaceOffered(
       type: "tee_time_place_offered",
       title: `${hostName} offered you a place`,
       body: `You're in at ${whenAt(input.invite)} — confirm your place so ${hostName} knows the round is set.`,
-      href: APPLICANT_HREF,
+      href: applicantHref(input.invite),
       data: { inviteId: input.invite.inviteId, interestId: input.interestId },
       dedupeKey: buildDedupeKey(["tee_time", input.interestId, "offered"]),
     });
@@ -323,7 +329,7 @@ export async function notifyPlaceConfirmed(
       type: "tee_time_place_confirmed",
       title: `${applicantName} confirmed their place`,
       body: `${applicantName} is playing with you at ${whenAt(input.invite)}.`,
-      href: HOST_HREF,
+      href: hostHref(input.invite),
       data: { inviteId: input.invite.inviteId, interestId: input.interestId },
       dedupeKey: buildDedupeKey(["tee_time", input.interestId, "confirmed"]),
     });
@@ -344,7 +350,7 @@ export async function notifyPlaceWithdrawn(
       type: "tee_time_place_withdrawn",
       title: `${applicantName} can't make it`,
       body: `${applicantName} has pulled out of ${whenAt(input.invite)}. The space is open again.`,
-      href: HOST_HREF,
+      href: hostHref(input.invite),
       data: { inviteId: input.invite.inviteId, interestId: input.interestId },
       dedupeKey: buildDedupeKey(["tee_time", input.interestId, "withdrawn"]),
     });
@@ -375,7 +381,7 @@ export async function notifyInviteCancelled(
         type: "tee_time_cancelled",
         title: "A tee time you joined was cancelled",
         body: `${hostName} has cancelled the round at ${whenAt(input.invite)}.`,
-        href: APPLICANT_HREF,
+        href: applicantHref(input.invite),
         data: { inviteId: input.invite.inviteId },
         dedupeKey: buildDedupeKey(["tee_time", input.invite.inviteId, "cancelled", userId]),
       });

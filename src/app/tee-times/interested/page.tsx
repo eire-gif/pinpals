@@ -1,5 +1,7 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { focusedInvite } from "@/lib/tee-time-focus";
 import type { InterestWithDetails } from "@/lib/types";
 import InterestedGolfers from "@/app/dashboard/interested-golfers";
 import TeeTimesTabs from "../tee-times-tabs";
@@ -19,13 +21,15 @@ import TeeTimesPageHeader from "../tee-times-page-header";
  * invites the caller hosts; the !inner join is what lets the filter reach
  * the invite's owner column directly.
  */
-export default async function InterestedGolfersPage() {
+export default async function InterestedGolfersPage({ searchParams }: { searchParams: Promise<{ invite?: string | string[] }> }) {
+  // ?invite=<id>: opened from an alert about one round — show only that round.
+  const focus = focusedInvite((await searchParams).invite);
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) redirect("/login?next=/tee-times/interested");
+  if (!user) redirect(`/login?next=${encodeURIComponent(focus === null ? "/tee-times/interested" : `/tee-times/interested?invite=${focus}`)}`);
 
   const { data: interests } = await supabase
     .from("tee_time_interests")
@@ -36,7 +40,7 @@ export default async function InterestedGolfersPage() {
     .order("created_at", { ascending: false })
     .returns<InterestWithDetails[]>();
 
-  const rows = interests ?? [];
+  const rows = (interests ?? []).filter((row) => focus === null || row.tee_time_invites?.id === focus);
   const pending = rows.filter((row) => row.status === "pending");
   // Pending first. A host opening this tab has come to answer somebody, and
   // a list ordered purely by date buries that under rounds already settled.
@@ -52,6 +56,15 @@ export default async function InterestedGolfersPage() {
       <TeeTimesTabs active="interested" />
 
       <div className="max-w-3xl mx-auto px-6 py-12">
+
+        {focus !== null && (
+          <p className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-cream-100 px-5 py-3 text-sm text-ink-900">
+            <span>Showing just the round this alert was about.</span>
+            <Link href="/tee-times/interested" className="font-bold text-green-700">
+              Show all
+            </Link>
+          </p>
+        )}
         {pending.length > 0 && (
           <p className="mb-6 rounded-2xl bg-green-100 px-5 py-4 text-sm font-semibold text-green-800">
             {pending.length === 1

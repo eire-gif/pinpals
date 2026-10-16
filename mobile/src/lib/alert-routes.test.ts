@@ -2,7 +2,7 @@ import { readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { appRouteFor } from "./alert-routes";
+import { appRouteFor, teeTimeFocus, withTeeTimeFocus } from "./alert-routes";
 
 /**
  * Every href the codebase can actually put on a notification is exercised
@@ -192,7 +192,7 @@ describe("every native destination is a screen that exists", () => {
   const routes = new Set(routesOn(APP_DIR));
 
   /** Numeric ids stand in for the dynamic segment the route file declares. */
-  const asRoute = (p: string) => p.replace(/\/\d+$/, "/[id]");
+  const asRoute = (p: string) => p.split("?")[0].replace(/\/\d+$/, "/[id]");
 
   const destinations = [
     // Exact paths, one per entry in EXACT.
@@ -262,6 +262,9 @@ describe("every native destination is a screen that exists", () => {
     "/marketplace/88",
   ];
 
+  // Oct 2026: tee-time alerts name their round.
+  PUSH_HREFS.push("/tee-times/interested?invite=12", "/tee-times/requests?invite=12", "/tee-times/confirmed?invite=12");
+
   for (const href of PUSH_HREFS) {
     it(`a push carrying ${href} opens a real screen`, () => {
       const route = appRouteFor(href);
@@ -311,5 +314,31 @@ describe("every native destination is a screen that exists", () => {
     expect(appRouteFor("/groups/7/events/42")).toEqual({ kind: "native", path: "/group/7/outing/42" });
     expect(appRouteFor("/groups/7/noticeboard")).toEqual({ kind: "native", path: "/group/7/noticeboard" });
     expect(appRouteFor("/groups/7/membership")).toEqual({ kind: "native", path: "/group/7/membership" });
+  });
+});
+
+describe("tee-time alerts open the one round they're about", () => {
+  it("opens the tee time itself for an offer, so Confirm my place is right there", () => {
+    expect(appRouteFor("/tee-times/requests?invite=12")).toEqual({ kind: "native", path: "/invite/12" });
+    expect(appRouteFor("/tee-times/confirmed?invite=12")).toEqual({ kind: "native", path: "/invite/12" });
+  });
+  it("opens that round's requests for the host", () => {
+    expect(appRouteFor("/tee-times/interested?invite=12")).toEqual({ kind: "native", path: "/tee-time-requests?invite=12" });
+  });
+  it("still opens the lists when no round is named", () => {
+    expect(appRouteFor("/tee-times/requests")).toEqual({ kind: "native", path: "/my-requests" });
+    expect(appRouteFor("/tee-times/interested?invite=abc")).toEqual({ kind: "native", path: "/tee-time-requests" });
+  });
+  it("reads the round from the query only on the tee-time lists", () => {
+    expect(teeTimeFocus("/tee-times/requests?invite=5")).toBe(5);
+    expect(teeTimeFocus("/marketplace?invite=5")).toBeNull();
+    expect(teeTimeFocus("/tee-times/requests?invite=0")).toBeNull();
+  });
+  it("adds the round to older alerts that only carried it in their data", () => {
+    expect(withTeeTimeFocus("/tee-times/requests", 9)).toBe("/tee-times/requests?invite=9");
+    expect(withTeeTimeFocus("/tee-times/interested", 9)).toBe("/tee-times/interested?invite=9");
+    expect(withTeeTimeFocus("/tee-times", 9)).toBe("/tee-times");
+    expect(withTeeTimeFocus("/tee-times/requests?invite=3", 9)).toBe("/tee-times/requests?invite=3");
+    expect(withTeeTimeFocus("/tee-times/requests", undefined)).toBe("/tee-times/requests");
   });
 });

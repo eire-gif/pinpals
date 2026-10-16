@@ -1,5 +1,6 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 
+import { withTeeTimeFocus } from "./alert-routes";
 import { listInbox, type InboxRow } from "./messages";
 import { settledReason, todayInDublin, type InterestNow } from "./request-settled";
 import { supabase } from "./supabase";
@@ -305,7 +306,7 @@ type AlertRow = {
   type: string;
   title: string;
   body: string | null;
-  data: { href?: string; interestId?: number } | null;
+  data: { href?: string; interestId?: number; inviteId?: number } | null;
   read_at: string | null;
   created_at: string;
 };
@@ -377,7 +378,7 @@ export async function loadInbox(userId: string): Promise<LoadedInbox> {
           type: row.type,
           title: row.title,
           body: row.body,
-          href: row.data?.href ?? "/dashboard",
+          href: withTeeTimeFocus(row.data?.href ?? "/dashboard", row.data?.inviteId),
           unread: row.read_at === null,
           interestId,
           settled:

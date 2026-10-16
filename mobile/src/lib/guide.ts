@@ -892,7 +892,7 @@ export const GUIDES: Guide[] = [
       },
       {
         title: "Answer who wants to play",
-        body: "When someone asks to join, you get an alert. Open Golfers interested in mine from the menu — or tap Manage who's coming on the round — and tap Offer a place or Decline.",
+        body: "When someone asks to join, you get an alert. Tap it and you go straight to the requests for that round — or open Golfers interested in mine from the menu, or tap Manage who's coming on the round — and tap Offer a place or Decline.",
         path: [MENU, { icon: "people-outline", label: "Golfers interested in mine" }],
         look: [
           { style: "primary", label: "Offer a place" },
@@ -939,7 +939,7 @@ export const GUIDES: Guide[] = [
       },
       {
         title: "Confirm your place",
-        body: "When the host offers you a place, you get an alert. Open the round and tap Confirm my place — or I can't make it, so it goes to someone else.",
+        body: "When the host offers you a place, you get an alert. Tap it and that tee time opens — tap Confirm my place, or I can't make it so it goes to someone else. You stay on the round once you've answered.",
         look: [
           { style: "primary", label: "Confirm my place" },
           { style: "outline", label: "I can't make it" },
@@ -1646,6 +1646,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-16", text: "Tee times: tapping an alert about a request or an offer now opens that one round — the tee time with Confirm my place on it, or the requests for that round — instead of the whole list." },
   { on: "2026-10-16", text: "Score a game live: new step, Score from your Apple Watch — your round on your wrist with the distance to the green; Digital Crown or − / +, then Save; swipe left for your card." },
   { on: "2026-10-16", text: "Score a game live: the scorecard photo is now inside Share scorecard (My card as a photo) and a card's Send (Photo of the card), instead of its own button." },
   { on: "2026-10-16", text: "Score a game live: Leaderboard, finish and share — new Save photo on a scorecard puts the whole card in your Photos as a picture, ready for Instagram or WhatsApp." },
