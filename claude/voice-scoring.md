@@ -73,6 +73,12 @@ expo-speech-recognition 57.1.1, required lazily (native-capabilities.ts
 - Continuous, stops 2.2 s after the last word (9 s if nothing is said).
   iOS 18 sends each phrase after a pause as its own final result: they're
   joined, so a pause mid-sentence loses nothing.
+- Waits until the app is properly in front before listening (opened from
+  the lock screen's mic, it's still coming up through Face ID, and iOS takes
+  the microphone straight back: "interrupted"). If something does take the
+  microphone (a call, Siri, the phone locking), words already heard go to the
+  check; with nothing heard yet it quietly starts again once. Going to the
+  background mid-sentence finishes with what was heard.
 - Permission refused → "Open Settings". Cancel during the permission
   prompt doesn't start the microphone afterwards.
 
