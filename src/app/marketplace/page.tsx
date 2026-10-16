@@ -22,6 +22,8 @@ import { GOLD_BUTTON } from "@/components/marketplace/buy-styles";
 import MarketplaceControls from "./marketplace-controls";
 import LoadMoreListings from "./load-more-listings";
 import ListingCard from "./listing-card";
+import { getAgeAccess } from "@/lib/age-access";
+import { ageBlockFor } from "@/lib/junior";
 
 /**
  * The marketplace (Oct 2026 redesign, approved mock-ups 1 and 2 — the same
@@ -51,6 +53,7 @@ export default async function MarketplacePage({
   const {
     data: { user },
   } = await supabase.auth.getUser();
+  const canSell = !user || !ageBlockFor(await getAgeAccess(), "marketplaceSell");
   const userId = user?.id ?? null;
 
   return (
@@ -75,9 +78,12 @@ export default async function MarketplacePage({
                 {mode === "new" ? "New gear, from the pro shop." : "Golf gear, from golfers."}
               </h1>
             </div>
-            <Link href={user ? "/marketplace/new" : "/signup"} className={GOLD_BUTTON}>
-              {user ? "Sell an item" : "Join to start selling"}
-            </Link>
+            {/* Under-18s browse only (0159): no sell button. */}
+            {canSell && (
+              <Link href={user ? "/marketplace/new" : "/signup"} className={GOLD_BUTTON}>
+                {user ? "Sell an item" : "Join to start selling"}
+              </Link>
+            )}
           </div>
 
           <div className="mt-6 inline-flex rounded-full bg-navy-900/70 p-1 backdrop-blur" role="tablist" aria-label="New or used gear">

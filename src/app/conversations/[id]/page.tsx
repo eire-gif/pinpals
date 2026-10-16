@@ -15,6 +15,7 @@ import ReportForm from "./report-form";
 import BlockControl from "./block-control";
 import MuteControl from "./mute-control";
 import ListingContextCard from "./listing-context-card";
+import { ageGate } from "@/components/age/age-gate";
 
 type ConversationRow = Conversation & {
   members: ConversationMemberRow[];
@@ -32,6 +33,9 @@ export default async function ConversationThreadPage({ params }: { params: Promi
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
+  // Junior members (0159): the panel to show instead, if their age keeps them from this.
+  const ageBlocked = await ageGate("chat", "Messages");
+  if (ageBlocked) return ageBlocked;
 
   // RLS (conversations' own select policy) scopes this to conversations the
   // caller is actually a participant of — a stranger's conversation id just

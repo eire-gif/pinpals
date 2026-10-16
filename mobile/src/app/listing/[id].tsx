@@ -5,6 +5,7 @@ import {
   Image,
   Pressable,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   View,
@@ -14,7 +15,10 @@ import { Stack, router, useLocalSearchParams } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { Avatar } from "@/components/avatar";
+import { askParentAbout, useAgeAccess } from "@/lib/age";
+import { askParentByAlert, askParentOutcome } from "@/lib/age-rules";
 import { useAuth } from "@/lib/auth";
+import { SITE_URL } from "@/lib/config";
 import {
   SALE_TYPE_LABELS,
   getListingDetail,
@@ -59,6 +63,11 @@ export default function ListingScreen() {
   const [notFound, setNotFound] = useState(false);
   const [photo, setPhoto] = useState(0);
   const [busy, setBusy] = useState(false);
+  // Junior members (0159): under 18s browse; a parent buys. Buy, offers,
+  // bids and Message the seller become one "Ask a parent" button.
+  const { access, allows } = useAgeAccess();
+  const canBuy = allows("buy");
+  const [asked, setAsked] = useState(false);
 
   const load = useCallback(async () => {
     const numeric = Number.parseInt(String(id), 10);
@@ -100,6 +109,34 @@ export default function ListingScreen() {
       // can_message() said no, or the network did. Falling back to the
       // listing page on the site, where the same button explains why.
       openOnSite();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /**
+   * Under 16: the listing goes to their parent as an alert
+   * (POST /api/app/age/ask-parent). 16–17, or when there was no parent to
+   * send it to: the share sheet, with the listing's link, to send however
+   * they like.
+   */
+  async function askParent() {
+    if (!listing) return;
+    setBusy(true);
+    try {
+      if (askParentByAlert(access)) {
+        const outcome = askParentOutcome(await askParentAbout(listing.id).catch(() => null));
+        if (outcome === "sent") {
+          setAsked(true);
+          Alert.alert("Sent to your parent", "They'll get an alert with this listing and can buy it for you.");
+          return;
+        }
+      }
+      await Share.share({
+        message: `Could you get this for me? ${listing.title} on PinPals: ${SITE_URL}/marketplace/${listing.id}`,
+      });
+    } catch {
+      // The share sheet was closed, or nothing could be sent — nothing to say.
     } finally {
       setBusy(false);
     }
@@ -352,7 +389,7 @@ export default function ListingScreen() {
                 <Trust value={listing.seller.homeClub ? "✓" : "—"} label="club member" />
               </View>
 
-              {!listing.isMine && (
+              {!listing.isMine && canBuy && (
                 <Pressable
                   style={styles.secondary}
                   disabled={busy}
@@ -400,6 +437,27 @@ export default function ListingScreen() {
                 onEdit={openOnSite}
               />
             </>
+          ) : userId && !canBuy ? (
+            // Junior members (0159): browse only — a parent buys.
+            <View style={[styles.card, styles.askCard]}>
+              <Text style={styles.askNote}>Under 18s can browse; a parent buys for you.</Text>
+              <Pressable
+                style={[styles.primary, (busy || asked) && styles.sellerBusy]}
+                disabled={busy || asked}
+                onPress={() => void askParent()}
+                accessibilityRole="button"
+                accessibilityState={{ disabled: busy || asked }}
+              >
+                {busy ? (
+                  <ActivityIndicator color={colors.gold400} />
+                ) : (
+                  <>
+                    <Ionicons name={asked ? "checkmark-circle" : "people-outline"} size={19} color={colors.gold400} />
+                    <Text style={styles.primaryLabel}>{asked ? "Sent to your parent" : "Ask a parent"}</Text>
+                  </>
+                )}
+              </Pressable>
+            </View>
           ) : userId ? (
             // Buy now, offers and bids, native. See purchase-panel.tsx.
             <PurchasePanel listing={listing} userId={userId} onChanged={() => void load()} />
@@ -726,6 +784,8 @@ const styles = StyleSheet.create({
   primaryLabel: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.gold400 },
 
   sellerBox: { gap: spacing.sm },
+  askCard: { gap: spacing.md },
+  askNote: { fontFamily: fonts.body, fontSize: type.small, lineHeight: 19, color: colors.ink500, textAlign: "center" },
   draftNote: { flexDirection: "row", alignItems: "center", gap: 8, padding: spacing.md, borderRadius: radii.lg, backgroundColor: "#f3ead2" },
   draftNoteText: { flex: 1, fontFamily: fonts.bodySemi, fontSize: type.small, color: colors.navy900 },
   sellerBusy: { opacity: 0.45 },

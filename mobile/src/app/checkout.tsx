@@ -36,6 +36,7 @@ import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 import { KEYBOARD_DISMISS_MODE } from "@/components/keyboard";
 import { GoldButton } from "@/components/gold-button";
 import { shortClub } from "@/lib/used-gear";
+import { AgeGateLoading, NotForUnder18, useAgeGate } from "@/components/not-for-under-18";
 
 /**
  * Checkout, in the app.
@@ -54,7 +55,7 @@ import { shortClub } from "@/lib/used-gear";
  * The total here is computed the same way the database computes it, and is
  * a display hint only: the order snapshots the real figures.
  */
-export default function CheckoutScreen() {
+function CheckoutScreenInner() {
   const params = useLocalSearchParams<{ listing?: string; order?: string }>();
   const listingId = params.listing ? Number(params.listing) : null;
   const orderId = params.order ? Number(params.order) : null;
@@ -500,3 +501,11 @@ const styles = StyleSheet.create({
   secondaryLabel: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.ink500 },
   footnote: { fontFamily: fonts.body, fontSize: 12.5, color: colors.ink500, textAlign: "center" },
 });
+
+/** Junior members (0159): buying aren't for every age — a deep link gets the panel, not a form the database would refuse. */
+export default function CheckoutScreen() {
+  const gate = useAgeGate("buy");
+  if (gate === "loading") return <AgeGateLoading />;
+  if (gate === "blocked") return <NotForUnder18 feature="buy" title="Buying" />;
+  return <CheckoutScreenInner />;
+}

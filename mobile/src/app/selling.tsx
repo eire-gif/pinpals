@@ -36,6 +36,7 @@ import {
 } from "@/lib/selling";
 import { respondToOffer, type OfferAction } from "@/lib/purchase";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
+import { AgeGateLoading, NotForUnder18, useAgeGate } from "@/components/not-for-under-18";
 
 /**
  * My selling — everything you have on sale, are negotiating, or are owed for.
@@ -72,7 +73,7 @@ type Data = {
 
 const EMPTY: Data = { listings: [], offers: [], auctions: [], toSend: [], sales: [] };
 
-export default function SellingScreen() {
+function SellingScreenInner() {
   const { session } = useAuth();
   const userId = session?.user?.id ?? null;
 
@@ -714,3 +715,11 @@ const styles = StyleSheet.create({
   },
   ctaQuietLabel: { fontFamily: fonts.bodyBold, fontSize: type.small, color: colors.ink900 },
 });
+
+/** Junior members (0159): selling aren't for every age — a deep link gets the panel, not a form the database would refuse. */
+export default function SellingScreen() {
+  const gate = useAgeGate("sell");
+  if (gate === "loading") return <AgeGateLoading />;
+  if (gate === "blocked") return <NotForUnder18 feature="sell" title="Selling" />;
+  return <SellingScreenInner />;
+}

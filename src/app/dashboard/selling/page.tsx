@@ -7,6 +7,7 @@ import OffersAuctionsTab from "./offers-auctions-tab";
 import OrdersActionTab from "./orders-action-tab";
 import SalesHistoryTab from "./sales-history-tab";
 import BalancePayoutsTab from "./balance-payouts-tab";
+import { ageGate } from "@/components/age/age-gate";
 
 const TABS: WorkspaceTab[] = [
   { key: "listings", label: "Listings & performance" },
@@ -41,6 +42,9 @@ export default async function SellingWorkspacePage({
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect("/login?next=/dashboard/selling");
+  // Junior members (0159): the panel to show instead, if their age keeps them from this.
+  const ageBlocked = await ageGate("marketplaceSell", "Selling in the marketplace");
+  if (ageBlocked) return ageBlocked;
 
   // Same opportunistic sweep as the buyer workspace — a seller's own offers
   // tab should never show a 'pending' offer whose deadline has already

@@ -49,7 +49,7 @@ export default function ReportListingForm({ listingId }: { listingId: number }) 
         <option value="" disabled>
           Choose a reason
         </option>
-        {REPORT_CATEGORIES.map((c) => (
+        {REPORT_CATEGORIES.filter((c) => c !== "underage").map((c) => (
           <option key={c} value={c}>
             {REPORT_CATEGORY_LABELS[c]}
           </option>

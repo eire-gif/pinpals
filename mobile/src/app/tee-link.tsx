@@ -9,6 +9,7 @@ import { useAuth } from "@/lib/auth";
 import { SITE_URL } from "@/lib/config";
 import { claimTeeTimeLink, isTeeTimeToken, rememberPendingTeeLink } from "@/lib/tee-time-sharing";
 import { colors, fonts, radii, spacing } from "@/lib/theme";
+import { AgeGateLoading, NotForUnder18, useAgeGate } from "@/components/not-for-under-18";
 
 /** See web-shell.tsx: react-native-webview 14's root types collapse to never. */
 const WebView = RNWebView as unknown as ForwardRefExoticComponent<WebViewProps>;
@@ -22,7 +23,7 @@ const WebView = RNWebView as unknown as ForwardRefExoticComponent<WebViewProps>;
  *   signed out  → the website's page for the round, with Log in — and the
  *                 link is remembered, so once you're in, the round opens.
  */
-export default function TeeLinkScreen() {
+function TeeLinkScreenInner() {
   const { token } = useLocalSearchParams<{ token?: string }>();
   const { session, loading } = useAuth();
   const insets = useSafeAreaInsets();
@@ -90,3 +91,11 @@ const styles = StyleSheet.create({
   buttonMain: { backgroundColor: colors.green700 },
   buttonText: { fontFamily: fonts.bodyBold, fontSize: 15, color: colors.cream50 },
 });
+
+/** Junior members (0159): tee times aren't for every age — a deep link gets the panel, not a form the database would refuse. */
+export default function TeeLinkScreen() {
+  const gate = useAgeGate("teeTimes");
+  if (gate === "loading") return <AgeGateLoading />;
+  if (gate === "blocked") return <NotForUnder18 feature="teeTimes" title="Tee times" />;
+  return <TeeLinkScreenInner />;
+}

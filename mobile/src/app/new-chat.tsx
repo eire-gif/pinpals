@@ -22,6 +22,7 @@ import {
   type Member,
 } from "@/lib/members";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
+import { AgeGateLoading, NotForUnder18, useAgeGate } from "@/components/not-for-under-18";
 
 /**
  * Who do you want to talk to?
@@ -40,7 +41,7 @@ import { colors, fonts, radii, spacing, type } from "@/lib/theme";
  * `conversations` has a unique index on the pair and a second attempt would
  * otherwise fail on it rather than do the obvious thing.
  */
-export default function NewChatScreen() {
+function NewChatScreenInner() {
   const { session } = useAuth();
   const userId = session?.user?.id ?? null;
 
@@ -143,6 +144,8 @@ export default function NewChatScreen() {
           group is a different kind of thing from a conversation with one
           person, and this is the screen where somebody has already decided
           they want to talk to someone. */}
+      {/* Under 18s never reach this screen (it's age-gated below), so the
+          New group button needs no age check of its own. */}
       <Pressable
         style={styles.groupCta}
         onPress={() => router.push("/new-group")}
@@ -360,3 +363,11 @@ const styles = StyleSheet.create({
   },
   footer: { marginTop: spacing.md },
 });
+
+/** Junior members (0159): messages aren't for every age — a deep link gets the panel, not a form the database would refuse. */
+export default function NewChatScreen() {
+  const gate = useAgeGate("chat");
+  if (gate === "loading") return <AgeGateLoading />;
+  if (gate === "blocked") return <NotForUnder18 feature="chat" title="Messages" />;
+  return <NewChatScreenInner />;
+}

@@ -10,6 +10,7 @@ import { LongestShots } from "@/components/longest-shots";
 import { TeeDot } from "@/components/tee-chip";
 import { goHome } from "@/lib/go-home";
 import { Nine } from "@/components/scorecard-grid";
+import { useAgeAccess } from "@/lib/age";
 import { useAuth } from "@/lib/auth";
 import { isOn } from "@/lib/features";
 import { indexLabel } from "@/lib/live-scoring";
@@ -39,6 +40,8 @@ export default function ScorecardScreen() {
   const { id, saved, token, certify } = useLocalSearchParams<{ id: string; saved?: string; token?: string; certify?: string }>();
   const cardId = Number(id);
   const { session } = useAuth();
+  // Junior members (0159): Social is 18+, so no "Post to Social".
+  const social = useAgeAccess().allows("social");
   const me = session?.user?.id ?? null;
   const [card, setCard] = useState<Scorecard | null | undefined>(undefined);
   const [failed, setFailed] = useState(false);
@@ -247,7 +250,7 @@ export default function ScorecardScreen() {
         {mine ? (
           <>
             <View style={styles.actions}>
-              <Action icon="chatbubbles-outline" label="Post to Social" onPress={() => router.push({ pathname: "/new-post", params: { type: "round", scorecard: String(card.id) } })} />
+              {social ? <Action icon="chatbubbles-outline" label="Post to Social" onPress={() => router.push({ pathname: "/new-post", params: { type: "round", scorecard: String(card.id) } })} /> : null}
               <Action icon="share-outline" label="Send" busy={busy === "share" || busy === "photo"} onPress={chooseSend} />
               <Action icon="create-outline" label="Edit" onPress={() => router.push({ pathname: "/scorecards/new", params: { id: String(card.id) } })} />
             </View>

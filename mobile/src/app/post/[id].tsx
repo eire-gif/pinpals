@@ -18,6 +18,7 @@ import { loadPost, type FeedPost } from "@/lib/feed";
 import { supabase } from "@/lib/supabase";
 import { colors, fonts, spacing, type } from "@/lib/theme";
 import { usePostActions } from "@/lib/use-post-actions";
+import { AgeGateLoading, NotForUnder18, useAgeGate } from "@/components/not-for-under-18";
 
 /**
  * One post with its whole conversation.
@@ -28,7 +29,7 @@ import { usePostActions } from "@/lib/use-post-actions";
  * mentions, comment likes and edits behave identically in both. A post that
  * has gone and a post the member may not see look identical here, on purpose.
  */
-export default function PostScreen() {
+function PostScreenInner() {
   const { id, focus, reply, replyName, edit } = useLocalSearchParams<{
     id: string;
     focus?: string;
@@ -168,3 +169,11 @@ const styles = StyleSheet.create({
   content: { padding: spacing.md, paddingBottom: spacing.xl },
   section: { fontFamily: fonts.display, fontSize: type.heading, color: colors.ink900, marginTop: spacing.lg, marginBottom: spacing.md },
 });
+
+/** Junior members (0159): social aren't for every age — a deep link gets the panel, not a form the database would refuse. */
+export default function PostScreen() {
+  const gate = useAgeGate("social");
+  if (gate === "loading") return <AgeGateLoading />;
+  if (gate === "blocked") return <NotForUnder18 feature="social" title="Social" />;
+  return <PostScreenInner />;
+}

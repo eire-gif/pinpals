@@ -9,6 +9,7 @@ import { CREATABLE_GROUP_KINDS, GROUP_ABOUT_MAX, GROUP_KIND_INFO, GROUP_NAME_MAX
 import { createGroup } from "@/lib/groups-data";
 import type { Club } from "@/lib/courses";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
+import { AgeGateLoading, NotForUnder18, useAgeGate } from "@/components/not-for-under-18";
 
 /** What each kind is for, in the words a golfer would use. */
 const BLURB: Record<CreatableGroupKind, string> = {
@@ -25,7 +26,7 @@ const BLURB: Record<CreatableGroupKind, string> = {
  * The rules are the database's: create_group() checks the kind, the name and
  * the description, and its messages are shown as they come.
  */
-export default function NewGroupScreen() {
+function NewGroupScreenInner() {
   const [kind, setKind] = useState<CreatableGroupKind>("crew");
   const [name, setName] = useState("");
   const [about, setAbout] = useState("");
@@ -183,3 +184,11 @@ const styles = StyleSheet.create({
   ctaOff: { backgroundColor: colors.ink500, opacity: 0.4 },
   ctaLabel: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.cream50 },
 });
+
+/** Junior members (0159): new group aren't for every age — a deep link gets the panel, not a form the database would refuse. */
+export default function NewGroupScreen() {
+  const gate = useAgeGate("createGroups");
+  if (gate === "loading") return <AgeGateLoading />;
+  if (gate === "blocked") return <NotForUnder18 feature="createGroups" title="New group" />;
+  return <NewGroupScreenInner />;
+}

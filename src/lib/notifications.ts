@@ -161,6 +161,15 @@ export const NOTIFICATION_TYPES = [
   // Competitions (0148): a draw, a result to confirm, a challenge, a dispute
   // to settle. From the competition alert outbox; the app only.
   "competition",
+  // Junior members (0159). The first two are written by the database
+  // (my_age_access() on a birthday; guardian_link_accept/card_checked when a
+  // parent says yes) and both say live scoring has switched on, so they sit
+  // with live scoring under tee_times. The third is a 13–15 year old's "Ask a
+  // parent" from the marketplace (POST /api/app/age/ask-parent), to the
+  // parent — filed with the marketplace's offers.
+  "age_band_changed",
+  "parent_link_approved",
+  "junior_ask_parent",
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 
@@ -216,6 +225,9 @@ export const NOTIFICATION_TYPE_CATEGORY: Record<NotificationType, NotificationCa
   society_notice: "feed",
   society_message: "feed",
   competition: "tee_times",
+  age_band_changed: "tee_times",
+  parent_link_approved: "tee_times",
+  junior_ask_parent: "offers",
 };
 
 /** Which preference category (if any) governs delivery for this notification

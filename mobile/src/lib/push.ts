@@ -140,3 +140,13 @@ export function hrefFromNotification(
   // and router.push() of an arbitrary string is not somewhere to be relaxed.
   return typeof href === "string" && href.startsWith("/") ? href : null;
 }
+
+/** The notification's type (`data.type`, set by the website's push sender),
+ *  for the few alerts whose tap does something besides opening a page —
+ *  see alertAction() in alert-routes.ts. */
+export function typeFromNotification(
+  notification: Notifications.Notification | null | undefined
+): string | null {
+  const data = notification?.request?.content?.data as { type?: unknown } | undefined;
+  return typeof data?.type === "string" ? data.type : null;
+}

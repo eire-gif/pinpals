@@ -454,6 +454,18 @@ describe("signing up", () => {
     });
   });
 
+  it("an under-13 sign-up fails, even sent straight to Supabase Auth", async () => {
+    await withRole("service_role", null, async (c) => {
+      await c.query("reset role");
+      await rejects(
+        c,
+        `insert into auth.users (id, email, raw_user_meta_data) values ('00000000-0000-0000-0000-0000000000a3', 'kid3@example.test', $1::jsonb)`,
+        [JSON.stringify({ first_name: "Sam", last_name: "Murphy", date_of_birth: yearsAgo(12), guardian_email: "p@example.test", guardian_token_hash: HASH(8) })],
+        /13 or over/,
+      );
+    });
+  });
+
   it("an under-16 sign-up without a parent email fails", async () => {
     await withRole("service_role", null, async (c) => {
       await c.query("reset role");

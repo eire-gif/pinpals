@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { inviteMessage, inviteUrl, myInviteCode, qrImageUrl, shareVia, type ShareChannel } from "@/lib/find-pinpals";
 import { colors, fonts, spacing } from "@/lib/theme";
+import { AgeGateLoading, NotForUnder18, useAgeGate } from "@/components/not-for-under-18";
 
 /**
  * Bring your fourball (approved mock-up 4; rewards left out).
@@ -15,7 +16,7 @@ import { colors, fonts, spacing } from "@/lib/theme";
  * own camera reads it: the app opens if they have it, the website if not,
  * and either way tapping Connect connects you (connect_by_invite(), 0118).
  */
-export default function InviteFriendsScreen() {
+function InviteFriendsScreenInner() {
   const insets = useSafeAreaInsets();
   const [code, setCode] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
@@ -159,3 +160,11 @@ const styles = StyleSheet.create({
   qrBig: { width: 280, height: 280 },
   modalText: { fontFamily: fonts.bodySemi, fontSize: 15, color: colors.navy900, textAlign: "center", maxWidth: 260 },
 });
+
+/** Junior members (0159): pinpals aren't for every age — a deep link gets the panel, not a form the database would refuse. */
+export default function InviteFriendsScreen() {
+  const gate = useAgeGate("connections");
+  if (gate === "loading") return <AgeGateLoading />;
+  if (gate === "blocked") return <NotForUnder18 feature="connections" title="PinPals" />;
+  return <InviteFriendsScreenInner />;
+}

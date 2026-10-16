@@ -33,7 +33,13 @@ export type ExportSource = {
 export const EXPORT_SOURCES: readonly ExportSource[] = [
   { section: "profile", table: "profiles", column: "id", about: "Your profile as other members see it." },
   { section: "private_details", table: "member_private", column: "member_id", about: "Your handicap and Golf Ireland number — only you can see these." },
-  { section: "date_of_birth", table: "member_birthdates", column: "user_id", about: "Your date of birth — only you can see it." },
+  { section: "date_of_birth", table: "member_birthdates", column: "user_id", about: "Your date of birth — only you (and PinPals staff, if they need to check it) can see it." },
+  // Junior members (0159). The link's secret (token_hash) is in SECRET_COLUMNS.
+  { section: "parent_link", table: "guardian_links", column: "junior_id", about: "Your parent or guardian's approval of your account (members under 16)." },
+  { section: "children_approved", table: "guardian_links", column: "guardian_id", about: "Accounts you approved as a parent or guardian." },
+  { section: "approved_contacts", table: "junior_contacts", column: "junior_id", about: "PinPals your parent approved for you to play with." },
+  { section: "approved_as_contact", table: "junior_contacts", column: "contact_id", about: "Members under 16 whose parent approved you to play with them." },
+  { section: "contacts_you_approved", table: "junior_contacts", column: "approved_by", about: "PinPals you approved for your child to play with." },
   { section: "mobile_number", table: "member_phones", column: "member_id", about: "Your mobile number." },
   { section: "mobile_sharing", table: "member_phone_shares", column: "member_id", about: "The groups whose captain and secretary can see your mobile." },
   { section: "addresses", table: "addresses", column: "user_id", about: "Delivery addresses." },

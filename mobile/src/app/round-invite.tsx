@@ -10,6 +10,7 @@ import { listConnections, listMembers, memberPlace, type Member } from "@/lib/me
 import { confirmedPlayersFor, getInvite, parseDate, whenLabel, type Invite } from "@/lib/tee-times";
 import { inviteToTeeTime, teeTimeShareMessage, teeTimeShareUrl } from "@/lib/tee-time-sharing";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
+import { AgeGateLoading, NotForUnder18, useAgeGate } from "@/components/not-for-under-18";
 
 /**
  * Filling an open place in a round (0132), for the host or anyone with a
@@ -22,7 +23,7 @@ import { colors, fonts, radii, spacing, type } from "@/lib/theme";
  *   YOUR PINPALS and FIND PINPALS, below: tick members and they get a
  *   notification. Either way, they ask for the place and the host confirms.
  */
-export default function RoundInviteScreen() {
+function RoundInviteScreenInner() {
   const { id: rawId } = useLocalSearchParams<{ id: string }>();
   const inviteId = Number(rawId);
   const { session } = useAuth();
@@ -304,3 +305,11 @@ const styles = StyleSheet.create({
   cta: { height: 50, borderRadius: radii.pill, alignItems: "center", justifyContent: "center", backgroundColor: colors.green700 },
   ctaLabel: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.cream50 },
 });
+
+/** Junior members (0159): tee times aren't for every age — a deep link gets the panel, not a form the database would refuse. */
+export default function RoundInviteScreen() {
+  const gate = useAgeGate("teeTimes");
+  if (gate === "loading") return <AgeGateLoading />;
+  if (gate === "blocked") return <NotForUnder18 feature="teeTimes" title="Tee times" />;
+  return <RoundInviteScreenInner />;
+}

@@ -47,6 +47,7 @@ import { KEYBOARD_DISMISS_MODE, KeyboardDoneButton } from "@/components/keyboard
 import { PHOTO_PICKER_OPTIONS, photoProblem, preparePhotoForUpload } from "@/lib/photo-picking";
 import { videoEnabled } from "@/lib/native-capabilities";
 import { discardVideo, durationLabel, stageVideo, videoProblem, type PickedVideo } from "@/lib/post-video";
+import { AgeGateLoading, NotForUnder18, useAgeGate } from "@/components/not-for-under-18";
 
 type Photo = {
   id: string;
@@ -95,7 +96,7 @@ const PROMPTS: Record<PostKind | "photo", string> = {
  * is visible to anyone until Post is pressed; staged photos sit in a folder
  * no member can read.
  */
-export default function NewPostScreen() {
+function NewPostScreenInner() {
   const params = useLocalSearchParams<{ type?: string; recap?: string; scorecard?: string }>();
   const { session } = useAuth();
   const userId = session?.user?.id ?? null;
@@ -787,3 +788,11 @@ const styles = StyleSheet.create({
   audienceLabelActive: { color: colors.cream50 },
   warn: { fontFamily: fonts.bodySemi, fontSize: type.small, color: colors.red600, marginTop: spacing.md },
 });
+
+/** Junior members (0159): social aren't for every age — a deep link gets the panel, not a form the database would refuse. */
+export default function NewPostScreen() {
+  const gate = useAgeGate("social");
+  if (gate === "loading") return <AgeGateLoading />;
+  if (gate === "blocked") return <NotForUnder18 feature="social" title="Social" />;
+  return <NewPostScreenInner />;
+}

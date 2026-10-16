@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import NewAvailabilityForm from "./new-availability-form";
+import { ageGate } from "@/components/age/age-gate";
 
 export default async function NewAvailabilityPage() {
   const supabase = await createClient();
@@ -11,6 +12,9 @@ export default async function NewAvailabilityPage() {
   // Carries the destination through the login page, so posting a tee time
   // from the homepage button doesn't dead-end on the dashboard.
   if (!user) redirect("/login?next=/dashboard/availability/new");
+  // Junior members (0159): the panel to show instead, if their age keeps them from this.
+  const ageBlocked = await ageGate("teeTimes", "Posting a tee time");
+  if (ageBlocked) return ageBlocked;
 
   return (
     <div className="max-w-xl mx-auto px-4 sm:px-6 py-10 sm:py-16">

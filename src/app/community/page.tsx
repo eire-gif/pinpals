@@ -7,6 +7,7 @@ import RegionSelect from "@/components/region-select";
 import MemberCard from "@/components/member-card";
 import { parseScope } from "@/lib/community";
 import ScopeSelector from "./scope-selector";
+import { ageGate } from "@/components/age/age-gate";
 
 export default async function CommunityPage({
   searchParams,
@@ -82,6 +83,12 @@ export default async function CommunityPage({
       </div>
     );
   }
+
+  // Junior members (0159): under-16s don't browse the directory — their
+  // parent approves who they play with. The database hides minors from it
+  // as well (profile_visible_to_me).
+  const ageBlocked = await ageGate("directory", "Finding golfers");
+  if (ageBlocked) return ageBlocked;
 
   // Both reads happen before the directory query because the two scopes
   // below narrow it: "my club" needs this member's own club, "my

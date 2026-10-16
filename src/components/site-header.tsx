@@ -7,6 +7,8 @@ import LogoMark from "@/components/logo-mark";
 import SignOutButton from "@/components/sign-out-button";
 import { loadInboxCounts } from "@/lib/inbox-server";
 import { inboxTotal } from "@/lib/inbox";
+import { getAgeAccess } from "@/lib/age-access";
+import { ageBlockFor, type AgeFeature } from "@/lib/junior";
 
 export default async function SiteHeader() {
   const supabase = await createClient();
@@ -30,6 +32,13 @@ export default async function SiteHeader() {
     const counts = await loadInboxCounts(supabase);
     unreadCount = inboxTotal(counts);
   }
+
+  // Junior members (0159): links to what a member's age keeps them from are
+  // left out rather than leading to a "not for you" page. Signed out, or
+  // before 0159 is applied, everything shows as it always has.
+  const age = user ? await getAgeAccess() : null;
+  const allowed = (feature: AgeFeature) => !ageBlockFor(age, feature);
+  const waitingForParent = age?.band === "junior_pending";
 
   // One array, rendered twice: the desktop row below and MobileNav's own
   // sheet (passed as a prop at the bottom of this file), so a link can
@@ -68,25 +77,34 @@ export default async function SiteHeader() {
   // indented list — so the two can't drift apart.
   const DASHBOARD_MENU = [
     { href: "/dashboard", label: "Dashboard home" },
-    { href: "/tee-times/confirmed", label: "Confirmed tee times" },
-    { href: "/tee-times/interested", label: "Interested golfers" },
-    { href: "/tee-times/requests", label: "My tee-time requests" },
-    { href: "/dashboard/listings", label: "My listings" },
-    { href: "/dashboard/connections", label: "My connections" },
+    ...(allowed("teeTimes")
+      ? [
+          { href: "/tee-times/confirmed", label: "Confirmed tee times" },
+          { href: "/tee-times/interested", label: "Interested golfers" },
+          { href: "/tee-times/requests", label: "My tee-time requests" },
+        ]
+      : []),
+    ...(allowed("marketplaceSell") ? [{ href: "/dashboard/listings", label: "My listings" }] : []),
+    ...(allowed("connections") ? [{ href: "/dashboard/connections", label: "My connections" }] : []),
+    // A parent's page for their 13–15 year olds (0159). Everyone over 18 sees
+    // it: it explains itself when they have no children on PinPals.
+    ...(user && (!age || age.band === "adult" || age.band === "unknown") ? [{ href: "/parent", label: "Parent dashboard" }] : []),
     // The committee's own console (/society) — lists only the societies you
     // help run, and says plainly when that's none.
-    { href: "/society", label: "Society admin" },
+    ...(allowed("createGroups") ? [{ href: "/society", label: "Society admin" }] : []),
   ];
 
-  const navLinks: {
+  const allNavLinks: {
     href: string;
     label: string;
     menuLabel?: string;
     children?: { href: string; label: string }[];
+    needs?: AgeFeature;
   }[] = [
     {
       href: "/community",
       label: "Find Golfers",
+      needs: "directory",
       menuLabel: "Find Golfers options",
       // Signed-out visitors get a plain link for the same reason Tee Times
       // does: /dashboard/connections redirects to /login, and the remaining
@@ -101,6 +119,7 @@ export default async function SiteHeader() {
     {
       href: "/tee-times",
       label: "Tee Times",
+      needs: "teeTimes",
       menuLabel: "Tee time options",
       // undefined, not an array of one, when signed out: the only remaining
       // entry would be "Find a game this week", which is where the parent
@@ -138,7 +157,7 @@ export default async function SiteHeader() {
       // usable entry repeats the parent link. A signed-out visitor gets a
       // plain "Marketplace" link and meets "List an item" on the homepage
       // instead.
-      children: user
+      children: user && allowed("marketplaceSell")
         ? [
             { href: "/marketplace", label: "Browse the marketplace" },
             { href: "/marketplace/new", label: "List an item" },
@@ -148,11 +167,17 @@ export default async function SiteHeader() {
     },
     // Beside Marketplace, as the app's tab bar has it. A plain link with no
     // menu: the feed is one page, and "My posts" lives on it.
-    { href: "/feed", label: "Social" },
+    { href: "/feed", label: "Social", needs: "social" },
     { href: "/news", label: "News" },
     // Public, like News: a rules lookup is as useful to a visitor as a member.
     { href: "/rules", label: "Rules" },
   ];
+  // Waiting for a parent: nothing in the top bar would open (every signed-in
+  // page shows the waiting panel), so only the public pages stay.
+  const navLinks = allNavLinks
+    .filter((link) => !link.needs || allowed(link.needs))
+    .filter((link) => !waitingForParent || ["/courses", "/marketplace", "/news", "/rules"].includes(link.href))
+    .map((link) => ({ href: link.href, label: link.label, menuLabel: link.menuLabel, children: link.children }));
 
   return (
     <header className="sticky top-0 z-50 bg-navy-900 border-b border-white/10">

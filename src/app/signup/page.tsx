@@ -1,7 +1,13 @@
 import Link from "next/link";
+import { cookies } from "next/headers";
 import SignUpForm from "./signup-form";
+import { AGE_BLOCK_COOKIE } from "./age-block";
+import { UNDER_13_MESSAGE } from "@/lib/junior";
 
-export default function SignUpPage() {
+export default async function SignUpPage() {
+  // Turned away as under 13 on this device in the last 24 hours (0159).
+  const blocked = !!(await cookies()).get(AGE_BLOCK_COOKIE);
+
   return (
     <div>
       <div className="bg-navy-900 text-white pt-16 pb-14">
@@ -21,13 +27,19 @@ export default function SignUpPage() {
 
       <div className="max-w-lg mx-auto px-6 -mt-8 pb-20">
         <div className="bg-surface rounded-2xl shadow-lg p-8 md:p-10">
-          <SignUpForm />
-          <p className="text-sm text-ink-500 text-center mt-5">
-            Already on Pinpals?{" "}
-            <Link href="/login" className="text-green-700 font-bold">
-              Log in →
-            </Link>
-          </p>
+          {blocked ? (
+            <p className="text-center text-ink-900 py-4">{UNDER_13_MESSAGE}</p>
+          ) : (
+            <>
+              <SignUpForm />
+              <p className="text-sm text-ink-500 text-center mt-5">
+                Already on Pinpals?{" "}
+                <Link href="/login" className="text-green-700 font-bold">
+                  Log in →
+                </Link>
+              </p>
+            </>
+          )}
         </div>
       </div>
     </div>

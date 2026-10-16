@@ -177,6 +177,19 @@ describe("live scoring notifications (0103/0104)", () => {
   });
 });
 
+describe("junior member notifications (0159)", () => {
+  it("are declared and filed where the settings page can switch them off", () => {
+    expect(categoryForType("age_band_changed")).toBe("tee_times");
+    expect(categoryForType("parent_link_approved")).toBe("tee_times");
+    expect(categoryForType("junior_ask_parent")).toBe("offers");
+    for (const type of ["age_band_changed", "parent_link_approved", "junior_ask_parent"] as const) {
+      expect(NOTIFICATION_TYPES).toContain(type);
+      expect(shouldSendPush(type, false)).toBe(false);
+      expect(shouldSendPush(type, null)).toBe(true);
+    }
+  });
+});
+
 describe("scorecard certification notifications (0128)", () => {
   it("are declared, filed under tee times, and can be switched off", () => {
     for (const type of ["scorecard_certify_request", "scorecard_certify_result"] as const) {

@@ -11,6 +11,10 @@ import InterestedGolfers from "./interested-golfers";
 import MyTeeTimeRequests from "./my-tee-time-requests";
 import ConnectionRequests from "./connection-requests";
 import ConnectionList from "./connection-list";
+import { getAgeAccess } from "@/lib/age-access";
+import { ageBlockFor, type AgeFeature } from "@/lib/junior";
+import { ageGate } from "@/components/age/age-gate";
+import DateOfBirthCard from "@/components/age/date-of-birth-card";
 
 type QuickLink = {
   href: string;
@@ -18,11 +22,14 @@ type QuickLink = {
   description: string;
   icon: ReactNode;
   soon?: boolean;
+  /** Hidden from members whose age keeps them from it (0159). */
+  needs?: AgeFeature;
 };
 
 const QUICK_LINKS: QuickLink[] = [
   {
     href: "/dashboard/availability/new",
+    needs: "teeTimes",
     label: "Post my availability",
     description: "Let other members know when you're free for a round.",
     icon: (
@@ -36,6 +43,7 @@ const QUICK_LINKS: QuickLink[] = [
   },
   {
     href: "/community",
+    needs: "directory",
     label: "Find golfers",
     description: "Browse members by club, county and handicap.",
     icon: (
@@ -49,6 +57,7 @@ const QUICK_LINKS: QuickLink[] = [
   },
   {
     href: "/dashboard/connections",
+    needs: "connections",
     label: "My connections",
     description: "See all the golfers in your Pinpals network.",
     icon: (
@@ -74,6 +83,7 @@ const QUICK_LINKS: QuickLink[] = [
   },
   {
     href: "/tee-times",
+    needs: "teeTimes",
     label: "Browse tee-time invites",
     description: "See open tee times other Pinpals members have posted.",
     icon: (
@@ -111,6 +121,7 @@ const QUICK_LINKS: QuickLink[] = [
   },
   {
     href: "/dashboard/listings",
+    needs: "marketplaceSell",
     label: "My listings",
     description: "Manage your drafts and everything you've listed for sale.",
     icon: (
@@ -124,6 +135,7 @@ const QUICK_LINKS: QuickLink[] = [
   },
   {
     href: "/dashboard/payouts",
+    needs: "marketplaceSell",
     label: "Get paid for sales",
     description: "Set up (or check) your Stripe payout account.",
     icon: (
@@ -159,6 +171,7 @@ const QUICK_LINKS: QuickLink[] = [
   },
   {
     href: "/dashboard/selling",
+    needs: "marketplaceSell",
     label: "My selling",
     description: "Listing performance, offers and auctions, orders and payouts, in one place.",
     icon: (
@@ -184,6 +197,16 @@ export default async function DashboardPage({
   } = await supabase.auth.getUser();
 
   if (!user) redirect("/login");
+
+  // Junior members (0159): a 13–15 year old waiting for a parent sees only
+  // that; everyone else sees what their age allows.
+  const waiting = await ageGate(null, "Your dashboard");
+  if (waiting) return waiting;
+  const age = await getAgeAccess();
+  const allowed = (feature?: AgeFeature) => !feature || !ageBlockFor(age, feature);
+  const quickLinks = QUICK_LINKS.filter((q) => allowed(q.needs));
+  const showTeeTimes = allowed("teeTimes");
+  const showNetwork = allowed("connections");
 
   const { data: shared } = await supabase
     .from("profiles")
@@ -252,6 +275,12 @@ export default async function DashboardPage({
       <h1 className="font-display font-bold text-3xl md:text-4xl mt-2 mb-8">
         Welcome back, {firstName}.
       </h1>
+
+      {age?.needsDateOfBirth && (
+        <div className="mb-6">
+          <DateOfBirthCard />
+        </div>
+      )}
 
       {posted && (
         <div className="mb-6 bg-green-100 text-green-800 rounded-xl px-4 py-3 text-sm font-semibold">
@@ -332,7 +361,7 @@ export default async function DashboardPage({
         <div>
           <h2 className="font-display font-bold text-xl mb-4">What would you like to do?</h2>
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {QUICK_LINKS.map((q) =>
+            {quickLinks.map((q) =>
               q.soon ? (
                 <div
                   key={q.label}
@@ -380,6 +409,7 @@ export default async function DashboardPage({
           instead of five, half the scroll, and related things sitting
           together. */}
       <div className="mt-12 grid xl:grid-cols-2 gap-x-10 gap-y-12 items-start">
+        {showTeeTimes && (
         <section className="pt-10 border-t border-line">
           <h2 className="font-display font-bold text-2xl mb-6">Your tee times</h2>
 
@@ -404,7 +434,9 @@ export default async function DashboardPage({
             </div>
           </div>
         </section>
+        )}
 
+        {showNetwork && (
         <section className="pt-10 border-t border-line">
           <h2 className="font-display font-bold text-2xl mb-6">Your network</h2>
 
@@ -437,6 +469,7 @@ export default async function DashboardPage({
             </div>
           </div>
         </section>
+        )}
       </div>
     </div>
   );

@@ -10,6 +10,7 @@ import {
 } from "@/lib/messaging";
 import type { Conversation } from "@/lib/types";
 import InboxClient, { type InboxRow } from "./inbox-client";
+import { ageGate } from "@/components/age/age-gate";
 
 // Bounded — a member could in principle have started a conversation with
 // every other member on the site, and this page has no "load more" of its
@@ -33,6 +34,9 @@ export default async function ConversationsPage() {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
+  // Junior members (0159): the panel to show instead, if their age keeps them from this.
+  const ageBlocked = await ageGate("chat", "Messages");
+  if (ageBlocked) return ageBlocked;
 
   // Two round-trips for the WHOLE inbox, not one per row: the conversation
   // list itself, and one aggregated unread-count query

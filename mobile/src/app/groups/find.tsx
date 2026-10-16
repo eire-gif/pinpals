@@ -5,6 +5,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { GroupRow, membersLabel } from "@/components/group-bits";
 import { LoadError, StateMessage } from "@/components/state-message";
+import { useAgeAccess } from "@/lib/age";
 import { searchSocieties, type Group } from "@/lib/groups-data";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 
@@ -14,6 +15,8 @@ import { colors, fonts, radii, spacing, type } from "@/lib/theme";
  * its front page, where you can ask to join.
  */
 export default function FindSocietyScreen() {
+  // Junior members (0159): no "Start a society" for under 18s.
+  const canStart = useAgeAccess().allows("createGroups");
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Group[] | null>(null);
   const [failed, setFailed] = useState(false);
@@ -72,7 +75,7 @@ export default function FindSocietyScreen() {
               icon="trophy-outline"
               title={query.trim() ? "No society by that name" : "No societies yet"}
               body="Is yours not on PinPals? Start it — it takes a minute, and you can invite your members with one link."
-              action={{ label: "Start a society", onPress: () => router.replace("/groups/new") }}
+              action={canStart ? { label: "Start a society", onPress: () => router.replace("/groups/new") } : undefined}
             />
           }
           renderItem={({ item }) => (

@@ -36,12 +36,7 @@ export default function EditProfileForm({
   // or the full-size original would be sent.
   const [photoBusy, setPhotoBusy] = useState(false);
 
-  const todayIso = new Date().toISOString().slice(0, 10);
-  // Local state purely so the band preview below updates as they type — the
-  // value that matters is still the input's own, read from FormData on
-  // submit.
-  const [dob, setDob] = useState(defaultValues.dob);
-  const previewBand = ageBandForDate(dob);
+  const previewBand = ageBandForDate(defaultValues.dob);
 
   // Country is the field the other two hang off: it scopes which clubs the
   // picker offers and which counties the select lists. Holding it in state
@@ -166,34 +161,39 @@ export default function EditProfileForm({
           </label>
         </div>
         <div className="grid gap-1.5 min-w-0">
-          <label htmlFor="dob" className="text-[13.5px] font-bold">Date of birth</label>
-          <input
-            id="dob"
-            name="dob"
-            type="date"
-            max={todayIso}
-            value={dob}
-            onChange={(e) => setDob(e.target.value)}
-            className="w-full px-3.5 py-3 rounded-lg border-[1.5px] border-line focus:outline-none focus:border-green-600"
-          />
-          <p className="text-xs text-ink-500">
-            {/* Says plainly what is and isn't published — the whole reason
-                the date lives in its own private table. */}
-            Never shown to anyone. Other golfers only ever see an age range
-            {previewBand ? <>, and yours would show as <strong className="text-ink-900">{previewBand}</strong></> : null}.
-          </p>
-          <label className="flex items-center gap-2 text-xs text-ink-500 font-semibold mt-0.5">
-            <input
-              type="checkbox"
-              name="ageRangeVisible"
-              defaultChecked={defaultValues.ageRangeVisible}
-              className="w-3.5 h-3.5 accent-green-700"
-            />
-            Show my age range on my profile
-          </label>
-          {!defaultValues.ageRangeVisible && (
+          {/* Read-only (0159): entered once, then only staff can change it,
+              because what a member can do on PinPals depends on it. A member
+              without one is asked for it on their dashboard and profile. */}
+          <span className="text-[13.5px] font-bold">Date of birth</span>
+          {defaultValues.dob ? (
+            <>
+              <p className="w-full px-3.5 py-3 rounded-lg border-[1.5px] border-line bg-cream-100 text-ink-900">
+                {formatDob(defaultValues.dob)}
+              </p>
+              <p className="text-xs text-ink-500">
+                Never shown to anyone. Other golfers only ever see an age range
+                {previewBand ? <>, and yours shows as <strong className="text-ink-900">{previewBand}</strong></> : null}.
+                {" "}It can&rsquo;t be changed here —{" "}
+                <a href="mailto:info@pinpals.ie?subject=Date%20of%20birth" className="font-semibold text-green-700">contact us if it&rsquo;s wrong</a>.
+              </p>
+              <label className="flex items-center gap-2 text-xs text-ink-500 font-semibold mt-0.5">
+                <input
+                  type="checkbox"
+                  name="ageRangeVisible"
+                  defaultChecked={defaultValues.ageRangeVisible}
+                  className="w-3.5 h-3.5 accent-green-700"
+                />
+                Show my age range on my profile
+              </label>
+              {!defaultValues.ageRangeVisible && (
+                <p className="text-xs text-ink-500">
+                  Currently shows as &ldquo;{AGE_BAND_NOT_SHARED}&rdquo; to other golfers.
+                </p>
+              )}
+            </>
+          ) : (
             <p className="text-xs text-ink-500">
-              Currently shows as &ldquo;{AGE_BAND_NOT_SHARED}&rdquo; to other golfers.
+              Not added yet — add it from your profile page. You can only enter it once.
             </p>
           )}
         </div>
@@ -236,4 +236,11 @@ export default function EditProfileForm({
       </button>
     </form>
   );
+}
+
+/** 2010-04-07 → 7 April 2010. Formatted from the parts, not a Date, so no timezone can move it a day. */
+function formatDob(iso: string): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+  return `${d} ${months[m - 1] ?? ""} ${y}`;
 }

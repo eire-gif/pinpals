@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import type { Listing, ListingStatus } from "@/lib/types";
 import { formatPrice, SELLER_LISTING_STATUS_LABELS, SELLER_LISTING_STATUS_STYLES } from "@/lib/format";
 import { isFeatured } from "@/lib/marketplace-growth";
+import { ageGate } from "@/components/age/age-gate";
 
 /** The five tabs the task spec asks for. `pending_review` and `expired`
  * exist in the DB enum (0035) but nothing in this codebase currently ever
@@ -38,6 +39,12 @@ export default async function MyListingsPage({
   } = await supabase.auth.getUser();
 
   if (!user) redirect("/login");
+
+  // Junior members (0159): the panel to show instead, if their age keeps them from this.
+
+  const ageBlocked = await ageGate("marketplaceSell", "Selling in the marketplace");
+
+  if (ageBlocked) return ageBlocked;
 
   // listing_is_visible() (0045) already lets a seller read every one of
   // their own listings regardless of status — this is the one query on

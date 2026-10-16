@@ -4,6 +4,7 @@ import { Tabs, router } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { AppMenu, MenuButton } from "@/components/app-menu";
+import { useAgeAccess } from "@/lib/age";
 import { useAuth } from "@/lib/auth";
 import { colors, contentColumn, fonts, radii, spacing, headerTitleStyle } from "@/lib/theme";
 import { useInboxUnread } from "@/lib/unread";
@@ -57,6 +58,16 @@ export default function TabsLayout() {
   const { session } = useAuth();
   const unread = useInboxUnread(session?.user?.id ?? null);
   const [menuOpen, setMenuOpen] = useState(false);
+  // Junior members (0159): under-18s have no Tee Times or Social, so those
+  // tabs go (href: null) and the header buttons that start a chat, a listing
+  // or a post go with them. The database refuses all of it anyway; this is
+  // so the app doesn't offer what it can't do.
+  const { allows } = useAgeAccess();
+  const teeTimes = allows("teeTimes");
+  const social = allows("social");
+  const chat = allows("chat");
+  const sell = allows("sell");
+  const connections = allows("connections");
 
   return (
     <>
@@ -132,6 +143,7 @@ export default function TabsLayout() {
         name="tee-times"
         options={{
           title: "Tee Times",
+          href: teeTimes ? undefined : null,
           // Names the tab, not the bar: the screen's own photo header
           // carries the title now.
           headerTitle: "",
@@ -148,7 +160,7 @@ export default function TabsLayout() {
           // Offering a round is the thing the app most wants members to do,
           // and burying it two taps down in the Profile tab would say the
           // opposite. In the header it is visible from launch.
-          headerRight: () => (
+          headerRight: () => !teeTimes ? null : (
             <Pressable
               onPress={() => router.push("/post-tee-time")}
               hitSlop={12}
@@ -190,7 +202,7 @@ export default function TabsLayout() {
           // than a bare orange "+" (tester feedback, 4 Oct 2026): the words
           // say what it does, and PinPals green keeps the marketplace orange
           // for buying, where cream on orange wouldn't read anyway.
-          headerRight: () => (
+          headerRight: () => !sell ? null : (
             <Pressable
               onPress={() => router.push("/new-listing")}
               hitSlop={8}
@@ -225,6 +237,7 @@ export default function TabsLayout() {
         name="feed"
         options={{
           title: "Social",
+          href: social ? undefined : null,
           // Names the tab, not the bar: the screen's own photo header
           // carries the title, as on Marketplace beside it.
           headerTitle: "",
@@ -233,7 +246,7 @@ export default function TabsLayout() {
           // as Post a tee time on the Tee Times tab.
           // My connections beside it: Social is where you notice who you
           // aren't following yet.
-          headerRight: () => (
+          headerRight: () => !social ? null : (
             <View style={{ flexDirection: "row", alignItems: "center" }}>
               <ConnectionsButton />
               <Pressable
@@ -265,10 +278,11 @@ export default function TabsLayout() {
           // connections screen and pressed Message there. Every messaging app
           // anyone has used puts a compose button here, top right, and the
           // absence of one reads as "you cannot start one from the inbox".
+          // Under 18: no chats, so no compose button; under 16: no PinPals.
           headerRight: () => (
             <View style={{ flexDirection: "row", alignItems: "center" }}>
-              <ConnectionsButton tint={colors.cream50} />
-              <Pressable
+              {connections ? <ConnectionsButton tint={colors.cream50} /> : null}
+              {chat ? <Pressable
                 onPress={() => router.push("/new-chat")}
                 hitSlop={12}
                 style={{ paddingLeft: spacing.sm, paddingRight: spacing.md }}
@@ -276,7 +290,7 @@ export default function TabsLayout() {
                 accessibilityLabel="Start a new conversation"
               >
                 <Ionicons name="create-outline" size={24} color={colors.gold400} />
-              </Pressable>
+              </Pressable> : null}
             </View>
           ),
           tabBarBadge:

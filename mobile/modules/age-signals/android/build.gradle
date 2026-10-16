@@ -1,0 +1,22 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'ie.pinpals'
+version = '1.0.0'
+
+android {
+  namespace "ie.pinpals.agesignals"
+  defaultConfig {
+    versionCode 1
+    versionName '1.0.0'
+  }
+}
+
+dependencies {
+  // Google Play Age Signals API (beta). See claude/junior-members.md.
+  implementation 'com.google.android.play:age-signals:0.0.4'
+  // Task / addOnSuccessListener, named explicitly rather than relied on transitively.
+  implementation 'com.google.android.gms:play-services-tasks:18.2.0'
+}

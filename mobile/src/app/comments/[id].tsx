@@ -12,6 +12,7 @@ import { loadPost, type FeedPost } from "@/lib/feed";
 import { supabase } from "@/lib/supabase";
 import { colors, spacing } from "@/lib/theme";
 import { usePostActions } from "@/lib/use-post-actions";
+import { AgeGateLoading, NotForUnder18, useAgeGate } from "@/components/not-for-under-18";
 
 /**
  * Comments, as a sheet over the feed (phase 5). The feed card stays
@@ -24,7 +25,7 @@ import { usePostActions } from "@/lib/use-post-actions";
  *   reply=<id>&replyName=  replying to that comment
  *   edit=<id>              editing that comment of yours
  */
-export default function CommentsScreen() {
+function CommentsScreenInner() {
   const { id, focus, reply, replyName, edit } = useLocalSearchParams<{
     id: string;
     focus?: string;
@@ -156,3 +157,11 @@ const styles = StyleSheet.create({
   fill: { flex: 1, backgroundColor: colors.cream50 },
   content: { padding: spacing.md, paddingBottom: spacing.lg },
 });
+
+/** Junior members (0159): social aren't for every age — a deep link gets the panel, not a form the database would refuse. */
+export default function CommentsScreen() {
+  const gate = useAgeGate("social");
+  if (gate === "loading") return <AgeGateLoading />;
+  if (gate === "blocked") return <NotForUnder18 feature="social" title="Social" />;
+  return <CommentsScreenInner />;
+}

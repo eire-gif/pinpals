@@ -15,7 +15,9 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import ReanimatedSwipeable from "react-native-gesture-handler/ReanimatedSwipeable";
 
 import { Avatar } from "@/components/avatar";
-import { appRouteFor, teeTimeFocus } from "@/lib/alert-routes";
+import { alertAction, appRouteFor, teeTimeFocus } from "@/lib/alert-routes";
+import { loadAgeAccess, useAgeAccess } from "@/lib/age";
+import { goHome } from "@/lib/go-home";
 import { useAuth } from "@/lib/auth";
 import {
   DAY_BUCKET_LABELS,
@@ -68,7 +70,12 @@ export default function InboxScreen() {
 
   const [items, setItems] = useState<InboxItem[]>([]);
   const [counts, setCounts] = useState<InboxCounts>({ messages: 0, alerts: 0 });
-  const [filter, setFilter] = useState<InboxFilter>("all");
+  const [chosenFilter, setFilter] = useState<InboxFilter>("all");
+  // Junior members (0159): under 18s have no chats — the inbox is their
+  // alerts, and the Chats tile and filter chips go. (Any old conversation
+  // from before still can't be written to: the database refuses it.)
+  const chat = useAgeAccess().allows("chat");
+  const filter: InboxFilter = chat ? chosenFilter : "alerts";
   const [unreadOnly, setUnreadOnly] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -227,6 +234,13 @@ export default function InboxScreen() {
       setCounts((prev) => ({ ...prev, alerts: Math.max(0, prev.alerts - 1) }));
     }
 
+    // Junior members (0159): "your parent said yes" / "you're 16 now" — a
+    // fresh age answer, then Home, where the newly opened parts are.
+    if (alertAction(item.type) === "refreshAge") {
+      void loadAgeAccess(true).then(() => goHome());
+      return;
+    }
+
     const route = appRouteFor(item.href);
     if (route.kind === "native") {
       // typedRoutes is on, so Href is a union of the literal paths in
@@ -367,7 +381,7 @@ export default function InboxScreen() {
               { key: "messages", label: "Chats", icon: "chatbubbles", n: counts.messages },
               { key: "alerts", label: "Alerts", icon: "notifications", n: counts.alerts },
             ] as const
-          ).map((t) => {
+          ).filter((t) => chat || t.key === "alerts").map((t) => {
             const on = filter === t.key;
             return (
               <Pressable
@@ -410,7 +424,7 @@ export default function InboxScreen() {
       </View>
 
       <View style={styles.chips}>
-        {INBOX_FILTERS.map((name) => {
+        {INBOX_FILTERS.filter(() => chat).map((name) => {
           const active = filter === name;
           return (
             <Pressable

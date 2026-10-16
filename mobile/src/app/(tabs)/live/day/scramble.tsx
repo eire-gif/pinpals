@@ -12,7 +12,8 @@ import { useAuth } from "@/lib/auth";
 import { isOn } from "@/lib/features";
 import { createScrambleDay, type NewScrambleTeam } from "@/lib/live-match-days";
 import { courseHandicap, parseIndex, scrambleHandicap, type ScrambleSize } from "@/lib/live-scoring";
-import { listConnections, type Member } from "@/lib/members";
+import { pinPalsToPlayWith } from "@/lib/age";
+import type { Member } from "@/lib/members";
 import { loadMyProfile } from "@/lib/profile";
 import { clockLabel } from "@/lib/tee-time-post";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
@@ -70,8 +71,8 @@ export default function NewScrambleDay() {
           : ts
       );
     });
-    void listConnections(userId)
-      .then((c) => setPals(c.accepted))
+    void pinPalsToPlayWith(userId)
+      .then(setPals)
       .catch(() => setPals([]));
   }, [userId]);
 

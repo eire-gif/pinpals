@@ -68,6 +68,9 @@ export const NAV_SECTIONS: NavSectionConfig[] = [
     items: [
       { href: "/admin/reports", label: "Reports" },
       { href: "/admin/risk-flags", label: "Risk flags" },
+      // Junior members (0159): the parent card-check switch. Any staff may
+      // look; only admins change it.
+      { href: "/admin/age", label: "Junior members" },
     ],
   },
   {

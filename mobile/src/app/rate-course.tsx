@@ -12,6 +12,7 @@ import { useCurrentLocation } from "@/lib/location";
 import { useAuth } from "@/lib/auth";
 import { loadRateable } from "@/lib/home-social";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
+import { AgeGateLoading, NotForUnder18, useAgeGate } from "@/components/not-for-under-18";
 
 /**
  * Rate a course — reached from Home's composer ("Review"), "All my courses"
@@ -20,7 +21,7 @@ import { colors, fonts, radii, spacing, type } from "@/lib/theme";
  * stars they gave. Tapping a star opens the review sheet with it filled in.
  * Re-read on focus, so a rating saved in the sheet shows on return.
  */
-export default function RateCourseScreen() {
+function RateCourseScreenInner() {
   const { session } = useAuth();
   const userId = session?.user?.id ?? null;
   const [courses, setCourses] = useState<RateableCourse<Club>[] | null>(null);
@@ -188,3 +189,11 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
 });
+
+/** Junior members (0159): social aren't for every age — a deep link gets the panel, not a form the database would refuse. */
+export default function RateCourseScreen() {
+  const gate = useAgeGate("social");
+  if (gate === "loading") return <AgeGateLoading />;
+  if (gate === "blocked") return <NotForUnder18 feature="social" title="Social" />;
+  return <RateCourseScreenInner />;
+}

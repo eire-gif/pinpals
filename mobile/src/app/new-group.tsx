@@ -16,6 +16,7 @@ import { useAuth } from "@/lib/auth";
 import { MAX_GROUP_MEMBERS, createGroup } from "@/lib/messages";
 import { listConnections, memberPlace, type Member } from "@/lib/members";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
+import { AgeGateLoading, NotForUnder18, useAgeGate } from "@/components/not-for-under-18";
 
 /** A group's name is required, and it is required for a reason: a group is
  *  the only conversation with nothing else to call it. 80 matches the check
@@ -44,7 +45,7 @@ const MAX_TITLE = 80;
  * exception text is written for a member, so this screen shows it as-is rather
  * than trying to pre-empt it with a second, drifting copy of the same rules.
  */
-export default function NewGroupScreen() {
+function NewGroupScreenInner() {
   const { session } = useAuth();
   const userId = session?.user?.id ?? null;
 
@@ -333,3 +334,11 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
 });
+
+/** Junior members (0159): messages aren't for every age — a deep link gets the panel, not a form the database would refuse. */
+export default function NewGroupScreen() {
+  const gate = useAgeGate("chat");
+  if (gate === "loading") return <AgeGateLoading />;
+  if (gate === "blocked") return <NotForUnder18 feature="chat" title="Messages" />;
+  return <NewGroupScreenInner />;
+}

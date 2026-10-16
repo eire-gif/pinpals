@@ -57,6 +57,12 @@ import type { Href } from "expo-router";
  *               app/order/[id].tsx
  *    social   → app/(tabs)/feed.tsx, app/compose.tsx, app/new-post.tsx,
  *               app/comments/[id].tsx, app/share/[id].tsx, app/rate-course.tsx
+ *    parentApproval → app/signup.tsx, app/age/waiting.tsx, app/age/date-of-birth.tsx,
+ *               app/privacy.tsx (My parent), app/listing/[id].tsx (Ask a parent)
+ *
+ *  UNDER 18s (junior members, 0159): tee times, Social, chat and selling are
+ *  18+, PinPals (connections) 16+. Those guides say so in their badge and
+ *  first step, and the app hides those screens from younger members.
  * ─────────────────────────────────────────────────────────────────────────
  *
  * WHO A GUIDE IS FOR. The group guides are written three ways — for a crew
@@ -202,6 +208,7 @@ export const GUIDES: Guide[] = [
       {
         title: "Tap Start a group",
         body: "It's the green button at the top of Groups & societies.",
+        who: "Members 18 and over",
         look: [
           { style: "primary", label: "Start a group", icon: "add" },
           { style: "outline", label: "Find a society", icon: "search" },
@@ -418,6 +425,7 @@ export const GUIDES: Guide[] = [
         title: "Find a society",
         body: "In Groups & societies, tap Find a society and search by name.",
         only: ["society"],
+        tip: "Under 16? Your parent adds you to their societies from their Parent dashboard instead.",
         path: [MENU, GROUPS],
         look: [{ style: "outline", label: "Find a society", icon: "search" }],
         go: { label: "Find a society", to: "/groups/find" },
@@ -845,7 +853,7 @@ export const GUIDES: Guide[] = [
     blurb: "Got a spare place? Offer it and choose who joins you.",
     icon: "flag",
     tone: "green",
-    audience: "Everyone",
+    audience: "18 and over",
     next: "fill",
     steps: [
       {
@@ -856,6 +864,7 @@ export const GUIDES: Guide[] = [
           { style: "primary", label: "+", icon: "add" },
         ],
         go: { label: "Post a tee time", to: "/post-tee-time" },
+        who: "Members 18 and over — tee times aren't shown to under 18s",
       },
       {
         title: "Choose the course and day",
@@ -913,7 +922,7 @@ export const GUIDES: Guide[] = [
     blurb: "Join a fourball with a spare place, near you or further afield.",
     icon: "search",
     tone: "navy",
-    audience: "Everyone",
+    audience: "18 and over",
     next: "holeMap",
     steps: [
       {
@@ -925,6 +934,7 @@ export const GUIDES: Guide[] = [
           { style: "outline", label: "Filters", icon: "options-outline" },
         ],
         go: { label: "Tee Times", to: "/tee-times" },
+        who: "Members 18 and over — under 18s don't have the Tee Times tab",
       },
       {
         title: "Narrow it down",
@@ -964,7 +974,7 @@ export const GUIDES: Guide[] = [
     blurb: "Invite a PinPal or send a link to an open place.",
     icon: "person-add",
     tone: "gold",
-    audience: "Host or anyone playing",
+    audience: "Host or anyone playing, 18 and over",
     steps: [
       {
         title: "Open the round",
@@ -1045,7 +1055,7 @@ export const GUIDES: Guide[] = [
           { style: "link", label: "Add a guest" },
           { style: "primary", label: "Tee off" },
         ],
-        tip: "PinPals you add get the card and leaderboard on their own phone.",
+        tip: "PinPals you add get the card and leaderboard on their own phone. Under 16? Add a PinPal shows your parent and the PinPals your parent has approved; anyone else goes in as a guest.",
       },
       {
         title: "Score each hole",
@@ -1285,7 +1295,7 @@ export const GUIDES: Guide[] = [
     blurb: "Connect with people you play with — and invite the ones not on PinPals.",
     icon: "people-circle",
     tone: "gold",
-    audience: "Everyone",
+    audience: "16 and over",
     next: "messages",
     steps: [
       {
@@ -1298,6 +1308,7 @@ export const GUIDES: Guide[] = [
           { style: "outline", label: "Nearby" },
         ],
         go: { label: "Find PinPals", to: "/members" },
+        tip: "Under 16? You don't add PinPals yourself — your parent picks who you can play with.",
       },
       {
         title: "Connect",
@@ -1385,7 +1396,7 @@ export const GUIDES: Guide[] = [
     blurb: "Messages, group chats, photos, reactions and replies.",
     icon: "chatbubbles",
     tone: "navy",
-    audience: "Everyone",
+    audience: "18 and over",
     steps: [
       {
         title: "Open your Inbox",
@@ -1395,6 +1406,7 @@ export const GUIDES: Guide[] = [
           { style: "tile", label: "Alerts", icon: "notifications-outline" },
         ],
         go: { label: "Inbox", to: "/inbox" },
+        tip: "Under 18? Your Inbox shows your alerts only — chats open at 18.",
       },
       {
         title: "Start a chat",
@@ -1448,7 +1460,7 @@ export const GUIDES: Guide[] = [
     blurb: "List clubs and kit in a minute, answer offers, and get paid safely.",
     icon: "pricetag",
     tone: "gold",
-    audience: "Everyone",
+    audience: "18 and over",
     next: "buy",
     steps: [
       {
@@ -1541,6 +1553,7 @@ export const GUIDES: Guide[] = [
           { style: "primary", label: "Buy now · €180" },
           { style: "outline", label: "Make an offer" },
         ],
+        tip: "Under 18? You'll see Ask a parent instead. Under 16, it sends the listing to your parent; 16 or 17, it opens your share sheet to send them the link.",
       },
       {
         title: "Check out",
@@ -1580,7 +1593,7 @@ export const GUIDES: Guide[] = [
     blurb: "Rounds, holes, great shots and photos — plus course reviews.",
     icon: "images",
     tone: "navy",
-    audience: "Everyone",
+    audience: "18 and over",
     steps: [
       {
         title: "Start a post",
@@ -1632,6 +1645,61 @@ export const GUIDES: Guide[] = [
       },
     ],
   },
+
+  // =========================================================================
+  // Junior members (0159)
+  // =========================================================================
+  {
+    id: "parentApproval",
+    section: "people",
+    title: "Under 16? Getting your parent to approve",
+    blurb: "Golfers aged 13 to 15 need a parent or guardian to say yes. Here's how.",
+    icon: "shield-checkmark",
+    tone: "green",
+    audience: "Golfers aged 13–15, and their parents",
+    steps: [
+      {
+        title: "Add your parent's email when you join",
+        body: "When you sign up, put in your date of birth. If you're under 16, a box appears for your Parent or guardian's email. We email them a link to approve your account.",
+        look: [
+          { style: "field", label: "Date of birth", icon: "calendar-outline" },
+          { style: "field", label: "Parent or guardian's email" },
+        ],
+      },
+      {
+        title: "Wait for them to say yes",
+        body: "Until they approve, you'll see Waiting for your parent. Tap Check again, or pull down, to see if they have. You can still read the Rules of Golf and browse the course directory.",
+        look: [
+          { style: "primary", label: "Check again" },
+          { style: "outline", label: "Send again" },
+          { style: "outline", label: "Change email" },
+        ],
+        tip: "No email? Ask them to check their spam folder, then tap Send again. Wrong address? Tap Change email.",
+      },
+      {
+        title: "Your parent approves",
+        body: "They open the link, sign in to their own PinPals account (or join — they need to be 18 or over), tick that they agree, and tap Approve. You get an alert: Your parent said yes.",
+        who: "Your parent or guardian",
+      },
+      {
+        title: "What you can use",
+        body: "Live scoring, scorecards, the hole map and sharing your round live are all yours. You play with your parent, the PinPals your parent approves, and people in groups they add you to. Tee times, Social, chat and selling open at 18.",
+        look: [{ style: "raised", label: "Live Scoring", subtitle: "Score with your group, watch the leaderboard move" }],
+      },
+      {
+        title: "Something you'd like in the marketplace?",
+        body: "Open the listing and tap Ask a parent — it's sent to your parent, who can buy it for you.",
+        look: [{ style: "primary", label: "Ask a parent", icon: "people-outline" }],
+      },
+      {
+        title: "For parents: the Parent dashboard",
+        body: "In the menu, under Your account, tap Parent dashboard. Approve your child's account, pick the PinPals they can play with, and add them to your groups and societies.",
+        path: [MENU, { icon: "shield-checkmark-outline", label: "Parent dashboard" }],
+        who: "Parents and guardians",
+        tip: "At 16 the parent link is no longer needed, and at 18 everything on PinPals opens up — by itself, on their birthday.",
+      },
+    ],
+  },
 ];
 
 /** The big picture on the guides page, for each kind of group. */
@@ -1658,6 +1726,8 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-16", text: "PinPals is now open to golfers from 13. New guide: Under 16? Getting your parent to approve — the date of birth at sign-up, Waiting for your parent, Ask a parent in the marketplace, and the Parent dashboard." },
+  { on: "2026-10-16", text: "Under 18s: tee times, Social, chats and selling are 18 and over, and finding PinPals 16 and over — those guides now say so. Score a game live: under 16s add their parent and the PinPals their parent approves. Buy gear safely: under 18s see Ask a parent." },
   { on: "2026-10-16", text: "Score a game live: new step, Let family or a friend follow along — Share live sends your card as a link anyone can open, or to PinPals in their app and widget; Who's watching has Stop, and it ends by itself after the round." },
   { on: "2026-10-16", text: "Score a game live: one game per player. If someone on your tee time has already started the game, Start live scoring becomes Open the live game, and a second game with the same players can't be started." },
   { on: "2026-10-16", text: "Tee times: tapping an alert about a request or an offer now opens that one round — the tee time with Confirm my place on it, or the requests for that round — instead of the whole list." },

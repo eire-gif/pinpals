@@ -3,7 +3,6 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { getClubById } from "@/lib/courses";
 import { isCountryCode, isRegionInCountry, countryName } from "@/lib/regions";
-import { ageBandForDate } from "@/lib/age";
 import { ImageProcessingError, uploadAvatarImage } from "@/lib/images/upload";
 
 /**
@@ -13,8 +12,8 @@ import { ImageProcessingError, uploadAvatarImage } from "@/lib/images/upload";
  * /api/app/profile route can use the same code rather than a second opinion
  * on it. The rules here are not decoration — a home club must exist in the
  * directory and be in the country claimed, a county must belong to that
- * country, a handicap must be a real index, a date of birth must resolve to
- * an age band. An app that reimplemented those would drift, and the drift
+ * country, a handicap must be a real index. (The date of birth is set once,
+ * elsewhere — see the age-range section below.) An app that reimplemented those would drift, and the drift
  * would show up as a member whose profile the website rejects and the app
  * accepts.
  *
@@ -42,7 +41,6 @@ export async function applyProfileUpdate(
   const handicapVisible = formData.get("handicapVisible") === "on";
   const bio = String(formData.get("bio") || "").trim();
   const guiNumber = String(formData.get("guiNumber") || "").trim();
-  const dobRaw = String(formData.get("dob") || "").trim();
   const ageRangeVisible = formData.get("ageRangeVisible") === "on";
   const removeAvatar = formData.get("removeAvatar") === "on";
 
@@ -158,42 +156,19 @@ export async function applyProfileUpdate(
     return { error: privateError.message };
   }
 
-  // ============ Date of birth ============
-  // Its own table, readable only by its owner — see
-  // supabase/migrations/0059_member_photos_and_age_bands.sql for why it
-  // isn't a column on `profiles`. Written after the profile update rather
-  // than alongside it because they're two tables and this one is optional:
-  // a member who never fills it in never gets a row.
-  if (dobRaw) {
-    // Reuses the display helper as the validator: anything it can't turn
-    // into a band (unparseable, or in the future) is exactly what shouldn't
-    // be stored.
-    if (ageBandForDate(dobRaw) === null) {
-      return { error: "That date of birth doesn't look right." };
-    }
-
-    const { error: dobError } = await supabase
-      .from("member_birthdates")
-      .upsert(
-        { user_id: userId, date_of_birth: dobRaw, age_range_visible: ageRangeVisible },
-        { onConflict: "user_id" }
-      );
-
-    if (dobError) {
-      return { error: dobError.message };
-    }
-  } else {
-    // Cleared the field — remove the row rather than keeping a date with
-    // the toggle off. "I'd rather you didn't hold my date of birth" and "I
-    // hold it but don't publish it" are different requests, and clearing
-    // the field is the first one.
-    const { error: dobError } = await supabase
-      .from("member_birthdates")
-      .delete()
-      .eq("user_id", userId);
-    if (dobError) {
-      return { error: dobError.message };
-    }
+  // ============ Age range on the profile ============
+  // The date of birth itself is no longer written here (0159): it's entered
+  // once — at sign-up, or once by an existing member through
+  // set_my_date_of_birth — and then only staff can change it, because what a
+  // member may do on PinPals now depends on it. This form keeps only the
+  // "show my age range" switch, on the row that already exists. A member
+  // with no date yet has no row, and nothing to show.
+  const { error: ageRangeError } = await supabase
+    .from("member_birthdates")
+    .update({ age_range_visible: ageRangeVisible })
+    .eq("user_id", userId);
+  if (ageRangeError) {
+    return { error: ageRangeError.message };
   }
 
   return {};

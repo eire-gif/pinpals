@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { Connection, Profile } from "@/lib/types";
 import MemberCard from "@/components/member-card";
+import { ageGate } from "@/components/age/age-gate";
 
 type ConnectionWithFullProfiles = Connection & {
   requester: Profile | null;
@@ -13,6 +14,9 @@ export default async function ConnectionsPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
+  // Junior members (0159): the panel to show instead, if their age keeps them from this.
+  const ageBlocked = await ageGate("connections", "Connections");
+  if (ageBlocked) return ageBlocked;
 
   const { data: connections } = await supabase
     .from("connections")

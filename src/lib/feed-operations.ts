@@ -733,7 +733,7 @@ export async function reportFeedContent(input: {
   description: string;
 }): Promise<FeedResult<null>> {
   const { supabase, userId, target, targetId } = input;
-  const allowed = ["spam", "harassment", "inappropriate_content", "scam_fraud", "other"];
+  const allowed = ["spam", "harassment", "inappropriate_content", "scam_fraud", "underage", "other"];
   if (!allowed.includes(input.category)) return fail("invalid", "Please choose a reason.");
   if (input.description.length > 4000) return fail("invalid", "Please keep the description under 4000 characters.");
 

@@ -12,6 +12,7 @@ import { supabase } from "./supabase";
 import { disconnectWidget } from "./widgets";
 import { endAllLockScreens } from "./lock-screen";
 import { clearMembership } from "./membership";
+import { clearAgeAccess } from "./age";
 
 type AuthState = {
   session: Session | null;
@@ -46,6 +47,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // However the member ends up signed out (here, deleting the
         // account, a revoked session), the Home Screen widget forgets them.
         if (event === "SIGNED_OUT") {
+          // Junior members (0159): the next member on this phone mustn't
+          // inherit my age answer, in memory or on disk.
+          clearAgeAccess();
           disconnectWidget();
           endAllLockScreens();
         }
@@ -77,6 +81,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await supabase.auth.signOut({ scope: "local" });
         // The next member to sign in on this phone mustn't inherit my plan.
         clearMembership();
+        clearAgeAccess();
       },
     }),
     [session, loading]

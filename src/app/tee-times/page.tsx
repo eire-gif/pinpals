@@ -16,6 +16,7 @@ import { formatDistance, parseCoords, parseRadiusKm } from "@/lib/geo";
 import InterestButton from "./interest-button";
 import NearbySearch from "./nearby-search";
 import TeeTimesTabs from "./tee-times-tabs";
+import { ageGate } from "@/components/age/age-gate";
 
 export default async function TeeTimesPage({
   searchParams,
@@ -83,6 +84,10 @@ export default async function TeeTimesPage({
       </div>
     );
   }
+
+  // Junior members (0159): tee times are for adults.
+  const ageBlocked = await ageGate("teeTimes", "Tee times");
+  if (ageBlocked) return ageBlocked;
 
   // Proximity first, as a separate call, so the main query below keeps its
   // shape (including the host join) instead of being duplicated inside a

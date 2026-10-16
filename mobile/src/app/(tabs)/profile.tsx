@@ -20,6 +20,7 @@ import { PhotoHero } from "@/components/photo-hero";
 import { PHOTO_PICKER_OPTIONS, preparePhotoForUpload } from "@/lib/photo-picking";
 import { removeCover, uploadCover } from "@/lib/profile";
 
+import { useAgeAccess } from "@/lib/age";
 import { useAuth } from "@/lib/auth";
 import { inviteFriends } from "@/lib/invite-friends";
 import { isSuperAdmin } from "@/lib/admin";
@@ -54,6 +55,8 @@ const DEFAULT_COVER = require("../../../assets/images/scenes/links-sunset.jpg");
 
 export default function ProfileScreen() {
   const { session, signOut } = useAuth();
+  // Junior members (0159): links to what this member is too young for go.
+  const { allows } = useAgeAccess();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [deletion, setDeletion] = useState<DeletionState | null>(null);
   const [loading, setLoading] = useState(true);
@@ -336,9 +339,13 @@ export default function ProfileScreen() {
         <GroupTitle text="Golf" />
         <View style={styles.group}>
           <NativeLink icon="airplane-outline" label="My trips" to="/my-trips" />
-          <NativeLink icon="add-circle-outline" label="Post a tee time" to="/post-tee-time" />
-          <NativeLink icon="golf-outline" label="My tee times" to="/my-rounds" />
-          <NativeLink icon="people-outline" label="Requests to join" to="/tee-time-requests" />
+          {allows("teeTimes") ? (
+            <>
+              <NativeLink icon="add-circle-outline" label="Post a tee time" to="/post-tee-time" />
+              <NativeLink icon="golf-outline" label="My tee times" to="/my-rounds" />
+              <NativeLink icon="people-outline" label="Requests to join" to="/tee-time-requests" />
+            </>
+          ) : null}
           <NativeLink icon="document-text-outline" label="My scorecards" to="/scorecards" />
           <NativeLink icon="briefcase-outline" label="My bag" to="/my-bag" />
           <NativeLink icon="flag-outline" label="Courses & favourites" to="/courses" last />
@@ -346,8 +353,9 @@ export default function ProfileScreen() {
 
         <GroupTitle text="People" />
         <View style={styles.group}>
-          <NativeLink icon="people-circle-outline" label="My connections" to="/connections" />
-          <NativeLink icon="chatbubbles-outline" label="Messages" to="/inbox" />
+          {allows("connections") ? <NativeLink icon="people-circle-outline" label="My connections" to="/connections" /> : null}
+          <NativeLink icon="chatbubbles-outline" label={allows("chat") ? "Messages" : "Alerts"} to="/inbox" last={!allows("connections")} />
+          {allows("connections") ? (
           <Pressable style={[styles.link, styles.linkLast]} onPress={inviteFriends} accessibilityRole="button">
             <View style={styles.linkIcon}>
               <Ionicons name="person-add-outline" size={18} color={colors.green700} />
@@ -355,13 +363,18 @@ export default function ProfileScreen() {
             <Text style={styles.linkLabel}>Invite friends to PinPals</Text>
             <Ionicons name="share-outline" size={18} color={colors.ink500} />
           </Pressable>
+          ) : null}
         </View>
 
-        <GroupTitle text="Marketplace" />
-        <View style={styles.group}>
-          <NativeLink icon="cart-outline" label="Buying" to="/buying" />
-          <NativeLink icon="pricetags-outline" label="Selling" to="/selling" last />
-        </View>
+        {allows("sell") ? (
+          <>
+            <GroupTitle text="Marketplace" />
+            <View style={styles.group}>
+              <NativeLink icon="cart-outline" label="Buying" to="/buying" />
+              <NativeLink icon="pricetags-outline" label="Selling" to="/selling" last />
+            </View>
+          </>
+        ) : null}
 
         <GroupTitle text="Account" />
         <View style={styles.group}>

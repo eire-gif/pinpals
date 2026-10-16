@@ -32,6 +32,7 @@ import { priceLine } from "@/lib/marketplace";
 import { supabase } from "@/lib/supabase";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 import { usePostActions } from "@/lib/use-post-actions";
+import { AgeGateLoading, NotForUnder18, useAgeGate } from "@/components/not-for-under-18";
 
 /**
  * The Feed tab: what members are playing, posting and selling.
@@ -45,7 +46,7 @@ import { usePostActions } from "@/lib/use-post-actions";
  * Reads are direct to Supabase and RLS decides what appears — see
  * mobile/src/lib/feed.ts. Every write goes through the website.
  */
-export default function FeedScreen() {
+function FeedScreenInner() {
   // The photograph band shrinks to a strip as the list scrolls (see
   // screen-header.tsx), and opens again whenever the list is rebuilt.
   const { scrollY, resetY, scrollProps } = useCollapsingHeader();
@@ -565,3 +566,11 @@ const styles = StyleSheet.create({
   },
   emptyButtonLabel: { fontFamily: fonts.bodyBold, fontSize: type.small, color: colors.cream50 },
 });
+
+/** Junior members (0159): social aren't for every age — a deep link gets the panel, not a form the database would refuse. */
+export default function FeedScreen() {
+  const gate = useAgeGate("social");
+  if (gate === "loading") return <AgeGateLoading />;
+  if (gate === "blocked") return <NotForUnder18 feature="social" title="Social" />;
+  return <FeedScreenInner />;
+}

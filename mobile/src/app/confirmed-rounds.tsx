@@ -17,6 +17,7 @@ import { isOn } from "@/lib/features";
 import { listConfirmedRounds, type ConfirmedRound } from "@/lib/rounds";
 import { dateLabel, todayIso } from "@/lib/tee-times";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
+import { AgeGateLoading, NotForUnder18, useAgeGate } from "@/components/not-for-under-18";
 
 /**
  * The rounds you are actually playing in.
@@ -30,7 +31,7 @@ import { colors, fonts, radii, spacing, type } from "@/lib/theme";
  * gets right and the reason this screen exists at all — a confirmed round
  * with no names on it is just a date.
  */
-export default function ConfirmedRoundsScreen() {
+function ConfirmedRoundsScreenInner() {
   const { session } = useAuth();
   const userId = session?.user?.id ?? null;
 
@@ -293,3 +294,11 @@ const styles = StyleSheet.create({
   },
   ctaLabel: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.cream50 },
 });
+
+/** Junior members (0159): tee times aren't for every age — a deep link gets the panel, not a form the database would refuse. */
+export default function ConfirmedRoundsScreen() {
+  const gate = useAgeGate("teeTimes");
+  if (gate === "loading") return <AgeGateLoading />;
+  if (gate === "blocked") return <NotForUnder18 feature="teeTimes" title="Tee times" />;
+  return <ConfirmedRoundsScreenInner />;
+}

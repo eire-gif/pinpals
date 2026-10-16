@@ -13,7 +13,9 @@ import { applyProfileUpdate } from "@/lib/profile-update";
  *
  * The rules are not simple. A home club has to exist in the directory and be
  * in the country claimed; a county has to belong to that country; a handicap
- * has to be a real index; a date of birth has to resolve to an age band. All
+ * has to be a real index. (The date of birth is not set here: it's entered
+ * once with set_my_date_of_birth and then locked — 0159. A `dob` field is
+ * ignored; `ageRangeVisible` still works.) All
  * of that lives in applyProfileUpdate(), shared with the Server Action, so
  * the app and the site cannot come to different conclusions about the same
  * form.

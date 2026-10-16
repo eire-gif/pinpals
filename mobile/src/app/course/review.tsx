@@ -25,6 +25,7 @@ import {
 } from "@/lib/onboarding";
 import { colors, fonts, radii, spacing } from "@/lib/theme";
 import { KEYBOARD_DISMISS_MODE, KeyboardDoneButton } from "@/components/keyboard";
+import { AgeGateLoading, NotForUnder18, useAgeGate } from "@/components/not-for-under-18";
 
 const MAX = 1000;
 
@@ -48,7 +49,7 @@ function recentMonths(): { value: string; label: string }[] {
  * month played are all optional, because a rating with nothing else is still
  * worth having and a form that demands a paragraph gets none.
  */
-export default function ReviewSheet() {
+function ReviewSheetInner() {
   const router = useRouter();
   const { id, name, rating: picked } = useLocalSearchParams<{ id: string; name?: string; rating?: string }>();
   // Stars already tapped on Home or the Rate a course list arrive as
@@ -257,3 +258,11 @@ const styles = StyleSheet.create({
     gap: 10,
   },
 });
+
+/** Junior members (0159): social aren't for every age — a deep link gets the panel, not a form the database would refuse. */
+export default function ReviewSheet() {
+  const gate = useAgeGate("social");
+  if (gate === "loading") return <AgeGateLoading />;
+  if (gate === "blocked") return <NotForUnder18 feature="social" title="Social" />;
+  return <ReviewSheetInner />;
+}

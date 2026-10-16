@@ -2,7 +2,7 @@ import { readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { appRouteFor, teeTimeFocus, withTeeTimeFocus } from "./alert-routes";
+import { alertAction, alertHref, appRouteFor, teeTimeFocus, withTeeTimeFocus } from "./alert-routes";
 
 /**
  * Every href the codebase can actually put on a notification is exercised
@@ -341,5 +341,26 @@ describe("tee-time alerts open the one round they're about", () => {
     expect(withTeeTimeFocus("/tee-times", 9)).toBe("/tee-times");
     expect(withTeeTimeFocus("/tee-times/requests?invite=3", 9)).toBe("/tee-times/requests?invite=3");
     expect(withTeeTimeFocus("/tee-times/requests", undefined)).toBe("/tee-times/requests");
+  });
+});
+
+describe("junior members (0159)", () => {
+  it("a change of age band or a parent's yes refreshes access and goes Home", () => {
+    expect(alertAction("age_band_changed")).toBe("refreshAge");
+    expect(alertAction("parent_link_approved")).toBe("refreshAge");
+    expect(alertAction("junior_ask_parent")).toBeNull();
+    expect(alertAction("new_message")).toBeNull();
+    expect(alertAction(null)).toBeNull();
+    // They carry no href: Home either way.
+    expect(appRouteFor(alertHref("age_band_changed", { band: "youth" } as never))).toEqual({ kind: "native", path: "/" });
+  });
+
+  it("a child asking about a listing opens the listing", () => {
+    expect(appRouteFor(alertHref("junior_ask_parent", { href: "/marketplace/412" }))).toEqual({ kind: "native", path: "/listing/412" });
+    expect(appRouteFor(alertHref("junior_ask_parent", { listingId: 412 }))).toEqual({ kind: "native", path: "/listing/412" });
+    expect(appRouteFor(alertHref("junior_ask_parent", { listing_id: 412 }))).toEqual({ kind: "native", path: "/listing/412" });
+    expect(alertHref("junior_ask_parent", { listingId: "412" })).toBe("/dashboard");
+    expect(alertHref("offer_received", { listingId: 412 })).toBe("/dashboard");
+    expect(alertHref("anything", { href: "https://evil.example" })).toBe("/dashboard");
   });
 });

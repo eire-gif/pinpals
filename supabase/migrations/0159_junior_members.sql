@@ -498,6 +498,11 @@ begin
   exception when others then
     raise exception 'Please check your date of birth.' using errcode = '22023';
   end;
+  -- The website checks this first; this catches a sign-up sent straight to
+  -- Supabase Auth with the public key, past the website.
+  if v_dob > (current_date - interval '13 years')::date then
+    raise exception 'You need to be 13 or over to join PinPals.' using errcode = '22023';
+  end if;
   if not exists (select 1 from public.profiles where id = new.id) then
     return null;
   end if;

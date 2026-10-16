@@ -1,12 +1,24 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
+import DateOfBirthFields from "@/components/date-of-birth-fields";
+import { ageFromIso, checkDateOfBirth, MIN_JOIN_AGE, PARENT_LINK_AGE } from "@/lib/junior";
 import { signUp, type SignUpState } from "./actions";
 
 const initialState: SignUpState = {};
 
 export default function SignUpForm() {
   const [state, formAction, pending] = useActionState(signUp, initialState);
+  // Only to decide whether to show the parent's email field. The server
+  // checks the date again (src/lib/signup.ts) — this is a convenience.
+  const [dob, setDob] = useState("");
+  const checked = checkDateOfBirth(dob);
+  const age = checked.ok ? ageFromIso(checked.date) : null;
+  const needsParent = age !== null && age >= MIN_JOIN_AGE && age < PARENT_LINK_AGE;
+
+  if (state.blocked) {
+    return <p className="text-center text-ink-900 py-4">{state.error}</p>;
+  }
 
   if (state.success) {
     return (
@@ -23,6 +35,12 @@ export default function SignUpForm() {
           We&rsquo;ve sent a confirmation link. Click it to activate your account and set up your
           home club and handicap.
         </p>
+        {state.needsParent && (
+          <p className="text-ink-500 mt-3">
+            We&rsquo;ve also emailed your parent or guardian. Once they say yes, live scoring and
+            sharing your rounds switch on.
+          </p>
+        )}
       </div>
     );
   }
@@ -52,6 +70,17 @@ export default function SignUpForm() {
           className="w-full px-3.5 py-3 rounded-lg border-[1.5px] border-line focus:outline-none focus:border-green-600" />
         <span className="text-xs text-ink-500">At least 6 characters.</span>
       </div>
+
+      <DateOfBirthFields onChange={setDob} />
+
+      {needsParent && (
+        <div className="grid gap-1.5 min-w-0">
+          <label htmlFor="parentEmail" className="text-[13.5px] font-bold">Parent or guardian&rsquo;s email</label>
+          <input id="parentEmail" name="parentEmail" type="email" required autoComplete="off"
+            className="w-full px-3.5 py-3 rounded-lg border-[1.5px] border-line focus:outline-none focus:border-green-600" />
+          <span className="text-xs text-ink-500">A parent or guardian approves accounts for members under 16 — we&rsquo;ll email them a link.</span>
+        </div>
+      )}
 
       {state.error && (
         <p className="text-sm text-red-600 bg-red-100 rounded-lg px-3.5 py-2.5">{state.error}</p>

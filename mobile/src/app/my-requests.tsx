@@ -23,6 +23,7 @@ import {
 import { confirmPlace } from "@/lib/tee-time-interest";
 import { dateLabel, todayIso } from "@/lib/tee-times";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
+import { AgeGateLoading, NotForUnder18, useAgeGate } from "@/components/not-for-under-18";
 
 /**
  * Rounds you have asked to join, and what came of each.
@@ -34,7 +35,7 @@ import { colors, fonts, radii, spacing, type } from "@/lib/theme";
  * holding a space in somebody's fourball until it is confirmed or given
  * back. Those sort to the top and carry the two buttons.
  */
-export default function MyRequestsScreen() {
+function MyRequestsScreenInner() {
   const { session } = useAuth();
   const userId = session?.user?.id ?? null;
 
@@ -318,3 +319,11 @@ const styles = StyleSheet.create({
   },
   ctaLabel: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.cream50 },
 });
+
+/** Junior members (0159): tee times aren't for every age — a deep link gets the panel, not a form the database would refuse. */
+export default function MyRequestsScreen() {
+  const gate = useAgeGate("teeTimes");
+  if (gate === "loading") return <AgeGateLoading />;
+  if (gate === "blocked") return <NotForUnder18 feature="teeTimes" title="Tee times" />;
+  return <MyRequestsScreenInner />;
+}

@@ -13,6 +13,8 @@ import {
   type MemberProfileBefore,
 } from "@/lib/admin/member-profile";
 import { countryName } from "@/lib/regions";
+import { createClient } from "@/lib/supabase/server";
+import { checkDateOfBirth } from "@/lib/junior";
 import type { Profile } from "@/lib/types";
 
 // Suspension is enforced via Supabase Auth's own ban mechanism
@@ -163,8 +165,9 @@ export async function addUserNote(_prev: ModerationState, formData: FormData): P
  *
  * - **Email.** It is the login identity, lives in `auth.users`, and changing it
  *   is an account takeover with a friendly name. A member changes their own.
- * - **Date of birth.** Its own table, readable only by its owner by design
- *   (supabase/migrations/0059) — the whole point is that staff never see it.
+ * - **Date of birth.** Its own table (0059). Since 0159 staff can see it —
+ *   what a member may do depends on it — and a correction is its own audited
+ *   action in the Age panel (correctDateOfBirth below), not a field here.
  *   `handicap_visible` IS editable here, because a super admin fixing a
  *   member's details over the phone needs it; every flip of it is in the diff.
  * - **Profile photo.** Uploads need the member's own Storage folder; there is
@@ -296,5 +299,103 @@ export async function updateMemberProfile(
   revalidatePath("/community");
   revalidatePath("/courses");
   revalidatePath("/tee-times");
+  return { success: true };
+}
+
+// ============ Age (junior members, 0159) ============
+//
+// The Age panel's three actions. Restricting is what staff do with a "may be
+// under 18" report: the member is treated as 16–17 (no tee times, Social,
+// chat or selling) until someone checks. It goes through
+// admin_set_age_flag() as the staff member themselves, so the database
+// records who did it. A date-of-birth correction is the only way a date
+// changes once set (member_birthdates_guard lets staff and the service role
+// through); it's written with the service role, and the before/after is in
+// the audit log because nothing else keeps it.
+
+/** Who may restrict or clear: the roles admin_set_age_flag() itself allows, plus super admin. */
+const AGE_FLAG_ROLES = ["support", "moderator", "admin", "super_admin"] as const;
+/** Changing a date of birth decides what a member may do — admins only. */
+const DOB_CORRECTION_ROLES = ["admin", "super_admin"] as const;
+
+async function setAgeFlag(on: boolean, formData: FormData): Promise<ModerationState> {
+  const { user, staff } = await requireStaff({ roles: AGE_FLAG_ROLES });
+  const targetId = String(formData.get("userId") ?? "").trim();
+  const reason = String(formData.get("reason") ?? "").trim();
+  if (!targetId) return { error: "Missing user id." };
+  if (!reason) return { error: "A reason is required." };
+
+  // As the staff member (their aal2 session), so is_staff() in the function
+  // is what decides. admin_set_age_flag() names admin, moderator and support
+  // — not super_admin — so a super admin's change is written the same way
+  // with the service role instead.
+  let error: { message: string } | null = null;
+  if (staff.role === "super_admin") {
+    const admin = createAdminClient();
+    const now = new Date().toISOString();
+    ({ error } = on
+      ? await admin
+          .from("member_age_flags")
+          .upsert(
+            { user_id: targetId, reason: "staff", note: reason.slice(0, 1000), created_by: user.id, created_at: now, resolved_at: null, resolved_by: null },
+            { onConflict: "user_id" }
+          )
+      : await admin.from("member_age_flags").update({ resolved_at: now, resolved_by: user.id }).eq("user_id", targetId).is("resolved_at", null));
+  } else {
+    const supabase = await createClient();
+    ({ error } = await supabase.rpc("admin_set_age_flag", { p_user: targetId, p_on: on, p_note: reason }));
+  }
+
+  await recordAdminAction({
+    actor: { id: user.id, role: staff.role },
+    action: on ? "user.age_restricted" : "user.age_cleared",
+    targetType: "user",
+    targetId,
+    reason,
+    outcome: error ? "failure" : "success",
+    metadata: error ? { error: error.message } : undefined,
+  });
+  if (error) return { error: "Couldn't save that — please try again." };
+  revalidatePath(`/admin/users/${targetId}`);
+  return { success: true };
+}
+
+export async function restrictAsUnder18(_prev: ModerationState, formData: FormData): Promise<ModerationState> {
+  return setAgeFlag(true, formData);
+}
+
+export async function clearAgeRestriction(_prev: ModerationState, formData: FormData): Promise<ModerationState> {
+  return setAgeFlag(false, formData);
+}
+
+export async function correctDateOfBirth(_prev: ModerationState, formData: FormData): Promise<ModerationState> {
+  const { user, staff } = await requireStaff({ roles: DOB_CORRECTION_ROLES });
+  const targetId = String(formData.get("userId") ?? "").trim();
+  const reason = String(formData.get("reason") ?? "").trim();
+  const checked = checkDateOfBirth(String(formData.get("dob") ?? ""));
+  if (!targetId) return { error: "Missing user id." };
+  if (!reason) return { error: "A reason is required." };
+  if (!checked.ok) return { error: checked.error };
+
+  const admin = createAdminClient();
+  const { data: before } = await admin.from("member_birthdates").select("date_of_birth").eq("user_id", targetId).maybeSingle<{ date_of_birth: string }>();
+  if (before?.date_of_birth === checked.date) return { error: "That's the date already on file." };
+
+  // Upsert: a member with no date yet can have one set by staff too.
+  const { error } = await admin
+    .from("member_birthdates")
+    .upsert({ user_id: targetId, date_of_birth: checked.date }, { onConflict: "user_id" });
+
+  await recordAdminAction({
+    actor: { id: user.id, role: staff.role },
+    action: "user.dob_corrected",
+    targetType: "user",
+    targetId,
+    reason,
+    outcome: error ? "failure" : "success",
+    metadata: { before: before?.date_of_birth ?? null, after: checked.date, ...(error ? { error: error.message } : {}) },
+  });
+  if (error) return { error: "Couldn't save that date — please try again." };
+  revalidatePath(`/admin/users/${targetId}`);
   return { success: true };
 }

@@ -40,8 +40,9 @@ import {
   type MyInterest,
 } from "@/lib/tee-time-interest";
 import { colors, creamAlpha, fonts, navyAlpha, radii, spacing, type } from "@/lib/theme";
+import { AgeGateLoading, NotForUnder18, useAgeGate } from "@/components/not-for-under-18";
 
-export default function InviteScreen() {
+function InviteScreenInner() {
   // posted=1: just posted (post-tee-time.tsx) — offer the calendar once.
   const { id, posted } = useLocalSearchParams<{ id: string; posted?: string }>();
   const { session } = useAuth();
@@ -902,3 +903,11 @@ const styles = StyleSheet.create({
   emptyTitle: { fontFamily: fonts.display, fontSize: 22, color: colors.ink900 },
   emptyBody: { fontFamily: fonts.body, fontSize: type.body, color: colors.ink500, textAlign: "center" },
 });
+
+/** Junior members (0159): tee times aren't for every age — a deep link gets the panel, not a form the database would refuse. */
+export default function InviteScreen() {
+  const gate = useAgeGate("teeTimes");
+  if (gate === "loading") return <AgeGateLoading />;
+  if (gate === "blocked") return <NotForUnder18 feature="teeTimes" title="Tee times" />;
+  return <InviteScreenInner />;
+}

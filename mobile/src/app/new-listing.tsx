@@ -44,6 +44,7 @@ import { COUNTRY_NAMES, regionsFor } from "@/lib/tee-time-post";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 import { FORM_SCROLL_KEYBOARD, KeyboardDoneButton } from "@/components/keyboard";
 import { PHOTO_PICKER_OPTIONS, preparePhotoForUpload } from "@/lib/photo-picking";
+import { AgeGateLoading, NotForUnder18, useAgeGate } from "@/components/not-for-under-18";
 
 /**
  * Listing something for sale.
@@ -75,7 +76,7 @@ const COUNTRY_CODES = [
 
 type OpenSection = "category" | "subcategory" | "brand" | "county" | null;
 
-export default function NewListingScreen() {
+function NewListingScreenInner() {
   const router = useRouter();
   const { session } = useAuth();
   const userId = session?.user?.id ?? null;
@@ -610,3 +611,11 @@ const styles = StyleSheet.create({
     color: colors.ink500,
   },
 });
+
+/** Junior members (0159): selling aren't for every age — a deep link gets the panel, not a form the database would refuse. */
+export default function NewListingScreen() {
+  const gate = useAgeGate("sell");
+  if (gate === "loading") return <AgeGateLoading />;
+  if (gate === "blocked") return <NotForUnder18 feature="sell" title="Selling" />;
+  return <NewListingScreenInner />;
+}
