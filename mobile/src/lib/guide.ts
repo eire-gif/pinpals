@@ -1077,15 +1077,15 @@ export const GUIDES: Guide[] = [
         tip: "It's your own score only, and not for scrambles or foursomes. No signal? It's kept and sent when there is. The yardage needs location: PinPals asks once, and it stops when the round ends (a flag means it's the hole's length from the tee). The card goes when you tap Finish round. Not showing? Settings → PinPals → Live Activities.",
       },
       {
-        title: "Score from your Apple Watch",
-        body: "With PinPals on your Apple Watch, the round you open on your iPhone is on your wrist too. It shows the hole, par and your distance to the centre of the green. Turn the Digital Crown or use − and +, then tap Save — it moves on to the next hole. Swipe left for your card: your total, Undo, Picked up, and any hole to change.",
+        title: "Score from your watch",
+        body: "With PinPals on your Apple Watch or Wear OS watch, the round you open on your phone is on your wrist too. It shows the hole, par and your distance to the centre of the green. Turn the crown (or the bezel) or use − and +, then tap Save — it moves on to the next hole. Swipe left for your card: your total, Undo, Picked up, and any hole to change.",
         look: [
           { style: "outline", label: "−" },
           { style: "primary", label: "4" },
           { style: "outline", label: "+" },
           { style: "primary", label: "Save", icon: "watch-outline" },
         ],
-        tip: "Your own score only, as on the lock screen. Scores go through your iPhone, or straight from the watch on Wi-Fi or mobile data, and are kept on the watch until there's signal. Get it from the Watch app on your iPhone → PinPals → Install.",
+        tip: "Your own score only, as on the lock screen. No signal? Scores are kept on the watch and sent when there is. Apple Watch: Watch app on your iPhone → PinPals → Install. Wear OS: Play Store on the watch → PinPals.",
       },
       {
         title: "Leaderboard, finish and share",
@@ -1646,6 +1646,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-16", text: "Score a game live: Score from your watch now covers Wear OS watches too — turn the crown or bezel, or use − and +." },
   { on: "2026-10-16", text: "Score a game live: new step, Score from your Apple Watch — your round on your wrist with the distance to the green; Digital Crown or − / +, then Save; swipe left for your card." },
   { on: "2026-10-16", text: "Score a game live: Leaderboard, finish and share — new Save photo on a scorecard puts the whole card in your Photos as a picture, ready for Instagram or WhatsApp." },
   { on: "2026-10-16", text: "Score a game live: new step, Or say the scores — tap Say scores and say the group's scores, check them, Save. Score from your lock screen: the mic opens it listening, and the yardage to the green opens the hole map." },
