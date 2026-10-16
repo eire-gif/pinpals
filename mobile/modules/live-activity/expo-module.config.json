@@ -1,7 +1,19 @@
 {
-  "platforms": ["apple"],
+  "platforms": [
+    "apple",
+    "android"
+  ],
   "apple": {
-    "modules": ["PinPalsLiveActivityModule"],
-    "appDelegateSubscribers": ["PinPalsWatchAppDelegate"]
+    "modules": [
+      "PinPalsLiveActivityModule"
+    ],
+    "appDelegateSubscribers": [
+      "PinPalsWatchAppDelegate"
+    ]
+  },
+  "android": {
+    "modules": [
+      "ie.pinpals.liveactivity.PinPalsLiveActivityModule"
+    ]
   }
 }

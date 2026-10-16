@@ -1,0 +1,22 @@
+// The Android side of the PinPals live-activity module (Oct 2026): there's
+// no lock screen card on Android, so it only keeps the Wear OS app on the
+// live round (claude/wear-os.md).
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'ie.pinpals'
+version = '1.0.0'
+
+android {
+  namespace "ie.pinpals.liveactivity"
+  defaultConfig {
+    versionCode 1
+    versionName '1.0.0'
+  }
+}
+
+dependencies {
+  implementation 'com.google.android.gms:play-services-wearable:19.0.0'
+}

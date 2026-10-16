@@ -56,3 +56,7 @@ example
 # it is committed on purpose (see claude/android-build.md).
 *firebase-adminsdk*.json
 fcm-key.json
+
+# PinPals for Wear OS: Gradle output
+/wear/build
+/wear/.gradle
