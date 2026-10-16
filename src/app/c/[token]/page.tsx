@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 
 import { headline, holeResult, playedLabel, scorecardTotals, type ScorecardHole } from "@/lib/scorecard-math";
-import { scorecardImagePath } from "@/lib/scorecard-links";
+import { scorecardImagePath, scorecardPhotoPath } from "@/lib/scorecard-links";
 import { loadSharedScorecard } from "@/lib/scorecard-share-server";
 
 /**
@@ -138,6 +138,10 @@ export default async function SharedScorecardPage({ params }: { params: Promise<
       <Nine title={card.holes === 9 ? "Tot" : "Out"} holes={front} par={t.out.par} strokes={t.out.strokes} yards={t.out.yards} />
       {back.length > 0 && t.in ? <Nine title="In" holes={back} par={t.in.par} strokes={t.in.strokes} yards={t.in.yards} /> : null}
       <div className="flex flex-wrap gap-3">
+        {/* A plain link: the picture is a download, not a page. */}
+        <a href={`${scorecardPhotoPath(token)}?download=1`} className="rounded-full bg-navy-900 text-cream-50 font-bold px-6 py-3 hover:opacity-90">
+          Save as photo
+        </a>
         <Link href="/signup" className="rounded-full bg-green-700 text-cream-50 font-bold px-6 py-3 hover:bg-green-800">
           Keep your own cards on PinPals
         </Link>

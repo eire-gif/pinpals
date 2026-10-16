@@ -13,6 +13,7 @@ import { Nine } from "@/components/scorecard-grid";
 import { useAuth } from "@/lib/auth";
 import { isOn } from "@/lib/features";
 import { indexLabel } from "@/lib/live-scoring";
+import { saveScorecardPhoto } from "@/lib/scorecard-photo";
 import { playedLabel, scorecardTotals, shareText, shotsOnCard, vsParText, type ScorecardHole } from "@/lib/scorecard-math";
 import {
   VISIBILITY_LABELS,
@@ -41,7 +42,9 @@ export default function ScorecardScreen() {
   const me = session?.user?.id ?? null;
   const [card, setCard] = useState<Scorecard | null | undefined>(undefined);
   const [failed, setFailed] = useState(false);
-  const [busy, setBusy] = useState<null | "share" | "refresh" | "visibility">(null);
+  const [busy, setBusy] = useState<null | "share" | "photo" | "refresh" | "visibility">(null);
+  // "Save photo": a moment's note that it went into Photos.
+  const [photoSaved, setPhotoSaved] = useState(false);
   // Certification (0128): reloads with the card; marks a queried hole.
   const [version, setVersion] = useState(0);
   const [autoAsk, setAutoAsk] = useState(certify === "1");
@@ -100,6 +103,22 @@ export default function ScorecardScreen() {
       await Share.share({ message: shareText(card, card.holeList, link) });
     } catch {
       // Dismissed.
+    }
+  };
+
+  const savePhoto = async () => {
+    setBusy("photo");
+    setPhotoSaved(false);
+    try {
+      const result = await saveScorecardPhoto(card.id);
+      if (result === "saved") {
+        setPhotoSaved(true);
+        setTimeout(() => setPhotoSaved(false), 4000);
+      }
+    } catch (e) {
+      Alert.alert("Couldn't save the photo", e instanceof Error ? e.message : "Please try again.");
+    } finally {
+      setBusy(null);
     }
   };
 
@@ -209,8 +228,15 @@ export default function ScorecardScreen() {
             <View style={styles.actions}>
               <Action icon="chatbubbles-outline" label="Post to Social" onPress={() => router.push({ pathname: "/new-post", params: { type: "round", scorecard: String(card.id) } })} />
               <Action icon="share-outline" label="Send" busy={busy === "share"} onPress={() => void send()} />
+              <Action icon="image-outline" label="Save photo" busy={busy === "photo"} onPress={() => void savePhoto()} />
               <Action icon="create-outline" label="Edit" onPress={() => router.push({ pathname: "/scorecards/new", params: { id: String(card.id) } })} />
             </View>
+            {photoSaved ? (
+              <View style={styles.savedBanner} accessibilityRole="alert">
+                <Ionicons name="checkmark-circle" size={18} color={colors.green700} />
+                <Text style={styles.savedText}>Saved to your Photos</Text>
+              </View>
+            ) : null}
             {card.source === "live" && card.liveRoundId != null ? (
               <Pressable onPress={() => void refresh()} disabled={busy != null} style={styles.refresh} accessibilityRole="button">
                 {busy === "refresh" ? <ActivityIndicator color={colors.green700} /> : <Ionicons name="refresh" size={16} color={colors.green700} />}
@@ -286,7 +312,7 @@ const styles = StyleSheet.create({
   countLabel: { fontFamily: fonts.bodySemi, fontSize: 11, color: colors.ink500 },
   actions: { flexDirection: "row", gap: spacing.sm },
   action: { flex: 1, alignItems: "center", gap: 4, paddingVertical: spacing.sm + 2, borderRadius: radii.md, backgroundColor: colors.gold400 },
-  actionLabel: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.navy900 },
+  actionLabel: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.navy900, textAlign: "center" },
   refresh: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, minHeight: 40 },
   link: { fontFamily: fonts.bodyBold, fontSize: type.small, color: colors.green700 },
   visibility: { gap: spacing.sm, backgroundColor: colors.surface, borderRadius: radii.md, borderWidth: 1, borderColor: colors.line, padding: spacing.md },
