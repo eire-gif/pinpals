@@ -180,6 +180,11 @@ const EXPECTED: Record<string, Expectation> = {
   // must never be reachable by a member or with the publishable key.
   "live_round_set_own_score(p_member uuid, p_round_id bigint, p_hole smallint, p_strokes smallint, p_clear boolean)": { anon: false, authenticated: false },
   "live_highlight_set_muted(p_round_id bigint, p_muted boolean)": { anon: false, authenticated: true },
+  // 0158 follow my round. Each checks whose card it is (or whose share) itself.
+  "live_follow_share(p_player_id bigint, p_followers uuid[], p_token_hash text)": { anon: false, authenticated: true },
+  "live_follow_stop(p_follow_id bigint)": { anon: false, authenticated: true },
+  // A trigger: a guest's seat claimed by a member stops others' shares of it.
+  "live_round_player_claimed_stops_follows()": { anon: false, authenticated: false },
   "live_round_status_broadcast()": { anon: false, authenticated: false },
   // 0104 match days. Same reasoning: each checks the caller itself.
   "can_score_live_round(p_round_id bigint)": { anon: false, authenticated: true },
