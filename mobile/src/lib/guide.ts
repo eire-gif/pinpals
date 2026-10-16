@@ -1004,7 +1004,7 @@ export const GUIDES: Guide[] = [
         body: "On Home, tap the big Live Scoring card. It's in the menu too.",
         look: [{ style: "raised", label: "Live Scoring", subtitle: "Score with your group, watch the leaderboard move" }],
         go: { label: "Live scoring", to: "/live" },
-        tip: "Playing a tee time? Open it and tap Start live scoring — everyone on it is added for you. Untick anyone who isn't scoring with you.",
+        tip: "Playing a tee time? Only one of you needs to start: open it and tap Start live scoring — everyone on it is added and gets an alert that opens the game. If someone already started it, the button says Open the live game. A player can only be in one game at a time.",
       },
       {
         title: "Choose how you're playing",
@@ -1646,6 +1646,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-16", text: "Score a game live: one game per player. If someone on your tee time has already started the game, Start live scoring becomes Open the live game, and a second game with the same players can't be started." },
   { on: "2026-10-16", text: "Tee times: tapping an alert about a request or an offer now opens that one round — the tee time with Confirm my place on it, or the requests for that round — instead of the whole list." },
   { on: "2026-10-16", text: "Score a game live: new step, Score from your Apple Watch — your round on your wrist with the distance to the green; Digital Crown or − / +, then Save; swipe left for your card." },
   { on: "2026-10-16", text: "Score a game live: the scorecard photo is now inside Share scorecard (My card as a photo) and a card's Send (Photo of the card), instead of its own button." },

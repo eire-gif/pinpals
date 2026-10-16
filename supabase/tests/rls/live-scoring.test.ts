@@ -42,6 +42,12 @@ async function asService<T>(c: PoolClient, fn: () => Promise<T>): Promise<T> {
   }
 }
 
+/** 0157: one open game per player. Earlier rounds in a test are made older
+ *  than the 8-hour window, so the next one can start with the same people. */
+async function ageOpenGames(c: PoolClient): Promise<void> {
+  await asService(c, () => c.query("update public.live_rounds set created_at = now() - interval '9 hours' where status = 'live'"));
+}
+
 /** Expects a statement to fail, without aborting the surrounding transaction. */
 async function rejects(c: PoolClient, sql: string, params: unknown[], pattern?: RegExp): Promise<void> {
   await c.query("savepoint attempt");
@@ -99,6 +105,7 @@ const player = (memberId: string | null, name: string) => ({
 
 /** seller1 + buyer1 + a guest. Returns the round id and the three player ids. */
 async function createRound(c: PoolClient): Promise<{ roundId: string; players: string[] }> {
+  await ageOpenGames(c);
   await as(c, ME);
   const { rows } = await c.query<{ id: string }>("select public.live_round_create($1::jsonb, $2::jsonb, $3::jsonb) as id", [
     round(),
@@ -204,8 +211,12 @@ describe("live rounds: who can be added", () => {
       await setUp(c);
       await as(c, ME);
       for (let i = 0; i < 5; i++) {
+        await ageOpenGames(c);
+        await as(c, ME);
         await c.query("select public.live_round_create($1::jsonb, $2::jsonb, $3::jsonb)", [round(), JSON.stringify([player(ME, "Eire")]), card(18)]);
       }
+      await ageOpenGames(c);
+      await as(c, ME);
       await rejects(
         c,
         "select public.live_round_create($1::jsonb, $2::jsonb, $3::jsonb)",

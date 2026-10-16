@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -35,6 +34,7 @@ import { listConnections } from "@/lib/members";
 import { canDrawFrom, loadGroupRoster, loadMyGroups } from "@/lib/groups-data";
 import { loadMyProfile } from "@/lib/profile";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
+import { explainStartError } from "@/lib/open-game-alert";
 
 /**
  * Set up a match day: course, optional teams, then the matches — each with
@@ -238,7 +238,7 @@ export default function NewMatchDay() {
       );
       router.replace({ pathname: "/live/day/[id]", params: { id: String(id), created: "1" } });
     } catch (e) {
-      Alert.alert("Couldn't start the match day", e instanceof Error ? e.message : "Please try again.");
+      explainStartError(e, "Couldn't start the match day");
     } finally {
       setSaving(false);
     }

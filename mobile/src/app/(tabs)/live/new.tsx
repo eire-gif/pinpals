@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -11,7 +10,7 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { router, useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams, type Href } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { CourseSection, useCourseSetup } from "@/components/live-course-section";
@@ -41,6 +40,8 @@ import { loadClub } from "@/lib/outings";
 import { loadMyProfile } from "@/lib/profile";
 import { teeTimeLineUp, whenLabel, type TeeMate } from "@/lib/tee-times";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
+import { explainStartError, myOpenGame, type MyOpenGame } from "@/lib/open-game-alert";
+import { openGamePath } from "@/lib/open-game";
 
 /**
  * Set up a round: course and tees, format, players.
@@ -98,6 +99,20 @@ export default function NewLiveRound() {
   // Foursomes (0136): how it's scored.
   const foursomes = format === "foursomes";
   const [scoring, setScoring] = useState<FoursomesScoring | "matchplay">("stableford");
+
+  // 0157: one open game per player. If you're already in one — the other
+  // player on the tee time started it — say so up front and offer to open it,
+  // rather than let you set up a second game that will be refused.
+  const [openGame, setOpenGame] = useState<MyOpenGame | null>(null);
+  useEffect(() => {
+    let live = true;
+    void myOpenGame().then((g) => {
+      if (live) setOpenGame(g);
+    });
+    return () => {
+      live = false;
+    };
+  }, []);
 
   // From a tee time: who was on it, so they can be ticked in or out.
   const { teeTime } = useLocalSearchParams<{ teeTime?: string }>();
@@ -293,7 +308,7 @@ export default function NewLiveRound() {
       try {
         await startFoursomes();
       } catch (e) {
-        Alert.alert("Couldn't start the round", e instanceof Error ? e.message : "Please try again.");
+        explainStartError(e, "Couldn't start the round");
       } finally {
         setSaving(false);
       }
@@ -327,7 +342,7 @@ export default function NewLiveRound() {
       );
       router.replace({ pathname: "/live/round/[id]", params: { id: String(id) } });
     } catch (e) {
-      Alert.alert("Couldn't start the round", e instanceof Error ? e.message : "Please try again.");
+      explainStartError(e, "Couldn't start the round");
     } finally {
       setSaving(false);
     }
@@ -342,6 +357,24 @@ export default function NewLiveRound() {
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined} keyboardVerticalOffset={90}>
       <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
+        {openGame ? (
+          <Pressable
+            style={[styles.card, styles.openGame]}
+            onPress={() => router.replace(openGamePath(openGame) as Href)}
+            accessibilityRole="button"
+            accessibilityLabel="Open the game you're already in"
+          >
+            <Ionicons name="podium" size={22} color={colors.green700} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.cardTitle}>You&apos;re already in a live game</Text>
+              <Text style={styles.cardMeta}>
+                {openGame.startedBy ? `${openGame.startedBy} started it` : "It's started"} at {openGame.courseName}. Open it — a second game can&apos;t be started with the same players.
+              </Text>
+            </View>
+            <Text style={styles.link}>Open</Text>
+          </Pressable>
+        ) : null}
+
         <CourseSection setup={course} />
 
         <Section title="Format">
@@ -591,6 +624,7 @@ const styles = StyleSheet.create({
   cardTitle: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.ink900 },
   cardMeta: { fontFamily: fonts.body, fontSize: 13, color: colors.ink500, marginTop: 2 },
   link: { fontFamily: fonts.bodyBold, fontSize: type.small, color: colors.green700 },
+  openGame: { borderColor: colors.green700, backgroundColor: colors.green100 },
   hint: { fontFamily: fonts.body, fontSize: 13, color: colors.ink500 },
   fields: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   field: { flexBasis: "22%", flexGrow: 1, gap: 4 },

@@ -23,6 +23,7 @@ import { loadItineraryItem, setItemPeople, type ItineraryItem } from "@/lib/itin
 import type { PlayFormat } from "@/lib/itinerary-rules";
 import { clockLabel } from "@/lib/tee-time-post";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
+import { explainStartError } from "@/lib/open-game-alert";
 
 /**
  * Start a day from a group (0121): pick the crew or society, tick who's
@@ -530,7 +531,7 @@ export default function DrawFromGroup() {
       }
       router.replace({ pathname: "/live/day/[id]", params: { id: String(id), created: "1" } });
     } catch (e) {
-      Alert.alert("Couldn't start the day", e instanceof Error ? e.message : "Please try again.");
+      explainStartError(e, "Couldn't start the day");
     } finally {
       setSaving(false);
     }

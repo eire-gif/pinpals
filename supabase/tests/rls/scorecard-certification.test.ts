@@ -85,6 +85,8 @@ async function manualCard(c: PoolClient, over: Record<string, unknown> = {}): Pr
 
 /** A finished (or not) 9-hole live round ME and PAL played; ME's card from it. */
 async function liveCard(c: PoolClient, finish = true): Promise<{ cardId: string; roundId: string }> {
+  // 0157: one open game per player — earlier ones in the test are aged out.
+  await asService(c, () => c.query("update public.live_rounds set created_at = now() - interval '9 hours' where status = 'live'"));
   await as(c, ME);
   const player = (memberId: string | null, name: string) => ({
     member_id: memberId, name, handicap_index: 12.4, course_handicap: 15, playing_handicap: 14, handicap_estimated: false,

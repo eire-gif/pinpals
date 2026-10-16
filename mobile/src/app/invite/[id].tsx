@@ -9,7 +9,7 @@ import {
   Text,
   View,
 } from "react-native";
-import { Stack, router, useLocalSearchParams } from "expo-router";
+import { Stack, router, useFocusEffect, useLocalSearchParams, type Href } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { DoneHome } from "@/components/done-home";
@@ -20,6 +20,8 @@ import { StarRow } from "@/components/stars";
 import { useAuth } from "@/lib/auth";
 import { addToCalendar, offerCalendar } from "@/lib/calendar";
 import { isOn } from "@/lib/features";
+import { openGamePath } from "@/lib/open-game";
+import { myOpenGame, type MyOpenGame } from "@/lib/open-game-alert";
 import {
   confirmedPlayersFor,
   coursePhotoIndex,
@@ -60,6 +62,21 @@ export default function InviteScreen() {
     await addToCalendar("tee_time", inviteId);
     setCalBusy(false);
   }, []);
+
+  // 0157: one open game per player. If someone on this tee time already
+  // started the game and you're in it, the button opens it — no second game.
+  const [openGame, setOpenGame] = useState<MyOpenGame | null>(null);
+  useFocusEffect(
+    useCallback(() => {
+      let live = true;
+      void myOpenGame().then((g) => {
+        if (live) setOpenGame(g);
+      });
+      return () => {
+        live = false;
+      };
+    }, [])
+  );
 
   const load = useCallback(async () => {
     const numeric = Number.parseInt(String(id), 10);
@@ -362,18 +379,24 @@ export default function InviteScreen() {
 
         {canScore ? (
           <Pressable
-            onPress={() => router.push({ pathname: "/live/new", params: { teeTime: String(inviteId) } })}
+            onPress={() =>
+              openGame
+                ? router.push(openGamePath(openGame) as Href)
+                : router.push({ pathname: "/live/new", params: { teeTime: String(inviteId) } })
+            }
             style={({ pressed }) => [styles.scoreCta, pressed && styles.pressed]}
             accessibilityRole="button"
-            accessibilityLabel="Start live scoring with this fourball"
+            accessibilityLabel={openGame ? "Open the live game" : "Start live scoring with this fourball"}
           >
             <View style={styles.scoreIcon}>
               <Ionicons name="podium" size={22} color={colors.navy900} />
             </View>
             <View style={{ flex: 1, gap: 2 }}>
-              <Text style={styles.scoreTitle}>Start live scoring</Text>
+              <Text style={styles.scoreTitle}>{openGame ? "Open the live game" : "Start live scoring"}</Text>
               <Text style={styles.scoreBody}>
-                {others.length > 0 || !isMine
+                {openGame
+                  ? `${openGame.startedBy ? `${openGame.startedBy} started it` : "It's started"} at ${openGame.courseName} — you're in. Scores go in from every phone.`
+                  : others.length > 0 || !isMine
                   ? "Everyone on this tee time is added — untick anyone not playing, pick the game and go."
                   : "Score this round live — add your playing partners as they join."}
               </Text>
