@@ -21,4 +21,4 @@ Tapping a widget opens that game in the app (`pinpals://live/day/<id>` or `pinpa
 
 Native change: needs `eas build` + `eas submit`, not just `eas update`. Because the runtime fingerprint changes, OTA updates published after this merges only reach the new build — testers must install it from TestFlight. EAS registers the extension's bundle ID and the App Group on the Apple account during the build (managed credentials).
 
-Not covered: Android widgets; the Lock Screen Live Activity (needs an Apple push key — separate piece).
+Not covered: Android widgets. The Lock Screen scoring card (Live Activity) is in `claude/lock-screen-scoring.md`.

@@ -10,6 +10,7 @@ import type { Session } from "@supabase/supabase-js";
 
 import { supabase } from "./supabase";
 import { disconnectWidget } from "./widgets";
+import { endAllLockScreens } from "./lock-screen";
 
 type AuthState = {
   session: Session | null;
@@ -43,7 +44,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSession(next);
         // However the member ends up signed out (here, deleting the
         // account, a revoked session), the Home Screen widget forgets them.
-        if (event === "SIGNED_OUT") disconnectWidget();
+        if (event === "SIGNED_OUT") {
+          disconnectWidget();
+          endAllLockScreens();
+        }
       }
     );
 
