@@ -57,6 +57,25 @@ everything below is done first and the Play steps come last.
    (`eas build -p android --profile production`, an `.aab`) → enrol in Play
    App Signing → add Play's app-signing SHA-256 to `assetlinks.json` and to
    Firebase.
+7. **Wear OS watch app** (claude/wear-os.md) — after step 6, once the phone
+   app is in Play App Signing:
+   1. Build it: `eas build -p android --profile wear-production` (a separate
+      `.aab`; same package and signing key as the phone app).
+   2. Play Console → Release → Advanced settings → **Form factors → add
+      Wear OS**, accept the Wear OS terms.
+   3. Store listing → Wear OS: add watch screenshots (take them on the Wear
+      OS emulator, square and round) and a line on what it does.
+   4. Upload the watch `.aab` to the **Wear OS** release track (not the
+      phone's) and send for review. Google reviews it separately — allow a
+      few extra days, and check the Wear OS quality notes it comes back with.
+   5. Ask Claude to set up `eas submit` for the watch build so later uploads
+      are one command, like the phone's.
+   6. From then on, rebuild and upload the watch app **only when it changes**
+      (`mobile/wear/**`). Phone-only releases and `eas update` don't need it.
+
+   Members install it from the Play Store on the watch (or "install on
+   watch" in the phone's Play Store); Wear OS doesn't add it by itself. The
+   in-app guide ("Score from your watch") says where.
 
 Plan B: no CRO number by ~end of October → personal Play account and start
 the 12-tester, 14-day closed test; transfer the app to the Organization
