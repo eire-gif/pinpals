@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { AppState } from "react-native";
 
 import { HAS_SPEECH } from "./native-capabilities";
 
@@ -54,6 +55,26 @@ const NOTHING_SAID_MS = 9000;
 
 const PREFERRED = ["en-IE", "en-GB", "en-US"];
 
+/**
+ * iOS only lets an app record while it's in front. Opened from the lock
+ * screen's mic, the app is still coming up through Face ID when the sheet
+ * asks to listen; starting then gets the microphone taken straight back
+ * ("interrupted"). So wait until the app is properly in front, then a beat
+ * for the unlock to finish.
+ */
+function inFront(): Promise<void> {
+  if (AppState.currentState === "active") return Promise.resolve();
+  return new Promise((resolve) => {
+    const done = () => {
+      sub.remove();
+      clearTimeout(timeout);
+      setTimeout(resolve, 350);
+    };
+    const sub = AppState.addEventListener("change", (s) => s === "active" && done());
+    const timeout = setTimeout(done, 4000);
+  });
+}
+
 let chosenLocale: string | null = null;
 
 async function pickLocale(mod: SpeechModule): Promise<string> {
@@ -96,6 +117,12 @@ export function useVoiceListener() {
   const finalText = useRef("");
   /** Bumped by every start and cancel, so a start still waiting on a permission prompt knows it was cancelled. */
   const run = useRef(0);
+  /** Everything heard this time, for when listening is cut short. */
+  const heard = useRef("");
+  /** The hints this listen started with, and whether it has already restarted itself once. */
+  const lastHints = useRef<string[]>([]);
+  const retried = useRef(false);
+  const startRef = useRef<(hints: string[], again?: boolean) => Promise<void>>(async () => {});
 
   const set = (s: ListenState) => {
     stateRef.current = s;
@@ -117,10 +144,11 @@ export function useVoiceListener() {
         heardAt.current = Date.now();
         if (e.isFinal) {
           finalText.current = `${finalText.current} ${text}`.trim();
-          setTranscript(finalText.current);
+          heard.current = finalText.current;
         } else {
-          setTranscript(`${finalText.current} ${text}`.trim());
+          heard.current = `${finalText.current} ${text}`.trim();
         }
+        setTranscript(heard.current);
       }),
       mod.addListener("volumechange", (e) => {
         // -2 (silence) to 10 (loud), as the package reports it.
@@ -153,7 +181,20 @@ export function useVoiceListener() {
             set("failed");
             return;
           case "interrupted":
-            setProblem("Listening stopped when something else used the microphone.");
+            // Something took the microphone: a call, Siri, an alarm, the
+            // phone locking. Words already heard still count — check them.
+            if (heard.current.trim()) {
+              set("finished");
+              return;
+            }
+            // Nothing heard yet (usually the first moment after opening from
+            // the lock screen): quietly start again once.
+            if (!retried.current && AppState.currentState === "active") {
+              retried.current = true;
+              setTimeout(() => void startRef.current(lastHints.current, true), 500);
+              return;
+            }
+            setProblem("Listening stopped: a call, Siri or the phone locking can do that. Try again.");
             set("failed");
             return;
           default:
@@ -162,8 +203,21 @@ export function useVoiceListener() {
         }
       }),
     ];
+    // Going to the background mid-sentence (the phone locked): finish with
+    // what was heard rather than lose it.
+    const appSub = AppState.addEventListener("change", (s) => {
+      if (s !== "active" && stateRef.current === "listening") {
+        clearTimer();
+        try {
+          mod.stop();
+        } catch {
+          set("finished");
+        }
+      }
+    });
     return () => {
       clearTimer();
+      appSub.remove();
       for (const s of subs) s.remove();
       try {
         if (stateRef.current === "listening") mod.abort();
@@ -197,19 +251,24 @@ export function useVoiceListener() {
   }, []);
 
   const start = useCallback(
-    async (hints: string[]) => {
+    async (hints: string[], again = false) => {
       const mod = speech();
       if (!mod) {
         set("unavailable");
         return;
       }
+      if (!again) retried.current = false;
+      lastHints.current = hints;
       const mine = ++run.current;
       const stillWanted = () => run.current === mine && stateRef.current === "asking";
       finalText.current = "";
+      heard.current = "";
       setTranscript("");
       setProblem(null);
       set("asking");
       try {
+        await inFront();
+        if (!stillWanted()) return;
         const perm = await mod.requestPermissionsAsync();
         if (!stillWanted()) return;
         if (!perm.granted) {
@@ -264,5 +323,7 @@ export function useVoiceListener() {
     []
   );
 
-  return { state, transcript, level, problem, start, stop, cancel };
+  startRef.current = start;
+
+  return { state, transcript, level, problem, start: (hints: string[]) => start(hints), stop, cancel };
 }
