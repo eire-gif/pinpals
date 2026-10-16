@@ -11,7 +11,13 @@ import WidgetKit
 //   HOLE 7 · PAR 4 · SI 3 •            18 pts · thru 6
 //   [ − ]      5       [ + ]   [ ✓ Save ]
 //          Net par · 2 pts
-//   [Picked up]               Hole 6 saved · 4 · 3 pts  Undo
+//   [Picked up]   Hole 6 · 4 · 3 pts  Undo   [152 yds] [mic]
+//
+// The last two are links (voice scoring, Oct 2026): the distance to the
+// green opens the hole map, the mic opens the round on this hole already
+// listening. Both unlock the phone first, as any link from the lock screen
+// does. Either is left out when there's nothing behind it (no map for the
+// course; voice scoring off).
 //
 // The number starts at net par in a dimmed colour (as on the app's scoring
 // screen) and turns bright once − or + is tapped. Save works either way.
@@ -120,7 +126,10 @@ struct LiveScoreLockView: View {
           }
           .buttonStyle(.plain)
           Spacer(minLength: 4)
+          // Gives way first when the row is full: it scales down, the buttons don't.
           LiveScoreFootnote(attributes: a, state: s)
+            .layoutPriority(-1)
+          LiveScoreLinks(attributes: a, state: s)
         }
       }
     }
@@ -218,6 +227,48 @@ struct LiveScoreFootnote: View {
         .font(.system(size: 12, weight: .semibold)).foregroundStyle(PP.gold).lineLimit(1)
     } else if let status = s.status {
       Text(status).font(.system(size: 12, weight: .semibold)).foregroundStyle(PP.cream.opacity(0.8)).lineLimit(1)
+    }
+  }
+}
+
+/** The distance to the green (opens the hole map) and the mic (opens the round, listening). */
+struct LiveScoreLinks: View {
+  let attributes: LiveScoreAttributes
+  let state: LiveScoreAttributes.ContentState
+
+  var body: some View {
+    let s = state
+    HStack(spacing: 6) {
+      if let d = s.distance, let base = attributes.mapUrl, let url = URL(string: base + String(s.hole)) {
+        let fromYou = s.distanceFrom == "you"
+        Link(destination: url) {
+          HStack(spacing: 4) {
+            Image(systemName: fromYou ? "location.fill" : "flag.fill")
+              .font(.system(size: 10, weight: .bold))
+              .foregroundStyle(fromYou ? PP.good : PP.gold)
+            Text("\(d) yds")
+              .font(.system(size: 13, weight: .bold))
+              .monospacedDigit()
+              .foregroundStyle(PP.cream)
+              .lineLimit(1)
+              .fixedSize()
+          }
+          .padding(.horizontal, 10)
+          .frame(height: 30)
+          .background(Capsule().fill(Color.white.opacity(0.14)))
+        }
+        .accessibilityLabel(fromYou ? "\(d) yards to the centre of the green. Open the hole map" : "Hole \(s.hole), \(d) yards from the tee. Open the hole map")
+      }
+      if let base = attributes.voiceUrl, let url = URL(string: base + String(s.hole)) {
+        Link(destination: url) {
+          Image(systemName: "mic.fill")
+            .font(.system(size: 14, weight: .bold))
+            .foregroundStyle(PP.navy)
+            .frame(width: 30, height: 30)
+            .background(Circle().fill(PP.gold))
+        }
+        .accessibilityLabel("Say the scores for hole \(s.hole)")
+      }
     }
   }
 }
