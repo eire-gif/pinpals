@@ -119,6 +119,13 @@ export const ADMIN_ACTIONS = [
   // member data, but it is a file that leaves the system, so it's recorded
   // like every other export.
   "export.ad_report",
+  // Memberships (0156) — /admin/monetisation
+  // (src/app/admin/monetisation/actions.ts). The master switch, launch-offer
+  // date, displayed prices and trial lengths (membership_settings.updated,
+  // with before/after), and each feature's level (membership_feature.updated,
+  // targetId = the feature key, with before/after).
+  "membership_settings.updated",
+  "membership_feature.updated",
   "admin.role_changed",
   // /admin/staff (see src/app/admin/staff/actions.ts and
   // supabase/migrations/0027_staff_roles_lockdown.sql). "admin.role_changed"
@@ -328,6 +335,10 @@ export const AUDIT_TARGET_TYPES = [
   "advertiser",
   "ad_campaign",
   "ad_settings",
+  // Memberships (0156): the single membership_settings row (targetId null)
+  // and rows in membership_features (targetId = the feature key).
+  "membership_settings",
+  "membership_feature",
   "webhook_event",
   "payout",
   // A privileged VIEW is always audited against the *conversation*

@@ -77,6 +77,13 @@ export const FEATURES = {
   // ---- Gates (unfinished, off) ----
   /** Shared rounds (phase 9): model only — see claude/shared-round-model.md. */
   sharedRounds: false,
+  /** Memberships — Basic / Premium / Pro (claude/memberships.md, needs 0156).
+   *  The plans screen, membership settings and the upgrade sheet. Also needs
+   *  in-app purchases (RevenueCat, a new binary) before anyone can pay, and
+   *  paid plans switched on in /admin/monetisation before anything locks.
+   *  Off: nothing is fetched, every feature is allowed, and the plans screen
+   *  says "on its way". */
+  memberships: false,
 
 } as const;
 

@@ -69,6 +69,7 @@ export const ADMIN_GROUPS: { title: string; sections: AdminSection[] }[] = [
     sections: [
       { path: "/admin/marketplace", label: "Marketplace", icon: "storefront-outline" },
       { path: "/admin/advertising", label: "Advertising", icon: "megaphone-outline" },
+      { path: "/admin/monetisation", label: "Monetisation", icon: "diamond-outline" },
       { path: "/admin/listings", label: "Listings", icon: "pricetags-outline" },
       { path: "/admin/orders", label: "Orders", icon: "receipt-outline" },
       { path: "/admin/payouts", label: "Seller accounts", icon: "card-outline" },
