@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Alert, Pressable, ScrollView, Share, StyleSheet, Text, View } from "react-native";
+import { ActionSheetIOS, ActivityIndicator, Alert, Platform, Pressable, ScrollView, Share, StyleSheet, Text, View } from "react-native";
 import { Stack, router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
@@ -43,7 +43,7 @@ export default function ScorecardScreen() {
   const [card, setCard] = useState<Scorecard | null | undefined>(undefined);
   const [failed, setFailed] = useState(false);
   const [busy, setBusy] = useState<null | "share" | "photo" | "refresh" | "visibility">(null);
-  // "Save photo": a moment's note that it went into Photos.
+  // Send → Photo of the card: a moment's note that it went into Photos.
   const [photoSaved, setPhotoSaved] = useState(false);
   // Certification (0128): reloads with the card; marks a queried hole.
   const [version, setVersion] = useState(0);
@@ -89,6 +89,27 @@ export default function ScorecardScreen() {
   const hasYards = card.holeList.some((h) => h.yards != null);
   const hasSI = card.holeList.some((h) => h.strokeIndex != null);
   const hasPutts = card.holeList.some((h) => h.putts != null);
+
+  // Send: a photo of the whole card (Photos, Instagram, WhatsApp as an
+  // image), or the text with a link to its page, as before.
+  const chooseSend = () => {
+    if (busy != null) return;
+    if (Platform.OS === "ios") {
+      ActionSheetIOS.showActionSheetWithOptions(
+        { title: "Send your scorecard", options: ["Photo of the card", "Text with a link", "Cancel"], cancelButtonIndex: 2 },
+        (i) => {
+          if (i === 0) void savePhoto();
+          if (i === 1) void send();
+        }
+      );
+      return;
+    }
+    Alert.alert("Send your scorecard", undefined, [
+      { text: "Photo of the card", onPress: () => void savePhoto() },
+      { text: "Text with a link", onPress: () => void send() },
+      { text: "Cancel", style: "cancel" },
+    ]);
+  };
 
   const send = async () => {
     setBusy("share");
@@ -227,8 +248,7 @@ export default function ScorecardScreen() {
           <>
             <View style={styles.actions}>
               <Action icon="chatbubbles-outline" label="Post to Social" onPress={() => router.push({ pathname: "/new-post", params: { type: "round", scorecard: String(card.id) } })} />
-              <Action icon="share-outline" label="Send" busy={busy === "share"} onPress={() => void send()} />
-              <Action icon="image-outline" label="Save photo" busy={busy === "photo"} onPress={() => void savePhoto()} />
+              <Action icon="share-outline" label="Send" busy={busy === "share" || busy === "photo"} onPress={chooseSend} />
               <Action icon="create-outline" label="Edit" onPress={() => router.push({ pathname: "/scorecards/new", params: { id: String(card.id) } })} />
             </View>
             {photoSaved ? (

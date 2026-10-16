@@ -27,7 +27,11 @@ A member keeps their own card for every round, and shares it.
   text (headline, Out/In, hole-by-hole scores, birdies) and a link to a
   public page with the full card and a preview image — the same pattern as
   inviting friends.
-- **Save photo (16 Oct 2026):** the whole card as a picture — 1080×1350
+- **Photo of the card (16 Oct 2026):** inside **Send** on a card (Send →
+  Photo of the card / Text with a link) and the live round's **Share
+  scorecard** (→ My card as a photo, iPhone). First shipped as its own
+  "Save photo" button; moved into Send the same day so Edit keeps its place.
+  The whole card as a picture — 1080×1350
   (4:5, Instagram's portrait size): course photograph, date, course, score,
   points/net/putts; Out and In hole by hole with yards, par, the score
   ringed/boxed and shot dots; the counts; "Certified by …" when certified.
@@ -119,7 +123,7 @@ account isn't being deleted. Not indexed. Revoke = delete the card.
 | The picture (PNG, 1080×1350, `next/og`) | `src/app/c/[token]/photo/route.tsx` |
 | Path and download filename (+ tests) | `src/lib/scorecard-links.ts` — `scorecardPhotoPath`, `scorecardPhotoFilename` |
 | App: fetch, file, share sheet | `mobile/src/lib/scorecard-photo.ts`; pure parts in `scorecard-photo-url.ts` (+ test) |
-| Button | `mobile/src/app/scorecards/[id].tsx` — "Save photo" beside Send |
+| Entry points | `mobile/src/app/scorecards/[id].tsx` — Send → Photo of the card; `app/(tabs)/live/round/[id].tsx` — Share scorecard → My card as a photo (iOS action sheet; Android's three-button alert keeps the old two) |
 | Website | "Save as photo" on `/c/<token>` (`?download=1` → attachment) |
 
 - Drawn by the website from the same signed token as Send, under the same
