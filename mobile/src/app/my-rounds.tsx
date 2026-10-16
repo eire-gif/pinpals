@@ -210,7 +210,7 @@ export default function MyRoundsScreen() {
               round={item}
               busy={busyId === item.id}
               onOpen={() => router.push(`/invite/${item.id}`)}
-              onInterested={() => router.push("/tee-time-requests")}
+              onInterested={() => router.push(`/tee-time-requests?invite=${item.id}`)}
               onToggleFull={() =>
                 void run(item.id, () =>
                   setRoundStatus(item.id, item.status === "full" ? "open" : "full")

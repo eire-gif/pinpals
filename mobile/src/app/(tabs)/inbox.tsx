@@ -15,7 +15,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import ReanimatedSwipeable from "react-native-gesture-handler/ReanimatedSwipeable";
 
 import { Avatar } from "@/components/avatar";
-import { appRouteFor } from "@/lib/alert-routes";
+import { appRouteFor, teeTimeFocus } from "@/lib/alert-routes";
 import { useAuth } from "@/lib/auth";
 import {
   DAY_BUCKET_LABELS,
@@ -751,7 +751,11 @@ function AlertRow({
             <>
               <Pressable
                 style={[styles.inlineBtn, styles.inlinePrimary]}
-                onPress={() => router.push("/tee-time-requests")}
+                onPress={() => {
+                  // That round's requests, not the whole list.
+                  const round = teeTimeFocus(row.href);
+                  router.push(round !== null ? `/tee-time-requests?invite=${round}` : "/tee-time-requests");
+                }}
                 disabled={state === "busy"}
                 accessibilityRole="button"
               >

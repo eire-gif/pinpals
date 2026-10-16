@@ -151,6 +151,17 @@ export function appRouteFor(href: string): AlertRoute {
 
   const path = href.split(/[?#]/)[0].replace(/\/+$/, "") || "/";
 
+  // ONE TEE TIME, NOT THE LIST (Oct 2026). A tee-time alert names the round
+  // it's about (?invite=<id>), so it opens that round rather than a list to
+  // scroll through: the golfer offered a place lands on the tee time with
+  // Confirm my place on it, and stays there after confirming; the host lands
+  // on the requests for that one round.
+  const focus = teeTimeFocus(href);
+  if (focus !== null) {
+    if (path === "/tee-times/interested") return native(`/tee-time-requests?invite=${focus}`);
+    if (path === "/tee-times/requests" || path === "/tee-times/confirmed") return native(`/invite/${focus}`);
+  }
+
   const exact = EXACT[path];
   if (exact) return native(exact);
 
@@ -163,4 +174,28 @@ export function appRouteFor(href: string): AlertRoute {
   // course's own page, anything added to the site since. The web view opens
   // it signed in, with the query intact.
   return { kind: "web", path: href };
+}
+
+/** The tee-time lists an alert can point at, which take ?invite=<id>. */
+const TEE_TIME_LISTS = new Set(["/tee-times/interested", "/tee-times/requests", "/tee-times/confirmed"]);
+
+/** The tee time an href is about (?invite=<id>), or null. */
+export function teeTimeFocus(href: string): number | null {
+  const path = href.split(/[?#]/)[0].replace(/\/+$/, "");
+  if (!TEE_TIME_LISTS.has(path)) return null;
+  const query = href.split("#")[0].split("?")[1] ?? "";
+  const raw = new URLSearchParams(query).get("invite");
+  return raw && /^\d{1,15}$/.test(raw) && Number(raw) > 0 ? Number(raw) : null;
+}
+
+/**
+ * Older alerts were sent before their href named the tee time; their data
+ * still carries inviteId. This adds it, so tapping one of those opens the
+ * round too. Anything else is returned as it was.
+ */
+export function withTeeTimeFocus(href: string, inviteId: unknown): string {
+  if (typeof inviteId !== "number" || !Number.isInteger(inviteId) || inviteId <= 0) return href;
+  if (href.includes("?") || href.includes("#")) return href;
+  const path = href.replace(/\/+$/, "");
+  return TEE_TIME_LISTS.has(path) ? `${path}?invite=${inviteId}` : href;
 }

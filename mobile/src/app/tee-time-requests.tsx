@@ -8,7 +8,7 @@ import {
   Text,
   View,
 } from "react-native";
-import { Stack } from "expo-router";
+import { Stack, router, useLocalSearchParams } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { useAuth } from "@/lib/auth";
@@ -36,6 +36,10 @@ import { colors, radii, spacing, type } from "@/lib/theme";
 export default function TeeTimeRequestsScreen() {
   const { session } = useAuth();
   const memberId = session?.user.id ?? null;
+  // ?invite=<id>: opened from an alert or a round's own page — show only that
+  // round's requests, so answering one doesn't mean scrolling past the rest.
+  const params = useLocalSearchParams<{ invite?: string }>();
+  const focusId = params.invite && /^\d+$/.test(params.invite) ? Number(params.invite) : null;
 
   const [requests, setRequests] = useState<IncomingRequest[]>([]);
   const [loading, setLoading] = useState(true);
@@ -92,7 +96,7 @@ export default function TeeTimeRequestsScreen() {
     );
   }
 
-  const visible = requests.filter((row) => row.status !== "declined");
+  const visible = requests.filter((row) => row.status !== "declined" && (focusId === null || row.invite_id === focusId));
 
   // Grouped by the round they're about, because that is the unit a host thinks
   // in: "who wants Saturday at Hermitage", not "who asked me things".
@@ -105,7 +109,7 @@ export default function TeeTimeRequestsScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ title: "Requests to join" }} />
+      <Stack.Screen options={{ title: focusId !== null ? "Requests for this round" : "Requests to join" }} />
       <ScrollView
         style={styles.fill}
         contentContainerStyle={styles.content}
@@ -122,13 +126,25 @@ export default function TeeTimeRequestsScreen() {
       >
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
+        {focusId !== null ? (
+          <View style={styles.focusBar}>
+            <Pressable onPress={() => router.push(`/invite/${focusId}`)} accessibilityRole="button" hitSlop={8}>
+              <Text style={styles.focusLink}>Open the tee time</Text>
+            </Pressable>
+            <Pressable onPress={() => router.setParams({ invite: undefined } as never)} accessibilityRole="button" hitSlop={8}>
+              <Text style={styles.focusLink}>All requests</Text>
+            </Pressable>
+          </View>
+        ) : null}
+
         {visible.length === 0 ? (
           <View style={styles.empty}>
             <Ionicons name="people-outline" size={44} color={colors.ink500} />
             <Text style={styles.emptyTitle}>Nobody waiting</Text>
             <Text style={styles.emptyBody}>
-              When someone asks to join one of your tee times, they&apos;ll
-              show up here.
+              {focusId !== null
+                ? "Nobody is waiting on an answer for this round."
+                : "When someone asks to join one of your tee times, they'll show up here."}
             </Text>
           </View>
         ) : (
@@ -237,6 +253,16 @@ function RequestRow({
 }
 
 const styles = StyleSheet.create({
+  focusBar: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: spacing.md,
+  },
+  focusLink: {
+    fontSize: type.small,
+    color: colors.green700,
+    fontWeight: "700",
+  },
   fill: { flex: 1, backgroundColor: colors.cream50 },
   content: { padding: spacing.md, gap: spacing.md, paddingBottom: spacing.xl },
   centre: {
