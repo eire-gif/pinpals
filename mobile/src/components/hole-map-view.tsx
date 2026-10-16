@@ -2,7 +2,7 @@ import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState, 
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import RNWebView, { type WebViewMessageEvent, type WebViewProps } from "react-native-webview";
 
-import { loadTileSource, nativeZoomAt, viewportQuery, type TileSource } from "@/lib/map-tiles";
+import { loadTileSource, nativeZoomAt, settledTileSource, viewportQuery, type TileSource } from "@/lib/map-tiles";
 import type { LatLng, PinZone, PointKind } from "@/lib/hole-geo";
 import type { OsmFeature } from "@/lib/osm-course";
 import { colors, fonts, spacing } from "@/lib/theme";
@@ -96,6 +96,27 @@ export const HoleMapView = forwardRef<HoleMapHandle, Props>(function HoleMapView
       on = false;
     };
   }, []);
+  // Opened on Esri (the website was slow, or said Esri)? Switch to Google as
+  // soon as the website's answer arrives, and keep checking every 2 minutes
+  // while on Esri — so the map doesn't stay on Esri for the whole visit.
+  const onEsri = source?.provider === "esri";
+  useEffect(() => {
+    if (!onEsri) return;
+    let on = true;
+    const check = () =>
+      void settledTileSource().then((t) => {
+        if (on && t.provider === "google") {
+          setReady(false);
+          setSource(t);
+        }
+      });
+    check();
+    const timer = setInterval(check, 2 * 60 * 1000 + 1000);
+    return () => {
+      on = false;
+      clearInterval(timer);
+    };
+  }, [onEsri]);
   const html = useMemo(() => (source ? pageHtml(source) : null), [source]);
   const creditAsk = useRef(0);
   const askCredit = (v: { zoom: number; north: number; south: number; east: number; west: number; lat: number; lng: number }) => {
@@ -145,6 +166,7 @@ export const HoleMapView = forwardRef<HoleMapHandle, Props>(function HoleMapView
     <View style={styles.fill}>
       {html ? (
       <WebView
+        key={source?.provider}
         ref={web}
         source={{ html, baseUrl: "https://pinpals.ie/" }}
         originWhitelist={["*"]}
