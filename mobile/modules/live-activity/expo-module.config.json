@@ -1,6 +1,7 @@
 {
   "platforms": ["apple"],
   "apple": {
-    "modules": ["PinPalsLiveActivityModule"]
+    "modules": ["PinPalsLiveActivityModule"],
+    "appDelegateSubscribers": ["PinPalsWatchAppDelegate"]
   }
 }
