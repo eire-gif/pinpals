@@ -11,6 +11,7 @@ import type { Session } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
 import { disconnectWidget } from "./widgets";
 import { endAllLockScreens } from "./lock-screen";
+import { clearMembership } from "./membership";
 
 type AuthState = {
   session: Session | null;
@@ -74,6 +75,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // This phone only. The default ("global") would also sign the member
         // out of the website on every browser they use.
         await supabase.auth.signOut({ scope: "local" });
+        // The next member to sign in on this phone mustn't inherit my plan.
+        clearMembership();
       },
     }),
     [session, loading]

@@ -49,6 +49,12 @@ export const NAV_SECTIONS: NavSectionConfig[] = [
     items: [{ href: "/admin/advertising", label: "Advertising" }],
   },
   {
+    // Basic / Premium / Pro (0156). Any staff member may look; only a super
+    // admin changes anything (re-checked in src/app/admin/monetisation/actions.ts).
+    title: "Memberships",
+    items: [{ href: "/admin/monetisation", label: "Monetisation" }],
+  },
+  {
     title: "Content",
     items: [
       { href: "/admin/clubs", label: "Courses" },

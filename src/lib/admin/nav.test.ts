@@ -4,7 +4,7 @@ import { NAV_SECTIONS, activeHref, navFor } from "./nav";
 describe("admin nav", () => {
   it("shows every section to a super admin, Platform included", () => {
     const titles = navFor("super_admin").map((s) => s.title);
-    expect(titles).toEqual([null, "Community", "Marketplace", "Money", "Advertising", "Content", "Safety", "Platform"]);
+    expect(titles).toEqual([null, "Community", "Marketplace", "Money", "Advertising", "Memberships", "Content", "Safety", "Platform"]);
   });
 
   it("hides Money, Orders and Platform from a moderator", () => {

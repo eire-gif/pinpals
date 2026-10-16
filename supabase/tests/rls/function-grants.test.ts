@@ -224,6 +224,14 @@ const EXPECTED: Record<string, Expectation> = {
   // caller chooses beyond kind/source, and de-duplicates by auth.uid().
   "ads_for_me(p_country text, p_region text, p_club_id bigint)": { anon: true, authenticated: true },
   "ad_log(p_campaign_id bigint, p_kind text, p_source text)": { anon: true, authenticated: true },
+
+  // --- Memberships (0156). my_membership() / my_feature_access() answer for
+  // --- auth.uid() only and need a signed-in member. membership_tier_for()
+  // --- takes any member id, so only the service role and the two functions
+  // --- above (as owner) may call it.
+  "my_membership()": { anon: false, authenticated: true },
+  "my_feature_access()": { anon: false, authenticated: true },
+  "membership_tier_for(p_member uuid)": { anon: false, authenticated: false },
   "live_round_delete(p_round_id bigint)": { anon: false, authenticated: true },
   // 0108 hole maps
   "course_layout_get(p_club_id bigint)": { anon: false, authenticated: true },

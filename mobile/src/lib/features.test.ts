@@ -8,8 +8,10 @@ describe("feature flags", () => {
     // design docs named in features.ts — then update this test.
     expect({
       sharedRounds: FEATURES.sharedRounds,
+      memberships: FEATURES.memberships,
     }).toEqual({
       sharedRounds: false,
+      memberships: false,
     });
   });
 
