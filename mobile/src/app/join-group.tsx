@@ -6,7 +6,17 @@ import { GoldButton } from "@/components/gold-button";
 import { GroupIcon, membersLabel } from "@/components/group-bits";
 import { useAuth } from "@/lib/auth";
 import { GROUP_KIND_INFO, isGroupInviteCode } from "@/lib/groups";
-import { joinGroupByCode, previewGroupInvite, rememberPendingGroupInvite, type InvitePreview } from "@/lib/groups-data";
+import {
+  claimEmailInvite,
+  isEmailInviteToken,
+  joinGroupByCode,
+  previewEmailInvite,
+  previewGroupInvite,
+  rememberPendingEmailInvite,
+  rememberPendingGroupInvite,
+  type EmailInvitePreview,
+  type InvitePreview,
+} from "@/lib/groups-data";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 
 /**
@@ -14,27 +24,30 @@ import { colors, fonts, radii, spacing, type } from "@/lib/theme";
  * lib/incoming-links.ts). Shows the group's front page and joins straight
  * in: holding the link is the approval. Signed out, the code is kept until
  * they've signed up or logged in, then app/_layout.tsx joins them.
+ *
+ * Also a society's emailed invitation (pinpals.ie/join/s/<token>, 0170):
+ * the same screen, addressed to whoever it was sent to.
  */
 export default function JoinGroupScreen() {
-  const { code: raw } = useLocalSearchParams<{ code?: string }>();
+  const { code: raw, token: rawToken } = useLocalSearchParams<{ code?: string; token?: string }>();
   const code = typeof raw === "string" && isGroupInviteCode(raw.toLowerCase()) ? raw.toLowerCase() : null;
+  const token = !code && typeof rawToken === "string" && isEmailInviteToken(rawToken.toLowerCase()) ? rawToken.toLowerCase() : null;
   const { session } = useAuth();
-  const [group, setGroup] = useState<InvitePreview | null | undefined>(undefined);
+  const [group, setGroup] = useState<InvitePreview | EmailInvitePreview | null | undefined>(undefined);
   const [busy, setBusy] = useState(false);
+  const emailed = group && "email" in group ? group : null;
 
   useEffect(() => {
-    if (!code) {
-      setGroup(null);
-      return;
-    }
-    void previewGroupInvite(code).then(setGroup);
-  }, [code]);
+    if (code) void previewGroupInvite(code).then(setGroup);
+    else if (token) void previewEmailInvite(token).then((p) => setGroup(p && p.status !== "cancelled" ? p : null));
+    else setGroup(null);
+  }, [code, token]);
 
   async function join() {
-    if (!code) return;
+    if (!code && !token) return;
     setBusy(true);
     try {
-      const id = await joinGroupByCode(code);
+      const id = token ? await claimEmailInvite(token) : await joinGroupByCode(code!);
       router.replace({ pathname: "/group/[id]", params: { id: String(id) } });
     } catch (err) {
       Alert.alert("Couldn't join", err instanceof Error ? err.message : "Please try again.");
@@ -44,6 +57,7 @@ export default function JoinGroupScreen() {
 
   async function signUp(to: "/signup" | "/login") {
     if (code) await rememberPendingGroupInvite(code);
+    else if (token) await rememberPendingEmailInvite(token);
     router.replace(to);
   }
 
@@ -60,7 +74,7 @@ export default function JoinGroupScreen() {
       ) : (
         <View style={styles.card}>
           <GroupIcon kind={group.kind} size={64} />
-          <Text style={styles.kicker}>You&apos;re invited</Text>
+          <Text style={styles.kicker}>{emailed?.firstName ? `${emailed.firstName}, you're invited` : "You're invited"}</Text>
           <Text style={styles.title}>{group.name}</Text>
           <Text style={styles.detail}>{[GROUP_KIND_INFO[group.kind].label, membersLabel(group.memberCount), group.clubName].filter(Boolean).join(" · ")}</Text>
           {group.about ? <Text style={styles.body}>{group.about}</Text> : null}
@@ -75,6 +89,7 @@ export default function JoinGroupScreen() {
                   I already have an account
                 </Text>
                 <Text style={styles.small}>You&apos;ll be added to {group.name} as soon as you&apos;re in.</Text>
+                {emailed ? <Text style={styles.small}>Sent to {emailed.email}</Text> : null}
               </>
             )}
           </View>

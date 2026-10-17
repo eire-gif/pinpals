@@ -577,6 +577,16 @@ const EXPECTED: Record<string, Expectation> = {
   "open_competition_remove(p_id bigint)": { anon: false, authenticated: true },
   "open_competition_set_source(p_id bigint, p_source text)": { anon: false, authenticated: true },
   "open_partner_request_set(p_open_id bigint, p_on boolean, p_note text)": { anon: false, authenticated: true },
+  // 0170: a society's member list, imported and emailed. The preview is the
+  // emailed link's front page, read before signing in.
+  "import_group_email_invites(p_group_id bigint, p_rows jsonb)": { anon: false, authenticated: true },
+  "resend_group_email_invites(p_group_id bigint, p_ids bigint[])": { anon: false, authenticated: true },
+  "mark_group_email_invites_sent(p_group_id bigint, p_ids bigint[])": { anon: false, authenticated: true },
+  "cancel_group_email_invite(p_group_id bigint, p_invite_id bigint)": { anon: false, authenticated: true },
+  "group_email_invite_preview(p_token text)": { anon: true, authenticated: true },
+  "claim_group_email_invite(p_token text)": { anon: false, authenticated: true },
+  "claim_group_email_invites_for(p_user uuid, p_email text)": { anon: false, authenticated: false },
+  "on_auth_user_email_invites()": { anon: false, authenticated: false },
 };
 
 type ActualRow = { signature: string; anon: boolean; authenticated: boolean };

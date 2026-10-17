@@ -15,6 +15,8 @@ import { routeForLink, scorecardIdFromShareToken } from "./share-links";
  *   /invite/<id>                           → unchanged; it is a screen here
  *   /join/g/<code>                         → join-group: a group's invite link
  *                                            (0120), works signed out too
+ *   /join/s/<token>                        → join-group: a society's emailed
+ *                                            invitation (0170)
  *   /signup                                → the app's sign-up (a signed-in
  *                                            member is moved on to Home)
  *   /t/<token>                             → tee-link: a shared tee time (0132),
@@ -58,6 +60,10 @@ export function routeForIncomingUrl(url: string): string | null {
   // match anyway (that one is exactly eight characters after /join/).
   const groupJoin = /^\/join\/g\/([a-z0-9]{8})$/i.exec(path);
   if (groupJoin) return `/join-group?code=${groupJoin[1].toLowerCase()}`;
+
+  // A society's emailed invitation (0170): 64 hex characters.
+  const emailJoin = /^\/join\/s\/([0-9a-f]{64})$/i.exec(path);
+  if (emailJoin) return `/join-group?token=${emailJoin[1].toLowerCase()}`;
 
   // A member's invite link or QR code (Find PinPals, 0118).
   const join = /^\/join\/([a-z0-9]{8})$/i.exec(path);

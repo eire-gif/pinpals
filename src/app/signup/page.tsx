@@ -4,7 +4,10 @@ import SignUpForm from "./signup-form";
 import { AGE_BLOCK_COOKIE } from "./age-block";
 import { UNDER_13_MESSAGE } from "@/lib/junior";
 
-export default async function SignUpPage() {
+export default async function SignUpPage({ searchParams }: { searchParams: Promise<{ email?: string }> }) {
+  // A society's emailed invitation (0170) fills in the address it was sent to.
+  const { email } = await searchParams;
+  const defaultEmail = typeof email === "string" && /^[^@\s]{1,64}@[^@\s]+\.[^@\s]+$/.test(email) && email.length <= 254 ? email : undefined;
   // Turned away as under 13 on this device in the last 24 hours (0159).
   const blocked = !!(await cookies()).get(AGE_BLOCK_COOKIE);
 
@@ -31,7 +34,7 @@ export default async function SignUpPage() {
             <p className="text-center text-ink-900 py-4">{UNDER_13_MESSAGE}</p>
           ) : (
             <>
-              <SignUpForm />
+              <SignUpForm defaultEmail={defaultEmail} />
               <p className="text-sm text-ink-500 text-center mt-5">
                 Already on Pinpals?{" "}
                 <Link href="/login" className="text-green-700 font-bold">

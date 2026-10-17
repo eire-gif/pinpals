@@ -6,7 +6,7 @@ export { assistFor, competitionLine, type Assist, type CompetitionSource } from 
 
 /**
  * Does this round count as a competition for everyone in it? False on any
- * error, so a phone without 0168 behaves exactly as before — the member
+ * error, so a phone without 0170 behaves exactly as before — the member
  * can still switch it on themselves.
  */
 export async function loadRoundIsCompetition(roundId: number): Promise<boolean> {
