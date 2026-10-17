@@ -2,6 +2,7 @@ import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState, 
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import RNWebView, { type WebViewMessageEvent, type WebViewProps } from "react-native-webview";
 
+import { postToSite } from "@/lib/api";
 import { loadTileSource, nativeZoomAt, settledTileSource, viewportQuery, type TileSource } from "@/lib/map-tiles";
 import type { LatLng, PinZone, PointKind } from "@/lib/hole-geo";
 import type { OsmFeature } from "@/lib/osm-course";
@@ -151,6 +152,8 @@ export const HoleMapView = forwardRef<HoleMapHandle, Props>(function HoleMapView
       return;
     }
     if (msg.type === "ready") setReady(true);
+    // Apple-map measurements for the logs (/api/app/map-diag, Oct 2026).
+    else if (msg.type === "diag") void postToSite("/api/app/map-diag", (msg as { d?: unknown }).d ?? null).catch(() => {});
     else if (msg.type === "failed") setFailed(true);
     else if (msg.type === "tap" && typeof msg.lat === "number" && typeof msg.lng === "number") onTap({ lat: msg.lat, lng: msg.lng });
     else if (msg.type === "tee" && typeof msg.lat === "number" && typeof msg.lng === "number") onTee({ lat: msg.lat, lng: msg.lng });

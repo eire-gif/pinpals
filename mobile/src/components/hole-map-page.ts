@@ -228,6 +228,7 @@ export function pageHtml(source: TileSource): string {
     if(Math.abs(m.ratio - 1) > 0.004){ kFix *= m.ratio; again = true; }
     if(Math.abs(m.turn) > 3 && Math.abs(Math.sin(b * Math.PI / 180)) > 0.05){ rotSign = -rotSign; again = true; }
     else if(Math.hypot(m.dx, m.dy) > 1.5){ shiftX += m.dx; shiftY += m.dy; again = true; }
+    diag("cal" + calRuns);
     if(again && calRuns++ < 6){ syncApple(); afterDraw(calibrate); return; }
     calRuns = 0;
     if(!checked) check();
@@ -243,12 +244,37 @@ export function pageHtml(source: TileSource): string {
   function check(){
     checked = true;
     var off = misfit();
+    diag("check");
     post({ type:"imagery", provider:"apple", off:Math.round(off), turn:rotSign, k:Math.round(kFix||0), shift:[Math.round(shiftX), Math.round(shiftY)] });
     if(off <= 24){ fixes = 0; return; }
     if(fixes++ < 3){ checked = false; syncApple(); afterDraw(calibrate); return; }
     var m = null;
     try{ m = compare(map.getSize().x, mkEl.clientHeight); }catch(e){}
     useEsri("misaligned " + Math.round(off) + (m ? " x" + (Math.round(m.ratio * 100) / 100) + " " + Math.round(m.turn) + "deg" : ""));
+  }
+  // What we measured, for the logs (POST /api/app/map-diag via the app): the
+  // first dozen per map, so a phone's numbers can be read, not guessed.
+  var diags = 0;
+  function diag(tag){
+    if(!mk || !mkEl || diags++ > 12) return;
+    try{
+      var w = map.getSize().x, h = mkEl.clientHeight, m = compare(w, h), c = mk.center;
+      var oc = map.containerPointToLatLng([w/2, h/2]);
+      var r = mkEl.getBoundingClientRect();
+      // Apple's own idea of the camera for our unturned view, for comparison.
+      var rot = mk.rotation, cen = mk.center, dist = mk.cameraDistance, dRect = null;
+      try{
+        var mp = new mapkit.Coordinate(oc.lat, oc.lng).toMapPoint(), s2 = 256 * Math.pow(2, map.getZoom());
+        mk.rotation = 0; mk.visibleMapRect = new mapkit.MapRect(mp.x - w/s2/2, mp.y - h/s2/2, w/s2, h/s2); dRect = mk.cameraDistance;
+      }catch(e){}
+      mk.rotation = rot; mk.center = cen; mk.cameraDistance = dist;
+      post({ type:"diag", d:{ v:"diag1", tag:tag, ua:navigator.userAgent.slice(0, 90), dpr:window.devicePixelRatio, vw:window.innerWidth, vh:window.innerHeight,
+        vv:window.visualViewport ? [window.visualViewport.width, window.visualViewport.height, window.visualViewport.scale] : null,
+        w:w, h:h, rect:[Math.round(r.left), Math.round(r.top), Math.round(r.width), Math.round(r.height)],
+        zoom:map.getZoom(), bearing:canRotate ? map.getBearing() : 0, kFix:kFix, shift:[shiftX, shiftY], rotSign:rotSign,
+        mkDist:dist, dRect:dRect, mkRot:rot, mkCenter:c ? [c.latitude, c.longitude] : null, ourCenter:[oc.lat, oc.lng],
+        cmp:m, misfit:misfit(), mkVersion:mapkit.version } });
+    }catch(e){ post({ type:"diag", d:{ v:"diag1", tag:tag, err:String(e && e.message || e).slice(0, 120) } }); }
   }
   function settled(){ if(mk){ syncApple(); calRuns = 0; afterDraw(calibrate); } }
   if(APPLE){
