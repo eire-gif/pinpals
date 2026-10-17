@@ -27,7 +27,6 @@ import { MarketplaceFilters } from "@/components/marketplace-filters";
 import { useAuth } from "@/lib/auth";
 import { loadSmartBrands } from "@/lib/listing-posts";
 import { parseSearch, type SmartSearch } from "@/lib/smart-search";
-import { useAgeAccess } from "@/lib/age";
 import { useCurrentLocation, type Coords } from "@/lib/location";
 import { EMPTY_FILTERS, activeFilterCount, searchListings, setFavourite, type Card, type Cursor, type Filters } from "@/lib/marketplace";
 import {
@@ -94,7 +93,6 @@ export default function MarketplaceScreen() {
   const [understood, setUnderstood] = useState<SmartSearch | null>(null);
   const [searchWords, setSearchWords] = useState("");
   const insets = useSafeAreaInsets();
-  const { allows } = useAgeAccess();
 
   useEffect(() => {
     const words = (params.search ?? "").trim();
