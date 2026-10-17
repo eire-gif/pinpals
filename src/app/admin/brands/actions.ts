@@ -7,6 +7,8 @@ import { recordAdminAction, type AdminAction } from "@/lib/admin/audit";
 import { EDIT_ROLES } from "@/lib/admin/controls";
 import { CATEGORIES } from "@/lib/marketplace";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { forgetLearnedBrands } from "@/lib/learned-brands";
+import { normKey } from "@/lib/sell-flow";
 
 /**
  * Admin → Brands & models (0163). The brand logos shown on every brand tile,
@@ -144,4 +146,43 @@ export async function setBrandModelActive(_prev: BrandActionState, formData: For
   await audit(actor, "brand_model.updated", "brand_model", id, { changed: { active: { to: active } } });
   done();
   return { saved: active ? "Shown again." : "Hidden from the finder and the sell form." };
+}
+
+/**
+ * Learned from members (0164): hide a model or brand the catalogue learned
+ * by itself. A hidden model is switched off; a hidden brand stops being
+ * offered in any category. Either way it's recorded as dismissed, so it's
+ * never learned again. Ads that already use it keep it.
+ */
+export async function hideLearned(_prev: BrandActionState, formData: FormData): Promise<BrandActionState> {
+  const actor = await editor();
+  const kind = String(formData.get("kind") ?? "");
+  const id = String(formData.get("id") ?? "").trim();
+  if ((kind !== "model" && kind !== "brand") || !/^[a-z0-9][a-z0-9-]{0,120}$/.test(id)) return { error: "Missing item." };
+  const admin = createAdminClient();
+
+  if (kind === "model") {
+    const { data: m } = await admin.from("marketplace_models").select("id, brand_id, category, family").eq("id", id).maybeSingle<{ id: string; brand_id: string; category: string; family: string }>();
+    if (!m) return { error: "Not found." };
+    const { error } = await admin.from("marketplace_models").update({ active: false }).eq("id", id);
+    if (error) return { error: "Couldn't hide it — try again." };
+    await admin
+      .from("marketplace_catalogue_decisions")
+      .upsert({ kind: "model", brand_id: m.brand_id, category: m.category, norm_key: normKey(m.family), decision: "dismissed", target_id: id, decided_by: actor.id });
+    await audit(actor, "brand_model.updated", "brand_model", id, { changed: { active: { to: false } }, learned: true });
+  } else {
+    const { data: b } = await admin.from("marketplace_brands").select("id, label, categories").eq("id", id).eq("learned", true).maybeSingle<{ id: string; label: string; categories: string[] | null }>();
+    if (!b) return { error: "Not found." };
+    const { error } = await admin.from("marketplace_brands").update({ categories: [] }).eq("id", id);
+    if (error) return { error: "Couldn't hide it — try again." };
+    for (const category of b.categories ?? []) {
+      await admin
+        .from("marketplace_catalogue_decisions")
+        .upsert({ kind: "brand", brand_id: "", category, norm_key: normKey(b.label), decision: "dismissed", target_id: id, decided_by: actor.id });
+    }
+    forgetLearnedBrands();
+    await audit(actor, "brand.updated", "brand", id, { changed: { categories: { from: b.categories, to: [] } }, learned: true });
+  }
+  done();
+  return { saved: "Hidden — it won't be learned again." };
 }

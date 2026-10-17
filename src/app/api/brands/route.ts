@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 
-import { BRANDS, sellableBrandsFor } from "@/lib/marketplace-brands";
+import { BRANDS, learnedBrands, sellableBrandsFor } from "@/lib/marketplace-brands";
+import { ensureLearnedBrands } from "@/lib/learned-brands";
+import { createClient } from "@/lib/supabase/server";
 
 /**
  * The brands a seller may choose for a category, for the app's listing form.
@@ -24,13 +26,15 @@ import { BRANDS, sellableBrandsFor } from "@/lib/marketplace-brands";
  */
 export async function GET(request: Request) {
   const params = new URL(request.url).searchParams;
+  // Brands staff added from member suggestions (0164) are offered too.
+  await ensureLearnedBrands(await createClient());
 
   // ?all=1 — every curated brand with its aliases, for the app's smart search
   // (src/lib/smart-search.ts), which reads "tm" or "Taylor Made" as TaylorMade.
   if (params.get("all") === "1") {
     return NextResponse.json(
-      { brands: BRANDS.map((brand) => ({ id: brand.id, label: brand.label, aliases: brand.aliases ?? [] })) },
-      { headers: { "Cache-Control": "public, max-age=3600, s-maxage=86400" } }
+      { brands: [...BRANDS, ...learnedBrands()].map((brand) => ({ id: brand.id, label: brand.label, aliases: brand.aliases ?? [] })) },
+      { headers: { "Cache-Control": "public, max-age=600, s-maxage=600" } }
     );
   }
 
@@ -48,7 +52,7 @@ export async function GET(request: Request) {
     {
       // Changes only when someone edits the JSON and redeploys, so a long
       // shared cache is free and keeps repeated form opens off the server.
-      headers: { "Cache-Control": "public, max-age=3600, s-maxage=86400" },
+      headers: { "Cache-Control": "public, max-age=600, s-maxage=600" },
     }
   );
 }

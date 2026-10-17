@@ -217,6 +217,7 @@ export type NewListing = {
   shaftFlex?: string | null;
   shaftMaterial?: string | null;
   loft?: string | null;
+  itemSize?: string | null;
 };
 
 export type CreatedListing = {
@@ -249,6 +250,7 @@ export async function createListing(listing: NewListing): Promise<CreatedListing
     shaft_flex: listing.shaftFlex || null,
     shaft_material: listing.shaftMaterial || null,
     loft: listing.loft || null,
+    ...(listing.itemSize ? { item_size: listing.itemSize } : {}),
     images: listing.images.map((photo, index) => ({
       url: photo.url,
       position: index,

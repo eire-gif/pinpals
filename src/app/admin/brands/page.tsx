@@ -7,12 +7,15 @@ import { EDIT_ROLES } from "@/lib/admin/controls";
 import { canAccess } from "@/lib/admin/roles";
 import { CATEGORIES } from "@/lib/marketplace";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { AddModelForm, LogoForm, ModelToggle } from "./brand-forms";
+import { AddModelForm, HideLearned, LogoForm, ModelToggle } from "./brand-forms";
+import { LEARN_AFTER_SELLERS, SUGGEST_AFTER_SELLERS } from "@/lib/sell-flow";
 
 export const dynamic = "force-dynamic";
 
 type BrandRow = { id: string; label: string; logo_url: string | null; is_fallback: boolean };
-type ModelRow = { id: string; brand_id: string; category: string; family: string; year: number | null; versions: string[]; active: boolean };
+type ModelRow = { id: string; brand_id: string; category: string; family: string; year: number | null; versions: string[]; active: boolean; learned?: boolean; created_at?: string };
+type LearnedBrandRow = { id: string; label: string; categories: string[] | null; created_at: string };
+type VoteRow = { kind: string; brand_id: string; category: string; norm_key: string; label: string; user_id: string };
 
 /**
  * Admin → Brands & models (0163). Every brand's logo — shown in the fixed
@@ -26,14 +29,33 @@ export default async function AdminBrandsPage({ searchParams }: { searchParams: 
   const { q = "", brand: picked = "", logos = "" } = await searchParams;
 
   const admin = createAdminClient();
-  const [{ data: brandData }, { data: modelData }] = await Promise.all([
+  const [{ data: brandData }, { data: modelData }, learnedBrandsRes, votesRes, decisionsRes] = await Promise.all([
     admin.from("marketplace_brands").select("id, label, logo_url, is_fallback").order("label").returns<BrandRow[]>(),
-    admin.from("marketplace_models").select("id, brand_id, category, family, year, versions, active").returns<ModelRow[]>(),
+    admin.from("marketplace_models").select("id, brand_id, category, family, year, versions, active, learned, created_at").returns<ModelRow[]>(),
+    admin.from("marketplace_brands").select("id, label, categories, created_at").eq("learned", true).order("created_at", { ascending: false }).returns<LearnedBrandRow[]>(),
+    admin.from("marketplace_catalogue_votes").select("kind, brand_id, category, norm_key, label, user_id").limit(5000).returns<VoteRow[]>(),
+    admin.from("marketplace_catalogue_decisions").select("kind, brand_id, category, norm_key").returns<{ kind: string; brand_id: string; category: string; norm_key: string }[]>(),
   ]);
   const brands = (brandData ?? []).filter((b) => !b.is_fallback);
   const models = modelData ?? [];
   const modelCount = new Map<string, number>();
   for (const m of models) modelCount.set(m.brand_id, (modelCount.get(m.brand_id) ?? 0) + 1);
+
+  // Learned from members (0164): what the catalogue added by itself, and
+  // what sellers are typing that isn't learned yet.
+  const label = (id: string) => (brandData ?? []).find((b) => b.id === id)?.label ?? id;
+  const learnedModels = models.filter((m) => m.learned && m.active).sort((a, b) => (b.created_at ?? "").localeCompare(a.created_at ?? ""));
+  const learnedBrands = (learnedBrandsRes.data ?? []).filter((b) => (b.categories ?? []).length > 0);
+  const decided = new Set((decisionsRes.data ?? []).map((d) => `${d.kind}|${d.brand_id}|${d.category}|${d.norm_key}`));
+  const typing = new Map<string, { kind: string; brand_id: string; category: string; label: string; sellers: Set<string> }>();
+  for (const v of votesRes.data ?? []) {
+    const k = `${v.kind}|${v.brand_id}|${v.category}|${v.norm_key}`;
+    if (decided.has(k)) continue;
+    const row = typing.get(k) ?? { kind: v.kind, brand_id: v.brand_id, category: v.category, label: v.label, sellers: new Set<string>() };
+    row.sellers.add(v.user_id);
+    typing.set(k, row);
+  }
+  const beingTyped = [...typing.values()].sort((a, b) => b.sellers.size - a.sellers.size).slice(0, 30);
 
   const term = q.trim().toLowerCase();
   const shown = brands.filter(
@@ -49,6 +71,56 @@ export default async function AdminBrandsPage({ searchParams }: { searchParams: 
         title="Brands & models"
         description={`${brands.length} brands (${withLogos} with a logo) · ${models.length} models in the catalogue. Logos show on every brand tile; models power find by club, brand and model.`}
       />
+
+      <section className="mb-8 bg-surface border border-line rounded-2xl p-5">
+        <h2 className="font-display font-bold text-xl">Learned from members</h2>
+        <p className="text-sm text-ink-500 mt-1">
+          When a seller&rsquo;s brand or model isn&rsquo;t listed they type it. Once {SUGGEST_AFTER_SELLERS} sellers type the same thing it&rsquo;s
+          suggested to the next seller; at {LEARN_AFTER_SELLERS} it joins the catalogue by itself and their ads move under it. Hide anything
+          wrong — it won&rsquo;t be learned again.
+        </p>
+        {learnedModels.length + learnedBrands.length === 0 ? (
+          <p className="text-sm text-ink-500 mt-4">Nothing learned yet.</p>
+        ) : (
+          <ul className="mt-4 divide-y divide-line border border-line rounded-xl">
+            {learnedBrands.map((b) => (
+              <li key={`b-${b.id}`} className="flex items-center gap-3 px-4 py-2.5 text-sm">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-gold-600 w-14">Brand</span>
+                <span className="font-semibold">{b.label}</span>
+                <span className="flex-1 truncate text-ink-500">{(b.categories ?? []).join(", ")}</span>
+                {canEdit ? <HideLearned kind="brand" id={b.id} /> : null}
+              </li>
+            ))}
+            {learnedModels.map((m) => (
+              <li key={`m-${m.id}`} className="flex items-center gap-3 px-4 py-2.5 text-sm">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-gold-600 w-14">Model</span>
+                <span className="font-semibold">
+                  {label(m.brand_id)} {m.family}
+                </span>
+                <span className="flex-1 truncate text-ink-500">{m.category}</span>
+                {canEdit ? <HideLearned kind="model" id={m.id} /> : null}
+              </li>
+            ))}
+          </ul>
+        )}
+        {beingTyped.length > 0 ? (
+          <details className="mt-4">
+            <summary className="cursor-pointer text-sm font-bold text-green-700">Being typed by sellers now ({beingTyped.length})</summary>
+            <ul className="mt-2 divide-y divide-line border border-line rounded-xl">
+              {beingTyped.map((t) => (
+                <li key={`${t.kind}${t.brand_id}${t.category}${t.label}`} className="flex items-center gap-3 px-4 py-2 text-sm">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-ink-500 w-14">{t.kind}</span>
+                  <span className="font-semibold">{t.kind === "model" ? `${label(t.brand_id)} ${t.label}` : t.label}</span>
+                  <span className="flex-1 truncate text-ink-500">{t.category}</span>
+                  <span className={`text-xs font-bold ${t.sellers.size >= SUGGEST_AFTER_SELLERS ? "text-green-700" : "text-ink-500"}`}>
+                    {t.sellers.size} of {LEARN_AFTER_SELLERS}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </details>
+        ) : null}
+      </section>
 
       {current ? (
         <section className="mb-8 bg-surface border border-line rounded-2xl p-5">

@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { ensureLearnedBrands } from "@/lib/learned-brands";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { countryForRegion } from "@/lib/regions";
@@ -154,6 +155,7 @@ export async function updateListing(
     return { error: imagesCheck.error.issues[0]?.message || `A listing may have at most ${MAX_LISTING_IMAGES} photos.` };
   }
 
+  await ensureLearnedBrands(supabase);
   const parsed = updateListingSchema.safeParse(readUpdateFields(formData));
   if (!parsed.success) {
     const fieldErrors: Record<string, string> = {};

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { ensureLearnedBrands } from "@/lib/learned-brands";
 import { sellerOnboardingStatus, isSellerPaymentReady } from "@/lib/stripe/connect";
 import type { StripeConnectedAccount } from "@/lib/types";
 import NewListingForm from "./new-listing-form";
@@ -16,6 +17,7 @@ export default async function NewListingPage({
   const { shop: asShop, category: qCategory, brand: qBrand, model: qModel } = await searchParams;
   // "Selling a Qi10? List it" from the finder (0163) arrives with the club
   // type, brand and model already picked.
+  await ensureLearnedBrands(await createClient());
   const startCategory = qCategory && (CATEGORIES as readonly string[]).includes(qCategory) ? qCategory : "";
   const startBrand = startCategory && qBrand && isBrandValidFor(qBrand, startCategory) ? qBrand : "";
   const startModel = startBrand && qModel && /^[a-z0-9][a-z0-9-]{1,90}$/.test(qModel) ? qModel : "";
@@ -65,15 +67,14 @@ export default async function NewListingPage({
     : { data: null };
 
   return (
-    <div className="max-w-xl mx-auto px-4 sm:px-6 py-10 sm:py-16">
-      <div className="mb-8">
+    <div className="max-w-6xl mx-auto px-4 sm:px-6 py-10 sm:py-14">
+      <div className="mb-7 max-w-2xl">
         <span className="inline-flex items-center gap-2 text-xs font-bold tracking-widest uppercase text-green-700">
           <span className="w-5 h-0.5 bg-gold-500 inline-block" /> Marketplace
         </span>
-        <h1 className="font-display font-bold text-3xl mt-2.5">{shop ? "List new stock." : "List an item for sale."}</h1>
+        <h1 className="font-display font-bold text-4xl mt-2.5">{shop ? "List new stock" : "Sell an item"}</h1>
         <p className="text-ink-500 mt-2">
-          Add your photos and details, then save it as a draft — you&apos;ll get a chance to preview it and confirm
-          before it goes live on the marketplace.
+          Free to list. Six quick steps — clubs or anything else golf — and you&apos;ll preview it before it goes live.
         </p>
         {!paymentReady && (
           <p className="text-sm text-ink-500 mt-3 bg-cream-100 rounded-xl px-4 py-3">
@@ -84,9 +85,7 @@ export default async function NewListingPage({
           </p>
         )}
       </div>
-      <div className="bg-surface rounded-2xl shadow-lg p-5 sm:p-8">
-        <NewListingForm shop={shop} start={{ category: startCategory, brand: startBrand, modelId: startModel }} />
-      </div>
+      <NewListingForm shop={shop} start={{ category: startCategory, brand: startBrand, modelId: startModel }} />
     </div>
   );
 }

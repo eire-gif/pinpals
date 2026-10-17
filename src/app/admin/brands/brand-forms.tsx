@@ -3,7 +3,7 @@
 import { useActionState } from "react";
 
 import { CATEGORIES } from "@/lib/marketplace";
-import { addBrandModel, removeBrandLogo, setBrandModelActive, uploadBrandLogo, type BrandActionState } from "./actions";
+import { addBrandModel, hideLearned, removeBrandLogo, setBrandModelActive, uploadBrandLogo, type BrandActionState } from "./actions";
 
 const initial: BrandActionState = {};
 
@@ -94,6 +94,21 @@ export function ModelToggle({ modelId, active }: { modelId: string; active: bool
       <input type="hidden" name="active" value={active ? "false" : "true"} />
       <button type="submit" disabled={pending} className="text-xs font-bold text-green-700 disabled:opacity-60">
         {active ? "Hide" : "Show"}
+      </button>
+      {state.error ? <span className="text-xs text-red-600">{state.error}</span> : null}
+    </form>
+  );
+}
+
+export function HideLearned({ kind, id }: { kind: "model" | "brand"; id: string }) {
+  const [state, action, pending] = useActionState(hideLearned, initial);
+  if (state.saved) return <span className="text-xs font-semibold text-ink-500">Hidden</span>;
+  return (
+    <form action={action} className="flex items-center gap-2">
+      <input type="hidden" name="kind" value={kind} />
+      <input type="hidden" name="id" value={id} />
+      <button type="submit" disabled={pending} className="text-xs font-bold text-red-600 disabled:opacity-60">
+        Hide
       </button>
       {state.error ? <span className="text-xs text-red-600">{state.error}</span> : null}
     </form>

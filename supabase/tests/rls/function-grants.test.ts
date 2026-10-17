@@ -217,6 +217,10 @@ const EXPECTED: Record<string, Expectation> = {
   "store_apply(p_name text, p_club_id bigint, p_description text, p_phone text, p_email text, p_fittings boolean)": { anon: false, authenticated: true },
   "store_update(p_store_id bigint, p_description text, p_phone text, p_email text, p_fittings boolean, p_logo_url text, p_cover_url text)": { anon: false, authenticated: true },
   "listings_check_store()": { anon: false, authenticated: false },
+  // 0164: counts what sellers type when their brand or model isn't listed.
+  "listings_catalogue_vote()": { anon: false, authenticated: false },
+  // 0164: learns a model or brand once 5 sellers typed it — trigger-only.
+  "marketplace_learn(p_kind text, p_brand text, p_category text, p_key text)": { anon: false, authenticated: false },
   "connect_members(p_a uuid, p_b uuid)": { anon: false, authenticated: false },
   "my_invite_code()": { anon: false, authenticated: true },
   "invite_preview(p_code text)": { anon: true, authenticated: true },
@@ -273,6 +277,8 @@ const EXPECTED: Record<string, Expectation> = {
   // --- auth.uid(). listing_for_public_post() takes a member id, so it stays
   // --- internal, as does the trigger that closes offers when a listing sells.
   "listing_public_posts(p_listing_id bigint)": { anon: true, authenticated: true },
+  // 0164: what 3+ sellers typed, offered to the next seller — labels and counts only.
+  "marketplace_member_suggestions(p_category text, p_brand text)": { anon: true, authenticated: true },
   "post_listing_question(p_listing_id bigint, p_body text)": { anon: false, authenticated: true },
   "post_listing_offer(p_listing_id bigint, p_amount_cents integer, p_note text)": { anon: false, authenticated: true },
   "reply_to_listing_post(p_post_id bigint, p_body text)": { anon: false, authenticated: true },
