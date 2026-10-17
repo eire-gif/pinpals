@@ -74,9 +74,33 @@ export function pageHtml(source: TileSource): string {
   var canRotate = typeof L.Map.prototype.setBearing === "function";
   var GOOGLE = ${JSON.stringify(google)};
   var APPLE = ${JSON.stringify(apple)};
-  // With Apple underneath, zooms happen at once (no CSS zoom animation), so
-  // the photo and our drawing never drift apart mid-zoom.
-  var map = L.map("map", { zoomControl:false, attributionControl:false, rotate:canRotate, touchRotate:false, rotateControl:false, bearing:0, maxZoom:20, zoomSnap:0.25, zoomAnimation:!APPLE, markerZoomAnimation:!APPLE });
+  // Zoom animation stays on with Apple too (17 Oct: turning it off made the
+  // T follow the finger after a pinch). Apple catches up at the end of the
+  // ~¼ s animation; pinches and drags keep it in step frame by frame.
+  var map = L.map("map", { zoomControl:false, attributionControl:false, rotate:canRotate, touchRotate:false, rotateControl:false, bearing:0, maxZoom:20, zoomSnap:0.25 });
+  // A second finger while holding the T, flag or aim circle is a pinch, not
+  // a move: whatever was being dragged goes back where it was, unsent.
+  var fingers = 0, pinched = false;
+  document.addEventListener("touchstart", function(e){ fingers = e.touches.length; if(fingers > 1) pinched = true; }, { capture:true, passive:true });
+  document.addEventListener("touchend", function(e){ fingers = e.touches.length; }, { capture:true, passive:true });
+  document.addEventListener("touchcancel", function(e){ fingers = e.touches.length; }, { capture:true, passive:true });
+  // Use for each draggable's release: a drag that saw a second finger goes
+  // back where it started and the hole is redrawn as it was; nothing's sent.
+  function onRelease(marker, done){
+    var from = null;
+    marker.on("dragstart", function(){ from = marker.getLatLng(); pinched = fingers > 1; });
+    marker.on("drag", function(){ if(pinched && from) marker.setLatLng(from); });
+    marker.on("dragend", function(e){
+      if(pinched){
+        pinched = false; dragging = false;
+        if(from) marker.setLatLng(from);
+        var again = pending || last; pending = null;
+        if(again) draw(again);
+        return;
+      }
+      done(e);
+    });
+  }
   var TILE_URL = ${JSON.stringify(source.url)};
   var tiles = APPLE ? null : L.tileLayer(TILE_URL, { maxZoom:20, maxNativeZoom:19 }).addTo(map);
   // Imagery credit and the outlines' credit: two boxes, never one line.
@@ -470,7 +494,7 @@ export function pageHtml(source: TileSource): string {
         toLine.setLatLngs([[t.origin.lat,t.origin.lng],[p.lat,p.lng]]);
         if(onLine) onLine.setLatLngs([[p.lat,p.lng],[t.green.lat,t.green.lng]]);
       });
-      aim.on("dragend", function(e){
+      onRelease(aim, function(e){
         var p = e.target.getLatLng();
         dragging = false;
         // The app answers with a fresh scene (new aim, latest GPS); drawing
@@ -512,7 +536,7 @@ export function pageHtml(source: TileSource): string {
         if(toLine && s.tap) toLine.setLatLngs([[p.lat,p.lng],[s.tap.lat,s.tap.lng]]);
         if(greenLine && g.centre) greenLine.setLatLngs([[p.lat,p.lng],[g.centre.lat,g.centre.lng]]);
       });
-      tee.on("dragend", function(e){
+      onRelease(tee, function(e){
         var p = e.target.getLatLng();
         dragging = false;
         pending = null;
@@ -531,7 +555,7 @@ export function pageHtml(source: TileSource): string {
         var cloth = e.target.getElement() && e.target.getElement().querySelector(".cloth");
         if(cloth) cloth.setAttribute("fill", PIN[zoneAt(g, p)]);
       });
-      flag.on("dragend", function(e){
+      onRelease(flag, function(e){
         var p = e.target.getLatLng();
         dragging = false;
         pending = null;
