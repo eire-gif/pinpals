@@ -19,6 +19,14 @@ import { useMarketplaceUnread } from "@/lib/marketplace-chats";
  * middle and opens the sell screen over everything; neither is a screen of
  * its own, so both stop the tab change and navigate instead.
  */
+/**
+ * Open on Browse. Without this the navigator opens on its first screen —
+ * Home, which only redirects back to the app's Home — so every way in
+ * (the Home screen's Marketplace card, the main tab, a link) bounced
+ * straight back out.
+ */
+export const unstable_settings = { initialRouteName: "index" };
+
 export default function MarketplaceLayout() {
   const { session } = useAuth();
   const unread = useMarketplaceUnread(session?.user?.id ?? null);
@@ -31,6 +39,8 @@ export default function MarketplaceLayout() {
   return (
     <>
       <Tabs
+        initialRouteName="index"
+        backBehavior="history"
         screenOptions={{
           headerStyle: { backgroundColor: colors.cream50 },
           headerTintColor: colors.ink900,
