@@ -83,14 +83,22 @@ Notification types: `age_band_changed`, `parent_link_approved`,
 1. Apply `0159_junior_members.sql` (no `drop table`; the Supabase tool takes it in one go).
 2. Merge the PR; let Vercel deploy.
 3. Codespace: `git pull origin main`, `cd mobile`, `eas update`.
-4. Store signals (optional, later): turn on "Declared Age Range" for
-   `ie.pinpals.app` in the Apple Developer portal, then add
-   `"com.apple.developer.declared-age-range": true` to `expo.ios.entitlements`
-   in `mobile/app.json` (adding it first would break signing), and make a new
-   build (`eas build`) — the `mobile/modules/age-signals` module changes the
-   runtime fingerprint, so `eas update` alone won't carry it. Its Swift and
-   Kotlin have not been compiled yet; older builds skip the check quietly.
-   Google's Play Age Signals library is still in beta.
+4. Store signals (optional, later). The native module is **parked** in
+   `mobile/native-later/age-signals`, outside `mobile/modules`, because any
+   native module in `mobile/modules` changes the app's runtime fingerprint
+   (`runtimeVersion.policy: "fingerprint"`), and then `eas update` publishes
+   to a runtime no installed build has: phones never get the update. This
+   happened on 17 Oct 2026; parking it put the fingerprint back to the
+   installed build's (`d0cc170…`). To switch it on, in one change with a
+   new build:
+   - move it back: `git mv mobile/native-later/age-signals mobile/modules/age-signals`
+   - turn on "Declared Age Range" for `ie.pinpals.app` in the Apple
+     Developer portal, then add `"com.apple.developer.declared-age-range": true`
+     to `expo.ios.entitlements` in `mobile/app.json` (adding it first would
+     break signing)
+   - `eas build`, and ship that build before any further `eas update`.
+   Its Swift and Kotlin have not been compiled yet. Google's Play Age
+   Signals library is still in beta. Until then the app skips the check.
 5. Test: sign up as a 14 year old with your own second email as the parent;
    approve from the email; check tee times/Social/chat are gone, live
    scoring works, the parent can add a contact and the child can then add
@@ -109,7 +117,7 @@ Notification types: `age_band_changed`, `parent_link_approved`,
 | App: access + rules | `mobile/src/lib/age.ts`, `age-rules.ts` (+ tests), flag `ageBands` |
 | App: gates | `mobile/src/app/age/date-of-birth.tsx`, `age/waiting.tsx`, `components/not-for-under-18.tsx`, tabs/menu/Home |
 | App: Ask a parent, players | `app/listing/[id].tsx`, `live/new.tsx`, `live/day/*` |
-| App: store signals | `mobile/modules/age-signals/`, `mobile/src/lib/store-age.ts` |
+| App: store signals | `mobile/native-later/age-signals/` (parked, see To ship 4), `mobile/src/lib/store-age.ts` |
 | Guides | `mobile/src/lib/guide.ts` — "Under 16? Getting your parent to approve" and under-18 notes |
 
 ## Not done yet

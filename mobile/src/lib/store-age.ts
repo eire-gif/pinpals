@@ -23,7 +23,9 @@ import { supabase } from "./supabase";
  * upper bound under 18 flags the account for staff and treats it as 16–17
  * until they look. Nothing is decided here.
  *
- * The native half is modules/age-signals. Binaries built before it have no
+ * The native half is parked in native-later/age-signals until a new build
+ * (moving it into modules/ changes the runtime fingerprint, so `eas update`
+ * would stop reaching installed phones — claude/junior-members.md). Binaries without it have no
  * such module: requireOptionalNativeModule returns null and this does
  * nothing (the same guard as native-capabilities.ts). Every failure on the
  * native side resolves to null too, so nothing here throws.
