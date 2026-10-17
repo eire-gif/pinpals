@@ -26,7 +26,11 @@ import { REPORT_CATEGORY_LABELS, REPORT_STATUS_LABELS, REPORT_STATUS_STYLES } fr
 import { listFraudFlagsForTarget } from "@/lib/admin/queries";
 import RiskFlagsPanel from "@/components/admin/risk-flags-panel";
 import MemberProfileForm from "@/components/admin/member-profile-form";
-import { addUserNote, updateMemberProfile } from "./actions";
+import FieldsActionForm from "@/components/admin/fields-action-form";
+import { loadAgePanel, type AgePanel } from "@/lib/admin/age";
+import { BAND_LABELS, isMinorBand } from "@/lib/junior";
+import type { StaffRecord } from "@/lib/admin/roles";
+import { addUserNote, clearAgeRestriction, correctDateOfBirth, restrictAsUnder18, updateMemberProfile } from "./actions";
 import { cancelMemberDeletion } from "../../controls/actions";
 import { pendingDeletionFor } from "@/lib/account-deletion";
 import RecordPanel from "@/components/admin/controls/record-panel";
@@ -53,6 +57,7 @@ export default async function AdminUserDetailPage({
   );
   const fraudFlags = await listFraudFlagsForTarget("user", id);
   const pendingDeletion = await pendingDeletionFor(id);
+  const agePanel = await loadAgePanel(id);
 
   const { profile, listings, invites, offersMade, notes } = detail;
   const name = `${profile.first_name} ${profile.last_name}`;
@@ -177,6 +182,12 @@ export default async function AdminUserDetailPage({
           </div>
         )}
       </div>
+
+      {agePanel && (
+        <Section title="Age" id="age">
+          <AgeSection panel={agePanel} userId={profile.id} staff={staff} />
+        </Section>
+      )}
 
       {canEditProfile && (
         <Section title="Member details" id="edit">
@@ -414,4 +425,121 @@ function Table({ headers, children }: { headers: string[]; children: React.React
 
 function EmptyRow({ children }: { children: React.ReactNode }) {
   return <div className="text-center py-10 text-ink-500 text-sm">{children}</div>;
+}
+
+/**
+ * Junior members (0159): the facts behind this member's age band, and the
+ * three things staff can do about it. Restrict / clear go to any staff role
+ * admin_set_age_flag() allows; a date correction to admins only (it decides
+ * what the member may do). All three are audited (./actions.ts).
+ */
+function AgeSection({ panel, userId, staff }: { panel: AgePanel; userId: string; staff: StaffRecord }) {
+  const flagOpen = !!panel.flag && !panel.flag.resolvedAt;
+  const canFlag = canAccess(staff, ["support", "moderator", "admin", "super_admin"]);
+  const canCorrect = canAccess(staff, ["admin", "super_admin"]);
+  const fact = (label: string, value: React.ReactNode) => (
+    <div>
+      <dt className="text-xs font-bold text-ink-500 uppercase tracking-wide">{label}</dt>
+      <dd className="text-sm text-ink-900 mt-0.5">{value}</dd>
+    </div>
+  );
+
+  return (
+    <div className="p-5 grid gap-5">
+      <dl className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {fact("Date of birth", panel.dateOfBirth ?? "Not given")}
+        {fact("Age", panel.age ?? "—")}
+        {fact(
+          "Band",
+          <span className={isMinorBand(panel.band) ? "font-bold text-red-600" : ""}>{BAND_LABELS[panel.band]}</span>
+        )}
+        {fact(
+          "Parent link",
+          panel.parentLink ? (
+            <>
+              {panel.parentLink.status}
+              {panel.parentLink.guardianId ? (
+                <>
+                  {" · "}
+                  <Link href={`/admin/users/${panel.parentLink.guardianId}`} className="font-semibold hover:underline">
+                    {panel.parentLink.guardianName ?? "Parent"}
+                  </Link>
+                </>
+              ) : null}
+              <div className="text-xs text-ink-500">
+                Asked {panel.parentLink.email} · {formatDateTime(panel.parentLink.invitedAt)}
+                {panel.parentLink.approvedAt ? ` · approved ${formatDateTime(panel.parentLink.approvedAt)}` : ""}
+                {panel.parentLink.cardCheckedAt ? " · card checked" : ""}
+              </div>
+            </>
+          ) : (
+            "None"
+          )
+        )}
+      </dl>
+
+      {panel.children.length > 0 && (
+        <p className="text-sm text-ink-500">
+          Parent of{" "}
+          {panel.children.map((c, i) => (
+            <span key={c.id}>
+              {i > 0 ? ", " : ""}
+              <Link href={`/admin/users/${c.id}`} className="font-semibold text-ink-900 hover:underline">
+                {c.name}
+              </Link>{" "}
+              ({c.status})
+            </span>
+          ))}
+        </p>
+      )}
+
+      {panel.flag && (
+        <div className={`rounded-xl px-4 py-3 text-sm ${flagOpen ? "bg-red-100 text-red-700" : "bg-cream-100 text-ink-700"}`}>
+          <strong>{flagOpen ? "Restricted as under 18, pending review" : "Restriction cleared"}</strong>
+          {" · "}
+          {panel.flag.reason === "store_signal" ? "app store signal" : panel.flag.reason}
+          {" · "}
+          {formatDateTime(panel.flag.createdAt)}
+          {panel.flag.resolvedAt ? ` · cleared ${formatDateTime(panel.flag.resolvedAt)}` : ""}
+          {panel.flag.note && <p className="mt-1 whitespace-pre-wrap">{panel.flag.note}</p>}
+        </div>
+      )}
+
+      {panel.storeSignal && (
+        <p className="text-sm text-ink-500">
+          App store ({panel.storeSignal.platform}) says {panel.storeSignal.lower ?? "?"}–{panel.storeSignal.upper ?? "?"}
+          {panel.storeSignal.status ? ` (${panel.storeSignal.status})` : ""} · {formatDateTime(panel.storeSignal.receivedAt)}
+        </p>
+      )}
+
+      {canFlag && (
+        <div className="grid md:grid-cols-2 gap-5">
+          <div>
+            <h3 className="text-[11px] font-bold uppercase tracking-[0.08em] text-ink-500 mb-2">
+              {flagOpen ? "Clear the restriction" : "Restrict as under 18 pending review"}
+            </h3>
+            <ModerationForm
+              action={flagOpen ? clearAgeRestriction : restrictAsUnder18}
+              idField="userId"
+              id={userId}
+              submitLabel={flagOpen ? "Clear" : "Restrict as under 18"}
+              pendingLabel="Saving…"
+              tone={flagOpen ? "default" : "danger"}
+              placeholder={flagOpen ? "How their age was checked (recorded in the audit log)" : "Why (recorded in the audit log, shown to staff)"}
+            />
+          </div>
+          {canCorrect && (
+            <div>
+              <h3 className="text-[11px] font-bold uppercase tracking-[0.08em] text-ink-500 mb-2">Correct date of birth</h3>
+              <FieldsActionForm action={correctDateOfBirth} submitLabel="Save date" pendingLabel="Saving…" className="grid gap-2">
+                <input type="hidden" name="userId" value={userId} />
+                <input type="date" name="dob" required defaultValue={panel.dateOfBirth ?? ""} className="w-full text-sm px-3 py-2 border border-line rounded-lg bg-surface" />
+                <textarea name="reason" required rows={2} placeholder="Why, and how it was checked (recorded in the audit log)" className="w-full text-sm px-3 py-2 border border-line rounded-lg bg-surface" />
+              </FieldsActionForm>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }

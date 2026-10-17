@@ -24,6 +24,7 @@ import {
   type SellerOnboardingStatus,
 } from "@/lib/selling";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
+import { AgeGateLoading, NotForUnder18, useAgeGate } from "@/components/not-for-under-18";
 
 /**
  * Getting paid — where a seller stands with Stripe, and what has landed.
@@ -39,7 +40,7 @@ import { colors, fonts, radii, spacing, type } from "@/lib/theme";
  * inside the app. Everything else is native: status, requirements, balance,
  * and the payout history Stripe's own webhooks wrote into `payouts` (0024).
  */
-export default function PayoutsScreen() {
+function PayoutsScreenInner() {
   const { session } = useAuth();
   const userId = session?.user?.id ?? null;
 
@@ -381,3 +382,11 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
 });
+
+/** Junior members (0159): selling aren't for every age — a deep link gets the panel, not a form the database would refuse. */
+export default function PayoutsScreen() {
+  const gate = useAgeGate("sell");
+  if (gate === "loading") return <AgeGateLoading />;
+  if (gate === "blocked") return <NotForUnder18 feature="sell" title="Selling" />;
+  return <PayoutsScreenInner />;
+}

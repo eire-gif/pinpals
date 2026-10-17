@@ -19,6 +19,7 @@ import { loadOrder, type OrderDetail } from "@/lib/orders";
 import { GoldButton } from "@/components/gold-button";
 import { HandoverPanel } from "@/components/handover-panel";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
+import { AgeGateLoading, NotForUnder18, useAgeGate } from "@/components/not-for-under-18";
 
 /**
  * One order, from either side.
@@ -39,7 +40,7 @@ import { colors, fonts, radii, spacing, type } from "@/lib/theme";
  * receipt with a sunset on it would be the app being pleased with itself
  * while somebody is trying to work out whether they've been charged twice.
  */
-export default function OrderScreen() {
+function OrderScreenInner() {
   const { id, pay } = useLocalSearchParams<{ id: string; pay?: string }>();
   const orderId = Number(id);
   const { session } = useAuth();
@@ -343,3 +344,11 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
 });
+
+/** Junior members (0159): buying aren't for every age — a deep link gets the panel, not a form the database would refuse. */
+export default function OrderScreen() {
+  const gate = useAgeGate("buy");
+  if (gate === "loading") return <AgeGateLoading />;
+  if (gate === "blocked") return <NotForUnder18 feature="buy" title="Buying" />;
+  return <OrderScreenInner />;
+}

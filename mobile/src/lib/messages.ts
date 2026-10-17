@@ -494,6 +494,9 @@ export const MESSAGE_REPORT_REASONS = [
   { category: "spam", label: "Spam" },
   { category: "scam_fraud", label: "Scam or fraud" },
   { category: "inappropriate_content", label: "Inappropriate" },
+  // Junior members (0159): staff check the sender's age (admin: restrict,
+  // clear or correct the date). Messages aren't open to under 18s at all.
+  { category: "underage", label: "May be under 18" },
   { category: "other", label: "Something else" },
 ] as const;
 

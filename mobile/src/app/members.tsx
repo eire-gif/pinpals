@@ -33,6 +33,7 @@ import { suggestedPinPals, type Suggestion as NearbyRow } from "@/lib/onboarding
 import { loadMyProfile, type MyProfile } from "@/lib/profile";
 import { listInvites, type Invite } from "@/lib/tee-times";
 import { colors, fonts, radii, spacing } from "@/lib/theme";
+import { AgeGateLoading, NotForUnder18, useAgeGate } from "@/components/not-for-under-18";
 
 /**
  * Find PinPals (Oct 2026 redesign, approved mock-ups 1 and 2).
@@ -75,7 +76,7 @@ type Row = {
 const LIP = "#9c7a2c";
 const SAND = "#f3ead2";
 
-export default function MembersScreen() {
+function MembersScreenInner() {
   const { session } = useAuth();
   const userId = session?.user?.id ?? null;
   const insets = useSafeAreaInsets();
@@ -672,3 +673,11 @@ const styles = StyleSheet.create({
   cantFindBody: { fontFamily: fonts.body, fontSize: 12.5, color: colors.ink500 },
   cantFindLink: { fontFamily: fonts.bodyBold, fontSize: 14, color: colors.navy900 },
 });
+
+/** Junior members (0159): pinpals aren't for every age — a deep link gets the panel, not a form the database would refuse. */
+export default function MembersScreen() {
+  const gate = useAgeGate("connections");
+  if (gate === "loading") return <AgeGateLoading />;
+  if (gate === "blocked") return <NotForUnder18 feature="connections" title="PinPals" />;
+  return <MembersScreenInner />;
+}

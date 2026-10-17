@@ -5,6 +5,9 @@ import { withPrivateDetails } from "@/lib/member-private";
 import type { Profile } from "@/lib/types";
 import { initials } from "@/lib/format";
 import { countryName } from "@/lib/regions";
+import { getAgeAccess } from "@/lib/age-access";
+import { ageGate } from "@/components/age/age-gate";
+import DateOfBirthCard from "@/components/age/date-of-birth-card";
 
 export default async function ProfilePage({
   searchParams,
@@ -18,6 +21,10 @@ export default async function ProfilePage({
   } = await supabase.auth.getUser();
 
   if (!user) redirect("/login");
+  // Junior members (0159): waiting for a parent shows only that.
+  const waiting = await ageGate(null, "Your profile");
+  if (waiting) return waiting;
+  const age = await getAgeAccess();
 
   const { data: shared } = await supabase
     .from("profiles")
@@ -31,6 +38,11 @@ export default async function ProfilePage({
 
   return (
     <div className="max-w-xl mx-auto px-6 py-16">
+      {age?.needsDateOfBirth && (
+        <div className="mb-6">
+          <DateOfBirthCard />
+        </div>
+      )}
       {saved && (
         <div className="mb-6 bg-green-100 text-green-800 rounded-xl px-4 py-3 text-sm font-semibold">
           Profile saved.

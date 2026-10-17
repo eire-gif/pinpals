@@ -67,6 +67,7 @@ import {
 import { subscribeToConversation, subscribeToTyping } from "@/lib/realtime";
 import { colors, fonts, headerTitleStyle, radii, spacing, type } from "@/lib/theme";
 import { PHOTO_PICKER_OPTIONS, preparePhotoForUpload } from "@/lib/photo-picking";
+import { AgeGateLoading, NotForUnder18, useAgeGate } from "@/components/not-for-under-18";
 
 /**
  * One conversation — redesigned Oct 2026 with what members expect from
@@ -80,7 +81,7 @@ import { PHOTO_PICKER_OPTIONS, preparePhotoForUpload } from "@/lib/photo-picking
  * position, and loading older messages is an ordinary onEndReached at the
  * top. The data stays newest-first exactly as the query returns it.
  */
-export default function ConversationScreen() {
+function ConversationScreenInner() {
   const params = useLocalSearchParams<{ id: string; replyTo?: string; group?: string }>();
   const conversationId = Number(params.id);
   const router = useRouter();
@@ -1181,3 +1182,11 @@ const styles = StyleSheet.create({
   emptyTitle: { fontFamily: fonts.display, fontSize: 20, color: colors.ink900, textAlign: "center" },
   emptyBody: { fontFamily: fonts.body, fontSize: type.small, color: colors.ink500, textAlign: "center", maxWidth: 280 },
 });
+
+/** Junior members (0159): messages aren't for every age — a deep link gets the panel, not a form the database would refuse. */
+export default function ConversationScreen() {
+  const gate = useAgeGate("chat");
+  if (gate === "loading") return <AgeGateLoading />;
+  if (gate === "blocked") return <NotForUnder18 feature="chat" title="Messages" />;
+  return <ConversationScreenInner />;
+}

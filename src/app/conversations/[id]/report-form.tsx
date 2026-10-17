@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { REPORT_CATEGORIES, REPORT_CATEGORY_LABELS } from "@/lib/admin/reports";
+import { REPORT_CATEGORIES, REPORT_CATEGORY_LABELS, USER_REPORT_CATEGORIES } from "@/lib/admin/reports";
 import { reportConversation, reportMessage, reportUser, type MessageActionState } from "../actions";
 
 const initialState: MessageActionState = {};
@@ -66,7 +66,9 @@ export default function ReportForm({
         <option value="" disabled>
           Choose a reason
         </option>
-        {REPORT_CATEGORIES.map((c) => (
+        {/* A member gets the member list ("May be under 18" among them, 0159);
+            a message or conversation everything except that one. */}
+        {(target.type === "user" ? USER_REPORT_CATEGORIES : REPORT_CATEGORIES.filter((c) => c !== "underage")).map((c) => (
           <option key={c} value={c}>
             {REPORT_CATEGORY_LABELS[c]}
           </option>

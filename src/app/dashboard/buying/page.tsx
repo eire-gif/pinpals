@@ -7,6 +7,7 @@ import OffersBidsTab from "./offers-bids-tab";
 import SavedTab from "./saved-tab";
 import MessagesTab from "./messages-tab";
 import DeliveryReviewsTab from "./delivery-reviews-tab";
+import { ageGate } from "@/components/age/age-gate";
 
 const TABS: WorkspaceTab[] = [
   { key: "purchases", label: "Purchases" },
@@ -44,6 +45,9 @@ export default async function BuyingWorkspacePage({
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect("/login?next=/dashboard/buying");
+  // Junior members (0159): the panel to show instead, if their age keeps them from this.
+  const ageBlocked = await ageGate("marketplaceSell", "Buying in the marketplace");
+  if (ageBlocked) return ageBlocked;
 
   // Same opportunistic sweep the order detail page runs (see its own
   // comment) — this is the buyer's own hub, so it's exactly the right place

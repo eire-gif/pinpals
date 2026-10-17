@@ -19,6 +19,7 @@ import {
 } from "@/lib/tee-time-interest";
 import { clockTime, dateLabel } from "@/lib/tee-times";
 import { colors, radii, spacing, type } from "@/lib/theme";
+import { AgeGateLoading, NotForUnder18, useAgeGate } from "@/components/not-for-under-18";
 
 /**
  * Who has asked to join this member's rounds, and the two buttons that answer
@@ -33,7 +34,7 @@ import { colors, radii, spacing, type } from "@/lib/theme";
  * Declined requests are not shown. They are the host's own past decisions, and
  * a list that accumulates them is a list that stops being worth opening.
  */
-export default function TeeTimeRequestsScreen() {
+function TeeTimeRequestsScreenInner() {
   const { session } = useAuth();
   const memberId = session?.user.id ?? null;
   // ?invite=<id>: opened from an alert or a round's own page — show only that
@@ -351,3 +352,11 @@ const styles = StyleSheet.create({
     padding: spacing.md,
   },
 });
+
+/** Junior members (0159): tee times aren't for every age — a deep link gets the panel, not a form the database would refuse. */
+export default function TeeTimeRequestsScreen() {
+  const gate = useAgeGate("teeTimes");
+  if (gate === "loading") return <AgeGateLoading />;
+  if (gate === "blocked") return <NotForUnder18 feature="teeTimes" title="Tee times" />;
+  return <TeeTimeRequestsScreenInner />;
+}

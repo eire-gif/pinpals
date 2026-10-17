@@ -19,6 +19,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import Constants from "expo-constants";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { useAgeAccess } from "@/lib/age";
 import { useAuth } from "@/lib/auth";
 import { inviteFriends } from "@/lib/invite-friends";
 import { contactMailto, visibleMenu, type MenuItem } from "@/lib/menu";
@@ -51,6 +52,8 @@ const DURATION = 220;
 
 export function AppMenu({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { signOut } = useAuth();
+  // Junior members (0159): leave out what this member is too young for.
+  const { access } = useAgeAccess();
   const slide = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -163,7 +166,7 @@ export function AppMenu({ open, onClose }: { open: boolean; onClose: () => void 
               contentContainerStyle={styles.list}
               showsVerticalScrollIndicator={false}
             >
-              {visibleMenu().map((section) => (
+              {visibleMenu(access).map((section) => (
                 <View key={section.title} style={styles.section}>
                   <Text style={styles.sectionTitle}>{section.title}</Text>
                   {section.items.map((item) => (

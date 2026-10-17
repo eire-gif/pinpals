@@ -1,0 +1,9 @@
+{
+  "platforms": ["apple", "android"],
+  "apple": {
+    "modules": ["PinPalsAgeSignalsModule"]
+  },
+  "android": {
+    "modules": ["ie.pinpals.agesignals.PinPalsAgeSignalsModule"]
+  }
+}

@@ -34,6 +34,7 @@ import { PROFILE_TAB_LABELS, identityTiles, isProfileTab, type IdentityTile, typ
 import { blockConfirmText, blockMember, unblockMember } from "@/lib/blocking";
 import { listMemberListings, priceLine, type Card } from "@/lib/marketplace";
 import { conversationWith, requestConnection, respondToConnection } from "@/lib/members";
+import { useAgeAccess } from "@/lib/age";
 import { supabase } from "@/lib/supabase";
 import { AffinityCard } from "@/components/affinity-card";
 import { GoldButton } from "@/components/gold-button";
@@ -80,6 +81,8 @@ export default function MemberScreen() {
   const [affinity, setAffinity] = useState<Affinity | null>(null);
   // Whether I have blocked this member. Only my own blocks are readable
   // (0049), which is all this screen needs to choose Block or Unblock.
+  // Junior members (0159): no Message for under 18s, no Connect under 16.
+  const { allows } = useAgeAccess();
   const [blocked, setBlocked] = useState(false);
   const [tab, setTab] = useState<ProfileTab>(isOn("profileSections") && isProfileTab(tabParam) ? tabParam : "posts");
   const [sections, setSections] = useState<Sections>({});
@@ -370,15 +373,17 @@ export default function MemberScreen() {
               <Ionicons name="checkmark" size={16} color={colors.green700} />
               <Text style={styles.buttonQuietLabel}>Connected</Text>
             </View>
+            {allows("chat") ? (
             <Pressable style={[styles.button, styles.buttonSolid]} onPress={message} disabled={busy}>
               <Text style={styles.buttonSolidLabel}>Message</Text>
             </Pressable>
+            ) : null}
           </>
         ) : link?.status === "pending" && !link.theirsToAnswer ? (
           <View style={[styles.button, styles.buttonQuiet]}>
             <Text style={styles.buttonQuietLabel}>Request sent</Text>
           </View>
-        ) : (
+        ) : !allows("connections") ? null : (
           // Gold, raised — the same Connect as Find PinPals (mock-up 3).
           <GoldButton
             style={{ flex: 1 }}

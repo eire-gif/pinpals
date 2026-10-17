@@ -25,6 +25,7 @@ import {
   type MyListing,
 } from "@/lib/listings";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
+import { AgeGateLoading, NotForUnder18, useAgeGate } from "@/components/not-for-under-18";
 
 /**
  * Everything you have for sale, and what state it is in.
@@ -39,7 +40,7 @@ import { colors, fonts, radii, spacing, type } from "@/lib/theme";
  * Draft is the first tab because a draft is the only status waiting on the
  * seller: it is finished, it is just not for sale yet.
  */
-export default function MyListingsScreen() {
+function MyListingsScreenInner() {
   const { session } = useAuth();
   const userId = session?.user?.id ?? null;
 
@@ -339,3 +340,11 @@ const styles = StyleSheet.create({
   },
   ctaLabel: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.cream50 },
 });
+
+/** Junior members (0159): selling aren't for every age — a deep link gets the panel, not a form the database would refuse. */
+export default function MyListingsScreen() {
+  const gate = useAgeGate("sell");
+  if (gate === "loading") return <AgeGateLoading />;
+  if (gate === "blocked") return <NotForUnder18 feature="sell" title="Selling" />;
+  return <MyListingsScreenInner />;
+}

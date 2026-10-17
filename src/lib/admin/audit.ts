@@ -306,6 +306,14 @@ export const ADMIN_ACTIONS = [
   "store.edited",
   "store.deleted",
   "article.deleted",
+  // Junior members (0159), from the Age panel on /admin/users/[id] and
+  // /admin/age. A restriction is "may be under 18, treat as 16–17 until
+  // checked"; clearing it resolves the flag. A date-of-birth correction is
+  // the only way a date changes once set, so `metadata` carries before/after.
+  "user.age_restricted",
+  "user.age_cleared",
+  "user.dob_corrected",
+  "age_settings.updated",
 ] as const;
 export type AdminAction = (typeof ADMIN_ACTIONS)[number];
 
@@ -377,6 +385,8 @@ export const AUDIT_TARGET_TYPES = [
   // Admin controls (0140): rows in `groups` and `society_outings` (events).
   "group",
   "outing",
+  // The single age_settings row (0159), targetId null.
+  "age_settings",
 ] as const;
 export type AuditTargetType = (typeof AUDIT_TARGET_TYPES)[number];
 

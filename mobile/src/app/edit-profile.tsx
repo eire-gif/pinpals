@@ -21,6 +21,9 @@ import * as ImagePicker from "expo-image-picker";
 import { Chip, ChipGroup, Section } from "@/components/form-bits";
 import { membershipLabel } from "@/lib/membership-number";
 import { useAuth } from "@/lib/auth";
+import { birthdayLabel } from "@/components/birth-date-field";
+import { isOn } from "@/lib/features";
+import { CONTACT_EMAIL } from "@/lib/menu";
 import { ApiError, type UploadFile } from "@/lib/api";
 import {
   loadMyProfile,
@@ -62,6 +65,10 @@ export default function EditProfileScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const [form, setForm] = useState<ProfileEdits>(BLANK);
+  // Junior members (0159): a date of birth, once saved, is locked — only
+  // staff can correct it (member_birthdates_guard). It's shown, not edited,
+  // and sent back unchanged so the save never touches it.
+  const [dobLocked, setDobLocked] = useState(false);
   const [clubName, setClubName] = useState("");
   const [clubQuery, setClubQuery] = useState("");
   const [clubHits, setClubHits] = useState<ClubHit[]>([]);
@@ -91,6 +98,7 @@ export default function EditProfileScreen() {
           photo: null,
           removePhoto: false,
         });
+        setDobLocked(isOn("ageBands") && !!profile.dateOfBirth);
         setClubName(profile.homeClub ?? "");
         setAvatarUrl(profile.avatarUrl);
       })
@@ -387,6 +395,22 @@ export default function EditProfileScreen() {
           title="Date of birth"
           hint="Kept private. Only an age range is ever shown, and only if you allow it."
         >
+          {dobLocked ? (
+            <View style={styles.lockedDob} accessibilityRole="text">
+              <Ionicons name="lock-closed-outline" size={18} color={colors.ink500} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.lockedDobValue}>{birthdayLabel(form.dateOfBirth)}</Text>
+                <Text style={styles.hint}>Can&apos;t be changed here. Contact us if it&apos;s wrong: {CONTACT_EMAIL}</Text>
+              </View>
+            </View>
+          ) : isOn("ageBands") ? (
+            // Entered once, on its own screen, and locked after
+            // (set_my_date_of_birth). The website ignores `dob` from here now.
+            <Pressable onPress={() => router.push("/age/date-of-birth")} style={styles.lockedDob} accessibilityRole="button">
+              <Ionicons name="calendar-outline" size={18} color={colors.green700} />
+              <Text style={[styles.lockedDobValue, { color: colors.green700 }]}>Add your date of birth</Text>
+            </Pressable>
+          ) : (
           <Field
             label="YYYY-MM-DD"
             value={form.dateOfBirth}
@@ -394,12 +418,13 @@ export default function EditProfileScreen() {
             keyboardType="numbers-and-punctuation"
             placeholder="1979-06-14"
           />
+          )}
           <Toggle
             label="Show my age range on my profile"
             value={form.ageRangeVisible}
             onValueChange={(v) => set({ ageRangeVisible: v })}
           />
-          {form.dateOfBirth ? (
+          {form.dateOfBirth && !isOn("ageBands") ? (
             <Text style={styles.hint}>
               Clearing this field removes your date of birth altogether, rather than just hiding it.
             </Text>
@@ -510,6 +535,8 @@ const styles = StyleSheet.create({
   photoText: { flex: 1, gap: 3 },
   photoAction: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.green700 },
   hint: { fontFamily: fonts.body, fontSize: type.label, lineHeight: 18, color: colors.ink500 },
+  lockedDob: { flexDirection: "row", gap: spacing.sm, alignItems: "flex-start", paddingVertical: spacing.xs },
+  lockedDobValue: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.ink900 },
 
   field: { gap: 5 },
   fieldLabel: { fontFamily: fonts.bodySemi, fontSize: type.small, color: colors.ink500 },

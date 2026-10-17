@@ -4,6 +4,8 @@ import { Stack, router } from "expo-router";
 import * as Linking from "expo-linking";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
+import { useAgeAccess } from "@/lib/age";
+import { isUnder16, maskEmail, parentStatusLine } from "@/lib/age-rules";
 import { useAuth } from "@/lib/auth";
 import { loadMyGroups } from "@/lib/groups-data";
 import { loadMyMobile, loadMyShares, removeMyMobile, saveMyMobile, setShare, type MyMobile } from "@/lib/mobile-number";
@@ -30,6 +32,8 @@ type GroupRow = { id: number; name: string; kind: string; role: string };
 export default function PrivacyScreen() {
   const { session } = useAuth();
   const userId = session?.user?.id ?? null;
+  // Junior members (0159): a 13–15 year old sees who looks after their account.
+  const { access } = useAgeAccess();
 
   const [mobile, setMobile] = useState<MyMobile | undefined>(undefined);
   const [groups, setGroups] = useState<GroupRow[]>([]);
@@ -127,6 +131,32 @@ export default function PrivacyScreen() {
     <>
       <Stack.Screen options={{ title: "Privacy & security", headerBackTitle: "Back" }} />
       <ScrollView style={styles.fill} contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
+        {/* ============ My parent (13–15) ============ */}
+        {isUnder16(access) ? (
+          <>
+            <Text style={styles.heading}>My parent</Text>
+            <View style={styles.card}>
+              <View style={styles.numberRow}>
+                <Ionicons name="shield-checkmark" size={20} color={colors.green700} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.number}>{access.parent ? maskEmail(access.parent.email) : "Not added yet"}</Text>
+                  <Text style={styles.small}>{parentStatusLine(access.parent)}</Text>
+                </View>
+              </View>
+              <Text style={styles.small}>
+                Your parent or guardian approves your account and picks the PinPals you can play with, from the Parent
+                dashboard on the PinPals website. Your profile is seen only by them, your approved contacts and the
+                people you play with.
+              </Text>
+              {access.parent?.status !== "approved" ? (
+                <Pressable style={styles.secondary} onPress={() => router.push("/age/waiting")} accessibilityRole="button">
+                  <Text style={styles.secondaryText}>Send it again or change email</Text>
+                </Pressable>
+              ) : null}
+            </View>
+          </>
+        ) : null}
+
         {/* ============ Mobile ============ */}
         <Text style={styles.heading}>Your mobile</Text>
         <View style={styles.card}>

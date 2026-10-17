@@ -5,6 +5,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { openPostType } from "@/lib/post-compose";
 import { POST_TYPE_INFO, menuPostTypes, type PostType } from "@/lib/post-details";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
+import { AgeGateLoading, NotForUnder18, useAgeGate } from "@/components/not-for-under-18";
 
 /**
  * "Create a post": choose what kind (Oct 2026 feed redesign, phase 3).
@@ -28,7 +29,7 @@ const TILE: Record<PostType, string> = {
   tee_time: colors.navy900,
 };
 
-export default function ComposeScreen() {
+function ComposeScreenInner() {
   return (
     <>
       <Stack.Screen options={{ title: "Create a post", headerBackTitle: "Social" }} />
@@ -94,3 +95,11 @@ const styles = StyleSheet.create({
   description: { fontFamily: fonts.body, fontSize: 13.5, color: colors.ink500, marginTop: 2 },
   soon: { fontFamily: fonts.bodySemi, fontSize: 12, color: colors.ink500 },
 });
+
+/** Junior members (0159): social aren't for every age — a deep link gets the panel, not a form the database would refuse. */
+export default function ComposeScreen() {
+  const gate = useAgeGate("social");
+  if (gate === "loading") return <AgeGateLoading />;
+  if (gate === "blocked") return <NotForUnder18 feature="social" title="Social" />;
+  return <ComposeScreenInner />;
+}

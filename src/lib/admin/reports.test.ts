@@ -77,6 +77,12 @@ describe("per-form category subsets", () => {
     }
   });
 
+  it("a member can be reported as possibly under 18 (0159)", () => {
+    expect(REPORT_CATEGORIES).toContain("underage");
+    expect(USER_REPORT_CATEGORIES).toContain("underage");
+    expect(REPORT_CATEGORY_LABELS.underage).toBe("May be under 18");
+  });
+
   it("the order report form offers the order-shaped categories", () => {
     expect(ORDER_REPORT_CATEGORIES).toEqual(
       expect.arrayContaining(["item_not_as_described", "item_not_received", "payment_issue"])

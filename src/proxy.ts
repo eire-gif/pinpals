@@ -17,9 +17,10 @@ export async function proxy(request: NextRequest) {
   // default for admin data.
   // The same for two-step sign-in (a QR secret) and the member's own
   // privacy pages (their mobile number, their data file), and the society
-  // console (/society — a committee's members, phones and money).
+  // console (/society — a committee's members, phones and money), and the
+  // parent dashboard (/parent — a child's rounds and contacts, 0159).
   const path = request.nextUrl.pathname;
-  if (path.startsWith("/admin") || path.startsWith("/two-step") || path.startsWith("/profile") || path === "/society" || path.startsWith("/society/")) {
+  if (path.startsWith("/admin") || path.startsWith("/two-step") || path.startsWith("/profile") || path === "/society" || path.startsWith("/society/") || path === "/parent" || path.startsWith("/parent/")) {
     response.headers.set("Cache-Control", "private, no-store");
   }
 

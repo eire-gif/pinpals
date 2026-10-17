@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { loadInbox } from "@/lib/inbox-server";
 import { inboxTotal } from "@/lib/inbox";
 import InboxList from "./inbox-list";
+import { ageGate } from "@/components/age/age-gate";
 
 /**
  * The one place.
@@ -24,6 +25,9 @@ export default async function InboxPage() {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect("/login?next=/inbox");
+  // Junior members (0159): the panel to show instead, if their age keeps them from this.
+  const ageBlocked = await ageGate(null, "Your inbox");
+  if (ageBlocked) return ageBlocked;
 
   const { items, counts, truncated } = await loadInbox(supabase, user.id);
   const total = inboxTotal(counts);

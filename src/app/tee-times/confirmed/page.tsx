@@ -13,6 +13,7 @@ import {
 } from "@/lib/tee-times";
 import TeeTimesTabs from "../tee-times-tabs";
 import TeeTimesPageHeader from "../tee-times-page-header";
+import { ageGate } from "@/components/age/age-gate";
 
 /**
  * Rounds that are actually happening, and who is in them.
@@ -42,6 +43,12 @@ export default async function ConfirmedTeeTimesPage() {
   } = await supabase.auth.getUser();
 
   if (!user) redirect("/login?next=/tee-times/confirmed");
+
+  // Junior members (0159): the panel to show instead, if their age keeps them from this.
+
+  const ageBlocked = await ageGate("teeTimes", "Tee times");
+
+  if (ageBlocked) return ageBlocked;
 
   type Person = { first_name: string; last_name: string; home_club: string | null };
 

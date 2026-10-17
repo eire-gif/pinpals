@@ -38,6 +38,7 @@ import {
   type Invite,
 } from "@/lib/tee-times";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
+import { AgeGateLoading, NotForUnder18, useAgeGate } from "@/components/not-for-under-18";
 
 type Scope = "all" | "near";
 
@@ -69,7 +70,7 @@ const HERO = require("../../../assets/images/tee-times/hero.jpg");
  * page of upcoming rounds, and filtering it here means toggling one is
  * instant rather than another trip to the server.
  */
-export default function TeeTimesScreen() {
+function TeeTimesScreenInner() {
   const { scrollY, resetY, scrollProps } = useCollapsingHeader();
   const router = useRouter();
   const location = useCurrentLocation();
@@ -628,3 +629,11 @@ const styles = StyleSheet.create({
   },
   applyLabel: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.cream50 },
 });
+
+/** Junior members (0159): tee times aren't for every age — a deep link gets the panel, not a form the database would refuse. */
+export default function TeeTimesScreen() {
+  const gate = useAgeGate("teeTimes");
+  if (gate === "loading") return <AgeGateLoading />;
+  if (gate === "blocked") return <NotForUnder18 feature="teeTimes" title="Tee times" />;
+  return <TeeTimesScreenInner />;
+}

@@ -28,6 +28,7 @@ import {
 } from "@/lib/tee-time-post";
 import { colors, radii, spacing, type } from "@/lib/theme";
 import { KEYBOARD_DISMISS_MODE, KeyboardDoneButton } from "@/components/keyboard";
+import { AgeGateLoading, NotForUnder18, useAgeGate } from "@/components/not-for-under-18";
 
 /** Which picker is open, if any. One at a time, by construction: two open
  *  pickers is the wall of chips this replaced. */
@@ -45,7 +46,7 @@ type OpenPicker = "day" | "exact" | "from" | "to" | null;
  * where, then when, then how many, then the fiddly optional bits. Nothing
  * below the Post button is required.
  */
-export default function PostTeeTimeScreen() {
+function PostTeeTimeScreenInner() {
   const days = useMemo(() => nextDays(), []);
 
   const [query, setQuery] = useState("");
@@ -497,3 +498,11 @@ const styles = StyleSheet.create({
     padding: spacing.md,
   },
 });
+
+/** Junior members (0159): tee times aren't for every age — a deep link gets the panel, not a form the database would refuse. */
+export default function PostTeeTimeScreen() {
+  const gate = useAgeGate("teeTimes");
+  if (gate === "loading") return <AgeGateLoading />;
+  if (gate === "blocked") return <NotForUnder18 feature="teeTimes" title="Tee times" />;
+  return <PostTeeTimeScreenInner />;
+}

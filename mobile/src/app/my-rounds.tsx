@@ -25,6 +25,7 @@ import {
 } from "@/lib/hosting";
 import { dateLabel } from "@/lib/tee-times";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
+import { AgeGateLoading, NotForUnder18, useAgeGate } from "@/components/not-for-under-18";
 
 /**
  * Rounds I've posted — the last piece of the website's dashboard that had no
@@ -40,7 +41,7 @@ import { colors, fonts, radii, spacing, type } from "@/lib/theme";
  * is built with the admin client. A round called off silently is somebody
  * driving to a tee time that isn't happening.
  */
-export default function MyRoundsScreen() {
+function MyRoundsScreenInner() {
   const { session } = useAuth();
   const userId = session?.user?.id ?? null;
 
@@ -440,3 +441,11 @@ const styles = StyleSheet.create({
   },
   ctaLabel: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.cream50 },
 });
+
+/** Junior members (0159): tee times aren't for every age — a deep link gets the panel, not a form the database would refuse. */
+export default function MyRoundsScreen() {
+  const gate = useAgeGate("teeTimes");
+  if (gate === "loading") return <AgeGateLoading />;
+  if (gate === "blocked") return <NotForUnder18 feature="teeTimes" title="Tee times" />;
+  return <MyRoundsScreenInner />;
+}

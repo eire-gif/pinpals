@@ -9,6 +9,7 @@ import { useAuth } from "@/lib/auth";
 import { loadSavedPosts, type FeedPost } from "@/lib/feed";
 import { colors, fonts, spacing, type } from "@/lib/theme";
 import { usePostActions } from "@/lib/use-post-actions";
+import { AgeGateLoading, NotForUnder18, useAgeGate } from "@/components/not-for-under-18";
 
 /**
  * Saved posts (phase 6) — the private bookmarks from Save (0094), most
@@ -16,7 +17,7 @@ import { usePostActions } from "@/lib/use-post-actions";
  * their post was saved. Unsaving here takes the post off the list.
  * Reached from the menu and the share sheet.
  */
-export default function SavedScreen() {
+function SavedScreenInner() {
   const { session } = useAuth();
   const userId = session?.user?.id ?? null;
   const { width } = useContentWidth();
@@ -137,3 +138,11 @@ const styles = StyleSheet.create({
   emptyTitle: { fontFamily: fonts.display, fontSize: type.title, color: colors.ink900 },
   emptyBody: { fontFamily: fonts.body, fontSize: type.small, color: colors.ink500, textAlign: "center", maxWidth: 280 },
 });
+
+/** Junior members (0159): social aren't for every age — a deep link gets the panel, not a form the database would refuse. */
+export default function SavedScreen() {
+  const gate = useAgeGate("social");
+  if (gate === "loading") return <AgeGateLoading />;
+  if (gate === "blocked") return <NotForUnder18 feature="social" title="Social" />;
+  return <SavedScreenInner />;
+}

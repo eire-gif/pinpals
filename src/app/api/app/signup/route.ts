@@ -9,8 +9,10 @@ import { signUpMember } from "@/lib/signup";
  * Unauthenticated by nature. Same function, same rate limit and same rules
  * as the website's form (src/lib/signup.ts).
  *
- * Body: { firstName, lastName, email, password }
- * 200 { ok: true }  ·  400 { error }
+ * Body: { firstName, lastName, email, password, dateOfBirth: "YYYY-MM-DD", parentEmail? }
+ *   parentEmail is required when dateOfBirth makes them 13–15 (0159).
+ * 200 { ok: true, needsParent }  ·  400 { error, code? }
+ *   code "under_13": turned away — the app locks its form for 24 hours.
  */
 export async function POST(request: Request) {
   let body: Record<string, unknown>;
@@ -25,7 +27,10 @@ export async function POST(request: Request) {
     lastName: body.lastName,
     email: body.email,
     password: body.password,
+    dateOfBirth: body.dateOfBirth,
+    parentEmail: body.parentEmail,
   });
 
-  return result.ok ? Response.json({ ok: true }) : Response.json({ error: result.error }, { status: 400 });
+  if (result.ok) return Response.json({ ok: true, needsParent: result.needsParent });
+  return Response.json(result.code ? { error: result.error, code: result.code } : { error: result.error }, { status: 400 });
 }

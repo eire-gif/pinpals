@@ -77,6 +77,13 @@ export const FEATURES = {
    *  website's /follow pages): Share live on the scoring screen, and
    *  Following in Live scoring. Off hides both. */
   liveFollow: true,
+  /** Junior members — 13 and over (claude/junior-members.md, needs 0159 and
+   *  the website's /api/app/age/* routes and /parent page): the date of birth
+   *  at sign-up, the "add your date of birth" and "waiting for your parent"
+   *  screens, and hiding what under-18s can't use. Off: nothing is fetched
+   *  and every member is drawn as an adult — the database still enforces the
+   *  age limits whatever the app shows. */
+  ageBands: true,
 
   // ---- Gates (unfinished, off) ----
   /** Shared rounds (phase 9): model only — see claude/shared-round-model.md. */

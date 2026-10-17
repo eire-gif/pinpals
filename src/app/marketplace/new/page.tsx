@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { sellerOnboardingStatus, isSellerPaymentReady } from "@/lib/stripe/connect";
 import type { StripeConnectedAccount } from "@/lib/types";
 import NewListingForm from "./new-listing-form";
+import { ageGate } from "@/components/age/age-gate";
 
 export default async function NewListingPage({ searchParams }: { searchParams: Promise<{ shop?: string }> }) {
   const { shop: asShop } = await searchParams;
@@ -15,6 +16,9 @@ export default async function NewListingPage({ searchParams }: { searchParams: P
   // Carries the destination through login, so "List an item" from the
   // homepage or the nav doesn't dead-end on the dashboard.
   if (!user) redirect("/login?next=/marketplace/new");
+  // Junior members (0159): the panel to show instead, if their age keeps them from this.
+  const ageBlocked = await ageGate("marketplaceSell", "Selling in the marketplace");
+  if (ageBlocked) return ageBlocked;
 
   // Display-only, same as before — createListing() (./actions.ts) always
   // saves as a draft now regardless of payment readiness (publishing is

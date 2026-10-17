@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { Platform } from "react-native";
+import { AppState, Platform } from "react-native";
 import { consumePendingInvite } from "@/lib/find-pinpals";
 import { consumePendingGroupInvite } from "@/lib/groups-data";
 import { consumePendingTeeLink } from "@/lib/tee-time-sharing";
@@ -21,10 +21,14 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { AdTakeoverHost } from "@/components/ad-takeover";
-import { appRouteFor } from "@/lib/alert-routes";
+import { loadAgeAccess, useAgeAccess } from "@/lib/age";
+import { gateFor, openWhileWaiting } from "@/lib/age-rules";
+import { alertAction, appRouteFor } from "@/lib/alert-routes";
 import { applyUpdateAtLaunch } from "@/lib/app-updates";
+import { goHome } from "@/lib/go-home";
+import { checkStoreAgeSignal } from "@/lib/store-age";
 import { AuthProvider, useAuth } from "@/lib/auth";
-import { hrefFromNotification, registerForPush } from "@/lib/push";
+import { hrefFromNotification, registerForPush, typeFromNotification } from "@/lib/push";
 import { connectWidget } from "@/lib/widgets";
 // Defines the lock screen distance task: iOS may wake the app just to deliver a location.
 import "@/lib/lock-screen-location";
@@ -68,6 +72,12 @@ function RootNavigator() {
         },
   );
 
+  // Junior members (0159): what this member may do by age (lib/age.ts).
+  // Only an answer the server has actually given (`known`) holds anyone at a
+  // screen — never the adult-like fallback used while offline.
+  const age = useAgeAccess();
+  const ageGate = session && age.known ? gateFor(age.access) : null;
+
   useEffect(() => {
     if (loading || !fontsLoaded) return;
 
@@ -91,8 +101,28 @@ function RootNavigator() {
       router.replace("/login");
     } else if (session && onAuthForm) {
       router.replace("/(tabs)");
+    } else if (session && ageGate && !signedOutAllowed) {
+      // Junior members (0159). A member from before juniors adds their date
+      // of birth, once; a 13–15 year old waits here until a parent says yes
+      // — with the Rules of Golf, the course directory and the guides still
+      // open to them. Not from the sign-up confirmation (it moves on by
+      // itself and lands back here) or a signed-out page.
+      if (ageGate === "dateOfBirth" && first !== "age") {
+        router.replace("/age/date-of-birth");
+      } else if (ageGate === "waiting" && !openWhileWaiting(first)) {
+        router.replace("/age/waiting");
+      }
     }
-  }, [session, loading, fontsLoaded, segments, router]);
+  }, [session, loading, fontsLoaded, segments, router, ageGate]);
+
+  // The age answer is cached for five minutes; coming back to the app is
+  // when a parent's "yes" (or a birthday) is most likely to have happened.
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "active" && session) void loadAgeAccess();
+    });
+    return () => sub.remove();
+  }, [session]);
 
   // ---------------------------------------------------------------------
   // Push registration
@@ -113,6 +143,11 @@ function RootNavigator() {
     if (!userId || registeredFor.current === userId) return;
 
     registeredFor.current = userId;
+    // A new member on this phone: their own age answer, then (once a day,
+    // adults only) what the app store says about their age (lib/store-age.ts).
+    void loadAgeAccess(true).then((snap) => {
+      if (snap.known) void checkStoreAgeSignal(userId, snap.access);
+    });
     // An invite link opened before signing in (app/join.tsx): connect now.
     void consumePendingInvite().then((owner) => {
       if (owner) router.push({ pathname: "/member/[id]", params: { id: owner } });
@@ -158,7 +193,13 @@ function RootNavigator() {
 
     let active = true;
 
-    const open = (href: string | null) => {
+    const open = (href: string | null, type: string | null) => {
+      // Junior members (0159): a change of age band or a parent's "yes"
+      // changes what the app shows — fresh answer first, then Home.
+      if (alertAction(type) === "refreshAge") {
+        void loadAgeAccess(true).then(() => goHome());
+        return;
+      }
       if (!href) return;
       const route = appRouteFor(href);
       if (route.kind === "native") {
@@ -174,11 +215,11 @@ function RootNavigator() {
     // the listener below — it has already happened by the time React mounts.
     void Notifications.getLastNotificationResponseAsync().then((response) => {
       if (!active) return;
-      open(hrefFromNotification(response?.notification));
+      open(hrefFromNotification(response?.notification), typeFromNotification(response?.notification));
     });
 
     const subscription = Notifications.addNotificationResponseReceivedListener(
-      (response) => open(hrefFromNotification(response.notification))
+      (response) => open(hrefFromNotification(response.notification), typeFromNotification(response.notification))
     );
 
     return () => {
@@ -211,6 +252,9 @@ function RootNavigator() {
       {/* The profile builder. No swipe-back: going "back" out of step one
           would land on a signed-in screen the member hasn't seen yet. */}
       <Stack.Screen name="onboarding" options={{ headerShown: false, gestureEnabled: false }} />
+      {/* Junior members (0159): full-screen stops — no header, no swipe-back. */}
+      <Stack.Screen name="age/date-of-birth" options={{ headerShown: false, gestureEnabled: false, contentStyle: { backgroundColor: colors.navy900 } }} />
+      <Stack.Screen name="age/waiting" options={{ headerShown: false, gestureEnabled: false, contentStyle: { backgroundColor: colors.navy900 } }} />
       <Stack.Screen name="course/[id]" options={{ title: "Course", headerBackTitle: "Back" }} />
       <Stack.Screen name="course/review" options={{ presentation: "modal", title: "Rate & review" }} />
       <Stack.Screen name="rate-course" options={{ title: "Rate a course", headerBackTitle: "Back" }} />

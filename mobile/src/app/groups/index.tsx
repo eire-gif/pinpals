@@ -7,6 +7,7 @@ import { GroupRow, SectionTitle, membersLabel } from "@/components/group-bits";
 import { GuideLink } from "@/components/guide-bits";
 import { ScreenHeader } from "@/components/screen-header";
 import { LoadError, StateMessage } from "@/components/state-message";
+import { useAgeAccess } from "@/lib/age";
 import { useAuth } from "@/lib/auth";
 import { isOn } from "@/lib/features";
 import { GROUP_KIND_INFO } from "@/lib/groups";
@@ -20,6 +21,11 @@ import { colors, fonts, radii, spacing, type } from "@/lib/theme";
  */
 export default function GroupsScreen() {
   const { session } = useAuth();
+  // Junior members (0159): under 18s join groups but can't start one; under
+  // 16s join only their parent's, by invitation — so no "Find a society".
+  const { access, allows } = useAgeAccess();
+  const canStart = allows("createGroups");
+  const canFind = access.can.joinGroups === "all";
   const userId = session?.user?.id ?? null;
   const [data, setData] = useState<MyGroups | null>(null);
   const [failed, setFailed] = useState(false);
@@ -92,16 +98,24 @@ export default function GroupsScreen() {
             />
           }
         >
+          {canStart || canFind ? (
           <View style={styles.actions}>
+            {canStart ? (
             <Pressable style={[styles.action, styles.actionMain]} onPress={() => router.push("/groups/new")} accessibilityRole="button">
               <Ionicons name="add" size={20} color={colors.cream50} />
               <Text style={styles.actionMainText}>Start a group</Text>
             </Pressable>
+            ) : null}
+            {canFind ? (
             <Pressable style={styles.action} onPress={() => router.push("/groups/find")} accessibilityRole="button">
               <Ionicons name="search" size={18} color={colors.navy900} />
               <Text style={styles.actionText}>Find a society</Text>
             </Pressable>
+            ) : null}
           </View>
+          ) : (
+            <Text style={styles.ageNote}>Your parent can add you to their groups and societies from their Parent dashboard.</Text>
+          )}
 
           <GuideLink title="How groups work — for friends, trips or societies" />
 
@@ -176,6 +190,7 @@ export default function GroupsScreen() {
 }
 
 const styles = StyleSheet.create({
+  ageNote: { fontFamily: fonts.body, fontSize: type.small, lineHeight: 19, color: colors.ink500 },
   fill: { flex: 1, backgroundColor: colors.cream50 },
   spinner: { marginTop: spacing.xl },
   body: { padding: spacing.md, paddingBottom: spacing.xl, gap: spacing.sm },

@@ -201,3 +201,41 @@ export function withTeeTimeFocus(href: string, inviteId: unknown): string {
   const path = href.replace(/\/+$/, "");
   return TEE_TIME_LISTS.has(path) ? `${path}?invite=${inviteId}` : href;
 }
+
+// ---------------------------------------------------------------------------
+// Junior members (0159)
+// ---------------------------------------------------------------------------
+
+/** Alerts that change what the app shows rather than open a page. */
+const REFRESH_AGE = new Set(["age_band_changed", "parent_link_approved"]);
+
+/**
+ * What tapping an alert of this type does besides following its href.
+ *
+ * "You're 16 now" / "Your parent said yes" (age_band_changed,
+ * parent_link_approved) carry no href — what they're about is the whole app
+ * changing. The tap fetches a fresh age answer (lib/age.ts) and goes Home,
+ * where the newly opened parts now are.
+ */
+export function alertAction(type: string | null | undefined): "refreshAge" | null {
+  return type && REFRESH_AGE.has(type) ? "refreshAge" : null;
+}
+
+/**
+ * The href an alert row should open: its own, or — for an alert that only
+ * names a listing (junior_ask_parent: "Ella would like this") — the
+ * listing's page. `/dashboard` (→ Home) when there's nothing better.
+ */
+export function alertHref(
+  type: string,
+  data: { href?: unknown; listingId?: unknown; listing_id?: unknown } | null | undefined
+): string {
+  const href = typeof data?.href === "string" && data.href.startsWith("/") ? data.href : null;
+  if (href) return href;
+  // The website's ask-parent route stores it as listing_id.
+  const listing = data?.listing_id ?? data?.listingId;
+  if (type === "junior_ask_parent" && typeof listing === "number" && Number.isInteger(listing) && listing > 0) {
+    return `/marketplace/${listing}`;
+  }
+  return "/dashboard";
+}

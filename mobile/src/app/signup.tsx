@@ -14,12 +14,20 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
+import * as SecureStore from "expo-secure-store";
+
+import { BirthDateField } from "@/components/birth-date-field";
 import { KEYBOARD_DISMISS_MODE } from "@/components/keyboard";
+import { SIGNUP_LOCK_MS, UNDER_13_MESSAGE, looksLikeEmail, signupAge, signupLockedUntil } from "@/lib/age-rules";
+import { isOn } from "@/lib/features";
 import { SITE_URL } from "@/lib/config";
 import { cleanCode, confirmWithCode, isCompleteCode, resendSignupCode } from "@/lib/signup-code";
 import { colors, fonts, radii, spacing, type, AUTH_COLUMN } from "@/lib/theme";
 
 const MIN_PASSWORD = 6;
+
+/** Junior members (0159): when a date of birth under 13 shut the form on this phone. */
+const LOCK_KEY = "pinpals.signup-locked-until";
 
 /**
  * Create an account — in the app (Oct 2026). It used to open the website's
@@ -35,6 +43,15 @@ const MIN_PASSWORD = 6;
  * member in without leaving the app (lib/signup-code.ts). The link still
  * works too — on this phone it opens the app (auth-confirm.tsx) when the mail
  * app and iOS cooperate, and the website otherwise.
+ *
+ * JUNIOR MEMBERS (Oct 2026, 0159). PinPals takes golfers from 13. The form
+ * asks for a date of birth — a plain field, nothing about a minimum age —
+ * and, only when it makes the member under 16, a parent or guardian's
+ * email: the parent approves the account from a link we send them. The
+ * server decides (POST /api/app/signup answers `code: "under_13"` for under
+ * 13s); the app then closes the form on this phone for 24 hours. An under-16
+ * confirms their code as usual and lands on the waiting screen, which the
+ * root layout sends them to by itself.
  */
 export default function SignUpScreen() {
   const router = useRouter();
@@ -46,6 +63,26 @@ export default function SignUpScreen() {
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [sentTo, setSentTo] = useState<string | null>(null);
+  const [dob, setDob] = useState("");
+  const [parentEmail, setParentEmail] = useState("");
+  const [lockedUntil, setLockedUntil] = useState<Date | null>(null);
+
+  const ages = isOn("ageBands");
+  const under16 = ages && dob !== "" && signupAge(dob, new Date()) === "under16";
+
+  // A date under 13 shut the form on this phone earlier today.
+  useEffect(() => {
+    if (!ages) return;
+    void SecureStore.getItemAsync(LOCK_KEY)
+      .then((v) => setLockedUntil(signupLockedUntil(v, new Date())))
+      .catch(() => undefined);
+  }, [ages]);
+
+  const lock = () => {
+    const until = new Date(Date.now() + SIGNUP_LOCK_MS);
+    setLockedUntil(until);
+    void SecureStore.setItemAsync(LOCK_KEY, until.toISOString()).catch(() => undefined);
+  };
 
   const lastRef = useRef<TextInput>(null);
   const emailRef = useRef<TextInput>(null);
@@ -62,15 +99,39 @@ export default function SignUpScreen() {
       setError(`Your password needs at least ${MIN_PASSWORD} characters.`);
       return;
     }
+    if (ages && !dob) {
+      setError("Please add your date of birth.");
+      return;
+    }
+    if (under16 && !looksLikeEmail(parentEmail)) {
+      setError("Please add your parent or guardian's email.");
+      return;
+    }
+    if (under16 && parentEmail.trim().toLowerCase() === address.toLowerCase()) {
+      setError("Your parent or guardian's email needs to be their own, not yours.");
+      return;
+    }
     setPending(true);
     setError(null);
     try {
       const res = await fetch(`${SITE_URL}/api/app/signup`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ firstName: first.trim(), lastName: last.trim(), email: address, password }),
+        body: JSON.stringify({
+          firstName: first.trim(),
+          lastName: last.trim(),
+          email: address,
+          password,
+          ...(ages ? { dateOfBirth: dob } : {}),
+          ...(under16 ? { parentEmail: parentEmail.trim() } : {}),
+        }),
       });
-      const body = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+      const body = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string; code?: string };
+      if (body.code === "under_13") {
+        lock();
+        setPending(false);
+        return;
+      }
       if (!res.ok || !body.ok) {
         setError(body.error ?? "Couldn't create your account. Please try again.");
         setPending(false);
@@ -87,6 +148,27 @@ export default function SignUpScreen() {
     return <ConfirmCode email={sentTo} onBack={() => setSentTo(null)} />;
   }
 
+  if (lockedUntil) {
+    return (
+      <SafeAreaView style={styles.fill}>
+        <View style={styles.scroll}>
+          <View style={styles.card}>
+            <View style={styles.doneIcon}>
+              <Ionicons name="golf-outline" size={30} color={colors.green700} />
+            </View>
+            <Text style={styles.doneTitle}>Not just yet</Text>
+            <Text style={styles.doneBody}>
+              {UNDER_13_MESSAGE} We&apos;d love to see you back when you&apos;re 13.
+            </Text>
+            <Pressable style={styles.linkRow} onPress={() => router.replace("/login")} accessibilityRole="link">
+              <Text style={styles.link}>Back to log in</Text>
+            </Pressable>
+          </View>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.fill}>
       <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === "ios" ? "padding" : undefined}>
@@ -101,7 +183,9 @@ export default function SignUpScreen() {
           </View>
           <Text style={styles.title}>Tell us about your game.</Text>
           <Text style={styles.tagline}>
-            Your name, email and a password is all it takes — add your home club and handicap right after.
+            {ages
+              ? "Your name, email, a password and your date of birth is all it takes — add your home club and handicap right after."
+              : "Your name, email and a password is all it takes — add your home club and handicap right after."}
           </Text>
 
           <View style={styles.card}>
@@ -178,6 +262,26 @@ export default function SignUpScreen() {
               </View>
               <Text style={styles.hint}>At least {MIN_PASSWORD} characters.</Text>
             </View>
+
+            {ages ? <BirthDateField value={dob} onChange={setDob} /> : null}
+
+            {/* Only for 13–15 year olds. */}
+            {under16 ? (
+              <View style={styles.field}>
+                <Text style={styles.label}>Parent or guardian&apos;s email</Text>
+                <TextInput
+                  style={styles.input}
+                  value={parentEmail}
+                  onChangeText={setParentEmail}
+                  autoCapitalize="none"
+                  autoComplete="off"
+                  keyboardType="email-address"
+                  returnKeyType="go"
+                  onSubmitEditing={submit}
+                />
+                <Text style={styles.hint}>Under 16? A parent or guardian approves your account — we&apos;ll email them a link.</Text>
+              </View>
+            ) : null}
 
             {error ? (
               <View style={styles.errorBox}>

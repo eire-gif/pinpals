@@ -115,6 +115,7 @@ export function renderEmailHtml(input: { title: string; bodyLines: string[]; cta
 </html>`;
 }
 
-function escapeHtml(text: string): string {
+/** Exported for the few emails with their own layout (the parent-approval email, src/lib/age-access.ts). */
+export function escapeHtml(text: string): string {
   return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }

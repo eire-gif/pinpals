@@ -6,6 +6,7 @@ import { runOfferSweeps } from "../actions";
 import CheckoutForm from "@/app/checkout/checkout-form";
 import { submitBuyNowCheckout } from "./actions";
 import type { Address, Auction, Listing } from "@/lib/types";
+import { ageGate } from "@/components/age/age-gate";
 
 function parseListingId(id: string): number | null {
   const listingId = Number(id);
@@ -41,6 +42,9 @@ export default async function BuyNowCheckoutPage({ params }: { params: Promise<{
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect(`/login?next=/marketplace/${listingId}/checkout`);
+  // Junior members (0159): the panel to show instead, if their age keeps them from this.
+  const ageBlocked = await ageGate("marketplaceSell", "Buying in the marketplace");
+  if (ageBlocked) return ageBlocked;
 
   await runOfferSweeps();
 

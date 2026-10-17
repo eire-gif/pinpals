@@ -15,6 +15,7 @@ import { computeResponseRate } from "@/lib/marketplace";
 // admin-console vocabulary this page has no business importing.
 import { formatDateTime } from "@/lib/admin/format";
 import StartOnboardingButton from "./start-onboarding-button";
+import { ageGate } from "@/components/age/age-gate";
 
 export default async function PayoutsPage() {
   const supabase = await createClient();
@@ -23,6 +24,12 @@ export default async function PayoutsPage() {
   } = await supabase.auth.getUser();
 
   if (!user) redirect("/login?next=/dashboard/payouts");
+
+  // Junior members (0159): the panel to show instead, if their age keeps them from this.
+
+  const ageBlocked = await ageGate("marketplaceSell", "Getting paid for sales");
+
+  if (ageBlocked) return ageBlocked;
 
   // RLS scopes every one of these to the signed-in member's own rows (or, for
   // reviews, to public data anyway) — no service-role client needed for any

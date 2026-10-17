@@ -592,6 +592,8 @@ export function askReportReason(onPick: (category: string) => void) {
     ["harassment", "Harassment or bullying"],
     ["spam", "Spam"],
     ["scam_fraud", "Scam or fraud"],
+    // Junior members (0159): Social is 18+; staff check the author's age.
+    ["underage", "May be under 18"],
     ["other", "Something else"],
   ] as const;
   if (Platform.OS === "ios") {

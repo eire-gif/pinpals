@@ -6,6 +6,7 @@ import type { MyTeeTimeRequest } from "@/lib/types";
 import MyTeeTimeRequests from "@/app/dashboard/my-tee-time-requests";
 import TeeTimesTabs from "../tee-times-tabs";
 import TeeTimesPageHeader from "../tee-times-page-header";
+import { ageGate } from "@/components/age/age-gate";
 
 /**
  * The other side of the same conversation: rounds this member has asked to
@@ -26,6 +27,12 @@ export default async function MyTeeTimeRequestsPage({ searchParams }: { searchPa
   } = await supabase.auth.getUser();
 
   if (!user) redirect(`/login?next=${encodeURIComponent(focus === null ? "/tee-times/requests" : `/tee-times/requests?invite=${focus}`)}`);
+
+  // Junior members (0159): the panel to show instead, if their age keeps them from this.
+
+  const ageBlocked = await ageGate("teeTimes", "Tee times");
+
+  if (ageBlocked) return ageBlocked;
 
   const { data: requests } = await supabase
     .from("tee_time_interests")

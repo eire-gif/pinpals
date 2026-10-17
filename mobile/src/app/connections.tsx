@@ -29,6 +29,7 @@ import {
 } from "@/lib/members";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 import { KEYBOARD_DISMISS_MODE } from "@/components/keyboard";
+import { AgeGateLoading, NotForUnder18, useAgeGate } from "@/components/not-for-under-18";
 
 /**
  * Your connections, and the requests waiting on you.
@@ -47,7 +48,7 @@ type Row =
   | { kind: "accepted"; member: Member }
   | { kind: "outgoing"; member: Member };
 
-export default function ConnectionsScreen() {
+function ConnectionsScreenInner() {
   const { session } = useAuth();
   const userId = session?.user?.id ?? null;
 
@@ -471,3 +472,11 @@ const styles = StyleSheet.create({
   ctaQuiet: { minHeight: 44, justifyContent: "center", alignItems: "center" },
   ctaQuietLabel: { fontFamily: fonts.bodyBold, fontSize: 14.5, color: colors.green700 },
 });
+
+/** Junior members (0159): pinpals aren't for every age — a deep link gets the panel, not a form the database would refuse. */
+export default function ConnectionsScreen() {
+  const gate = useAgeGate("connections");
+  if (gate === "loading") return <AgeGateLoading />;
+  if (gate === "blocked") return <NotForUnder18 feature="connections" title="PinPals" />;
+  return <ConnectionsScreenInner />;
+}

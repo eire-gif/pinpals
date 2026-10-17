@@ -9,6 +9,7 @@ import { getFeedPage } from "@/lib/feed-server";
 import type { Profile } from "@/lib/types";
 import Composer from "./composer";
 import PostCard from "./post-card";
+import { ageGate } from "@/components/age/age-gate";
 
 export const metadata: Metadata = {
   title: "Social · PinPals",
@@ -73,6 +74,11 @@ export default async function FeedPage({
       </div>
     );
   }
+
+  // Junior members (0159): Social is for adults. The database keeps the feed
+  // empty for under-18s anyway; this says why instead of showing nothing.
+  const ageBlocked = await ageGate("social", "Social");
+  if (ageBlocked) return ageBlocked;
 
   const [{ data: me }, page] = await Promise.all([
     supabase

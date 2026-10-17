@@ -30,7 +30,7 @@ import {
   playingHandicap,
   type MatchFormat,
 } from "@/lib/live-scoring";
-import { listConnections } from "@/lib/members";
+import { pinPalsToPlayWith } from "@/lib/age";
 import { canDrawFrom, loadGroupRoster, loadMyGroups } from "@/lib/groups-data";
 import { loadMyProfile } from "@/lib/profile";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
@@ -120,8 +120,9 @@ export default function NewMatchDay() {
     // a society's captain sees the whole society here.
     void (async () => {
       const byId = new Map<string, Candidate>();
-      const connections = await listConnections(userId).catch(() => null);
-      for (const p of connections?.accepted ?? []) byId.set(p.id, { id: p.id, name: p.name, handicap: p.handicap, from: null });
+      // Under 16: their parent and approved contacts instead (0159).
+      const connections = await pinPalsToPlayWith(userId).catch(() => null);
+      for (const p of connections ?? []) byId.set(p.id, { id: p.id, name: p.name, handicap: p.handicap, from: null });
       const groups = await loadMyGroups(userId).then((g) => g.groups.filter(canDrawFrom)).catch(() => []);
       const rosters = await Promise.all(groups.map((g) => loadGroupRoster(g.id).then((r) => ({ g, r })).catch(() => ({ g, r: [] }))));
       for (const { g, r } of rosters) {

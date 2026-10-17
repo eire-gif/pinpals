@@ -23,6 +23,7 @@ import { createShareLink, loadPost, setSaved, type FeedPost, type ShareTarget } 
 import { loadShareTargets, sendPostTo } from "@/lib/share-targets";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 import { KEYBOARD_DISMISS_MODE } from "@/components/keyboard";
+import { AgeGateLoading, NotForUnder18, useAgeGate } from "@/components/not-for-under-18";
 
 /**
  * Share a post (phase 6), as a sheet — the mockup's "Share Post":
@@ -40,7 +41,7 @@ import { KEYBOARD_DISMISS_MODE } from "@/components/keyboard";
  * preview) needs a native module (expo-sharing / expo-file-system) and so a
  * TestFlight build; the link preview carries the same picture meanwhile.
  */
-export default function ShareScreen() {
+function ShareScreenInner() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const postId = Number(id);
   const { session } = useAuth();
@@ -335,3 +336,11 @@ const styles = StyleSheet.create({
   sentPill: { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: colors.green100, borderRadius: radii.pill, paddingHorizontal: spacing.sm + 4, paddingVertical: 6 },
   sentLabel: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.green800 },
 });
+
+/** Junior members (0159): social aren't for every age — a deep link gets the panel, not a form the database would refuse. */
+export default function ShareScreen() {
+  const gate = useAgeGate("social");
+  if (gate === "loading") return <AgeGateLoading />;
+  if (gate === "blocked") return <NotForUnder18 feature="social" title="Social" />;
+  return <ShareScreenInner />;
+}

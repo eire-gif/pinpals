@@ -6,6 +6,7 @@ import type { InterestWithDetails } from "@/lib/types";
 import InterestedGolfers from "@/app/dashboard/interested-golfers";
 import TeeTimesTabs from "../tee-times-tabs";
 import TeeTimesPageHeader from "../tee-times-page-header";
+import { ageGate } from "@/components/age/age-gate";
 
 /**
  * Requests waiting on the host's answer.
@@ -30,6 +31,12 @@ export default async function InterestedGolfersPage({ searchParams }: { searchPa
   } = await supabase.auth.getUser();
 
   if (!user) redirect(`/login?next=${encodeURIComponent(focus === null ? "/tee-times/interested" : `/tee-times/interested?invite=${focus}`)}`);
+
+  // Junior members (0159): the panel to show instead, if their age keeps them from this.
+
+  const ageBlocked = await ageGate("teeTimes", "Tee times");
+
+  if (ageBlocked) return ageBlocked;
 
   const { data: interests } = await supabase
     .from("tee_time_interests")

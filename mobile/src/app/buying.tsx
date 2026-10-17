@@ -35,6 +35,7 @@ import {
 import { ORDER_STATUS_LABELS, PAYMENT_STATUS_LABELS, cents, shortDate, timeRemaining } from "@/lib/selling";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 import { KEYBOARD_DISMISS_MODE, KeyboardDoneButton } from "@/components/keyboard";
+import { AgeGateLoading, NotForUnder18, useAgeGate } from "@/components/not-for-under-18";
 
 /**
  * My buying — what you've bought, what you've offered, what you've saved,
@@ -69,7 +70,7 @@ type Data = {
 
 const EMPTY: Data = { purchases: [], offers: [], bids: [], saved: [], reviewable: [] };
 
-export default function BuyingScreen() {
+function BuyingScreenInner() {
   const { session } = useAuth();
   const userId = session?.user?.id ?? null;
 
@@ -691,3 +692,11 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
 });
+
+/** Junior members (0159): buying aren't for every age — a deep link gets the panel, not a form the database would refuse. */
+export default function BuyingScreen() {
+  const gate = useAgeGate("buy");
+  if (gate === "loading") return <AgeGateLoading />;
+  if (gate === "blocked") return <NotForUnder18 feature="buy" title="Buying" />;
+  return <BuyingScreenInner />;
+}

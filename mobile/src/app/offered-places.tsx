@@ -18,6 +18,7 @@ import { listOfferedPlaces, type OfferedPlace } from "@/lib/rounds";
 import { confirmPlace } from "@/lib/tee-time-interest";
 import { dateLabel } from "@/lib/tee-times";
 import { colors, fonts, radii, spacing } from "@/lib/theme";
+import { AgeGateLoading, NotForUnder18, useAgeGate } from "@/components/not-for-under-18";
 
 type Answer = "confirmed" | "declined" | "error";
 
@@ -32,7 +33,7 @@ type Answer = "confirmed" | "declined" | "error";
  * work?". When everything is answered the screen says so and offers the way
  * back.
  */
-export default function OfferedPlacesScreen() {
+function OfferedPlacesScreenInner() {
   const { session } = useAuth();
   const userId = session?.user?.id ?? null;
 
@@ -371,3 +372,11 @@ const styles = StyleSheet.create({
   doneTitle: { fontFamily: fonts.display, fontSize: 24, color: colors.ink900 },
   doneBody: { fontFamily: fonts.body, fontSize: 15.5, color: "#4c5667", textAlign: "center", marginBottom: 10 },
 });
+
+/** Junior members (0159): tee times aren't for every age — a deep link gets the panel, not a form the database would refuse. */
+export default function OfferedPlacesScreen() {
+  const gate = useAgeGate("teeTimes");
+  if (gate === "loading") return <AgeGateLoading />;
+  if (gate === "blocked") return <NotForUnder18 feature="teeTimes" title="Tee times" />;
+  return <OfferedPlacesScreenInner />;
+}

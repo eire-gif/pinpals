@@ -10,7 +10,9 @@ import { displayBrand, SPEC_FIELD_LABELS } from "@/lib/marketplace-brands";
 import { sellerOnboardingStatus, isSellerPaymentReady } from "@/lib/stripe/connect";
 import { getSiteUrl } from "@/lib/site-url";
 import { fetchMarketplaceListings, EMPTY_MARKETPLACE_FILTERS } from "@/lib/marketplace-discovery";
-import { computeListingPurchaseState } from "./action-state";
+import { computeListingPurchaseState, type ListingPurchaseState } from "./action-state";
+import { getAgeAccess } from "@/lib/age-access";
+import { ageBlockFor } from "@/lib/junior";
 import { runOfferSweeps } from "./actions";
 import PublishListingButton from "./publish-listing-button";
 import OffersList from "./offers-list";
@@ -273,13 +275,27 @@ export default async function ListingDetailPage({
   );
   const relatedListings = related.listings.filter((l) => l.id !== listing.id).slice(0, 4);
 
-  const purchaseState = computeListingPurchaseState({
-    listing,
-    auction,
-    currentBidCents,
-    isSeller,
-    isSignedIn: !!user,
-  });
+  // Junior members (0159): under-18s browse only. Buying, offers and bids
+  // read as unavailable with the reason, rather than forms the database
+  // would refuse; messaging the seller is off with chat.
+  const ageAccess = user ? await getAgeAccess() : null;
+  const browseOnly = !!ageBlockFor(ageAccess, "marketplaceSell");
+  const purchaseState: ListingPurchaseState =
+    browseOnly && !isSeller
+      ? {
+          kind: "unavailable",
+          reason:
+            ageAccess?.band === "junior"
+              ? "Buying isn't available to members under 18 — use Ask a parent in the app to send it to your parent."
+              : "Buying isn't available to members under 18.",
+        }
+      : computeListingPurchaseState({
+          listing,
+          auction,
+          currentBidCents,
+          isSeller,
+          isSignedIn: !!user,
+        });
 
   // Brand shows the seller's own words for an "Other" listing and the
   // canonical label otherwise; null for every listing created before the
@@ -422,7 +438,7 @@ export default async function ListingDetailPage({
               joinedAtIso={sellerProfile?.created_at ?? listing.created_at}
               verified={sellerVerified}
               rating={ratingSummary}
-              viewerIsSignedIn={!!user}
+              viewerIsSignedIn={!!user && !browseOnly}
               viewerIsSeller={isSeller}
             />
           </div>
@@ -469,7 +485,7 @@ export default async function ListingDetailPage({
               joinedAtIso={sellerProfile?.created_at ?? listing.created_at}
               verified={sellerVerified}
               rating={ratingSummary}
-              viewerIsSignedIn={!!user}
+              viewerIsSignedIn={!!user && !browseOnly}
               viewerIsSeller={isSeller}
             />
           </div>

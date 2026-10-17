@@ -5,6 +5,7 @@ import type { Metadata } from "next";
 import { getPost } from "@/lib/feed-server";
 import { createClient } from "@/lib/supabase/server";
 import PostCard from "../post-card";
+import { ageGate } from "@/components/age/age-gate";
 
 export const metadata: Metadata = { title: "Post · PinPals" };
 
@@ -26,6 +27,9 @@ export default async function PostPage({ params }: { params: Promise<{ id: strin
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect(`/login?next=/feed/${postId}`);
+  // Junior members (0159): the panel to show instead, if their age keeps them from this.
+  const ageBlocked = await ageGate("social", "Social");
+  if (ageBlocked) return ageBlocked;
 
   const post = await getPost(supabase, user.id, postId);
   if (!post) notFound();

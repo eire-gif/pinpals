@@ -23,6 +23,7 @@ import { HomeGroups } from "@/components/home-groups";
 import { LiveScoringCard } from "@/components/live-scoring-card";
 import { InviteBanner, SuggestionCard } from "@/components/pinpals";
 import { RecapPrompt } from "@/components/recap-prompt";
+import { useAgeAccess } from "@/lib/age";
 import { useAuth } from "@/lib/auth";
 import { suggestedPinPals, type Suggestion } from "@/lib/onboarding";
 import { SITE_URL } from "@/lib/config";
@@ -69,6 +70,14 @@ export default function HomeScreen() {
   const unread = useInboxUnread(session?.user?.id ?? null);
 
   const userId = session?.user?.id ?? null;
+  // Junior members (0159): what this member is old enough for. Sections for
+  // tee times, Social, PinPals and selling are left out rather than shown
+  // empty — the database would refuse them anyway.
+  const { allows } = useAgeAccess();
+  const teeTimes = allows("teeTimes");
+  const social = allows("social");
+  const connections = allows("connections");
+  const sell = allows("sell");
   const [summary, setSummary] = useState<HomeSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -169,7 +178,7 @@ export default function HomeScreen() {
             </Text>
             {/* Your invite QR code — same button as on Find PinPals, so a
                 golfer in the clubhouse can be signed up from Home. */}
-            <Pressable
+            {connections ? <Pressable
               onPress={() => router.push("/invite-friends")}
               style={({ pressed }) => [styles.heroQr, pressed && { opacity: 0.8 }]}
               hitSlop={6}
@@ -177,7 +186,7 @@ export default function HomeScreen() {
               accessibilityLabel="Your PinPals QR code to invite someone"
             >
               <Ionicons name="qr-code-outline" size={20} color={colors.gold400} />
-            </Pressable>
+            </Pressable> : null}
           </View>
 
           {courses ? (
@@ -205,6 +214,7 @@ export default function HomeScreen() {
             {/* First, and the only gold one: finding people to play with is
                 what PinPals is for. A gold lip underneath makes it a raised
                 button, like Live Scoring. */}
+            {connections ? (
             <Pressable onPress={() => router.push("/members")} accessibilityRole="button" style={styles.goldOuter}>
               {({ pressed }) => (
                 <View style={[styles.goldLip, pressed && styles.goldLipPressed]}>
@@ -218,15 +228,21 @@ export default function HomeScreen() {
                 </View>
               )}
             </Pressable>
+            ) : null}
 
-            <HeroTile icon="flag" label="Post a tee time" onPress={() => router.push("/post-tee-time")} />
-            <HeroTile icon="search" label="Find a game" onPress={() => router.push("/tee-times")} />
-            <HeroTile icon="pricetag-outline" label="Sell an item" onPress={() => router.push("/new-listing")} />
-            <HeroTile
-              icon="camera-outline"
-              label="Share a photo"
-              onPress={() => router.push({ pathname: "/new-post", params: { type: "photo" } })}
-            />
+            {teeTimes ? <HeroTile icon="flag" label="Post a tee time" onPress={() => router.push("/post-tee-time")} /> : null}
+            {teeTimes ? <HeroTile icon="search" label="Find a game" onPress={() => router.push("/tee-times")} /> : null}
+            {sell ? <HeroTile icon="pricetag-outline" label="Sell an item" onPress={() => router.push("/new-listing")} /> : null}
+            {social ? (
+              <HeroTile
+                icon="camera-outline"
+                label="Share a photo"
+                onPress={() => router.push({ pathname: "/new-post", params: { type: "photo" } })}
+              />
+            ) : null}
+            {/* Under 18: what's theirs instead of the tiles above. */}
+            {!teeTimes ? <HeroTile icon="podium-outline" label="Live scoring" onPress={() => router.push("/live")} /> : null}
+            {!teeTimes ? <HeroTile icon="flag-outline" label="Course directory" onPress={() => router.push("/courses")} /> : null}
           </View>
         </View>
       </ImageBackground>
@@ -240,7 +256,7 @@ export default function HomeScreen() {
         left={
       <>
       {/* Overlaps the hero's bottom edge (the hero leaves room for it). */}
-      <ShareComposer me={me} />
+      {social ? <ShareComposer me={me} /> : null}
 
       {/* Right under the composer: both are "I'm playing / I've played". */}
       <LiveScoringCard />
@@ -257,14 +273,14 @@ export default function HomeScreen() {
         <View style={styles.body}>
           {/* "How did it go?" for a round just played (phase 7). Renders
               nothing when there's no round to offer. */}
-          <RecapPrompt userId={userId} />
+          {social ? <RecapPrompt userId={userId} /> : null}
 
-          <NextRound summary={summary} onOpen={(id) => router.push(`/invite/${id}`)} />
+          {teeTimes ? <NextRound summary={summary} onOpen={(id) => router.push(`/invite/${id}`)} /> : null}
 
           {/* Only rendered when there IS something waiting. A permanent row
               reading "0 requests" trains a member to stop looking at this part
               of the screen, which is the one part that ever needs them. */}
-          {summary && summary.requestsWaiting > 0 ? (
+          {teeTimes && summary && summary.requestsWaiting > 0 ? (
             <WaitingRow
               icon="people-outline"
               text={
@@ -276,7 +292,7 @@ export default function HomeScreen() {
             />
           ) : null}
 
-          {summary && summary.offersWaiting > 0 ? (
+          {teeTimes && summary && summary.offersWaiting > 0 ? (
             <WaitingRow
               icon="golf-outline"
               text={
@@ -318,36 +334,48 @@ export default function HomeScreen() {
             />
           ) : null}
 
-          <ClubhouseStrip posts={photos} />
+          {social ? (
+            <>
+              <ClubhouseStrip posts={photos} />
 
-          <MostLikedThisWeek post={topPost} />
+              <MostLikedThisWeek post={topPost} />
 
-          <RateYourCourses clubs={toRate} />
+              <RateYourCourses clubs={toRate} />
 
-          <LatestReviews reviews={reviews} />
+              <LatestReviews reviews={reviews} />
+            </>
+          ) : null}
 
-          <PinPalsNearYou
-            people={pinpals}
-            onSeeAll={() => router.push("/members")}
-          />
+          {connections ? (
+            <PinPalsNearYou
+              people={pinpals}
+              onSeeAll={() => router.push("/members")}
+            />
+          ) : null}
 
           {/* Always here, unlike the rows above — these are shortcuts, not
               alerts. Two screens a member goes to on purpose and which were
               otherwise three taps away through the menu. */}
+          {connections || sell ? (
           <View style={styles.quickLinks}>
+            {connections ? (
             <QuickLink
               icon="people"
               label="My connections"
               sub="Your PinPals"
               onPress={() => router.push("/connections")}
             />
+            ) : null}
+            {sell ? (
             <QuickLink
               icon="pricetags"
               label="My listings"
               sub="What you're selling"
               onPress={() => router.push("/my-listings")}
             />
+            ) : null}
           </View>
+          ) : null}
 
           <Band
             eyebrow="Every county, every links"
@@ -366,7 +394,11 @@ export default function HomeScreen() {
           <Band
             eyebrow="Marketplace"
             title="Clearing out the garage?"
-            body="Sell your old clubs to a fellow golfer, or see what other members have listed near you. No fees to list."
+            body={
+              sell
+                ? "Sell your old clubs to a fellow golfer, or see what other members have listed near you. No fees to list."
+                : "See what other members have listed near you. Under 18s can browse; a parent buys for you."
+            }
             action="Browse the marketplace"
             icon="pricetag-outline"
             photo={BAND_MARKET}

@@ -37,6 +37,9 @@ export const REPORT_CATEGORIES = [
   "item_not_as_described",
   "item_not_received",
   "payment_issue",
+  // Junior members (0159): "this member may be under 18". Staff review it on
+  // the member's admin page (Age): restrict, clear, or correct the date.
+  "underage",
 ] as const;
 export type ReportCategory = (typeof REPORT_CATEGORIES)[number];
 
@@ -129,6 +132,7 @@ export const REPORT_CATEGORY_LABELS: Record<ReportCategory, string> = {
   item_not_as_described: "Item not as described",
   item_not_received: "Item not received",
   payment_issue: "Payment issue",
+  underage: "May be under 18",
 };
 
 export const REPORT_TARGET_TYPE_LABELS: Record<ReportTargetType, string> = {
@@ -164,6 +168,7 @@ export const USER_REPORT_CATEGORIES: readonly ReportCategory[] = [
   "spam",
   "no_show",
   "inappropriate_content",
+  "underage",
   "other",
 ];
 export const ORDER_REPORT_CATEGORIES: readonly ReportCategory[] = [

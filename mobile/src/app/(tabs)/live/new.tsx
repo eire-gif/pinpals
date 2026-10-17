@@ -35,7 +35,8 @@ import {
   type LiveFormat,
   type ScrambleSize,
 } from "@/lib/live-scoring";
-import { listConnections, type Member } from "@/lib/members";
+import { pinPalsToPlayWith } from "@/lib/age";
+import type { Member } from "@/lib/members";
 import { loadClub } from "@/lib/outings";
 import { loadMyProfile } from "@/lib/profile";
 import { teeTimeLineUp, whenLabel, type TeeMate } from "@/lib/tee-times";
@@ -60,6 +61,8 @@ import { openGamePath } from "@/lib/open-game";
  * Members can add themselves, their PinPals and guests by name. Only
  * accepted PinPals are offered: putting a stranger on a leaderboard is
  * refused by live_round_create anyway, and offering it would be a trap.
+ * Under 16 (0159): no PinPals — their parent and the contacts their parent
+ * approves are offered instead (pinPalsToPlayWith in lib/age.ts).
  *
  * FROM A TEE TIME (0141): opened with ?teeTime=<id> from a tee time's
  * "Start live scoring", the course is set and everyone on the tee time is
@@ -223,7 +226,7 @@ export default function NewLiveRound() {
     setPicking(true);
     if (pals == null && userId) {
       try {
-        setPals((await listConnections(userId)).accepted);
+        setPals(await pinPalsToPlayWith(userId));
       } catch {
         setPals([]);
       }

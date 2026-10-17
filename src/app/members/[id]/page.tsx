@@ -15,6 +15,8 @@ import { formatJoinedDate } from "@/lib/format";
 import { enrichListings } from "@/lib/marketplace-discovery";
 import { countryName } from "@/lib/regions";
 import { createClient } from "@/lib/supabase/server";
+import { getAgeAccess } from "@/lib/age-access";
+import { ageBlockFor } from "@/lib/junior";
 import type { Connection, Listing, Profile } from "@/lib/types";
 
 export const metadata: Metadata = { title: "Member · PinPals" };
@@ -65,6 +67,9 @@ export default async function MemberPage({
 
   const isMe = member.id === user.id;
   const blocked = isMe ? false : await hasBlocked(supabase, user.id, member.id);
+  // Junior members (0159): under-16s don't add PinPals themselves (their
+  // parent approves who they play with), so no connect button for them.
+  const canConnect = !ageBlockFor(await getAgeAccess(), "connections");
 
   const [ageBandResult, connectionResult, postCount, posts, listingsResult] = await Promise.all([
     supabase
@@ -142,7 +147,7 @@ export default async function MemberPage({
               once connected — so it behaves identically in both places.
               Hidden while blocked: connecting to someone you've blocked
               would undo nothing and confuse everything. */}
-          {!isMe && !blocked && (
+          {!isMe && !blocked && canConnect && (
             <div className="border-b border-line pb-4">
               <ConnectButton
                 memberId={member.id}

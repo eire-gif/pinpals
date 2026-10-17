@@ -17,6 +17,13 @@ describe("data export", () => {
     for (const t of ["profiles", "member_private", "member_birthdates", "member_phones", "messages", "orders"]) expect(tables.has(t)).toBe(true);
   });
 
+  it("covers parent links and approved contacts (0159), without the link's secret", () => {
+    const tables = new Set(EXPORT_SOURCES.map((s) => s.table));
+    expect(tables.has("guardian_links")).toBe(true);
+    expect(tables.has("junior_contacts")).toBe(true);
+    expect(scrubRow({ id: 3, status: "approved", token_hash: "a".repeat(64) })).toEqual({ id: 3, status: "approved" });
+  });
+
   it("never lets secrets or staff notes out", () => {
     const row = scrubRow({ id: 1, p256dh: "k", auth: "a", token: "t", invite_token: "x", share_secret: "s", key_hash: "h", moderation_note: "m", hidden_by: "u", title: "Driver" });
     expect(row).toEqual({ id: 1, title: "Driver" });

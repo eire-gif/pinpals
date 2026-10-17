@@ -6,6 +6,7 @@ import * as ImagePicker from "expo-image-picker";
 
 import { Avatar } from "@/components/avatar";
 import { GroupIcon, RoleBadge, SectionTitle, membersLabel } from "@/components/group-bits";
+import { useAgeAccess } from "@/lib/age";
 import { GroupPastResults } from "@/components/group-past-results";
 import { LoadError, StateMessage } from "@/components/state-message";
 import { TwoPane } from "@/components/two-pane";
@@ -62,6 +63,7 @@ export default function GroupScreen() {
   const { id: rawId, fresh } = useLocalSearchParams<{ id: string; fresh?: string }>();
   const groupId = Number(rawId);
   const { session } = useAuth();
+  const { allows: ageAllows } = useAgeAccess();
   const userId = session?.user?.id ?? null;
   const [page, setPage] = useState<GroupPage | null | undefined>(undefined);
   const [failed, setFailed] = useState(false);
@@ -216,6 +218,14 @@ export default function GroupScreen() {
   const areas: SocietyArea[] = society ? officeAreas(myRole, page.myOffice) : [];
   const owed = (extras?.dues ?? []).reduce((a, d) => a + d.amountCents, 0);
   const go = (pathname: string, params: Record<string, string> = {}) => router.push({ pathname, params: { id: String(groupId), ...params } } as never);
+
+  // Junior members (0159): under 18s are in groups as members only, with no
+  // group chat (chat is 18+). A minor viewer never holds owner/admin, so the
+  // role and office options below never show for them. The app can't tell
+  // another member's age band, so "Make admin / captain" still shows on a
+  // minor's row for an owner; age_guard refuses it with "Members under 18
+  // can't run a group", shown by act().
+  const chatAllowed = ageAllows("chat");
 
   function memberMenu(m: GroupMember) {
     if (m.id === userId) {
@@ -501,7 +511,7 @@ export default function GroupScreen() {
             ) : null}
 
             <View style={styles.tools}>
-              {group.conversationId ? (
+              {group.conversationId && chatAllowed ? (
                 <Pressable style={styles.tool} onPress={() => router.push(`/conversation/${group.conversationId}`)} accessibilityRole="button">
                   <Ionicons name="chatbubbles-outline" size={18} color={colors.navy900} />
                   <Text style={styles.buttonText} numberOfLines={1}>Chat</Text>
