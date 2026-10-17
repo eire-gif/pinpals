@@ -31,7 +31,7 @@ export function CashHowItWorks({
     <div className={`${SOFT_CARD} mt-6`}>
       <h2 className={CARD_TITLE}>How it works</h2>
       <ol className="grid gap-3 mt-3">
-        <Step n={1} title={`Message ${sellerFirstName}`} body="Ask questions or make an offer in chat." />
+        <Step n={1} title={`Ask or offer ${sellerFirstName}`} body="In the open under Questions & offers, or privately in Messages." />
         <Step
           n={2}
           title={meetAt ? `Meet at ${shortClub(meetAt)}` : "Meet up"}
@@ -72,6 +72,8 @@ export function CashPanel({
   signedIn,
   browseOnly,
   editHref,
+  hasThread = false,
+  highestOfferCents = null,
 }: {
   listingId: number;
   priceEur: number | null;
@@ -83,6 +85,9 @@ export function CashPanel({
   signedIn: boolean;
   browseOnly: boolean;
   editHref: string;
+  /** The public questions & offers thread is on the page (0162). */
+  hasThread?: boolean;
+  highestOfferCents?: number | null;
 }) {
   const onSale = status === "active" || status === "reserved";
   return (
@@ -93,6 +98,17 @@ export function CashPanel({
           <span className="bg-navy-900 text-gold-400 text-xs font-bold px-3 py-1.5 rounded-full">Open to offers</span>
         ) : null}
       </div>
+      {hasThread ? (
+        <a href="#questions" className="text-sm text-ink-500 hover:text-green-700 -mt-2">
+          {highestOfferCents != null ? (
+            <>
+              Highest offer <span className="font-bold text-navy-900">€{Math.round(highestOfferCents / 100)}</span> · see questions &amp; offers
+            </>
+          ) : (
+            "Questions & offers are public — see them below"
+          )}
+        </a>
+      ) : null}
 
       {isSeller ? (
         <div className="grid gap-2">
@@ -117,7 +133,17 @@ export function CashPanel({
       ) : browseOnly ? (
         <p className="text-sm text-ink-500">Buying isn&rsquo;t available to members under 18 — use Ask a parent in the app.</p>
       ) : signedIn ? (
-        <MessageSellerButton sellerId={sellerId} listingId={listingId} label={`Message ${sellerFirstName}`} />
+        <div className="grid gap-2">
+          {hasThread ? (
+            <a
+              href="#offer"
+              className="w-full py-3 rounded-full font-bold text-center border-2 border-gold-500 text-navy-900 hover:bg-cream-50 transition"
+            >
+              Make an offer
+            </a>
+          ) : null}
+          <MessageSellerButton sellerId={sellerId} listingId={listingId} label={`Message ${sellerFirstName}`} />
+        </div>
       ) : (
         <Link
           href={`/login?next=/marketplace/${listingId}`}
