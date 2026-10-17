@@ -219,7 +219,7 @@ function Body({
             title="Nothing bought yet"
             body="Anything you buy from another member shows up here, with whatever it still needs from you."
             action="Browse the marketplace"
-            onPress={() => router.push("/marketplace")}
+            onPress={() => router.navigate("/marketplace")}
           />
         }
         renderItem={({ item }) => <PurchaseRow purchase={item} />}
@@ -264,7 +264,7 @@ function Body({
             title="Nothing saved"
             body="Tap the heart on a listing and it waits for you here."
             action="Browse the marketplace"
-            onPress={() => router.push("/marketplace")}
+            onPress={() => router.navigate("/marketplace")}
           />
         }
         renderItem={({ item }) => <SavedRow item={item} />}

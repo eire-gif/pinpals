@@ -402,7 +402,7 @@ export default function HomeScreen() {
             action="Browse the marketplace"
             icon="pricetag-outline"
             photo={BAND_MARKET}
-            onPress={() => router.push("/marketplace")}
+            onPress={() => router.navigate("/marketplace")}
           />
         </View>
       )
