@@ -73,6 +73,8 @@ export default function ListingScreen() {
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [photo, setPhoto] = useState(0);
+  // "How it works" is folded until tapped, so the item itself comes first.
+  const [howOpen, setHowOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   // Junior members (0159): under 18s browse; a parent buys. Buy, offers,
   // bids and Message the seller become one "Ask a parent" button.
@@ -316,21 +318,56 @@ export default function ListingScreen() {
             )}
           </View>
 
-          {/* -------- How it works (cash marketplace, mock-up 3) -------- */}
+          {/* -------- The seller's description, then the details, straight under the price -------- */}
+          {listing.description ? (
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>Description</Text>
+              <Text style={styles.description}>{listing.description}</Text>
+            </View>
+          ) : null}
+
+          {listing.specs.length > 0 && (
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>Details</Text>
+              {listing.specs.map((spec) => (
+                <View key={spec.label} style={styles.spec}>
+                  <Text style={styles.specLabel}>{spec.label}</Text>
+                  <Text style={styles.specValue}>{spec.value}</Text>
+                </View>
+              ))}
+            </View>
+          )}
+
+          {/* -------- How it works (cash marketplace, mock-up 3): folded until tapped -------- */}
           {cash ? (
             <View style={styles.card}>
-              <Text style={styles.cardTitle}>How it works</Text>
-              <Step n={1} title={`Message ${shop ? shop.name : listing.seller ? listing.seller.name.split(" ")[0] : "the seller"}`} body="Ask questions or make an offer in chat." />
-              <Step
-                n={2}
-                title={meetAt ? `Meet at ${shortClub(meetAt)}` : "Meet up"}
-                body={canPost ? "Or agree postage between you. Try it on the green first if you can." : "Have a look at it, or try it on the green, before you pay."}
-              />
-              <Step n={3} title="Pay cash or Revolut" body="You agree it between you. Then swap feedback in the app." />
-              {listing.collectionNotes ? <Text style={styles.notes}>{listing.collectionNotes}</Text> : null}
-              <Text style={styles.safety}>
-                PinPals doesn&apos;t handle payment. Check the item before you pay, and never pay a deposit to someone you haven&apos;t met.
-              </Text>
+              <Pressable
+                onPress={() => setHowOpen((v) => !v)}
+                hitSlop={6}
+                style={styles.foldHead}
+                accessibilityRole="button"
+                accessibilityState={{ expanded: howOpen }}
+                accessibilityLabel={howOpen ? "How it works. Tap to hide" : "How it works. Tap to show"}
+              >
+                <Text style={styles.cardTitle}>How it works</Text>
+                <Text style={styles.foldHint}>{howOpen ? "" : "Message · meet · pay"}</Text>
+                <Ionicons name={howOpen ? "chevron-up" : "chevron-down"} size={20} color={colors.navy900} />
+              </Pressable>
+              {howOpen ? (
+                <>
+                  <Step n={1} title={`Message ${shop ? shop.name : listing.seller ? listing.seller.name.split(" ")[0] : "the seller"}`} body="Ask questions or make an offer in chat." />
+                  <Step
+                    n={2}
+                    title={meetAt ? `Meet at ${shortClub(meetAt)}` : "Meet up"}
+                    body={canPost ? "Or agree postage between you. Try it on the green first if you can." : "Have a look at it, or try it on the green, before you pay."}
+                  />
+                  <Step n={3} title="Pay cash or Revolut" body="You agree it between you. Then swap feedback in the app." />
+                  {listing.collectionNotes ? <Text style={styles.notes}>{listing.collectionNotes}</Text> : null}
+                  <Text style={styles.safety}>
+                    PinPals doesn&apos;t handle payment. Check the item before you pay, and never pay a deposit to someone you haven&apos;t met.
+                  </Text>
+                </>
+              ) : null}
             </View>
           ) : null}
 
@@ -371,22 +408,6 @@ export default function ListingScreen() {
               <Tick text="Meet-ups confirmed with a handover code" />
               <Tick text="Refund if it isn't as described" />
             </View>
-          ) : null}
-
-          {listing.specs.length > 0 && (
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>Details</Text>
-              {listing.specs.map((spec) => (
-                <View key={spec.label} style={styles.spec}>
-                  <Text style={styles.specLabel}>{spec.label}</Text>
-                  <Text style={styles.specValue}>{spec.value}</Text>
-                </View>
-              ))}
-            </View>
-          )}
-
-          {listing.description ? (
-            <Text style={styles.description}>{listing.description}</Text>
           ) : null}
 
           {/* -------- Who's selling -------- */}
@@ -825,6 +846,8 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   cardTitle: { fontSize: 17, fontWeight: "800", color: colors.navy900 },
+  foldHead: { flexDirection: "row", alignItems: "center", gap: 8 },
+  foldHint: { flex: 1, textAlign: "right", fontFamily: fonts.body, fontSize: type.small, color: colors.ink500 },
   protectCard: { backgroundColor: colors.green100 },
   protectHead: { flexDirection: "row", alignItems: "center", gap: 8 },
   tickLabel: { fontFamily: fonts.body, fontSize: type.small, color: colors.ink900, flex: 1 },
