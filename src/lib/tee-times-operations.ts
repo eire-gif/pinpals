@@ -347,6 +347,31 @@ export async function confirmPlace(
 }
 
 // ===========================================================================
+// Golfer takes back a request the host hasn't answered (0167)
+// ===========================================================================
+
+/**
+ * A request still waiting on the host, taken back. Only ever the caller's
+ * own 'pending' row — withdraw_tee_time_request() checks both under a row
+ * lock. No space moves and nobody is told: the request simply leaves the
+ * host's "Needs your answer". The golfer can ask again later, the same way
+ * they can after dropping out (withdrawn_at, 0091).
+ */
+export async function withdrawRequest(
+  supabase: SupabaseClient,
+  interestId: number
+): Promise<Result<{ interestId: number; inviteId: number }>> {
+  const { data, error } = await supabase.rpc("withdraw_tee_time_request", {
+    p_interest_id: interestId,
+  });
+  if (error) return fail("conflict", error.message);
+
+  const row = (data as { interest_id: number; invite_id: number }[] | null)?.[0];
+  if (!row) return fail("not_found", "That request no longer exists.");
+  return { ok: true, value: { interestId: row.interest_id, inviteId: row.invite_id } };
+}
+
+// ===========================================================================
 // The host changes or withdraws their own round
 // ===========================================================================
 

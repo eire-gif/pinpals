@@ -155,7 +155,7 @@ describe("the golfer's side", () => {
   it("a request still waiting names the host", () => {
     const r = round({ host: AOIFE });
     const view = buildMyRounds(input({ joined: [{ mine: interest(r, YOU, "pending"), round: r }] }));
-    expect(view.upcoming[0]).toMatchObject({ role: "asked", status: "Asked · waiting for Aoife to reply", leaveLabel: null });
+    expect(view.upcoming[0]).toMatchObject({ role: "asked", status: "Asked · waiting for Aoife to reply", leaveLabel: "Withdraw request" });
   });
 
   it("a confirmed place shows under Playing, with the host and the others in it", () => {

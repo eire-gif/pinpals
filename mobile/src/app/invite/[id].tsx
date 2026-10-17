@@ -37,6 +37,7 @@ import {
   confirmPlace,
   expressInterest,
   getMyInterest,
+  withdrawRequest,
   type MyInterest,
 } from "@/lib/tee-time-interest";
 import { colors, creamAlpha, fonts, navyAlpha, radii, spacing, type } from "@/lib/theme";
@@ -449,6 +450,22 @@ function InviteScreenInner() {
                 body={`${hostFirst} will be told you'd like to play. You'll hear back here.`}
               />
             )}
+            {/* Changed your mind before the host answered (0167): take it
+                back. Nothing moves for them; you can ask again later. */}
+            {interest?.status === "pending" && (
+              <Secondary
+                danger
+                icon="arrow-undo-outline"
+                label="Withdraw my request"
+                busy={busy}
+                onPress={() =>
+                  Alert.alert("Withdraw your request?", `${hostFirst} hasn't answered yet, so nothing changes for them. You can ask again later.`, [
+                    { text: "Keep it", style: "cancel" },
+                    { text: "Withdraw", style: "destructive", onPress: () => void run(() => withdrawRequest(interest.id)) },
+                  ])
+                }
+              />
+            )}
 
             {interest?.status === "accepted" && (
               <>
@@ -517,7 +534,7 @@ function InviteScreenInner() {
                   <Status
                     tone="neutral"
                     icon="refresh-outline"
-                    title="You gave up your place"
+                    title="You pulled out of this round"
                     body={
                       invite.status === "open"
                         ? `Can make it after all? Ask ${hostFirst} again — they'll decide as before.`
