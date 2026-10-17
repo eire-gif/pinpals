@@ -140,7 +140,8 @@ export function pageHtml(source: TileSource): string {
     if(mkEl){ mkEl.parentNode.removeChild(mkEl); mkEl = null; }
     tiles = L.tileLayer(TILE_URL, { maxZoom:20, maxNativeZoom:19 }).addTo(map);
     tiles.bringToBack();
-    creditText = ${JSON.stringify(source.provider === "apple" ? source.attribution : "")};
+    // Say why in the credit, small: "(Apple map: timeout)" — so a screenshot tells us.
+    creditText = ${JSON.stringify(source.provider === "apple" ? source.attribution : "")} + (why ? " (Apple map: " + why + ")" : "");
     imageryCredit.addAttribution(creditText);
     document.getElementById("map").style.background = "${colors.green800}";
     lift(liftBy);
