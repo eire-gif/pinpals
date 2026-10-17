@@ -36,7 +36,8 @@ import {
   type Slot,
   type Tone,
 } from "@/lib/my-rounds-rules";
-import { confirmPlace, respondToRequest } from "@/lib/tee-time-interest";
+import { confirmPlace, respondToRequest, withdrawRequest } from "@/lib/tee-time-interest";
+import { guideHidden, hideGuide } from "@/lib/my-rounds-guide";
 import { teeTimesChanged } from "@/lib/tee-times-waiting";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 
@@ -66,11 +67,6 @@ const FILTERS: { key: Filter; label: string }[] = [
   { key: "requested", label: "Requested" },
 ];
 
-/** Dismissed for the rest of the session. There is no on-device storage in
- *  this build (see recap-prompts.ts), and an explainer that never comes
- *  back is the wrong default for the first few weeks anyway. */
-let guideDismissed = false;
-
 function MyRoundsScreenInner() {
   const { session } = useAuth();
   const userId = session?.user?.id ?? null;
@@ -86,7 +82,17 @@ function MyRoundsScreenInner() {
   const [busy, setBusy] = useState<string | null>(null);
   const [menuFor, setMenuFor] = useState<number | null>(null);
   const [toast, setToast] = useState<string | null>(null);
-  const [showGuide, setShowGuide] = useState(!guideDismissed);
+  // Hidden once means hidden for good, on this phone (lib/my-rounds-guide.ts).
+  // Starts hidden and appears once the phone says it wasn't, so a member who
+  // dismissed it never sees it flash back for a frame.
+  const [showGuide, setShowGuide] = useState(false);
+  useEffect(() => {
+    let live = true;
+    void guideHidden().then((hidden) => live && setShowGuide(!hidden));
+    return () => {
+      live = false;
+    };
+  }, []);
 
   const { scrollY, scrollProps } = useCollapsingHeader();
   const scrollRef = useRef<ScrollView>(null);
@@ -201,6 +207,20 @@ function MyRoundsScreenInner() {
           style: "destructive",
           onPress: () =>
             void run(`need-${interestId}`, () => confirmPlace(interestId, false), `Done. ${firstName(hostName)}'s been told.`),
+        },
+      ]
+    );
+
+  const withdraw = (interestId: number, hostName: string, club: string, date: string) =>
+    Alert.alert(
+      "Withdraw your request?",
+      `${club}, ${shortDate(date)}. ${firstName(hostName)} hasn't answered yet, so nothing changes for them. You can ask again later.`,
+      [
+        { text: "Keep it", style: "cancel" },
+        {
+          text: "Withdraw",
+          style: "destructive",
+          onPress: () => void run(`need-${interestId}`, () => withdrawRequest(interestId), "Request withdrawn."),
         },
       ]
     );
@@ -341,8 +361,8 @@ function MyRoundsScreenInner() {
           {showGuide ? (
             <Guide
               onClose={() => {
-                guideDismissed = true;
                 setShowGuide(false);
+                void hideGuide();
               }}
             />
           ) : null}
@@ -401,10 +421,11 @@ function MyRoundsScreenInner() {
                     onCancel={() => cancelRound(round)}
                     onDelete={() => deleteIt(round)}
                     onMessageHost={() => void message(round.host.id)}
-                    onLeave={() =>
-                      round.myInterestId !== null &&
-                      giveBack(round.myInterestId, round.host.name, round.club, round.playDate, round.role === "playing")
-                    }
+                    onLeave={() => {
+                      if (round.myInterestId === null) return;
+                      if (round.role === "asked") withdraw(round.myInterestId, round.host.name, round.club, round.playDate);
+                      else giveBack(round.myInterestId, round.host.name, round.club, round.playDate, round.role === "playing");
+                    }}
                   />
                 </View>
               ))

@@ -507,8 +507,7 @@ export function buildMyRounds(input: MyRoundsInput): MyRoundsView {
         status: `Asked · waiting for ${hostFirst} to reply`,
         tone: "goldRing",
         next: "view",
-        // No way to take back a request yet: it waits on the host.
-        leaveLabel: null,
+        leaveLabel: "Withdraw request",
         cancelNote: null,
       });
       continue;

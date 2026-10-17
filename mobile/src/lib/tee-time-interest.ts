@@ -78,6 +78,18 @@ export async function confirmPlace(
   return { id: interestId, status };
 }
 
+/**
+ * Take back a request the host hasn't answered yet (0167). No space moves
+ * and the host isn't told — it just leaves their "Needs your answer". You
+ * can ask again later.
+ */
+export async function withdrawRequest(interestId: number): Promise<MyInterest> {
+  await postToSite<{ interest_id: number; status: InterestStatus }>("/api/app/tee-times/interest/withdraw", {
+    interest_id: interestId,
+  });
+  return { id: interestId, status: "declined", withdrawn: true };
+}
+
 // ===========================================================================
 // The host's side
 // ===========================================================================

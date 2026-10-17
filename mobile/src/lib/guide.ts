@@ -978,7 +978,7 @@ export const GUIDES: Guide[] = [
       },
       {
         title: "If plans change",
-        body: "Until the day, tap ••• on the round in My rounds, then Cancel my place. The host is told and the space reopens. If the host cancels, the round stays on your My rounds marked Cancelled, with Find another round.",
+        body: "Changed your mind before the host answers? Tap ••• on the round in My rounds, then Withdraw request — nothing changes for them, and you can ask again later. Once you have a place, the same ••• has Cancel my place: the host is told and the space reopens. If the host cancels, the round stays on your My rounds marked Cancelled, with Find another round.",
         look: [{ style: "outline", label: "Cancel my place", icon: "exit-outline" }],
         go: { label: "My rounds", to: "/my-rounds" },
       },
@@ -1785,6 +1785,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-17", text: "Tee times: you can take back a request the host hasn't answered yet — Withdraw request under ••• in My rounds, or Withdraw my request on the round. Find a game is updated." },
   { on: "2026-10-17", text: "Share on Social: new steps, See who reacted — tap \"Seán Byrne and 11 others\" for everyone's reaction, with Message or Add PinPal — and Share a post: send to several chats at once, Share to your feed with a few words of your own, or straight to WhatsApp, Messages, Email, Facebook or X. Posts now show how many times they've been shared." },
   { on: "2026-10-17", text: "Tee times: one page, My rounds, for every round you host, play in, have asked to join or been offered — reached from the top of Tee Times, the menu, and every tee-time alert. Requests and offers waiting on you are first, under Needs your answer, and the Tee Times tab shows how many in gold. Post a tee time, Find a game and Fill a place are updated." },
   { on: "2026-10-17", text: "Selling is now six short steps — photos and a description, what it is (clubs or anything else golf), brand, model, details, price — with a preview of the ad before you post. A brand or model that isn't listed can be typed in, and joins the list once a few sellers use it. Sell your gear is updated." },
