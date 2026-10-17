@@ -1059,7 +1059,7 @@ export const GUIDES: Guide[] = [
       },
       {
         title: "Score each hole",
-        body: "Each player's score starts at par plus their shots. Use − and + to set it, tap the number to confirm, and tap Next hole. Picked up? Tap NR beside the score — the card shows “Picked up · No return”, scored as no return (0 points in Stableford). Hold a number to clear it.",
+        body: "Each player's score starts at par plus their shots. Use − and + to set it, tap the number to confirm, and tap Next hole. Picked up? Tap “NR · picked up” under the score — the card shows “Picked up · No return”, scored as no return (0 points in Stableford). Hold a number to clear it.",
         look: [
           { style: "outline", label: "−" },
           { style: "primary", label: "5" },
@@ -1726,7 +1726,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
-  { on: "2026-10-17", text: "Score a game live: picked up is now NR (no return), a button right beside each player's score; the card shows NR, and saying “no return” or “NR” scores it too." },
+  { on: "2026-10-17", text: "Score a game live: picked up is now NR (no return), a button right under each player's score (Undo NR takes it back); the card shows NR, and saying “no return” or “NR” scores it too." },
   { on: "2026-10-16", text: "PinPals is now open to golfers from 13. New guide: Under 16? Getting your parent to approve — the date of birth at sign-up, Waiting for your parent, Ask a parent in the marketplace, and the Parent dashboard." },
   { on: "2026-10-16", text: "Under 18s: tee times, Social, chats and selling are 18 and over, and finding PinPals 16 and over — those guides now say so. Score a game live: under 16s add their parent and the PinPals their parent approves. Buy gear safely: under 18s see Ask a parent." },
   { on: "2026-10-16", text: "Score a game live: new step, Let family or a friend follow along — Share live sends your card as a link anyone can open, or to PinPals in their app and widget; Who's watching has Stop, and it ends by itself after the round." },

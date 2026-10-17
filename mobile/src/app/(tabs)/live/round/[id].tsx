@@ -923,19 +923,8 @@ export default function LiveRoundScreen() {
                   </View>
                 </View>
                 {canScore ? (
+                  <View style={styles.scoreCol}>
                   <View style={styles.stepper}>
-                    {/* NR (no return) beside the score, the way a club card
-                        marks a hole the player picked up on. Tap again to clear. */}
-                    <Pressable
-                      onPress={() => void (entered && strokes == null ? score(p.id, null, true) : score(p.id, null))}
-                      style={[styles.nr, entered && strokes == null && styles.nrOn]}
-                      accessibilityRole="button"
-                      accessibilityLabel={entered && strokes == null ? `${p.name}: picked up, no return. Tap to clear.` : `Picked up, no return for ${p.name}`}
-                      accessibilityState={{ selected: entered && strokes == null }}
-                      hitSlop={4}
-                    >
-                      <Text style={[styles.nrText, entered && strokes == null && styles.nrTextOn]}>NR</Text>
-                    </Pressable>
                     <StepButton label="−" a11y={`One fewer for ${p.name}`} onPress={() => void score(p.id, Math.max(1, (shown ?? h.par) - 1))} />
                     <Pressable
                       onPress={() => void score(p.id, shown ?? h.par)}
@@ -949,6 +938,19 @@ export default function LiveRoundScreen() {
                       <ScoreMark strokes={entered ? strokes : shown} par={h.par} size={48} ghost={!entered} textStyle={[styles.strokesMark, !entered && styles.strokesGhost]} />
                     </Pressable>
                     <StepButton label="+" dark a11y={`One more for ${p.name}`} onPress={() => void score(p.id, Math.min(20, (shown ?? h.par) + 1))} />
+                  </View>
+                  {/* NR (no return) right under the score, the way a club card
+                      marks a hole the player picked up on. Tap again to undo. */}
+                  <Pressable
+                    onPress={() => void (entered && strokes == null ? score(p.id, null, true) : score(p.id, null))}
+                    style={[styles.nr, entered && strokes == null && styles.nrOn]}
+                    accessibilityRole="button"
+                    accessibilityLabel={entered && strokes == null ? `${p.name}: picked up, no return. Tap to undo.` : `Picked up, no return for ${p.name}`}
+                    accessibilityState={{ selected: entered && strokes == null }}
+                    hitSlop={6}
+                  >
+                    <Text style={[styles.nrText, entered && strokes == null && styles.nrTextOn]}>{entered && strokes == null ? "Undo NR" : "NR · picked up"}</Text>
+                  </Pressable>
                   </View>
                 ) : (
                   entered ? <ScoreMark strokes={strokes} par={h.par} size={48} textStyle={styles.strokesMark} /> : <Text style={styles.strokes}>–</Text>
@@ -1562,7 +1564,8 @@ const styles = StyleSheet.create({
 
   footerRow: { gap: spacing.sm },
   footNote: { fontFamily: fonts.body, fontSize: 12, color: colors.ink500, textAlign: "center" },
-  nr: { width: 38, height: 38, borderRadius: 19, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface, alignItems: "center", justifyContent: "center", marginRight: 2 },
+  scoreCol: { alignItems: "center", gap: 6 },
+  nr: { minHeight: 32, paddingHorizontal: 14, borderRadius: radii.pill, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface, alignItems: "center", justifyContent: "center" },
   nrOn: { backgroundColor: colors.red600, borderColor: colors.red600 },
   nrText: { fontFamily: fonts.bodyBold, fontSize: 12, letterSpacing: 0.5, color: colors.ink500 },
   nrTextOn: { color: colors.cream50 },
