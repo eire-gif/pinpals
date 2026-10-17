@@ -11,7 +11,7 @@ import {
   View,
 } from "react-native";
 import { contentWidthNow } from "@/lib/content-width";
-import { Stack, router, useLocalSearchParams } from "expo-router";
+import { Stack, router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { Avatar } from "@/components/avatar";
@@ -41,6 +41,9 @@ import { PurchasePanel } from "@/components/purchase-panel";
 import { buyerProtectionFee, eur, sweepMarketplace } from "@/lib/purchase";
 import { shortClub } from "@/lib/used-gear";
 import { EMPTY_STATS, memberStats, positiveShare, useCashMarketplace, type MemberStats } from "@/lib/marketplace-cash";
+import { ThreadPreviewCard } from "@/components/listing-thread-view";
+import { EMPTY_THREAD, loadThread } from "@/lib/listing-posts";
+import type { ThreadSummary } from "@/lib/listing-thread";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 
 /**
@@ -77,6 +80,16 @@ export default function ListingScreen() {
   const [asked, setAsked] = useState(false);
   const cash = useCashMarketplace();
   const [sellerStats, setSellerStats] = useState<MemberStats>(EMPTY_STATS);
+  // Public questions & offers (0162). Refreshed whenever the screen comes back
+  // into view, so an answer posted on the thread screen shows here.
+  const [thread, setThread] = useState<ThreadSummary>(EMPTY_THREAD);
+  const listingNumber = Number.parseInt(String(id), 10);
+  useFocusEffect(
+    useCallback(() => {
+      if (!cash || !Number.isFinite(listingNumber)) return;
+      void loadThread(listingNumber).then(setThread).catch(() => undefined);
+    }, [cash, listingNumber])
+  );
 
   const load = useCallback(async () => {
     const numeric = Number.parseInt(String(id), 10);
@@ -320,6 +333,11 @@ export default function ListingScreen() {
             </View>
           ) : null}
 
+          {/* -------- Public questions & offers (0162, mock-up 4) -------- */}
+          {cash && !shop ? (
+            <ThreadPreviewCard thread={thread} onOpen={() => router.push({ pathname: "/listing-offers/[id]", params: { id: String(listing.id) } })} />
+          ) : null}
+
           {/* -------- How you'll get it (mock-up 3) -------- */}
           {!cash ? <View style={styles.card}>
             <Text style={styles.cardTitle}>How you&apos;ll get it</Text>
@@ -519,17 +537,19 @@ export default function ListingScreen() {
             // Cash marketplace: an offer is a message.
             listing.seller && (listing.status === "active" || listing.status === "reserved") ? (
               <View style={styles.actions}>
+                {/* An offer is public now (0162): it goes on the thread, where the
+                    seller answers it in the open. Shop stock stays a chat. */}
                 <Pressable
-                  style={[styles.secondary, styles.actionButton, busy && styles.sellerBusy]}
+                  style={[styles.secondary, styles.actionButton, styles.offerButton, busy && styles.sellerBusy]}
                   disabled={busy}
                   onPress={() =>
-                    void message(
-                      `Hi ${listing.seller!.name.split(" ")[0]}, would you take € for the ${listing.title}?`
-                    )
+                    shop
+                      ? void message(`Hi, would you take € for the ${listing.title}?`)
+                      : router.push({ pathname: "/listing-offers/[id]", params: { id: String(listing.id), mode: "offer" } })
                   }
                   accessibilityRole="button"
                 >
-                  <Text style={styles.secondaryLabel}>Make offer</Text>
+                  <Text style={styles.secondaryLabel}>Make an offer</Text>
                 </Pressable>
                 <Pressable
                   style={[styles.primary, styles.actionButton, styles.actionMain, busy && styles.sellerBusy]}
@@ -540,7 +560,10 @@ export default function ListingScreen() {
                   {busy ? (
                     <ActivityIndicator color={colors.gold400} />
                   ) : (
-                    <Text style={styles.primaryLabel}>Message {listing.seller.name.split(" ")[0]}</Text>
+                    <>
+                      <Ionicons name="chatbubble-outline" size={18} color={colors.gold400} />
+                      <Text style={styles.primaryLabel}>Message</Text>
+                    </>
                   )}
                 </Pressable>
               </View>
@@ -895,6 +918,7 @@ const styles = StyleSheet.create({
   actions: { flexDirection: "row", gap: spacing.sm },
   actionButton: { flex: 1, minHeight: 52 },
   actionMain: { flex: 1.4, paddingVertical: 12 },
+  offerButton: { borderWidth: 2, borderColor: colors.gold500 },
   step: { flexDirection: "row", alignItems: "flex-start", gap: spacing.sm, paddingVertical: 2 },
   stepNumber: { width: 28, height: 28, borderRadius: 14, backgroundColor: "#f3ead2", alignItems: "center", justifyContent: "center", marginTop: 1 },
   stepNumberText: { fontFamily: fonts.bodyBold, fontSize: 13.5, color: colors.navy900 },

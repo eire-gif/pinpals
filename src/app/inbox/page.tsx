@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
 import { loadInbox } from "@/lib/inbox-server";
-import { inboxTotal } from "@/lib/inbox";
+import { inboxTotal, isInboxFilter, type InboxFilter } from "@/lib/inbox";
 import InboxList from "./inbox-list";
 import { ageGate } from "@/components/age/age-gate";
 
@@ -19,7 +19,10 @@ import { ageGate } from "@/components/age/age-gate";
  * there is no service-role client here and no ownership filter anyone can
  * forget to write.
  */
-export default async function InboxPage() {
+export default async function InboxPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  // ?filter=marketplace — linked from the marketplace (Oct 2026).
+  const asked = (await searchParams).filter;
+  const initialFilter = isInboxFilter(typeof asked === "string" ? asked : null) ? (asked as InboxFilter) : "all";
   const supabase = await createClient();
   const {
     data: { user },
@@ -58,7 +61,7 @@ export default async function InboxPage() {
         </Link>
       </div>
 
-      <InboxList items={items} counts={counts} currentUserId={user.id} />
+      <InboxList items={items} counts={counts} currentUserId={user.id} initialFilter={initialFilter} />
 
       {truncated && (
         <p className="text-xs text-ink-500 mt-6 text-center">

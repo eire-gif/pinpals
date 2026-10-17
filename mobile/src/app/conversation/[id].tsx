@@ -616,22 +616,45 @@ function ConversationScreenInner() {
         </View>
       ) : (
         <>
-          {header?.listingTitle ? (
+          {header?.listingTitle && header.listingId ? (
+            // The item, pinned (approved mock-up 6): photo, price, whether it's
+            // still for sale, and for the seller, Mark sold right here.
             <Pressable
               style={styles.context}
-              onPress={() =>
-                router.push({
-                  pathname: "/web",
-                  params: { path: `/marketplace/${header.listingId}`, title: header.listingTitle ?? "Listing" },
-                })
-              }
+              onPress={() => router.push(`/listing/${header.listingId}`)}
               accessibilityRole="button"
+              accessibilityLabel={`${header.listingTitle}. Open the listing`}
             >
-              <Ionicons name="pricetag" size={14} color={colors.green700} />
-              <Text style={styles.contextLabel} numberOfLines={1}>
-                {header.listingTitle}
-              </Text>
-              <Ionicons name="chevron-forward" size={15} color={colors.ink500} />
+              {header.listingImageUrl ? (
+                <Image source={{ uri: header.listingImageUrl }} style={styles.contextPhoto} />
+              ) : (
+                <View style={[styles.contextPhoto, styles.contextPhotoNone]}>
+                  <Ionicons name="pricetag" size={18} color={colors.green700} />
+                </View>
+              )}
+              <View style={{ flex: 1 }}>
+                <Text style={styles.contextLabel} numberOfLines={1}>
+                  {header.listingTitle}
+                </Text>
+                <Text style={styles.contextMeta} numberOfLines={1}>
+                  {header.listingPriceCents != null ? <Text style={styles.contextPrice}>€{Math.round(header.listingPriceCents / 100)}</Text> : null}
+                  {header.listingPriceCents != null ? " · " : ""}
+                  {header.listingStatus === "active" ? "Available" : header.listingStatus === "reserved" ? "Reserved" : header.listingStatus === "sold" ? "Sold" : "Not on sale"}
+                </Text>
+              </View>
+              {header.listingIsMine && (header.listingStatus === "active" || header.listingStatus === "reserved") ? (
+                <Pressable
+                  onPress={() => router.push(`/mark-sold/${header.listingId}`)}
+                  style={styles.contextAction}
+                  hitSlop={6}
+                  accessibilityRole="button"
+                  accessibilityLabel="Mark this listing sold"
+                >
+                  <Text style={styles.contextActionText}>Mark sold</Text>
+                </Pressable>
+              ) : (
+                <Ionicons name="chevron-forward" size={16} color={colors.ink500} />
+              )}
             </Pressable>
           ) : null}
 
@@ -1029,14 +1052,20 @@ const styles = StyleSheet.create({
     gap: 8,
     marginHorizontal: spacing.md,
     marginTop: spacing.sm,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 8,
     borderRadius: radii.md,
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.line,
   },
-  contextLabel: { flex: 1, fontFamily: fonts.bodySemi, fontSize: type.small, color: colors.ink900 },
+  contextLabel: { fontFamily: fonts.bodyBold, fontSize: type.small, color: colors.ink900 },
+  contextMeta: { fontFamily: fonts.body, fontSize: 12.5, color: colors.ink500, marginTop: 1 },
+  contextPrice: { fontFamily: fonts.display, fontSize: 14, color: colors.navy900 },
+  contextPhoto: { width: 44, height: 44, borderRadius: 10 },
+  contextPhotoNone: { backgroundColor: colors.green100, alignItems: "center", justifyContent: "center" },
+  contextAction: { minHeight: 34, paddingHorizontal: 12, borderRadius: radii.pill, backgroundColor: colors.navy900, justifyContent: "center" },
+  contextActionText: { fontFamily: fonts.bodyBold, fontSize: 12.5, color: colors.cream50 },
 
   list: { paddingHorizontal: 12, paddingVertical: spacing.sm, flexGrow: 1 },
   older: { paddingVertical: spacing.md },

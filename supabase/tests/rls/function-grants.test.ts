@@ -268,6 +268,19 @@ const EXPECTED: Record<string, Expectation> = {
   "marketplace_sale_summary(p_sale_id bigint)": { anon: false, authenticated: true },
   "marketplace_member_stats(p_member uuid)": { anon: true, authenticated: true },
   "marketplace_member_feedback(p_member uuid, p_limit integer, p_before_id bigint)": { anon: true, authenticated: true },
+  // --- Public questions & offers on a listing (0162). The thread is public
+  // --- like the listing (anon reads it); every write takes its identity from
+  // --- auth.uid(). listing_for_public_post() takes a member id, so it stays
+  // --- internal, as does the trigger that closes offers when a listing sells.
+  "listing_public_posts(p_listing_id bigint)": { anon: true, authenticated: true },
+  "post_listing_question(p_listing_id bigint, p_body text)": { anon: false, authenticated: true },
+  "post_listing_offer(p_listing_id bigint, p_amount_cents integer, p_note text)": { anon: false, authenticated: true },
+  "reply_to_listing_post(p_post_id bigint, p_body text)": { anon: false, authenticated: true },
+  "answer_listing_offer(p_post_id bigint, p_action text, p_counter_cents integer, p_note text)": { anon: false, authenticated: true },
+  "withdraw_listing_offer(p_post_id bigint)": { anon: false, authenticated: true },
+  "remove_listing_post(p_post_id bigint)": { anon: false, authenticated: true },
+  "listing_for_public_post(p_listing_id bigint, p_me uuid)": { anon: false, authenticated: false },
+  "close_public_offers_on_listing_change()": { anon: false, authenticated: false },
   "member_affinity(p_other uuid)": { anon: false, authenticated: true },
   "played_with_me(p_days integer)": { anon: false, authenticated: true },
   "round_guest_invite(p_player_id bigint)": { anon: false, authenticated: true },

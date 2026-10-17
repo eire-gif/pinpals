@@ -19,7 +19,7 @@ import { ageGate } from "@/components/age/age-gate";
 
 type ConversationRow = Conversation & {
   members: ConversationMemberRow[];
-  listing: { id: number; title: string; status: string; price_eur: number | null; image_url: string | null } | null;
+  listing: { id: number; title: string; status: string; price_eur: number | null; image_url: string | null; seller_id: string } | null;
   order: { id: number; status: string } | null;
 };
 
@@ -44,7 +44,7 @@ export default async function ConversationThreadPage({ params }: { params: Promi
   const { data: conversation } = await supabase
     .from("conversations")
     .select(
-      `*, ${CONVERSATION_MEMBERS_EMBED}, listing:listings(id, title, status, price_eur, image_url), order:orders(id, status)`
+      `*, ${CONVERSATION_MEMBERS_EMBED}, listing:listings(id, title, status, price_eur, image_url, seller_id), order:orders(id, status)`
     )
     .eq("id", conversationId)
     .maybeSingle<ConversationRow>();
@@ -135,7 +135,7 @@ export default async function ConversationThreadPage({ params }: { params: Promi
         )}
       </div>
 
-      <ListingContextCard listing={conversation.listing} order={conversation.order} />
+      <ListingContextCard listing={conversation.listing} order={conversation.order} viewerIsSeller={!!conversation.listing && conversation.listing.seller_id === user.id} />
 
       <div className="bg-surface border border-line rounded-2xl shadow-sm p-5 mb-4 min-h-[300px]">
         <ThreadView

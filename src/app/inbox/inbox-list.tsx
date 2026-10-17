@@ -38,12 +38,14 @@ export default function InboxList({
   items,
   counts,
   currentUserId,
+  initialFilter = "all",
 }: {
   items: InboxItem[];
   counts: InboxCounts;
   currentUserId: string;
+  initialFilter?: InboxFilter;
 }) {
-  const [filter, setFilter] = useState<InboxFilter>("all");
+  const [filter, setFilter] = useState<InboxFilter>(initialFilter);
   const [clearing, startClearing] = useTransition();
   const router = useRouter();
 
@@ -125,6 +127,8 @@ function emptyMessage(filter: InboxFilter): string {
   switch (filter) {
     case "archived":
       return "No archived conversations.";
+    case "marketplace":
+      return "No marketplace chats yet. Message a seller from any listing and the chat lands here, with the item pinned.";
     case "messages":
       return "No messages yet. You can message a golfer once you're connected with them, have exchanged a marketplace offer, or have an accepted tee-time interest together.";
     case "alerts":

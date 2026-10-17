@@ -26,6 +26,8 @@ import RelatedListings from "./related-listings";
 import SafetyGuidance from "./safety-guidance";
 import ReviewsSection from "./reviews-section";
 import { CashFeedback, CashHowItWorks, CashPanel } from "./cash-listing";
+import QuestionsOffers from "./questions-offers";
+import { buildThread, type ThreadPostRow, type ThreadSummary } from "@/lib/listing-thread";
 import { marketplacePaymentsEnabled } from "@/lib/marketplace-settings";
 import { EMPTY_RECORD, memberFeedback, memberRecord, type FeedbackEntry, type MemberRecord } from "@/lib/marketplace-cash";
 
@@ -253,11 +255,17 @@ export default async function ListingDetailPage({
   const sellerFirstName = sellerProfile?.first_name || "the seller";
   let sellerRecord: MemberRecord = EMPTY_RECORD;
   let sellerFeedback: FeedbackEntry[] = [];
+  // Public questions & offers (0162) — used gear only; shop stock is a chat.
+  let thread: ThreadSummary | null = null;
   if (cash) {
-    [sellerRecord, sellerFeedback] = await Promise.all([
+    const [record, feedback, posts] = await Promise.all([
       memberRecord(supabase, listing.seller_id),
       memberFeedback(supabase, listing.seller_id, 3),
+      listing.store_id ? Promise.resolve({ data: null }) : supabase.rpc("listing_public_posts", { p_listing_id: listing.id }),
     ]);
+    sellerRecord = record;
+    sellerFeedback = feedback;
+    if (!listing.store_id) thread = buildThread(((posts.data ?? []) as ThreadPostRow[]));
   }
   const sellerVerified = isSellerPaymentReady(sellerOnboardingStatus(sellerAccountResult.data ?? null));
   const ratingSummaryRow = ratingSummaryResult.data as SellerRatingSummary | null;
@@ -458,6 +466,8 @@ export default async function ListingDetailPage({
                 signedIn={!!user}
                 browseOnly={browseOnly}
                 editHref={editHref}
+                hasThread={!!thread}
+                highestOfferCents={thread?.highestOpenCents ?? null}
               />
             ) : (
               <PurchasePanel
@@ -485,6 +495,21 @@ export default async function ListingDetailPage({
               viewerIsSeller={isSeller}
             />
           </div>
+
+          {thread ? (
+            <div className="mt-10">
+              <QuestionsOffers
+                listingId={listing.id}
+                askingCents={listing.price_eur !== null ? Math.round(listing.price_eur * 100) : null}
+                thread={thread}
+                isSeller={isSeller}
+                signedIn={!!user}
+                browseOnly={browseOnly}
+                onSale={listing.status === "active" || listing.status === "reserved"}
+                sellerFirstName={sellerFirstName}
+              />
+            </div>
+          ) : null}
 
           <div className="mt-8">
             <SafetyGuidanceOrManage
@@ -526,6 +551,8 @@ export default async function ListingDetailPage({
                 signedIn={!!user}
                 browseOnly={browseOnly}
                 editHref={editHref}
+                hasThread={!!thread}
+                highestOfferCents={thread?.highestOpenCents ?? null}
               />
             ) : (
               <PurchasePanel

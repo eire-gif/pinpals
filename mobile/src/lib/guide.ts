@@ -53,8 +53,10 @@ import type { Href } from "expo-router";
  *    mobile   → app/privacy.tsx, app/group/[id]/contacts.tsx
  *    sell     → app/new-listing.tsx, app/listing/[id].tsx, app/mark-sold/[id].tsx,
  *               app/feedback/[id].tsx, app/(tabs)/marketplace/my-ads.tsx,
- *               app/(tabs)/marketplace/chats.tsx, app/(tabs)/marketplace/_layout.tsx
- *    buy      → app/(tabs)/marketplace/index.tsx, app/listing/[id].tsx,
+ *               app/(tabs)/marketplace/chats.tsx, app/(tabs)/marketplace/_layout.tsx,
+ *               app/listing-offers/[id].tsx, app/(tabs)/inbox.tsx (Marketplace filter)
+ *    buy      → app/(tabs)/marketplace/index.tsx, app/marketplace-search.tsx,
+ *               app/listing/[id].tsx, app/listing-offers/[id].tsx,
  *               app/seller/[id].tsx, app/feedback/[id].tsx
  *    social   → app/(tabs)/feed.tsx, app/compose.tsx, app/new-post.tsx,
  *               app/comments/[id].tsx, app/share/[id].tsx, app/rate-course.tsx
@@ -1478,17 +1480,17 @@ export const GUIDES: Guide[] = [
         go: { label: "List an item", to: "/new-listing" },
       },
       {
-        title: "Describe it",
-        body: "Say what it is, pick the category, the brand and the condition. The brand matters most — it's how buyers filter.",
+        title: "Say what it is",
+        body: "Type it roughly — “taylormade qi10 driver 10.5 stiff” — and the category, brand, model, loft and shaft fill themselves in under Filled in for you. Tap Use to tidy the title, change anything that's wrong, then pick the condition.",
         look: [
-          { style: "field", label: "TaylorMade Stealth 2 driver, 10.5°", icon: "create-outline" },
-          { style: "outline", label: "Drivers" },
+          { style: "field", label: "taylormade qi10 driver 10.5 stiff", icon: "create-outline" },
+          { style: "tile", label: "Filled in for you", icon: "sparkles" },
           { style: "outline", label: "Excellent" },
         ],
       },
       {
         title: "Price it and post it",
-        body: "Set your price and choose Fixed price or Open to offers, then where it is. Tap Post listing — it's free and goes live straight away.",
+        body: "Set your price — under it, Similar ads on PinPals shows what comparable ads ask; tap Use to take the middle. Choose Fixed price or Open to offers, then where it is. Tap Post listing — it's free and goes live straight away.",
         look: [
           { style: "field", label: "€ 180", icon: "cash-outline" },
           { style: "outline", label: "Open to offers" },
@@ -1496,10 +1498,14 @@ export const GUIDES: Guide[] = [
         ],
       },
       {
-        title: "Chat to buyers",
-        body: "Buyers message you about the item. Their chats are under Chats in the Marketplace's bottom menu, with the item named on each one.",
-        look: [{ style: "outline", label: "Chats", icon: "chatbubbles-outline" }],
-        go: { label: "Marketplace chats", to: "/marketplace/chats" },
+        title: "Answer questions and offers",
+        body: "Under your ad, Questions & offers is public — everyone sees the same thing. Tap Answer on a question, and Accept, Counter or Decline on an offer. Private chats about the item are in Messages, on the Marketplace filter (Messages in the Marketplace's bottom menu takes you there).",
+        look: [
+          { style: "tile", label: "€230 offered · Open", icon: "pricetag-outline" },
+          { style: "primary", label: "Accept" },
+          { style: "outline", label: "Counter" },
+        ],
+        go: { label: "Messages", to: "/inbox" },
       },
       {
         title: "Meet up and get paid",
@@ -1533,10 +1539,10 @@ export const GUIDES: Guide[] = [
     steps: [
       {
         title: "Browse used gear",
-        body: "Tap the Marketplace tab — it has its own bottom menu, with Home on the left to get back. Search, or tap Near me, At my club, Under €100 or Left-handed. Filters narrows by brand, condition and price.",
+        body: "Tap the Marketplace tab — it has its own bottom menu, with Home on the left to get back. Tap the search box and type it how you'd say it — “ping irons under 400 near me” — and it shows what it understood, fixes spelling and lists matches as you type. Or tap a category, Near me, At my club or Left-handed.",
         look: [
-          { style: "outline", label: "Used Gear" },
-          { style: "outline", label: "At my club" },
+          { style: "field", label: "tm qi10 driver under 300", icon: "search" },
+          { style: "outline", label: "Used" },
           { style: "outline", label: "Filters", icon: "options-outline" },
         ],
         go: { label: "Marketplace", to: "/marketplace" },
@@ -1547,11 +1553,11 @@ export const GUIDES: Guide[] = [
         look: [{ style: "tile", label: "100% positive · 12 sales", icon: "thumbs-up-outline" }],
       },
       {
-        title: "Message or make an offer",
-        body: "Tap Message to ask anything, or Make offer — the chat opens with your offer half written. Fill in the amount and send.",
+        title: "Ask, offer or message",
+        body: "Questions & offers on the listing is public: ask something every buyer would want to know, or tap Make an offer and post an amount — you'll see the asking price, the highest offer and how every offer went. Tap Message to talk privately; it opens in Messages with the item pinned at the top.",
         look: [
-          { style: "outline", label: "Make offer" },
-          { style: "primary", label: "Message the seller" },
+          { style: "outline", label: "Make an offer" },
+          { style: "primary", label: "Message" },
         ],
         tip: "Under 18? You'll see Ask a parent instead. Under 16, it sends the listing to your parent; 16 or 17, it opens your share sheet to send them the link.",
       },
@@ -1715,6 +1721,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-17", text: "Marketplace redesign: smart search that understands brands, prices, places and typos; public Questions & offers under every ad (ask, offer, and the seller accepts, counters or declines in the open); the sell form fills itself in from the title; marketplace chats are in Messages under Marketplace, with the item pinned. Sell your gear and Buy gear safely are updated." },
   { on: "2026-10-17", text: "Live scoring's three cards are renamed and colour-coded: Start a Round (navy), Groups & Societies (green, was From a Group) and Match Day Fun (claret, was Match Day). The guides show the new cards." },
   { on: "2026-10-17", text: "The marketplace has its own bottom menu (Home, Browse, Sell, Chats, My ads), and buyers pay sellers directly in cash or by Revolut. Sell your gear and Buy gear safely now cover posting for free, chatting, meeting up, Mark as sold and leaving feedback." },
   { on: "2026-10-17", text: "Score a game live: picked up is now NR (no return), a button right under each player's score (Undo NR takes it back); the card shows NR, and saying “no return” or “NR” scores it too." },

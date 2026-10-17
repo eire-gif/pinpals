@@ -10,7 +10,7 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { router, useFocusEffect, type Href } from "expo-router";
+import { router, useFocusEffect, useLocalSearchParams, type Href } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import ReanimatedSwipeable from "react-native-gesture-handler/ReanimatedSwipeable";
 
@@ -71,6 +71,11 @@ export default function InboxScreen() {
   const [items, setItems] = useState<InboxItem[]>([]);
   const [counts, setCounts] = useState<InboxCounts>({ messages: 0, alerts: 0 });
   const [chosenFilter, setFilter] = useState<InboxFilter>("all");
+  // ?filter=marketplace — the marketplace's Messages button lands here.
+  const { filter: askedFilter, at: askedAt } = useLocalSearchParams<{ filter?: string; at?: string }>();
+  useEffect(() => {
+    if (askedFilter && (INBOX_FILTERS as readonly string[]).includes(askedFilter)) setFilter(askedFilter as InboxFilter);
+  }, [askedFilter, askedAt]);
   // Junior members (0159): under 18s have no chats — the inbox is their
   // alerts, and the Chats tile and filter chips go. (Any old conversation
   // from before still can't be written to: the database refuses it.)

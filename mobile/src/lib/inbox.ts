@@ -125,7 +125,7 @@ export function mergeInbox(
   });
 }
 
-export const INBOX_FILTERS = ["all", "messages", "alerts"] as const;
+export const INBOX_FILTERS = ["all", "messages", "marketplace", "alerts"] as const;
 
 export type InboxFilter = (typeof INBOX_FILTERS)[number];
 
@@ -134,6 +134,9 @@ export const INBOX_FILTER_LABELS: Record<InboxFilter, string> = {
   // "Chat" for member-to-member conversations (Oct 2026): it says people
   // talking, where "Messages" read as anything the app sends you.
   messages: "Chat",
+  // Chats about a listing (Oct 2026): the marketplace's Messages button opens
+  // the inbox here, so buying and selling live in the one Messages section.
+  marketplace: "Marketplace",
   alerts: "Alerts",
 };
 
@@ -148,6 +151,7 @@ export const INBOX_FILTER_LABELS: Record<InboxFilter, string> = {
 export function matchesInboxFilter(item: InboxItem, filter: InboxFilter): boolean {
   if (filter === "all") return true;
   if (filter === "messages") return item.kind === "conversation";
+  if (filter === "marketplace") return item.kind === "conversation" && item.listingTitle !== null;
   return item.kind === "alert";
 }
 

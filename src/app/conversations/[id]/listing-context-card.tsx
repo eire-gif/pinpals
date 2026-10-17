@@ -15,9 +15,12 @@ import type { OrderStatus } from "@/lib/types";
 export default function ListingContextCard({
   listing,
   order,
+  viewerIsSeller = false,
 }: {
   listing: { id: number; title: string; status: string; price_eur: number | null; image_url: string | null } | null;
   order: { id: number; status: string } | null;
+  /** The seller gets Mark as sold right here (Oct 2026, mock-up Web 4). */
+  viewerIsSeller?: boolean;
 }) {
   if (!listing) return null;
 
@@ -44,6 +47,14 @@ export default function ListingContextCard({
           )}
         </div>
       </div>
+      {viewerIsSeller && !order && (listing.status === "active" || listing.status === "reserved") ? (
+        <Link
+          href={`/marketplace/${listing.id}/sold`}
+          className="shrink-0 text-xs font-bold px-3 py-1.5 rounded-full bg-navy-900 text-cream-50 hover:brightness-110 transition"
+        >
+          Mark sold
+        </Link>
+      ) : null}
       <Link
         href={order ? `/dashboard/orders/${order.id}` : `/marketplace/${listing.id}`}
         className="shrink-0 text-xs font-bold text-green-700 hover:text-green-800 transition"

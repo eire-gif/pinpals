@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { sellableBrandsFor } from "@/lib/marketplace-brands";
+import { BRANDS, sellableBrandsFor } from "@/lib/marketplace-brands";
 
 /**
  * The brands a seller may choose for a category, for the app's listing form.
@@ -24,6 +24,16 @@ import { sellableBrandsFor } from "@/lib/marketplace-brands";
  */
 export async function GET(request: Request) {
   const params = new URL(request.url).searchParams;
+
+  // ?all=1 — every curated brand with its aliases, for the app's smart search
+  // (src/lib/smart-search.ts), which reads "tm" or "Taylor Made" as TaylorMade.
+  if (params.get("all") === "1") {
+    return NextResponse.json(
+      { brands: BRANDS.map((brand) => ({ id: brand.id, label: brand.label, aliases: brand.aliases ?? [] })) },
+      { headers: { "Cache-Control": "public, max-age=3600, s-maxage=86400" } }
+    );
+  }
+
   const category = params.get("category") ?? "";
   const subcategory = params.get("subcategory");
 

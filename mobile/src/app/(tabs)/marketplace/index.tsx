@@ -12,7 +12,8 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { router, useFocusEffect } from "expo-router";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { AdBanner } from "@/components/ad-banner";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
@@ -23,6 +24,10 @@ import { KEYBOARD_DISMISS_MODE } from "@/components/keyboard";
 import { MarketplaceFilters } from "@/components/marketplace-filters";
 import { useAuth } from "@/lib/auth";
 import { CATEGORY_TILES } from "@/lib/listing-icons";
+import { loadSmartBrands } from "@/lib/listing-posts";
+import { CATEGORY_PHOTOS, CATEGORY_SHORT } from "@/lib/marketplace-smart";
+import { parseSearch, type SmartSearch } from "@/lib/smart-search";
+import { useAgeAccess } from "@/lib/age";
 import { useCurrentLocation, type Coords } from "@/lib/location";
 import { EMPTY_FILTERS, activeFilterCount, searchListings, setFavourite, type Card, type Cursor, type Filters } from "@/lib/marketplace";
 import {
@@ -80,6 +85,53 @@ export default function MarketplaceScreen() {
   const [query, setQuery] = useState("");
   const [chips, setChips] = useState<Set<Chip>>(new Set());
   const [filtersOpen, setFiltersOpen] = useState(false);
+  // Smart search (mock-up 2): the search screen hands back the words; they're
+  // read here into filters, so a search typed on Browse and one typed there
+  // behave the same.
+  const params = useLocalSearchParams<{ search?: string; at?: string }>();
+  const [understood, setUnderstood] = useState<SmartSearch | null>(null);
+  const [searchWords, setSearchWords] = useState("");
+  const insets = useSafeAreaInsets();
+  const { allows } = useAgeAccess();
+  const canSell = allows("sell");
+
+  useEffect(() => {
+    const words = (params.search ?? "").trim();
+    if (!words) return;
+    let live = true;
+    void loadSmartBrands().then((brands) => {
+      if (!live) return;
+      const s = parseSearch(words, brands);
+      setMode("used");
+      setSearchWords(words);
+      setUnderstood(s);
+      setFilters((prev) => ({
+        ...EMPTY_FILTERS,
+        sort: prev.sort,
+        category: s.category,
+        subcategory: s.subcategory,
+        brands: [...s.brands].sort(),
+        county: s.nearMe ? "" : s.county,
+        condition: s.condition,
+        minPriceCents: s.minPriceCents,
+        maxPriceCents: s.maxPriceCents,
+      }));
+      setQuery(s.text);
+      setChips(new Set<Chip>([...(s.nearMe ? (["near"] as Chip[]) : []), ...(s.leftHanded ? (["left"] as Chip[]) : [])]));
+    });
+    return () => {
+      live = false;
+    };
+  }, [params.search, params.at]);
+
+  function clearSearch() {
+    setSearchWords("");
+    setUnderstood(null);
+    setQuery("");
+    setFilters(EMPTY_FILTERS);
+    setChips(new Set());
+    router.setParams({ search: undefined, at: undefined });
+  }
 
   // Where "near" is: the member's position if shared, else their club.
   const [me, setMe] = useState<{ clubId: number | null; clubName: string | null; at: Coords | null }>({ clubId: null, clubName: null, at: null });
@@ -251,18 +303,43 @@ export default function MarketplaceScreen() {
 
   const header = (
     <View>
-      <ImageBackground source={mode === "new" ? require("../../../../assets/images/scenes/dunes-gold.jpg") : require("../../../../assets/images/scenes/links-sunset.jpg")} style={styles.hero}>
-        <View style={styles.scrimTop} />
-        <View style={styles.scrimBottom} />
-        <View style={styles.eyebrowRow}>
-          <View style={styles.rule} />
-          <Text style={styles.eyebrow}>Marketplace</Text>
+      <View style={[styles.head, { paddingTop: insets.top > 0 ? 6 : spacing.md }]}>
+        <View style={styles.headTitleRow}>
+          <Text style={styles.headTitle}>Marketplace</Text>
+          <Text style={styles.headEyebrow}>Golfer to golfer</Text>
         </View>
-        <Text style={styles.heroTitle}>{mode === "new" ? "New Gear" : "Used Gear"}</Text>
-        <Text style={styles.heroSub}>{mode === "new" ? "From Irish pro shops & trusted retailers" : "Pre-loved clubs from golfers near you"}</Text>
+
+        {mode === "used" ? (
+          <View style={styles.searchRow}>
+            <Pressable
+              onPress={() => router.push("/marketplace-search")}
+              style={styles.searchPill}
+              accessibilityRole="search"
+              accessibilityLabel={searchWords ? `Search: ${searchWords}. Tap to change.` : "Search the marketplace"}
+            >
+              <Ionicons name="search" size={19} color={colors.navy900} />
+              <Text style={[styles.searchPillText, searchWords ? styles.searchPillTyped : null]} numberOfLines={1}>
+                {searchWords || "Try “Qi10 driver under €300”"}
+              </Text>
+              {searchWords ? (
+                <Pressable onPress={clearSearch} hitSlop={10} style={styles.searchClear} accessibilityRole="button" accessibilityLabel="Clear search">
+                  <Ionicons name="close" size={15} color={colors.navy900} />
+                </Pressable>
+              ) : null}
+            </Pressable>
+            <Pressable onPress={() => setFiltersOpen(true)} style={styles.filterButton} accessibilityRole="button" accessibilityLabel={activeCount ? `Filters, ${activeCount} applied` : "Filters"}>
+              <Ionicons name="options-outline" size={21} color={colors.cream50} />
+              {activeCount ? (
+                <View style={styles.filterBadge}>
+                  <Text style={styles.filterBadgeText}>{activeCount}</Text>
+                </View>
+              ) : null}
+            </Pressable>
+          </View>
+        ) : null}
 
         <View style={styles.switch} accessibilityRole="tablist">
-          {(["new", "used"] as const).map((m) => (
+          {(["used", "new"] as const).map((m) => (
             <Pressable
               key={m}
               onPress={() => {
@@ -274,30 +351,21 @@ export default function MarketplaceScreen() {
               accessibilityRole="tab"
               accessibilityState={{ selected: mode === m }}
             >
-              <Text style={[styles.switchText, mode === m && styles.switchTextOn]}>{m === "new" ? "New Gear" : "Used Gear"}</Text>
+              <Text style={[styles.switchText, mode === m && styles.switchTextOn]}>{m === "new" ? "New from shops" : "Used"}</Text>
             </Pressable>
           ))}
         </View>
+      </View>
 
-        {mode === "used" ? (
-          <View style={styles.search}>
-            <Ionicons name="search" size={17} color={colors.ink500} />
-            <TextInput
-              style={styles.searchInput}
-              value={query}
-              onChangeText={setQuery}
-              placeholder="Search drivers, putters, bags…"
-              placeholderTextColor={colors.ink500}
-              autoCorrect={false}
-              returnKeyType="search"
-              clearButtonMode="while-editing"
-            />
-            <Pressable onPress={() => setFiltersOpen(true)} hitSlop={8} accessibilityRole="button" accessibilityLabel={activeCount ? `Filters, ${activeCount} applied` : "Filters"}>
-              <Text style={styles.filtersLink}>{activeCount ? `Filters · ${activeCount}` : "Filters"}</Text>
-            </Pressable>
-          </View>
-        ) : null}
-      </ImageBackground>
+      {mode === "used" && understood && (understood.chips.length > 0 || understood.corrections.length > 0) ? (
+        <View style={styles.understood}>
+          <Ionicons name="sparkles" size={14} color="#8a6a1f" />
+          <Text style={styles.understoodText} numberOfLines={2}>
+            {understood.chips.map((c) => c.value).join(" · ")}
+            {understood.corrections.length ? `  (${understood.corrections.map((c) => `${c.from} → ${c.to}`).join(", ")})` : ""}
+          </Text>
+        </View>
+      ) : null}
 
       {mode === "used" ? (
         <>
@@ -311,19 +379,34 @@ export default function MarketplaceScreen() {
           {browsing ? (
             <>
               {bannerCard}
-              <SectionHead title="Shop by category" />
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.cats}>
                 {CATEGORY_TILES.map((t) => (
                   <Pressable key={t.key} onPress={() => setFilters({ ...EMPTY_FILTERS, category: t.key })} style={styles.cat} accessibilityRole="button" accessibilityLabel={t.label}>
-                    <View style={styles.catCircle}>
-                      <MaterialCommunityIcons name={t.icon} size={26} color={colors.navy900} />
+                    <View style={styles.catPhotoWrap}>
+                      {CATEGORY_PHOTOS[t.key] ? (
+                        <Image source={CATEGORY_PHOTOS[t.key]} style={styles.catPhoto} />
+                      ) : (
+                        <MaterialCommunityIcons name={t.icon} size={26} color={colors.navy900} />
+                      )}
                     </View>
-                    <Text style={styles.catLabel} numberOfLines={2}>
-                      {t.label}
+                    <Text style={styles.catLabel} numberOfLines={1}>
+                      {CATEGORY_SHORT[t.key] ?? t.label}
                     </Text>
                   </Pressable>
                 ))}
               </ScrollView>
+
+              {canSell ? (
+                <Pressable onPress={() => router.push("/new-listing")} style={styles.sellCard} accessibilityRole="button" accessibilityLabel="Sell your old clubs. List in 60 seconds">
+                  <ImageBackground source={require("../../../../assets/images/scenes/links-sunset.jpg")} style={styles.sellPhoto} imageStyle={{ borderRadius: 18 }}>
+                    <View style={styles.sellScrim} />
+                    <Text style={styles.sellTitle}>Your old clubs, someone&apos;s new favourites</Text>
+                    <View style={styles.sellButton}>
+                      <Text style={styles.sellButtonText}>List in 60 seconds</Text>
+                    </View>
+                  </ImageBackground>
+                </Pressable>
+              ) : null}
 
               <Rail title="Featured" cards={featured} onOpen={open} onFavourite={userId ? favourite : undefined} />
               <Rail title={me.clubName ? `Collect at ${me.clubName}` : "At your club"} cards={atClub} onOpen={open} onFavourite={userId ? favourite : undefined} onSeeAll={() => toggleChip("club")} />
@@ -517,22 +600,32 @@ const styles = StyleSheet.create({
   list: { paddingBottom: spacing.lg, gap: spacing.md },
   column: { gap: 12, paddingHorizontal: spacing.md },
 
-  hero: { paddingHorizontal: spacing.md, paddingTop: spacing.lg, paddingBottom: spacing.md + 2, gap: 4 },
-  scrimTop: { position: "absolute", left: 0, right: 0, top: 0, height: "100%", backgroundColor: "rgba(12,32,56,0.38)" },
-  scrimBottom: { position: "absolute", left: 0, right: 0, bottom: 0, height: "55%", backgroundColor: "rgba(12,32,56,0.38)" },
-  eyebrowRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  rule: { width: 18, height: 2, backgroundColor: colors.gold400 },
-  eyebrow: { fontFamily: fonts.bodyBold, fontSize: 11, letterSpacing: 1.8, textTransform: "uppercase", color: colors.gold400 },
-  heroTitle: { fontFamily: fonts.display, fontSize: 32, lineHeight: 38, color: colors.cream50 },
-  heroSub: { fontFamily: fonts.body, fontSize: 14, color: colors.cream100 },
-  switch: { flexDirection: "row", marginTop: spacing.sm + 2, padding: 4, borderRadius: radii.pill, backgroundColor: "rgba(12,32,56,0.55)", borderWidth: 1, borderColor: "rgba(232,196,107,0.5)" },
-  switchItem: { flex: 1, minHeight: 40, borderRadius: radii.pill, alignItems: "center", justifyContent: "center" },
-  switchOn: { backgroundColor: colors.gold400 },
-  switchText: { fontFamily: fonts.bodyBold, fontSize: 14.5, color: colors.cream50 },
-  switchTextOn: { color: colors.navy900 },
-  search: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: spacing.sm + 2, height: 48, paddingHorizontal: 14, borderRadius: radii.lg, backgroundColor: colors.surface },
-  searchInput: { flex: 1, fontFamily: fonts.body, fontSize: type.body, color: colors.ink900 },
-  filtersLink: { fontFamily: fonts.bodyBold, fontSize: 13.5, color: colors.navy900 },
+  head: { backgroundColor: colors.navy900, paddingHorizontal: spacing.md, paddingBottom: spacing.md, gap: 12 },
+  headTitleRow: { alignItems: "center", gap: 2 },
+  headTitle: { fontFamily: fonts.display, fontSize: 24, color: colors.cream50 },
+  headEyebrow: { fontFamily: fonts.bodyBold, fontSize: 10.5, letterSpacing: 1.6, textTransform: "uppercase", color: colors.gold400 },
+  searchRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  searchPill: { flex: 1, flexDirection: "row", alignItems: "center", gap: 10, height: 50, paddingHorizontal: 14, borderRadius: 14, backgroundColor: colors.cream50 },
+  searchPillText: { flex: 1, fontFamily: fonts.body, fontSize: 15, color: colors.ink500 },
+  searchPillTyped: { fontFamily: fonts.bodySemi, color: colors.ink900 },
+  searchClear: { width: 28, height: 28, borderRadius: 14, backgroundColor: colors.cream100, alignItems: "center", justifyContent: "center" },
+  filterButton: { width: 50, height: 50, borderRadius: 14, borderWidth: 1, borderColor: "rgba(247,243,234,0.3)", alignItems: "center", justifyContent: "center" },
+  filterBadge: { position: "absolute", top: 6, right: 6, minWidth: 17, height: 17, borderRadius: 9, backgroundColor: colors.gold400, alignItems: "center", justifyContent: "center", paddingHorizontal: 3 },
+  filterBadgeText: { fontFamily: fonts.bodyBold, fontSize: 10, color: colors.navy900 },
+  switch: { flexDirection: "row", padding: 4, borderRadius: radii.pill, backgroundColor: "rgba(247,243,234,0.1)" },
+  switchItem: { flex: 1, minHeight: 38, borderRadius: radii.pill, alignItems: "center", justifyContent: "center" },
+  switchOn: { backgroundColor: colors.gold500 },
+  switchText: { fontFamily: fonts.bodySemi, fontSize: 14.5, color: colors.cream50 },
+  switchTextOn: { fontFamily: fonts.bodyBold, color: colors.navy900 },
+  understood: { flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: spacing.md, marginTop: spacing.md, paddingHorizontal: 12, paddingVertical: 10, borderRadius: radii.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
+  understoodText: { flex: 1, fontFamily: fonts.bodySemi, fontSize: 13, color: colors.green800 },
+
+  sellCard: { marginHorizontal: spacing.md, marginTop: spacing.lg, borderRadius: 18, overflow: "hidden", backgroundColor: colors.navy900 },
+  sellPhoto: { height: 150, justifyContent: "center", paddingHorizontal: 20, gap: 12 },
+  sellScrim: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, borderRadius: 18, backgroundColor: "rgba(12,32,56,0.62)" },
+  sellTitle: { fontFamily: fonts.display, fontSize: 22, lineHeight: 27, color: colors.cream50, maxWidth: 240 },
+  sellButton: { alignSelf: "flex-start", backgroundColor: colors.gold500, borderRadius: radii.pill, paddingHorizontal: 14, paddingVertical: 9 },
+  sellButtonText: { fontFamily: fonts.bodyBold, fontSize: 14, color: colors.navy900 },
 
   chips: { gap: 8, paddingHorizontal: spacing.md, paddingTop: spacing.md },
   chip: { minHeight: 36, paddingHorizontal: 14, borderRadius: radii.pill, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface, justifyContent: "center" },
@@ -545,10 +638,11 @@ const styles = StyleSheet.create({
   seeAll: { fontFamily: fonts.bodyBold, fontSize: 13.5, color: colors.green700 },
   muted: { fontFamily: fonts.body, fontSize: 13.5, color: colors.ink500, paddingHorizontal: spacing.md },
 
-  cats: { gap: 12, paddingHorizontal: spacing.md },
-  cat: { width: 70, alignItems: "center" },
-  catCircle: { width: 64, height: 64, borderRadius: 32, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, alignItems: "center", justifyContent: "center" },
-  catLabel: { fontFamily: fonts.bodySemi, fontSize: 11.5, lineHeight: 14, color: colors.ink900, textAlign: "center", marginTop: 5 },
+  cats: { gap: 10, paddingHorizontal: spacing.md, paddingTop: spacing.md, paddingBottom: 4 },
+  cat: { width: 86, gap: 6 },
+  catPhotoWrap: { width: 86, height: 86, borderRadius: 18, overflow: "hidden", backgroundColor: colors.surface, alignItems: "center", justifyContent: "center", shadowColor: colors.navy900, shadowOpacity: 0.12, shadowRadius: 6, shadowOffset: { width: 0, height: 3 }, elevation: 2 },
+  catPhoto: { width: 86, height: 86 },
+  catLabel: { fontFamily: fonts.bodyBold, fontSize: 12.5, color: colors.ink900, textAlign: "center" },
 
   rail: { gap: 12, paddingHorizontal: spacing.md },
 
