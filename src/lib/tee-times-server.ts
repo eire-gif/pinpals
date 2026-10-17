@@ -310,7 +310,10 @@ export async function notifyInterestDeclined(
       type: "tee_time_interest_declined",
       title: "Your tee-time request wasn't successful",
       body: `The round at ${whenAt(input.invite)} has been filled. Plenty of others are looking for a fourball.`,
-      href: "/tee-times",
+      // Oct 2026: the round itself, not the list. In the app that is My
+      // rounds, where the card says so and carries "Find another round";
+      // on the website, that round's row on My requests.
+      href: applicantHref(input.invite),
       data: { inviteId: input.invite.inviteId, interestId: input.interestId },
       dedupeKey: buildDedupeKey(["tee_time", input.interestId, "declined"]),
     });

@@ -288,7 +288,7 @@ export default function HomeScreen() {
                   ? "1 golfer is waiting on your answer"
                   : `${summary.requestsWaiting} golfers are waiting on your answer`
               }
-              onPress={() => router.push("/tee-time-requests")}
+              onPress={() => router.push("/my-rounds?show=hosting")}
             />
           ) : null}
 
@@ -300,7 +300,7 @@ export default function HomeScreen() {
                   ? "You've been offered a place — confirm it"
                   : `You've been offered ${summary.offersWaiting} places — confirm them`
               }
-              onPress={() => router.push("/offered-places")}
+              onPress={() => router.push("/my-rounds?show=requested")}
             />
           ) : null}
 

@@ -48,16 +48,16 @@ describe("appRouteFor", () => {
   });
 
   it("keeps the two tee-time sides the right way round", () => {
-    // The host is told someone wants in; the applicant is told about their
-    // own request. Swapping these shows each of them the other's screen,
-    // which is empty, which reads as the alert being wrong.
+    // One page since Oct 2026 (My rounds), but it still opens on the side
+    // the alert is about: the host on Hosting, the applicant on Requested.
+    // Swapping these opens each of them on the other's tab.
     expect(appRouteFor("/tee-times/interested")).toEqual({
       kind: "native",
-      path: "/tee-time-requests",
+      path: "/my-rounds?show=hosting",
     });
     expect(appRouteFor("/tee-times/requests")).toEqual({
       kind: "native",
-      path: "/my-requests",
+      path: "/my-rounds?show=requested",
     });
   });
 
@@ -69,10 +69,10 @@ describe("appRouteFor", () => {
     }
   });
 
-  it("sends a confirmed-place alert to confirmed rounds", () => {
+  it("sends a confirmed-place alert to My rounds", () => {
     expect(appRouteFor("/tee-times/confirmed")).toEqual({
       kind: "native",
-      path: "/confirmed-rounds",
+      path: "/my-rounds",
     });
   });
 
@@ -164,7 +164,7 @@ describe("appRouteFor", () => {
 });
 
 /**
- * The table above says `/tee-times/interested` opens `/tee-time-requests`.
+ * The table above says `/tee-times/interested` opens `/my-rounds`.
  * Nothing in it knows whether that screen exists.
  *
  * expo-router resolves routes from the filesystem at runtime, so a path that
@@ -329,16 +329,16 @@ describe("every native destination is a screen that exists", () => {
 });
 
 describe("tee-time alerts open the one round they're about", () => {
-  it("opens the tee time itself for an offer, so Confirm my place is right there", () => {
-    expect(appRouteFor("/tee-times/requests?invite=12")).toEqual({ kind: "native", path: "/invite/12" });
-    expect(appRouteFor("/tee-times/confirmed?invite=12")).toEqual({ kind: "native", path: "/invite/12" });
+  it("opens My rounds at that round, whichever side the alert is for", () => {
+    // An offer, a confirmation, a cancellation, a request to your round:
+    // all on one page, scrolled to the round, its answer card at the top.
+    for (const list of ["/tee-times/requests", "/tee-times/confirmed", "/tee-times/interested"]) {
+      expect(appRouteFor(`${list}?invite=12`)).toEqual({ kind: "native", path: "/my-rounds?invite=12" });
+    }
   });
-  it("opens that round's requests for the host", () => {
-    expect(appRouteFor("/tee-times/interested?invite=12")).toEqual({ kind: "native", path: "/tee-time-requests?invite=12" });
-  });
-  it("still opens the lists when no round is named", () => {
-    expect(appRouteFor("/tee-times/requests")).toEqual({ kind: "native", path: "/my-requests" });
-    expect(appRouteFor("/tee-times/interested?invite=abc")).toEqual({ kind: "native", path: "/tee-time-requests" });
+  it("still opens the right tab when no round is named", () => {
+    expect(appRouteFor("/tee-times/requests")).toEqual({ kind: "native", path: "/my-rounds?show=requested" });
+    expect(appRouteFor("/tee-times/interested?invite=abc")).toEqual({ kind: "native", path: "/my-rounds?show=hosting" });
   });
   it("reads the round from the query only on the tee-time lists", () => {
     expect(teeTimeFocus("/tee-times/requests?invite=5")).toBe(5);

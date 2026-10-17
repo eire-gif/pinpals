@@ -13,8 +13,8 @@ describe("routeForIncomingUrl", () => {
 
   it("opens notification-email links on native screens", () => {
     expect(routeForIncomingUrl("https://www.pinpals.ie/conversations/55")).toBe("/conversation/55");
-    expect(routeForIncomingUrl("https://pinpals.ie/tee-times/interested")).toBe("/tee-time-requests");
-    expect(routeForIncomingUrl("https://www.pinpals.ie/tee-times/requests")).toBe("/my-requests");
+    expect(routeForIncomingUrl("https://pinpals.ie/tee-times/interested")).toBe("/my-rounds?show=hosting");
+    expect(routeForIncomingUrl("https://www.pinpals.ie/tee-times/requests")).toBe("/my-rounds?show=requested");
     expect(routeForIncomingUrl("https://www.pinpals.ie/tee-times")).toBe("/tee-times");
     expect(routeForIncomingUrl("https://www.pinpals.ie/dashboard/orders/88")).toBe("/order/88");
     expect(routeForIncomingUrl("https://www.pinpals.ie/marketplace/412?ref=email")).toBe("/listing/412");

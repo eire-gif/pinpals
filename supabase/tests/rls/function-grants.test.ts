@@ -473,6 +473,7 @@ const EXPECTED: Record<string, Expectation> = {
   // has checked the link's signature — never callable from the app.
   "tee_time_invited(p_invite_id bigint)": { anon: false, authenticated: true },
   "tee_time_can_fill(p_invite_id bigint, p_user uuid)": { anon: false, authenticated: true },
+  "tee_time_participant(p_invite_id bigint)": { anon: false, authenticated: true },
   "invite_to_tee_time(p_invite_id bigint, p_members uuid[])": { anon: false, authenticated: true },
   "tee_time_link_claim(p_invite_id bigint, p_sharer uuid, p_member uuid)": { anon: false, authenticated: false },
 
