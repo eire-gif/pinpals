@@ -5,6 +5,7 @@ import "./globals.css";
 import SiteHeader from "@/components/site-header";
 import SiteFooter from "@/components/site-footer";
 import SiteChromeGate from "@/components/site-chrome-gate";
+import ActivityBeacon from "@/components/activity-beacon";
 
 const playfair = Playfair_Display({
   variable: "--font-playfair",
@@ -83,6 +84,9 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
             <SiteFooter />
           </SiteChromeGate>
         )}
+        {/* The admin "Live now" panel (0161). Not inside the app's web view:
+            the app reports its own screens. */}
+        {!inAppShell && <ActivityBeacon />}
       </body>
     </html>
   );

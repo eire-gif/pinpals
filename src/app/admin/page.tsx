@@ -5,6 +5,9 @@ import { getOverviewMetrics } from "@/lib/admin/queries";
 import { canSeeFinanceMetrics } from "@/lib/admin/overview";
 import { getAdminAttention, getCommunitySnapshot } from "@/lib/admin/admin-lists";
 import AdminPageHeader from "@/components/admin/page-header";
+import LiveActivityPanel from "@/components/admin/live-activity-panel";
+import { canSeeLivePanel } from "@/lib/admin/live-panel";
+import { getLiveStats } from "@/lib/admin/live-stats";
 
 // The Overview: what needs a person today, then a compact snapshot of the
 // community. Every number is a bounded count (getOverviewMetrics() in
@@ -15,19 +18,25 @@ export default async function AdminOverviewPage() {
   // requireStaff() in src/lib/admin/authorization.ts.
   const { staff } = await requireStaff();
   const finance = canSeeFinanceMetrics(staff);
+  const live = canSeeLivePanel(staff);
   const metrics = await getOverviewMetrics();
-  const [attention, snapshot] = await Promise.all([
+  const [attention, snapshot, liveStats] = await Promise.all([
     getAdminAttention({
       finance,
       suspendedMembers: metrics.suspendedMembers,
       openSupportCases: metrics.unresolvedSupportCases,
     }),
     getCommunitySnapshot(),
+    // The "Live now" panel (0161), super admin only. Fetched here so the
+    // numbers are already on screen at sign-in; the panel refreshes itself.
+    live ? getLiveStats() : Promise.resolve(null),
   ]);
 
   return (
     <div>
       <AdminPageHeader title="Overview" description={`What needs attention today. Signed in as ${ROLE_LABELS[staff.role]}.`} />
+
+      {live && <LiveActivityPanel initial={liveStats} />}
 
       <Section title="Needs attention">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
