@@ -16,6 +16,9 @@ export const NAV_SECTIONS: NavSectionConfig[] = [
     title: "Community",
     items: [
       { href: "/admin/users", label: "Users" },
+      // What's behind the Overview's live numbers (0161) — today's scorecards,
+      // games, tee times, groups, members, listings and posts.
+      { href: "/admin/activity", label: "Activity", roles: ["super_admin"] },
       { href: "/admin/groups", label: "Groups & societies" },
       { href: "/admin/tee-times", label: "Tee times" },
       { href: "/admin/feed", label: "Social" },
