@@ -77,8 +77,30 @@ export const MAX_BRAND_OTHER_LENGTH = 60;
 export const MAX_MODEL_LENGTH = 80;
 export const MAX_SPEC_LENGTH = 24;
 
+// ============ brands learned from sellers (0164) ============
+// A brand staff add from member suggestions (Admin → Brands & models) lives
+// only in marketplace_brands, with the categories it's sold under. The
+// server loads them (src/lib/learned-brands.ts → setLearnedBrands) before
+// anything here is asked about a brand, so they're offered and accepted
+// exactly like the curated ones. In the browser the list is empty: forms
+// there get their brands from /api/brands, which includes them.
+
+export type LearnedBrand = Brand & { categories: readonly string[] };
+
+let LEARNED: readonly LearnedBrand[] = [];
+let LEARNED_BY_ID = new Map<string, LearnedBrand>();
+
+export function setLearnedBrands(list: readonly LearnedBrand[]): void {
+  LEARNED = list.filter((b) => !BRAND_BY_ID.has(b.id));
+  LEARNED_BY_ID = new Map(LEARNED.map((b) => [b.id, b]));
+}
+
+export function learnedBrands(): readonly LearnedBrand[] {
+  return LEARNED;
+}
+
 export function brandById(id: string): Brand | undefined {
-  return BRAND_BY_ID.get(id) ?? FALLBACK_BRANDS.find((b) => b.id === id);
+  return BRAND_BY_ID.get(id) ?? LEARNED_BY_ID.get(id) ?? FALLBACK_BRANDS.find((b) => b.id === id);
 }
 
 /** The brand's display label, or the id itself for an unknown id — never
@@ -119,16 +141,17 @@ function categoryEntry(category: string) {
 export function brandIdsFor(category: string, subcategory?: string | null): readonly string[] {
   const entry = categoryEntry(category);
   if (!entry) return [];
+  const learned = LEARNED.filter((b) => b.categories.includes(category)).map((b) => b.id);
   if (subcategory) {
     const narrowed = entry.subcategoryBrands[subcategory];
-    if (narrowed) return narrowed;
+    if (narrowed) return learned.length ? [...narrowed, ...learned] : narrowed;
   }
-  return entry.brands;
+  return learned.length ? [...entry.brands, ...learned] : entry.brands;
 }
 
 export function brandsFor(category: string, subcategory?: string | null): readonly Brand[] {
   return brandIdsFor(category, subcategory)
-    .map((id) => BRAND_BY_ID.get(id))
+    .map((id) => BRAND_BY_ID.get(id) ?? LEARNED_BY_ID.get(id))
     .filter((b): b is Brand => b !== undefined);
 }
 
@@ -167,7 +190,7 @@ export function isBrandValidFor(brandId: string, category: string, subcategory?:
 /** Whether `brandId` is a legal choice anywhere at all — used when a buyer
  * filters by brand without having picked a category. */
 export function isKnownBrandId(brandId: string): boolean {
-  return BRAND_BY_ID.has(brandId) || FALLBACK_BRANDS.some((b) => b.id === brandId);
+  return BRAND_BY_ID.has(brandId) || LEARNED_BY_ID.has(brandId) || FALLBACK_BRANDS.some((b) => b.id === brandId);
 }
 
 /**

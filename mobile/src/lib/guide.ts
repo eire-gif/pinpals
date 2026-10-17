@@ -1471,34 +1471,45 @@ export const GUIDES: Guide[] = [
     next: "buy",
     steps: [
       {
-        title: "Photograph it",
-        body: "In the Marketplace, tap the green Sell button in the middle of the bottom menu (or Sell an item on Home). Add up to 8 photos — the first is the cover.",
+        title: "Photos and a description",
+        body: "In the Marketplace, tap the green Sell button in the middle of the bottom menu (or Sell an item on Home). Add up to 8 photos — the first is the cover — then say a bit about it under Description; the + buttons add a line for how long you've had it, any marks and what's included.",
         look: [
           { style: "primary", label: "Sell", icon: "add" },
           { style: "outline", label: "Add photos", icon: "camera-outline" },
+          { style: "outline", label: "+ Any marks" },
         ],
         go: { label: "List an item", to: "/new-listing" },
       },
       {
         title: "Say what it is",
-        body: "Type it roughly — “taylormade qi10 driver 10.5 stiff” — and the category, brand, model, loft and shaft fill themselves in under Filled in for you. Tap Use to tidy the title, change anything that's wrong, then pick the condition.",
+        body: "Tap a tile — Clubs (Drivers, Irons, Putters…) or Everything else golf (Bags, Trolleys, Shoes, Clothing, GPS & rangefinders, Balls, Accessories, Training aids). Some ask which kind, like Electric or Push. Or type it — “tm qi10 driver 10.5 stiff” — and tap Fill in: it jumps ahead with the brand, model, loft and shaft filled in.",
         look: [
-          { style: "field", label: "taylormade qi10 driver 10.5 stiff", icon: "create-outline" },
-          { style: "tile", label: "Filled in for you", icon: "sparkles" },
-          { style: "outline", label: "Excellent" },
+          { style: "tile", label: "Drivers", icon: "golf" },
+          { style: "tile", label: "Trolleys", icon: "cart-outline" },
+          { style: "field", label: "tm qi10 driver 10.5 stiff", icon: "sparkles" },
         ],
       },
       {
-        title: "Pick the exact model",
-        body: "Once there's a brand, Model shows that brand's models, newest first — it's often picked for you from the title. Choosing it puts your ad in front of buyers who pick that model.",
+        title: "Pick the brand and model",
+        body: "Brand: tap a logo, search, or open All brands A–Z. Model: the brand's models, newest first — tap yours, then the exact version. Not on the list? Tap Not listed — type it. Your ad uses it straight away, and once a few sellers type the same thing it joins the list for everyone.",
         look: [
-          { style: "outline", label: "Model", icon: "pricetag-outline" },
+          { style: "outline", label: "TaylorMade" },
           { style: "outline", label: "Qi10 · 2024" },
+          { style: "outline", label: "Not listed — type it" },
+        ],
+      },
+      {
+        title: "Condition and details",
+        body: "Pick the condition — each says what it means — then only the details that matter for what you're selling: loft, shaft and hand for clubs, size for shoes and clothing.",
+        look: [
+          { style: "outline", label: "Excellent" },
+          { style: "outline", label: "10.5°" },
+          { style: "outline", label: "Stiff" },
         ],
       },
       {
         title: "Price it and post it",
-        body: "Set your price — under it, Similar ads on PinPals shows what comparable ads ask; tap Use to take the middle. Choose Fixed price or Open to offers, then where it is. Tap Post listing — it's free and goes live straight away.",
+        body: "Set your price — Similar ads on PinPals shows what comparable ads ask; tap Use to take the middle. Choose Fixed price or Open to offers. The title is written for you (change it if you like), and the preview shows the ad as buyers will see it. Tap Post listing — it's free and goes live straight away.",
         look: [
           { style: "field", label: "€ 180", icon: "cash-outline" },
           { style: "outline", label: "Open to offers" },
@@ -1745,6 +1756,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-17", text: "Selling is now six short steps — photos and a description, what it is (clubs or anything else golf), brand, model, details, price — with a preview of the ad before you post. A brand or model that isn't listed can be typed in, and joins the list once a few sellers use it. Sell your gear is updated." },
   { on: "2026-10-17", text: "Marketplace: find gear in three steps — club type, brand, model — with the listings always below, narrowing as you pick. Top picks, at the top, are paid adverts marked PREMIUM. Selling, you can pick the exact model. Buy gear safely and Sell your gear are updated." },
   { on: "2026-10-17", text: "Score a game live: once every hole is in, the Score tab shows All 18 holes in with Complete scorecard (it was Finish round, on the Leaderboard tab only), and the card says Complete. On the last hole with holes missing, it lists them to tap. Tapping the lock screen card after the last hole opens the round there." },
   { on: "2026-10-17", text: "Marketplace redesign: smart search that understands brands, prices, places and typos; public Questions & offers under every ad (ask, offer, and the seller accepts, counters or declines in the open); the sell form fills itself in from the title; marketplace chats are in Messages under Marketplace, with the item pinned. Sell your gear and Buy gear safely are updated." },

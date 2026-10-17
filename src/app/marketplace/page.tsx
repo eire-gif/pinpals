@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { ensureLearnedBrands } from "@/lib/learned-brands";
 import {
   parseMarketplaceFilters,
   fetchMarketplaceListings,
@@ -51,10 +52,12 @@ export default async function MarketplacePage({
 }) {
   const raw = await searchParams;
   const mode = raw.mode === "new" ? "new" : "used";
+  const supabase = await createClient();
+  // Before the filters are read: a brand added from member suggestions (0164) is a valid ?brand=.
+  await ensureLearnedBrands(supabase);
   const filters = parseMarketplaceFilters(raw);
   const listed = raw.listed;
 
-  const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
