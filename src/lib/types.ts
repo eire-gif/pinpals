@@ -168,6 +168,10 @@ export type Listing = {
   /** Paid placements (0115). */
   featured_until?: string | null;
   bumped_at?: string | null;
+  /** Catalogue model (0163, marketplace_models). */
+  model_id?: string | null;
+  /** Paid Top picks placement (0163): Premium 3 days, Premium Plus 7. */
+  top_pick_until?: string | null;
   created_at: string;
   updated_at: string;
 };

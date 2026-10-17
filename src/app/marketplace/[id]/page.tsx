@@ -21,7 +21,7 @@ import PurchasePanel from "./purchase-panel";
 import MobileActionBar from "./mobile-action-bar";
 import SellerCard from "./seller-card";
 import HowYoullGetIt from "./how-youll-get-it";
-import { STORE_COLUMNS, isFeatured, type Store } from "@/lib/marketplace-growth";
+import { STORE_COLUMNS, isFeatured, isTopPick, type Store } from "@/lib/marketplace-growth";
 import RelatedListings from "./related-listings";
 import SafetyGuidance from "./safety-guidance";
 import ReviewsSection from "./reviews-section";
@@ -373,7 +373,7 @@ export default async function ListingDetailPage({
                   New{listing.stock_quantity != null ? ` · ${listing.stock_quantity} in stock` : ""}
                 </span>
               ) : isFeatured(listing) ? (
-                <span className="bg-gold-400 text-navy-900 text-xs font-bold px-2.5 py-1 rounded-full">Featured</span>
+                <span className="bg-gold-400 text-navy-900 text-xs font-bold px-2.5 py-1 rounded-full">Premium</span>
               ) : null}
               {listing.status !== "active" && (
                 <span className="bg-navy-900 text-white text-xs font-bold px-2.5 py-1 rounded-full">
@@ -433,15 +433,21 @@ export default async function ListingDetailPage({
               />
             )}
 
-            {isSeller && listing.status === "active" && !listing.store_id && !cash ? (
+            {/* Top picks (0163) is paid to PinPals by card, so it's offered
+                whether or not the marketplace itself takes payments. */}
+            {isSeller && listing.status === "active" && !listing.store_id ? (
               <Link
                 href={`/dashboard/listings/${listing.id}/promote`}
                 className="mt-4 flex items-center gap-4 rounded-2xl bg-navy-900 text-cream-50 p-5 hover:brightness-110 transition"
               >
-                <span aria-hidden>🚀</span>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#e8c46b" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="M12 19V5M5 12l7-7 7 7" />
+                </svg>
                 <span className="flex-1">
-                  <span className="block font-bold">{isFeatured(listing) ? "Featured — showing at the top" : "Sell it faster"}</span>
-                  <span className="block text-sm text-cream-50/75">Feature it for 7 days or bump it to the top of Fresh today.</span>
+                  <span className="block font-bold">
+                    {isTopPick(listing) ? "In Top picks — shown above the other listings" : "Get it into Top picks"}
+                  </span>
+                  <span className="block text-sm text-cream-50/75">Premium from €1.99 puts it above every other listing for its club, brand and model.</span>
                 </span>
                 <span className="text-gold-400 font-bold" aria-hidden>→</span>
               </Link>

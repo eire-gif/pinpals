@@ -55,6 +55,7 @@ function readUpdateFields(formData: FormData) {
         ? String(formData.get("brandOther") || "").trim() || undefined
         : undefined,
     model: formData.has("model") ? String(formData.get("model") || "").trim() || undefined : undefined,
+    modelId: formData.has("modelId") ? String(formData.get("modelId") || "").trim() || undefined : undefined,
     dexterity: formData.has("dexterity") ? String(formData.get("dexterity") || "") || undefined : undefined,
     shaftFlex: formData.has("shaftFlex") ? String(formData.get("shaftFlex") || "") || undefined : undefined,
     shaftMaterial: formData.has("shaftMaterial")
@@ -74,6 +75,7 @@ function submittedItemDetailFields(formData: FormData) {
   return {
     brand: formData.has("brand"),
     model: formData.has("model"),
+    modelId: formData.has("modelId"),
     dexterity: formData.has("dexterity"),
     shaftFlex: formData.has("shaftFlex"),
     shaftMaterial: formData.has("shaftMaterial"),
@@ -190,6 +192,8 @@ export async function updateListing(
     listingPatch.brand_other = data.brand === "other" ? data.brandOther || null : null;
   }
   if (submitted.model) listingPatch.model = data.model || null;
+  // The catalogue model (0163). Cleared with the brand, since it belongs to one.
+  if (submitted.modelId) listingPatch.model_id = data.modelId && data.brand && data.brand !== "other" ? data.modelId : null;
   if (submitted.dexterity) listingPatch.dexterity = data.dexterity || null;
   if (submitted.shaftFlex) listingPatch.shaft_flex = data.shaftFlex || null;
   if (submitted.shaftMaterial) listingPatch.shaft_material = data.shaftMaterial || null;

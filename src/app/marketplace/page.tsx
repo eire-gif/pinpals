@@ -23,7 +23,9 @@ import MarketplaceControls from "./marketplace-controls";
 import LoadMoreListings from "./load-more-listings";
 import ListingCard from "./listing-card";
 import SmartSearchBox from "./smart-search-box";
-import { CATEGORIES } from "@/lib/marketplace";
+import Finder, { TopPicks } from "./finder";
+import { countFor, totalForSale } from "@/lib/finder";
+import { loadBrandRows, loadFinderCounts, loadModel, loadModels, loadTopPicks } from "@/lib/marketplace-finder";
 import { getAgeAccess } from "@/lib/age-access";
 import { ageBlockFor } from "@/lib/junior";
 
@@ -33,9 +35,10 @@ import { ageBlockFor } from "@/lib/junior";
  *
  * Used Gear | New Gear over a photograph.
  *
- * USED GEAR (default) — members' own clubs: quick chips, the paid Featured
- * row while nothing is searched, then the full, URL-driven search
- * (search_marketplace_listings, used gear only since 0116).
+ * USED GEAR (default) — members' own clubs: find by club, brand and model
+ * (0163, ./finder.tsx), the paid Top picks row for whatever's picked, then
+ * the full, URL-driven search (search_marketplace_listings, used gear only
+ * since 0116) — always showing, narrowing as each step is picked.
  *
  * NEW GEAR (?mode=new) — the sponsored banner, approved pro shops, their
  * stock, and retailer deals (0115). Retailer and banner links go through
@@ -177,19 +180,6 @@ const TRUST = [
   { h: "Questions & offers in the open", s: "Every buyer sees the same thing" },
 ];
 
-/** Category photos (approved mock-ups): the club on grass, or a studio shot on a soft colour. */
-const CATEGORY_PHOTOS: Record<string, string> = {
-  Drivers: "/images/marketplace/drivers.jpg",
-  "Woods & hybrids": "/images/marketplace/woods.jpg",
-  Irons: "/images/marketplace/irons.jpg",
-  Wedges: "/images/marketplace/wedges.jpg",
-  Putters: "/images/marketplace/putters.jpg",
-  "Full sets": "/images/marketplace/sets.jpg",
-  "Bags & trolleys": "/images/marketplace/bags.jpg",
-  "Shoes & apparel": "/images/marketplace/apparel.jpg",
-  "Balls & accessories": "/images/marketplace/balls.jpg",
-};
-
 const CHIPS: { label: string; patch: Partial<MarketplaceFilters> }[] = [
   { label: "Under €100", patch: { maxPriceCents: 10000 } },
   { label: "Collect in person", patch: { delivery: "collection" } },
@@ -211,14 +201,35 @@ function chipOn(filters: MarketplaceFilters, patch: Partial<MarketplaceFilters>)
 async function UsedGear({ filters, userId }: { filters: MarketplaceFilters; userId: string | null }) {
   const supabase = await createClient();
   const browsing = marketplaceFiltersToSearchParams(filters).toString() === "";
+  const brand = filters.brands.length === 1 ? filters.brands[0] : "";
 
-  const [{ listings, nextCursor }, brandFacets, featured, banner] = await Promise.all([
+  const [{ listings, nextCursor }, brandFacets, banner, counts, brandRows, models, model, topPicks] = await Promise.all([
     fetchMarketplaceListings(supabase, filters, null, userId, RESULTS_PAGE_SIZE),
     fetchBrandFacets(supabase, filters),
-    browsing ? loadListingsForCards(supabase, { featured: true }, userId, 4) : Promise.resolve([]),
     browsing ? loadLiveBanner(supabase, "used_gear") : Promise.resolve(null),
+    loadFinderCounts(supabase, filters.category, brand),
+    loadBrandRows(supabase),
+    loadModels(supabase, brand, filters.category),
+    loadModel(supabase, filters.model),
+    loadTopPicks(supabase, filters, userId),
   ]);
   if (banner) await supabase.rpc("banner_seen", { p_banner_id: banner.id });
+
+  // "N listings match" is only exact when nothing but the finder narrows them.
+  const onlyFinder =
+    !filters.q && !filters.subcategory && !filters.county && !filters.condition && !filters.saleType && !filters.delivery &&
+    filters.minPriceCents === null && filters.maxPriceCents === null && filters.brands.length <= 1;
+  const forSaleNow = !onlyFinder
+    ? null
+    : model
+      ? countFor(counts, "model", model.id)?.count ?? 0
+      : brand && filters.category
+        ? countFor(counts, "brand", brand)?.count ?? 0
+        : filters.category
+          ? countFor(counts, "category", filters.category)?.count ?? 0
+          : brand
+            ? null
+            : totalForSale(counts);
 
   return (
     <>
@@ -245,38 +256,16 @@ async function UsedGear({ filters, userId }: { filters: MarketplaceFilters; user
         </div>
       ) : null}
 
-      {browsing ? (
-        <section className="mb-10" aria-labelledby="shop-by-category">
-          <h2 id="shop-by-category" className="font-display font-semibold text-3xl text-navy-900 mb-5">
-            Shop by category
-          </h2>
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(130px,1fr))] gap-3.5">
-            {CATEGORIES.map((c) => (
-              <Link
-                key={c}
-                href={`/marketplace?category=${encodeURIComponent(c)}#results`}
-                className="group bg-surface rounded-2xl overflow-hidden shadow-[0_1px_2px_rgba(12,32,56,0.06),0_10px_26px_rgba(12,32,56,0.07)] hover:-translate-y-0.5 transition"
-              >
-                <span className="relative block aspect-square">
-                  <Image src={CATEGORY_PHOTOS[c]} alt="" fill sizes="180px" className="object-cover group-hover:scale-105 transition duration-300" />
-                </span>
-                <span className="block px-3.5 py-3 font-bold text-[15px]">{c}</span>
-              </Link>
-            ))}
-          </div>
-        </section>
-      ) : null}
+      <Finder
+        filters={filters}
+        counts={counts}
+        brands={new Map(brandRows.map((b) => [b.id, b]))}
+        models={models}
+        model={model && model.brandId === brand && model.category === filters.category ? model : null}
+        forSaleNow={forSaleNow}
+      />
 
-      {featured.length > 0 ? (
-        <section className="mb-8">
-          <h2 className="font-extrabold text-xl text-navy-900 mb-3">Featured</h2>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            {featured.map((l) => (
-              <ListingCard key={l.id} listing={l} signedIn={!!userId} />
-            ))}
-          </div>
-        </section>
-      ) : null}
+      <TopPicks picks={topPicks} signedIn={!!userId} />
 
       <div id="results" className="scroll-mt-20" />
       <MarketplaceControls filters={filters} brandFacets={brandFacets} />
@@ -289,6 +278,7 @@ async function UsedGear({ filters, userId }: { filters: MarketplaceFilters; user
         initialNextCursor={nextCursor}
         filters={filters}
         signedIn={!!userId}
+        hideIds={topPicks.map((p) => p.id)}
       />
     </>
   );

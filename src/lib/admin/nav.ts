@@ -32,6 +32,8 @@ export const NAV_SECTIONS: NavSectionConfig[] = [
       // Every tab inside gates itself, so any staff member sees the link.
       { href: "/admin/marketplace", label: "Marketplace" },
       { href: "/admin/listings", label: "Listings" },
+      // Logos and the model catalogue behind find by club, brand and model (0163).
+      { href: "/admin/brands", label: "Brands & models" },
       { href: "/admin/orders", label: "Orders", roles: FINANCE_ROLES },
       { href: "/admin/reviews", label: "Reviews" },
     ],

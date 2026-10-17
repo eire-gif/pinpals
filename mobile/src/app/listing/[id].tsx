@@ -13,6 +13,7 @@ import {
 import { contentWidthNow } from "@/lib/content-width";
 import { Stack, router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { TopPicksInfo } from "@/components/top-picks-info";
 
 import { Avatar } from "@/components/avatar";
 import { askParentAbout, useAgeAccess } from "@/lib/age";
@@ -270,7 +271,7 @@ export default function ListingScreen() {
         )}
         {featured || shop ? (
           <View style={[styles.badge, shop ? styles.badgeNew : styles.badgeFeatured]}>
-            <Text style={[styles.badgeText, shop ? styles.badgeTextNew : null]}>{shop ? "New" : "Featured"}</Text>
+            <Text style={[styles.badgeText, shop ? styles.badgeTextNew : null]}>{shop ? "New" : "PREMIUM"}</Text>
           </View>
         ) : null}
 
@@ -485,23 +486,11 @@ export default function ListingScreen() {
 
           {listing.isMine ? (
             <>
-              {listing.status === "active" && !shop && !cash ? (
-                // Information only, no link: a promotion is a digital
-                // service, so under App Store rule 3.1.1 it is bought on the
-                // website, never inside the app (not even its web view).
-                <View style={styles.promote}>
-                  <Ionicons name="rocket-outline" size={20} color={colors.gold400} />
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.promoteTitle}>
-                      {featured ? "Featured — showing at the top" : "Want it seen first?"}
-                    </Text>
-                    <Text style={styles.promoteBody}>
-                      {featured
-                        ? `Until ${new Date(listing.featuredUntil ?? "").toLocaleDateString("en-IE", { day: "numeric", month: "short" })}.`
-                        : "Feature or bump it from My listings on the PinPals website."}
-                    </Text>
-                  </View>
-                </View>
+              {listing.status === "active" && !shop ? (
+                // Information only, no link: a place in Top picks is a
+                // digital service, so under App Store rule 3.1.1 it is bought
+                // on the website, never inside the app (not even its web view).
+                <TopPicksInfo listingId={listing.id} featuredUntil={listing.featuredUntil} />
               ) : null}
               <SellerControls
                 listingId={listing.id}
@@ -859,17 +848,6 @@ const styles = StyleSheet.create({
   trustCell: { flex: 1, alignItems: "center" },
   trustValue: { fontSize: 16, fontWeight: "800", color: colors.navy900 },
   trustLabel: { fontFamily: fonts.body, fontSize: 11.5, color: colors.ink500, marginTop: 1 },
-
-  promote: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    padding: spacing.md,
-    borderRadius: radii.lg,
-    backgroundColor: colors.navy900,
-  },
-  promoteTitle: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.cream50 },
-  promoteBody: { fontFamily: fonts.body, fontSize: type.small, color: "rgba(255,255,255,0.75)", marginTop: 1 },
 
   spec: { flexDirection: "row", justifyContent: "space-between", gap: spacing.sm },
   specLabel: { fontFamily: fonts.body, fontSize: type.small, color: colors.ink500 },

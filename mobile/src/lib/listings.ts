@@ -211,6 +211,8 @@ export type NewListing = {
   images: UploadedPhoto[];
   /** Read out of the title (smart-search.ts parseListingTitle). Optional. */
   model?: string | null;
+  /** The catalogue model (0163), picked or matched from the title. */
+  modelId?: string | null;
   dexterity?: string | null;
   shaftFlex?: string | null;
   shaftMaterial?: string | null;
@@ -242,6 +244,7 @@ export async function createListing(listing: NewListing): Promise<CreatedListing
     price_eur: listing.priceEur,
     delivery_options: listing.deliveryOptions,
     model: listing.model || null,
+    ...(listing.modelId ? { model_id: listing.modelId } : {}),
     dexterity: listing.dexterity || null,
     shaft_flex: listing.shaftFlex || null,
     shaft_material: listing.shaftMaterial || null,

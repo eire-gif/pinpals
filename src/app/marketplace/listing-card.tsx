@@ -16,9 +16,12 @@ const BADGE_STYLES: Record<MarketplaceListing["sale_type"], string> = {
 export default function ListingCard({
   listing,
   signedIn,
+  topPick = false,
 }: {
   listing: MarketplaceListing;
   signedIn: boolean;
+  /** Drawn in the Top picks row (0163): gold border and the PREMIUM badge. */
+  topPick?: boolean;
 }) {
   const isAuction = listing.sale_type === "auction" || listing.sale_type === "auction_with_buy_now";
   // formatTimeRemaining() (not a direct new Date()/Date.now() call here) is
@@ -32,7 +35,9 @@ export default function ListingCard({
   return (
     <Link
       href={`/marketplace/${listing.id}`}
-      className="group block bg-surface rounded-2xl overflow-hidden shadow-[0_3px_14px_rgba(12,32,56,0.08)] hover:shadow-[0_8px_24px_rgba(12,32,56,0.14)] hover:-translate-y-0.5 transition"
+      className={`group block bg-surface rounded-2xl overflow-hidden shadow-[0_3px_14px_rgba(12,32,56,0.08)] hover:shadow-[0_8px_24px_rgba(12,32,56,0.14)] hover:-translate-y-0.5 transition ${
+        topPick ? "ring-2 ring-gold-500" : ""
+      }`}
     >
       {/* Stable aspect ratio (this phase's spec) so the grid never reflows
        * as photos of very different native dimensions load in — every card
@@ -57,14 +62,16 @@ export default function ListingCard({
 
         <FavouriteButton listingId={listing.id} initialFavourited={listing.isFavourited} signedIn={signedIn} />
 
-        {/* Paid placement and shop stock outrank the sale type (0115). */}
+        {/* Paid placement and shop stock outrank the sale type (0115). In
+         * Top picks every advert is paid for, so each says so; elsewhere
+         * only Premium Plus carries the badge (0163). */}
         {listing.store_id ? (
           <span className="absolute top-3 right-3 text-[11px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-green-700 text-cream-50">
             New
           </span>
-        ) : isFeatured(listing) ? (
+        ) : topPick || isFeatured(listing) ? (
           <span className="absolute top-3 right-3 text-[11px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-gold-400 text-navy-900">
-            Featured
+            Premium
           </span>
         ) : (
           <span

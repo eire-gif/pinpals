@@ -15,7 +15,7 @@ const GRID_COLUMN = (contentWidthNow() - 32 - GRID_GAP) / 2;
 /**
  * One item in the marketplace (Oct 2026 redesign): a big soft photo tile,
  * the price large in navy, then title, condition and where to collect it,
- * and the Buyer Protection tick. Gold "Featured" for paid placements, green
+ * and the Buyer Protection tick. Gold "PREMIUM" for paid placements, green
  * "New" for shop stock.
  */
 export function GearCard({
@@ -33,8 +33,9 @@ export function GearCard({
   const price = priceLine(card);
   const where = [card.clubName ? `Collect at ${card.clubName}` : null, kmLabel(card.distanceKm)].filter(Boolean).join(" · ");
   const icon = CATEGORY_TILES.find((t) => t.key === card.category)?.icon ?? "golf";
-  const badge = card.featured
-    ? { text: "Featured", bg: colors.gold400, fg: colors.navy900 }
+  // Paid placements (0163): every Top pick says so; Premium Plus everywhere.
+  const badge = card.featured || card.topPick
+    ? { text: "PREMIUM", bg: colors.gold400, fg: colors.navy900 }
     : card.storeId
       ? { text: "New", bg: colors.green700, fg: colors.cream50 }
       : isAuction(card.saleType)
@@ -42,7 +43,7 @@ export function GearCard({
         : null;
 
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [width ? { width } : styles.fill, pressed && { opacity: 0.9 }]} accessibilityRole="button" accessibilityLabel={`${card.title}, ${price.value}`}>
+    <Pressable onPress={onPress} style={({ pressed }) => [width ? { width } : styles.fill, card.topPick && styles.topPick, pressed && { opacity: 0.9 }]} accessibilityRole="button" accessibilityLabel={`${card.title}, ${price.value}`}>
       <View style={styles.photo}>
         {card.imageUrl ? (
           <Image source={{ uri: card.imageUrl }} style={styles.image} />
@@ -79,6 +80,7 @@ export function GearCard({
 }
 
 const styles = StyleSheet.create({
+  topPick: { borderRadius: 16, borderWidth: 2, borderColor: colors.gold500, padding: 4, backgroundColor: colors.surface },
   // A fixed column width, so a lone last card keeps its size.
   fill: { width: GRID_COLUMN },
   photo: { aspectRatio: 1, borderRadius: radii.lg, backgroundColor: "#eef0ee", overflow: "hidden", alignItems: "center", justifyContent: "center" },

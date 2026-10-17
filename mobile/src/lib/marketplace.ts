@@ -57,6 +57,9 @@ export type Filters = {
   category: string;
   subcategory: string;
   brands: string[];
+  /** A catalogue model id (0163) — the finder's third step. Only meaningful
+   *  with one brand and a category. */
+  model: string;
   county: string;
   condition: string;
   saleType: string;
@@ -71,6 +74,7 @@ export const EMPTY_FILTERS: Filters = {
   category: "",
   subcategory: "",
   brands: [],
+  model: "",
   county: "",
   condition: "",
   saleType: "",
@@ -88,6 +92,7 @@ export function activeFilterCount(filters: Filters): number {
     (filters.category ? 1 : 0) +
     (filters.subcategory ? 1 : 0) +
     filters.brands.length +
+    (filters.model ? 1 : 0) +
     (filters.county ? 1 : 0) +
     (filters.condition ? 1 : 0) +
     (filters.saleType ? 1 : 0) +
@@ -119,6 +124,8 @@ export type Card = {
   sellerId?: string;
   category?: string | null;
   featured?: boolean;
+  /** Shown in the Top picks row (0163): every card there is paid for. */
+  topPick?: boolean;
   storeId?: number | null;
   stockQuantity?: number | null;
   isNew?: boolean;
@@ -195,6 +202,9 @@ export async function searchListings(
     p_cursor_created_at: cursor?.createdAt ?? null,
     p_cursor_price_cents: cursor?.priceCents ?? null,
     p_cursor_id: cursor?.id ?? null,
+    // Only sent when picked, so the search still works against a database
+    // without 0163's p_model.
+    ...(filters.model && filters.brands.length === 1 && filters.category ? { p_model: filters.model } : {}),
     // One more than we show, so "is there another page" is answered by the
     // database rather than guessed. See the note on the website's own
     // fetchMarketplaceListings, where getting this wrong meant the Load more

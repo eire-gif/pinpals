@@ -82,6 +82,14 @@ export const listingModelSchema = z
   .max(MAX_MODEL_LENGTH, `Model must be ${MAX_MODEL_LENGTH} characters or fewer.`)
   .optional();
 
+/** A catalogue model id (0163, marketplace_models). Whether it's really
+ * this brand's, in this category, is listings_check_model's call. */
+export const listingModelIdSchema = z
+  .string()
+  .trim()
+  .regex(/^[a-z0-9][a-z0-9-]{1,90}$/, "Pick the model from the list.")
+  .optional();
+
 export const listingDexteritySchema = z.enum(DEXTERITIES).optional();
 export const listingShaftFlexSchema = z.enum(SHAFT_FLEXES).optional();
 export const listingShaftMaterialSchema = z.enum(SHAFT_MATERIALS).optional();
@@ -165,6 +173,7 @@ const listingBaseFields = {
   brand: listingBrandSchema,
   brandOther: listingBrandOtherSchema,
   model: listingModelSchema,
+  modelId: listingModelIdSchema,
   dexterity: listingDexteritySchema,
   shaftFlex: listingShaftFlexSchema,
   shaftMaterial: listingShaftMaterialSchema,
@@ -335,6 +344,7 @@ export const updateListingSchema = z
     brand: listingBrandSchema,
     brandOther: listingBrandOtherSchema,
     model: listingModelSchema,
+    modelId: listingModelIdSchema,
     dexterity: listingDexteritySchema,
     shaftFlex: listingShaftFlexSchema,
     shaftMaterial: listingShaftMaterialSchema,

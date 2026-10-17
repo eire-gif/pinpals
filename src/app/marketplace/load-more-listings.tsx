@@ -22,13 +22,17 @@ export default function LoadMoreListings({
   initialNextCursor,
   filters,
   signedIn,
+  hideIds = [],
 }: {
   initialListings: MarketplaceListing[];
   initialNextCursor: string | null;
   filters: MarketplaceFilters;
   signedIn: boolean;
+  /** Adverts already shown in Top picks above (0163), so none shows twice. */
+  hideIds?: number[];
 }) {
-  const [listings, setListings] = useState(initialListings);
+  const [loaded, setListings] = useState(initialListings);
+  const listings = hideIds.length ? loaded.filter((l) => !hideIds.includes(l.id)) : loaded;
   const [cursor, setCursor] = useState(initialNextCursor);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -47,7 +51,11 @@ export default function LoadMoreListings({
     });
   }
 
-  if (listings.length === 0) {
+  if (listings.length === 0 && loaded.length > 0 && !cursor) {
+    return <p className="text-ink-500 text-sm">Everything that matches is in Top picks above.</p>;
+  }
+
+  if (listings.length === 0 && !cursor) {
     return (
       <div className="bg-surface border border-line rounded-2xl p-10 text-center">
         <p className="text-ink-500">

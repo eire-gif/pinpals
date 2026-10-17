@@ -20,12 +20,13 @@ import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 
 import { coursePhoto } from "@/components/course-photos";
 import { GearCard } from "@/components/gear-card";
+import { GearFinder } from "@/components/gear-finder";
+import { TOP_PICKS, withoutTopPicks } from "@/lib/finder";
+import { loadTopPicks } from "@/lib/gear-finder";
 import { KEYBOARD_DISMISS_MODE } from "@/components/keyboard";
 import { MarketplaceFilters } from "@/components/marketplace-filters";
 import { useAuth } from "@/lib/auth";
-import { CATEGORY_TILES } from "@/lib/listing-icons";
 import { loadSmartBrands } from "@/lib/listing-posts";
-import { CATEGORY_PHOTOS, CATEGORY_SHORT } from "@/lib/marketplace-smart";
 import { parseSearch, type SmartSearch } from "@/lib/smart-search";
 import { useAgeAccess } from "@/lib/age";
 import { useCurrentLocation, type Coords } from "@/lib/location";
@@ -45,7 +46,7 @@ import { loadMyProfile } from "@/lib/profile";
 import { supabase } from "@/lib/supabase";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 import { coursesNear } from "@/lib/courses";
-import { decorateCards, kmLabel, loadAtClubs, loadFeatured, loadFresh, shortClub } from "@/lib/used-gear";
+import { decorateCards, kmLabel, loadAtClubs, loadFresh, shortClub } from "@/lib/used-gear";
 import { useCashMarketplace } from "@/lib/marketplace-cash";
 
 /**
@@ -55,9 +56,11 @@ import { useCashMarketplace } from "@/lib/marketplace-cash";
  * New Gear | Used Gear at the top, over a photograph.
  *
  * USED GEAR — members' own clubs. Chips first: Near me, At my club, Under
- * €100, Left-handed. With nothing searched, the page is a shop window:
- * category circles, Featured (paid), "Collect at <your club>", Fresh today,
- * then everything. Searching or filtering turns it into one grid. Every card
+ * €100, Left-handed. Then find by club, brand and model (0163,
+ * components/gear-finder.tsx) and Top picks — paid adverts matching what's
+ * picked — above the listings, which always show and narrow at each step.
+ * With nothing picked, the page is a shop window: "Collect at <your club>",
+ * Fresh today, then everything. Searching or filtering turns it into one grid. Every card
  * says where it's collected and how far, because members meet at the club
  * (Buyer Protection, 0114).
  *
@@ -140,7 +143,8 @@ export default function MarketplaceScreen() {
   // Used gear
   const [cards, setCards] = useState<Card[]>([]);
   const [cursor, setCursor] = useState<Cursor | null>(null);
-  const [featured, setFeatured] = useState<Card[]>([]);
+  const [topPicks, setTopPicks] = useState<Card[]>([]);
+  const [refreshKey, setRefreshKey] = useState(0);
   const [atClub, setAtClub] = useState<Card[]>([]);
   const [fresh, setFresh] = useState<Card[]>([]);
   // New gear
@@ -209,17 +213,18 @@ export default function MarketplaceScreen() {
 
       const [page, f, c, fr, ub] = await Promise.all([
         searchListings(effective, null, userId),
-        browsing ? loadFeatured(userId) : Promise.resolve([]),
+        loadTopPicks(effective, userId),
         browsing && me.clubId ? loadAtClubs([me.clubId], userId, 10) : Promise.resolve([]),
         browsing ? loadFresh(userId) : Promise.resolve([]),
         browsing ? loadBanner("used_gear") : Promise.resolve(null),
       ]);
-      const pageCards = chips.has("left") ? page.cards.filter((x) => x.dexterity === "Left-handed") : page.cards;
-      const [grid, featuredD, clubD, freshD] = await Promise.all([decorateCards(pageCards, here), decorateCards(f, here), decorateCards(c, here), decorateCards(fr, here)]);
+      // A Top pick is never shown twice (0163).
+      const pageCards = withoutTopPicks(chips.has("left") ? page.cards.filter((x) => x.dexterity === "Left-handed") : page.cards, f);
+      const [grid, picksD, clubD, freshD] = await Promise.all([decorateCards(pageCards, here), decorateCards(f, here), decorateCards(c, here), decorateCards(fr, here)]);
       if (mine !== token.current) return;
       setCards(grid);
       setCursor(page.cursor);
-      setFeatured(featuredD);
+      setTopPicks(picksD);
       setAtClub(clubD);
       setFresh(freshD);
       setBanner(ub);
@@ -253,7 +258,7 @@ export default function MarketplaceScreen() {
     try {
       const page = await searchListings(effective, cursor, userId);
       if (mine !== token.current) return;
-      const more = await decorateCards(chips.has("left") ? page.cards.filter((x) => x.dexterity === "Left-handed") : page.cards, here);
+      const more = await decorateCards(withoutTopPicks(chips.has("left") ? page.cards.filter((x) => x.dexterity === "Left-handed") : page.cards, topPicks), here);
       setCards((prev) => [...prev, ...more]);
       setCursor(page.cursor);
     } catch {
@@ -268,7 +273,7 @@ export default function MarketplaceScreen() {
     const next = !card.isFavourited;
     const flip = (list: Card[]) => list.map((c) => (c.id === card.id ? { ...c, isFavourited: next } : c));
     setCards(flip);
-    setFeatured(flip);
+    setTopPicks(flip);
     setAtClub(flip);
     setFresh(flip);
     setShopItems(flip);
@@ -376,26 +381,23 @@ export default function MarketplaceScreen() {
             <ChipButton label="Left-handed" on={chips.has("left")} onPress={() => toggleChip("left")} />
           </ScrollView>
 
+          {browsing ? bannerCard : null}
+
+          {chips.has("near") || chips.has("club") ? null : (
+            <>
+              <GearFinder
+                filters={filters}
+                refreshKey={refreshKey}
+                onPick={(patch) => {
+                  setFilters((prev) => ({ ...prev, ...patch, subcategory: patch.subcategory ?? (patch.category !== prev.category ? "" : prev.subcategory) }));
+                }}
+              />
+              <TopPicksRail cards={topPicks} onOpen={open} onFavourite={userId ? favourite : undefined} />
+            </>
+          )}
+
           {browsing ? (
             <>
-              {bannerCard}
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.cats}>
-                {CATEGORY_TILES.map((t) => (
-                  <Pressable key={t.key} onPress={() => setFilters({ ...EMPTY_FILTERS, category: t.key })} style={styles.cat} accessibilityRole="button" accessibilityLabel={t.label}>
-                    <View style={styles.catPhotoWrap}>
-                      {CATEGORY_PHOTOS[t.key] ? (
-                        <Image source={CATEGORY_PHOTOS[t.key]} style={styles.catPhoto} />
-                      ) : (
-                        <MaterialCommunityIcons name={t.icon} size={26} color={colors.navy900} />
-                      )}
-                    </View>
-                    <Text style={styles.catLabel} numberOfLines={1}>
-                      {CATEGORY_SHORT[t.key] ?? t.label}
-                    </Text>
-                  </Pressable>
-                ))}
-              </ScrollView>
-
               {canSell ? (
                 <Pressable onPress={() => router.push("/new-listing")} style={styles.sellCard} accessibilityRole="button" accessibilityLabel="Sell your old clubs. List in 60 seconds">
                   <ImageBackground source={require("../../../../assets/images/scenes/links-sunset.jpg")} style={styles.sellPhoto} imageStyle={{ borderRadius: 18 }}>
@@ -408,13 +410,12 @@ export default function MarketplaceScreen() {
                 </Pressable>
               ) : null}
 
-              <Rail title="Featured" cards={featured} onOpen={open} onFavourite={userId ? favourite : undefined} />
               <Rail title={me.clubName ? `Collect at ${me.clubName}` : "At your club"} cards={atClub} onOpen={open} onFavourite={userId ? favourite : undefined} onSeeAll={() => toggleChip("club")} />
               <Rail title="Fresh today" cards={fresh} onOpen={open} onFavourite={userId ? favourite : undefined} />
               <SectionHead title="All used gear" />
             </>
           ) : (
-            <SectionHead title={chips.has("near") ? `Within ${NEAR_KM} km` : chips.has("club") ? `Collect at ${me.clubName ?? "your club"}` : "Results"} />
+            <SectionHead title={chips.has("near") ? `Within ${NEAR_KM} km` : chips.has("club") ? `Collect at ${me.clubName ?? "your club"}` : "All matching listings"} />
           )}
         </>
       ) : (
@@ -519,6 +520,7 @@ export default function MarketplaceScreen() {
             refreshing={refreshing}
             onRefresh={() => {
               setRefreshing(true);
+              setRefreshKey((k) => k + 1);
               void load();
             }}
             tintColor={colors.green700}
@@ -550,7 +552,9 @@ export default function MarketplaceScreen() {
         filters={filters}
         onClose={() => setFiltersOpen(false)}
         onApply={(next) => {
-          setFilters(next);
+          // A model belongs to one brand in one category (0163).
+          const sameModel = next.category === filters.category && next.brands.join() === filters.brands.join();
+          setFilters({ ...next, model: sameModel ? next.model : "" });
           setFiltersOpen(false);
         }}
       />
@@ -576,6 +580,27 @@ function Rail({ title, cards, onOpen, onFavourite, onSeeAll }: { title: string; 
   return (
     <View>
       <SectionHead title={title} onSeeAll={onSeeAll} />
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.rail}>
+        {cards.map((c) => (
+          <GearCard key={c.id} card={c} width={RAIL_CARD} onPress={() => onOpen(c)} onFavourite={onFavourite ? () => onFavourite(c) : undefined} />
+        ))}
+      </ScrollView>
+    </View>
+  );
+}
+
+/** Top picks (0163): paid adverts for what's picked, each with a PREMIUM badge. */
+function TopPicksRail({ cards, onOpen, onFavourite }: { cards: Card[]; onOpen: (c: Card) => void; onFavourite?: (c: Card) => void }) {
+  if (cards.length === 0) return null;
+  return (
+    <View style={styles.topPicks}>
+      <View style={styles.topPicksHead}>
+        <Ionicons name="arrow-up" size={14} color="#b6862a" />
+        <Text style={styles.topPicksTitle}>{TOP_PICKS.title.toUpperCase()}</Text>
+        <Text style={styles.topPicksNote} numberOfLines={1}>
+          {TOP_PICKS.note}
+        </Text>
+      </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.rail}>
         {cards.map((c) => (
           <GearCard key={c.id} card={c} width={RAIL_CARD} onPress={() => onOpen(c)} onFavourite={onFavourite ? () => onFavourite(c) : undefined} />
@@ -638,13 +663,12 @@ const styles = StyleSheet.create({
   seeAll: { fontFamily: fonts.bodyBold, fontSize: 13.5, color: colors.green700 },
   muted: { fontFamily: fonts.body, fontSize: 13.5, color: colors.ink500, paddingHorizontal: spacing.md },
 
-  cats: { gap: 10, paddingHorizontal: spacing.md, paddingTop: spacing.md, paddingBottom: 4 },
-  cat: { width: 86, gap: 6 },
-  catPhotoWrap: { width: 86, height: 86, borderRadius: 18, overflow: "hidden", backgroundColor: colors.surface, alignItems: "center", justifyContent: "center", shadowColor: colors.navy900, shadowOpacity: 0.12, shadowRadius: 6, shadowOffset: { width: 0, height: 3 }, elevation: 2 },
-  catPhoto: { width: 86, height: 86 },
-  catLabel: { fontFamily: fonts.bodyBold, fontSize: 12.5, color: colors.ink900, textAlign: "center" },
 
   rail: { gap: 12, paddingHorizontal: spacing.md },
+  topPicks: { marginTop: spacing.md, paddingVertical: 12, backgroundColor: "#fbf3df", borderTopWidth: 1, borderBottomWidth: 1, borderColor: "#ecd9a8", gap: 10 },
+  topPicksHead: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: spacing.md },
+  topPicksTitle: { fontFamily: fonts.bodyBold, fontSize: 12, letterSpacing: 1.2, color: "#8a6a1f" },
+  topPicksNote: { flex: 1, fontFamily: fonts.body, fontSize: 12, color: "#8a6a1f" },
 
   bannerOuter: { marginHorizontal: spacing.md, marginTop: spacing.md, borderRadius: 20, backgroundColor: LIP, paddingBottom: 3, shadowColor: colors.navy900, shadowOpacity: 0.25, shadowRadius: 8, shadowOffset: { width: 0, height: 5 } },
   banner: { flexDirection: "row", alignItems: "center", gap: 10, borderRadius: 20, borderWidth: 1.5, borderColor: colors.gold500, backgroundColor: colors.navy900, padding: spacing.md },

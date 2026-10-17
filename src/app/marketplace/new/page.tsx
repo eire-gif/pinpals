@@ -4,10 +4,21 @@ import { createClient } from "@/lib/supabase/server";
 import { sellerOnboardingStatus, isSellerPaymentReady } from "@/lib/stripe/connect";
 import type { StripeConnectedAccount } from "@/lib/types";
 import NewListingForm from "./new-listing-form";
+import { CATEGORIES } from "@/lib/marketplace";
+import { isBrandValidFor } from "@/lib/marketplace-brands";
 import { ageGate } from "@/components/age/age-gate";
 
-export default async function NewListingPage({ searchParams }: { searchParams: Promise<{ shop?: string }> }) {
-  const { shop: asShop } = await searchParams;
+export default async function NewListingPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ shop?: string; category?: string; brand?: string; model?: string }>;
+}) {
+  const { shop: asShop, category: qCategory, brand: qBrand, model: qModel } = await searchParams;
+  // "Selling a Qi10? List it" from the finder (0163) arrives with the club
+  // type, brand and model already picked.
+  const startCategory = qCategory && (CATEGORIES as readonly string[]).includes(qCategory) ? qCategory : "";
+  const startBrand = startCategory && qBrand && isBrandValidFor(qBrand, startCategory) ? qBrand : "";
+  const startModel = startBrand && qModel && /^[a-z0-9][a-z0-9-]{1,90}$/.test(qModel) ? qModel : "";
   const supabase = await createClient();
   const {
     data: { user },
@@ -74,7 +85,7 @@ export default async function NewListingPage({ searchParams }: { searchParams: P
         )}
       </div>
       <div className="bg-surface rounded-2xl shadow-lg p-5 sm:p-8">
-        <NewListingForm shop={shop} />
+        <NewListingForm shop={shop} start={{ category: startCategory, brand: startBrand, modelId: startModel }} />
       </div>
     </div>
   );

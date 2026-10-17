@@ -48,8 +48,8 @@ export default async function PromotionsTab({ searchParams }: { searchParams: Re
     <div>
       <h2 className="font-display font-bold text-lg mb-2">Promotions</h2>
       <p className="text-sm text-ink-500 mb-4">
-        Featured (€4.99, 7 days) and Bump (€1.99, 3 days) placements bought by sellers. Cancelling stops an active
-        placement and removes the Featured badge; it doesn&rsquo;t refund — issue any refund in the Stripe dashboard.
+        Premium Plus (€4.99, 7 days) and Premium (€1.99, 3 days) Top picks placements bought by sellers. Cancelling
+        takes the advert out of Top picks and removes the Premium badge; it doesn&rsquo;t refund — issue any refund in the Stripe dashboard.
       </p>
 
       <div className="flex flex-wrap gap-1.5 mb-4">

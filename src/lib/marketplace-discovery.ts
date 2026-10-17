@@ -46,6 +46,10 @@ export type MarketplaceFilters = {
    * Always sorted, so two URLs selecting the same brands in a different
    * order are the same URL (and the same cache key). */
   brands: string[];
+  /** A catalogue model id (0163, marketplace_models) — the third step of
+   * the club → brand → model finder. Only kept alongside exactly one brand
+   * and a category, since a model belongs to one of each. */
+  model: string;
   county: string;
   condition: string;
   saleType: string;
@@ -60,6 +64,7 @@ export const EMPTY_MARKETPLACE_FILTERS: MarketplaceFilters = {
   category: "",
   subcategory: "",
   brands: [],
+  model: "",
   county: "",
   condition: "",
   saleType: "",
@@ -127,6 +132,12 @@ export function parseMarketplaceFilters(
     )
   ).sort();
 
+  // Model ids are slugs ("taylormade-qi10"). Whether the model really is
+  // this brand's is the database's call (listings_check_model and the
+  // search's own match): a wrong one simply finds nothing.
+  const rawModel = firstValue(raw.model).trim();
+  const model = validCategory && brands.length === 1 && /^[a-z0-9][a-z0-9-]{1,90}$/.test(rawModel) ? rawModel : "";
+
   const county = firstValue(raw.county);
   const condition = firstValue(raw.condition);
   const saleType = firstValue(raw.saleType);
@@ -145,6 +156,7 @@ export function parseMarketplaceFilters(
     category: validCategory,
     subcategory: validSubcategory,
     brands,
+    model,
     county: ALL_REGIONS.includes(county) ? county : "",
     condition: (CONDITIONS as readonly string[]).includes(condition) ? condition : "",
     saleType: (SALE_TYPES as readonly string[]).includes(saleType) ? saleType : "",
@@ -168,6 +180,7 @@ export function marketplaceFiltersToSearchParams(filters: MarketplaceFilters): U
   // HTML form would produce, and it survives a brand id ever containing a
   // comma without needing an escaping rule.
   for (const brand of filters.brands) params.append("brand", brand);
+  if (filters.model) params.set("model", filters.model);
   if (filters.county) params.set("county", filters.county);
   if (filters.condition) params.set("condition", filters.condition);
   if (filters.saleType) params.set("saleType", filters.saleType);
@@ -338,6 +351,9 @@ export async function fetchMarketplaceListings(
     p_cursor_created_at: cursor?.createdAt ?? null,
     p_cursor_price_cents: cursor?.priceCents ?? null,
     p_cursor_id: cursor?.id ?? null,
+    // Only sent when set, so the search keeps working against a database
+    // that doesn't have 0163's p_model yet.
+    ...(filters.model ? { p_model: filters.model } : {}),
     // One more than we intend to show. `hasMore` below is "did a row exist
     // beyond this page", and the only way to know is to ask for it — the SQL
     // applies `limit v_limit` exactly, so asking for `limit` can never return

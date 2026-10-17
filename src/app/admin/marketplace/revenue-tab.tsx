@@ -57,7 +57,7 @@ export default async function RevenueTab({ searchParams }: { searchParams: Recor
         <StatCard
           label="Promotions"
           value={formatPrice(r.promotions.totalEur)}
-          hint={`${r.promotions.byKind.featured.count} featured · ${r.promotions.byKind.bump.count} bumps`}
+          hint={`${r.promotions.byKind.featured.count} Premium Plus · ${r.promotions.byKind.bump.count} Premium`}
           href="/admin/marketplace?tab=promotions"
         />
         <StatCard label="Banner fees" value={formatPrice(r.banners.totalEur)} hint={`${r.banners.count} banners started`} href="/admin/marketplace?tab=retail" />
@@ -82,12 +82,12 @@ export default async function RevenueTab({ searchParams }: { searchParams: Recor
             </thead>
             <tbody className="divide-y divide-line">
               <tr>
-                <td className="px-5 py-3 font-semibold text-ink-900">Featured (7 days)</td>
+                <td className="px-5 py-3 font-semibold text-ink-900">Premium Plus (7 days)</td>
                 <td className="px-5 py-3 text-right">{r.promotions.byKind.featured.count}</td>
                 <td className="px-5 py-3 text-right">{formatPrice(r.promotions.byKind.featured.totalEur)}</td>
               </tr>
               <tr>
-                <td className="px-5 py-3 font-semibold text-ink-900">Bump (3 days)</td>
+                <td className="px-5 py-3 font-semibold text-ink-900">Premium (3 days)</td>
                 <td className="px-5 py-3 text-right">{r.promotions.byKind.bump.count}</td>
                 <td className="px-5 py-3 text-right">{formatPrice(r.promotions.byKind.bump.totalEur)}</td>
               </tr>

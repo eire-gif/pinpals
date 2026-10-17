@@ -249,9 +249,10 @@ export async function setStoreCommission(_prev: GrowthActionState, formData: For
 // ---------------------------------------------------------------------------
 
 /**
- * Cancels an active bump/featured placement. Clears the listing's
- * featured_until for a featured promotion so the gold badge and first place
- * go immediately; a bump's bumped_at is left alone (it's only a sort key,
+ * Cancels an active Premium/Premium Plus placement (bump/featured). Takes the
+ * listing out of Top picks (top_pick_until, 0163) and, for Premium Plus,
+ * clears featured_until so the gold badge goes immediately — unless another
+ * paid placement on it is still running. bumped_at is left alone (it's only a sort key,
  * and resetting it could push the listing below where it was before the
  * bump). Refunds are made in Stripe's dashboard — this only records the
  * decision, with a required reason.
@@ -298,13 +299,24 @@ export async function cancelPromotion(_prev: GrowthActionState, formData: FormDa
     return { error: "The promotion changed while you were looking at it — refresh and try again." };
   }
 
+  // Both tiers sit in Top picks (0163); Premium Plus also carries the badge.
+  // Cleared for the listing unless it has another promotion still running.
+  const { data: others } = await admin
+    .from("listing_promotions")
+    .select("id")
+    .eq("listing_id", promo.listing_id)
+    .eq("status", "active")
+    .neq("id", promotionId)
+    .limit(1);
   let featuredCleared = false;
-  if (promo.kind === "featured") {
+  if (!others || others.length === 0) {
     const { error: listingError } = await admin
       .from("listings")
-      .update({ featured_until: null })
+      .update(promo.kind === "featured" ? { featured_until: null, top_pick_until: null } : { top_pick_until: null })
       .eq("id", promo.listing_id);
     featuredCleared = !listingError;
+  } else {
+    featuredCleared = true;
   }
 
   await audit(actor, "promotion.cancelled", "listing_promotion", promotionId, {
@@ -322,9 +334,9 @@ export async function cancelPromotion(_prev: GrowthActionState, formData: FormDa
   });
 
   revalidatePath(PAGE);
-  return featuredCleared || promo.kind !== "featured"
+  return featuredCleared
     ? { success: true }
-    : { error: "Cancelled, but the listing's Featured badge couldn't be cleared — try again or clear it by hand." };
+    : { error: "Cancelled, but the listing couldn't be taken out of Top picks — try again or clear it by hand." };
 }
 
 // ---------------------------------------------------------------------------
