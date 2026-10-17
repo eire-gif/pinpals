@@ -1,6 +1,19 @@
+import { createSign } from "node:crypto";
+
 /**
- * Satellite imagery for the app's hole maps (Oct 2026): Google Map Tiles
- * API 2D satellite, with Esri World Imagery as the fallback.
+ * Satellite imagery for the app's hole maps (Oct 2026): Apple Maps
+ * (MapKit JS satellite), Google Map Tiles API 2D satellite, or Esri World
+ * Imagery as the fallback.
+ *
+ * APPLE (from 17 Oct 2026). Google stopped serving satellite tiles to
+ * accounts billed in the EEA (16 Oct, claude/map-tiles-setup.md). Apple's
+ * photos can't be loaded as tiles; the app's map page runs Apple's own map
+ * (MapKit JS) underneath ours and keeps it in step. This file only signs the
+ * short-lived token MapKit JS asks for:
+ *   MAPKIT_TEAM_ID       Apple team id (falls back to WEATHERKIT_TEAM_ID)
+ *   MAPKIT_KEY_ID        id of a key with "MapKit JS" ticked
+ *   MAPKIT_PRIVATE_KEY   that key's .p8 text (newlines as \n is fine)
+ * Included with the Apple Developer Program: 250,000 map views a day.
  *
  * The app's map is Leaflet in a web view and stays exactly as it is — the
  * T, flag, aim circle, lines, hazards, shots and outlines are all ours.
@@ -14,8 +27,10 @@
  *                                 the app's map loads (same project), so
  *                                 that one can carry a website restriction.
  *                                 Without it, the first key is used.
- *   MAP_TILES_PROVIDER=esri       the off switch: back to Esri at once,
- *                                 no app update needed.
+ *   MAP_TILES_PROVIDER            esri | google | apple — force one; esri
+ *                                 is the off switch (no app update needed).
+ *                                 Unset: Apple if set up, else Google if a
+ *                                 key is set, else Esri.
  *
  * Google's rules this follows (developers.google.com/maps/documentation/
  * tile/policies): the Google Maps logo and the viewport's copyright string
@@ -25,6 +40,13 @@
 
 export type MapTiles =
   | { provider: "esri" }
+  | {
+      provider: "apple";
+      /** MapKit JS authorization token (a signed JWT). */
+      token: string;
+      /** Epoch ms after which the app should ask again. */
+      expiresAt: number;
+    }
   | {
       provider: "google";
       /** Leaflet template: {z}/{x}/{y} filled in by the map. */
@@ -38,6 +60,10 @@ export type MapTiles =
 type Session = { token: string; expiresAt: number };
 
 export type MapTilesEnv = {
+  MAPKIT_TEAM_ID?: string;
+  MAPKIT_KEY_ID?: string;
+  MAPKIT_PRIVATE_KEY?: string;
+  WEATHERKIT_TEAM_ID?: string;
   GOOGLE_MAP_TILES_KEY?: string;
   GOOGLE_MAP_TILES_BROWSER_KEY?: string;
   MAP_TILES_PROVIDER?: string;
@@ -47,10 +73,45 @@ const TILE_BASE = "https://tile.googleapis.com";
 /** Hand out a session only while it has at least this long left. */
 const MIN_LIFE_MS = 24 * 60 * 60 * 1000;
 
+const appleTeam = (env: MapTilesEnv) => (env.MAPKIT_TEAM_ID || env.WEATHERKIT_TEAM_ID || "").trim();
+const appleReady = (env: MapTilesEnv) => Boolean(appleTeam(env) && env.MAPKIT_KEY_ID?.trim() && env.MAPKIT_PRIVATE_KEY?.trim());
+const googleReady = (env: MapTilesEnv) => Boolean(env.GOOGLE_MAP_TILES_KEY?.trim());
+
 /** Which provider the settings ask for. */
-export function chooseProvider(env: MapTilesEnv): "google" | "esri" {
-  if ((env.MAP_TILES_PROVIDER ?? "").trim().toLowerCase() === "esri") return "esri";
-  return env.GOOGLE_MAP_TILES_KEY?.trim() ? "google" : "esri";
+export function chooseProvider(env: MapTilesEnv): "apple" | "google" | "esri" {
+  const forced = (env.MAP_TILES_PROVIDER ?? "").trim().toLowerCase();
+  if (forced === "esri") return "esri";
+  if (forced === "google") return googleReady(env) ? "google" : "esri";
+  if (forced === "apple") return appleReady(env) ? "apple" : "esri";
+  if (appleReady(env)) return "apple";
+  return googleReady(env) ? "google" : "esri";
+}
+
+/** A MapKit JS token lasts a day; it's re-signed when under half is left,
+ *  and the app asks again before then, so a round never straddles expiry. */
+const APPLE_LIFE_S = 24 * 60 * 60;
+
+/** MapKit JS authorization token: an ES256 JWT (header kid + typ; iss, iat, exp). */
+export function mapKitToken(env: MapTilesEnv, nowS: number): string {
+  const pem = env.MAPKIT_PRIVATE_KEY!.trim().replace(/\\n/g, "\n");
+  const b64 = (o: object) => Buffer.from(JSON.stringify(o)).toString("base64url");
+  const head = b64({ alg: "ES256", kid: env.MAPKIT_KEY_ID!.trim(), typ: "JWT" });
+  const body = b64({ iss: appleTeam(env), iat: nowS, exp: nowS + APPLE_LIFE_S });
+  const signer = createSign("SHA256");
+  signer.update(`${head}.${body}`);
+  const sig = signer.sign({ key: pem, dsaEncoding: "ieee-p1363" }).toString("base64url");
+  return `${head}.${body}.${sig}`;
+}
+
+let appleCached: { token: string; exp: number } | null = null;
+
+function appleTiles(env: MapTilesEnv, now: number): MapTiles {
+  const nowS = Math.floor(now / 1000);
+  if (!appleCached || appleCached.exp - nowS < APPLE_LIFE_S / 2) {
+    appleCached = { token: mapKitToken(env, nowS), exp: nowS + APPLE_LIFE_S };
+  }
+  // Ask again with at least 12 hours left on the token.
+  return { provider: "apple", token: appleCached.token, expiresAt: (appleCached.exp - APPLE_LIFE_S / 2) * 1000 };
 }
 
 /** The URLs the app needs for a session. */
@@ -91,6 +152,7 @@ let cached: Session | null = null;
 /** Exposed for tests. */
 export function resetMapTilesCache() {
   cached = null;
+  appleCached = null;
 }
 
 /**
@@ -102,7 +164,17 @@ export async function currentMapTiles(
   fetcher: typeof fetch = fetch,
   now: number = Date.now()
 ): Promise<MapTiles> {
-  if (chooseProvider(env) === "esri") return { provider: "esri" };
+  const provider = chooseProvider(env);
+  if (provider === "esri") return { provider: "esri" };
+  if (provider === "apple") {
+    try {
+      return appleTiles(env, now);
+    } catch (e) {
+      // A key pasted wrongly: say so in the logs, and the map stays usable.
+      console.error("map-tiles: MapKit token error", e instanceof Error ? e.message : e);
+      return { provider: "esri" };
+    }
+  }
   const key = env.GOOGLE_MAP_TILES_KEY!.trim();
   const browserKey = env.GOOGLE_MAP_TILES_BROWSER_KEY?.trim() || key;
 

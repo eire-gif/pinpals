@@ -10,7 +10,16 @@ export const GOOGLE_LOGO_URL = "https://maps.gstatic.com/mapfiles/api-3/images/g
  * The page. Plain JS, no build step. It never decides a number: it draws
  * what `draw(scene)` hands it and posts taps back.
  *
- * Imagery (Oct 2026): Esri, or Google 2D satellite (lib/map-tiles.ts).
+ * Imagery (Oct 2026): Apple, Esri, or Google 2D satellite (lib/map-tiles.ts).
+ *
+ * APPLE (17 Oct 2026). Apple's photos aren't tiles we can load: the page
+ * runs Apple's own map (MapKit JS, satellite) in a layer underneath ours,
+ * with no gestures of its own, and puts it exactly where ours is looking
+ * after every move, zoom and turn (syncApple). Everything drawn — T, flag,
+ * lines, labels, shots, outlines — stays ours, as before. Apple's logo and
+ * "Legal" sit at the bottom of its layer, just above the sheet; ours lift
+ * clear of them. If Apple's map can't start (no signal, a bad token, Apple
+ * down) or doesn't line up with ours, the page switches to Esri by itself.
  * With Google the page also shows the Google Maps logo bottom left and
  * Google's copyright line bottom right — both lifted clear of the bottom
  * sheet — and asks the app for that line whenever the view settles
@@ -19,11 +28,13 @@ export const GOOGLE_LOGO_URL = "https://maps.gstatic.com/mapfiles/api-3/images/g
  */
 export function pageHtml(source: TileSource): string {
   const google = source.provider === "google";
+  const apple = source.provider === "apple";
   return `<!doctype html><html><head>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
 <style>
   html,body,#map{margin:0;height:100%;width:100%;background:${colors.green800};}
+  ${apple ? "#map{position:absolute;left:0;top:0;background:transparent;z-index:1;} #mk{position:absolute;left:0;top:0;width:100%;height:100%;z-index:0;pointer-events:none;}" : ""}
   .leaflet-container{font-family:-apple-system,system-ui,sans-serif;}
   .leaflet-control-attribution{font-size:9px;background:rgba(12,32,56,.55)!important;color:#efe7d6!important;}
   .leaflet-control-attribution a{color:#efe7d6!important;}
@@ -53,7 +64,7 @@ export function pageHtml(source: TileSource): string {
   .hz.trees{background:#2f6b3a;}
   .hz.marker_100{background:#ffffff;} .hz.marker_150{background:#ffd23f;} .hz.marker_200{background:#e2483d;}
   .hz.dogleg,.hz.other{background:#c9c3b6;}
-</style></head><body><div id="map"></div>
+</style></head><body>${apple ? '<div id="mk"></div>' : ""}<div id="map"></div>
 <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/leaflet-rotate@0.2.8/dist/leaflet-rotate.js"></script>
 <script>
@@ -62,12 +73,17 @@ export function pageHtml(source: TileSource): string {
   if(!window.L){ post({type:"failed"}); return; }
   var canRotate = typeof L.Map.prototype.setBearing === "function";
   var GOOGLE = ${JSON.stringify(google)};
-  var map = L.map("map", { zoomControl:false, attributionControl:false, rotate:canRotate, touchRotate:false, rotateControl:false, bearing:0, maxZoom:20, zoomSnap:0.25 });
-  var tiles = L.tileLayer(${JSON.stringify(source.url)}, { maxZoom:20, maxNativeZoom:19 }).addTo(map);
+  var APPLE = ${JSON.stringify(apple)};
+  // With Apple underneath, zooms happen at once (no CSS zoom animation), so
+  // the photo and our drawing never drift apart mid-zoom.
+  var map = L.map("map", { zoomControl:false, attributionControl:false, rotate:canRotate, touchRotate:false, rotateControl:false, bearing:0, maxZoom:20, zoomSnap:0.25, zoomAnimation:!APPLE, markerZoomAnimation:!APPLE });
+  var TILE_URL = ${JSON.stringify(source.url)};
+  var tiles = APPLE ? null : L.tileLayer(TILE_URL, { maxZoom:20, maxNativeZoom:19 }).addTo(map);
   // Imagery credit and the outlines' credit: two boxes, never one line.
+  // Apple draws its own logo and Legal link, so none from us.
   var imageryCredit = L.control.attribution({ prefix:false, position:"bottomright" }).addTo(map);
   var creditText = ${JSON.stringify(google ? "Google Maps" : source.attribution)};
-  imageryCredit.addAttribution(creditText);
+  if(!APPLE) imageryCredit.addAttribution(creditText);
   var osmCredit = null;
   if(GOOGLE){
     var Logo = L.Control.extend({ options:{ position:"bottomleft" }, onAdd:function(){
@@ -100,13 +116,111 @@ export function pageHtml(source: TileSource): string {
       if(next !== creditText){ imageryCredit.removeAttribution(creditText); creditText = next; imageryCredit.addAttribution(creditText); }
     }
     if(typeof nativeZoom === "number" && nativeZoom >= 15 && nativeZoom <= 20){
-      if(tiles.options.maxNativeZoom !== nativeZoom){ tiles.options.maxNativeZoom = nativeZoom; tiles.redraw(); }
+      if(tiles && tiles.options.maxNativeZoom !== nativeZoom){ tiles.options.maxNativeZoom = nativeZoom; tiles.redraw(); }
     }
   }
   // Keep the logo and credits above the sheet that floats over the map.
+  // With Apple: its layer ends just above the sheet (its logo and Legal at
+  // the foot of it), and ours sit a line higher, clear of them.
+  var liftBy = 0;
   function lift(bottom){
+    liftBy = Math.max(0, bottom);
     var els = document.querySelectorAll(".leaflet-bottom");
-    for(var i = 0; i < els.length; i++) els[i].style.bottom = Math.max(0, bottom) + "px";
+    for(var i = 0; i < els.length; i++) els[i].style.bottom = (liftBy + (mk ? 26 : 0)) + "px";
+    if(mkEl){ mkEl.style.height = Math.max(120, map.getSize().y - liftBy) + "px"; syncApple(); }
+  }
+
+  // ---- Apple's map underneath (MapKit JS) ----
+  var mk = null, mkEl = APPLE ? document.getElementById("mk") : null, usingEsri = !APPLE, rotSign = 1, checked = false;
+  function useEsri(why){
+    if(usingEsri) return;
+    usingEsri = true;
+    try{ if(mk) mk.destroy(); }catch(e){}
+    mk = null;
+    if(mkEl){ mkEl.parentNode.removeChild(mkEl); mkEl = null; }
+    tiles = L.tileLayer(TILE_URL, { maxZoom:20, maxNativeZoom:19 }).addTo(map);
+    tiles.bringToBack();
+    creditText = ${JSON.stringify(source.provider === "apple" ? source.attribution : "")};
+    imageryCredit.addAttribution(creditText);
+    document.getElementById("map").style.background = "${colors.green800}";
+    lift(liftBy);
+    post({ type:"imagery", provider:"esri", why:why||"" });
+  }
+  // Put Apple's camera where ours is: same centre (of Apple's layer, which
+  // stops above the sheet), same scale, same turn. Scale: fit Apple to the
+  // unturned box ours shows, read back its camera height, then turn it.
+  function syncApple(){
+    if(!mk || !mkEl || !window.mapkit) return;
+    var w = map.getSize().x, h = mkEl.clientHeight;
+    if(!w || !h) return;
+    try{
+      var c = map.containerPointToLatLng([w/2, h/2]);
+      var coord = new mapkit.Coordinate(c.lat, c.lng);
+      var mp = coord.toMapPoint();
+      var s = 256 * Math.pow(2, map.getZoom());
+      mk.rotation = 0;
+      mk.visibleMapRect = new mapkit.MapRect(mp.x - w/s/2, mp.y - h/s/2, w/s, h/s);
+      var d = mk.cameraDistance;
+      var b = canRotate ? (map.getBearing() || 0) : 0;
+      mk.rotation = (((rotSign * -b) % 360) + 360) % 360;
+      mk.center = coord;
+      mk.cameraDistance = d;
+      if(!checked) check();
+    }catch(e){ useEsri("sync"); }
+  }
+  // Is Apple's photo really under our drawing? Compare where a point lands
+  // on each, a little above the middle; try the other turn direction once.
+  function misfit(){
+    var w = map.getSize().x, h = mkEl.clientHeight;
+    var q = map.containerPointToLatLng([w/2, h*0.2]);
+    var p = mk.convertCoordinateToPointOnPage(new mapkit.Coordinate(q.lat, q.lng));
+    var r = mkEl.getBoundingClientRect();
+    return Math.hypot(p.x - r.left - w/2, p.y - r.top - h*0.2);
+  }
+  // Once per hole (the turn is known by then): if a turned hole doesn't
+  // line up, Apple turns the other way to us — flip and keep whichever
+  // fits. Still out by more than ~24 px: a wrong photo is worse than a
+  // plainer one, so Esri.
+  function check(){
+    checked = true;
+    var b = canRotate ? (map.getBearing() || 0) : 0;
+    var off = misfit();
+    if(off > 6 && Math.abs(Math.sin(b * Math.PI / 180)) > 0.2){
+      rotSign = -rotSign; syncApple();
+      var off2 = misfit();
+      if(off2 < off) off = off2; else { rotSign = -rotSign; syncApple(); }
+    }
+    post({ type:"imagery", provider:"apple", off:Math.round(off), turn:rotSign });
+    if(off > 24) useEsri("misaligned " + Math.round(off));
+  }
+  if(APPLE){
+    var giveUp = setTimeout(function(){ if(!mk) useEsri("timeout"); }, 10000);
+    window.ppMapKit = function(){
+      try{
+        mapkit.init({ authorizationCallback:function(done){ done(${JSON.stringify(apple ? source.token : "")}); }, language:"en-GB" });
+        mapkit.addEventListener("error", function(e){ useEsri("mapkit " + (e && e.status)); });
+        if(usingEsri) return;
+        var V = mapkit.FeatureVisibility || {};
+        mk = new mapkit.Map(mkEl, {
+          mapType: mapkit.Map.MapTypes.Satellite,
+          showsCompass: V.Hidden, showsScale: V.Hidden, showsZoomControl:false, showsMapTypeControl:false,
+          showsUserLocationControl:false, showsPointsOfInterest:false,
+          isRotationEnabled:true, isZoomEnabled:false, isScrollEnabled:false
+        });
+        try{ mk.cameraZoomRange = new mapkit.CameraZoomRange(1, 40000000); }catch(e){}
+        clearTimeout(giveUp);
+        lift(liftBy);
+      }catch(e){ useEsri("init"); }
+    };
+    var sc = document.createElement("script");
+    sc.src = "https://cdn.apple-mapkit.com/mk/5.x.x/mapkit.core.js";
+    sc.crossOrigin = "anonymous";
+    sc.async = true;
+    sc.setAttribute("data-libraries", "map");
+    sc.setAttribute("data-callback", "ppMapKit");
+    sc.onerror = function(){ useEsri("script"); };
+    document.head.appendChild(sc);
+    map.on("move zoom rotate resize viewreset zoomend moveend", syncApple);
   }
   map.setView([53.4, -7.9], 7);
   var shapes = L.layerGroup().addTo(map);
@@ -390,7 +504,8 @@ export function pageHtml(source: TileSource): string {
       if(s.me.accuracyM) L.circle([s.me.lat,s.me.lng], { radius:s.me.accuracyM, color:"#4aa3df", weight:1, fillOpacity:.12, interactive:false }).addTo(layer);
       L.circleMarker([s.me.lat,s.me.lng], { radius:7, color:"#ffffff", weight:2.5, fillColor:"#1d8cf8", fillOpacity:1, interactive:false }).addTo(layer);
     }
-    if(s.frameKey !== lastKey){ lastKey = s.frameKey; refit(); }
+    // New hole: fit and turn first, then check Apple lines up with the turned view.
+    if(s.frameKey !== lastKey){ lastKey = s.frameKey; checked = true; refit(); checked = false; syncApple(); }
     placeFloating();
   }
 

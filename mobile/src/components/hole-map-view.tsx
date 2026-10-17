@@ -96,7 +96,7 @@ export const HoleMapView = forwardRef<HoleMapHandle, Props>(function HoleMapView
       on = false;
     };
   }, []);
-  // Opened on Esri (the website was slow, or said Esri)? Switch to Google as
+  // Opened on Esri (the website was slow, or said Esri)? Switch to Apple/Google as
   // soon as the website's answer arrives, and keep checking every 2 minutes
   // while on Esri — so the map doesn't stay on Esri for the whole visit.
   const onEsri = source?.provider === "esri";
@@ -105,7 +105,7 @@ export const HoleMapView = forwardRef<HoleMapHandle, Props>(function HoleMapView
     let on = true;
     const check = () =>
       void settledTileSource().then((t) => {
-        if (on && t.provider === "google") {
+        if (on && t.provider !== "esri") {
           setReady(false);
           setSource(t);
         }

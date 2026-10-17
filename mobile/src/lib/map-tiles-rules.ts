@@ -5,11 +5,15 @@
 
 export type TileSource =
   | { provider: "esri"; url: string; attribution: string }
+  /** Apple's map (MapKit JS) under ours; Esri's url + credit are the
+   *  backup if Apple's map can't start. */
+  | { provider: "apple"; token: string; url: string; attribution: string }
   | { provider: "google"; url: string; viewportUrl: string };
 
 /** What /api/app/map-tiles answers (src/lib/map-tiles.ts on the website). */
 export type ServerTiles =
   | { provider: "esri" }
+  | { provider: "apple"; token: string; expiresAt: number }
   | { provider: "google"; tileUrl: string; viewportUrl: string; expiresAt: number };
 
 export const esriSource = (url: string, attribution: string): TileSource => ({ provider: "esri", url, attribution });
@@ -20,6 +24,17 @@ const ESRI_RECHECK_MS = 2 * 60 * 1000;
 
 /** The website's answer → what the map loads, and until when. */
 export function sourceFromServer(t: ServerTiles | null | undefined, esri: TileSource, now: number): { source: TileSource; until: number } {
+  if (
+    t &&
+    t.provider === "apple" &&
+    typeof t.token === "string" &&
+    /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(t.token) &&
+    typeof t.expiresAt === "number" &&
+    t.expiresAt > now &&
+    esri.provider === "esri"
+  ) {
+    return { source: { provider: "apple", token: t.token, url: esri.url, attribution: esri.attribution }, until: t.expiresAt };
+  }
   if (
     t &&
     t.provider === "google" &&
