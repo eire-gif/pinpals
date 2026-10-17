@@ -33,6 +33,21 @@ describe("sourceFromServer", () => {
   });
 });
 
+describe("sourceFromServer: Apple", () => {
+  const APPLE = { provider: "apple" as const, token: "aaa.bbb.ccc", expiresAt: NOW + 12 * 3_600_000 };
+  it("uses Apple's map with Esri kept as the backup, until the website says to ask again", () => {
+    expect(sourceFromServer(APPLE, ESRI, NOW)).toEqual({
+      source: { provider: "apple", token: "aaa.bbb.ccc", url: "https://esri/{z}/{y}/{x}", attribution: "Imagery © Esri" },
+      until: APPLE.expiresAt,
+    });
+  });
+  it("is Esri for a stale or malformed token", () => {
+    for (const bad of [{ ...APPLE, expiresAt: NOW - 1 }, { ...APPLE, token: "not a jwt" }, { ...APPLE, token: '"></script>.x.y' }]) {
+      expect(sourceFromServer(bad, ESRI, NOW).source).toBe(ESRI);
+    }
+  });
+});
+
 describe("viewportQuery", () => {
   it("adds all five required parameters, rounded", () => {
     expect(viewportQuery(GOOGLE.viewportUrl, { zoom: 17.75, north: 53.4567891234, south: 53.44, east: -6.1, west: -6.123456789 })).toBe(
