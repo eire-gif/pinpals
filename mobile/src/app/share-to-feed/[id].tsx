@@ -54,9 +54,12 @@ function ShareToFeedInner() {
 
   const cardWidth = width - spacing.md * 2;
   const canShare = !!post && post.visibility === "members" && !post.hidden;
+  // A few words for now — app versions from before sharing would show a
+  // share with none as an empty card (validatePostDraft on the website).
+  const ready = canShare && body.trim().length > 0;
 
   async function share() {
-    if (!post || posting) return;
+    if (!post || posting || !ready) return;
     setPosting(true);
     try {
       const { id: newId } = await createPost({
@@ -82,11 +85,11 @@ function ShareToFeedInner() {
           headerRight: () => (
             <Pressable
               onPress={() => void share()}
-              disabled={!canShare || posting}
+              disabled={!ready || posting}
               hitSlop={12}
               accessibilityRole="button"
               accessibilityLabel="Share now"
-              style={{ opacity: !canShare || posting ? 0.4 : 1 }}
+              style={{ opacity: !ready || posting ? 0.4 : 1 }}
             >
               {posting ? <ActivityIndicator color={colors.green700} /> : <Text style={styles.headerAction}>Share</Text>}
             </Pressable>
@@ -109,7 +112,7 @@ function ShareToFeedInner() {
             <TextInput
               value={body}
               onChangeText={setBody}
-              placeholder="Say something about this…"
+              placeholder="Say something about this post…"
               placeholderTextColor={colors.ink500}
               style={styles.input}
               multiline
@@ -120,8 +123,9 @@ function ShareToFeedInner() {
             <QuotedPost post={post} width={cardWidth} interactive={false} />
             {post && !canShare ? (
               <Text style={styles.note}>
-                This post is shared with {post.author.name.split(" ")[0]}&apos;s connections only, so it can be sent in a chat but not shared
-                to your feed.
+                {post.hidden
+                  ? "This post can't be shared."
+                  : `This post is for ${post.author.name.split(" ")[0]}'s connections only, so it can be sent in a chat but not shared to your feed.`}
               </Text>
             ) : null}
 
@@ -147,8 +151,8 @@ function ShareToFeedInner() {
 
             <Pressable
               onPress={() => void share()}
-              disabled={!canShare || posting}
-              style={({ pressed }) => [styles.button, (!canShare || posting) && { opacity: 0.45 }, pressed && { opacity: 0.85 }]}
+              disabled={!ready || posting}
+              style={({ pressed }) => [styles.button, (!ready || posting) && { opacity: 0.45 }, pressed && { opacity: 0.85 }]}
               accessibilityRole="button"
             >
               {posting ? <ActivityIndicator color={colors.cream50} /> : <Text style={styles.buttonLabel}>Share to your feed</Text>}

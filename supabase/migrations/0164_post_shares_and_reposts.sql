@@ -36,7 +36,11 @@
 --    is_repost still true — the card then says the post is no longer
 --    available, rather than showing as an empty post.
 --
+-- 4. Reactions from members on either side of a block with the viewer are
+--    no longer readable (the who-reacted sheet names people now).
+--
 -- Rollback:
+--   (re-create 0088's "post viewers read likes" policy: can_view_post(post_id) alone)
 --   drop trigger if exists posts_repost_shared on public.posts;
 --   drop trigger if exists posts_repost_unshared on public.posts;
 --   drop trigger if exists posts_check_repost on public.posts;
@@ -178,23 +182,29 @@ begin
     return new;
   end if;
 
+  -- Visible to the member first, before anything about the post is looked
+  -- at — otherwise a share of a hidden or connections-only repost would
+  -- reveal what it shares. One answer for "no such post" and "not yours to
+  -- see", so ids can't be probed. (The website's own server code, the
+  -- service role, has no auth.uid() and is trusted.)
+  if (select auth.uid()) is not null and not public.can_view_post(new.shared_post_id) then
+    raise exception 'That post is no longer available.' using errcode = '42501';
+  end if;
+
   select id, shared_post_id into v_target from public.posts where id = new.shared_post_id;
   if not found then
-    raise exception 'That post is no longer available.' using errcode = '23503';
+    raise exception 'That post is no longer available.' using errcode = '42501';
   end if;
   -- Share the original, never a share of a share.
   if v_target.shared_post_id is not null then
     new.shared_post_id := v_target.shared_post_id;
+    if (select auth.uid()) is not null and not public.can_view_post(new.shared_post_id) then
+      raise exception 'That post is no longer available.' using errcode = '42501';
+    end if;
   end if;
 
   select id, author_id, visibility, hidden_at into v_target from public.posts where id = new.shared_post_id;
   if not found then
-    raise exception 'That post is no longer available.' using errcode = '23503';
-  end if;
-
-  -- The website's own server code (service role) is trusted; a member must
-  -- be able to see the post. can_view_post() reads auth.uid() itself.
-  if (select auth.uid()) is not null and not public.can_view_post(new.shared_post_id) then
     raise exception 'That post is no longer available.' using errcode = '42501';
   end if;
   if v_target.visibility <> 'members' or v_target.hidden_at is not null then
@@ -262,3 +272,19 @@ drop trigger if exists posts_repost_unshared on public.posts;
 create trigger posts_repost_unshared
   after delete on public.posts
   for each row execute function public.posts_repost_unshared();
+
+-- ============ reactions from blocked members ============
+--
+-- Who reacted is visible to anyone who can see the post (0088) — but not a
+-- reaction from someone on either side of a block with the viewer. Before
+-- the who-reacted sheet, likes were only ever counted; now they're named,
+-- and a member who blocked you shouldn't show up as "Seán and 11 others".
+-- Your own reaction is always yours to read. Counts are unchanged.
+drop policy if exists "post viewers read likes" on public.post_likes;
+create policy "post viewers read likes"
+  on public.post_likes for select
+  to authenticated
+  using (
+    public.can_view_post(post_id)
+    and (user_id = (select auth.uid()) or not public.is_blocked(user_id, (select auth.uid())))
+  );

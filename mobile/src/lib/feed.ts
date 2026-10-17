@@ -423,11 +423,14 @@ async function hydrate(viewerId: string, rows: PostRow[], commentsPerPost: numbe
       : Promise.resolve({ data: [] as CommentRow[], error: null }),
     signPhotos(rows.flatMap((r) => r.post_images.map((img) => img.path))),
     loadVideos(ids),
-    loadShareInfo(ids),
-    latestReactors(
-      viewerId,
-      rows.filter((r) => r.like_count > 0).map((r) => r.id)
-    ),
+    // A quoted post (withShared false) shows neither, so skips both.
+    withShared ? loadShareInfo(ids) : Promise.resolve(new Map<number, ShareInfo>()),
+    withShared
+      ? latestReactors(
+          viewerId,
+          rows.filter((r) => r.like_count > 0).map((r) => r.id)
+        )
+      : Promise.resolve(new Map<number, string>()),
   ]);
 
   // The posts these share (0164), hydrated once for the page: no comments,
@@ -539,8 +542,9 @@ async function loadShareInfo(ids: number[]): Promise<Map<number, ShareInfo>> {
   return out;
 }
 
-/** The members the viewer has blocked — left out of who-reacted lists.
- *  (Blocks the other way already hide that member's posts.) */
+/** The members the viewer has blocked. The database already hides
+ *  reactions across a block (0164's post_likes policy, both directions);
+ *  this is a second guard, and covers a database without 0164. */
 async function myBlocks(viewerId: string): Promise<Set<string>> {
   const { data } = await supabase
     .from("blocked_users")
@@ -598,8 +602,8 @@ export type Reactor = {
 /**
  * Everyone who reacted to a post, newest first — the who-reacted sheet.
  * post_likes is readable by anyone who can see the post (0088: liking is a
- * public act); a member whose profile the viewer can't see (0159) or whom
- * the viewer has blocked is left out.
+ * public act) — except across a block, either way (0164); a member whose
+ * profile the viewer can't see (0159) is left out too.
  */
 export async function loadReactors(viewerId: string, postId: number): Promise<Reactor[]> {
   const [{ data, error }, blocked] = await Promise.all([

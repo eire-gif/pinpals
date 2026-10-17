@@ -357,8 +357,10 @@ function ShareScreenInner() {
               !post
                 ? "Loading…"
                 : feedShareable
-                  ? "Add your own words, choose who sees it"
-                  : "This post is for its author's connections only"
+                  ? "Add a few words, choose who sees it"
+                  : feedTarget?.hidden
+                    ? "This post can't be shared"
+                    : "This post is for its author's connections only"
             }
             onPress={() => router.push({ pathname: "/share-to-feed/[id]", params: { id: String(postId) } })}
             disabled={!feedShareable}

@@ -24,11 +24,12 @@ describe("validatePostDraft", () => {
     expect(validatePostDraft({ ...base, hasDetails: true })).toBeNull();
   });
 
-  it("accepts sharing a post with no words of your own, but nothing else alongside it (0164)", () => {
-    expect(validatePostDraft({ ...base, sharesPost: true })).toBeNull();
-    expect(validatePostDraft({ ...base, sharesPost: true, photoCount: 1 })).toMatch(/shared post/);
-    expect(validatePostDraft({ ...base, sharesPost: true, hasVideo: true })).toMatch(/shared post/);
-    expect(validatePostDraft({ ...base, sharesPost: true, hasDetails: true })).toMatch(/shared post/);
+  it("sharing a post needs a few words, and nothing else alongside it (0164)", () => {
+    expect(validatePostDraft({ ...base, sharesPost: true })).toMatch(/few words/);
+    expect(validatePostDraft({ ...base, sharesPost: true, body: "Look at this" })).toBeNull();
+    expect(validatePostDraft({ ...base, body: "x", sharesPost: true, photoCount: 1 })).toMatch(/shared post/);
+    expect(validatePostDraft({ ...base, body: "x", sharesPost: true, hasVideo: true })).toMatch(/shared post/);
+    expect(validatePostDraft({ ...base, body: "x", sharesPost: true, hasDetails: true })).toMatch(/shared post/);
   });
 
   it("accepts photos with no caption, and a caption with no photos", () => {

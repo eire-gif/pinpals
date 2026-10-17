@@ -164,6 +164,31 @@ describe("reposts", () => {
     });
   });
 
+  it("a share of a post the member can't see is refused before it's followed", async () => {
+    await withRole("authenticated", USERS.seller1, async (c) => {
+      const open = await post(c, USERS.seller1);
+      // seller2 shares it to their connections only; buyer1 isn't one.
+      await as(c, USERS.seller2);
+      const { rows } = await c.query<{ id: string }>(
+        "insert into public.posts (author_id, body, visibility, shared_post_id) values ($1, 'x', 'connections', $2) returning id",
+        [USERS.seller2, open],
+      );
+      await as(c, USERS.buyer1);
+      await refused(
+        c,
+        "insert into public.posts (author_id, body, shared_post_id) values ($1, '', $2)",
+        [USERS.buyer1, rows[0].id],
+        /no longer available/,
+      );
+      await refused(
+        c,
+        "insert into public.posts (author_id, body, shared_post_id) values ($1, '', $2)",
+        [USERS.buyer1, 999999999],
+        /no longer available/,
+      );
+    });
+  });
+
   it("deleting the original leaves the repost, pointing nowhere", async () => {
     await withRole("authenticated", USERS.seller1, async (c) => {
       const id = await post(c, USERS.seller1);
@@ -177,6 +202,27 @@ describe("reposts", () => {
       await as(c, USERS.buyer1);
       const after = await c.query("select shared_post_id, is_repost from public.posts where id = $1", [rows[0].id]);
       expect(after.rows[0]).toEqual({ shared_post_id: null, is_repost: true });
+    });
+  });
+});
+
+describe("reactions and blocks", () => {
+  it("a member on either side of a block doesn't see the other's reaction", async () => {
+    await withRole("authenticated", USERS.seller1, async (c) => {
+      const id = await post(c, USERS.seller1);
+      await as(c, USERS.buyer2);
+      await c.query("insert into public.post_likes (post_id, user_id) values ($1, $2)", [id, USERS.buyer2]);
+      // buyer2 blocks buyer1.
+      await c.query("insert into public.blocked_users (blocker_id, blocked_id) values ($1, $2)", [USERS.buyer2, USERS.buyer1]);
+      await as(c, USERS.buyer1);
+      const hidden = await c.query("select user_id from public.post_likes where post_id = $1", [id]);
+      expect(hidden.rowCount).toBe(0);
+      await as(c, USERS.buyer2);
+      const own = await c.query("select user_id from public.post_likes where post_id = $1", [id]);
+      expect(own.rowCount).toBe(1);
+      await as(c, USERS.seller1);
+      const author = await c.query("select user_id from public.post_likes where post_id = $1", [id]);
+      expect(author.rowCount).toBe(1);
     });
   });
 });

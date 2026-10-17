@@ -1662,7 +1662,7 @@ export const GUIDES: Guide[] = [
       },
       {
         title: "Share a post",
-        body: "Tap Share. Under Send in PinPals, tap one or more chats or PinPals (or Search), add a message and tap Send. Share to your feed puts it on your page with your own words. Or send it out on WhatsApp, Messages, Email, Facebook or X — More has Instagram and Copy.",
+        body: "Tap Share. Under Send in PinPals, tap one or more chats or PinPals (or Search), add a message and tap Send. Share to your feed puts it on your page, with a few words of your own. Or send it out on WhatsApp, Messages, Email, Facebook or X — More has Instagram and Copy.",
         look: [
           { style: "outline", label: "Share", icon: "arrow-redo-outline" },
           { style: "primary", label: "Send to 3", icon: "paper-plane" },
@@ -1764,7 +1764,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
-  { on: "2026-10-17", text: "Share on Social: new steps, See who reacted — tap \"Seán Byrne and 11 others\" for everyone's reaction, with Message or Add PinPal — and Share a post: send to several chats at once, Share to your feed with your own words, or straight to WhatsApp, Messages, Email, Facebook or X. Posts now show how many times they've been shared." },
+  { on: "2026-10-17", text: "Share on Social: new steps, See who reacted — tap \"Seán Byrne and 11 others\" for everyone's reaction, with Message or Add PinPal — and Share a post: send to several chats at once, Share to your feed with a few words of your own, or straight to WhatsApp, Messages, Email, Facebook or X. Posts now show how many times they've been shared." },
   { on: "2026-10-17", text: "Marketplace: find gear in three steps — club type, brand, model — with the listings always below, narrowing as you pick. Top picks, at the top, are paid adverts marked PREMIUM. Selling, you can pick the exact model. Buy gear safely and Sell your gear are updated." },
   { on: "2026-10-17", text: "Score a game live: once every hole is in, the Score tab shows All 18 holes in with Complete scorecard (it was Finish round, on the Leaderboard tab only), and the card says Complete. On the last hole with holes missing, it lists them to tap. Tapping the lock screen card after the last hole opens the round there." },
   { on: "2026-10-17", text: "Marketplace redesign: smart search that understands brands, prices, places and typos; public Questions & offers under every ad (ask, offer, and the seller accepts, counters or declines in the open); the sell form fills itself in from the title; marketplace chats are in Messages under Marketplace, with the item pinned. Sell your gear and Buy gear safely are updated." },

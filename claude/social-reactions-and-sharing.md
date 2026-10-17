@@ -27,8 +27,12 @@ outside PinPals: WhatsApp, Messages, Email, Facebook, X open with the link
 ready (`shareAddress()`), More is the phone's sheet (Instagram, Copy…).
 
 **Share to your feed** (`app/share-to-feed/[id].tsx`) — your words over the
-post, audience, Share. The original's author gets an in-app alert
-(`post_shared`, like a reaction: never push or email).
+post, audience, Share. A few words are required for now (website
+`validatePostDraft`): app builds from before 0164 don't draw the shared post
+and would show an empty card. The database allows none — relax the website
+rule once those builds are gone. The original's author gets an in-app alert
+(`post_shared`, like a reaction: never push or email), only when they may see
+the share (all members, or they're the sharer's connection).
 
 ## Database — `0164_post_shares_and_reposts.sql`
 
@@ -45,7 +49,20 @@ post, audience, Share. The original's author gets an in-app alert
   it removes that (unless they have another repost of it). Deleting the
   original leaves `is_repost` true and `shared_post_id` null → "no longer
   available".
-- RLS tests: `post-shares.test.ts` (8); function grants updated.
+- `posts_check_repost()` checks `can_view_post` on the named post *before*
+  following it to an original, and gives one error for missing and unseen.
+- `post_likes` read policy: no reactions across a block, either direction
+  (the who-reacted sheet names people). Your own always readable.
+- RLS tests: `post-shares.test.ts` (10); function grants updated.
+
+## Independent review (17 Oct) — fixed
+
+Blocked members in who-reacted lists (now hidden by policy); a repost made
+through a post the member couldn't see; the share alert leaking a
+connections-only caption; caption-less reposts showing blank on old builds;
+quoted posts loading reactors and share info they don't show. Accepted as
+is: an outside share is counted when the app opens, even if then cancelled
+(at most once per member per app).
 
 ## Old builds and databases
 

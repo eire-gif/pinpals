@@ -318,7 +318,23 @@ export async function createPost(input: {
 
   if (error || !post) return fail("failed", "Couldn't post that just now — please try again.");
 
-  if (shared && shared.author_id !== userId) {
+  // Told only when they may see the share: one to all members, or one to
+  // the sharer's connections when they're one of them. Otherwise the alert
+  // would hand them a caption (and a link) meant for someone else.
+  let authorMaySee = visibility === "members";
+  if (shared && !authorMaySee && shared.author_id !== userId) {
+    const { data: link } = await supabase
+      .from("connections")
+      .select("id")
+      .eq("status", "accepted")
+      .or(
+        `and(requester_id.eq.${userId},recipient_id.eq.${shared.author_id}),and(requester_id.eq.${shared.author_id},recipient_id.eq.${userId})`
+      )
+      .maybeSingle();
+    authorMaySee = !!link;
+  }
+
+  if (shared && shared.author_id !== userId && authorMaySee) {
     // In-app only, like a reaction (see likePost): best-effort, and it must
     // never undo the post the member can already see.
     const name = await memberName(supabase, userId);
