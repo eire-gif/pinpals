@@ -3,7 +3,6 @@ import {
   ActivityIndicator,
   FlatList,
   Image,
-  ImageBackground,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -96,7 +95,6 @@ export default function MarketplaceScreen() {
   const [searchWords, setSearchWords] = useState("");
   const insets = useSafeAreaInsets();
   const { allows } = useAgeAccess();
-  const canSell = allows("sell");
 
   useEffect(() => {
     const words = (params.search ?? "").trim();
@@ -398,18 +396,6 @@ export default function MarketplaceScreen() {
 
           {browsing ? (
             <>
-              {canSell ? (
-                <Pressable onPress={() => router.push("/new-listing")} style={styles.sellCard} accessibilityRole="button" accessibilityLabel="Sell your old clubs. List in 60 seconds">
-                  <ImageBackground source={require("../../../../assets/images/scenes/links-sunset.jpg")} style={styles.sellPhoto} imageStyle={{ borderRadius: 18 }}>
-                    <View style={styles.sellScrim} />
-                    <Text style={styles.sellTitle}>Your old clubs, someone&apos;s new favourites</Text>
-                    <View style={styles.sellButton}>
-                      <Text style={styles.sellButtonText}>List in 60 seconds</Text>
-                    </View>
-                  </ImageBackground>
-                </Pressable>
-              ) : null}
-
               <Rail title={me.clubName ? `Collect at ${me.clubName}` : "At your club"} cards={atClub} onOpen={open} onFavourite={userId ? favourite : undefined} onSeeAll={() => toggleChip("club")} />
               <Rail title="Fresh today" cards={fresh} onOpen={open} onFavourite={userId ? favourite : undefined} />
               <SectionHead title="All used gear" />
@@ -645,12 +631,6 @@ const styles = StyleSheet.create({
   understood: { flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: spacing.md, marginTop: spacing.md, paddingHorizontal: 12, paddingVertical: 10, borderRadius: radii.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
   understoodText: { flex: 1, fontFamily: fonts.bodySemi, fontSize: 13, color: colors.green800 },
 
-  sellCard: { marginHorizontal: spacing.md, marginTop: spacing.lg, borderRadius: 18, overflow: "hidden", backgroundColor: colors.navy900 },
-  sellPhoto: { height: 150, justifyContent: "center", paddingHorizontal: 20, gap: 12 },
-  sellScrim: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, borderRadius: 18, backgroundColor: "rgba(12,32,56,0.62)" },
-  sellTitle: { fontFamily: fonts.display, fontSize: 22, lineHeight: 27, color: colors.cream50, maxWidth: 240 },
-  sellButton: { alignSelf: "flex-start", backgroundColor: colors.gold500, borderRadius: radii.pill, paddingHorizontal: 14, paddingVertical: 9 },
-  sellButtonText: { fontFamily: fonts.bodyBold, fontSize: 14, color: colors.navy900 },
 
   chips: { gap: 8, paddingHorizontal: spacing.md, paddingTop: spacing.md },
   chip: { minHeight: 36, paddingHorizontal: 14, borderRadius: radii.pill, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface, justifyContent: "center" },
