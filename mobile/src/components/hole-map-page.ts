@@ -179,7 +179,7 @@ export function pageHtml(source: TileSource): string {
   // while our drawing slid over it (17 Oct). Once the view settles and Apple
   // has redrawn, we measure where two of our points land on Apple's map and
   // learn the scale, the centre shift and the turn direction (calibrate).
-  var kFix = null, shiftX = 0, shiftY = 0, fixes = 0, calTimer = null, calRuns = 0;
+  var kFix = null, shiftX = 0, shiftY = 0, fixes = 0, calTimer = null, calRuns = 0, clamped = false, calibrated = false;
   function onMk(ll){
     var p = mk.convertCoordinateToPointOnPage(new mapkit.Coordinate(ll.lat, ll.lng));
     var r = mkEl.getBoundingClientRect();
@@ -207,7 +207,20 @@ export function pageHtml(source: TileSource): string {
       var b = canRotate ? (map.getBearing() || 0) : 0;
       mk.rotation = (((rotSign * -b) % 360) + 360) % 360;
       mk.center = new mapkit.Coordinate(c.lat, c.lng);
-      mk.cameraDistance = kFix * upp;
+      var want = kFix * upp;
+      mk.cameraDistance = want;
+      // Apple has a closest zoom (17 Oct, iPhone: ~62 m camera height); past
+      // it the photo stops growing while ours keeps going. Read it back: if
+      // Apple held back, cap our zoom at where Apple stops, and go back there.
+      var got = mk.cameraDistance;
+      clamped = got > want * 1.02;
+      if(clamped && calibrated){
+        var zMax = Math.floor((map.getZoom() - Math.log(got / want) / Math.LN2) * 4) / 4;
+        if(zMax > 12 && zMax < map.getMaxZoom()){
+          map.setMaxZoom(zMax);
+          if(map.getZoom() > zMax) map.setZoom(zMax, { animate:false });
+        }
+      }
     }catch(e){ useEsri("sync " + (e && e.message ? String(e.message).slice(0, 40) : "")); }
   }
   // After Apple has had time to draw the settled view.
@@ -225,12 +238,22 @@ export function pageHtml(source: TileSource): string {
     if(!m || !(m.ratio > 0) || !isFinite(m.ratio)){ if(!checked) check(); return; }
     var b = canRotate ? (map.getBearing() || 0) : 0;
     var again = false;
-    if(Math.abs(m.ratio - 1) > 0.004){ kFix *= m.ratio; again = true; }
+    if(clamped && !calibrated){
+      // Zoomed in past Apple's limit before the scale was known: learn it a
+      // little further out, then come back (capped).
+      var z0 = map.getZoom();
+      map.setZoom(Math.max(14, z0 - 1.5), { animate:false });
+      syncApple();
+      afterDraw(function(){ calibrate(); if(calibrated){ map.setZoom(z0, { animate:false }); syncApple(); } });
+      return;
+    }
+    if(Math.abs(m.ratio - 1) > 0.004 && !clamped){ kFix *= m.ratio; again = true; }
     if(Math.abs(m.turn) > 3 && Math.abs(Math.sin(b * Math.PI / 180)) > 0.05){ rotSign = -rotSign; again = true; }
     else if(Math.hypot(m.dx, m.dy) > 1.5){ shiftX += m.dx; shiftY += m.dy; again = true; }
     diag("cal" + calRuns);
     if(again && calRuns++ < 6){ syncApple(); afterDraw(calibrate); return; }
     calRuns = 0;
+    if(!clamped) calibrated = true;
     if(!checked) check();
   }
   // Is Apple's photo really under our drawing? Where does a point a little
@@ -268,13 +291,13 @@ export function pageHtml(source: TileSource): string {
         mk.rotation = 0; mk.visibleMapRect = new mapkit.MapRect(mp.x - w/s2/2, mp.y - h/s2/2, w/s2, h/s2); dRect = mk.cameraDistance;
       }catch(e){}
       mk.rotation = rot; mk.center = cen; mk.cameraDistance = dist;
-      post({ type:"diag", d:{ v:"diag1", tag:tag, ua:navigator.userAgent.slice(0, 90), dpr:window.devicePixelRatio, vw:window.innerWidth, vh:window.innerHeight,
+      post({ type:"diag", d:{ v:"diag2", clamped:clamped, calibrated:calibrated, maxZoom:map.getMaxZoom(), tag:tag, ua:navigator.userAgent.slice(0, 90), dpr:window.devicePixelRatio, vw:window.innerWidth, vh:window.innerHeight,
         vv:window.visualViewport ? [window.visualViewport.width, window.visualViewport.height, window.visualViewport.scale] : null,
         w:w, h:h, rect:[Math.round(r.left), Math.round(r.top), Math.round(r.width), Math.round(r.height)],
         zoom:map.getZoom(), bearing:canRotate ? map.getBearing() : 0, kFix:kFix, shift:[shiftX, shiftY], rotSign:rotSign,
         mkDist:dist, dRect:dRect, mkRot:rot, mkCenter:c ? [c.latitude, c.longitude] : null, ourCenter:[oc.lat, oc.lng],
         cmp:m, misfit:misfit(), mkVersion:mapkit.version } });
-    }catch(e){ post({ type:"diag", d:{ v:"diag1", tag:tag, err:String(e && e.message || e).slice(0, 120) } }); }
+    }catch(e){ post({ type:"diag", d:{ v:"diag2", tag:tag, err:String(e && e.message || e).slice(0, 120) } }); }
   }
   function settled(){ if(mk){ syncApple(); calRuns = 0; afterDraw(calibrate); } }
   if(APPLE){
