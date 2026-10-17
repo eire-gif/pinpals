@@ -743,9 +743,9 @@ export const GUIDES: Guide[] = [
       },
       {
         title: "Finish and get your card certified",
-        body: "After the last hole, tap Finish round. When it asks Get your card certified?, tap Choose who and pick someone you played with. They confirm your scores on their own phone with Face ID or a fingerprint, and your card shows who certified it.",
+        body: "Once every hole is in, the Score tab shows All 18 holes in, right above the card — tap Complete scorecard. When it asks Get your card certified?, tap Choose who and pick someone you played with. They confirm your scores on their own phone with Face ID or a fingerprint, and your card shows who certified it.",
         look: [
-          { style: "primary", label: "Finish round" },
+          { style: "primary", label: "Complete scorecard", icon: "checkmark-done" },
           { style: "link", label: "Choose who", icon: "finger-print" },
         ],
         tip: "Scores can't be changed once the round is finished.",
@@ -1093,7 +1093,7 @@ export const GUIDES: Guide[] = [
           { style: "outline", label: "+" },
           { style: "primary", label: "Save", icon: "checkmark" },
         ],
-        tip: "It's your own score only, and not for scrambles or foursomes. No signal? It's kept and sent when there is. The yardage needs location: PinPals asks once, and it stops when the round ends (a flag means it's the hole's length from the tee). The card goes when you tap Finish round. Not showing? Settings → PinPals → Live Activities.",
+        tip: "It's your own score only, and not for scrambles or foursomes. No signal? It's kept and sent when there is. The yardage needs location: PinPals asks once, and it stops when the round ends (a flag means it's the hole's length from the tee). Tap the card after the last hole and the round opens on Complete scorecard; the card goes when you tap it. Not showing? Settings → PinPals → Live Activities.",
       },
       {
         title: "Score from your Apple Watch",
@@ -1108,10 +1108,10 @@ export const GUIDES: Guide[] = [
       },
       {
         title: "Leaderboard, finish and share",
-        body: "The Leaderboard tab updates as everyone scores. After the last hole, tap Finish round, then get your card certified and Share scorecard to WhatsApp. For a picture of your card, choose My card as a photo, then Save Image — it goes into your Photos, ready for Instagram.",
+        body: "The Leaderboard tab updates as everyone scores. After the last hole, tap Complete scorecard — on the Score tab, or at the bottom of the Leaderboard — then get your card certified and Share scorecard to WhatsApp. For a picture of your card, choose My card as a photo, then Save Image — it goes into your Photos, ready for Instagram.",
         look: [
           { style: "outline", label: "Leaderboard" },
-          { style: "primary", label: "Finish round" },
+          { style: "primary", label: "Complete scorecard" },
           { style: "outline", label: "Share scorecard", icon: "share-outline" },
           { style: "outline", label: "My card as a photo", icon: "image-outline" },
         ],
@@ -1721,6 +1721,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-17", text: "Score a game live: once every hole is in, the Score tab shows All 18 holes in with Complete scorecard (it was Finish round, on the Leaderboard tab only), and the card says Complete. On the last hole with holes missing, it lists them to tap. Tapping the lock screen card after the last hole opens the round there." },
   { on: "2026-10-17", text: "Marketplace redesign: smart search that understands brands, prices, places and typos; public Questions & offers under every ad (ask, offer, and the seller accepts, counters or declines in the open); the sell form fills itself in from the title; marketplace chats are in Messages under Marketplace, with the item pinned. Sell your gear and Buy gear safely are updated." },
   { on: "2026-10-17", text: "Live scoring's three cards are renamed and colour-coded: Start a Round (navy), Groups & Societies (green, was From a Group) and Match Day Fun (claret, was Match Day). The guides show the new cards." },
   { on: "2026-10-17", text: "The marketplace has its own bottom menu (Home, Browse, Sell, Chats, My ads), and buyers pay sellers directly in cash or by Revolut. Sell your gear and Buy gear safely now cover posting for free, chatting, meeting up, Mark as sold and leaving feedback." },

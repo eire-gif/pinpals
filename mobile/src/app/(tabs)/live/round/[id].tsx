@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { FourballConnect } from "@/components/fourball-connect";
-import { ActionSheetIOS, ActivityIndicator, Alert, Platform, Pressable, ScrollView, Share, StyleSheet, Switch, Text, View } from "react-native";
+import { ActionSheetIOS, ActivityIndicator, Alert, AppState, Platform, Pressable, ScrollView, Share, StyleSheet, Switch, Text, View } from "react-native";
 import { Stack, router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
@@ -32,9 +32,11 @@ import {
   formatInfo,
   foursomesLabel,
   foursomesTeeShot,
+  holesStillToScore,
   isOneBallPerSide,
   matchCompetitors,
   netScoreName,
+  scoringPlayerIds,
   shotsSoFar,
   stablefordPoints,
   teamMatchState,
@@ -247,6 +249,61 @@ export default function LiveRoundScreen() {
     setVoiceAt(at ?? data.card.find((c) => data.players.some((p) => !data.scores.get(p.id)?.has(c.hole)))?.hole ?? data.card[0]?.hole ?? 1);
   }, [data, me, voice, holeParam]);
 
+  // ---- Finishing (Oct 2026) ----
+  // Once every hole is in, the Score tab shows "Complete scorecard" right
+  // above the card, and scrolls to it: when the last score goes in, and
+  // whenever the round is opened on a complete card — which is what tapping
+  // the lock screen card does (its link is just this round). The finish
+  // button on the Leaderboard tab still works the same way.
+  const scoreScroll = useRef<ScrollView>(null);
+  const finishY = useRef<number | null>(null);
+  const finishJump = useRef(false);
+  const wasComplete = useRef<boolean | null>(null);
+  const jumpedOnFocus = useRef(-1);
+  const [focusTick, setFocusTick] = useState(0);
+  useFocusEffect(
+    useCallback(() => {
+      setFocusTick((t) => t + 1);
+    }, [])
+  );
+  // Tapping the lock screen card brings the app back with this round already
+  // open — no new focus — so coming back to the app counts too.
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "active") setFocusTick((t) => t + 1);
+    });
+    return () => sub.remove();
+  }, []);
+  const scrollToFinish = useCallback(() => {
+    if (finishY.current == null) return false;
+    scoreScroll.current?.scrollTo({ y: Math.max(0, finishY.current - spacing.md), animated: true });
+    return true;
+  }, []);
+  useEffect(() => {
+    if (!data || data.round.status !== "live") {
+      wasComplete.current = null;
+      return;
+    }
+    const ids = scoringPlayerIds(data.players, { scramble: data.round.scramble != null, matchFormat: data.round.matchFormat });
+    const complete = ids.length > 0 && holesStillToScore(data.card, ids, data.scores).length === 0;
+    const justCompleted = wasComplete.current === false && complete;
+    const openedComplete = complete && jumpedOnFocus.current !== focusTick;
+    wasComplete.current = complete;
+    if (!complete || voiceAt != null) return;
+    if (justCompleted || openedComplete) {
+      jumpedOnFocus.current = focusTick;
+      started.current = true;
+      setView("score");
+      setHole(data.card[data.card.length - 1]?.hole ?? 1);
+      finishJump.current = true;
+      // The section may already be on screen (just completed); otherwise its
+      // onLayout does the scroll once it's drawn.
+      setTimeout(() => {
+        if (finishJump.current && scrollToFinish()) finishJump.current = false;
+      }, 350);
+    }
+  }, [data, focusTick, voiceAt, scrollToFinish]);
+
   if (!isOn("liveScoring")) return <StateMessage size="screen" icon="podium-outline" title="Live scoring is on its way" />;
   if (failed) return <LoadError size="screen" what="this round" onRetry={() => void load()} />;
   if (data === undefined) return <ActivityIndicator color={colors.green700} style={{ marginTop: spacing.xl }} />;
@@ -318,6 +375,12 @@ export default function LiveRoundScreen() {
           return { id: pair[0]?.id ?? -n, name: pair.map((p) => p.name.split(" ")[0]).join(" & "), side: n };
         }).filter((r) => r.id > 0)
       : [...players].sort((a, b) => (a.side ?? 0) - (b.side ?? 0) || a.position - b.position).map((p) => ({ id: p.id, name: p.name, side: p.side ?? null }));
+
+  // Finishing: which holes still need a score, and from whom.
+  const stillToScore = holesStillToScore(card, rows.map((r) => r.id), scores);
+  const cardFull = rows.length > 0 && stillToScore.length === 0;
+  const lastHole = card[card.length - 1]?.hole ?? 1;
+  const finishLabel = matchFormat ? "Finish match" : "Complete scorecard";
 
   /**
    * Optimistic: draw it now, write it, reload on failure. On this hole
@@ -411,7 +474,14 @@ export default function LiveRoundScreen() {
   };
 
   const finish = () =>
-    Alert.alert("Finish the round?", "Scores can't be changed after this. Everyone in the round sees the final leaderboard.", [
+    Alert.alert(
+      stillToScore.length ? "Finish with holes missing?" : matchFormat ? "Finish the match?" : "Complete your scorecard?",
+      `${
+        stillToScore.length
+          ? `No score yet on ${stillToScore.length === 1 ? "hole" : "holes"} ${stillToScore.map((m) => m.hole).join(", ")}. `
+          : ""
+      }This finishes the round for everyone in it — scores can't be changed after, and everyone sees the final leaderboard.`,
+      [
       { text: "Not yet", style: "cancel" },
       {
         text: "Finish",
@@ -736,7 +806,7 @@ export default function LiveRoundScreen() {
       </View>
 
       {view === "score" ? (
-        <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
+        <ScrollView ref={scoreScroll} contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
           {waitingScores > 0 ? (
             <View style={styles.offline} accessibilityLiveRegion="polite">
               <Ionicons name="cloud-offline-outline" size={18} color="#6b4403" />
@@ -996,7 +1066,55 @@ export default function LiveRoundScreen() {
             <Text style={styles.footNote}>{scr ? `You're watching this ${pairWord}. Its own players score it.` : "You're watching this match. Its own players score it."}</Text>
           ) : null}
 
+          {canScore && (cardFull || h.hole === lastHole) ? (
+            <View
+              style={[styles.finishBox, cardFull && styles.finishBoxDone]}
+              onLayout={(e) => {
+                finishY.current = e.nativeEvent.layout.y;
+                if (finishJump.current && scrollToFinish()) finishJump.current = false;
+              }}
+            >
+              <View style={styles.finishHead}>
+                <Ionicons name={cardFull ? "checkmark-circle" : "flag"} size={26} color={cardFull ? colors.gold400 : colors.navy900} />
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.finishTitle, cardFull && styles.finishTitleDone]}>
+                    {cardFull ? `All ${card.length} holes in` : "Last hole — nearly there"}
+                  </Text>
+                  <Text style={[styles.finishSub, cardFull && styles.finishSubDone]}>
+                    {cardFull
+                      ? "Check the card below, then complete it. It finishes the round for everyone and saves the final leaderboard."
+                      : `Still to score: ${stillToScore.length === 1 ? "hole" : "holes"} ${stillToScore.map((m) => m.hole).join(", ")}. Tap one to go there.`}
+                  </Text>
+                </View>
+              </View>
+              {!cardFull ? (
+                <View style={styles.finishMissing}>
+                  {stillToScore.slice(0, 12).map((m) => (
+                    <Pressable
+                      key={m.hole}
+                      onPress={() => setHole(m.hole)}
+                      style={styles.finishChip}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Go to hole ${m.hole}`}
+                    >
+                      <Text style={styles.finishChipText}>{m.hole}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              ) : null}
+              <Pressable
+                onPress={finish}
+                style={({ pressed }) => [cardFull ? styles.finishGo : styles.finishAnyway, pressed && { opacity: 0.88 }]}
+                accessibilityRole="button"
+              >
+                {cardFull ? <Ionicons name="checkmark-done" size={20} color={colors.navy900} /> : null}
+                <Text style={cardFull ? styles.finishGoLabel : styles.link}>{cardFull ? finishLabel : `${finishLabel} anyway`}</Text>
+              </Pressable>
+            </View>
+          ) : null}
+
           <LiveCard
+            complete={cardFull}
             card={card}
             rows={rows}
             scores={scores}
@@ -1012,6 +1130,10 @@ export default function LiveRoundScreen() {
               {hole < card.length ? (
                 <Pressable onPress={() => setHole(hole + 1)} style={styles.next} accessibilityRole="button">
                   <Text style={styles.nextLabel}>Next hole</Text>
+                </Pressable>
+              ) : cardFull ? (
+                <Pressable onPress={finish} style={styles.next} accessibilityRole="button">
+                  <Text style={styles.nextLabel}>{finishLabel}</Text>
                 </Pressable>
               ) : (
                 <Pressable onPress={() => setView("board")} style={styles.next} accessibilityRole="button">
@@ -1149,7 +1271,7 @@ export default function LiveRoundScreen() {
 
           {canScore ? (
             <Pressable onPress={finish} style={styles.next} accessibilityRole="button">
-              <Text style={styles.nextLabel}>{matchFormat ? "Finish match" : "Finish round"}</Text>
+              <Text style={styles.nextLabel}>{finishLabel}</Text>
             </Pressable>
           ) : null}
 
@@ -1329,6 +1451,7 @@ function Tot({ children, head = false, small = false, strong = false }: { childr
 }
 
 function LiveCard({
+  complete = false,
   card,
   rows,
   scores,
@@ -1347,6 +1470,8 @@ function LiveCard({
   /** The second view: Stableford points, or net strokes for stroke and match play. */
   second: "points" | "net";
   onShare: () => void;
+  /** Every hole in: the card's title says so. */
+  complete?: boolean;
 }) {
   const eighteen = card.length > 9;
   const [nine, setNine] = useState<"front" | "back" | null>(null);
@@ -1385,6 +1510,12 @@ function LiveCard({
       <View style={styles.lcHead}>
         <View style={styles.lcTitleRow}>
           <Text style={styles.lcTitle}>Scorecard</Text>
+          {complete ? (
+            <View style={styles.lcDone} accessibilityLabel="Card complete">
+              <Ionicons name="checkmark" size={12} color={colors.cream50} />
+              <Text style={styles.lcDoneText}>Complete</Text>
+            </View>
+          ) : null}
           <Pressable onPress={onShare} hitSlop={8} style={styles.lcShare} accessibilityRole="button" accessibilityLabel="Share scorecard">
             <Ionicons name="share-outline" size={15} color={colors.green700} />
             <Text style={styles.lcShareText}>Share</Text>
@@ -1577,6 +1708,21 @@ const styles = StyleSheet.create({
   alertsSub: { fontFamily: fonts.body, fontSize: 12.5, lineHeight: 17, color: colors.ink500, marginTop: 2 },
   shareButton: { flexDirection: "row", gap: 8, minHeight: 52, borderRadius: radii.pill, backgroundColor: colors.gold400, borderWidth: 1, borderColor: colors.gold500, alignItems: "center", justifyContent: "center" },
   shareLabel: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.navy900 },
+  finishBox: { gap: spacing.md, padding: spacing.md, borderRadius: radii.lg, backgroundColor: colors.surface, borderWidth: 1.5, borderColor: colors.gold500 },
+  finishBoxDone: { backgroundColor: colors.navy900, borderColor: colors.navy900 },
+  finishHead: { flexDirection: "row", gap: spacing.sm, alignItems: "flex-start" },
+  finishTitle: { fontFamily: fonts.display, fontSize: 22, color: colors.navy900 },
+  finishTitleDone: { color: colors.cream50 },
+  finishSub: { fontFamily: fonts.body, fontSize: type.small, color: colors.ink500, marginTop: 2 },
+  finishSubDone: { color: colors.cream100 },
+  finishMissing: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs },
+  finishChip: { minWidth: 40, height: 40, borderRadius: 20, borderWidth: 1, borderColor: colors.navy900, alignItems: "center", justifyContent: "center", paddingHorizontal: 10 },
+  finishChipText: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.navy900 },
+  finishGo: { flexDirection: "row", gap: 8, minHeight: 56, borderRadius: radii.pill, backgroundColor: colors.gold400, alignItems: "center", justifyContent: "center" },
+  finishGoLabel: { fontFamily: fonts.bodyBold, fontSize: 17, color: colors.navy900 },
+  finishAnyway: { minHeight: 48, borderRadius: radii.pill, borderWidth: 1, borderColor: colors.green700, alignItems: "center", justifyContent: "center" },
+  lcDone: { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: colors.green700, borderRadius: radii.pill, paddingHorizontal: 8, paddingVertical: 3 },
+  lcDoneText: { fontFamily: fonts.bodyBold, fontSize: 11, color: colors.cream50 },
   nextLabel: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.cream50 },
   secondary: { flexDirection: "row", gap: spacing.sm, minHeight: 48, borderRadius: radii.pill, borderWidth: 1, borderColor: colors.green700, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.md },
   cardSaved: { flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: colors.green100, borderRadius: radii.lg, padding: spacing.md },
