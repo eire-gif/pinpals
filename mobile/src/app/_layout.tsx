@@ -21,6 +21,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { AdTakeoverHost } from "@/components/ad-takeover";
+import { reportScreen } from "@/lib/activity";
 import { loadAgeAccess, useAgeAccess } from "@/lib/age";
 import { gateFor, openWhileWaiting } from "@/lib/age-rules";
 import { alertAction, appRouteFor } from "@/lib/alert-routes";
@@ -114,6 +115,16 @@ function RootNavigator() {
       }
     }
   }, [session, loading, fontsLoaded, segments, router, ageGate]);
+
+  // The admin "Live now" panel (0161, lib/activity.ts): which section of the
+  // app is on screen. Keyed on the joined segments so a re-render doesn't
+  // count a second view of the same screen.
+  const segmentKey = segments.join("/");
+  useEffect(() => {
+    if (loading) return;
+    reportScreen(segments);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [segmentKey, loading]);
 
   // The age answer is cached for five minutes; coming back to the app is
   // when a parent's "yes" (or a birthday) is most likely to have happened.

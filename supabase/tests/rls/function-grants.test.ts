@@ -180,6 +180,11 @@ const EXPECTED: Record<string, Expectation> = {
   // must never be reachable by a member or with the publishable key.
   "live_round_set_own_score(p_member uuid, p_round_id bigint, p_hole smallint, p_strokes smallint, p_clear boolean)": { anon: false, authenticated: false },
   "live_highlight_set_muted(p_round_id bigint, p_muted boolean)": { anon: false, authenticated: true },
+  // 0161 live activity: the website records pings and reads the admin's live
+  // numbers as the service role. record_activity takes the member as a
+  // parameter, so neither may be reachable with a member's token or anon.
+  "record_activity(p_session text, p_member uuid, p_platform text, p_section text, p_view boolean, p_install text, p_app_version text)": { anon: false, authenticated: false },
+  "admin_live_stats(p_tz text)": { anon: false, authenticated: false },
   // 0158 follow my round. Each checks whose card it is (or whose share) itself.
   "live_follow_share(p_player_id bigint, p_followers uuid[], p_token_hash text)": { anon: false, authenticated: true },
   "live_follow_stop(p_follow_id bigint)": { anon: false, authenticated: true },
