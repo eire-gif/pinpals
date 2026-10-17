@@ -111,7 +111,7 @@ extension LiveScoreAttributes {
   /** "Net par · 2 pts", "Bogey", "Picked up · 0 pts". */
   func describe(_ strokes: Int?, _ n: Int) -> String {
     guard let h = info(n) else { return "" }
-    guard let s = strokes, s > 0 else { return format == "points" ? "NR · 0 pts" : "No return" }
+    guard let s = strokes, s > 0 else { return format == "points" ? "Picked up · NR · 0 pts" : "Picked up · No return" }
     let net = h.shots > 0
     let diff = s - (h.par + h.shots)
     let word: String
@@ -550,7 +550,7 @@ struct LiveScoreSaveIntent: LiveActivityIntent {
 
 @available(iOS 17.0, *)
 struct LiveScorePickedUpIntent: LiveActivityIntent {
-  static var title: LocalizedStringResource = "No return"
+  static var title: LocalizedStringResource = "Picked up (NR)"
   // Lock screen buttons only, not Shortcuts actions.
   static var isDiscoverable: Bool = false
   @Parameter(title: "Round") var roundId: Int

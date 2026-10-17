@@ -1059,7 +1059,7 @@ export const GUIDES: Guide[] = [
       },
       {
         title: "Score each hole",
-        body: "Each player's score starts at par plus their shots. Use − and + to set it, tap the number to confirm, and tap Next hole. Picked up? Tap NR beside the score — it scores no return (0 points in Stableford). Hold a number to clear it.",
+        body: "Each player's score starts at par plus their shots. Use − and + to set it, tap the number to confirm, and tap Next hole. Picked up? Tap NR beside the score — the card shows “Picked up · No return”, scored as no return (0 points in Stableford). Hold a number to clear it.",
         look: [
           { style: "outline", label: "−" },
           { style: "primary", label: "5" },

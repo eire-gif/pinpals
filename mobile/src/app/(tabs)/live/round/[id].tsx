@@ -883,7 +883,7 @@ export default function LiveRoundScreen() {
             const strokes = entered ? (mine!.get(h.hole) ?? null) : null;
             const shown = entered ? strokes : h.par + (shots ?? 0);
             const pts = entered && shots != null ? stablefordPoints(strokes, h.par, shots) : null;
-            const name = entered && strokes != null && shots != null ? netScoreName(strokes, h.par, shots) : entered && strokes == null ? "No return" : null;
+            const name = entered && strokes != null && shots != null ? netScoreName(strokes, h.par, shots) : entered && strokes == null ? "Picked up · No return" : null;
             return (
               <View key={p.id} style={{ gap: spacing.sm }}>
               {sideHeader ? (
@@ -930,7 +930,7 @@ export default function LiveRoundScreen() {
                       onPress={() => void (entered && strokes == null ? score(p.id, null, true) : score(p.id, null))}
                       style={[styles.nr, entered && strokes == null && styles.nrOn]}
                       accessibilityRole="button"
-                      accessibilityLabel={entered && strokes == null ? `${p.name}: no return. Tap to clear.` : `No return for ${p.name}`}
+                      accessibilityLabel={entered && strokes == null ? `${p.name}: picked up, no return. Tap to clear.` : `Picked up, no return for ${p.name}`}
                       accessibilityState={{ selected: entered && strokes == null }}
                       hitSlop={4}
                     >
@@ -942,7 +942,7 @@ export default function LiveRoundScreen() {
                       onLongPress={() => entered && void score(p.id, null, true)}
                       style={styles.strokesBox}
                       accessibilityRole="button"
-                      accessibilityLabel={entered ? `${p.name}: ${strokes ?? "no return"}. Hold to clear.` : `Confirm ${shown} for ${p.name}`}
+                      accessibilityLabel={entered ? `${p.name}: ${strokes ?? "picked up, no return"}. Hold to clear.` : `Confirm ${shown} for ${p.name}`}
                     >
                       {/* Marked against par (gross), like the card: circle for a
                           birdie, square for a bogey. */}
@@ -1006,7 +1006,7 @@ export default function LiveRoundScreen() {
           />
           {canScore ? (
             <View style={styles.footerRow}>
-              <Text style={styles.footNote}>Tap the number to confirm it · hold it to clear · NR if you picked up</Text>
+              <Text style={styles.footNote}>Tap the number to confirm it · hold it to clear · NR = picked up, no return</Text>
               {hole < card.length ? (
                 <Pressable onPress={() => setHole(hole + 1)} style={styles.next} accessibilityRole="button">
                   <Text style={styles.nextLabel}>Next hole</Text>
