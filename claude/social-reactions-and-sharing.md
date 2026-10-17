@@ -28,13 +28,13 @@ ready (`shareAddress()`), More is the phone's sheet (Instagram, Copy…).
 
 **Share to your feed** (`app/share-to-feed/[id].tsx`) — your words over the
 post, audience, Share. A few words are required for now (website
-`validatePostDraft`): app builds from before 0164 don't draw the shared post
+`validatePostDraft`): app builds from before 0166 don't draw the shared post
 and would show an empty card. The database allows none — relax the website
 rule once those builds are gone. The original's author gets an in-app alert
 (`post_shared`, like a reaction: never push or email), only when they may see
 the share (all members, or they're the sharer's connection).
 
-## Database — `0164_post_shares_and_reposts.sql`
+## Database — `0166_post_shares_and_reposts.sql`
 
 - `posts.share_count` kept by a trigger on `post_shares`.
 - `post_shares (post_id, user_id, channel)` primary key = one per member per
@@ -66,7 +66,7 @@ is: an outside share is counted when the app opens, even if then cancelled
 
 ## Old builds and databases
 
-The app and website read 0164's columns in a separate query, so either one
+The app and website read 0166's columns in a separate query, so either one
 ahead of the migration still loads every post (no counts, nothing shared).
 Old app builds never send `shared_post_id`.
 

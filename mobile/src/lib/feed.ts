@@ -122,10 +122,10 @@ export type FeedPost = {
   hidden: boolean;
   createdAt: string;
   comments: FeedComment[];
-  /** How many times it has been shared (0164) — a number only; who sent
-   *  it where is private to each sharer. 0 before 0164. */
+  /** How many times it has been shared (0166) — a number only; who sent
+   *  it where is private to each sharer. 0 before 0166. */
   shareCount: number;
-  /** Set when this post shares another to the author's feed (0164): that
+  /** Set when this post shares another to the author's feed (0166): that
    *  post, read under the viewer's own RLS — null when it has been deleted
    *  or the viewer may not see it. Never nested. */
   shared: { post: FeedPost | null } | null;
@@ -433,7 +433,7 @@ async function hydrate(viewerId: string, rows: PostRow[], commentsPerPost: numbe
       : Promise.resolve(new Map<number, string>()),
   ]);
 
-  // The posts these share (0164), hydrated once for the page: no comments,
+  // The posts these share (0166), hydrated once for the page: no comments,
   // no further sharing.
   const sharedIds = withShared
     ? [...new Set([...shareInfo.values()].map((s) => s.sharedPostId).filter((id): id is number => id !== null))]
@@ -519,7 +519,7 @@ async function hydrate(viewerId: string, rows: PostRow[], commentsPerPost: numbe
 type ShareInfo = { shareCount: number; sharedPostId: number | null; isRepost: boolean };
 
 /**
- * 0164's columns, read on their own so a database without them still loads
+ * 0166's columns, read on their own so a database without them still loads
  * every post (unshared, with no share count) — the selectPosts() fallback
  * would otherwise drop kind and reactions along with them.
  */
@@ -543,8 +543,8 @@ async function loadShareInfo(ids: number[]): Promise<Map<number, ShareInfo>> {
 }
 
 /** The members the viewer has blocked. The database already hides
- *  reactions across a block (0164's post_likes policy, both directions);
- *  this is a second guard, and covers a database without 0164. */
+ *  reactions across a block (0166's post_likes policy, both directions);
+ *  this is a second guard, and covers a database without 0166. */
 async function myBlocks(viewerId: string): Promise<Set<string>> {
   const { data } = await supabase
     .from("blocked_users")
@@ -602,7 +602,7 @@ export type Reactor = {
 /**
  * Everyone who reacted to a post, newest first — the who-reacted sheet.
  * post_likes is readable by anyone who can see the post (0088: liking is a
- * public act) — except across a block, either way (0164); a member whose
+ * public act) — except across a block, either way (0166); a member whose
  * profile the viewer can't see (0159) is left out too.
  */
 export async function loadReactors(viewerId: string, postId: number): Promise<Reactor[]> {
@@ -639,7 +639,7 @@ export async function loadReactors(viewerId: string, postId: number): Promise<Re
 export type Resharer = { postId: number; memberId: string; name: string; avatarUrl: string | null; avatarColor: string | null; body: string; createdAt: string };
 
 /**
- * Who shared a post to their feed (0164) — the only shares with names,
+ * Who shared a post to their feed (0166) — the only shares with names,
  * because a repost is itself a post. Read under the viewer's RLS, so a
  * repost to someone's connections only appears to their connections.
  */
@@ -662,7 +662,7 @@ export async function loadResharers(postId: number): Promise<Resharer[]> {
 }
 
 /**
- * Counts a share (0164): after a send in a chat, or once the phone's share
+ * Counts a share (0166): after a send in a chat, or once the phone's share
  * sheet has handed the link to an app. Best-effort — a share that went out
  * but wasn't counted is no reason to bother the member. Returns the new
  * count, or null.
@@ -1060,7 +1060,7 @@ export const createPost = (input: {
   details?: RoundDetails | HoleDetails | ShotDetails | null;
   /** 0102. A video staged by stageVideo(); never with photos. */
   video?: { path: string; durationMs: number | null; width: number | null; height: number | null } | null;
-  /** 0164. "Share to your feed": the post being shared. */
+  /** 0166. "Share to your feed": the post being shared. */
   sharedPostId?: number | null;
 }): Promise<{ id: number }> =>
   postToSite<{ id: number }>("/api/app/posts", {

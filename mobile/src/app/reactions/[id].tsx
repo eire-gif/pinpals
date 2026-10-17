@@ -25,7 +25,7 @@ import { colors, fonts, radii, spacing } from "@/lib/theme";
  *   rows     face with their reaction on it, name, handicap (if shared) and
  *            club; Message for your PinPals, Add PinPal for anyone else.
  *   Shares   who shared it to their feed — the only shares with names
- *            (0164: a chat send or another app is counted, never named).
+ *            (0166: a chat send or another app is counted, never named).
  *
  * Params: id, tab=shares to open on Shares.
  */

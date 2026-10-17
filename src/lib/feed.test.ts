@@ -24,7 +24,7 @@ describe("validatePostDraft", () => {
     expect(validatePostDraft({ ...base, hasDetails: true })).toBeNull();
   });
 
-  it("sharing a post needs a few words, and nothing else alongside it (0164)", () => {
+  it("sharing a post needs a few words, and nothing else alongside it (0166)", () => {
     expect(validatePostDraft({ ...base, sharesPost: true })).toMatch(/few words/);
     expect(validatePostDraft({ ...base, sharesPost: true, body: "Look at this" })).toBeNull();
     expect(validatePostDraft({ ...base, body: "x", sharesPost: true, photoCount: 1 })).toMatch(/shared post/);

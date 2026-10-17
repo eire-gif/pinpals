@@ -70,31 +70,12 @@ export const MENU: MenuSection[] = [
       { kind: "native", label: "My scorecards", icon: "document-text-outline", to: "/scorecards", feature: "scorecards" },
       // Competitions (0148): matchplay leagues, ladders and opens.
       { kind: "native", label: "Competitions", icon: "trophy-outline", to: "/compete", feature: "competitions" },
+      // One entry for what used to be four (Oct 2026): rounds you host, play
+      // in, have asked to join or been offered — all on My rounds.
       {
         kind: "native",
-        label: "My confirmed tee times",
-        icon: "checkmark-circle-outline",
-        to: "/confirmed-rounds",
-        age: "teeTimes",
-      },
-      {
-        kind: "native",
-        label: "Golfers interested in mine",
-        icon: "people-outline",
-        to: "/tee-time-requests",
-        age: "teeTimes",
-      },
-      {
-        kind: "native",
-        label: "Rounds I've asked to join",
-        icon: "hand-right-outline",
-        to: "/my-requests",
-        age: "teeTimes",
-      },
-      {
-        kind: "native",
-        label: "Rounds I've posted",
-        icon: "megaphone-outline",
+        label: "My rounds",
+        icon: "calendar-outline",
         to: "/my-rounds",
         age: "teeTimes",
       },

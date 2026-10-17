@@ -790,7 +790,7 @@ const styles = StyleSheet.create({
   },
   chipText: { fontFamily: fonts.bodySemi, fontSize: 12.5, color: colors.ink900 },
 
-  // Shared post (0164)
+  // Shared post (0166)
   quoted: { marginHorizontal: MEDIA_INSET },
 
   // 5. Who reacted

@@ -771,9 +771,10 @@ function AlertRow({
               <Pressable
                 style={[styles.inlineBtn, styles.inlinePrimary]}
                 onPress={() => {
-                  // That round's requests, not the whole list.
+                  // My rounds, at that round: the request is the first
+                  // card on the page, with Offer a place on it.
                   const round = teeTimeFocus(row.href);
-                  router.push(round !== null ? `/tee-time-requests?invite=${round}` : "/tee-time-requests");
+                  router.push(round !== null ? `/my-rounds?invite=${round}` : "/my-rounds?show=hosting");
                 }}
                 disabled={state === "busy"}
                 accessibilityRole="button"

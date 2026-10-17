@@ -1,4 +1,4 @@
-// 0164_post_shares_and_reposts.sql — share counts and "Share to your feed".
+// 0166_post_shares_and_reposts.sql — share counts and "Share to your feed".
 //
 // Shares are counted per member per channel, through record_post_share()
 // only, for posts the caller can see; nobody reads anyone else's shares;

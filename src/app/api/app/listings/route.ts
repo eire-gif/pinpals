@@ -4,6 +4,7 @@ import {
   unauthenticated,
 } from "@/lib/app-api";
 import { createListingRecord } from "@/lib/listings-server";
+import { ensureLearnedBrands } from "@/lib/learned-brands";
 import { MAX_LISTING_IMAGES } from "@/lib/marketplace";
 import { createListingSchema } from "@/lib/validation/listing";
 
@@ -97,6 +98,7 @@ export async function POST(request: Request) {
     );
   }
 
+  await ensureLearnedBrands(auth.supabase);
   const parsed = createListingSchema.safeParse({
     title: body.title,
     description: body.description ?? "",
@@ -118,6 +120,7 @@ export async function POST(request: Request) {
     shaftFlex: body.shaft_flex || undefined,
     shaftMaterial: body.shaft_material || undefined,
     loft: body.loft || undefined,
+    itemSize: typeof body.item_size === "string" && body.item_size ? body.item_size : undefined,
   });
 
   if (!parsed.success) {

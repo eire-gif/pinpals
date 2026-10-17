@@ -43,11 +43,13 @@ const EXACT: Record<string, string> = {
   "/conversations": "/inbox",
 
   "/tee-times": "/tee-times",
+  // MY ROUNDS (Oct 2026): every tee time you're part of, either side, is on
+  // one page now. The tab it opens on is the side the alert is about.
   // The host's side: golfers who want a place in a round you posted.
-  "/tee-times/interested": "/tee-time-requests",
+  "/tee-times/interested": "/my-rounds?show=hosting",
   // The applicant's side: rounds you asked to join.
-  "/tee-times/requests": "/my-requests",
-  "/tee-times/confirmed": "/confirmed-rounds",
+  "/tee-times/requests": "/my-rounds?show=requested",
+  "/tee-times/confirmed": "/my-rounds",
 
   "/marketplace": "/marketplace",
   // Linked from emails and the website; the app has its own forms for both.
@@ -160,15 +162,12 @@ export function appRouteFor(href: string): AlertRoute {
   const path = href.split(/[?#]/)[0].replace(/\/+$/, "") || "/";
 
   // ONE TEE TIME, NOT THE LIST (Oct 2026). A tee-time alert names the round
-  // it's about (?invite=<id>), so it opens that round rather than a list to
-  // scroll through: the golfer offered a place lands on the tee time with
-  // Confirm my place on it, and stays there after confirming; the host lands
-  // on the requests for that one round.
+  // it's about (?invite=<id>). It opens My rounds scrolled to that round,
+  // with a gold border round it — and if the alert wants an answer (a
+  // request to your round, a place offered to you), the answer card is at
+  // the top of the page with its buttons on it.
   const focus = teeTimeFocus(href);
-  if (focus !== null) {
-    if (path === "/tee-times/interested") return native(`/tee-time-requests?invite=${focus}`);
-    if (path === "/tee-times/requests" || path === "/tee-times/confirmed") return native(`/invite/${focus}`);
-  }
+  if (focus !== null) return native(`/my-rounds?invite=${focus}`);
 
   const exact = EXACT[path];
   if (exact) return native(exact);

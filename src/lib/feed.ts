@@ -57,8 +57,8 @@ export type PostDraft = {
   hasDetails?: boolean;
   /** A video (0102) is media too: a clip with no caption is a post. */
   hasVideo?: boolean;
-  /** Sharing someone's post to your feed (0164). It carries no media of its
-   *  own, and for now needs a few words: app builds from before 0164 don't
+  /** Sharing someone's post to your feed (0166). It carries no media of its
+   *  own, and for now needs a few words: app builds from before 0166 don't
    *  draw the shared post, and would show a share with no words as an empty
    *  card. (The database allows none; relax this once those builds are gone.) */
   sharesPost?: boolean;

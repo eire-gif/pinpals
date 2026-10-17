@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { uploadListingImage, deleteListingImage, ImageProcessingError } from "@/lib/images/upload";
 import { createListingSchema } from "@/lib/validation/listing";
 import { createListingRecord } from "@/lib/listings-server";
+import { ensureLearnedBrands } from "@/lib/learned-brands";
 import { MAX_LISTING_IMAGES } from "@/lib/marketplace";
 
 // ============ per-image actions ============
@@ -188,6 +189,8 @@ export async function createListing(
     formData.set("condition", "New / unused");
   }
 
+  // Brands staff added from member suggestions (0164) are valid choices too.
+  await ensureLearnedBrands(supabase);
   const parsed = createListingSchema.safeParse(readListingFields(formData));
   if (!parsed.success) {
     const fieldErrors: Record<string, string> = {};

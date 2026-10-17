@@ -217,6 +217,10 @@ const EXPECTED: Record<string, Expectation> = {
   "store_apply(p_name text, p_club_id bigint, p_description text, p_phone text, p_email text, p_fittings boolean)": { anon: false, authenticated: true },
   "store_update(p_store_id bigint, p_description text, p_phone text, p_email text, p_fittings boolean, p_logo_url text, p_cover_url text)": { anon: false, authenticated: true },
   "listings_check_store()": { anon: false, authenticated: false },
+  // 0164: counts what sellers type when their brand or model isn't listed.
+  "listings_catalogue_vote()": { anon: false, authenticated: false },
+  // 0164: learns a model or brand once 5 sellers typed it — trigger-only.
+  "marketplace_learn(p_kind text, p_brand text, p_category text, p_key text)": { anon: false, authenticated: false },
   "connect_members(p_a uuid, p_b uuid)": { anon: false, authenticated: false },
   "my_invite_code()": { anon: false, authenticated: true },
   "invite_preview(p_code text)": { anon: true, authenticated: true },
@@ -273,6 +277,8 @@ const EXPECTED: Record<string, Expectation> = {
   // --- auth.uid(). listing_for_public_post() takes a member id, so it stays
   // --- internal, as does the trigger that closes offers when a listing sells.
   "listing_public_posts(p_listing_id bigint)": { anon: true, authenticated: true },
+  // 0164: what 3+ sellers typed, offered to the next seller — labels and counts only.
+  "marketplace_member_suggestions(p_category text, p_brand text)": { anon: true, authenticated: true },
   "post_listing_question(p_listing_id bigint, p_body text)": { anon: false, authenticated: true },
   "post_listing_offer(p_listing_id bigint, p_amount_cents integer, p_note text)": { anon: false, authenticated: true },
   "reply_to_listing_post(p_post_id bigint, p_body text)": { anon: false, authenticated: true },
@@ -386,7 +392,7 @@ const EXPECTED: Record<string, Expectation> = {
   "scorecard_certification_decline(p_id bigint)": { anon: false, authenticated: true },
   // 0130 chat reactions, replies, deletes
   "react_to_message(p_message_id bigint, p_emoji text)": { anon: false, authenticated: true },
-  // 0164: counts a share of a post the caller can see; the count is all it reveals.
+  // 0166: counts a share of a post the caller can see; the count is all it reveals.
   "record_post_share(p_post_id bigint, p_channel text)": { anon: false, authenticated: true },
   "hide_message_for_me(p_message_id bigint)": { anon: false, authenticated: true },
   "delete_message_for_everyone(p_message_id bigint)": { anon: false, authenticated: true },
@@ -469,6 +475,7 @@ const EXPECTED: Record<string, Expectation> = {
   // has checked the link's signature — never callable from the app.
   "tee_time_invited(p_invite_id bigint)": { anon: false, authenticated: true },
   "tee_time_can_fill(p_invite_id bigint, p_user uuid)": { anon: false, authenticated: true },
+  "tee_time_participant(p_invite_id bigint)": { anon: false, authenticated: true },
   "invite_to_tee_time(p_invite_id bigint, p_members uuid[])": { anon: false, authenticated: true },
   "tee_time_link_claim(p_invite_id bigint, p_sharer uuid, p_member uuid)": { anon: false, authenticated: false },
 

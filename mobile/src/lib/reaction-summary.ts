@@ -30,7 +30,7 @@ export function engagementLine(comments: number, shares: number): string {
 }
 
 /**
- * Where a share went, as recorded by record_post_share() (0164) — the
+ * Where a share went, as recorded by record_post_share() (0166) — the
  * database's list, minus 'feed', which a repost records itself.
  */
 export const SHARE_CHANNELS = ["pinpals", "whatsapp", "messages", "email", "facebook", "x", "copy_link", "other"] as const;

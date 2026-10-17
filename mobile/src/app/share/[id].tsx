@@ -38,7 +38,7 @@ import { AgeGateLoading, NotForUnder18, useAgeGate } from "@/components/not-for-
  *                  any number of them (or Search for anyone else), add a
  *                  message, "Send to 3". Each gets it as a message the chat
  *                  draws as a post card (lib/share-targets.ts).
- *   Share to your feed  the post under your own words (0164,
+ *   Share to your feed  the post under your own words (0166,
  *                  app/share-to-feed/[id].tsx) — posts shared with all
  *                  members only.
  *   outside        WhatsApp, Messages, Email, Facebook and X open with the
@@ -46,7 +46,7 @@ import { AgeGateLoading, NotForUnder18, useAgeGate } from "@/components/not-for-
  *                  (Instagram, Copy and the rest).
  *   save           the same private bookmark as the card's Save
  *
- * Every share is counted (record_post_share, 0164) — a number on the post,
+ * Every share is counted (record_post_share, 0166) — a number on the post,
  * never who sent it where.
  *
  * Attaching the card itself as an image file (rather than as a link
@@ -115,7 +115,7 @@ function ShareScreenInner() {
   }, [targets, query]);
 
   const cardWidth = width - spacing.md * 2;
-  // A share of a share shares the original (0164); a connections-only post
+  // A share of a share shares the original (0166); a connections-only post
   // stays with its author's connections.
   const feedTarget = post?.shared ? post.shared.post : post;
   const feedShareable = !!feedTarget && feedTarget.visibility === "members" && !feedTarget.hidden;

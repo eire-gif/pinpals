@@ -16,7 +16,7 @@ import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 const MAX_BODY = 2000;
 
 /**
- * Share to your feed (0164) — from the share sheet. The member's own words
+ * Share to your feed (0166) — from the share sheet. The member's own words
  * (optional) over the post they're sharing, to everyone or to their
  * connections. The database decides what may be shared: a post they can
  * see, shared with all members; a share of a share becomes a share of the

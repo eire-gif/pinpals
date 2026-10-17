@@ -424,7 +424,7 @@ function InviteScreenInner() {
               icon="people"
               label="Manage who's coming"
               busy={false}
-              onPress={() => router.push(`/tee-time-requests?invite=${inviteId}`)}
+              onPress={() => router.push(`/my-rounds?invite=${inviteId}`)}
             />
             {invite.play_date >= todayIso() && (
               <Secondary icon="calendar-outline" label="Add to my calendar" busy={calBusy} onPress={() => void addMine(inviteId)} />

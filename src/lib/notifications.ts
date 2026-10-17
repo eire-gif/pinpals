@@ -125,7 +125,7 @@ export const NOTIFICATION_TYPES = [
   "post_commented",
   "post_comment_replied",
   "post_liked",
-  // 0164. Someone shared your post to their feed — in-app only, like a
+  // 0166. Someone shared your post to their feed — in-app only, like a
   // reaction (createPost in src/lib/feed-operations.ts).
   "post_shared",
   // 0097. Named with @ in a comment — delivered like a reply: someone is

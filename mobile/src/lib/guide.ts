@@ -33,8 +33,8 @@ import type { Href } from "expo-router";
  *    results  → app/(tabs)/live/day/[id].tsx, components/results-entry.tsx,
  *               app/(tabs)/live/day/results/[id].tsx, components/group-past-results.tsx,
  *               app/group/[id]/index.tsx
- *    teePost  → app/post-tee-time.tsx, app/tee-time-requests.tsx
- *    teeJoin  → app/(tabs)/tee-times.tsx, app/invite/[id].tsx, app/my-requests.tsx
+ *    teePost  → app/post-tee-time.tsx, app/my-rounds.tsx
+ *    teeJoin  → app/(tabs)/tee-times.tsx, app/invite/[id].tsx, app/my-rounds.tsx
  *    fill     → app/invite/[id].tsx, app/round-invite.tsx, app/tee-link.tsx
  *    live     → app/(tabs)/live/index.tsx, app/(tabs)/live/new.tsx, app/(tabs)/live/round/[id].tsx,
  *               components/voice-scores-sheet.tsx (Say scores), targets/widget (lock screen card),
@@ -911,14 +911,22 @@ export const GUIDES: Guide[] = [
       },
       {
         title: "Answer who wants to play",
-        body: "When someone asks to join, you get an alert. Tap it and you go straight to the requests for that round — or open Golfers interested in mine from the menu, or tap Manage who's coming on the round — and tap Offer a place or Decline.",
-        path: [MENU, { icon: "people-outline", label: "Golfers interested in mine" }],
+        body: "When someone asks to join, you get an alert and a gold number on the Tee Times tab. Tap the alert, or My rounds at the top of Tee Times: the request is first, under Needs your answer. Tap Offer a place or Decline.",
+        path: [{ icon: "golf-outline", label: "Tee Times" }, { icon: "calendar-outline", label: "My rounds" }],
         look: [
           { style: "primary", label: "Offer a place" },
           { style: "outline", label: "Decline" },
         ],
-        tip: "Nothing's final until they tap Confirm my place. You always choose who plays.",
-        go: { label: "Requests to join", to: "/tee-time-requests" },
+        tip: "Nothing's final until they tap Confirm my place — their circle on the round stays dashed gold until then, and turns green when they do. You always choose who plays.",
+        go: { label: "My rounds", to: "/my-rounds" },
+      },
+      {
+        title: "Keep track on My rounds",
+        body: "Every round you post is on My rounds, with who's in, the places left and what it's waiting on. Tap ••• on a round for Mark full or Cancel round. Delete is only there while nobody has asked to join — after that, cancel it, and everyone in it is told and sees it marked Cancelled.",
+        look: [
+          { style: "outline", label: "Share this round" },
+          { style: "outline", label: "Cancel round", icon: "close-circle-outline" },
+        ],
       },
     ],
   },
@@ -959,18 +967,20 @@ export const GUIDES: Guide[] = [
       },
       {
         title: "Confirm your place",
-        body: "When the host offers you a place, you get an alert. Tap it and that tee time opens — tap Confirm my place, or I can't make it so it goes to someone else. You stay on the round once you've answered.",
+        body: "When the host offers you a place, you get an alert and a gold number on the Tee Times tab. Tap the alert, or My rounds at the top of Tee Times: the offer is first, under Needs your answer. Tap Confirm my place, or Can't make it so it goes to someone else.",
+        path: [{ icon: "golf-outline", label: "Tee Times" }, { icon: "calendar-outline", label: "My rounds" }],
         look: [
           { style: "primary", label: "Confirm my place" },
-          { style: "outline", label: "I can't make it" },
+          { style: "outline", label: "Can't make it" },
         ],
-        tip: "Tap Add to my calendar so the day's kept free.",
+        tip: "Once you're in, the round shows You're playing — tap Add to calendar so the day's kept free.",
+        go: { label: "My rounds", to: "/my-rounds" },
       },
       {
         title: "If plans change",
-        body: "Until the day, you can tap Cancel my place on the round. The host is told and the space reopens. Everything you've asked for is under Rounds I've asked to join in the menu.",
+        body: "Until the day, tap ••• on the round in My rounds, then Cancel my place. The host is told and the space reopens. If the host cancels, the round stays on your My rounds marked Cancelled, with Find another round.",
         look: [{ style: "outline", label: "Cancel my place", icon: "exit-outline" }],
-        go: { label: "Rounds I've asked to join", to: "/my-requests" },
+        go: { label: "My rounds", to: "/my-rounds" },
       },
     ],
   },
@@ -986,9 +996,9 @@ export const GUIDES: Guide[] = [
     steps: [
       {
         title: "Open the round",
-        body: "Open the tee time you're hosting or playing in — from Home, Rounds I've posted, or My confirmed tee times in the menu.",
-        path: [MENU, { icon: "checkmark-circle-outline", label: "My confirmed tee times" }],
-        go: { label: "My confirmed tee times", to: "/confirmed-rounds" },
+        body: "Open My rounds from the top of Tee Times, or the menu. A round with places left has Share this round — or tap the round to open it.",
+        path: [MENU, { icon: "calendar-outline", label: "My rounds" }],
+        go: { label: "My rounds", to: "/my-rounds" },
       },
       {
         title: "Tap an open place",
@@ -1472,34 +1482,45 @@ export const GUIDES: Guide[] = [
     next: "buy",
     steps: [
       {
-        title: "Photograph it",
-        body: "In the Marketplace, tap the green Sell button in the middle of the bottom menu (or Sell an item on Home). Add up to 8 photos — the first is the cover.",
+        title: "Photos and a description",
+        body: "In the Marketplace, tap the green Sell button in the middle of the bottom menu (or Sell an item on Home). Add up to 8 photos — the first is the cover — then say a bit about it under Description; the + buttons add a line for how long you've had it, any marks and what's included.",
         look: [
           { style: "primary", label: "Sell", icon: "add" },
           { style: "outline", label: "Add photos", icon: "camera-outline" },
+          { style: "outline", label: "+ Any marks" },
         ],
         go: { label: "List an item", to: "/new-listing" },
       },
       {
         title: "Say what it is",
-        body: "Type it roughly — “taylormade qi10 driver 10.5 stiff” — and the category, brand, model, loft and shaft fill themselves in under Filled in for you. Tap Use to tidy the title, change anything that's wrong, then pick the condition.",
+        body: "Tap a tile — Clubs (Drivers, Irons, Putters…) or Everything else golf (Bags, Trolleys, Shoes, Clothing, GPS & rangefinders, Balls, Accessories, Training aids). Some ask which kind, like Electric or Push. Or type it — “tm qi10 driver 10.5 stiff” — and tap Fill in: it jumps ahead with the brand, model, loft and shaft filled in.",
         look: [
-          { style: "field", label: "taylormade qi10 driver 10.5 stiff", icon: "create-outline" },
-          { style: "tile", label: "Filled in for you", icon: "sparkles" },
-          { style: "outline", label: "Excellent" },
+          { style: "tile", label: "Drivers", icon: "golf" },
+          { style: "tile", label: "Trolleys", icon: "cart-outline" },
+          { style: "field", label: "tm qi10 driver 10.5 stiff", icon: "sparkles" },
         ],
       },
       {
-        title: "Pick the exact model",
-        body: "Once there's a brand, Model shows that brand's models, newest first — it's often picked for you from the title. Choosing it puts your ad in front of buyers who pick that model.",
+        title: "Pick the brand and model",
+        body: "Brand: tap a logo, search, or open All brands A–Z. Model: the brand's models, newest first — tap yours, then the exact version. Not on the list? Tap Not listed — type it. Your ad uses it straight away, and once a few sellers type the same thing it joins the list for everyone.",
         look: [
-          { style: "outline", label: "Model", icon: "pricetag-outline" },
+          { style: "outline", label: "TaylorMade" },
           { style: "outline", label: "Qi10 · 2024" },
+          { style: "outline", label: "Not listed — type it" },
+        ],
+      },
+      {
+        title: "Condition and details",
+        body: "Pick the condition — each says what it means — then only the details that matter for what you're selling: loft, shaft and hand for clubs, size for shoes and clothing.",
+        look: [
+          { style: "outline", label: "Excellent" },
+          { style: "outline", label: "10.5°" },
+          { style: "outline", label: "Stiff" },
         ],
       },
       {
         title: "Price it and post it",
-        body: "Set your price — under it, Similar ads on PinPals shows what comparable ads ask; tap Use to take the middle. Choose Fixed price or Open to offers, then where it is. Tap Post listing — it's free and goes live straight away.",
+        body: "Set your price — Similar ads on PinPals shows what comparable ads ask; tap Use to take the middle. Choose Fixed price or Open to offers. The title is written for you (change it if you like), and the preview shows the ad as buyers will see it. Tap Post listing — it's free and goes live straight away.",
         look: [
           { style: "field", label: "€ 180", icon: "cash-outline" },
           { style: "outline", label: "Open to offers" },
@@ -1765,6 +1786,8 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
   { on: "2026-10-17", text: "Share on Social: new steps, See who reacted — tap \"Seán Byrne and 11 others\" for everyone's reaction, with Message or Add PinPal — and Share a post: send to several chats at once, Share to your feed with a few words of your own, or straight to WhatsApp, Messages, Email, Facebook or X. Posts now show how many times they've been shared." },
+  { on: "2026-10-17", text: "Tee times: one page, My rounds, for every round you host, play in, have asked to join or been offered — reached from the top of Tee Times, the menu, and every tee-time alert. Requests and offers waiting on you are first, under Needs your answer, and the Tee Times tab shows how many in gold. Post a tee time, Find a game and Fill a place are updated." },
+  { on: "2026-10-17", text: "Selling is now six short steps — photos and a description, what it is (clubs or anything else golf), brand, model, details, price — with a preview of the ad before you post. A brand or model that isn't listed can be typed in, and joins the list once a few sellers use it. Sell your gear is updated." },
   { on: "2026-10-17", text: "Marketplace: find gear in three steps — club type, brand, model — with the listings always below, narrowing as you pick. Top picks, at the top, are paid adverts marked PREMIUM. Selling, you can pick the exact model. Buy gear safely and Sell your gear are updated." },
   { on: "2026-10-17", text: "Score a game live: once every hole is in, the Score tab shows All 18 holes in with Complete scorecard (it was Finish round, on the Leaderboard tab only), and the card says Complete. On the last hole with holes missing, it lists them to tap. Tapping the lock screen card after the last hole opens the round there." },
   { on: "2026-10-17", text: "Marketplace redesign: smart search that understands brands, prices, places and typos; public Questions & offers under every ad (ask, offer, and the seller accepts, counters or declines in the open); the sell form fills itself in from the title; marketplace chats are in Messages under Marketplace, with the item pinned. Sell your gear and Buy gear safely are updated." },

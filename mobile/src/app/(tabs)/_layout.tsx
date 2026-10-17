@@ -8,6 +8,7 @@ import { useAgeAccess } from "@/lib/age";
 import { useAuth } from "@/lib/auth";
 import { colors, contentColumn, fonts, spacing, headerTitleStyle } from "@/lib/theme";
 import { useInboxUnread } from "@/lib/unread";
+import { useTeeTimesWaiting } from "@/lib/tee-times-waiting";
 
 /**
  * Six tabs. Feed joined beside Marketplace in October 2026 — the one place
@@ -55,6 +56,10 @@ const badgeLabel = {
 export default function TabsLayout() {
   const { session } = useAuth();
   const unread = useInboxUnread(session?.user?.id ?? null);
+  // Answers owed on tee times (requests to your rounds, places offered to
+  // you). The inbox total moving is the cue to re-count: a tee-time alert
+  // lands there first.
+  const teeTimesWaiting = useTeeTimesWaiting(session?.user?.id ?? null, unread.total);
   const [menuOpen, setMenuOpen] = useState(false);
   // Junior members (0159): under-18s have no Tee Times or Social, so those
   // tabs go (href: null) and the header buttons that start a chat, a listing
@@ -154,6 +159,10 @@ export default function TabsLayout() {
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="golf-outline" size={size} color={color} />
           ),
+          // Gold, not the inbox's red: it's a round waiting on you, which is
+          // good news more often than not.
+          tabBarBadge: teeTimes && teeTimesWaiting > 0 ? teeTimesWaiting : undefined,
+          tabBarBadgeStyle: { backgroundColor: colors.gold400, color: colors.ink900 },
           // Offering a round is the thing the app most wants members to do,
           // and burying it two taps down in the Profile tab would say the
           // opposite. In the header it is visible from launch.

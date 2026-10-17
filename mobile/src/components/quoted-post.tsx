@@ -9,7 +9,7 @@ import { detailChips } from "@/lib/post-details";
 import { colors, fonts, radii, spacing } from "@/lib/theme";
 
 /**
- * A post shared to someone's feed (0164), drawn inside the sharer's post:
+ * A post shared to someone's feed (0166), drawn inside the sharer's post:
  * the original's author, course, words and first photo, in a bordered card
  * that opens the original. Also the preview in "Share to your feed".
  *

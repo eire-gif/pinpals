@@ -342,8 +342,8 @@ export default function ProfileScreen() {
           {allows("teeTimes") ? (
             <>
               <NativeLink icon="add-circle-outline" label="Post a tee time" to="/post-tee-time" />
-              <NativeLink icon="golf-outline" label="My tee times" to="/my-rounds" />
-              <NativeLink icon="people-outline" label="Requests to join" to="/tee-time-requests" />
+              {/* One page for every tee time, either side (Oct 2026). */}
+              <NativeLink icon="golf-outline" label="My rounds" to="/my-rounds" />
             </>
           ) : null}
           <NativeLink icon="document-text-outline" label="My scorecards" to="/scorecards" />

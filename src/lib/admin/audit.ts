@@ -321,6 +321,8 @@ export const ADMIN_ACTIONS = [
   "brand.logo_removed",
   "brand_model.created",
   "brand_model.updated",
+  // 0164: a brand learned from sellers, hidden from the brand lists.
+  "brand.updated",
 ] as const;
 export type AdminAction = (typeof ADMIN_ACTIONS)[number];
 

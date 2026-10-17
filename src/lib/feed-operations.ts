@@ -151,7 +151,7 @@ export async function createPost(input: {
   /** 0102. A staged video: { path, duration_ms?, width?, height? }, the path
    *  from POST /api/app/posts/videos. One per post, never with photos. */
   video?: unknown;
-  /** 0164. "Share to your feed": the post being shared. The database
+  /** 0166. "Share to your feed": the post being shared. The database
    *  (posts_check_repost) decides whether it may be — seen by the member,
    *  shared with all members, not hidden — and points a share of a share
    *  at the original. */
@@ -309,7 +309,7 @@ export async function createPost(input: {
       club_id: clubId,
       kind,
       details,
-      // Only named when sharing, so a database without 0164 still takes
+      // Only named when sharing, so a database without 0166 still takes
       // every ordinary post.
       ...(shared ? { shared_post_id: shared.id } : {}),
     })

@@ -88,10 +88,10 @@ export type FeedPost = {
   hidden: boolean;
   createdAt: string;
   comments: FeedComment[];
-  /** 0164. How many times it has been shared — a number only; who sent it
+  /** 0166. How many times it has been shared — a number only; who sent it
    *  where is private. */
   shareCount: number;
-  /** 0164. Set when this post shares another to the author's feed: that
+  /** 0166. Set when this post shares another to the author's feed: that
    *  post, read under the viewer's own RLS, or null when it has gone or the
    *  viewer may not see it. Never nested — a share of a share points at
    *  the original. */
@@ -366,7 +366,7 @@ async function hydratePosts(
 }
 
 /**
- * 0164's columns, read on their own so a database without them yet still
+ * 0166's columns, read on their own so a database without them yet still
  * loads every post (as unshared, with no share count).
  */
 async function loadShareInfo(

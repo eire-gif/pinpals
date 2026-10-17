@@ -1,4 +1,4 @@
--- 0164 — Who shared a post, and sharing to your own feed (Oct 2026)
+-- 0166 — Who shared a post, and sharing to your own feed (Oct 2026)
 --
 -- The approved mock-ups "PinPals Reactions & Share": a post shows how many
 -- times it has been shared next to its comments, the share sheet adds

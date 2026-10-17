@@ -4,7 +4,7 @@ import { createPost, statusForFeedFailure } from "@/lib/feed-operations";
 /**
  * POST /api/app/posts   { body, visibility, club_id, photo_paths, kind?, details?, video?, shared_post_id? }
  *
- * `shared_post_id` (0164) is "Share to your feed": a plain post with the
+ * `shared_post_id` (0166) is "Share to your feed": a plain post with the
  * member's own words that shows the shared post under them.
  *
  * `video` (0102) is { path, duration_ms?, width?, height? }: the path from
