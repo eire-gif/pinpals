@@ -23,6 +23,7 @@ import { INVITE_EVERY, inviteAfter } from "@/lib/invite-slots";
 import { TeeTimeCard } from "@/components/tee-time-card";
 import { useAuth } from "@/lib/auth";
 import { useCollapsingHeader } from "@/components/screen-header";
+import { useTeeTimesWaiting } from "@/lib/tee-times-waiting";
 import { useCurrentLocation } from "@/lib/location";
 import {
   DEFAULT_TEE_TIME_FILTERS,
@@ -87,6 +88,9 @@ function TeeTimesScreenInner() {
   const [filters, setFilters] = useState<TeeTimeFilters>(DEFAULT_TEE_TIME_FILTERS);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [focused, setFocused] = useState(false);
+  // My rounds strip: re-counted each time the tab comes back into view.
+  const [focusTick, setFocusTick] = useState(0);
+  const waiting = useTeeTimesWaiting(me, focusTick);
 
   useEffect(() => {
     if (loading) resetY.setValue(0);
@@ -133,6 +137,7 @@ function TeeTimesScreenInner() {
   useFocusEffect(
     useCallback(() => {
       setFocused(true);
+      setFocusTick((n) => n + 1);
       void load(scope);
       return () => setFocused(false);
       // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -207,6 +212,28 @@ function TeeTimesScreenInner() {
           </Text>
         </Pressable>
       </View>
+
+      {/* MY ROUNDS (Oct 2026): this tab is everyone's rounds; your own —
+          hosting, playing, asked, offered — are one tap away, and the gold
+          count says when one of them is waiting on you. */}
+      <Pressable
+        style={[styles.mine, waiting > 0 && styles.mineWaiting]}
+        onPress={() => router.push("/my-rounds")}
+        accessibilityRole="button"
+        accessibilityLabel={waiting > 0 ? `My rounds, ${waiting} waiting on your answer` : "My rounds"}
+      >
+        <Ionicons name="calendar-outline" size={18} color={colors.green700} />
+        <Text style={styles.mineLabel}>My rounds</Text>
+        <View style={{ flex: 1 }} />
+        {waiting > 0 ? (
+          <View style={styles.minePill}>
+            <Text style={styles.minePillLabel}>{waiting === 1 ? "1 needs you" : `${waiting} need you`}</Text>
+          </View>
+        ) : (
+          <Text style={styles.mineHint}>Hosting, playing, requests</Text>
+        )}
+        <Ionicons name="chevron-forward" size={16} color={colors.ink500} />
+      </Pressable>
 
       {loading ? (
         <View style={styles.centre}>
@@ -568,6 +595,24 @@ const styles = StyleSheet.create({
   filterLabelOn: { color: colors.cream50 },
 
   list: { padding: spacing.md, paddingTop: spacing.md, gap: spacing.md, flexGrow: 1 },
+  mine: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginHorizontal: 12,
+    marginTop: 10,
+    paddingHorizontal: 14,
+    minHeight: 46,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: colors.line,
+    backgroundColor: colors.surface,
+  },
+  mineWaiting: { borderColor: colors.gold400, backgroundColor: "#fffdf6" },
+  mineLabel: { fontFamily: fonts.bodyBold, fontSize: type.small, color: colors.ink900 },
+  mineHint: { fontFamily: fonts.body, fontSize: 13, color: colors.ink500 },
+  minePill: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: radii.pill, backgroundColor: colors.gold400 },
+  minePillLabel: { fontFamily: fonts.bodyBold, fontSize: 12, color: colors.ink900 },
   radiusNote: { fontFamily: fonts.body, fontSize: type.small, color: colors.ink500, marginBottom: 2 },
   centre: { flex: 1, alignItems: "center", justifyContent: "center" },
 

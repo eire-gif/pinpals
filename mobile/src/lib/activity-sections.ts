@@ -11,7 +11,7 @@ const SCREEN_SECTIONS: Record<string, ActivitySection> = {
   live: "live",
   scorecards: "live",
   "hole-map": "live",
-  "my-rounds": "live",
+  "my-rounds": "tee_times",
   "round-invite": "live",
   "handicap-indicator": "live",
   share: "live",
