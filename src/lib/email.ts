@@ -39,6 +39,14 @@ export type SendEmailInput = {
 
 export type SendEmailResult = { sent: true } | { sent: false; reason: string };
 
+/**
+ * Fake members made for testing (a society's test competition) use this
+ * domain. Nothing is ever emailed to it: there is no inbox, and bounces
+ * would hurt pinpals.ie's sending reputation. Treated as sent.
+ */
+export const TEST_EMAIL_DOMAIN = "test.pinpals.ie";
+export const isTestEmail = (to: string): boolean => to.trim().toLowerCase().endsWith(`@${TEST_EMAIL_DOMAIN}`);
+
 let warnedMissingKeyOnce = false;
 
 /**
@@ -49,6 +57,7 @@ let warnedMissingKeyOnce = false;
  * link, etc).
  */
 export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult> {
+  if (isTestEmail(input.to)) return { sent: true };
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) {
     // Logged once per server lifetime, not once per email, so a dev/preview
@@ -130,8 +139,9 @@ const BATCH_SIZE = 100;
  * throws. Answers, per input, whether it was accepted.
  */
 export async function sendEmailBatch(inputs: SendEmailInput[]): Promise<boolean[]> {
-  const result = inputs.map(() => false);
-  if (inputs.length === 0) return result;
+  const result = inputs.map((e) => isTestEmail(e.to));
+  const real = inputs.map((e, i) => ({ e, i })).filter(({ e }) => !isTestEmail(e.to));
+  if (real.length === 0) return result;
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) {
     if (!warnedMissingKeyOnce) {
@@ -140,8 +150,9 @@ export async function sendEmailBatch(inputs: SendEmailInput[]): Promise<boolean[
     }
     return result;
   }
-  for (let start = 0; start < inputs.length; start += BATCH_SIZE) {
-    const chunk = inputs.slice(start, start + BATCH_SIZE);
+  for (let start = 0; start < real.length; start += BATCH_SIZE) {
+    const part = real.slice(start, start + BATCH_SIZE);
+    const chunk = part.map((p) => p.e);
     try {
       const response = await fetch(RESEND_BATCH_URL, {
         method: "POST",
@@ -153,7 +164,7 @@ export async function sendEmailBatch(inputs: SendEmailInput[]): Promise<boolean[
         console.error(`[email] Resend batch returned ${response.status}: ${body.slice(0, 500)}`);
         continue;
       }
-      for (let i = 0; i < chunk.length; i++) result[start + i] = true;
+      for (const p of part) result[p.i] = true;
     } catch (err) {
       console.error("[email] Batch send failed:", err instanceof Error ? err.message : err);
     }

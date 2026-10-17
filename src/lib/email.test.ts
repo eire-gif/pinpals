@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { renderEmailHtml } from "./email";
 
 // sendEmail() itself isn't unit tested here — it's a thin fetch() wrapper
@@ -73,5 +73,20 @@ describe("renderEmailHtml", () => {
     expect(html.match(/<p /g)?.length).toBe(3);
     expect(html).toContain("First line.");
     expect(html).toContain("Second line.");
+  });
+});
+
+describe("test addresses", () => {
+  it("never sends to the reserved test domain, and counts it as sent", async () => {
+    const { sendEmail, sendEmailBatch, isTestEmail } = await import("./email");
+    expect(isTestEmail("Ciara.Byrne@Test.PinPals.ie")).toBe(true);
+    expect(isTestEmail("someone@pinpals.ie")).toBe(false);
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    process.env.RESEND_API_KEY = "re_test";
+    expect(await sendEmail({ to: "a@test.pinpals.ie", subject: "s", html: "h", text: "t" })).toEqual({ sent: true });
+    expect(await sendEmailBatch([{ to: "a@test.pinpals.ie", subject: "s", html: "h", text: "t" }])).toEqual([true]);
+    expect(fetchSpy).not.toHaveBeenCalled();
+    fetchSpy.mockRestore();
+    delete process.env.RESEND_API_KEY;
   });
 });
