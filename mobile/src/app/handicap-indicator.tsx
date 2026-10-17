@@ -70,7 +70,7 @@ export default function HandicapIndicatorScreen() {
       <Stack.Screen options={{ title: "Handicap indicator", headerBackTitle: "Back" }} />
 
       <View style={styles.hero}>
-        <Text style={styles.heroLabel}>PINPALS INDICATOR</Text>
+        <Text style={styles.heroLabel}>PINPALS INDICATOR · UNOFFICIAL</Text>
         <Text style={styles.heroValue}>{summary.indicator != null ? indicatorLabel(summary.indicator) : "—"}</Text>
         <Text style={styles.heroRule}>{bestOfLabel(summary.rounds)}</Text>
         {compare ? <Text style={styles.heroCompare}>{compare}</Text> : null}
@@ -79,7 +79,7 @@ export default function HandicapIndicatorScreen() {
       <View style={styles.note}>
         <Ionicons name="information-circle-outline" size={20} color={colors.navy900} />
         <Text style={styles.noteText}>
-          A guide only. Your handicap{own != null ? ` (${indicatorLabel(own)})` : ""} stays exactly as you set it. The captain and secretary of a society you&apos;re in can see this indicator too, to help them set your society handicap.
+          A guide only — not an official Golf Ireland or WHS handicap. Your handicap{own != null ? ` (${indicatorLabel(own)})` : ""} stays exactly as you set it. The captain and secretary of a society you&apos;re in can see this indicator too, to help them set your society handicap.
         </Text>
       </View>
 

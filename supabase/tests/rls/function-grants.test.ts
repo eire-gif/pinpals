@@ -328,6 +328,10 @@ const EXPECTED: Record<string, Expectation> = {
   "live_round_player_forget_shots()": { anon: false, authenticated: false },
   // 0109
   "golfapi_import_secret_ok(p_secret text)": { anon: false, authenticated: false },
+  // 0168 hole map competition mode — false for anyone not in the round
+  "live_round_is_competition(p_round_id bigint)": { anon: false, authenticated: true },
+  // 0169 the website address the scheduled jobs call — database only
+  "pinpals_site_url()": { anon: false, authenticated: false },
   // 0110 scorecards
   "scorecard_visible_row(p_member uuid, p_visibility text)": { anon: false, authenticated: true },
   "scorecard_save(p_id bigint, p_card jsonb, p_holes jsonb)": { anon: false, authenticated: true },

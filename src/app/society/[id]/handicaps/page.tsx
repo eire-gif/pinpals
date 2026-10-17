@@ -65,7 +65,7 @@ export default async function HandicapsPage({ params, searchParams }: { params: 
     <div className="space-y-6">
       <PageHeader
         title="Handicaps"
-        description="Set the index the society plays each member off. Their own handicap and their PinPals indicator — the best of their last 20 scorecards — are beside it to help. Society rounds use what you set here."
+        description="Set the index the society plays each member off. Their own handicap and their PinPals indicator — the best of their last 20 scorecards, unofficial, not a Golf Ireland handicap — are beside it to help. Society rounds use what you set here."
       />
 
       <Card
@@ -173,7 +173,7 @@ export default async function HandicapsPage({ params, searchParams }: { params: 
         {shown.length === 0 ? (
           <Empty>No one matches that search.</Empty>
         ) : (
-          <Table head={["Member", "Own", "PinPals indicator", "Plays off", ...(hasCourse ? ["Course · 95%"] : []), "Set the society's index"]}>
+          <Table head={["Member", "Own", "PinPals indicator (unofficial)", "Plays off", ...(hasCourse ? ["Course · 95%"] : []), "Set the society's index"]}>
             {shown.map((m) => {
               const h = rows.get(m.id);
               const playsOff = h?.societyIndex ?? h?.ownIndex ?? null;

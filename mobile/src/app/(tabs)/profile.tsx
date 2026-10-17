@@ -290,13 +290,15 @@ export default function ProfileScreen() {
             onPress={() => router.push("/handicap-indicator")}
             style={({ pressed }) => [styles.indicator, pressed && { opacity: 0.9 }]}
             accessibilityRole="button"
-            accessibilityLabel={`Handicap indicator ${indicator.indicator != null ? indicatorLabel(indicator.indicator) : "not ready yet"}. ${bestOfLabel(indicator.rounds)}`}
+            accessibilityLabel={`Unofficial handicap indicator ${indicator.indicator != null ? indicatorLabel(indicator.indicator) : "not ready yet"}. ${bestOfLabel(indicator.rounds)}`}
           >
             <View style={styles.indicatorValueBox}>
               <Text style={styles.indicatorValue}>{indicator.indicator != null ? indicatorLabel(indicator.indicator) : "—"}</Text>
             </View>
             <View style={styles.indicatorBody}>
-              <Text style={styles.indicatorTitle}>Handicap indicator</Text>
+              <Text style={styles.indicatorTitle}>
+                Handicap indicator <Text style={styles.indicatorUnofficial}>· Unofficial</Text>
+              </Text>
               <Text style={styles.indicatorHint} numberOfLines={2}>
                 {[bestOfLabel(indicator.rounds), comparedWithOwn(indicator.indicator, profile?.handicap != null ? Number(profile.handicap) : null)].filter(Boolean).join(" · ")}
               </Text>
@@ -492,6 +494,7 @@ const styles = StyleSheet.create({
   indicatorValue: { fontFamily: fonts.display, fontSize: 22, color: colors.gold400 },
   indicatorBody: { flex: 1, gap: 2 },
   indicatorTitle: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.ink900 },
+  indicatorUnofficial: { fontFamily: fonts.body, fontSize: type.small, color: colors.ink500 },
   indicatorHint: { fontFamily: fonts.body, fontSize: type.small, color: colors.ink500 },
   coverButton: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, height: 34, borderRadius: radii.pill, backgroundColor: "rgba(12,32,56,0.6)", borderWidth: 1, borderColor: creamAlpha(0.35) },
   coverLabel: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.cream50 },
