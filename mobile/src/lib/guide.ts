@@ -94,7 +94,7 @@ export type GuideCrumb = { icon: Icon; label: string };
  *   primary — the green pill button   outline — the white button
  *   tile    — a square tile           link    — green text link
  *   field   — a box to type in
- *   raised  — the big navy-and-gold card (Home's Live Scoring, Start a Game…)
+ *   raised  — the big navy-and-gold card (Home's Live Scoring, Start a Round…)
  *   banner  — the gold bar on a group's page (Start a round)
  */
 export type GuideControl = {
@@ -103,6 +103,10 @@ export type GuideControl = {
   icon?: Icon;
   /** The second line on a raised card or a banner. */
   subtitle?: string;
+  /** A raised card's colour (the live hub's cards each have one). */
+  tone?: "navy" | "green" | "claret";
+  /** A raised card's small gold label above the title. */
+  kicker?: string;
 };
 
 /** Options laid out as cards; the first is drawn as picked. */
@@ -671,11 +675,11 @@ export const GUIDES: Guide[] = [
     steps: [
       {
         title: "Start a round from your group",
-        body: "On your group's page, tap the gold Start a round bar. It's also in Live scoring as From a Group.",
+        body: "On your group's page, tap the gold Start a round bar. It's also in Live scoring as Groups & Societies.",
         path: [MENU, GROUPS, YOUR_GROUP],
         look: [
           { style: "banner", label: "Start a round", icon: "shuffle", subtitle: "Draw into groups or teams, scored live" },
-          { style: "raised", label: "From a Group", icon: "shuffle", subtitle: "Draw your crew or society into groups or teams" },
+          { style: "raised", label: "Groups & Societies", icon: "people", tone: "green", kicker: "Societies & outings", subtitle: "Draw your crew or society into groups and teams" },
         ],
         go: { label: "Live scoring", to: "/live" },
       },
@@ -1021,24 +1025,24 @@ export const GUIDES: Guide[] = [
       },
       {
         title: "Choose how you're playing",
-        body: "Running the society's day? Tap From a Group to draw your members into tee groups or teams. Match Day runs several matches at once with a team score, Ryder Cup style. Just your own fourball? Tap Start a Game.",
-        look: [{ style: "raised", label: "From a Group", icon: "shuffle", subtitle: "Draw your crew or society into groups or teams" }, { style: "raised", label: "Match Day", icon: "people", subtitle: "Societies, fourballs, foursomes and competitions" }, { style: "raised", label: "Start a Game", icon: "flag", subtitle: "Stableford, stroke play, foursomes, a match or a scramble" }],
-        tip: "From a Group is covered step by step in Play a round together. The rest of this guide is Start a Game.",
+        body: "Running the society's day? Tap Groups & Societies to draw your members into tee groups or teams. Match Day Fun runs several matches at once with a team score, Ryder Cup style. Just your own fourball? Tap Start a Round.",
+        look: [{ style: "raised", label: "Start a Round", icon: "flag", subtitle: "Stableford, stroke play, foursomes, a match or a scramble" }, { style: "raised", label: "Groups & Societies", icon: "people", tone: "green", kicker: "Societies & outings", subtitle: "Draw your crew or society into groups and teams" }, { style: "raised", label: "Match Day Fun", icon: "trophy", tone: "claret", kicker: "Team matches", subtitle: "Singles, fourballs and foursomes, Ryder Cup style" }],
+        tip: "Groups & Societies is covered step by step in Play a round together. The rest of this guide is Start a Round.",
         as: {
           friends: {
-            body: "Just your fourball? Tap Start a Game — that's the rest of this guide. Got a crew set up? From a Group ticks everyone in it and draws you into groups.",
-            look: [{ style: "raised", label: "Start a Game", icon: "flag", subtitle: "Stableford, stroke play, foursomes, a match or a scramble" }, { style: "raised", label: "From a Group", icon: "shuffle", subtitle: "Draw your crew or society into groups or teams" }],
-            tip: "From a Group is covered step by step in Play a round together.",
+            body: "Just your fourball? Tap Start a Round — that's the rest of this guide. Got a crew set up? Groups & Societies ticks everyone in it and draws you into groups.",
+            look: [{ style: "raised", label: "Start a Round", icon: "flag", subtitle: "Stableford, stroke play, foursomes, a match or a scramble" }, { style: "raised", label: "Groups & Societies", icon: "people", tone: "green", kicker: "Societies & outings", subtitle: "Draw your crew or society into groups and teams" }],
+            tip: "Groups & Societies is covered step by step in Play a round together.",
           },
           trip: {
-            body: "On the trip, tap From a Group to draw everyone into fourballs for the day, or Match Day for a team competition. Start a Game is for a quick game in your own fourball.",
-            look: [{ style: "raised", label: "From a Group", icon: "shuffle", subtitle: "Draw your crew or society into groups or teams" }, { style: "raised", label: "Match Day", icon: "people", subtitle: "Societies, fourballs, foursomes and competitions" }, { style: "raised", label: "Start a Game", icon: "flag", subtitle: "Stableford, stroke play, foursomes, a match or a scramble" }],
+            body: "On the trip, tap Groups & Societies to draw everyone into fourballs for the day, or Match Day Fun for a team competition. Start a Round is for a quick game in your own fourball.",
+            look: [{ style: "raised", label: "Start a Round", icon: "flag", subtitle: "Stableford, stroke play, foursomes, a match or a scramble" }, { style: "raised", label: "Groups & Societies", icon: "people", tone: "green", kicker: "Societies & outings", subtitle: "Draw your crew or society into groups and teams" }, { style: "raised", label: "Match Day Fun", icon: "trophy", tone: "claret", kicker: "Team matches", subtitle: "Singles, fourballs and foursomes, Ryder Cup style" }],
           },
         },
       },
       {
         title: "Course, tees and format",
-        body: "After Start a Game: search for the course and check the tees — if the course has a saved card, a tee is already picked so every stroke index is filled in. Choose 18 or 9 holes, then the format.",
+        body: "After Start a Round: search for the course and check the tees — if the course has a saved card, a tee is already picked so every stroke index is filled in. Choose 18 or 9 holes, then the format.",
         choices: [
           { icon: "stats-chart", label: "Stableford", blurb: "Points per hole." },
           { icon: "list", label: "Stroke play", blurb: "Gross and net." },
@@ -1711,6 +1715,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-17", text: "Live scoring's three cards are renamed and colour-coded: Start a Round (navy), Groups & Societies (green, was From a Group) and Match Day Fun (claret, was Match Day). The guides show the new cards." },
   { on: "2026-10-17", text: "The marketplace has its own bottom menu (Home, Browse, Sell, Chats, My ads), and buyers pay sellers directly in cash or by Revolut. Sell your gear and Buy gear safely now cover posting for free, chatting, meeting up, Mark as sold and leaving feedback." },
   { on: "2026-10-17", text: "Score a game live: picked up is now NR (no return), a button right under each player's score (Undo NR takes it back); the card shows NR, and saying “no return” or “NR” scores it too." },
   { on: "2026-10-16", text: "PinPals is now open to golfers from 13. New guide: Under 16? Getting your parent to approve — the date of birth at sign-up, Waiting for your parent, Ask a parent in the marketplace, and the Parent dashboard." },

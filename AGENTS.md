@@ -20,7 +20,7 @@ in the same change and add a dated line to `GUIDE_CHANGES` in that file:
 - starting, joining or running a group (crew, trip, society) — officers,
   join requests, invites, settings, society handicaps
 - events and trips — new event, itinerary, payments, entries, the draw
-- playing a round together — From a Group / Start a round, formats, the draw,
+- playing a round together — Groups & Societies / Start a Round, formats, the draw,
   live scoring, finishing, scorecard certification
 - tee times — posting one, finding a game, requests, filling an open place
 - live scoring, scorecards and the hole map (its drawings are in

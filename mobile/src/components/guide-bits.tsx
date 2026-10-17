@@ -42,12 +42,12 @@ export function Crumbs({ path }: { path: GuideCrumb[] }) {
 
 /** A picture of one control, drawn the way the app draws it. */
 export function ControlMock({ control }: { control: GuideControl }) {
-  const { style, label, icon, subtitle } = control;
+  const { style, label, icon, subtitle, tone, kicker } = control;
   if (style === "raised") {
     // The app's own raised card, as a picture: it can't be pressed here.
     return (
       <View style={styles.wide} pointerEvents="none" importantForAccessibility="no-hide-descendants">
-        <RaisedCard title={label} subtitle={subtitle ?? ""} icon={icon} onPress={() => undefined} inset={false} marginTop={0} />
+        <RaisedCard title={label} subtitle={subtitle ?? ""} icon={icon} tone={tone} kicker={kicker} onPress={() => undefined} inset={false} marginTop={0} />
       </View>
     );
   }

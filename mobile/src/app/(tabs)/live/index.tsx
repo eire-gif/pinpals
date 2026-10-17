@@ -121,38 +121,43 @@ export default function LiveScoringHub() {
         <Text style={styles.heroBody}>Handicaps in once — shots worked out, leaderboard live.</Text>
       </ImageBackground>
 
-      {/* Oct 2026: the two ways in, as raised cards like Home's Live
-          Scoring, so starting a game is the obvious thing on this screen. */}
+      {/* Oct 2026 (option A): three ways in, each its own colour so they
+          can be told apart at a glance — a round (navy), groups and societies
+          (green), match days (claret). */}
       <View style={styles.starts}>
         <RaisedCard
           inset={false}
           marginTop={0}
           icon="flag"
-          title="Start a Game"
+          title="Start a Round"
           subtitle="Stableford, stroke play, foursomes, a match or a scramble"
           onPress={() => router.push("/live/new")}
-        />
-        <RaisedCard
-          inset={false}
-          marginTop={0}
-          icon="people"
-          title="Match Day"
-          subtitle="Societies, fourballs, foursomes and competitions"
-          a11y="Start a match day. For societies, fourballs, foursomes and competitions: several matches at once, with a team score."
-          onPress={() => router.push("/live/day/new")}
         />
         {/* Groups (0121): draw a crew or society into tee groups or teams. */}
         {isOn("groups") ? (
           <RaisedCard
             inset={false}
             marginTop={0}
-            icon="shuffle"
-            title="From a Group"
-            subtitle="Draw your crew or society into groups or teams"
-            a11y="Start from a group. Pick your crew or society, tick who's playing, and draw them into tee groups or scramble teams at random or balanced by handicap."
+            tone="green"
+            icon="people"
+            kicker="Societies & outings"
+            title="Groups & Societies"
+            subtitle="Draw your crew or society into groups and teams"
+            a11y="Groups and societies. Pick your crew or society, tick who's playing, and draw them into tee groups or scramble teams at random or balanced by handicap."
             onPress={() => router.push("/live/day/group")}
           />
         ) : null}
+        <RaisedCard
+          inset={false}
+          marginTop={0}
+          tone="claret"
+          icon="trophy"
+          kicker="Team matches"
+          title="Match Day Fun"
+          subtitle="Singles, fourballs and foursomes, Ryder Cup style"
+          a11y="Match day fun. Several matches at once, singles, fourballs or foursomes, with a team score, Ryder Cup style."
+          onPress={() => router.push("/live/day/new")}
+        />
         {isOn("groups") ? <GuideLink id="live" lead="First time?" /> : null}
       </View>
 
