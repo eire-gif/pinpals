@@ -119,3 +119,44 @@ export function renderEmailHtml(input: { title: string; bodyLines: string[]; cta
 export function escapeHtml(text: string): string {
   return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
+
+const RESEND_BATCH_URL = "https://api.resend.com/emails/batch";
+const BATCH_SIZE = 100;
+
+/**
+ * Many emails at once (a society's member list, 0170) through Resend's
+ * batch endpoint — up to 100 per request, so 500 invitations are five
+ * calls rather than five hundred. Same fail-open rule as sendEmail(): never
+ * throws. Answers, per input, whether it was accepted.
+ */
+export async function sendEmailBatch(inputs: SendEmailInput[]): Promise<boolean[]> {
+  const result = inputs.map(() => false);
+  if (inputs.length === 0) return result;
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) {
+    if (!warnedMissingKeyOnce) {
+      warnedMissingKeyOnce = true;
+      console.warn("[email] RESEND_API_KEY is not set — batch emails were not sent.");
+    }
+    return result;
+  }
+  for (let start = 0; start < inputs.length; start += BATCH_SIZE) {
+    const chunk = inputs.slice(start, start + BATCH_SIZE);
+    try {
+      const response = await fetch(RESEND_BATCH_URL, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify(chunk.map((e) => ({ from: FROM_ADDRESS, to: [e.to], subject: e.subject, html: e.html, text: e.text }))),
+      });
+      if (!response.ok) {
+        const body = await response.text().catch(() => "");
+        console.error(`[email] Resend batch returned ${response.status}: ${body.slice(0, 500)}`);
+        continue;
+      }
+      for (let i = 0; i < chunk.length; i++) result[start + i] = true;
+    } catch (err) {
+      console.error("[email] Batch send failed:", err instanceof Error ? err.message : err);
+    }
+  }
+  return result;
+}

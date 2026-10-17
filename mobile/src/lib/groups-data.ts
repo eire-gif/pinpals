@@ -410,12 +410,62 @@ export async function joinGroupByCode(code: string): Promise<number> {
   return Number(data);
 }
 
+/** A society's emailed invitation (0170): /join/s/<token>. */
+export const isEmailInviteToken = (v: unknown): v is string => typeof v === "string" && /^[0-9a-f]{64}$/.test(v);
+
+export type EmailInvitePreview = InvitePreview & { email: string; firstName: string | null; status: "pending" | "joined" | "cancelled" };
+
+export async function previewEmailInvite(token: string): Promise<EmailInvitePreview | null> {
+  const { data } = await supabase.rpc("group_email_invite_preview", { p_token: token });
+  const r = (
+    data as
+      | {
+          group_id: number;
+          name: string;
+          kind: string;
+          about: string | null;
+          member_count: number;
+          club_name: string | null;
+          owner_first_name: string | null;
+          email: string;
+          first_name: string | null;
+          status: "pending" | "joined" | "cancelled";
+        }[]
+      | null
+  )?.[0];
+  if (!r) return null;
+  return {
+    groupId: r.group_id,
+    name: r.name,
+    kind: isGroupKind(r.kind) ? r.kind : "society",
+    about: r.about,
+    memberCount: r.member_count,
+    clubName: r.club_name,
+    ownerFirstName: r.owner_first_name,
+    email: r.email,
+    firstName: r.first_name,
+    status: r.status,
+  };
+}
+
+/** Joins with the signed-in account, whatever its email. */
+export async function claimEmailInvite(token: string): Promise<number> {
+  const { data, error } = await supabase.rpc("claim_group_email_invite", { p_token: token });
+  if (error) fail(error, "Couldn't join the society.");
+  return Number(data);
+}
+
 // A group link opened before signing in is kept until they are
 // (app/_layout.tsx), like a member's own invite link (find-pinpals.ts).
+// An emailed invitation's token is kept the same way, as "s:<token>".
 const PENDING_KEY = "pp_pending_group_invite";
 
 export async function rememberPendingGroupInvite(code: string): Promise<void> {
   await SecureStore.setItemAsync(PENDING_KEY, code.toLowerCase()).catch(() => undefined);
+}
+
+export async function rememberPendingEmailInvite(token: string): Promise<void> {
+  await SecureStore.setItemAsync(PENDING_KEY, `s:${token.toLowerCase()}`).catch(() => undefined);
 }
 
 /** Joins the group a link was opened for, then forgets it. Returns its id. */
@@ -424,6 +474,10 @@ export async function consumePendingGroupInvite(): Promise<number | null> {
   if (!code) return null;
   await SecureStore.deleteItemAsync(PENDING_KEY).catch(() => undefined);
   try {
+    if (code.startsWith("s:")) {
+      const token = code.slice(2);
+      return isEmailInviteToken(token) ? await claimEmailInvite(token) : null;
+    }
     return await joinGroupByCode(code);
   } catch {
     return null;

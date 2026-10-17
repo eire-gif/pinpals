@@ -275,7 +275,7 @@ export const GUIDES: Guide[] = [
       },
       {
         title: "Invite your golfers",
-        body: "Tap Invite. Share the link on WhatsApp or by text — anyone who taps it joins. Or tick people you're connected with, or search every member under Find PinPals, then send the invitations.",
+        body: "Tap Invite. Share the link on WhatsApp or by text — anyone who taps it joins. Or tick people you're connected with, or search every member under Find PinPals, then send the invitations. Have the society's member list in a spreadsheet? Upload it on the website — pinpals.ie/society, Members, Import from spreadsheet — and everyone is emailed, joining as soon as they sign in to PinPals.",
         look: [
           { style: "primary", label: "Invite", icon: "person-add" },
           { style: "outline", label: "Find PinPals", icon: "search" },
@@ -447,7 +447,7 @@ export const GUIDES: Guide[] = [
       },
       {
         title: "Or accept an invitation",
-        body: "Invitations appear at the top of Groups & societies, and as a notification. Tap Join — or tap the link you were sent.",
+        body: "Invitations appear at the top of Groups & societies, and as a notification. Tap Join — or tap the link you were sent. Got an email from your society? Sign up or log in with that email address and you're in — no need to tap Join.",
         look: [
           { style: "primary", label: "Join" },
           { style: "outline", label: "Decline" },
@@ -1794,6 +1794,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-17", text: "Societies: the committee can upload the member list from a spreadsheet on the website (Members → Import from spreadsheet). Everyone is emailed, and joins the society as soon as they sign in to PinPals with that address. Set up a society and Join a society are updated." },
   { on: "2026-10-17", text: "Hole map: new step, Playing a competition — in a society event or competition round Plays like and the suggested club are off (Rule 4.3); tick Competition round under Hazards and more for any other competition. Yards or metres is now remembered." },
   { on: "2026-10-17", text: "Tee times: you can take back a request the host hasn't answered yet — Withdraw request under ••• in My rounds, or Withdraw my request on the round. Find a game is updated." },
   { on: "2026-10-17", text: "Share on Social: new steps, See who reacted — tap \"Seán Byrne and 11 others\" for everyone's reaction, with Message or Add PinPal — and Share a post: send to several chats at once, Share to your feed with a few words of your own, or straight to WhatsApp, Messages, Email, Facebook or X. Posts now show how many times they've been shared." },

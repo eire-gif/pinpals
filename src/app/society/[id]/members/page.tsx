@@ -72,9 +72,14 @@ export default async function MembersPage({ params, searchParams }: { params: Pr
         title="Members & requests"
         description={`${members.length} ${members.length === 1 ? "member" : "members"}. Approve who asks to join, invite golfers, and share the society's link.`}
         actions={
-          <Link href={href({ contacts: showContacts ? undefined : "1" })} className={buttonClass("quiet", "sm")}>
-            {showContacts ? "Hide phone numbers" : "Phone numbers"}
-          </Link>
+          <>
+            <Link href={consoleHref(g, "members/import")} className={buttonClass("primary", "sm")}>
+              Import from spreadsheet
+            </Link>
+            <Link href={href({ contacts: showContacts ? undefined : "1" })} className={buttonClass("quiet", "sm")}>
+              {showContacts ? "Hide phone numbers" : "Phone numbers"}
+            </Link>
+          </>
         }
       />
 

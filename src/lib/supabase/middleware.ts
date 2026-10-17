@@ -2,7 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config";
 import { GUEST_COOKIE, INVITE_COOKIE, isGuestToken, isInviteCode } from "@/lib/find-pinpals";
-import { GROUP_INVITE_COOKIE } from "@/lib/group-invites";
+import { EMAIL_INVITE_COOKIE, GROUP_INVITE_COOKIE, isEmailInviteToken } from "@/lib/group-invites";
 import { isGroupInviteCode } from "@/lib/groups";
 
 // Refreshes the Supabase auth session on every request so server components
@@ -43,13 +43,17 @@ export async function updateSession(request: NextRequest) {
     const guest = request.cookies.get(GUEST_COOKIE)?.value;
     // Groups (0120): a group's invite link, opened before signing in.
     const groupInvite = request.cookies.get(GROUP_INVITE_COOKIE)?.value;
-    if (invite || guest || groupInvite) {
+    // A society's emailed invitation (0170), opened before signing in.
+    const emailInvite = request.cookies.get(EMAIL_INVITE_COOKIE)?.value;
+    if (invite || guest || groupInvite || emailInvite) {
       if (isInviteCode(invite)) await supabase.rpc("connect_by_invite", { p_code: invite });
       if (isGuestToken(guest)) await supabase.rpc("claim_round_guest", { p_token: guest });
       if (isGroupInviteCode(groupInvite)) await supabase.rpc("join_group_by_code", { p_code: groupInvite });
+      if (isEmailInviteToken(emailInvite)) await supabase.rpc("claim_group_email_invite", { p_token: emailInvite });
       supabaseResponse.cookies.delete(INVITE_COOKIE);
       supabaseResponse.cookies.delete(GUEST_COOKIE);
       supabaseResponse.cookies.delete(GROUP_INVITE_COOKIE);
+      supabaseResponse.cookies.delete(EMAIL_INVITE_COOKIE);
     }
   }
 

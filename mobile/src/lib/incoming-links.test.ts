@@ -67,6 +67,10 @@ describe("routeForIncomingUrl", () => {
   it("opens a group's invite link on the join-group screen (0120)", () => {
     expect(routeForIncomingUrl("https://www.pinpals.ie/join/g/AB12cd34")).toBe("/join-group?code=ab12cd34");
     expect(routeForIncomingUrl("https://pinpals.ie/join/g/ab12cd34/")).toBe("/join-group?code=ab12cd34");
+    // A society's emailed invitation (0170).
+    const t = "ab".repeat(32);
+    expect(routeForIncomingUrl(`https://www.pinpals.ie/join/s/${t.toUpperCase()}`)).toBe(`/join-group?token=${t}`);
+    expect(routeForIncomingUrl(`https://www.pinpals.ie/join/s/${t.slice(1)}`)).not.toContain("/join-group");
     // A member's own invite link is unchanged.
     expect(routeForIncomingUrl("https://www.pinpals.ie/join/ab12cd34")).toBe("/join?code=ab12cd34");
   });

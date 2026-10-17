@@ -99,6 +99,7 @@ export const CONSOLE_NAV: ConsoleNavSection[] = [
     title: "Members",
     items: [
       { slug: "members", label: "Members & requests", area: "people" },
+      { slug: "members/import", label: "Import from spreadsheet", area: "people" },
       { slug: "committee", label: "Committee", run: true },
       { slug: "handicaps", label: "Handicaps", area: "handicaps" },
     ],

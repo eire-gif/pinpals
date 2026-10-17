@@ -7,7 +7,7 @@ import { signUp, type SignUpState } from "./actions";
 
 const initialState: SignUpState = {};
 
-export default function SignUpForm() {
+export default function SignUpForm({ defaultEmail }: { defaultEmail?: string } = {}) {
   const [state, formAction, pending] = useActionState(signUp, initialState);
   // Only to decide whether to show the parent's email field. The server
   // checks the date again (src/lib/signup.ts) — this is a convenience.
@@ -61,7 +61,7 @@ export default function SignUpForm() {
       </div>
       <div className="grid gap-1.5 min-w-0">
         <label htmlFor="email" className="text-[13.5px] font-bold">Email</label>
-        <input id="email" name="email" type="email" required autoComplete="email"
+        <input id="email" name="email" type="email" required autoComplete="email" defaultValue={defaultEmail}
           className="w-full px-3.5 py-3 rounded-lg border-[1.5px] border-line focus:outline-none focus:border-green-600" />
       </div>
       <div className="grid gap-1.5 min-w-0">
