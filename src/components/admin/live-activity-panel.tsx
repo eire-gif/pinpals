@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import type { LiveStats } from "@/lib/admin/live-stats";
-import { FEED_LABELS, ago, changeVsYesterday, formatLabel } from "@/lib/admin/live-panel";
+import { FEED_LABELS, ago, activityHref, changeVsYesterday, formatLabel, type ActivityKind } from "@/lib/admin/live-panel";
 import { ACTIVITY_SECTIONS, SECTION_LABELS, type ActivitySection } from "@/lib/activity";
 
 /**
@@ -97,7 +98,9 @@ function LiveBody({ stats, now }: { stats: LiveStats; now: number }) {
           </Hero>
           <Hero label="Games in play" value={n.games_in_play} sub={`${n.players_on_course} ${n.players_on_course === 1 ? "player" : "players"} on the course`} />
           <Hero label="Scores entered" value={n.scores_last_10_min} sub="In the last 10 minutes" />
-          <Hero label="Games today" value={t.games_started} sub={`${t.games_finished} finished · ${t.scores_entered} scores`} />
+          <Link href={activityHref("games")} className="block rounded-xl hover:bg-navy-800/60 transition -m-1 p-1">
+            <Hero label="Games today ›" value={t.games_started} sub={`${t.games_finished} finished · ${t.scores_entered} scores`} />
+          </Link>
         </div>
       </div>
 
@@ -108,20 +111,32 @@ function LiveBody({ stats, now }: { stats: LiveStats; now: number }) {
 
       {/* Today so far */}
       <div>
-        <h3 className="text-xs font-semibold text-ink-500 mb-2">Today so far <span className="font-normal">· since midnight</span></h3>
+        <div className="flex items-baseline justify-between gap-2 mb-2">
+          <h3 className="text-xs font-semibold text-ink-500">
+            Today so far <span className="font-normal">· since midnight · tap a number to see them</span>
+          </h3>
+          <Link href={activityHref("scorecards")} className="text-xs font-semibold text-green-700 hover:underline shrink-0">
+            All activity →
+          </Link>
+        </div>
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
           <Tile label="Visitors" value={t.visitors} prev={y.visitors} sub={`${t.members_active} signed-in members`} />
           <Tile label="Page & screen views" value={t.views} prev={y.views} sub={`${t.web_views} web · ${t.app_views} app`} />
           <Tile label="App opens" value={t.app_opens} />
-          <Tile label="New members" value={t.new_members} prev={y.new_members} />
-          <Tile label="Games started" value={t.games_started} prev={y.games_started} />
-          <Tile label="Scorecards saved" value={t.scorecards_saved} />
-          <Tile label="Tee times posted" value={t.tee_times_posted} prev={y.tee_times_posted} />
-          <Tile label="Tee time requests" value={t.tee_time_requests} />
-          <Tile label="Listings posted" value={t.listings_posted} prev={y.listings_posted} />
+          <Tile label="New members" value={t.new_members} prev={y.new_members} href={activityHref("members")} />
+          <Tile label="Games started" value={t.games_started} prev={y.games_started} href={activityHref("games")} />
+          <Tile
+            label="Scorecards completed"
+            value={t.scorecards_saved}
+            sub={`${t.games_finished} ${t.games_finished === 1 ? "game" : "games"} finished`}
+            href={activityHref("scorecards")}
+          />
+          <Tile label="Tee times posted" value={t.tee_times_posted} prev={y.tee_times_posted} href={activityHref("tee_times")} />
+          <Tile label="Tee time requests" value={t.tee_time_requests} href={activityHref("tee_times")} />
+          <Tile label="Listings posted" value={t.listings_posted} prev={y.listings_posted} href={activityHref("listings")} />
           <Tile label="Messages sent" value={t.messages_sent} prev={y.messages_sent} />
-          <Tile label="Social posts" value={t.posts} />
-          <Tile label="Groups created" value={t.groups_created} />
+          <Tile label="Social posts" value={t.posts} href={activityHref("posts")} />
+          <Tile label="Groups created" value={t.groups_created} href={activityHref("groups")} />
         </div>
       </div>
 
@@ -165,11 +180,14 @@ function Card({ title, children, aside }: { title: string; children: React.React
   );
 }
 
-function Tile({ label, value, prev, sub }: { label: string; value: number; prev?: number; sub?: string }) {
+function Tile({ label, value, prev, sub, href }: { label: string; value: number; prev?: number; sub?: string; href?: string }) {
   const change = changeVsYesterday(value, prev);
-  return (
-    <div className="rounded-2xl border border-line bg-surface p-3.5 shadow-sm">
-      <div className="text-xs font-semibold text-ink-500">{label}</div>
+  const body = (
+    <>
+      <div className="flex items-start justify-between gap-1 text-xs font-semibold text-ink-500">
+        <span>{label}</span>
+        {href && <span aria-hidden className="text-green-700">›</span>}
+      </div>
       <div className="font-display font-bold text-2xl mt-1 text-ink-900 tabular-nums">{value.toLocaleString("en-IE")}</div>
       {sub && <div className="text-[11px] text-ink-500 mt-0.5">{sub}</div>}
       {change && (
@@ -182,13 +200,30 @@ function Tile({ label, value, prev, sub }: { label: string; value: number; prev?
           {change.text}
         </div>
       )}
-    </div>
+    </>
+  );
+  return href ? (
+    <Link
+      href={href}
+      className="block rounded-2xl border border-line bg-surface p-3.5 shadow-sm hover:shadow-md hover:-translate-y-0.5 hover:border-green-700 transition"
+    >
+      {body}
+    </Link>
+  ) : (
+    <div className="rounded-2xl border border-line bg-surface p-3.5 shadow-sm">{body}</div>
   );
 }
 
 function GamesCard({ games, now }: { games: LiveStats["games"]; now: number }) {
   return (
-    <Card title="Games on the course" aside={games.length ? `${games.length} live` : undefined}>
+    <Card
+      title="Games on the course"
+      aside={
+        <Link href={activityHref("games")} className="font-semibold text-green-700 hover:underline">
+          {games.length ? `${games.length} live · all games ›` : "All games today ›"}
+        </Link>
+      }
+    >
       {games.length === 0 ? (
         <p className="text-sm text-ink-500 py-4">No games being played right now. A game shows here once it&rsquo;s started or scored in the last 30 minutes.</p>
       ) : (
@@ -304,6 +339,20 @@ function Mini({ label, value, sub }: { label: string; value: number; sub?: strin
   );
 }
 
+const FEED_KIND: Record<string, ActivityKind> = {
+  game_started: "games",
+  game_finished: "scorecards",
+  new_member: "members",
+  tee_time: "tee_times",
+  listing: "listings",
+  group: "groups",
+};
+
+/** Today's list for something from today, the last 7 days for anything older. */
+function sinceToday(iso: string, now: number): "today" | "7d" {
+  return now - new Date(iso).getTime() < 12 * 3600_000 && new Date(iso).toDateString() === new Date(now).toDateString() ? "today" : "7d";
+}
+
 const FEED_DOT: Record<string, string> = {
   game_started: "bg-green-600",
   game_finished: "bg-green-800",
@@ -321,7 +370,8 @@ function FeedCard({ feed, now }: { feed: LiveStats["feed"]; now: number }) {
       ) : (
         <ul className="space-y-2">
           {feed.slice(0, 10).map((f, i) => (
-            <li key={`${f.kind}-${f.at}-${i}`} className="flex items-start gap-2.5 text-sm">
+            <li key={`${f.kind}-${f.at}-${i}`}>
+              <Link href={activityHref(FEED_KIND[f.kind] ?? "scorecards", sinceToday(f.at, now))} className="flex items-start gap-2.5 text-sm rounded-lg -mx-1.5 px-1.5 py-0.5 hover:bg-surface-tint">
               <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${FEED_DOT[f.kind] ?? "bg-ink-500"}`} aria-hidden />
               <span className="min-w-0 flex-1">
                 <span className="font-semibold text-ink-900">{FEED_LABELS[f.kind] ?? f.kind}</span>
@@ -329,6 +379,7 @@ function FeedCard({ feed, now }: { feed: LiveStats["feed"]; now: number }) {
                 <span className="text-ink-900 break-words">{f.label}</span>
               </span>
               <span className="shrink-0 text-xs text-ink-500 tabular-nums">{ago(f.at, now)}</span>
+              </Link>
             </li>
           ))}
         </ul>

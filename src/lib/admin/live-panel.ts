@@ -55,3 +55,96 @@ export const FEED_LABELS: Record<string, string> = {
   listing: "Listing posted",
   group: "Group created",
 };
+
+// ---------------------------------------------------------------------------
+// The drill-down lists behind the panel's numbers (/admin/activity).
+// ---------------------------------------------------------------------------
+
+export const ACTIVITY_KINDS = ["scorecards", "games", "tee_times", "groups", "members", "listings", "posts"] as const;
+export type ActivityKind = (typeof ACTIVITY_KINDS)[number];
+
+export const ACTIVITY_KIND_LABELS: Record<ActivityKind, string> = {
+  scorecards: "Scorecards completed",
+  games: "Games",
+  tee_times: "Tee times posted",
+  groups: "Groups created",
+  members: "New members",
+  listings: "Listings posted",
+  posts: "Social posts",
+};
+
+export const ACTIVITY_RANGES = ["today", "yesterday", "7d"] as const;
+export type ActivityRange = (typeof ACTIVITY_RANGES)[number];
+
+export const ACTIVITY_RANGE_LABELS: Record<ActivityRange, string> = {
+  today: "Today",
+  yesterday: "Yesterday",
+  "7d": "Last 7 days",
+};
+
+export function parseActivityKind(raw: string | undefined): ActivityKind {
+  return (ACTIVITY_KINDS as readonly string[]).includes(raw ?? "") ? (raw as ActivityKind) : "scorecards";
+}
+
+export function parseActivityRange(raw: string | undefined): ActivityRange {
+  return (ACTIVITY_RANGES as readonly string[]).includes(raw ?? "") ? (raw as ActivityRange) : "today";
+}
+
+/** The link from a panel number to its list. */
+export function activityHref(kind: ActivityKind, range: ActivityRange = "today"): string {
+  return range === "today" ? `/admin/activity?show=${kind}` : `/admin/activity?show=${kind}&range=${range}`;
+}
+
+/** Midnight in Ireland on the day `at` falls on, as a UTC instant. */
+export function irishMidnight(at: Date): Date {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/Dublin",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(at);
+  const get = (t: string) => Number(parts.find((p) => p.type === t)?.value);
+  const wallAsUtc = Date.UTC(get("year"), get("month") - 1, get("day"), get("hour"), get("minute"), get("second"));
+  const offset = wallAsUtc - Math.floor(at.getTime() / 1000) * 1000;
+  return new Date(Date.UTC(get("year"), get("month") - 1, get("day")) - offset);
+}
+
+/** [from, to) for a range, Irish days. */
+export function activityWindow(range: ActivityRange, now: Date): { from: Date; to: Date } {
+  const today = irishMidnight(now);
+  if (range === "yesterday") return { from: irishMidnight(new Date(today.getTime() - 12 * 3600_000)), to: today };
+  if (range === "7d") return { from: irishMidnight(new Date(today.getTime() - 6 * 24 * 3600_000 + 12 * 3600_000)), to: now };
+  return { from: today, to: now };
+}
+
+export type CardHole = { hole: number; par: number; strokes: number | null; putts?: number | null; stroke_index?: number | null };
+
+/** Gross, holes played and score to par over the holes actually played. */
+export function cardSummary(holes: CardHole[], size: number): {
+  gross: number;
+  played: number;
+  toPar: number;
+  complete: boolean;
+  putts: number | null;
+} {
+  const played = holes.filter((h) => h.strokes != null);
+  const gross = played.reduce((s, h) => s + (h.strokes ?? 0), 0);
+  const par = played.reduce((s, h) => s + h.par, 0);
+  const withPutts = played.filter((h) => h.putts != null);
+  return {
+    gross,
+    played: played.length,
+    toPar: gross - par,
+    complete: played.length >= size,
+    putts: withPutts.length ? withPutts.reduce((s, h) => s + (h.putts ?? 0), 0) : null,
+  };
+}
+
+/** "+4", "E", "-2". */
+export function toParText(n: number): string {
+  return n === 0 ? "E" : n > 0 ? `+${n}` : `${n}`;
+}

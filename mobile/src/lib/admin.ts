@@ -44,7 +44,10 @@ export type AdminSection = { path: string; label: string; icon: string; hint?: s
 export const ADMIN_GROUPS: { title: string; sections: AdminSection[] }[] = [
   {
     title: "Overview",
-    sections: [{ path: "/admin", label: "Overview", icon: "speedometer-outline", hint: "What needs attention" }],
+    sections: [
+      { path: "/admin", label: "Overview", icon: "speedometer-outline", hint: "Live now and what needs attention" },
+      { path: "/admin/activity", label: "Activity", icon: "pulse-outline", hint: "Today's scorecards, games, tee times, groups" },
+    ],
   },
   {
     title: "People",
