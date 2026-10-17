@@ -687,3 +687,39 @@ export function foursomesLabel(scoring: FoursomesScoring): string {
 export function foursomesTeeShot(hole: number): 1 | 2 {
   return hole % 2 === 1 ? 1 : 2;
 }
+
+// ---------------------------------------------------------------------------
+// Finishing (Oct 2026): is every hole in, and if not, which are missing?
+// ---------------------------------------------------------------------------
+
+/**
+ * The players whose line on the card gets a score: everyone, except a
+ * scramble team (one ball, on its first player) and foursomes/greensomes in
+ * a match (one ball per side, on the pair's first player). The same rule the
+ * round screen draws its rows from.
+ */
+export function scoringPlayerIds(
+  players: readonly { id: number; position: number; side?: number | null }[],
+  opts: { scramble: boolean; matchFormat: LiveFormat | null }
+): number[] {
+  const byPos = [...players].sort((a, b) => a.position - b.position);
+  if (opts.scramble) return byPos[0] ? [byPos[0].id] : [];
+  if (opts.matchFormat && isOneBallPerSide(opts.matchFormat)) {
+    return [1, 2].map((n) => byPos.find((p) => p.side === n)?.id).filter((id): id is number => id != null);
+  }
+  return byPos.map((p) => p.id);
+}
+
+/** Holes someone still has to score, in order, with who. Empty = card complete. */
+export function holesStillToScore(
+  card: readonly CardHole[],
+  playerIds: readonly number[],
+  scores: ScoreSheet
+): { hole: number; playerIds: number[] }[] {
+  const out: { hole: number; playerIds: number[] }[] = [];
+  for (const c of card) {
+    const missing = playerIds.filter((id) => !scores.get(id)?.has(c.hole));
+    if (missing.length) out.push({ hole: c.hole, playerIds: missing });
+  }
+  return out;
+}
