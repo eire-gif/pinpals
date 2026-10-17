@@ -95,9 +95,17 @@ function Scorecard({ card, flashHole }: { card: FollowCard; flashHole: number | 
   );
 }
 
-export default function FollowView() {
+/**
+ * Where the card comes from:
+ *   - a shared link (default): the secret after the # in the address
+ *   - followId: a card a PinPal shared with the signed-in member, read with
+ *     their website session (/live/follow/<id>: an older app, or a computer)
+ */
+export default function FollowView({ followId }: { followId?: number } = {}) {
   // The secret is after the # (never sent to a server); read it here.
-  const [token] = useState(() => (typeof window === "undefined" ? "" : decodeURIComponent(window.location.hash.replace(/^#/, ""))));
+  const [token] = useState(() =>
+    followId != null || typeof window === "undefined" ? "" : decodeURIComponent(window.location.hash.replace(/^#/, ""))
+  );
   const [card, setCard] = useState<FollowCard | null>(null);
   const [gone, setGone] = useState<string | null>(null);
   const [lastOk, setLastOk] = useState<number | null>(null);
@@ -119,15 +127,18 @@ export default function FollowView() {
     let timer: ReturnType<typeof setTimeout> | null = null;
     const load = async () => {
       if (timer) clearTimeout(timer);
-      if (!token) {
+      if (followId == null && !token) {
         setGone("This link isn't complete. Ask for it to be sent again.");
         return;
       }
       try {
-        const res = await fetch("/api/follow/card", { headers: { authorization: `Follow ${token}` }, cache: "no-store" });
+        const res =
+          followId != null
+            ? await fetch(`/api/follow/mine/${followId}`, { cache: "no-store", credentials: "same-origin" })
+            : await fetch("/api/follow/card", { headers: { authorization: `Follow ${token}` }, cache: "no-store" });
         const json = (await res.json().catch(() => null)) as { card?: FollowCard; error?: string } | null;
         if (stop) return;
-        if (res.status === 404 || res.status === 410) {
+        if (res.status === 401 || res.status === 404 || res.status === 410) {
           setGone(json?.error ?? "This link isn't working any more.");
           return; // nothing more to poll
         }
@@ -156,7 +167,7 @@ export default function FollowView() {
       clearInterval(tick);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [token]);
+  }, [token, followId]);
 
   useEffect(() => {
     if (!toast) return;
@@ -181,7 +192,7 @@ export default function FollowView() {
           <h1>{gone}</h1>
           <p>Shared rounds stop by themselves after the golf, or when the golfer stops sharing.</p>
         </div>
-        <Footer />
+        <Footer member={followId != null} />
       </main>
     );
   }
@@ -270,12 +281,21 @@ export default function FollowView() {
         </div>
       )}
 
-      <Footer />
+      <Footer member={followId != null} />
     </main>
   );
 }
 
-function Footer() {
+function Footer({ member = false }: { member?: boolean }) {
+  // A signed-in member already has PinPals: no sign-up pitch, just the brand.
+  if (member) {
+    return (
+      <footer className="fl-foot">
+        <span className="fl-brand">Golf is better on PinPals</span>
+        <span className="fl-note">Update the PinPals app to follow rounds under Live scoring → Following.</span>
+      </footer>
+    );
+  }
   return (
     <footer className="fl-foot">
       <span className="fl-brand">Golf is better on PinPals</span>
