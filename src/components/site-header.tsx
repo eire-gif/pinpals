@@ -79,9 +79,8 @@ export default async function SiteHeader() {
     { href: "/dashboard", label: "Dashboard home" },
     ...(allowed("teeTimes")
       ? [
-          { href: "/tee-times/confirmed", label: "Confirmed tee times" },
-          { href: "/tee-times/interested", label: "Interested golfers" },
-          { href: "/tee-times/requests", label: "My tee-time requests" },
+          // One page for every round you host, play in or asked to join (Oct 2026).
+          { href: "/tee-times/mine", label: "My rounds" },
         ]
       : []),
     ...(allowed("marketplaceSell") ? [{ href: "/dashboard/listings", label: "My listings" }] : []),
@@ -130,9 +129,7 @@ export default async function SiteHeader() {
         ? [
             { href: "/tee-times", label: "Find a game this week" },
             { href: "/dashboard/availability/new", label: "Post your availability" },
-            { href: "/tee-times/confirmed", label: "Confirmed tee times" },
-            { href: "/tee-times/interested", label: "Interested golfers" },
-            { href: "/tee-times/requests", label: "My requests" },
+            { href: "/tee-times/mine", label: "My rounds" },
           ]
         : undefined,
     },

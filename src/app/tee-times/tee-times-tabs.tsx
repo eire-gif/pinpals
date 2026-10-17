@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { countNeedsAnswer } from "@/lib/my-rounds-server";
 
 /**
  * The tee-times nav.
@@ -15,14 +16,14 @@ import { createClient } from "@/lib/supabase/server";
  * "Interested golfers" invites a click once; a tab that says there are two
  * people waiting on you gets clicked every time.
  *
- * Rendered on all three tee-time pages, so the count query runs on each.
- * Both are `head: true` counts against indexed columns — cheaper than the
- * page's own invite list by a wide margin.
+ * Oct 2026: two tabs — everyone's rounds, and My rounds (one page for every
+ * round you host, play in, asked to join or were offered, which replaced
+ * Interested golfers, My requests and Confirmed).
  */
 export default async function TeeTimesTabs({
   active,
 }: {
-  active: "browse" | "interested" | "requests" | "confirmed";
+  active: "browse" | "mine";
 }) {
   const supabase = await createClient();
   const {
@@ -31,32 +32,14 @@ export default async function TeeTimesTabs({
 
   if (!user) return null;
 
-  const [{ count: waitingOnYou }, { count: waitingOnThem }] = await Promise.all([
-    // Requests on invites this member hosts. The !inner join is what lets
-    // the filter reach through to the invite's owner — same shape the
-    // dashboard already uses for this list.
-    supabase
-      .from("tee_time_interests")
-      .select("id, tee_time_invites!inner(member_id)", { count: "exact", head: true })
-      .eq("tee_time_invites.member_id", user.id)
-      .eq("status", "pending"),
-    // Places this member has been offered and not yet answered.
-    supabase
-      .from("tee_time_interests")
-      .select("id", { count: "exact", head: true })
-      .eq("member_id", user.id)
-      .eq("status", "accepted"),
-  ]);
+  // One number since Oct 2026: answers this member owes — requests to their
+  // rounds and places offered to them — the same rows My rounds puts under
+  // "Needs your answer".
+  const waiting = await countNeedsAnswer(supabase, user.id);
 
   const tabs = [
-    { key: "browse" as const, href: "/tee-times", label: "Browse invites", count: 0 },
-    { key: "interested" as const, href: "/tee-times/interested", label: "Interested golfers", count: waitingOnYou ?? 0 },
-    { key: "requests" as const, href: "/tee-times/requests", label: "My requests", count: waitingOnThem ?? 0 },
-    // No badge, and no third count query to produce one. The other two
-    // numbers mean "somebody is waiting on you"; a count of settled rounds
-    // would mean "everything is fine", which is not worth a query on every
-    // tee-time page to say.
-    { key: "confirmed" as const, href: "/tee-times/confirmed", label: "Confirmed", count: 0 },
+    { key: "browse" as const, href: "/tee-times", label: "Browse tee times", count: 0 },
+    { key: "mine" as const, href: "/tee-times/mine", label: "My rounds", count: waiting },
   ];
 
   return (

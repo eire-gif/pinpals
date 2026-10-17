@@ -50,6 +50,8 @@ const EXACT: Record<string, string> = {
   // The applicant's side: rounds you asked to join.
   "/tee-times/requests": "/my-rounds?show=requested",
   "/tee-times/confirmed": "/my-rounds",
+  // The website's own My rounds page (Oct 2026) — the same page here.
+  "/tee-times/mine": "/my-rounds",
 
   "/marketplace": "/marketplace",
   // Linked from emails and the website; the app has its own forms for both.
@@ -184,7 +186,7 @@ export function appRouteFor(href: string): AlertRoute {
 }
 
 /** The tee-time lists an alert can point at, which take ?invite=<id>. */
-const TEE_TIME_LISTS = new Set(["/tee-times/interested", "/tee-times/requests", "/tee-times/confirmed"]);
+const TEE_TIME_LISTS = new Set(["/tee-times/interested", "/tee-times/requests", "/tee-times/confirmed", "/tee-times/mine"]);
 
 /** The tee time an href is about (?invite=<id>), or null. */
 export function teeTimeFocus(href: string): number | null {

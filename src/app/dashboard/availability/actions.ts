@@ -17,8 +17,7 @@ import {
 function revalidateTeeTimeViews() {
   revalidatePath("/dashboard");
   revalidatePath("/tee-times");
-  revalidatePath("/tee-times/interested");
-  revalidatePath("/tee-times/requests");
+  revalidatePath("/tee-times/mine");
 }
 
 export async function updateInviteStatus(inviteId: number, status: InviteStatus) {

@@ -53,10 +53,10 @@ export default async function HomePage() {
   // competing accents in one row is one too many, and this is the calm one.
   const confirmedTeeTimes = (
     <Link
-      href="/tee-times/confirmed"
+      href="/tee-times/mine"
       className="px-6 py-3.5 rounded-full font-bold bg-[#fbf8ef] text-navy-900 hover:bg-white transition"
     >
-      Confirmed tee times
+      My rounds
     </Link>
   );
 

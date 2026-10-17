@@ -39,8 +39,7 @@ export async function expressInterest(
   }
 
   revalidatePath("/tee-times");
-  revalidatePath("/tee-times/interested");
-  revalidatePath("/tee-times/requests");
+  revalidatePath("/tee-times/mine");
   revalidatePath("/dashboard");
   return { success: true };
 }
