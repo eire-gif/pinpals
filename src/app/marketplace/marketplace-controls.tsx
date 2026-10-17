@@ -77,7 +77,10 @@ export default function MarketplaceControls({
 
   function updateNow(patch: Partial<MarketplaceFilters>) {
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    navigate({ ...filters, ...patch });
+    // A model (0163) belongs to one brand in one category: changing either
+    // lets it go.
+    const dropsModel = "brands" in patch || "category" in patch;
+    navigate({ ...filters, ...patch, ...(dropsModel ? { model: "" } : {}) });
   }
 
   function updateDebounced(patch: Partial<MarketplaceFilters>) {
@@ -94,6 +97,7 @@ export default function MarketplaceControls({
     !!filters.category ||
     !!filters.subcategory ||
     filters.brands.length > 0 ||
+    !!filters.model ||
     !!filters.county ||
     !!filters.condition ||
     !!filters.saleType ||
@@ -195,7 +199,7 @@ export default function MarketplaceControls({
         {hasActiveFilters && (
           <button
             type="button"
-            onClick={() => navigate({ ...filters, q: "", category: "", subcategory: "", brands: [], county: "", condition: "", saleType: "", delivery: "", minPriceCents: null, maxPriceCents: null })}
+            onClick={() => navigate({ ...filters, q: "", category: "", subcategory: "", brands: [], model: "", county: "", condition: "", saleType: "", delivery: "", minPriceCents: null, maxPriceCents: null })}
             className="text-sm font-bold text-ink-500 hover:text-ink-900 transition px-2"
           >
             Clear all

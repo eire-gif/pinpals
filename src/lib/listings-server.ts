@@ -126,6 +126,9 @@ export async function createListingRecord(params: {
       brand: data.brand || null,
       brand_other: data.brand === "other" ? data.brandOther || null : null,
       model: data.model || null,
+      // Only sent when picked, so saving still works against a database
+      // without 0163's model_id column.
+      ...(data.modelId && data.brand && data.brand !== "other" ? { model_id: data.modelId } : {}),
       dexterity: data.dexterity || null,
       shaft_flex: data.shaftFlex || null,
       shaft_material: data.shaftMaterial || null,

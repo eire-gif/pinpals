@@ -1489,6 +1489,14 @@ export const GUIDES: Guide[] = [
         ],
       },
       {
+        title: "Pick the exact model",
+        body: "Once there's a brand, Model shows that brand's models, newest first — it's often picked for you from the title. Choosing it puts your ad in front of buyers who pick that model.",
+        look: [
+          { style: "outline", label: "Model", icon: "pricetag-outline" },
+          { style: "outline", label: "Qi10 · 2024" },
+        ],
+      },
+      {
         title: "Price it and post it",
         body: "Set your price — under it, Similar ads on PinPals shows what comparable ads ask; tap Use to take the middle. Choose Fixed price or Open to offers, then where it is. Tap Post listing — it's free and goes live straight away.",
         look: [
@@ -1512,6 +1520,11 @@ export const GUIDES: Guide[] = [
         body: "Agree a time — at your club is best — and let them check it over. They pay you in cash or by Revolut. PinPals doesn't handle the money.",
         look: [{ style: "tile", label: "Meet at the club", icon: "golf-outline" }],
         tip: "Meet in daylight, somewhere people are about. Never post an item before you've been paid.",
+      },
+      {
+        title: "Get it into Top picks",
+        body: "On your ad, the Top picks card says how it works: Top picks sit above every other listing for the same club type, brand and model, with a gold PREMIUM badge. You add an ad to Top picks on the PinPals website, from My listings — it shows here as soon as it's on.",
+        look: [{ style: "tile", label: "Top picks · PREMIUM", icon: "arrow-up" }],
       },
       {
         title: "Mark it sold and leave feedback",
@@ -1539,11 +1552,22 @@ export const GUIDES: Guide[] = [
     steps: [
       {
         title: "Browse used gear",
-        body: "Tap the Marketplace tab — it has its own bottom menu, with Home on the left to get back. Tap the search box and type it how you'd say it — “ping irons under 400 near me” — and it shows what it understood, fixes spelling and lists matches as you type. Or tap a category, Near me, At my club or Left-handed.",
+        body: "Tap the Marketplace tab — it has its own bottom menu, with Home on the left to get back. Tap the search box and type it how you'd say it — “ping irons under 400 near me” — and it shows what it understood, fixes spelling and lists matches as you type. Or tap Near me, At my club or Left-handed.",
         look: [
           { style: "field", label: "tm qi10 driver under 300", icon: "search" },
           { style: "outline", label: "Used" },
           { style: "outline", label: "Filters", icon: "options-outline" },
+        ],
+        go: { label: "Marketplace", to: "/marketplace" },
+      },
+      {
+        title: "Find it by club, brand and model",
+        body: "Under the chips, pick in three steps: 1 Club (Drivers, Putters, Bags…), 2 Brand, then 3 Model — each with how many are for sale. The listings are always below and narrow as you pick; skip any step. Tap a finished step to go back to it. Top picks, at the top of the listings, are adverts sellers paid to show first — each says PREMIUM.",
+        look: [
+          { style: "outline", label: "1 Club · Drivers" },
+          { style: "outline", label: "2 Brand · PING" },
+          { style: "primary", label: "3 Model · G430" },
+          { style: "tile", label: "Top picks", icon: "arrow-up" },
         ],
         go: { label: "Marketplace", to: "/marketplace" },
       },
@@ -1721,6 +1745,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-17", text: "Marketplace: find gear in three steps — club type, brand, model — with the listings always below, narrowing as you pick. Top picks, at the top, are paid adverts marked PREMIUM. Selling, you can pick the exact model. Buy gear safely and Sell your gear are updated." },
   { on: "2026-10-17", text: "Marketplace redesign: smart search that understands brands, prices, places and typos; public Questions & offers under every ad (ask, offer, and the seller accepts, counters or declines in the open); the sell form fills itself in from the title; marketplace chats are in Messages under Marketplace, with the item pinned. Sell your gear and Buy gear safely are updated." },
   { on: "2026-10-17", text: "Live scoring's three cards are renamed and colour-coded: Start a Round (navy), Groups & Societies (green, was From a Group) and Match Day Fun (claret, was Match Day). The guides show the new cards." },
   { on: "2026-10-17", text: "The marketplace has its own bottom menu (Home, Browse, Sell, Chats, My ads), and buyers pay sellers directly in cash or by Revolut. Sell your gear and Buy gear safely now cover posting for free, chatting, meeting up, Mark as sold and leaving feedback." },

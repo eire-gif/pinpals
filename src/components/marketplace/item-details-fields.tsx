@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import BrandCombobox from "./brand-combobox";
+import ModelPicker from "./model-picker";
+import type { FinderModel } from "@/lib/finder";
 import {
   DEXTERITIES,
   SHAFT_FLEXES,
@@ -25,7 +27,7 @@ function FieldError({ message }: { message?: string }) {
 
 export type ItemDetailsDefaults = Pick<
   Listing,
-  "brand" | "brand_other" | "model" | "dexterity" | "shaft_flex" | "shaft_material" | "loft" | "item_size"
+  "brand" | "brand_other" | "model" | "model_id" | "dexterity" | "shaft_flex" | "shaft_material" | "loft" | "item_size"
 >;
 
 /**
@@ -74,6 +76,11 @@ export default function ItemDetailsFields({
   const specFields = specFieldsFor(category);
   const showSpec = (field: SpecField) => specFields.includes(field);
 
+  // The catalogue model (0163). ModelPicker drops a stale one itself: its
+  // value only counts while it's one of this brand's models in this category.
+  const [modelId, setModelId] = useState(defaults?.model_id ?? "");
+  const [picked, setPicked] = useState<FinderModel | null>(null);
+
   return (
     <div className="grid gap-4">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -114,7 +121,7 @@ export default function ItemDetailsFields({
           showSpec("model") && (
             <div className="grid gap-1.5">
               <label htmlFor="model" className="text-[13.5px] font-bold">
-                {SPEC_FIELD_LABELS.model} <span className="font-normal text-ink-500">(optional)</span>
+                {picked ? "Exact version" : SPEC_FIELD_LABELS.model} <span className="font-normal text-ink-500">(optional)</span>
               </label>
               <input
                 id="model"
@@ -122,7 +129,8 @@ export default function ItemDetailsFields({
                 maxLength={MAX_MODEL_LENGTH}
                 disabled={disabled}
                 defaultValue={defaults?.model ?? ""}
-                placeholder={SPEC_FIELD_PLACEHOLDERS.model}
+                placeholder={picked ? `e.g. ${picked.versions[0] ?? picked.family}` : SPEC_FIELD_PLACEHOLDERS.model}
+                list={picked?.versions.length ? "model-versions" : undefined}
                 className={`${inputClass} disabled:opacity-60`}
               />
               <FieldError message={fieldErrors.model} />
@@ -130,6 +138,26 @@ export default function ItemDetailsFields({
           )
         )}
       </div>
+
+      {brand !== "other" && showSpec("model") ? (
+        <ModelPicker
+          brand={brand}
+          category={category}
+          value={modelId}
+          disabled={disabled}
+          onChange={(id, model) => {
+            setModelId(id);
+            setPicked(model);
+          }}
+        />
+      ) : null}
+      {picked?.versions.length ? (
+        <datalist id="model-versions">
+          {picked.versions.map((v) => (
+            <option key={v} value={v} />
+          ))}
+        </datalist>
+      ) : null}
 
       {/* When "Other" took the model field's slot above, model gets its own
        * row rather than being dropped — a seller typing a brand we don't

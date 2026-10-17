@@ -99,6 +99,7 @@ function readListingFields(formData: FormData) {
     // the form no longer shows them.
     brandOther: formData.get("brand") === "other" ? optionalField(formData, "brandOther") : undefined,
     model: optionalField(formData, "model"),
+    modelId: optionalField(formData, "modelId"),
     dexterity: optionalField(formData, "dexterity"),
     shaftFlex: optionalField(formData, "shaftFlex"),
     shaftMaterial: optionalField(formData, "shaftMaterial"),

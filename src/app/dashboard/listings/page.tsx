@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { Listing, ListingStatus } from "@/lib/types";
 import { formatPrice, SELLER_LISTING_STATUS_LABELS, SELLER_LISTING_STATUS_STYLES } from "@/lib/format";
-import { isFeatured } from "@/lib/marketplace-growth";
+import { isFeatured, isTopPick } from "@/lib/marketplace-growth";
 import { ageGate } from "@/components/age/age-gate";
 
 /** The five tabs the task spec asks for. `pending_review` and `expired`
@@ -137,9 +137,9 @@ export default async function MyListingsPage({
                   >
                     {SELLER_LISTING_STATUS_LABELS[listing.status]}
                   </span>
-                  {isFeatured(listing) ? (
+                  {isFeatured(listing) || isTopPick(listing) ? (
                     <span className="text-[10.5px] font-bold px-2 py-0.5 rounded-full shrink-0 bg-gold-400 text-navy-900">
-                      Featured
+                      {isFeatured(listing) ? "Premium Plus" : "Premium"}
                     </span>
                   ) : null}
                   {listing.store_id ? (
@@ -159,7 +159,7 @@ export default async function MyListingsPage({
                     href={`/dashboard/listings/${listing.id}/promote`}
                     className="px-3.5 py-2 rounded-full text-xs font-extrabold bg-gold-400 text-navy-900 shadow-[0_2px_0_#9c7a2c] hover:brightness-105 transition"
                   >
-                    {isFeatured(listing) ? "Extend" : "Promote"}
+                    {isFeatured(listing) || isTopPick(listing) ? "Add days" : "Top picks"}
                   </Link>
                 ) : null}
                 <Link

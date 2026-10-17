@@ -110,11 +110,8 @@ export async function activatePromotion(
     await notifyUser(admin, {
       userId: promo.seller_id,
       type: "payment_succeeded",
-      title: promo.kind === "featured" ? "Your listing is Featured" : "Your listing was bumped",
-      body:
-        promo.kind === "featured"
-          ? `It's at the top of Used Gear for the next ${offer.days} days.`
-          : "It's back at the top of Fresh today.",
+      title: promo.kind === "featured" ? "Your advert is Premium Plus" : "Your advert is Premium",
+      body: `It's in Top picks for the next ${offer.days} days${promo.kind === "featured" ? ", shown first" : ""}.`,
       href: `/marketplace/${promo.listing_id}`,
       data: { listingId: promo.listing_id },
       dedupeKey: `promotion:${promotionId}:active`,

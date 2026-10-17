@@ -1,0 +1,4928 @@
+{
+ "_comment": "Model catalogue (0163). Generated — see supabase/migrations/0163_marketplace_catalogue_top_picks.sql, which seeds marketplace_models from this file.",
+ "models": [
+  {
+   "id": "taylormade-qi4d",
+   "brand": "taylormade",
+   "category": "Drivers",
+   "family": "Qi4D",
+   "year": 2026,
+   "versions": [
+    "Qi4D",
+    "Qi4D LS",
+    "Qi4D Max"
+   ]
+  },
+  {
+   "id": "taylormade-qi4d-woods-hybrids",
+   "brand": "taylormade",
+   "category": "Woods & hybrids",
+   "family": "Qi4D",
+   "year": 2026,
+   "versions": [
+    "Qi4D",
+    "Qi4D LS",
+    "Qi4D Max"
+   ]
+  },
+  {
+   "id": "taylormade-qi35",
+   "brand": "taylormade",
+   "category": "Drivers",
+   "family": "Qi35",
+   "year": 2025,
+   "versions": [
+    "Qi35",
+    "Qi35 LS",
+    "Qi35 Max",
+    "Qi35 Max Lite"
+   ]
+  },
+  {
+   "id": "taylormade-qi35-woods-hybrids",
+   "brand": "taylormade",
+   "category": "Woods & hybrids",
+   "family": "Qi35",
+   "year": 2025,
+   "versions": [
+    "Qi35",
+    "Qi35 LS",
+    "Qi35 Max",
+    "Qi35 Max Lite"
+   ]
+  },
+  {
+   "id": "taylormade-qi35-irons",
+   "brand": "taylormade",
+   "category": "Irons",
+   "family": "Qi35",
+   "year": 2025,
+   "versions": [
+    "Qi35",
+    "Qi35 LS",
+    "Qi35 Max",
+    "Qi35 Max Lite"
+   ]
+  },
+  {
+   "id": "taylormade-qi10",
+   "brand": "taylormade",
+   "category": "Drivers",
+   "family": "Qi10",
+   "year": 2024,
+   "versions": [
+    "Qi10",
+    "Qi10 LS",
+    "Qi10 Max",
+    "Qi10 Tour"
+   ]
+  },
+  {
+   "id": "taylormade-qi10-woods-hybrids",
+   "brand": "taylormade",
+   "category": "Woods & hybrids",
+   "family": "Qi10",
+   "year": 2024,
+   "versions": [
+    "Qi10",
+    "Qi10 LS",
+    "Qi10 Max",
+    "Qi10 Tour"
+   ]
+  },
+  {
+   "id": "taylormade-qi-irons",
+   "brand": "taylormade",
+   "category": "Irons",
+   "family": "Qi irons",
+   "year": 2024,
+   "versions": [
+    "Qi",
+    "Qi HL"
+   ]
+  },
+  {
+   "id": "taylormade-stealth-2",
+   "brand": "taylormade",
+   "category": "Drivers",
+   "family": "Stealth 2",
+   "year": 2023,
+   "versions": [
+    "Stealth 2",
+    "Stealth 2 Plus",
+    "Stealth 2 HD"
+   ]
+  },
+  {
+   "id": "taylormade-stealth-2-woods-hybrids",
+   "brand": "taylormade",
+   "category": "Woods & hybrids",
+   "family": "Stealth 2",
+   "year": 2023,
+   "versions": [
+    "Stealth 2",
+    "Stealth 2 Plus",
+    "Stealth 2 HD"
+   ]
+  },
+  {
+   "id": "taylormade-stealth-2-irons",
+   "brand": "taylormade",
+   "category": "Irons",
+   "family": "Stealth 2",
+   "year": 2023,
+   "versions": [
+    "Stealth 2",
+    "Stealth 2 Plus",
+    "Stealth 2 HD"
+   ]
+  },
+  {
+   "id": "taylormade-stealth",
+   "brand": "taylormade",
+   "category": "Drivers",
+   "family": "Stealth",
+   "year": 2022,
+   "versions": [
+    "Stealth",
+    "Stealth Plus",
+    "Stealth HD"
+   ]
+  },
+  {
+   "id": "taylormade-stealth-woods-hybrids",
+   "brand": "taylormade",
+   "category": "Woods & hybrids",
+   "family": "Stealth",
+   "year": 2022,
+   "versions": [
+    "Stealth",
+    "Stealth Plus",
+    "Stealth HD"
+   ]
+  },
+  {
+   "id": "taylormade-stealth-irons",
+   "brand": "taylormade",
+   "category": "Irons",
+   "family": "Stealth",
+   "year": 2022,
+   "versions": [
+    "Stealth",
+    "Stealth Plus",
+    "Stealth HD"
+   ]
+  },
+  {
+   "id": "taylormade-sim2",
+   "brand": "taylormade",
+   "category": "Drivers",
+   "family": "SIM2",
+   "year": 2021,
+   "versions": [
+    "SIM2",
+    "SIM2 Max",
+    "SIM2 Max D",
+    "SIM2 Max OS"
+   ]
+  },
+  {
+   "id": "taylormade-sim2-woods-hybrids",
+   "brand": "taylormade",
+   "category": "Woods & hybrids",
+   "family": "SIM2",
+   "year": 2021,
+   "versions": [
+    "SIM2",
+    "SIM2 Max",
+    "SIM2 Max D",
+    "SIM2 Max OS"
+   ]
+  },
+  {
+   "id": "taylormade-sim2-irons",
+   "brand": "taylormade",
+   "category": "Irons",
+   "family": "SIM2",
+   "year": 2021,
+   "versions": [
+    "SIM2",
+    "SIM2 Max",
+    "SIM2 Max D",
+    "SIM2 Max OS"
+   ]
+  },
+  {
+   "id": "taylormade-sim",
+   "brand": "taylormade",
+   "category": "Drivers",
+   "family": "SIM",
+   "year": 2020,
+   "versions": [
+    "SIM",
+    "SIM Max",
+    "SIM Max D"
+   ]
+  },
+  {
+   "id": "taylormade-sim-woods-hybrids",
+   "brand": "taylormade",
+   "category": "Woods & hybrids",
+   "family": "SIM",
+   "year": 2020,
+   "versions": [
+    "SIM",
+    "SIM Max",
+    "SIM Max D"
+   ]
+  },
+  {
+   "id": "taylormade-m6",
+   "brand": "taylormade",
+   "category": "Drivers",
+   "family": "M6",
+   "year": 2019,
+   "versions": [
+    "M6",
+    "M6 D-Type"
+   ]
+  },
+  {
+   "id": "taylormade-m6-woods-hybrids",
+   "brand": "taylormade",
+   "category": "Woods & hybrids",
+   "family": "M6",
+   "year": 2019,
+   "versions": [
+    "M6",
+    "M6 D-Type"
+   ]
+  },
+  {
+   "id": "taylormade-m6-irons",
+   "brand": "taylormade",
+   "category": "Irons",
+   "family": "M6",
+   "year": 2019,
+   "versions": [
+    "M6",
+    "M6 D-Type"
+   ]
+  },
+  {
+   "id": "taylormade-m5",
+   "brand": "taylormade",
+   "category": "Drivers",
+   "family": "M5",
+   "year": 2019,
+   "versions": [
+    "M5",
+    "M5 Tour"
+   ]
+  },
+  {
+   "id": "taylormade-m5-woods-hybrids",
+   "brand": "taylormade",
+   "category": "Woods & hybrids",
+   "family": "M5",
+   "year": 2019,
+   "versions": [
+    "M5",
+    "M5 Tour"
+   ]
+  },
+  {
+   "id": "taylormade-m4",
+   "brand": "taylormade",
+   "category": "Drivers",
+   "family": "M4",
+   "year": 2018,
+   "versions": [
+    "M4",
+    "M4 D-Type"
+   ]
+  },
+  {
+   "id": "taylormade-m4-woods-hybrids",
+   "brand": "taylormade",
+   "category": "Woods & hybrids",
+   "family": "M4",
+   "year": 2018,
+   "versions": [
+    "M4",
+    "M4 D-Type"
+   ]
+  },
+  {
+   "id": "taylormade-m4-irons",
+   "brand": "taylormade",
+   "category": "Irons",
+   "family": "M4",
+   "year": 2018,
+   "versions": [
+    "M4",
+    "M4 D-Type"
+   ]
+  },
+  {
+   "id": "taylormade-m3",
+   "brand": "taylormade",
+   "category": "Drivers",
+   "family": "M3",
+   "year": 2018,
+   "versions": [
+    "M3 440",
+    "M3 460"
+   ]
+  },
+  {
+   "id": "taylormade-m3-woods-hybrids",
+   "brand": "taylormade",
+   "category": "Woods & hybrids",
+   "family": "M3",
+   "year": 2018,
+   "versions": [
+    "M3 440",
+    "M3 460"
+   ]
+  },
+  {
+   "id": "taylormade-m2",
+   "brand": "taylormade",
+   "category": "Drivers",
+   "family": "M2",
+   "year": 2016,
+   "versions": [
+    "M2 (2017)",
+    "M2 (2016)",
+    "M2 D-Type"
+   ]
+  },
+  {
+   "id": "taylormade-m2-woods-hybrids",
+   "brand": "taylormade",
+   "category": "Woods & hybrids",
+   "family": "M2",
+   "year": 2016,
+   "versions": [
+    "M2 (2017)",
+    "M2 (2016)",
+    "M2 D-Type"
+   ]
+  },
+  {
+   "id": "taylormade-m2-irons",
+   "brand": "taylormade",
+   "category": "Irons",
+   "family": "M2",
+   "year": 2016,
+   "versions": [
+    "M2 (2017)",
+    "M2 (2016)",
+    "M2 D-Type"
+   ]
+  },
+  {
+   "id": "taylormade-m1",
+   "brand": "taylormade",
+   "category": "Drivers",
+   "family": "M1",
+   "year": 2016,
+   "versions": [
+    "M1 (2017)",
+    "M1 (2016)",
+    "M1 440"
+   ]
+  },
+  {
+   "id": "taylormade-m1-woods-hybrids",
+   "brand": "taylormade",
+   "category": "Woods & hybrids",
+   "family": "M1",
+   "year": 2016,
+   "versions": [
+    "M1 (2017)",
+    "M1 (2016)",
+    "M1 440"
+   ]
+  },
+  {
+   "id": "taylormade-r15",
+   "brand": "taylormade",
+   "category": "Drivers",
+   "family": "R15",
+   "year": 2015,
+   "versions": [
+    "R15 430",
+    "R15 460"
+   ]
+  },
+  {
+   "id": "taylormade-r15-woods-hybrids",
+   "brand": "taylormade",
+   "category": "Woods & hybrids",
+   "family": "R15",
+   "year": 2015,
+   "versions": [
+    "R15 430",
+    "R15 460"
+   ]
+  },
+  {
+   "id": "taylormade-aeroburner",
+   "brand": "taylormade",
+   "category": "Drivers",
+   "family": "AeroBurner",
+   "year": 2015,
+   "versions": [
+    "AeroBurner",
+    "AeroBurner TP"
+   ]
+  },
+  {
+   "id": "taylormade-aeroburner-woods-hybrids",
+   "brand": "taylormade",
+   "category": "Woods & hybrids",
+   "family": "AeroBurner",
+   "year": 2015,
+   "versions": [
+    "AeroBurner",
+    "AeroBurner TP"
+   ]
+  },
+  {
+   "id": "taylormade-sldr",
+   "brand": "taylormade",
+   "category": "Drivers",
+   "family": "SLDR",
+   "year": 2014,
+   "versions": [
+    "SLDR",
+    "SLDR 430",
+    "SLDR S"
+   ]
+  },
+  {
+   "id": "taylormade-sldr-woods-hybrids",
+   "brand": "taylormade",
+   "category": "Woods & hybrids",
+   "family": "SLDR",
+   "year": 2014,
+   "versions": [
+    "SLDR",
+    "SLDR 430",
+    "SLDR S"
+   ]
+  },
+  {
+   "id": "taylormade-jetspeed",
+   "brand": "taylormade",
+   "category": "Drivers",
+   "family": "JetSpeed",
+   "year": 2014,
+   "versions": [
+    "JetSpeed"
+   ]
+  },
+  {
+   "id": "taylormade-jetspeed-woods-hybrids",
+   "brand": "taylormade",
+   "category": "Woods & hybrids",
+   "family": "JetSpeed",
+   "year": 2014,
+   "versions": [
+    "JetSpeed"
+   ]
+  },
+  {
+   "id": "taylormade-r1",
+   "brand": "taylormade",
+   "category": "Drivers",
+   "family": "R1",
+   "year": 2013,
+   "versions": [
+    "R1",
+    "R1 Black"
+   ]
+  },
+  {
+   "id": "taylormade-rocketballz",
+   "brand": "taylormade",
+   "category": "Drivers",
+   "family": "RocketBallz",
+   "year": 2012,
+   "versions": [
+    "RocketBallz",
+    "RBZ Stage 2",
+    "RBZ Tour"
+   ]
+  },
+  {
+   "id": "taylormade-rocketballz-woods-hybrids",
+   "brand": "taylormade",
+   "category": "Woods & hybrids",
+   "family": "RocketBallz",
+   "year": 2012,
+   "versions": [
+    "RocketBallz",
+    "RBZ Stage 2",
+    "RBZ Tour"
+   ]
+  },
+  {
+   "id": "taylormade-rocketballz-irons",
+   "brand": "taylormade",
+   "category": "Irons",
+   "family": "RocketBallz",
+   "year": 2012,
+   "versions": [
+    "RocketBallz",
+    "RBZ Stage 2",
+    "RBZ Tour"
+   ]
+  },
+  {
+   "id": "taylormade-r11",
+   "brand": "taylormade",
+   "category": "Drivers",
+   "family": "R11",
+   "year": 2011,
+   "versions": [
+    "R11",
+    "R11S"
+   ]
+  },
+  {
+   "id": "taylormade-r11-woods-hybrids",
+   "brand": "taylormade",
+   "category": "Woods & hybrids",
+   "family": "R11",
+   "year": 2011,
+   "versions": [
+    "R11",
+    "R11S"
+   ]
+  },
+  {
+   "id": "taylormade-burner",
+   "brand": "taylormade",
+   "category": "Drivers",
+   "family": "Burner",
+   "year": 2007,
+   "versions": [
+    "Burner SuperFast",
+    "Burner 2.0",
+    "Burner Plus"
+   ]
+  },
+  {
+   "id": "taylormade-burner-woods-hybrids",
+   "brand": "taylormade",
+   "category": "Woods & hybrids",
+   "family": "Burner",
+   "year": 2007,
+   "versions": [
+    "Burner SuperFast",
+    "Burner 2.0",
+    "Burner Plus"
+   ]
+  },
+  {
+   "id": "taylormade-burner-irons",
+   "brand": "taylormade",
+   "category": "Irons",
+   "family": "Burner",
+   "year": 2007,
+   "versions": [
+    "Burner SuperFast",
+    "Burner 2.0",
+    "Burner Plus"
+   ]
+  },
+  {
+   "id": "taylormade-p790",
+   "brand": "taylormade",
+   "category": "Irons",
+   "family": "P790",
+   "year": 2017,
+   "versions": [
+    "P790 (2025)",
+    "P790 (2023)",
+    "P790 (2021)",
+    "P790 (2019)",
+    "P790 (2017)"
+   ]
+  },
+  {
+   "id": "taylormade-p770",
+   "brand": "taylormade",
+   "category": "Irons",
+   "family": "P770",
+   "year": 2020,
+   "versions": [
+    "P770 (2024)",
+    "P770 (2022)",
+    "P770 (2020)"
+   ]
+  },
+  {
+   "id": "taylormade-p7mc",
+   "brand": "taylormade",
+   "category": "Irons",
+   "family": "P7MC",
+   "year": 2020,
+   "versions": [
+    "P7MC (2023)",
+    "P7MC (2020)"
+   ]
+  },
+  {
+   "id": "taylormade-p7mb",
+   "brand": "taylormade",
+   "category": "Irons",
+   "family": "P7MB",
+   "year": 2020,
+   "versions": [
+    "P7MB (2023)",
+    "P7MB (2020)"
+   ]
+  },
+  {
+   "id": "taylormade-p7cb",
+   "brand": "taylormade",
+   "category": "Irons",
+   "family": "P7CB",
+   "year": 2024,
+   "versions": [
+    "P7CB"
+   ]
+  },
+  {
+   "id": "taylormade-p8cb",
+   "brand": "taylormade",
+   "category": "Irons",
+   "family": "P8CB",
+   "year": 2025,
+   "versions": [
+    "P8CB"
+   ]
+  },
+  {
+   "id": "taylormade-tp-irons",
+   "brand": "taylormade",
+   "category": "Irons",
+   "family": "TP irons",
+   "year": 2017,
+   "versions": [
+    "P730",
+    "P750",
+    "P760"
+   ]
+  },
+  {
+   "id": "taylormade-milled-grind",
+   "brand": "taylormade",
+   "category": "Wedges",
+   "family": "Milled Grind",
+   "year": 2017,
+   "versions": [
+    "MG4",
+    "MG3",
+    "MG2",
+    "Milled Grind"
+   ]
+  },
+  {
+   "id": "taylormade-hi-toe",
+   "brand": "taylormade",
+   "category": "Wedges",
+   "family": "Hi-Toe",
+   "year": 2019,
+   "versions": [
+    "Hi-Toe 4",
+    "Hi-Toe 3",
+    "Hi-Toe Raw",
+    "Hi-Toe"
+   ]
+  },
+  {
+   "id": "taylormade-spider-tour",
+   "brand": "taylormade",
+   "category": "Putters",
+   "family": "Spider Tour",
+   "year": 2023,
+   "versions": [
+    "Spider Tour",
+    "Spider Tour X",
+    "Spider Tour Z",
+    "Spider Tour V"
+   ]
+  },
+  {
+   "id": "taylormade-spider-x",
+   "brand": "taylormade",
+   "category": "Putters",
+   "family": "Spider X",
+   "year": 2020,
+   "versions": [
+    "Spider X",
+    "Spider X Hydro Blast"
+   ]
+  },
+  {
+   "id": "taylormade-spider-gt",
+   "brand": "taylormade",
+   "category": "Putters",
+   "family": "Spider GT",
+   "year": 2022,
+   "versions": [
+    "Spider GT",
+    "Spider GT X",
+    "Spider GT Max"
+   ]
+  },
+  {
+   "id": "taylormade-spider-ex",
+   "brand": "taylormade",
+   "category": "Putters",
+   "family": "Spider EX",
+   "year": 2021,
+   "versions": [
+    "Spider EX"
+   ]
+  },
+  {
+   "id": "taylormade-spider-tour-2019",
+   "brand": "taylormade",
+   "category": "Putters",
+   "family": "Spider Tour (2019)",
+   "year": 2019,
+   "versions": [
+    "Spider Tour",
+    "Spider Tour Red",
+    "Spider Tour Black"
+   ]
+  },
+  {
+   "id": "taylormade-tp-collection",
+   "brand": "taylormade",
+   "category": "Putters",
+   "family": "TP Collection",
+   "year": 2019,
+   "versions": [
+    "Juno",
+    "Soto",
+    "Del Monte",
+    "Mullen",
+    "Ardmore",
+    "Bandon"
+   ]
+  },
+  {
+   "id": "callaway-elyte",
+   "brand": "callaway",
+   "category": "Drivers",
+   "family": "Elyte",
+   "year": 2025,
+   "versions": [
+    "Elyte",
+    "Elyte Triple Diamond",
+    "Elyte X",
+    "Elyte Max Fast"
+   ]
+  },
+  {
+   "id": "callaway-elyte-woods-hybrids",
+   "brand": "callaway",
+   "category": "Woods & hybrids",
+   "family": "Elyte",
+   "year": 2025,
+   "versions": [
+    "Elyte",
+    "Elyte Triple Diamond",
+    "Elyte X",
+    "Elyte Max Fast"
+   ]
+  },
+  {
+   "id": "callaway-elyte-irons",
+   "brand": "callaway",
+   "category": "Irons",
+   "family": "Elyte",
+   "year": 2025,
+   "versions": [
+    "Elyte",
+    "Elyte Triple Diamond",
+    "Elyte X",
+    "Elyte Max Fast"
+   ]
+  },
+  {
+   "id": "callaway-paradym-ai-smoke",
+   "brand": "callaway",
+   "category": "Drivers",
+   "family": "Paradym Ai Smoke",
+   "year": 2024,
+   "versions": [
+    "Ai Smoke",
+    "Ai Smoke Max",
+    "Ai Smoke Max D",
+    "Ai Smoke Max Fast",
+    "Ai Smoke Triple Diamond"
+   ]
+  },
+  {
+   "id": "callaway-paradym-ai-smoke-woods-hybrids",
+   "brand": "callaway",
+   "category": "Woods & hybrids",
+   "family": "Paradym Ai Smoke",
+   "year": 2024,
+   "versions": [
+    "Ai Smoke",
+    "Ai Smoke Max",
+    "Ai Smoke Max D",
+    "Ai Smoke Max Fast",
+    "Ai Smoke Triple Diamond"
+   ]
+  },
+  {
+   "id": "callaway-paradym-ai-smoke-irons",
+   "brand": "callaway",
+   "category": "Irons",
+   "family": "Paradym Ai Smoke",
+   "year": 2024,
+   "versions": [
+    "Ai Smoke",
+    "Ai Smoke Max",
+    "Ai Smoke Max D",
+    "Ai Smoke Max Fast",
+    "Ai Smoke Triple Diamond"
+   ]
+  },
+  {
+   "id": "callaway-paradym",
+   "brand": "callaway",
+   "category": "Drivers",
+   "family": "Paradym",
+   "year": 2023,
+   "versions": [
+    "Paradym",
+    "Paradym X",
+    "Paradym Triple Diamond"
+   ]
+  },
+  {
+   "id": "callaway-paradym-woods-hybrids",
+   "brand": "callaway",
+   "category": "Woods & hybrids",
+   "family": "Paradym",
+   "year": 2023,
+   "versions": [
+    "Paradym",
+    "Paradym X",
+    "Paradym Triple Diamond"
+   ]
+  },
+  {
+   "id": "callaway-paradym-irons",
+   "brand": "callaway",
+   "category": "Irons",
+   "family": "Paradym",
+   "year": 2023,
+   "versions": [
+    "Paradym",
+    "Paradym X",
+    "Paradym Triple Diamond"
+   ]
+  },
+  {
+   "id": "callaway-rogue-st",
+   "brand": "callaway",
+   "category": "Drivers",
+   "family": "Rogue ST",
+   "year": 2022,
+   "versions": [
+    "Rogue ST Max",
+    "Rogue ST Max LS",
+    "Rogue ST Max D",
+    "Rogue ST Triple Diamond LS",
+    "Rogue ST Pro"
+   ]
+  },
+  {
+   "id": "callaway-rogue-st-woods-hybrids",
+   "brand": "callaway",
+   "category": "Woods & hybrids",
+   "family": "Rogue ST",
+   "year": 2022,
+   "versions": [
+    "Rogue ST Max",
+    "Rogue ST Max LS",
+    "Rogue ST Max D",
+    "Rogue ST Triple Diamond LS",
+    "Rogue ST Pro"
+   ]
+  },
+  {
+   "id": "callaway-rogue-st-irons",
+   "brand": "callaway",
+   "category": "Irons",
+   "family": "Rogue ST",
+   "year": 2022,
+   "versions": [
+    "Rogue ST Max",
+    "Rogue ST Max LS",
+    "Rogue ST Max D",
+    "Rogue ST Triple Diamond LS",
+    "Rogue ST Pro"
+   ]
+  },
+  {
+   "id": "callaway-epic",
+   "brand": "callaway",
+   "category": "Drivers",
+   "family": "Epic",
+   "year": 2021,
+   "versions": [
+    "Epic Speed",
+    "Epic Max",
+    "Epic Max LS",
+    "Epic Max Fast"
+   ]
+  },
+  {
+   "id": "callaway-epic-woods-hybrids",
+   "brand": "callaway",
+   "category": "Woods & hybrids",
+   "family": "Epic",
+   "year": 2021,
+   "versions": [
+    "Epic Speed",
+    "Epic Max",
+    "Epic Max LS",
+    "Epic Max Fast"
+   ]
+  },
+  {
+   "id": "callaway-mavrik",
+   "brand": "callaway",
+   "category": "Drivers",
+   "family": "Mavrik",
+   "year": 2020,
+   "versions": [
+    "Mavrik",
+    "Mavrik Sub Zero",
+    "Mavrik Max",
+    "Mavrik Pro"
+   ]
+  },
+  {
+   "id": "callaway-mavrik-woods-hybrids",
+   "brand": "callaway",
+   "category": "Woods & hybrids",
+   "family": "Mavrik",
+   "year": 2020,
+   "versions": [
+    "Mavrik",
+    "Mavrik Sub Zero",
+    "Mavrik Max",
+    "Mavrik Pro"
+   ]
+  },
+  {
+   "id": "callaway-mavrik-irons",
+   "brand": "callaway",
+   "category": "Irons",
+   "family": "Mavrik",
+   "year": 2020,
+   "versions": [
+    "Mavrik",
+    "Mavrik Sub Zero",
+    "Mavrik Max",
+    "Mavrik Pro"
+   ]
+  },
+  {
+   "id": "callaway-epic-flash",
+   "brand": "callaway",
+   "category": "Drivers",
+   "family": "Epic Flash",
+   "year": 2019,
+   "versions": [
+    "Epic Flash",
+    "Epic Flash Sub Zero",
+    "Epic Flash Star"
+   ]
+  },
+  {
+   "id": "callaway-epic-flash-woods-hybrids",
+   "brand": "callaway",
+   "category": "Woods & hybrids",
+   "family": "Epic Flash",
+   "year": 2019,
+   "versions": [
+    "Epic Flash",
+    "Epic Flash Sub Zero",
+    "Epic Flash Star"
+   ]
+  },
+  {
+   "id": "callaway-rogue",
+   "brand": "callaway",
+   "category": "Drivers",
+   "family": "Rogue",
+   "year": 2018,
+   "versions": [
+    "Rogue",
+    "Rogue Sub Zero",
+    "Rogue Draw",
+    "Rogue Pro"
+   ]
+  },
+  {
+   "id": "callaway-rogue-woods-hybrids",
+   "brand": "callaway",
+   "category": "Woods & hybrids",
+   "family": "Rogue",
+   "year": 2018,
+   "versions": [
+    "Rogue",
+    "Rogue Sub Zero",
+    "Rogue Draw",
+    "Rogue Pro"
+   ]
+  },
+  {
+   "id": "callaway-rogue-irons",
+   "brand": "callaway",
+   "category": "Irons",
+   "family": "Rogue",
+   "year": 2018,
+   "versions": [
+    "Rogue",
+    "Rogue Sub Zero",
+    "Rogue Draw",
+    "Rogue Pro"
+   ]
+  },
+  {
+   "id": "callaway-gbb-epic",
+   "brand": "callaway",
+   "category": "Drivers",
+   "family": "GBB Epic",
+   "year": 2017,
+   "versions": [
+    "GBB Epic",
+    "GBB Epic Sub Zero",
+    "Epic Star"
+   ]
+  },
+  {
+   "id": "callaway-gbb-epic-woods-hybrids",
+   "brand": "callaway",
+   "category": "Woods & hybrids",
+   "family": "GBB Epic",
+   "year": 2017,
+   "versions": [
+    "GBB Epic",
+    "GBB Epic Sub Zero",
+    "Epic Star"
+   ]
+  },
+  {
+   "id": "callaway-gbb-epic-irons",
+   "brand": "callaway",
+   "category": "Irons",
+   "family": "GBB Epic",
+   "year": 2017,
+   "versions": [
+    "GBB Epic",
+    "GBB Epic Sub Zero",
+    "Epic Star"
+   ]
+  },
+  {
+   "id": "callaway-xr16",
+   "brand": "callaway",
+   "category": "Drivers",
+   "family": "XR16",
+   "year": 2016,
+   "versions": [
+    "XR16",
+    "XR16 Pro",
+    "XR16 Sub Zero"
+   ]
+  },
+  {
+   "id": "callaway-xr16-woods-hybrids",
+   "brand": "callaway",
+   "category": "Woods & hybrids",
+   "family": "XR16",
+   "year": 2016,
+   "versions": [
+    "XR16",
+    "XR16 Pro",
+    "XR16 Sub Zero"
+   ]
+  },
+  {
+   "id": "callaway-xr",
+   "brand": "callaway",
+   "category": "Drivers",
+   "family": "XR",
+   "year": 2015,
+   "versions": [
+    "XR",
+    "XR Pro",
+    "XR OS"
+   ]
+  },
+  {
+   "id": "callaway-xr-woods-hybrids",
+   "brand": "callaway",
+   "category": "Woods & hybrids",
+   "family": "XR",
+   "year": 2015,
+   "versions": [
+    "XR",
+    "XR Pro",
+    "XR OS"
+   ]
+  },
+  {
+   "id": "callaway-xr-irons",
+   "brand": "callaway",
+   "category": "Irons",
+   "family": "XR",
+   "year": 2015,
+   "versions": [
+    "XR",
+    "XR Pro",
+    "XR OS"
+   ]
+  },
+  {
+   "id": "callaway-big-bertha",
+   "brand": "callaway",
+   "category": "Drivers",
+   "family": "Big Bertha",
+   "year": 2014,
+   "versions": [
+    "Big Bertha (2023)",
+    "Big Bertha B21",
+    "Big Bertha Fusion",
+    "Big Bertha Alpha 815",
+    "Big Bertha (2014)"
+   ]
+  },
+  {
+   "id": "callaway-big-bertha-woods-hybrids",
+   "brand": "callaway",
+   "category": "Woods & hybrids",
+   "family": "Big Bertha",
+   "year": 2014,
+   "versions": [
+    "Big Bertha (2023)",
+    "Big Bertha B21",
+    "Big Bertha Fusion",
+    "Big Bertha Alpha 815",
+    "Big Bertha (2014)"
+   ]
+  },
+  {
+   "id": "callaway-big-bertha-irons",
+   "brand": "callaway",
+   "category": "Irons",
+   "family": "Big Bertha",
+   "year": 2014,
+   "versions": [
+    "Big Bertha (2023)",
+    "Big Bertha B21",
+    "Big Bertha Fusion",
+    "Big Bertha Alpha 815",
+    "Big Bertha (2014)"
+   ]
+  },
+  {
+   "id": "callaway-x2-hot",
+   "brand": "callaway",
+   "category": "Drivers",
+   "family": "X2 Hot",
+   "year": 2014,
+   "versions": [
+    "X2 Hot",
+    "X2 Hot Pro"
+   ]
+  },
+  {
+   "id": "callaway-x2-hot-woods-hybrids",
+   "brand": "callaway",
+   "category": "Woods & hybrids",
+   "family": "X2 Hot",
+   "year": 2014,
+   "versions": [
+    "X2 Hot",
+    "X2 Hot Pro"
+   ]
+  },
+  {
+   "id": "callaway-x2-hot-irons",
+   "brand": "callaway",
+   "category": "Irons",
+   "family": "X2 Hot",
+   "year": 2014,
+   "versions": [
+    "X2 Hot",
+    "X2 Hot Pro"
+   ]
+  },
+  {
+   "id": "callaway-x-hot",
+   "brand": "callaway",
+   "category": "Drivers",
+   "family": "X Hot",
+   "year": 2013,
+   "versions": [
+    "X Hot",
+    "X Hot Pro"
+   ]
+  },
+  {
+   "id": "callaway-x-hot-woods-hybrids",
+   "brand": "callaway",
+   "category": "Woods & hybrids",
+   "family": "X Hot",
+   "year": 2013,
+   "versions": [
+    "X Hot",
+    "X Hot Pro"
+   ]
+  },
+  {
+   "id": "callaway-x-hot-irons",
+   "brand": "callaway",
+   "category": "Irons",
+   "family": "X Hot",
+   "year": 2013,
+   "versions": [
+    "X Hot",
+    "X Hot Pro"
+   ]
+  },
+  {
+   "id": "callaway-razr-fit",
+   "brand": "callaway",
+   "category": "Drivers",
+   "family": "RAZR Fit",
+   "year": 2011,
+   "versions": [
+    "RAZR Fit",
+    "RAZR Fit Xtreme"
+   ]
+  },
+  {
+   "id": "callaway-razr-fit-woods-hybrids",
+   "brand": "callaway",
+   "category": "Woods & hybrids",
+   "family": "RAZR Fit",
+   "year": 2011,
+   "versions": [
+    "RAZR Fit",
+    "RAZR Fit Xtreme"
+   ]
+  },
+  {
+   "id": "callaway-ft",
+   "brand": "callaway",
+   "category": "Drivers",
+   "family": "FT",
+   "year": 2008,
+   "versions": [
+    "FT-9",
+    "FT-iQ",
+    "FT-i",
+    "FT Optiforce"
+   ]
+  },
+  {
+   "id": "callaway-ft-woods-hybrids",
+   "brand": "callaway",
+   "category": "Woods & hybrids",
+   "family": "FT",
+   "year": 2008,
+   "versions": [
+    "FT-9",
+    "FT-iQ",
+    "FT-i",
+    "FT Optiforce"
+   ]
+  },
+  {
+   "id": "callaway-apex",
+   "brand": "callaway",
+   "category": "Irons",
+   "family": "Apex",
+   "year": 2014,
+   "versions": [
+    "Apex (2024)",
+    "Apex Ai200",
+    "Apex Ai300",
+    "Apex (2021)",
+    "Apex (2019)",
+    "Apex CF16",
+    "Apex (2014)"
+   ]
+  },
+  {
+   "id": "callaway-apex-pro",
+   "brand": "callaway",
+   "category": "Irons",
+   "family": "Apex Pro",
+   "year": 2014,
+   "versions": [
+    "Apex Pro (2024)",
+    "Apex Pro (2021)",
+    "Apex Pro (2019)",
+    "Apex Pro 16"
+   ]
+  },
+  {
+   "id": "callaway-apex-mb-cb",
+   "brand": "callaway",
+   "category": "Irons",
+   "family": "Apex MB / CB",
+   "year": 2018,
+   "versions": [
+    "Apex MB",
+    "Apex CB",
+    "Apex TCB",
+    "Apex DCB"
+   ]
+  },
+  {
+   "id": "callaway-x-forged",
+   "brand": "callaway",
+   "category": "Irons",
+   "family": "X Forged",
+   "year": 2013,
+   "versions": [
+    "X Forged (2021)",
+    "X Forged (2018)",
+    "X Forged (2013)"
+   ]
+  },
+  {
+   "id": "callaway-opus",
+   "brand": "callaway",
+   "category": "Wedges",
+   "family": "Opus",
+   "year": 2024,
+   "versions": [
+    "Opus",
+    "Opus Platinum"
+   ]
+  },
+  {
+   "id": "callaway-jaws-raw",
+   "brand": "callaway",
+   "category": "Wedges",
+   "family": "Jaws Raw",
+   "year": 2022,
+   "versions": [
+    "Jaws Raw",
+    "Jaws Raw Face"
+   ]
+  },
+  {
+   "id": "callaway-jaws-md5",
+   "brand": "callaway",
+   "category": "Wedges",
+   "family": "Jaws MD5",
+   "year": 2019,
+   "versions": [
+    "Jaws MD5"
+   ]
+  },
+  {
+   "id": "callaway-jaws-forged",
+   "brand": "callaway",
+   "category": "Wedges",
+   "family": "Jaws Forged",
+   "year": 2023,
+   "versions": [
+    "Jaws Forged"
+   ]
+  },
+  {
+   "id": "callaway-mack-daddy",
+   "brand": "callaway",
+   "category": "Wedges",
+   "family": "Mack Daddy",
+   "year": 2014,
+   "versions": [
+    "Mack Daddy 4",
+    "Mack Daddy 3",
+    "Mack Daddy 2",
+    "Mack Daddy CB"
+   ]
+  },
+  {
+   "id": "odyssey-ai-one",
+   "brand": "odyssey",
+   "category": "Putters",
+   "family": "Ai-One",
+   "year": 2023,
+   "versions": [
+    "Ai-One",
+    "Ai-One Milled",
+    "Ai-One Cruiser"
+   ]
+  },
+  {
+   "id": "odyssey-square-2-square",
+   "brand": "odyssey",
+   "category": "Putters",
+   "family": "Square 2 Square",
+   "year": 2025,
+   "versions": [
+    "Ai-One Square 2 Square",
+    "Square 2 Square Jailbird"
+   ]
+  },
+  {
+   "id": "odyssey-tri-hot-5k",
+   "brand": "odyssey",
+   "category": "Putters",
+   "family": "Tri-Hot 5K",
+   "year": 2022,
+   "versions": [
+    "Tri-Hot 5K One",
+    "Tri-Hot 5K Two",
+    "Tri-Hot 5K Double Wide"
+   ]
+  },
+  {
+   "id": "odyssey-white-hot-og",
+   "brand": "odyssey",
+   "category": "Putters",
+   "family": "White Hot OG",
+   "year": 2021,
+   "versions": [
+    "White Hot OG One",
+    "White Hot OG Two",
+    "White Hot OG #7",
+    "White Hot OG Rossie"
+   ]
+  },
+  {
+   "id": "odyssey-eleven",
+   "brand": "odyssey",
+   "category": "Putters",
+   "family": "Eleven",
+   "year": 2021,
+   "versions": [
+    "Eleven",
+    "Eleven Tour Lined"
+   ]
+  },
+  {
+   "id": "odyssey-ten",
+   "brand": "odyssey",
+   "category": "Putters",
+   "family": "Ten",
+   "year": 2022,
+   "versions": [
+    "Ten",
+    "Ten Tour Lined"
+   ]
+  },
+  {
+   "id": "odyssey-stroke-lab",
+   "brand": "odyssey",
+   "category": "Putters",
+   "family": "Stroke Lab",
+   "year": 2019,
+   "versions": [
+    "Stroke Lab",
+    "Stroke Lab Black"
+   ]
+  },
+  {
+   "id": "odyssey-toulon",
+   "brand": "odyssey",
+   "category": "Putters",
+   "family": "Toulon",
+   "year": 2017,
+   "versions": [
+    "Toulon Design"
+   ]
+  },
+  {
+   "id": "odyssey-o-works",
+   "brand": "odyssey",
+   "category": "Putters",
+   "family": "O-Works",
+   "year": 2017,
+   "versions": [
+    "O-Works",
+    "O-Works Red",
+    "O-Works Tour"
+   ]
+  },
+  {
+   "id": "odyssey-white-hot-pro",
+   "brand": "odyssey",
+   "category": "Putters",
+   "family": "White Hot Pro",
+   "year": 2016,
+   "versions": [
+    "White Hot Pro 2.0",
+    "White Hot Pro 3.0",
+    "White Hot RX"
+   ]
+  },
+  {
+   "id": "odyssey-versa",
+   "brand": "odyssey",
+   "category": "Putters",
+   "family": "Versa",
+   "year": 2015,
+   "versions": [
+    "Versa",
+    "Versa 2-Ball"
+   ]
+  },
+  {
+   "id": "odyssey-2-ball",
+   "brand": "odyssey",
+   "category": "Putters",
+   "family": "2-Ball",
+   "year": 2007,
+   "versions": [
+    "White Hot 2-Ball",
+    "2-Ball Fang",
+    "2-Ball Ten"
+   ]
+  },
+  {
+   "id": "titleist-gt",
+   "brand": "titleist",
+   "category": "Drivers",
+   "family": "GT",
+   "year": 2024,
+   "versions": [
+    "GT1",
+    "GT2",
+    "GT3",
+    "GT4",
+    "GT280"
+   ]
+  },
+  {
+   "id": "titleist-gt-woods-hybrids",
+   "brand": "titleist",
+   "category": "Woods & hybrids",
+   "family": "GT",
+   "year": 2024,
+   "versions": [
+    "GT1",
+    "GT2",
+    "GT3",
+    "GT4",
+    "GT280"
+   ]
+  },
+  {
+   "id": "titleist-tsr",
+   "brand": "titleist",
+   "category": "Drivers",
+   "family": "TSR",
+   "year": 2022,
+   "versions": [
+    "TSR1",
+    "TSR2",
+    "TSR3",
+    "TSR4"
+   ]
+  },
+  {
+   "id": "titleist-tsr-woods-hybrids",
+   "brand": "titleist",
+   "category": "Woods & hybrids",
+   "family": "TSR",
+   "year": 2022,
+   "versions": [
+    "TSR1",
+    "TSR2",
+    "TSR3",
+    "TSR4"
+   ]
+  },
+  {
+   "id": "titleist-tsi",
+   "brand": "titleist",
+   "category": "Drivers",
+   "family": "TSi",
+   "year": 2020,
+   "versions": [
+    "TSi1",
+    "TSi2",
+    "TSi3",
+    "TSi4"
+   ]
+  },
+  {
+   "id": "titleist-tsi-woods-hybrids",
+   "brand": "titleist",
+   "category": "Woods & hybrids",
+   "family": "TSi",
+   "year": 2020,
+   "versions": [
+    "TSi1",
+    "TSi2",
+    "TSi3",
+    "TSi4"
+   ]
+  },
+  {
+   "id": "titleist-ts",
+   "brand": "titleist",
+   "category": "Drivers",
+   "family": "TS",
+   "year": 2018,
+   "versions": [
+    "TS1",
+    "TS2",
+    "TS3",
+    "TS4"
+   ]
+  },
+  {
+   "id": "titleist-ts-woods-hybrids",
+   "brand": "titleist",
+   "category": "Woods & hybrids",
+   "family": "TS",
+   "year": 2018,
+   "versions": [
+    "TS1",
+    "TS2",
+    "TS3",
+    "TS4"
+   ]
+  },
+  {
+   "id": "titleist-917",
+   "brand": "titleist",
+   "category": "Drivers",
+   "family": "917",
+   "year": 2016,
+   "versions": [
+    "917 D2",
+    "917 D3",
+    "917 F2",
+    "917 F3"
+   ]
+  },
+  {
+   "id": "titleist-917-woods-hybrids",
+   "brand": "titleist",
+   "category": "Woods & hybrids",
+   "family": "917",
+   "year": 2016,
+   "versions": [
+    "917 D2",
+    "917 D3",
+    "917 F2",
+    "917 F3"
+   ]
+  },
+  {
+   "id": "titleist-915",
+   "brand": "titleist",
+   "category": "Drivers",
+   "family": "915",
+   "year": 2014,
+   "versions": [
+    "915 D2",
+    "915 D3",
+    "915 F",
+    "915 Fd"
+   ]
+  },
+  {
+   "id": "titleist-915-woods-hybrids",
+   "brand": "titleist",
+   "category": "Woods & hybrids",
+   "family": "915",
+   "year": 2014,
+   "versions": [
+    "915 D2",
+    "915 D3",
+    "915 F",
+    "915 Fd"
+   ]
+  },
+  {
+   "id": "titleist-913",
+   "brand": "titleist",
+   "category": "Drivers",
+   "family": "913",
+   "year": 2012,
+   "versions": [
+    "913 D2",
+    "913 D3",
+    "913 F"
+   ]
+  },
+  {
+   "id": "titleist-913-woods-hybrids",
+   "brand": "titleist",
+   "category": "Woods & hybrids",
+   "family": "913",
+   "year": 2012,
+   "versions": [
+    "913 D2",
+    "913 D3",
+    "913 F"
+   ]
+  },
+  {
+   "id": "titleist-910",
+   "brand": "titleist",
+   "category": "Drivers",
+   "family": "910",
+   "year": 2010,
+   "versions": [
+    "910 D2",
+    "910 D3",
+    "910 F"
+   ]
+  },
+  {
+   "id": "titleist-910-woods-hybrids",
+   "brand": "titleist",
+   "category": "Woods & hybrids",
+   "family": "910",
+   "year": 2010,
+   "versions": [
+    "910 D2",
+    "910 D3",
+    "910 F"
+   ]
+  },
+  {
+   "id": "titleist-909",
+   "brand": "titleist",
+   "category": "Drivers",
+   "family": "909",
+   "year": 2008,
+   "versions": [
+    "909 D2",
+    "909 D3",
+    "909 DComp"
+   ]
+  },
+  {
+   "id": "titleist-t100",
+   "brand": "titleist",
+   "category": "Irons",
+   "family": "T100",
+   "year": 2019,
+   "versions": [
+    "T100 (2025)",
+    "T100 (2023)",
+    "T100 (2021)",
+    "T100 (2019)",
+    "T100S"
+   ]
+  },
+  {
+   "id": "titleist-t150",
+   "brand": "titleist",
+   "category": "Irons",
+   "family": "T150",
+   "year": 2023,
+   "versions": [
+    "T150"
+   ]
+  },
+  {
+   "id": "titleist-t200",
+   "brand": "titleist",
+   "category": "Irons",
+   "family": "T200",
+   "year": 2019,
+   "versions": [
+    "T200 (2023)",
+    "T200 (2021)",
+    "T200 (2019)"
+   ]
+  },
+  {
+   "id": "titleist-t250",
+   "brand": "titleist",
+   "category": "Irons",
+   "family": "T250",
+   "year": 2025,
+   "versions": [
+    "T250"
+   ]
+  },
+  {
+   "id": "titleist-t300",
+   "brand": "titleist",
+   "category": "Irons",
+   "family": "T300",
+   "year": 2019,
+   "versions": [
+    "T300 (2021)",
+    "T300 (2019)"
+   ]
+  },
+  {
+   "id": "titleist-t350",
+   "brand": "titleist",
+   "category": "Irons",
+   "family": "T350",
+   "year": 2023,
+   "versions": [
+    "T350"
+   ]
+  },
+  {
+   "id": "titleist-620",
+   "brand": "titleist",
+   "category": "Irons",
+   "family": "620",
+   "year": 2018,
+   "versions": [
+    "620 MB",
+    "620 CB"
+   ]
+  },
+  {
+   "id": "titleist-718",
+   "brand": "titleist",
+   "category": "Irons",
+   "family": "718",
+   "year": 2017,
+   "versions": [
+    "718 AP1",
+    "718 AP2",
+    "718 AP3",
+    "718 CB",
+    "718 MB"
+   ]
+  },
+  {
+   "id": "titleist-716",
+   "brand": "titleist",
+   "category": "Irons",
+   "family": "716",
+   "year": 2015,
+   "versions": [
+    "716 AP1",
+    "716 AP2",
+    "716 CB",
+    "716 MB"
+   ]
+  },
+  {
+   "id": "titleist-714",
+   "brand": "titleist",
+   "category": "Irons",
+   "family": "714",
+   "year": 2013,
+   "versions": [
+    "714 AP1",
+    "714 AP2",
+    "714 CB",
+    "714 MB"
+   ]
+  },
+  {
+   "id": "titleist-712",
+   "brand": "titleist",
+   "category": "Irons",
+   "family": "712",
+   "year": 2011,
+   "versions": [
+    "712 AP1",
+    "712 AP2",
+    "712 CB",
+    "712 MB"
+   ]
+  },
+  {
+   "id": "titleist-vokey-sm10",
+   "brand": "titleist",
+   "category": "Wedges",
+   "family": "Vokey SM10",
+   "year": 2024,
+   "versions": [
+    "SM10"
+   ]
+  },
+  {
+   "id": "titleist-vokey-sm9",
+   "brand": "titleist",
+   "category": "Wedges",
+   "family": "Vokey SM9",
+   "year": 2022,
+   "versions": [
+    "SM9"
+   ]
+  },
+  {
+   "id": "titleist-vokey-sm8",
+   "brand": "titleist",
+   "category": "Wedges",
+   "family": "Vokey SM8",
+   "year": 2020,
+   "versions": [
+    "SM8"
+   ]
+  },
+  {
+   "id": "titleist-vokey-sm7",
+   "brand": "titleist",
+   "category": "Wedges",
+   "family": "Vokey SM7",
+   "year": 2018,
+   "versions": [
+    "SM7"
+   ]
+  },
+  {
+   "id": "titleist-vokey-sm6",
+   "brand": "titleist",
+   "category": "Wedges",
+   "family": "Vokey SM6",
+   "year": 2016,
+   "versions": [
+    "SM6"
+   ]
+  },
+  {
+   "id": "titleist-vokey-sm5-and-older",
+   "brand": "titleist",
+   "category": "Wedges",
+   "family": "Vokey SM5 and older",
+   "year": 2008,
+   "versions": [
+    "SM5",
+    "SM4",
+    "Spin Milled"
+   ]
+  },
+  {
+   "id": "titleist-vokey-wedgeworks",
+   "brand": "titleist",
+   "category": "Wedges",
+   "family": "Vokey WedgeWorks",
+   "year": 2012,
+   "versions": [
+    "WedgeWorks"
+   ]
+  },
+  {
+   "id": "scotty-cameron-studio-style",
+   "brand": "scotty-cameron",
+   "category": "Putters",
+   "family": "Studio Style",
+   "year": 2025,
+   "versions": [
+    "Newport",
+    "Newport 2",
+    "Newport 2 Plus",
+    "Fastback 1.5"
+   ]
+  },
+  {
+   "id": "scotty-cameron-phantom",
+   "brand": "scotty-cameron",
+   "category": "Putters",
+   "family": "Phantom",
+   "year": 2024,
+   "versions": [
+    "Phantom 5",
+    "Phantom 5.5",
+    "Phantom 7",
+    "Phantom 9",
+    "Phantom 11"
+   ]
+  },
+  {
+   "id": "scotty-cameron-super-select",
+   "brand": "scotty-cameron",
+   "category": "Putters",
+   "family": "Super Select",
+   "year": 2023,
+   "versions": [
+    "Newport",
+    "Newport 2",
+    "Newport 2 Plus",
+    "Squareback 2",
+    "Fastback 1.5",
+    "Del Mar"
+   ]
+  },
+  {
+   "id": "scotty-cameron-phantom-x",
+   "brand": "scotty-cameron",
+   "category": "Putters",
+   "family": "Phantom X",
+   "year": 2019,
+   "versions": [
+    "Phantom X 5",
+    "Phantom X 5.5",
+    "Phantom X 7",
+    "Phantom X 9",
+    "Phantom X 11",
+    "Phantom X 12"
+   ]
+  },
+  {
+   "id": "scotty-cameron-special-select",
+   "brand": "scotty-cameron",
+   "category": "Putters",
+   "family": "Special Select",
+   "year": 2020,
+   "versions": [
+    "Newport",
+    "Newport 2",
+    "Newport 2.5",
+    "Fastback",
+    "Squareback",
+    "Flowback",
+    "Del Mar"
+   ]
+  },
+  {
+   "id": "scotty-cameron-select",
+   "brand": "scotty-cameron",
+   "category": "Putters",
+   "family": "Select",
+   "year": 2016,
+   "versions": [
+    "Newport",
+    "Newport 2",
+    "Newport 2.5",
+    "Fastback",
+    "Squareback",
+    "Laguna"
+   ]
+  },
+  {
+   "id": "scotty-cameron-futura",
+   "brand": "scotty-cameron",
+   "category": "Putters",
+   "family": "Futura",
+   "year": 2014,
+   "versions": [
+    "Futura 5",
+    "Futura 6M",
+    "Futura X",
+    "Futura X5"
+   ]
+  },
+  {
+   "id": "scotty-cameron-golo",
+   "brand": "scotty-cameron",
+   "category": "Putters",
+   "family": "GoLo",
+   "year": 2015,
+   "versions": [
+    "GoLo 3",
+    "GoLo 5",
+    "GoLo 7",
+    "GoLo S5"
+   ]
+  },
+  {
+   "id": "scotty-cameron-studio-select",
+   "brand": "scotty-cameron",
+   "category": "Putters",
+   "family": "Studio Select",
+   "year": 2012,
+   "versions": [
+    "Newport",
+    "Newport 2",
+    "Kombi",
+    "Laguna"
+   ]
+  },
+  {
+   "id": "scotty-cameron-california",
+   "brand": "scotty-cameron",
+   "category": "Putters",
+   "family": "California",
+   "year": 2012,
+   "versions": [
+    "Del Mar",
+    "Monterey",
+    "Fastback",
+    "Sonoma"
+   ]
+  },
+  {
+   "id": "scotty-cameron-newport-older",
+   "brand": "scotty-cameron",
+   "category": "Putters",
+   "family": "Newport (older)",
+   "year": 2007,
+   "versions": [
+    "Studio Style",
+    "Detour",
+    "Red X",
+    "Circa 62"
+   ]
+  },
+  {
+   "id": "ping-g440",
+   "brand": "ping",
+   "category": "Drivers",
+   "family": "G440",
+   "year": 2025,
+   "versions": [
+    "G440 Max",
+    "G440 LST",
+    "G440 SFT",
+    "G440 K",
+    "G440 HL"
+   ]
+  },
+  {
+   "id": "ping-g440-woods-hybrids",
+   "brand": "ping",
+   "category": "Woods & hybrids",
+   "family": "G440",
+   "year": 2025,
+   "versions": [
+    "G440 Max",
+    "G440 LST",
+    "G440 SFT",
+    "G440 K",
+    "G440 HL"
+   ]
+  },
+  {
+   "id": "ping-g440-irons",
+   "brand": "ping",
+   "category": "Irons",
+   "family": "G440",
+   "year": 2025,
+   "versions": [
+    "G440 Max",
+    "G440 LST",
+    "G440 SFT",
+    "G440 K",
+    "G440 HL"
+   ]
+  },
+  {
+   "id": "ping-g430",
+   "brand": "ping",
+   "category": "Drivers",
+   "family": "G430",
+   "year": 2023,
+   "versions": [
+    "G430 Max",
+    "G430 LST",
+    "G430 SFT",
+    "G430 Max 10K",
+    "G430 HL"
+   ]
+  },
+  {
+   "id": "ping-g430-woods-hybrids",
+   "brand": "ping",
+   "category": "Woods & hybrids",
+   "family": "G430",
+   "year": 2023,
+   "versions": [
+    "G430 Max",
+    "G430 LST",
+    "G430 SFT",
+    "G430 Max 10K",
+    "G430 HL"
+   ]
+  },
+  {
+   "id": "ping-g430-irons",
+   "brand": "ping",
+   "category": "Irons",
+   "family": "G430",
+   "year": 2023,
+   "versions": [
+    "G430 Max",
+    "G430 LST",
+    "G430 SFT",
+    "G430 Max 10K",
+    "G430 HL"
+   ]
+  },
+  {
+   "id": "ping-g425",
+   "brand": "ping",
+   "category": "Drivers",
+   "family": "G425",
+   "year": 2021,
+   "versions": [
+    "G425 Max",
+    "G425 LST",
+    "G425 SFT"
+   ]
+  },
+  {
+   "id": "ping-g425-woods-hybrids",
+   "brand": "ping",
+   "category": "Woods & hybrids",
+   "family": "G425",
+   "year": 2021,
+   "versions": [
+    "G425 Max",
+    "G425 LST",
+    "G425 SFT"
+   ]
+  },
+  {
+   "id": "ping-g425-irons",
+   "brand": "ping",
+   "category": "Irons",
+   "family": "G425",
+   "year": 2021,
+   "versions": [
+    "G425 Max",
+    "G425 LST",
+    "G425 SFT"
+   ]
+  },
+  {
+   "id": "ping-g410",
+   "brand": "ping",
+   "category": "Drivers",
+   "family": "G410",
+   "year": 2019,
+   "versions": [
+    "G410 Plus",
+    "G410 LST",
+    "G410 SFT"
+   ]
+  },
+  {
+   "id": "ping-g410-woods-hybrids",
+   "brand": "ping",
+   "category": "Woods & hybrids",
+   "family": "G410",
+   "year": 2019,
+   "versions": [
+    "G410 Plus",
+    "G410 LST",
+    "G410 SFT"
+   ]
+  },
+  {
+   "id": "ping-g410-irons",
+   "brand": "ping",
+   "category": "Irons",
+   "family": "G410",
+   "year": 2019,
+   "versions": [
+    "G410 Plus",
+    "G410 LST",
+    "G410 SFT"
+   ]
+  },
+  {
+   "id": "ping-g400",
+   "brand": "ping",
+   "category": "Drivers",
+   "family": "G400",
+   "year": 2017,
+   "versions": [
+    "G400",
+    "G400 Max",
+    "G400 LST",
+    "G400 SFT"
+   ]
+  },
+  {
+   "id": "ping-g400-woods-hybrids",
+   "brand": "ping",
+   "category": "Woods & hybrids",
+   "family": "G400",
+   "year": 2017,
+   "versions": [
+    "G400",
+    "G400 Max",
+    "G400 LST",
+    "G400 SFT"
+   ]
+  },
+  {
+   "id": "ping-g400-irons",
+   "brand": "ping",
+   "category": "Irons",
+   "family": "G400",
+   "year": 2017,
+   "versions": [
+    "G400",
+    "G400 Max",
+    "G400 LST",
+    "G400 SFT"
+   ]
+  },
+  {
+   "id": "ping-g-2016",
+   "brand": "ping",
+   "category": "Drivers",
+   "family": "G (2016)",
+   "year": 2016,
+   "versions": [
+    "G",
+    "G LS Tec",
+    "G SF Tec",
+    "G Crossover"
+   ]
+  },
+  {
+   "id": "ping-g-2016-woods-hybrids",
+   "brand": "ping",
+   "category": "Woods & hybrids",
+   "family": "G (2016)",
+   "year": 2016,
+   "versions": [
+    "G",
+    "G LS Tec",
+    "G SF Tec",
+    "G Crossover"
+   ]
+  },
+  {
+   "id": "ping-g-2016-irons",
+   "brand": "ping",
+   "category": "Irons",
+   "family": "G (2016)",
+   "year": 2016,
+   "versions": [
+    "G",
+    "G LS Tec",
+    "G SF Tec",
+    "G Crossover"
+   ]
+  },
+  {
+   "id": "ping-g30",
+   "brand": "ping",
+   "category": "Drivers",
+   "family": "G30",
+   "year": 2014,
+   "versions": [
+    "G30",
+    "G30 LS Tec",
+    "G30 SF Tec"
+   ]
+  },
+  {
+   "id": "ping-g30-woods-hybrids",
+   "brand": "ping",
+   "category": "Woods & hybrids",
+   "family": "G30",
+   "year": 2014,
+   "versions": [
+    "G30",
+    "G30 LS Tec",
+    "G30 SF Tec"
+   ]
+  },
+  {
+   "id": "ping-g30-irons",
+   "brand": "ping",
+   "category": "Irons",
+   "family": "G30",
+   "year": 2014,
+   "versions": [
+    "G30",
+    "G30 LS Tec",
+    "G30 SF Tec"
+   ]
+  },
+  {
+   "id": "ping-g25",
+   "brand": "ping",
+   "category": "Drivers",
+   "family": "G25",
+   "year": 2013,
+   "versions": [
+    "G25"
+   ]
+  },
+  {
+   "id": "ping-g25-woods-hybrids",
+   "brand": "ping",
+   "category": "Woods & hybrids",
+   "family": "G25",
+   "year": 2013,
+   "versions": [
+    "G25"
+   ]
+  },
+  {
+   "id": "ping-g25-irons",
+   "brand": "ping",
+   "category": "Irons",
+   "family": "G25",
+   "year": 2013,
+   "versions": [
+    "G25"
+   ]
+  },
+  {
+   "id": "ping-g20",
+   "brand": "ping",
+   "category": "Drivers",
+   "family": "G20",
+   "year": 2011,
+   "versions": [
+    "G20"
+   ]
+  },
+  {
+   "id": "ping-g20-woods-hybrids",
+   "brand": "ping",
+   "category": "Woods & hybrids",
+   "family": "G20",
+   "year": 2011,
+   "versions": [
+    "G20"
+   ]
+  },
+  {
+   "id": "ping-g20-irons",
+   "brand": "ping",
+   "category": "Irons",
+   "family": "G20",
+   "year": 2011,
+   "versions": [
+    "G20"
+   ]
+  },
+  {
+   "id": "ping-g15",
+   "brand": "ping",
+   "category": "Drivers",
+   "family": "G15",
+   "year": 2009,
+   "versions": [
+    "G15"
+   ]
+  },
+  {
+   "id": "ping-g15-woods-hybrids",
+   "brand": "ping",
+   "category": "Woods & hybrids",
+   "family": "G15",
+   "year": 2009,
+   "versions": [
+    "G15"
+   ]
+  },
+  {
+   "id": "ping-g15-irons",
+   "brand": "ping",
+   "category": "Irons",
+   "family": "G15",
+   "year": 2009,
+   "versions": [
+    "G15"
+   ]
+  },
+  {
+   "id": "ping-g10",
+   "brand": "ping",
+   "category": "Drivers",
+   "family": "G10",
+   "year": 2007,
+   "versions": [
+    "G10",
+    "G10 Draw"
+   ]
+  },
+  {
+   "id": "ping-g10-woods-hybrids",
+   "brand": "ping",
+   "category": "Woods & hybrids",
+   "family": "G10",
+   "year": 2007,
+   "versions": [
+    "G10",
+    "G10 Draw"
+   ]
+  },
+  {
+   "id": "ping-g10-irons",
+   "brand": "ping",
+   "category": "Irons",
+   "family": "G10",
+   "year": 2007,
+   "versions": [
+    "G10",
+    "G10 Draw"
+   ]
+  },
+  {
+   "id": "ping-i230",
+   "brand": "ping",
+   "category": "Irons",
+   "family": "i230",
+   "year": 2023,
+   "versions": [
+    "i230"
+   ]
+  },
+  {
+   "id": "ping-i240",
+   "brand": "ping",
+   "category": "Irons",
+   "family": "i240",
+   "year": 2025,
+   "versions": [
+    "i240"
+   ]
+  },
+  {
+   "id": "ping-i530",
+   "brand": "ping",
+   "category": "Irons",
+   "family": "i530",
+   "year": 2024,
+   "versions": [
+    "i530"
+   ]
+  },
+  {
+   "id": "ping-i525",
+   "brand": "ping",
+   "category": "Irons",
+   "family": "i525",
+   "year": 2022,
+   "versions": [
+    "i525"
+   ]
+  },
+  {
+   "id": "ping-i59",
+   "brand": "ping",
+   "category": "Irons",
+   "family": "i59",
+   "year": 2021,
+   "versions": [
+    "i59"
+   ]
+  },
+  {
+   "id": "ping-i210",
+   "brand": "ping",
+   "category": "Irons",
+   "family": "i210",
+   "year": 2018,
+   "versions": [
+    "i210"
+   ]
+  },
+  {
+   "id": "ping-i500",
+   "brand": "ping",
+   "category": "Irons",
+   "family": "i500",
+   "year": 2018,
+   "versions": [
+    "i500"
+   ]
+  },
+  {
+   "id": "ping-i200",
+   "brand": "ping",
+   "category": "Irons",
+   "family": "i200",
+   "year": 2016,
+   "versions": [
+    "i200"
+   ]
+  },
+  {
+   "id": "ping-i25",
+   "brand": "ping",
+   "category": "Irons",
+   "family": "i25",
+   "year": 2015,
+   "versions": [
+    "i25",
+    "i E1"
+   ]
+  },
+  {
+   "id": "ping-i20",
+   "brand": "ping",
+   "category": "Irons",
+   "family": "i20",
+   "year": 2012,
+   "versions": [
+    "i20",
+    "i15",
+    "i10"
+   ]
+  },
+  {
+   "id": "ping-blueprint",
+   "brand": "ping",
+   "category": "Irons",
+   "family": "Blueprint",
+   "year": 2019,
+   "versions": [
+    "Blueprint T",
+    "Blueprint S",
+    "Blueprint (2019)"
+   ]
+  },
+  {
+   "id": "ping-anser-forged",
+   "brand": "ping",
+   "category": "Irons",
+   "family": "Anser forged",
+   "year": 2010,
+   "versions": [
+    "Anser Forged",
+    "Anser (2014)"
+   ]
+  },
+  {
+   "id": "ping-s159",
+   "brand": "ping",
+   "category": "Wedges",
+   "family": "s159",
+   "year": 2024,
+   "versions": [
+    "s159"
+   ]
+  },
+  {
+   "id": "ping-glide-4-0",
+   "brand": "ping",
+   "category": "Wedges",
+   "family": "Glide 4.0",
+   "year": 2022,
+   "versions": [
+    "Glide 4.0"
+   ]
+  },
+  {
+   "id": "ping-glide-forged-pro",
+   "brand": "ping",
+   "category": "Wedges",
+   "family": "Glide Forged Pro",
+   "year": 2021,
+   "versions": [
+    "Glide Forged Pro",
+    "Glide Forged"
+   ]
+  },
+  {
+   "id": "ping-glide-3-0",
+   "brand": "ping",
+   "category": "Wedges",
+   "family": "Glide 3.0",
+   "year": 2019,
+   "versions": [
+    "Glide 3.0"
+   ]
+  },
+  {
+   "id": "ping-glide-2-0",
+   "brand": "ping",
+   "category": "Wedges",
+   "family": "Glide 2.0",
+   "year": 2017,
+   "versions": [
+    "Glide 2.0",
+    "Glide 2.0 Stealth",
+    "Glide"
+   ]
+  },
+  {
+   "id": "ping-ping-putters-2024",
+   "brand": "ping",
+   "category": "Putters",
+   "family": "PING putters 2024",
+   "year": 2024,
+   "versions": [
+    "Anser",
+    "Anser 2D",
+    "DS72",
+    "Tyne 4",
+    "Tomcat 14",
+    "Mundy",
+    "Ketsch G"
+   ]
+  },
+  {
+   "id": "ping-ping-putters-2023",
+   "brand": "ping",
+   "category": "Putters",
+   "family": "PING putters 2023",
+   "year": 2023,
+   "versions": [
+    "Anser",
+    "Tyne G",
+    "Fetch",
+    "Shea",
+    "Ketsch G",
+    "Tomcat 14",
+    "Kushin 4"
+   ]
+  },
+  {
+   "id": "ping-ping-putters-2021",
+   "brand": "ping",
+   "category": "Putters",
+   "family": "PING putters 2021",
+   "year": 2021,
+   "versions": [
+    "Anser",
+    "Anser 2",
+    "Tyne 4",
+    "Harwood",
+    "Fetch",
+    "Oslo H",
+    "Kushin 4",
+    "Tomcat 14"
+   ]
+  },
+  {
+   "id": "ping-pld-milled",
+   "brand": "ping",
+   "category": "Putters",
+   "family": "PLD Milled",
+   "year": 2018,
+   "versions": [
+    "PLD Anser",
+    "PLD Anser 2",
+    "PLD DS72",
+    "PLD Prime Tyne 4",
+    "PLD Oslo 3"
+   ]
+  },
+  {
+   "id": "ping-sigma-2",
+   "brand": "ping",
+   "category": "Putters",
+   "family": "Sigma 2",
+   "year": 2019,
+   "versions": [
+    "Sigma 2 Anser",
+    "Sigma 2 Tyne",
+    "Sigma 2 Fetch",
+    "Sigma 2 Arna",
+    "Sigma 2 Valor"
+   ]
+  },
+  {
+   "id": "ping-heppler",
+   "brand": "ping",
+   "category": "Putters",
+   "family": "Heppler",
+   "year": 2020,
+   "versions": [
+    "Heppler Anser 2",
+    "Heppler Tomcat 14",
+    "Heppler Fetch",
+    "Heppler ZB3",
+    "Heppler Floki"
+   ]
+  },
+  {
+   "id": "ping-vault",
+   "brand": "ping",
+   "category": "Putters",
+   "family": "Vault",
+   "year": 2016,
+   "versions": [
+    "Vault Anser",
+    "Vault Oslo",
+    "Vault Voss",
+    "Vault 2.0"
+   ]
+  },
+  {
+   "id": "ping-cadence-tr",
+   "brand": "ping",
+   "category": "Putters",
+   "family": "Cadence TR",
+   "year": 2015,
+   "versions": [
+    "Cadence TR Anser",
+    "Cadence TR Ketsch",
+    "Cadence TR Craz-E"
+   ]
+  },
+  {
+   "id": "ping-karsten-anser-classics",
+   "brand": "ping",
+   "category": "Putters",
+   "family": "Karsten / Anser classics",
+   "year": 2007,
+   "versions": [
+    "Anser",
+    "Anser 2",
+    "Zing",
+    "B60",
+    "Pal",
+    "Craz-E"
+   ]
+  },
+  {
+   "id": "cobra-ds-adapt",
+   "brand": "cobra",
+   "category": "Drivers",
+   "family": "DS-Adapt",
+   "year": 2025,
+   "versions": [
+    "DS-Adapt Max K",
+    "DS-Adapt X",
+    "DS-Adapt LS",
+    "DS-Adapt Max"
+   ]
+  },
+  {
+   "id": "cobra-ds-adapt-woods-hybrids",
+   "brand": "cobra",
+   "category": "Woods & hybrids",
+   "family": "DS-Adapt",
+   "year": 2025,
+   "versions": [
+    "DS-Adapt Max K",
+    "DS-Adapt X",
+    "DS-Adapt LS",
+    "DS-Adapt Max"
+   ]
+  },
+  {
+   "id": "cobra-ds-adapt-irons",
+   "brand": "cobra",
+   "category": "Irons",
+   "family": "DS-Adapt",
+   "year": 2025,
+   "versions": [
+    "DS-Adapt Max K",
+    "DS-Adapt X",
+    "DS-Adapt LS",
+    "DS-Adapt Max"
+   ]
+  },
+  {
+   "id": "cobra-darkspeed",
+   "brand": "cobra",
+   "category": "Drivers",
+   "family": "Darkspeed",
+   "year": 2024,
+   "versions": [
+    "Darkspeed",
+    "Darkspeed Max",
+    "Darkspeed X",
+    "Darkspeed LS"
+   ]
+  },
+  {
+   "id": "cobra-darkspeed-woods-hybrids",
+   "brand": "cobra",
+   "category": "Woods & hybrids",
+   "family": "Darkspeed",
+   "year": 2024,
+   "versions": [
+    "Darkspeed",
+    "Darkspeed Max",
+    "Darkspeed X",
+    "Darkspeed LS"
+   ]
+  },
+  {
+   "id": "cobra-darkspeed-irons",
+   "brand": "cobra",
+   "category": "Irons",
+   "family": "Darkspeed",
+   "year": 2024,
+   "versions": [
+    "Darkspeed",
+    "Darkspeed Max",
+    "Darkspeed X",
+    "Darkspeed LS"
+   ]
+  },
+  {
+   "id": "cobra-aerojet",
+   "brand": "cobra",
+   "category": "Drivers",
+   "family": "Aerojet",
+   "year": 2023,
+   "versions": [
+    "Aerojet",
+    "Aerojet Max",
+    "Aerojet LS"
+   ]
+  },
+  {
+   "id": "cobra-aerojet-woods-hybrids",
+   "brand": "cobra",
+   "category": "Woods & hybrids",
+   "family": "Aerojet",
+   "year": 2023,
+   "versions": [
+    "Aerojet",
+    "Aerojet Max",
+    "Aerojet LS"
+   ]
+  },
+  {
+   "id": "cobra-aerojet-irons",
+   "brand": "cobra",
+   "category": "Irons",
+   "family": "Aerojet",
+   "year": 2023,
+   "versions": [
+    "Aerojet",
+    "Aerojet Max",
+    "Aerojet LS"
+   ]
+  },
+  {
+   "id": "cobra-ltdx",
+   "brand": "cobra",
+   "category": "Drivers",
+   "family": "LTDx",
+   "year": 2022,
+   "versions": [
+    "LTDx",
+    "LTDx Max",
+    "LTDx LS"
+   ]
+  },
+  {
+   "id": "cobra-ltdx-woods-hybrids",
+   "brand": "cobra",
+   "category": "Woods & hybrids",
+   "family": "LTDx",
+   "year": 2022,
+   "versions": [
+    "LTDx",
+    "LTDx Max",
+    "LTDx LS"
+   ]
+  },
+  {
+   "id": "cobra-ltdx-irons",
+   "brand": "cobra",
+   "category": "Irons",
+   "family": "LTDx",
+   "year": 2022,
+   "versions": [
+    "LTDx",
+    "LTDx Max",
+    "LTDx LS"
+   ]
+  },
+  {
+   "id": "cobra-radspeed",
+   "brand": "cobra",
+   "category": "Drivers",
+   "family": "Radspeed",
+   "year": 2021,
+   "versions": [
+    "Radspeed",
+    "Radspeed XB",
+    "Radspeed XD"
+   ]
+  },
+  {
+   "id": "cobra-radspeed-woods-hybrids",
+   "brand": "cobra",
+   "category": "Woods & hybrids",
+   "family": "Radspeed",
+   "year": 2021,
+   "versions": [
+    "Radspeed",
+    "Radspeed XB",
+    "Radspeed XD"
+   ]
+  },
+  {
+   "id": "cobra-radspeed-irons",
+   "brand": "cobra",
+   "category": "Irons",
+   "family": "Radspeed",
+   "year": 2021,
+   "versions": [
+    "Radspeed",
+    "Radspeed XB",
+    "Radspeed XD"
+   ]
+  },
+  {
+   "id": "cobra-speedzone",
+   "brand": "cobra",
+   "category": "Drivers",
+   "family": "SpeedZone",
+   "year": 2020,
+   "versions": [
+    "SpeedZone",
+    "SpeedZone Xtreme",
+    "SpeedZone One Length"
+   ]
+  },
+  {
+   "id": "cobra-speedzone-woods-hybrids",
+   "brand": "cobra",
+   "category": "Woods & hybrids",
+   "family": "SpeedZone",
+   "year": 2020,
+   "versions": [
+    "SpeedZone",
+    "SpeedZone Xtreme",
+    "SpeedZone One Length"
+   ]
+  },
+  {
+   "id": "cobra-speedzone-irons",
+   "brand": "cobra",
+   "category": "Irons",
+   "family": "SpeedZone",
+   "year": 2020,
+   "versions": [
+    "SpeedZone",
+    "SpeedZone Xtreme",
+    "SpeedZone One Length"
+   ]
+  },
+  {
+   "id": "cobra-f9-speedback",
+   "brand": "cobra",
+   "category": "Drivers",
+   "family": "F9 Speedback",
+   "year": 2019,
+   "versions": [
+    "F9 Speedback",
+    "F9 One Length"
+   ]
+  },
+  {
+   "id": "cobra-f9-speedback-woods-hybrids",
+   "brand": "cobra",
+   "category": "Woods & hybrids",
+   "family": "F9 Speedback",
+   "year": 2019,
+   "versions": [
+    "F9 Speedback",
+    "F9 One Length"
+   ]
+  },
+  {
+   "id": "cobra-f9-speedback-irons",
+   "brand": "cobra",
+   "category": "Irons",
+   "family": "F9 Speedback",
+   "year": 2019,
+   "versions": [
+    "F9 Speedback",
+    "F9 One Length"
+   ]
+  },
+  {
+   "id": "cobra-king-f8",
+   "brand": "cobra",
+   "category": "Drivers",
+   "family": "King F8",
+   "year": 2018,
+   "versions": [
+    "King F8",
+    "King F8+",
+    "F8 One Length"
+   ]
+  },
+  {
+   "id": "cobra-king-f8-woods-hybrids",
+   "brand": "cobra",
+   "category": "Woods & hybrids",
+   "family": "King F8",
+   "year": 2018,
+   "versions": [
+    "King F8",
+    "King F8+",
+    "F8 One Length"
+   ]
+  },
+  {
+   "id": "cobra-king-f8-irons",
+   "brand": "cobra",
+   "category": "Irons",
+   "family": "King F8",
+   "year": 2018,
+   "versions": [
+    "King F8",
+    "King F8+",
+    "F8 One Length"
+   ]
+  },
+  {
+   "id": "cobra-king-f7",
+   "brand": "cobra",
+   "category": "Drivers",
+   "family": "King F7",
+   "year": 2017,
+   "versions": [
+    "King F7",
+    "King F7+",
+    "F7 One Length"
+   ]
+  },
+  {
+   "id": "cobra-king-f7-woods-hybrids",
+   "brand": "cobra",
+   "category": "Woods & hybrids",
+   "family": "King F7",
+   "year": 2017,
+   "versions": [
+    "King F7",
+    "King F7+",
+    "F7 One Length"
+   ]
+  },
+  {
+   "id": "cobra-king-f7-irons",
+   "brand": "cobra",
+   "category": "Irons",
+   "family": "King F7",
+   "year": 2017,
+   "versions": [
+    "King F7",
+    "King F7+",
+    "F7 One Length"
+   ]
+  },
+  {
+   "id": "cobra-king-ltd",
+   "brand": "cobra",
+   "category": "Drivers",
+   "family": "King LTD",
+   "year": 2017,
+   "versions": [
+    "King LTD",
+    "King LTD Pro"
+   ]
+  },
+  {
+   "id": "cobra-king-ltd-woods-hybrids",
+   "brand": "cobra",
+   "category": "Woods & hybrids",
+   "family": "King LTD",
+   "year": 2017,
+   "versions": [
+    "King LTD",
+    "King LTD Pro"
+   ]
+  },
+  {
+   "id": "cobra-fly-z",
+   "brand": "cobra",
+   "category": "Drivers",
+   "family": "Fly-Z",
+   "year": 2015,
+   "versions": [
+    "Fly-Z",
+    "Fly-Z+",
+    "Fly-Z XL"
+   ]
+  },
+  {
+   "id": "cobra-fly-z-woods-hybrids",
+   "brand": "cobra",
+   "category": "Woods & hybrids",
+   "family": "Fly-Z",
+   "year": 2015,
+   "versions": [
+    "Fly-Z",
+    "Fly-Z+",
+    "Fly-Z XL"
+   ]
+  },
+  {
+   "id": "cobra-fly-z-irons",
+   "brand": "cobra",
+   "category": "Irons",
+   "family": "Fly-Z",
+   "year": 2015,
+   "versions": [
+    "Fly-Z",
+    "Fly-Z+",
+    "Fly-Z XL"
+   ]
+  },
+  {
+   "id": "cobra-bio-cell",
+   "brand": "cobra",
+   "category": "Drivers",
+   "family": "Bio Cell",
+   "year": 2014,
+   "versions": [
+    "Bio Cell",
+    "Bio Cell+"
+   ]
+  },
+  {
+   "id": "cobra-bio-cell-woods-hybrids",
+   "brand": "cobra",
+   "category": "Woods & hybrids",
+   "family": "Bio Cell",
+   "year": 2014,
+   "versions": [
+    "Bio Cell",
+    "Bio Cell+"
+   ]
+  },
+  {
+   "id": "cobra-bio-cell-irons",
+   "brand": "cobra",
+   "category": "Irons",
+   "family": "Bio Cell",
+   "year": 2014,
+   "versions": [
+    "Bio Cell",
+    "Bio Cell+"
+   ]
+  },
+  {
+   "id": "cobra-amp-cell",
+   "brand": "cobra",
+   "category": "Drivers",
+   "family": "AMP Cell",
+   "year": 2013,
+   "versions": [
+    "AMP Cell",
+    "AMP Cell Pro"
+   ]
+  },
+  {
+   "id": "cobra-amp-cell-woods-hybrids",
+   "brand": "cobra",
+   "category": "Woods & hybrids",
+   "family": "AMP Cell",
+   "year": 2013,
+   "versions": [
+    "AMP Cell",
+    "AMP Cell Pro"
+   ]
+  },
+  {
+   "id": "cobra-amp-cell-irons",
+   "brand": "cobra",
+   "category": "Irons",
+   "family": "AMP Cell",
+   "year": 2013,
+   "versions": [
+    "AMP Cell",
+    "AMP Cell Pro"
+   ]
+  },
+  {
+   "id": "cobra-king-tour",
+   "brand": "cobra",
+   "category": "Irons",
+   "family": "King Tour",
+   "year": 2020,
+   "versions": [
+    "King Tour (2023)",
+    "King Tour (2020)",
+    "King Forged Tec",
+    "King CB/MB"
+   ]
+  },
+  {
+   "id": "cobra-snakebite",
+   "brand": "cobra",
+   "category": "Wedges",
+   "family": "Snakebite",
+   "year": 2021,
+   "versions": [
+    "King Cobra Snakebite",
+    "King Cobra Wedge",
+    "Snakebite Black"
+   ]
+  },
+  {
+   "id": "cobra-king-putters",
+   "brand": "cobra",
+   "category": "Putters",
+   "family": "King putters",
+   "year": 2020,
+   "versions": [
+    "Vintage",
+    "3D Printed Agera",
+    "3D Printed Grandsport",
+    "Sport-45"
+   ]
+  },
+  {
+   "id": "mizuno-st-2025",
+   "brand": "mizuno",
+   "category": "Drivers",
+   "family": "ST 2025",
+   "year": 2025,
+   "versions": [
+    "ST-Max",
+    "ST-G",
+    "ST-Z (2025)"
+   ]
+  },
+  {
+   "id": "mizuno-st-2025-woods-hybrids",
+   "brand": "mizuno",
+   "category": "Woods & hybrids",
+   "family": "ST 2025",
+   "year": 2025,
+   "versions": [
+    "ST-Max",
+    "ST-G",
+    "ST-Z (2025)"
+   ]
+  },
+  {
+   "id": "mizuno-st-230",
+   "brand": "mizuno",
+   "category": "Drivers",
+   "family": "ST 230",
+   "year": 2023,
+   "versions": [
+    "ST-Max 230",
+    "ST-Z 230",
+    "ST-X 230"
+   ]
+  },
+  {
+   "id": "mizuno-st-230-woods-hybrids",
+   "brand": "mizuno",
+   "category": "Woods & hybrids",
+   "family": "ST 230",
+   "year": 2023,
+   "versions": [
+    "ST-Max 230",
+    "ST-Z 230",
+    "ST-X 230"
+   ]
+  },
+  {
+   "id": "mizuno-st-220",
+   "brand": "mizuno",
+   "category": "Drivers",
+   "family": "ST 220",
+   "year": 2022,
+   "versions": [
+    "ST-Z 220",
+    "ST-X 220",
+    "ST-G 220"
+   ]
+  },
+  {
+   "id": "mizuno-st-220-woods-hybrids",
+   "brand": "mizuno",
+   "category": "Woods & hybrids",
+   "family": "ST 220",
+   "year": 2022,
+   "versions": [
+    "ST-Z 220",
+    "ST-X 220",
+    "ST-G 220"
+   ]
+  },
+  {
+   "id": "mizuno-st200",
+   "brand": "mizuno",
+   "category": "Drivers",
+   "family": "ST200",
+   "year": 2020,
+   "versions": [
+    "ST200",
+    "ST200G",
+    "ST200X"
+   ]
+  },
+  {
+   "id": "mizuno-st200-woods-hybrids",
+   "brand": "mizuno",
+   "category": "Woods & hybrids",
+   "family": "ST200",
+   "year": 2020,
+   "versions": [
+    "ST200",
+    "ST200G",
+    "ST200X"
+   ]
+  },
+  {
+   "id": "mizuno-st190",
+   "brand": "mizuno",
+   "category": "Drivers",
+   "family": "ST190",
+   "year": 2019,
+   "versions": [
+    "ST190",
+    "ST190G"
+   ]
+  },
+  {
+   "id": "mizuno-st190-woods-hybrids",
+   "brand": "mizuno",
+   "category": "Woods & hybrids",
+   "family": "ST190",
+   "year": 2019,
+   "versions": [
+    "ST190",
+    "ST190G"
+   ]
+  },
+  {
+   "id": "mizuno-gt180",
+   "brand": "mizuno",
+   "category": "Drivers",
+   "family": "GT180",
+   "year": 2018,
+   "versions": [
+    "GT180"
+   ]
+  },
+  {
+   "id": "mizuno-jpx-925",
+   "brand": "mizuno",
+   "category": "Irons",
+   "family": "JPX 925",
+   "year": 2025,
+   "versions": [
+    "JPX 925 Forged",
+    "JPX 925 Hot Metal",
+    "JPX 925 Hot Metal Pro",
+    "JPX 925 Hot Metal HL",
+    "JPX 925 Tour"
+   ]
+  },
+  {
+   "id": "mizuno-jpx-923",
+   "brand": "mizuno",
+   "category": "Irons",
+   "family": "JPX 923",
+   "year": 2023,
+   "versions": [
+    "JPX 923 Forged",
+    "JPX 923 Hot Metal",
+    "JPX 923 Hot Metal Pro",
+    "JPX 923 Tour"
+   ]
+  },
+  {
+   "id": "mizuno-jpx-921",
+   "brand": "mizuno",
+   "category": "Irons",
+   "family": "JPX 921",
+   "year": 2021,
+   "versions": [
+    "JPX 921 Forged",
+    "JPX 921 Hot Metal",
+    "JPX 921 Tour"
+   ]
+  },
+  {
+   "id": "mizuno-jpx-919",
+   "brand": "mizuno",
+   "category": "Irons",
+   "family": "JPX 919",
+   "year": 2019,
+   "versions": [
+    "JPX 919 Forged",
+    "JPX 919 Hot Metal",
+    "JPX 919 Tour"
+   ]
+  },
+  {
+   "id": "mizuno-jpx-900",
+   "brand": "mizuno",
+   "category": "Irons",
+   "family": "JPX 900",
+   "year": 2016,
+   "versions": [
+    "JPX 900 Forged",
+    "JPX 900 Hot Metal",
+    "JPX 900 Tour"
+   ]
+  },
+  {
+   "id": "mizuno-jpx-850",
+   "brand": "mizuno",
+   "category": "Irons",
+   "family": "JPX 850",
+   "year": 2014,
+   "versions": [
+    "JPX 850",
+    "JPX 850 Forged"
+   ]
+  },
+  {
+   "id": "mizuno-jpx-825-800",
+   "brand": "mizuno",
+   "category": "Irons",
+   "family": "JPX 825 / 800",
+   "year": 2010,
+   "versions": [
+    "JPX 825",
+    "JPX 825 Pro",
+    "JPX 800"
+   ]
+  },
+  {
+   "id": "mizuno-pro-24x",
+   "brand": "mizuno",
+   "category": "Irons",
+   "family": "Pro 24x",
+   "year": 2024,
+   "versions": [
+    "Pro 241",
+    "Pro 243",
+    "Pro 245"
+   ]
+  },
+  {
+   "id": "mizuno-pro-22x",
+   "brand": "mizuno",
+   "category": "Irons",
+   "family": "Pro 22x",
+   "year": 2022,
+   "versions": [
+    "Pro 221",
+    "Pro 223",
+    "Pro 225"
+   ]
+  },
+  {
+   "id": "mizuno-mp-20",
+   "brand": "mizuno",
+   "category": "Irons",
+   "family": "MP-20",
+   "year": 2020,
+   "versions": [
+    "MP-20 MB",
+    "MP-20 MMC",
+    "MP-20 HMB"
+   ]
+  },
+  {
+   "id": "mizuno-mp-18",
+   "brand": "mizuno",
+   "category": "Irons",
+   "family": "MP-18",
+   "year": 2018,
+   "versions": [
+    "MP-18",
+    "MP-18 SC",
+    "MP-18 MMC"
+   ]
+  },
+  {
+   "id": "mizuno-mp-5-mp-25",
+   "brand": "mizuno",
+   "category": "Irons",
+   "family": "MP-5 / MP-25",
+   "year": 2015,
+   "versions": [
+    "MP-5",
+    "MP-25",
+    "MP-15",
+    "MP-H5"
+   ]
+  },
+  {
+   "id": "mizuno-t24",
+   "brand": "mizuno",
+   "category": "Wedges",
+   "family": "T24",
+   "year": 2024,
+   "versions": [
+    "T24"
+   ]
+  },
+  {
+   "id": "mizuno-s23",
+   "brand": "mizuno",
+   "category": "Wedges",
+   "family": "S23",
+   "year": 2023,
+   "versions": [
+    "S23"
+   ]
+  },
+  {
+   "id": "mizuno-t22",
+   "brand": "mizuno",
+   "category": "Wedges",
+   "family": "T22",
+   "year": 2022,
+   "versions": [
+    "T22"
+   ]
+  },
+  {
+   "id": "mizuno-es21",
+   "brand": "mizuno",
+   "category": "Wedges",
+   "family": "ES21",
+   "year": 2021,
+   "versions": [
+    "ES21"
+   ]
+  },
+  {
+   "id": "mizuno-t20",
+   "brand": "mizuno",
+   "category": "Wedges",
+   "family": "T20",
+   "year": 2020,
+   "versions": [
+    "T20"
+   ]
+  },
+  {
+   "id": "mizuno-s18-t7",
+   "brand": "mizuno",
+   "category": "Wedges",
+   "family": "S18 / T7",
+   "year": 2017,
+   "versions": [
+    "S18",
+    "T7",
+    "S5"
+   ]
+  },
+  {
+   "id": "mizuno-m-craft",
+   "brand": "mizuno",
+   "category": "Putters",
+   "family": "M.Craft",
+   "year": 2020,
+   "versions": [
+    "M.Craft I",
+    "M.Craft II",
+    "M.Craft III",
+    "M.Craft IV"
+   ]
+  },
+  {
+   "id": "srixon-zxi",
+   "brand": "srixon",
+   "category": "Drivers",
+   "family": "ZXi",
+   "year": 2025,
+   "versions": [
+    "ZXi",
+    "ZXi LS",
+    "ZXi Max",
+    "ZXi4",
+    "ZXi5",
+    "ZXi7",
+    "ZXi CB",
+    "ZXi MB"
+   ]
+  },
+  {
+   "id": "srixon-zxi-woods-hybrids",
+   "brand": "srixon",
+   "category": "Woods & hybrids",
+   "family": "ZXi",
+   "year": 2025,
+   "versions": [
+    "ZXi",
+    "ZXi LS",
+    "ZXi Max",
+    "ZXi4",
+    "ZXi5",
+    "ZXi7",
+    "ZXi CB",
+    "ZXi MB"
+   ]
+  },
+  {
+   "id": "srixon-zxi-irons",
+   "brand": "srixon",
+   "category": "Irons",
+   "family": "ZXi",
+   "year": 2025,
+   "versions": [
+    "ZXi",
+    "ZXi LS",
+    "ZXi Max",
+    "ZXi4",
+    "ZXi5",
+    "ZXi7",
+    "ZXi CB",
+    "ZXi MB"
+   ]
+  },
+  {
+   "id": "srixon-zx-mk-ii",
+   "brand": "srixon",
+   "category": "Drivers",
+   "family": "ZX Mk II",
+   "year": 2023,
+   "versions": [
+    "ZX5 Mk II",
+    "ZX7 Mk II",
+    "ZX5 Mk II LS",
+    "ZX4 Mk II",
+    "ZX Mk II MB",
+    "ZX Mk II CB"
+   ]
+  },
+  {
+   "id": "srixon-zx-mk-ii-woods-hybrids",
+   "brand": "srixon",
+   "category": "Woods & hybrids",
+   "family": "ZX Mk II",
+   "year": 2023,
+   "versions": [
+    "ZX5 Mk II",
+    "ZX7 Mk II",
+    "ZX5 Mk II LS",
+    "ZX4 Mk II",
+    "ZX Mk II MB",
+    "ZX Mk II CB"
+   ]
+  },
+  {
+   "id": "srixon-zx-mk-ii-irons",
+   "brand": "srixon",
+   "category": "Irons",
+   "family": "ZX Mk II",
+   "year": 2023,
+   "versions": [
+    "ZX5 Mk II",
+    "ZX7 Mk II",
+    "ZX5 Mk II LS",
+    "ZX4 Mk II",
+    "ZX Mk II MB",
+    "ZX Mk II CB"
+   ]
+  },
+  {
+   "id": "srixon-zx",
+   "brand": "srixon",
+   "category": "Drivers",
+   "family": "ZX",
+   "year": 2020,
+   "versions": [
+    "ZX5",
+    "ZX7",
+    "ZX4",
+    "ZX MB"
+   ]
+  },
+  {
+   "id": "srixon-zx-woods-hybrids",
+   "brand": "srixon",
+   "category": "Woods & hybrids",
+   "family": "ZX",
+   "year": 2020,
+   "versions": [
+    "ZX5",
+    "ZX7",
+    "ZX4",
+    "ZX MB"
+   ]
+  },
+  {
+   "id": "srixon-zx-irons",
+   "brand": "srixon",
+   "category": "Irons",
+   "family": "ZX",
+   "year": 2020,
+   "versions": [
+    "ZX5",
+    "ZX7",
+    "ZX4",
+    "ZX MB"
+   ]
+  },
+  {
+   "id": "srixon-z-85",
+   "brand": "srixon",
+   "category": "Drivers",
+   "family": "Z 85",
+   "year": 2018,
+   "versions": [
+    "Z785",
+    "Z585",
+    "Z985",
+    "Z H85",
+    "Z F85"
+   ]
+  },
+  {
+   "id": "srixon-z-85-woods-hybrids",
+   "brand": "srixon",
+   "category": "Woods & hybrids",
+   "family": "Z 85",
+   "year": 2018,
+   "versions": [
+    "Z785",
+    "Z585",
+    "Z985",
+    "Z H85",
+    "Z F85"
+   ]
+  },
+  {
+   "id": "srixon-z-85-irons",
+   "brand": "srixon",
+   "category": "Irons",
+   "family": "Z 85",
+   "year": 2018,
+   "versions": [
+    "Z785",
+    "Z585",
+    "Z985",
+    "Z H85",
+    "Z F85"
+   ]
+  },
+  {
+   "id": "srixon-z-65",
+   "brand": "srixon",
+   "category": "Drivers",
+   "family": "Z 65",
+   "year": 2016,
+   "versions": [
+    "Z765",
+    "Z565",
+    "Z965",
+    "Z H65",
+    "Z F65"
+   ]
+  },
+  {
+   "id": "srixon-z-65-woods-hybrids",
+   "brand": "srixon",
+   "category": "Woods & hybrids",
+   "family": "Z 65",
+   "year": 2016,
+   "versions": [
+    "Z765",
+    "Z565",
+    "Z965",
+    "Z H65",
+    "Z F65"
+   ]
+  },
+  {
+   "id": "srixon-z-65-irons",
+   "brand": "srixon",
+   "category": "Irons",
+   "family": "Z 65",
+   "year": 2016,
+   "versions": [
+    "Z765",
+    "Z565",
+    "Z965",
+    "Z H65",
+    "Z F65"
+   ]
+  },
+  {
+   "id": "srixon-z-45",
+   "brand": "srixon",
+   "category": "Drivers",
+   "family": "Z 45",
+   "year": 2014,
+   "versions": [
+    "Z745",
+    "Z545",
+    "Z945",
+    "Z355"
+   ]
+  },
+  {
+   "id": "srixon-z-45-woods-hybrids",
+   "brand": "srixon",
+   "category": "Woods & hybrids",
+   "family": "Z 45",
+   "year": 2014,
+   "versions": [
+    "Z745",
+    "Z545",
+    "Z945",
+    "Z355"
+   ]
+  },
+  {
+   "id": "srixon-z-45-irons",
+   "brand": "srixon",
+   "category": "Irons",
+   "family": "Z 45",
+   "year": 2014,
+   "versions": [
+    "Z745",
+    "Z545",
+    "Z945",
+    "Z355"
+   ]
+  },
+  {
+   "id": "cleveland-rtx-6-zipcore",
+   "brand": "cleveland",
+   "category": "Wedges",
+   "family": "RTX 6 ZipCore",
+   "year": 2023,
+   "versions": [
+    "RTX 6 ZipCore",
+    "RTX 6 ZipCore Black Satin"
+   ]
+  },
+  {
+   "id": "cleveland-rtx-zipcore",
+   "brand": "cleveland",
+   "category": "Wedges",
+   "family": "RTX ZipCore",
+   "year": 2020,
+   "versions": [
+    "RTX ZipCore",
+    "RTX ZipCore Full-Face"
+   ]
+  },
+  {
+   "id": "cleveland-rtx-4",
+   "brand": "cleveland",
+   "category": "Wedges",
+   "family": "RTX 4",
+   "year": 2018,
+   "versions": [
+    "RTX 4",
+    "RTX 4 Full-Face"
+   ]
+  },
+  {
+   "id": "cleveland-rtx-3",
+   "brand": "cleveland",
+   "category": "Wedges",
+   "family": "RTX-3",
+   "year": 2016,
+   "versions": [
+    "RTX-3",
+    "RTX-3 CB"
+   ]
+  },
+  {
+   "id": "cleveland-588-rtx",
+   "brand": "cleveland",
+   "category": "Wedges",
+   "family": "588 RTX",
+   "year": 2013,
+   "versions": [
+    "588 RTX 2.0",
+    "588 RTX",
+    "588 Forged"
+   ]
+  },
+  {
+   "id": "cleveland-cbx",
+   "brand": "cleveland",
+   "category": "Wedges",
+   "family": "CBX",
+   "year": 2018,
+   "versions": [
+    "CBX 4 ZipCore",
+    "CBX 2",
+    "CBX ZipCore",
+    "CBX Full-Face"
+   ]
+  },
+  {
+   "id": "cleveland-smart-sole",
+   "brand": "cleveland",
+   "category": "Wedges",
+   "family": "Smart Sole",
+   "year": 2016,
+   "versions": [
+    "Smart Sole 4",
+    "Smart Sole 3"
+   ]
+  },
+  {
+   "id": "cleveland-cvx-zipcore",
+   "brand": "cleveland",
+   "category": "Wedges",
+   "family": "CVX ZipCore",
+   "year": 2022,
+   "versions": [
+    "CVX ZipCore",
+    "CVX 2 ZipCore"
+   ]
+  },
+  {
+   "id": "cleveland-launcher",
+   "brand": "cleveland",
+   "category": "Drivers",
+   "family": "Launcher",
+   "year": 2019,
+   "versions": [
+    "Launcher XL",
+    "Launcher XL Lite",
+    "Launcher HB Turbo",
+    "Launcher UHX",
+    "Launcher XL Halo",
+    "Halo XL"
+   ]
+  },
+  {
+   "id": "cleveland-launcher-woods-hybrids",
+   "brand": "cleveland",
+   "category": "Woods & hybrids",
+   "family": "Launcher",
+   "year": 2019,
+   "versions": [
+    "Launcher XL",
+    "Launcher XL Lite",
+    "Launcher HB Turbo",
+    "Launcher UHX",
+    "Launcher XL Halo",
+    "Halo XL"
+   ]
+  },
+  {
+   "id": "cleveland-launcher-irons",
+   "brand": "cleveland",
+   "category": "Irons",
+   "family": "Launcher",
+   "year": 2019,
+   "versions": [
+    "Launcher XL",
+    "Launcher XL Lite",
+    "Launcher HB Turbo",
+    "Launcher UHX",
+    "Launcher XL Halo",
+    "Halo XL"
+   ]
+  },
+  {
+   "id": "cleveland-frontline",
+   "brand": "cleveland",
+   "category": "Putters",
+   "family": "Frontline",
+   "year": 2021,
+   "versions": [
+    "Frontline Elite",
+    "Frontline Cero",
+    "Frontline Iso",
+    "Frontline 4.0"
+   ]
+  },
+  {
+   "id": "cleveland-hb-soft",
+   "brand": "cleveland",
+   "category": "Putters",
+   "family": "HB Soft",
+   "year": 2018,
+   "versions": [
+    "HB Soft 2",
+    "HB Soft Milled",
+    "Huntington Beach Soft"
+   ]
+  },
+  {
+   "id": "wilson-dynapower",
+   "brand": "wilson",
+   "category": "Drivers",
+   "family": "Dynapower",
+   "year": 2024,
+   "versions": [
+    "Dynapower",
+    "Dynapower LS",
+    "Dynapower Max",
+    "Dynapower Titanium"
+   ]
+  },
+  {
+   "id": "wilson-dynapower-woods-hybrids",
+   "brand": "wilson",
+   "category": "Woods & hybrids",
+   "family": "Dynapower",
+   "year": 2024,
+   "versions": [
+    "Dynapower",
+    "Dynapower LS",
+    "Dynapower Max",
+    "Dynapower Titanium"
+   ]
+  },
+  {
+   "id": "wilson-dynapower-irons",
+   "brand": "wilson",
+   "category": "Irons",
+   "family": "Dynapower",
+   "year": 2024,
+   "versions": [
+    "Dynapower",
+    "Dynapower LS",
+    "Dynapower Max",
+    "Dynapower Titanium"
+   ]
+  },
+  {
+   "id": "wilson-launch-pad",
+   "brand": "wilson",
+   "category": "Drivers",
+   "family": "Launch Pad",
+   "year": 2022,
+   "versions": [
+    "Launch Pad",
+    "Launch Pad 2"
+   ]
+  },
+  {
+   "id": "wilson-launch-pad-woods-hybrids",
+   "brand": "wilson",
+   "category": "Woods & hybrids",
+   "family": "Launch Pad",
+   "year": 2022,
+   "versions": [
+    "Launch Pad",
+    "Launch Pad 2"
+   ]
+  },
+  {
+   "id": "wilson-launch-pad-irons",
+   "brand": "wilson",
+   "category": "Irons",
+   "family": "Launch Pad",
+   "year": 2022,
+   "versions": [
+    "Launch Pad",
+    "Launch Pad 2"
+   ]
+  },
+  {
+   "id": "wilson-d9",
+   "brand": "wilson",
+   "category": "Drivers",
+   "family": "D9",
+   "year": 2020,
+   "versions": [
+    "D9"
+   ]
+  },
+  {
+   "id": "wilson-d9-woods-hybrids",
+   "brand": "wilson",
+   "category": "Woods & hybrids",
+   "family": "D9",
+   "year": 2020,
+   "versions": [
+    "D9"
+   ]
+  },
+  {
+   "id": "wilson-d9-irons",
+   "brand": "wilson",
+   "category": "Irons",
+   "family": "D9",
+   "year": 2020,
+   "versions": [
+    "D9"
+   ]
+  },
+  {
+   "id": "wilson-d7",
+   "brand": "wilson",
+   "category": "Drivers",
+   "family": "D7",
+   "year": 2018,
+   "versions": [
+    "D7"
+   ]
+  },
+  {
+   "id": "wilson-d7-woods-hybrids",
+   "brand": "wilson",
+   "category": "Woods & hybrids",
+   "family": "D7",
+   "year": 2018,
+   "versions": [
+    "D7"
+   ]
+  },
+  {
+   "id": "wilson-d7-irons",
+   "brand": "wilson",
+   "category": "Irons",
+   "family": "D7",
+   "year": 2018,
+   "versions": [
+    "D7"
+   ]
+  },
+  {
+   "id": "wilson-staff-model",
+   "brand": "wilson",
+   "category": "Irons",
+   "family": "Staff Model",
+   "year": 2020,
+   "versions": [
+    "Staff Model Blade",
+    "Staff Model CB",
+    "Staff Model Utility",
+    "Staff Model Hi-Toe"
+   ]
+  },
+  {
+   "id": "wilson-staff-model-wedges",
+   "brand": "wilson",
+   "category": "Wedges",
+   "family": "Staff Model",
+   "year": 2020,
+   "versions": [
+    "Staff Model Blade",
+    "Staff Model CB",
+    "Staff Model Utility",
+    "Staff Model Hi-Toe"
+   ]
+  },
+  {
+   "id": "wilson-c300-fg-tour",
+   "brand": "wilson",
+   "category": "Drivers",
+   "family": "C300 / FG Tour",
+   "year": 2016,
+   "versions": [
+    "C300",
+    "FG Tour F5",
+    "FG Tour V6",
+    "FG Tour 100"
+   ]
+  },
+  {
+   "id": "wilson-c300-fg-tour-woods-hybrids",
+   "brand": "wilson",
+   "category": "Woods & hybrids",
+   "family": "C300 / FG Tour",
+   "year": 2016,
+   "versions": [
+    "C300",
+    "FG Tour F5",
+    "FG Tour V6",
+    "FG Tour 100"
+   ]
+  },
+  {
+   "id": "wilson-c300-fg-tour-irons",
+   "brand": "wilson",
+   "category": "Irons",
+   "family": "C300 / FG Tour",
+   "year": 2016,
+   "versions": [
+    "C300",
+    "FG Tour F5",
+    "FG Tour V6",
+    "FG Tour 100"
+   ]
+  },
+  {
+   "id": "wilson-infinite",
+   "brand": "wilson",
+   "category": "Putters",
+   "family": "Infinite",
+   "year": 2020,
+   "versions": [
+    "Infinite Windy City",
+    "Infinite Grant Park",
+    "Infinite Bean",
+    "Infinite Michigan Ave"
+   ]
+  },
+  {
+   "id": "pxg-black-ops",
+   "brand": "pxg",
+   "category": "Drivers",
+   "family": "Black Ops",
+   "year": 2024,
+   "versions": [
+    "Black Ops",
+    "Black Ops Tour-1",
+    "Black Ops Ultra Lite"
+   ]
+  },
+  {
+   "id": "pxg-black-ops-woods-hybrids",
+   "brand": "pxg",
+   "category": "Woods & hybrids",
+   "family": "Black Ops",
+   "year": 2024,
+   "versions": [
+    "Black Ops",
+    "Black Ops Tour-1",
+    "Black Ops Ultra Lite"
+   ]
+  },
+  {
+   "id": "pxg-0311-drivers",
+   "brand": "pxg",
+   "category": "Drivers",
+   "family": "0311 drivers",
+   "year": 2021,
+   "versions": [
+    "0311 Gen6",
+    "0311 Gen5",
+    "0311 Gen4"
+   ]
+  },
+  {
+   "id": "pxg-0311-drivers-woods-hybrids",
+   "brand": "pxg",
+   "category": "Woods & hybrids",
+   "family": "0311 drivers",
+   "year": 2021,
+   "versions": [
+    "0311 Gen6",
+    "0311 Gen5",
+    "0311 Gen4"
+   ]
+  },
+  {
+   "id": "pxg-0211",
+   "brand": "pxg",
+   "category": "Drivers",
+   "family": "0211",
+   "year": 2019,
+   "versions": [
+    "0211 (2022)",
+    "0211 (2021)",
+    "0211 (2019)"
+   ]
+  },
+  {
+   "id": "pxg-0211-woods-hybrids",
+   "brand": "pxg",
+   "category": "Woods & hybrids",
+   "family": "0211",
+   "year": 2019,
+   "versions": [
+    "0211 (2022)",
+    "0211 (2021)",
+    "0211 (2019)"
+   ]
+  },
+  {
+   "id": "pxg-0211-irons",
+   "brand": "pxg",
+   "category": "Irons",
+   "family": "0211",
+   "year": 2019,
+   "versions": [
+    "0211 (2022)",
+    "0211 (2021)",
+    "0211 (2019)"
+   ]
+  },
+  {
+   "id": "pxg-0311-irons",
+   "brand": "pxg",
+   "category": "Irons",
+   "family": "0311 irons",
+   "year": 2016,
+   "versions": [
+    "0311 Gen7",
+    "0311 Gen6",
+    "0311 Gen5",
+    "0311 Gen4",
+    "0311 Gen3",
+    "0311 Gen2",
+    "0311 P",
+    "0311 T",
+    "0311 XP"
+   ]
+  },
+  {
+   "id": "pxg-0311-forged-sugar-daddy",
+   "brand": "pxg",
+   "category": "Wedges",
+   "family": "0311 Forged / Sugar Daddy",
+   "year": 2018,
+   "versions": [
+    "0311 Forged",
+    "Sugar Daddy",
+    "Sugar Daddy II"
+   ]
+  },
+  {
+   "id": "pxg-battle-ready",
+   "brand": "pxg",
+   "category": "Putters",
+   "family": "Battle Ready",
+   "year": 2022,
+   "versions": [
+    "Battle Ready",
+    "Battle Ready II"
+   ]
+  },
+  {
+   "id": "xxio-xxio-13",
+   "brand": "xxio",
+   "category": "Drivers",
+   "family": "XXIO 13",
+   "year": 2024,
+   "versions": [
+    "XXIO 13",
+    "XXIO 13 Ladies"
+   ]
+  },
+  {
+   "id": "xxio-xxio-13-woods-hybrids",
+   "brand": "xxio",
+   "category": "Woods & hybrids",
+   "family": "XXIO 13",
+   "year": 2024,
+   "versions": [
+    "XXIO 13",
+    "XXIO 13 Ladies"
+   ]
+  },
+  {
+   "id": "xxio-xxio-13-irons",
+   "brand": "xxio",
+   "category": "Irons",
+   "family": "XXIO 13",
+   "year": 2024,
+   "versions": [
+    "XXIO 13",
+    "XXIO 13 Ladies"
+   ]
+  },
+  {
+   "id": "xxio-xxio-12",
+   "brand": "xxio",
+   "category": "Drivers",
+   "family": "XXIO 12",
+   "year": 2022,
+   "versions": [
+    "XXIO 12",
+    "XXIO 12 Ladies"
+   ]
+  },
+  {
+   "id": "xxio-xxio-12-woods-hybrids",
+   "brand": "xxio",
+   "category": "Woods & hybrids",
+   "family": "XXIO 12",
+   "year": 2022,
+   "versions": [
+    "XXIO 12",
+    "XXIO 12 Ladies"
+   ]
+  },
+  {
+   "id": "xxio-xxio-12-irons",
+   "brand": "xxio",
+   "category": "Irons",
+   "family": "XXIO 12",
+   "year": 2022,
+   "versions": [
+    "XXIO 12",
+    "XXIO 12 Ladies"
+   ]
+  },
+  {
+   "id": "xxio-xxio-x",
+   "brand": "xxio",
+   "category": "Drivers",
+   "family": "XXIO X",
+   "year": 2020,
+   "versions": [
+    "XXIO X",
+    "XXIO X Black"
+   ]
+  },
+  {
+   "id": "xxio-xxio-x-woods-hybrids",
+   "brand": "xxio",
+   "category": "Woods & hybrids",
+   "family": "XXIO X",
+   "year": 2020,
+   "versions": [
+    "XXIO X",
+    "XXIO X Black"
+   ]
+  },
+  {
+   "id": "xxio-xxio-x-irons",
+   "brand": "xxio",
+   "category": "Irons",
+   "family": "XXIO X",
+   "year": 2020,
+   "versions": [
+    "XXIO X",
+    "XXIO X Black"
+   ]
+  },
+  {
+   "id": "xxio-xxio-11",
+   "brand": "xxio",
+   "category": "Drivers",
+   "family": "XXIO 11",
+   "year": 2020,
+   "versions": [
+    "XXIO 11"
+   ]
+  },
+  {
+   "id": "xxio-xxio-11-woods-hybrids",
+   "brand": "xxio",
+   "category": "Woods & hybrids",
+   "family": "XXIO 11",
+   "year": 2020,
+   "versions": [
+    "XXIO 11"
+   ]
+  },
+  {
+   "id": "xxio-xxio-11-irons",
+   "brand": "xxio",
+   "category": "Irons",
+   "family": "XXIO 11",
+   "year": 2020,
+   "versions": [
+    "XXIO 11"
+   ]
+  },
+  {
+   "id": "honma-tr20-tr21",
+   "brand": "honma",
+   "category": "Drivers",
+   "family": "TR20 / TR21",
+   "year": 2020,
+   "versions": [
+    "TR20 460",
+    "TR20 440",
+    "TR21 X",
+    "TR21 P"
+   ]
+  },
+  {
+   "id": "honma-tr20-tr21-woods-hybrids",
+   "brand": "honma",
+   "category": "Woods & hybrids",
+   "family": "TR20 / TR21",
+   "year": 2020,
+   "versions": [
+    "TR20 460",
+    "TR20 440",
+    "TR21 X",
+    "TR21 P"
+   ]
+  },
+  {
+   "id": "honma-tr20-tr21-irons",
+   "brand": "honma",
+   "category": "Irons",
+   "family": "TR20 / TR21",
+   "year": 2020,
+   "versions": [
+    "TR20 460",
+    "TR20 440",
+    "TR21 X",
+    "TR21 P"
+   ]
+  },
+  {
+   "id": "honma-t-world",
+   "brand": "honma",
+   "category": "Drivers",
+   "family": "T//World",
+   "year": 2019,
+   "versions": [
+    "T//World GS",
+    "T//World XP-1",
+    "T//World TW747"
+   ]
+  },
+  {
+   "id": "honma-t-world-woods-hybrids",
+   "brand": "honma",
+   "category": "Woods & hybrids",
+   "family": "T//World",
+   "year": 2019,
+   "versions": [
+    "T//World GS",
+    "T//World XP-1",
+    "T//World TW747"
+   ]
+  },
+  {
+   "id": "honma-t-world-irons",
+   "brand": "honma",
+   "category": "Irons",
+   "family": "T//World",
+   "year": 2019,
+   "versions": [
+    "T//World GS",
+    "T//World XP-1",
+    "T//World TW747"
+   ]
+  },
+  {
+   "id": "honma-beres",
+   "brand": "honma",
+   "category": "Drivers",
+   "family": "Beres",
+   "year": 2019,
+   "versions": [
+    "Beres 07",
+    "Beres Aizu",
+    "Beres 09"
+   ]
+  },
+  {
+   "id": "honma-beres-woods-hybrids",
+   "brand": "honma",
+   "category": "Woods & hybrids",
+   "family": "Beres",
+   "year": 2019,
+   "versions": [
+    "Beres 07",
+    "Beres Aizu",
+    "Beres 09"
+   ]
+  },
+  {
+   "id": "honma-beres-irons",
+   "brand": "honma",
+   "category": "Irons",
+   "family": "Beres",
+   "year": 2019,
+   "versions": [
+    "Beres 07",
+    "Beres Aizu",
+    "Beres 09"
+   ]
+  },
+  {
+   "id": "motocaddy-m7-remote",
+   "brand": "motocaddy",
+   "category": "Bags & trolleys",
+   "family": "M7 Remote",
+   "year": 2021,
+   "versions": [
+    "M7 Remote",
+    "M7 GPS Remote"
+   ]
+  },
+  {
+   "id": "motocaddy-m5-gps",
+   "brand": "motocaddy",
+   "category": "Bags & trolleys",
+   "family": "M5 GPS",
+   "year": 2019,
+   "versions": [
+    "M5 GPS",
+    "M5 GPS DHC"
+   ]
+  },
+  {
+   "id": "motocaddy-m3-pro-m3-gps",
+   "brand": "motocaddy",
+   "category": "Bags & trolleys",
+   "family": "M3 Pro / M3 GPS",
+   "year": 2016,
+   "versions": [
+    "M3 Pro",
+    "M3 GPS",
+    "M3 GPS DHC"
+   ]
+  },
+  {
+   "id": "motocaddy-m1",
+   "brand": "motocaddy",
+   "category": "Bags & trolleys",
+   "family": "M1",
+   "year": 2016,
+   "versions": [
+    "M1",
+    "M1 DHC"
+   ]
+  },
+  {
+   "id": "motocaddy-s-series",
+   "brand": "motocaddy",
+   "category": "Bags & trolleys",
+   "family": "S-series",
+   "year": 2010,
+   "versions": [
+    "S1",
+    "S3 Pro",
+    "S5 Connect",
+    "S7 Remote"
+   ]
+  },
+  {
+   "id": "motocaddy-push-trolleys",
+   "brand": "motocaddy",
+   "category": "Bags & trolleys",
+   "family": "Push trolleys",
+   "year": 2014,
+   "versions": [
+    "P1",
+    "P3",
+    "Cube",
+    "Z1"
+   ]
+  },
+  {
+   "id": "powakaddy-ct-series",
+   "brand": "powakaddy",
+   "category": "Bags & trolleys",
+   "family": "CT series",
+   "year": 2022,
+   "versions": [
+    "CT6",
+    "CT8 GPS",
+    "CT10 GPS"
+   ]
+  },
+  {
+   "id": "powakaddy-fx-series",
+   "brand": "powakaddy",
+   "category": "Bags & trolleys",
+   "family": "FX series",
+   "year": 2016,
+   "versions": [
+    "FX3",
+    "FX5",
+    "FX7 GPS"
+   ]
+  },
+  {
+   "id": "powakaddy-freeway-compact",
+   "brand": "powakaddy",
+   "category": "Bags & trolleys",
+   "family": "Freeway / Compact",
+   "year": 2012,
+   "versions": [
+    "Freeway",
+    "Compact C2",
+    "Compact C2i",
+    "Touch"
+   ]
+  },
+  {
+   "id": "big-max-blade",
+   "brand": "big-max",
+   "category": "Bags & trolleys",
+   "family": "Blade",
+   "year": 2016,
+   "versions": [
+    "Blade IP",
+    "Blade Quattro",
+    "Blade Trio"
+   ]
+  },
+  {
+   "id": "big-max-autofold",
+   "brand": "big-max",
+   "category": "Bags & trolleys",
+   "family": "Autofold",
+   "year": 2018,
+   "versions": [
+    "Autofold FF",
+    "Autofold X"
+   ]
+  },
+  {
+   "id": "clicgear-clicgear",
+   "brand": "clicgear",
+   "category": "Bags & trolleys",
+   "family": "Clicgear",
+   "year": 2010,
+   "versions": [
+    "Clicgear 4.0",
+    "Clicgear 3.5+",
+    "Clicgear 8.0"
+   ]
+  },
+  {
+   "id": "bushnell-pro-x3",
+   "brand": "bushnell",
+   "category": "Balls & accessories",
+   "family": "Pro X3",
+   "year": 2022,
+   "versions": [
+    "Pro X3",
+    "Pro X3+"
+   ]
+  },
+  {
+   "id": "bushnell-tour-v6",
+   "brand": "bushnell",
+   "category": "Balls & accessories",
+   "family": "Tour V6",
+   "year": 2023,
+   "versions": [
+    "Tour V6",
+    "Tour V6 Shift"
+   ]
+  },
+  {
+   "id": "bushnell-tour-v5",
+   "brand": "bushnell",
+   "category": "Balls & accessories",
+   "family": "Tour V5",
+   "year": 2020,
+   "versions": [
+    "Tour V5",
+    "Tour V5 Shift"
+   ]
+  },
+  {
+   "id": "bushnell-pro-xe",
+   "brand": "bushnell",
+   "category": "Balls & accessories",
+   "family": "Pro XE",
+   "year": 2019,
+   "versions": [
+    "Pro XE",
+    "Pro X2"
+   ]
+  },
+  {
+   "id": "bushnell-tour-v4",
+   "brand": "bushnell",
+   "category": "Balls & accessories",
+   "family": "Tour V4",
+   "year": 2016,
+   "versions": [
+    "Tour V4",
+    "Tour V4 Shift"
+   ]
+  },
+  {
+   "id": "garmin-approach-z",
+   "brand": "garmin",
+   "category": "Balls & accessories",
+   "family": "Approach Z",
+   "year": 2017,
+   "versions": [
+    "Approach Z82",
+    "Approach Z30",
+    "Approach Z80"
+   ]
+  },
+  {
+   "id": "garmin-approach-s-watches",
+   "brand": "garmin",
+   "category": "Balls & accessories",
+   "family": "Approach S watches",
+   "year": 2019,
+   "versions": [
+    "Approach S70",
+    "Approach S62",
+    "Approach S44",
+    "Approach S42",
+    "Approach S12"
+   ]
+  },
+  {
+   "id": "garmin-approach-g",
+   "brand": "garmin",
+   "category": "Balls & accessories",
+   "family": "Approach G",
+   "year": 2018,
+   "versions": [
+    "Approach G80",
+    "Approach G30",
+    "Approach G12"
+   ]
+  },
+  {
+   "id": "shot-scope-shot-scope",
+   "brand": "shot-scope",
+   "category": "Balls & accessories",
+   "family": "Shot Scope",
+   "year": 2019,
+   "versions": [
+    "Pro L2",
+    "Pro LX+",
+    "V3",
+    "X5",
+    "G5"
+   ]
+  }
+ ]
+}

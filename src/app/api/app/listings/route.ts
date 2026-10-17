@@ -113,6 +113,7 @@ export async function POST(request: Request) {
     // Filled in from the title by the app's smart sell form (Oct 2026);
     // validated here exactly as the website's own form is.
     model: body.model || undefined,
+    modelId: typeof body.model_id === "string" && body.model_id ? body.model_id : undefined,
     dexterity: body.dexterity || undefined,
     shaftFlex: body.shaft_flex || undefined,
     shaftMaterial: body.shaft_material || undefined,

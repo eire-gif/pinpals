@@ -277,4 +277,23 @@ describe("fetchMarketplaceListings paging", () => {
     await fetchMarketplaceListings(client, EMPTY_MARKETPLACE_FILTERS, null, null);
     expect(calls[0].p_limit).toBe(RESULTS_PAGE_SIZE + 1);
   });
+
+  it("sends p_model only when a model is picked (0163)", async () => {
+    const { client, calls } = stub(1);
+    await fetchMarketplaceListings(client, EMPTY_MARKETPLACE_FILTERS, null, null);
+    expect("p_model" in calls[0]).toBe(false);
+    await fetchMarketplaceListings(client, { ...EMPTY_MARKETPLACE_FILTERS, category: "Drivers", brands: ["taylormade"], model: "taylormade-qi10" }, null, null);
+    expect(calls[1].p_model).toBe("taylormade-qi10");
+  });
+});
+
+describe("the finder's model filter (0163)", () => {
+  it("keeps a model only with one brand and a category, and round-trips it", () => {
+    const f = parseMarketplaceFilters({ category: "Drivers", brand: "taylormade", model: "taylormade-qi10" });
+    expect(f.model).toBe("taylormade-qi10");
+    expect(marketplaceFiltersToSearchParams(f).get("model")).toBe("taylormade-qi10");
+    expect(parseMarketplaceFilters({ brand: "taylormade", model: "taylormade-qi10" }).model).toBe("");
+    expect(parseMarketplaceFilters({ category: "Drivers", brand: ["taylormade", "ping"], model: "taylormade-qi10" }).model).toBe("");
+    expect(parseMarketplaceFilters({ category: "Drivers", brand: "taylormade", model: "DROP TABLE" }).model).toBe("");
+  });
 });

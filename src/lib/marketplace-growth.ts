@@ -6,8 +6,8 @@ import type { Listing } from "@/lib/types";
  * The marketplace's paid extras and New Gear (0115), shared by the website's
  * pages, the Stripe webhook and the admin console.
  *
- *   Promotions  — Featured (€4.99, 7 days at the top) and Bump (€1.99, back
- *                 to the top of Fresh today). Bought on the website only:
+ *   Promotions  — Premium (€1.99, 3 days in Top picks) and Premium Plus
+ *                 (€4.99, 7 days, shown first, badged). Bought on the website only:
  *                 a promotion is a digital service, so App Store rule 3.1.1
  *                 keeps it out of the app.
  *   Pro shops   — approved by PinPals, sell new stock, pay commission
@@ -19,18 +19,27 @@ import type { Listing } from "@/lib/types";
 
 export type PromotionKind = "featured" | "bump";
 
-export const PROMOTIONS: Record<PromotionKind, { eur: number; days: number; title: string; blurb: string }> = {
-  featured: {
-    eur: 4.99,
-    days: 7,
-    title: "Featured",
-    blurb: "Top of Used Gear for 7 days, with a gold Featured badge — and a bump to Fresh today.",
-  },
+/**
+ * The two paid tiers (0163). Both put the advert in Top picks — the row above
+ * the listings for whatever a buyer has picked (club type, brand, model).
+ * The database kinds keep their 0115 names so past payments, the webhook and
+ * the revenue figures carry on: 'bump' is sold as Premium, 'featured' as
+ * Premium Plus.
+ */
+export const PROMOTIONS: Record<PromotionKind, { eur: number; days: number; title: string; blurb: string; perks: readonly string[] }> = {
   bump: {
     eur: 1.99,
     days: 3,
-    title: "Bump",
-    blurb: "Back to the top of Fresh today, as if you'd just listed it.",
+    title: "Premium",
+    blurb: "3 days in Top picks, above every other listing for its club type, brand and model.",
+    perks: ["3 days in Top picks", "Back to the top of Newest"],
+  },
+  featured: {
+    eur: 4.99,
+    days: 7,
+    title: "Premium Plus",
+    blurb: "7 days in Top picks and shown first there, with a gold Premium badge wherever it appears.",
+    perks: ["7 days in Top picks", "Shown first in Top picks", "Gold Premium badge everywhere"],
   },
 };
 
@@ -94,6 +103,12 @@ export type Banner = {
   created_at: string;
 };
 
+/** In Top picks right now (0163) — Premium or Premium Plus. */
+export function isTopPick(listing: { top_pick_until?: string | null }, now = Date.now()): boolean {
+  return !!listing.top_pick_until && Date.parse(listing.top_pick_until) > now;
+}
+
+/** Premium Plus right now: badged everywhere. */
 export function isFeatured(listing: { featured_until?: string | null }, now = Date.now()): boolean {
   return !!listing.featured_until && Date.parse(listing.featured_until) > now;
 }

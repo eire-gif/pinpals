@@ -314,6 +314,13 @@ export const ADMIN_ACTIONS = [
   "user.age_cleared",
   "user.dob_corrected",
   "age_settings.updated",
+  // Brands & models (0163) — /admin/brands (src/app/admin/brands/actions.ts).
+  // A brand's official logo uploaded or removed (metadata carries the file
+  // path), and the model catalogue added to or switched on/off.
+  "brand.logo_updated",
+  "brand.logo_removed",
+  "brand_model.created",
+  "brand_model.updated",
 ] as const;
 export type AdminAction = (typeof ADMIN_ACTIONS)[number];
 
@@ -387,6 +394,9 @@ export const AUDIT_TARGET_TYPES = [
   "outing",
   // The single age_settings row (0159), targetId null.
   "age_settings",
+  // Brands & models (0163): a marketplace_brands row and a marketplace_models row.
+  "brand",
+  "brand_model",
 ] as const;
 export type AuditTargetType = (typeof AUDIT_TARGET_TYPES)[number];
 

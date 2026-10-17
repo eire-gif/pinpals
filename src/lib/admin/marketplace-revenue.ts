@@ -89,7 +89,7 @@ export function summarizeOrderRevenue(orders: readonly RevenueOrderRow[]): Order
 }
 
 export type PromotionKindKey = "featured" | "bump";
-export const PROMOTION_KIND_LABELS: Record<string, string> = { featured: "Featured", bump: "Bump" };
+export const PROMOTION_KIND_LABELS: Record<string, string> = { featured: "Premium Plus", bump: "Premium" };
 
 /** Statuses that mean the seller actually paid (and wasn't refunded). */
 export const PAID_PROMOTION_STATUSES = ["active", "expired"] as const;

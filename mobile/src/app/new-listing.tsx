@@ -49,6 +49,8 @@ import { AgeGateLoading, NotForUnder18, useAgeGate } from "@/components/not-for-
 import { useCashMarketplace } from "@/lib/marketplace-cash";
 import { loadSmartBrands, similarAskingPrices } from "@/lib/listing-posts";
 import { parseListingTitle, priceGuide, type ListingDraft, type SmartBrand } from "@/lib/smart-search";
+import { matchModel, type FinderModel } from "@/lib/finder";
+import { loadFinderModels } from "@/lib/gear-finder";
 
 /**
  * Listing something for sale.
@@ -78,7 +80,7 @@ const COUNTRY_CODES = [
   "portugal",
 ] as const;
 
-type OpenSection = "category" | "subcategory" | "brand" | "county" | null;
+type OpenSection = "category" | "subcategory" | "brand" | "model" | "county" | null;
 
 function NewListingScreenInner() {
   const router = useRouter();
@@ -115,6 +117,10 @@ function NewListingScreenInner() {
   const [draft, setDraft] = useState<ListingDraft | null>(null);
   const [specs, setSpecs] = useState<{ model: string; loft: string; shaftFlex: string; shaftMaterial: string; dexterity: string }>({ model: "", loft: "", shaftFlex: "", shaftMaterial: "", dexterity: "" });
   const chose = useRef({ category: false, brand: false });
+  // The catalogue model (0163): matched from the title, or picked — a pick
+  // counts only for the brand and category it was made under.
+  const [models, setModels] = useState<{ key: string; list: FinderModel[] }>({ key: "", list: [] });
+  const [chosenModel, setChosenModel] = useState<{ key: string; id: string | null } | null>(null);
   const [guide, setGuide] = useState<{ lowCents: number; highCents: number; count: number } | null>(null);
   useEffect(() => {
     void loadSmartBrands().then(setSmartBrands);
@@ -179,6 +185,22 @@ function NewListingScreenInner() {
     // `category` is read only to skip a no-op change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [title, smartBrands]);
+
+  const modelKey = category && brand && brand !== BRAND_OTHER ? `${brand}|${category}` : "";
+  useEffect(() => {
+    if (!modelKey) return;
+    let live = true;
+    const [b, c] = modelKey.split("|");
+    void loadFinderModels(b, c).then((list) => live && setModels({ key: modelKey, list: [...list].sort((x, y) => (y.year ?? 0) - (x.year ?? 0)) }));
+    return () => {
+      live = false;
+    };
+  }, [modelKey]);
+  const modelList = models.key === modelKey ? models.list : [];
+  // Matched from the title until the seller picks one themselves.
+  const picking = chosenModel?.key === modelKey;
+  const matched = picking ? null : matchModel(modelList, `${title} ${specs.model}`);
+  const pickedModel = modelList.find((m) => m.id === (picking ? chosenModel?.id : matched?.id)) ?? null;
 
   // "Similar ads are priced…" once there's a category (and a brand, if any).
   useEffect(() => {
@@ -342,6 +364,7 @@ function NewListingScreenInner() {
         deliveryOptions: delivery,
         images: ready.map((photo) => photo.uploaded!),
         model: specs.model || null,
+        modelId: pickedModel?.id ?? null,
         dexterity: specs.dexterity || null,
         shaftFlex: specs.shaftFlex || null,
         shaftMaterial: specs.shaftMaterial || null,
@@ -519,6 +542,34 @@ function NewListingScreenInner() {
             />
           ) : null}
         </Collapsible>
+
+        {modelList.length > 0 ? (
+          <Collapsible
+            label="Model"
+            icon="pricetag-outline"
+            value={pickedModel ? `${pickedModel.family}${pickedModel.year ? ` (${pickedModel.year})` : ""}` : null}
+            placeholder="Helps buyers find it"
+            open={open === "model"}
+            onToggle={() => toggle("model")}
+          >
+            <Text style={styles.hint}>
+              Buyers can pick the exact model — choosing it here puts your advert in front of them.
+            </Text>
+            <ChipGroup>
+              {modelList.map((m) => (
+                <Chip
+                  key={m.id}
+                  label={m.year ? `${m.family} · ${m.year}` : m.family}
+                  selected={pickedModel?.id === m.id}
+                  onPress={() => {
+                    setChosenModel({ key: modelKey, id: pickedModel?.id === m.id ? null : m.id });
+                    setOpen(null);
+                  }}
+                />
+              ))}
+            </ChipGroup>
+          </Collapsible>
+        ) : null}
 
         <Section title="Condition">
           <ChipGroup>

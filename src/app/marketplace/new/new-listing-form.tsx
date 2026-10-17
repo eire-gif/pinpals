@@ -26,15 +26,22 @@ function FieldError({ message }: { message?: string }) {
   return <p className="text-xs text-red-600 mt-1">{message}</p>;
 }
 
-export default function NewListingForm({ shop = null }: { shop?: { id: number; name: string } | null } = {}) {
+export default function NewListingForm({
+  shop = null,
+  start,
+}: {
+  shop?: { id: number; name: string } | null;
+  /** Prefilled from the finder's "Sell yours" link (0163). */
+  start?: { category: string; brand: string; modelId: string };
+} = {}) {
   const [state, formAction, pending] = useActionState(createListing, initialState);
 
-  const [category, setCategory] = useState("");
+  const [category, setCategory] = useState(start?.category ?? "");
   const [subcategory, setSubcategory] = useState("");
   // Brand lives here rather than inside ItemDetailsFields because the
   // category select below has to be able to clear it — see that component's
   // own comment on why a stale brand is cleared rather than carried over.
-  const [brand, setBrand] = useState("");
+  const [brand, setBrand] = useState(start?.brand ?? "");
   // Defaults to accepting offers rather than "fixed_price" — a seller who
   // wants a firm price still opts out in one click, but the common case
   // (a used club, a buyer who wants to haggle) no longer depends on the
@@ -154,6 +161,7 @@ export default function NewListingForm({ shop = null }: { shop?: { id: number; n
         subcategory={subcategory}
         brand={brand}
         onBrandChange={setBrand}
+        defaults={start?.modelId ? { model_id: start.modelId } : undefined}
         fieldErrors={fieldErrors}
       />
 
