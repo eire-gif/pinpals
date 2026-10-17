@@ -172,69 +172,69 @@ export function pageHtml(source: TileSource): string {
     post({ type:"imagery", provider:"esri", why:why||"" });
   }
   // Put Apple's camera where ours is: same centre (of Apple's layer, which
-  // stops above the sheet), same scale, same turn — then MEASURE it: where
-  // do two of our points land on Apple's map? Correct the scale, the centre
-  // and (once) the turn direction from what's measured, so nothing depends
-  // on how Apple defines its camera height or turn (17 Oct: a one-shot
-  // calculation was 254 px out on a real iPhone).
-  var kFix = null, fixes = 0;
+  // stops above the sheet), same scale, same turn. Done on every move from
+  // what's been learned so far (syncApple) — never measured mid-move,
+  // because Apple's map answers "where is this point?" from the last frame
+  // it drew: measuring then and "correcting" pinned Apple's photo in place
+  // while our drawing slid over it (17 Oct). Once the view settles and Apple
+  // has redrawn, we measure where two of our points land on Apple's map and
+  // learn the scale, the centre shift and the turn direction (calibrate).
+  var kFix = null, shiftX = 0, shiftY = 0, fixes = 0, calTimer = null, calRuns = 0;
   function onMk(ll){
     var p = mk.convertCoordinateToPointOnPage(new mapkit.Coordinate(ll.lat, ll.lng));
     var r = mkEl.getBoundingClientRect();
     return { x:p.x - r.left, y:p.y - r.top };
   }
-  // Two points across the middle: their gap and angle on each map.
+  // Two points across the middle: their gap, angle and midpoint on Apple's map.
   function compare(w, h){
     var A = { x:w*0.25, y:h/2 }, B = { x:w*0.75, y:h/2 };
     var a = onMk(map.containerPointToLatLng([A.x, A.y])), b = onMk(map.containerPointToLatLng([B.x, B.y]));
     var len = Math.hypot(b.x-a.x, b.y-a.y);
     var turn = Math.atan2(b.y-a.y, b.x-a.x) * 180 / Math.PI; // ours runs flat: 0
-    return { ratio: len / (B.x - A.x), turn: turn, dx: (a.x+b.x)/2 - w/2, dy: (a.y+b.y)/2 - h/2 };
+    return { ratio: len / (B.x - A.x), turn: ((turn % 360) + 540) % 360 - 180, dx: (a.x+b.x)/2 - w/2, dy: (a.y+b.y)/2 - h/2 };
   }
   function syncApple(){
     if(!mk || !mkEl || !window.mapkit) return;
     var w = map.getSize().x, h = mkEl.clientHeight;
     if(!w || !h) return;
     try{
-      var c = map.containerPointToLatLng([w/2, h/2]);
-      var coord = new mapkit.Coordinate(c.lat, c.lng);
+      // Apple shows its centre (shiftX, shiftY) off the middle: centre it on
+      // what's that far from our middle, so our middle lands in the middle.
+      var c = map.containerPointToLatLng([w/2 + shiftX, h/2 + shiftY]);
+      var lat = map.containerPointToLatLng([w/2, h/2]).lat;
       var upp = 1 / (256 * Math.pow(2, map.getZoom())); // map units per screen px
-      if(!(kFix > 0)) kFix = h * 40075017 * Math.cos(c.lat * Math.PI / 180) * 1.2; // first guess, corrected below
+      if(!(kFix > 0)) kFix = h * 40075017 * Math.cos(lat * Math.PI / 180) * 1.2; // first guess, learned below
       var b = canRotate ? (map.getBearing() || 0) : 0;
       mk.rotation = (((rotSign * -b) % 360) + 360) % 360;
-      mk.center = coord;
+      mk.center = new mapkit.Coordinate(c.lat, c.lng);
       mk.cameraDistance = kFix * upp;
-      for(var i = 0; i < 4; i++){
-        var m = compare(w, h);
-        if(!(m.ratio > 0) || !isFinite(m.ratio)) break;
-        var bad = false;
-        if(Math.abs(m.ratio - 1) > 0.004){ kFix *= m.ratio; mk.cameraDistance = kFix * upp; bad = true; }
-        if(Math.hypot(m.dx, m.dy) > 1.5){
-          // Our centre shows δ off: move Apple's camera by δ, i.e. centre it on
-          // what's δ beyond where its current centre shows.
-          var r = mkEl.getBoundingClientRect(), cc = mk.center, cp = onMk({ lat:cc.latitude, lng:cc.longitude });
-          var to = mk.convertPointOnPageToCoordinate(new DOMPoint(r.left + cp.x + m.dx, r.top + cp.y + m.dy));
-          if(to) mk.center = to;
-          bad = true;
-        }
-        // Turned the wrong way: Apple counts its turn the other way round to ours.
-        var t = ((m.turn % 360) + 540) % 360 - 180;
-        if(Math.abs(t) > 3 && Math.abs(Math.sin(b * Math.PI / 180)) > 0.05){
-          rotSign = -rotSign;
-          mk.rotation = (((rotSign * -b) % 360) + 360) % 360;
-          var t2 = ((compare(w, h).turn % 360) + 540) % 360 - 180;
-          if(Math.abs(t2) > Math.abs(t)){ rotSign = -rotSign; mk.rotation = (((rotSign * -b) % 360) + 360) % 360; }
-          bad = true;
-        }
-        if(!bad) break;
-      }
-      if(!checked) check();
     }catch(e){ useEsri("sync " + (e && e.message ? String(e.message).slice(0, 40) : "")); }
   }
+  // After Apple has had time to draw the settled view.
+  function afterDraw(fn){
+    clearTimeout(calTimer);
+    calTimer = setTimeout(function(){ requestAnimationFrame(function(){ requestAnimationFrame(fn); }); }, 180);
+  }
+  function calibrate(){
+    if(!mk || !mkEl || !window.mapkit) return;
+    var w = map.getSize().x, h = mkEl.clientHeight;
+    if(!w || !h) return;
+    var m;
+    try{ m = compare(w, h); }catch(e){ m = null; }
+    // Nonsense back from Apple: let the check decide (it falls back to Esri).
+    if(!m || !(m.ratio > 0) || !isFinite(m.ratio)){ if(!checked) check(); return; }
+    var b = canRotate ? (map.getBearing() || 0) : 0;
+    var again = false;
+    if(Math.abs(m.ratio - 1) > 0.004){ kFix *= m.ratio; again = true; }
+    if(Math.abs(m.turn) > 3 && Math.abs(Math.sin(b * Math.PI / 180)) > 0.05){ rotSign = -rotSign; again = true; }
+    else if(Math.hypot(m.dx, m.dy) > 1.5){ shiftX += m.dx; shiftY += m.dy; again = true; }
+    if(again && calRuns++ < 6){ syncApple(); afterDraw(calibrate); return; }
+    calRuns = 0;
+    if(!checked) check();
+  }
   // Is Apple's photo really under our drawing? Where does a point a little
-  // above the middle land on each? A few tries (Apple may still be laying
-  // itself out); still out by more than ~24 px: a wrong photo is worse than
-  // a plainer one, so Esri.
+  // above the middle land on each? Still out by more than ~24 px after a
+  // few goes: a wrong photo is worse than a plainer one, so Esri.
   function misfit(){
     var w = map.getSize().x, h = mkEl.clientHeight;
     var p = onMk(map.containerPointToLatLng([w/2, h*0.2]));
@@ -243,15 +243,14 @@ export function pageHtml(source: TileSource): string {
   function check(){
     checked = true;
     var off = misfit();
-    post({ type:"imagery", provider:"apple", off:Math.round(off), turn:rotSign, k:Math.round(kFix||0) });
+    post({ type:"imagery", provider:"apple", off:Math.round(off), turn:rotSign, k:Math.round(kFix||0), shift:[Math.round(shiftX), Math.round(shiftY)] });
     if(off <= 24){ fixes = 0; return; }
-    if(fixes++ < 3){
-      setTimeout(function(){ if(!mk) return; kFix = null; checked = false; syncApple(); }, 600);
-      return;
-    }
-    var m = compare(map.getSize().x, mkEl.clientHeight);
-    useEsri("misaligned " + Math.round(off) + " x" + (Math.round(m.ratio * 100) / 100) + " " + Math.round(m.turn) + "deg");
+    if(fixes++ < 3){ checked = false; syncApple(); afterDraw(calibrate); return; }
+    var m = null;
+    try{ m = compare(map.getSize().x, mkEl.clientHeight); }catch(e){}
+    useEsri("misaligned " + Math.round(off) + (m ? " x" + (Math.round(m.ratio * 100) / 100) + " " + Math.round(m.turn) + "deg" : ""));
   }
+  function settled(){ if(mk){ syncApple(); calRuns = 0; afterDraw(calibrate); } }
   if(APPLE){
     var giveUp = setTimeout(function(){ if(!mk) useEsri("timeout"); }, 10000);
     window.ppMapKit = function(){
@@ -271,7 +270,7 @@ export function pageHtml(source: TileSource): string {
         clearTimeout(giveUp);
         // Give Apple's map a moment to size itself before lining it up.
         checked = true;
-        setTimeout(function(){ checked = false; lift(liftBy); }, 400);
+        setTimeout(function(){ checked = false; lift(liftBy); settled(); }, 400);
       }catch(e){ useEsri("init"); }
     };
     var sc = document.createElement("script");
@@ -282,7 +281,8 @@ export function pageHtml(source: TileSource): string {
     sc.setAttribute("data-callback", "ppMapKit");
     sc.onerror = function(){ useEsri("script"); };
     document.head.appendChild(sc);
-    map.on("move zoom rotate resize viewreset zoomend moveend", syncApple);
+    map.on("move zoom rotate resize viewreset", syncApple);
+    map.on("moveend zoomend", settled);
   }
   map.setView([53.4, -7.9], 7);
   var shapes = L.layerGroup().addTo(map);
@@ -567,7 +567,7 @@ export function pageHtml(source: TileSource): string {
       L.circleMarker([s.me.lat,s.me.lng], { radius:7, color:"#ffffff", weight:2.5, fillColor:"#1d8cf8", fillOpacity:1, interactive:false }).addTo(layer);
     }
     // New hole: fit and turn first, then check Apple lines up with the turned view.
-    if(s.frameKey !== lastKey){ lastKey = s.frameKey; checked = true; refit(); checked = false; syncApple(); }
+    if(s.frameKey !== lastKey){ lastKey = s.frameKey; refit(); checked = false; settled(); }
     placeFloating();
   }
 
