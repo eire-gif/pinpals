@@ -115,13 +115,15 @@ export function mergeInbox(
 // Filters
 // ---------------------------------------------------------------------------
 
-export const INBOX_FILTERS = ["all", "messages", "alerts", "archived"] as const;
+export const INBOX_FILTERS = ["all", "messages", "marketplace", "alerts", "archived"] as const;
 
 export type InboxFilter = (typeof INBOX_FILTERS)[number];
 
 export const INBOX_FILTER_LABELS: Record<InboxFilter, string> = {
   all: "All",
   messages: "Messages",
+  // Chats about a listing (Oct 2026), so buying and selling sit in Messages.
+  marketplace: "Marketplace",
   alerts: "Alerts",
   archived: "Archived",
 };
@@ -138,6 +140,8 @@ export function matchesInboxFilter(item: InboxItem, filter: InboxFilter): boolea
       return item.kind === "alert" || !item.archived;
     case "messages":
       return item.kind === "conversation" && !item.archived;
+    case "marketplace":
+      return item.kind === "conversation" && !item.archived && item.listingTitle !== null;
     case "alerts":
       return item.kind === "alert";
     case "archived":

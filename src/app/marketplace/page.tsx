@@ -22,6 +22,8 @@ import { GOLD_BUTTON } from "@/components/marketplace/buy-styles";
 import MarketplaceControls from "./marketplace-controls";
 import LoadMoreListings from "./load-more-listings";
 import ListingCard from "./listing-card";
+import SmartSearchBox from "./smart-search-box";
+import { CATEGORIES } from "@/lib/marketplace";
 import { getAgeAccess } from "@/lib/age-access";
 import { ageBlockFor } from "@/lib/junior";
 
@@ -58,51 +60,96 @@ export default async function MarketplacePage({
 
   return (
     <div>
-      <section className="relative overflow-hidden">
+      {/* Oct 2026 redesign (approved mock-up Web 1): a full photo hero with
+          the smart search front and centre. */}
+      <section className="relative overflow-hidden bg-navy-900">
         <Image
-          src={mode === "new" ? "/images/dunes.jpg" : "/images/marketplace-header.jpg"}
+          src={mode === "new" ? "/images/dunes.jpg" : "/images/sell-cta.jpg"}
           alt=""
           fill
           priority
           sizes="100vw"
-          className="object-cover"
+          className="object-cover opacity-60"
         />
-        <div className="absolute inset-0 bg-gradient-to-b from-navy-900/55 via-navy-900/45 to-navy-900/80" />
-        <div className="relative max-w-6xl mx-auto px-6 pt-10 pb-8">
-          <div className="flex flex-wrap items-end justify-between gap-4">
-            <div>
-              <span className="inline-flex items-center gap-2 text-xs font-bold tracking-widest uppercase text-gold-400">
-                <span className="w-5 h-0.5 bg-gold-400 inline-block" /> Marketplace
-              </span>
-              <h1 className="font-display font-bold text-3xl sm:text-4xl text-cream-50 mt-2">
-                {mode === "new" ? "New gear, from the pro shop." : "Golf gear, from golfers."}
-              </h1>
+        <div className="absolute inset-0 bg-gradient-to-r from-navy-900/95 via-navy-900/70 to-navy-900/20" />
+        <div className="relative max-w-6xl mx-auto px-6 pt-14 pb-16 sm:pt-20 sm:pb-20">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <span className="inline-flex items-center gap-2 text-xs font-bold tracking-[0.2em] uppercase text-gold-400">
+              <span className="w-5 h-0.5 bg-gold-400 inline-block" /> The PinPals Marketplace
+            </span>
+            <div className="inline-flex rounded-full bg-cream-50/10 p-1 backdrop-blur" role="tablist" aria-label="Used or new gear">
+              {(["used", "new"] as const).map((m) => (
+                <Link
+                  key={m}
+                  href={m === "new" ? "/marketplace?mode=new" : "/marketplace"}
+                  role="tab"
+                  aria-selected={mode === m}
+                  className={`px-5 py-2 rounded-full text-sm font-bold transition ${
+                    mode === m ? "bg-gold-500 text-navy-900" : "text-cream-50 hover:text-gold-400"
+                  }`}
+                >
+                  {m === "new" ? "New from shops" : "Used"}
+                </Link>
+              ))}
             </div>
-            {/* Under-18s browse only (0159): no sell button. */}
-            {canSell && (
-              <Link href={user ? "/marketplace/new" : "/signup"} className={GOLD_BUTTON}>
-                {user ? "Sell an item" : "Join to start selling"}
-              </Link>
-            )}
           </div>
+          <h1 className="font-display font-semibold text-[clamp(38px,5.5vw,66px)] leading-[1.04] text-cream-50 mt-5 max-w-3xl">
+            {mode === "new" ? "New gear, from the pro shop." : "Golf gear, golfer to golfer."}
+          </h1>
+          <p className="text-lg text-[#d9d2c3] mt-4 max-w-xl leading-relaxed">
+            {mode === "new"
+              ? "Stock from Irish pro shops and trusted retailers — click and collect at the club."
+              : "Clubs, bags and trolleys from members across Ireland. See it at the club, pay in person, play it on Saturday."}
+          </p>
+          {mode === "used" ? (
+            <div className="mt-7 max-w-3xl grid gap-3">
+              <SmartSearchBox initial={typeof raw.search === "string" ? raw.search : ""} />
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-sm text-[#d9d2c3]">Popular:</span>
+                {POPULAR.map((p) => (
+                  <Link
+                    key={p.label}
+                    href={p.href}
+                    className="px-3.5 py-1.5 rounded-full border border-cream-50/35 text-cream-50 text-sm font-semibold hover:border-cream-50/70 transition"
+                  >
+                    {p.label}
+                  </Link>
+                ))}
+                {canSell && (
+                  <Link href={user ? "/marketplace/new" : "/signup"} className={`${GOLD_BUTTON} ml-auto`}>
+                    {user ? "Sell an item" : "Join to start selling"}
+                  </Link>
+                )}
+              </div>
+            </div>
+          ) : canSell ? (
+            <Link href={user ? "/marketplace/new" : "/signup"} className={`${GOLD_BUTTON} mt-7 inline-flex`}>
+              {user ? "Sell an item" : "Join to start selling"}
+            </Link>
+          ) : null}
+        </div>
+      </section>
 
-          <div className="mt-6 inline-flex rounded-full bg-navy-900/70 p-1 backdrop-blur" role="tablist" aria-label="New or used gear">
-            {(["used", "new"] as const).map((m) => (
-              <Link
-                key={m}
-                href={m === "new" ? "/marketplace?mode=new" : "/marketplace"}
-                role="tab"
-                aria-selected={mode === m}
-                className={`px-6 py-2 rounded-full text-sm font-extrabold transition ${
-                  mode === m ? "bg-gold-400 text-navy-900" : "text-cream-50 hover:text-gold-400"
-                }`}
-              >
-                {m === "new" ? "New Gear" : "Used Gear"}
-              </Link>
+      {mode === "used" ? (
+        <div className="bg-surface border-b border-line">
+          <div className="max-w-6xl mx-auto px-6 py-5 grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-4">
+            {TRUST.map((t) => (
+              <div key={t.h} className="flex items-center gap-3">
+                <span aria-hidden className="w-11 h-11 shrink-0 rounded-full bg-green-100 flex items-center justify-center">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#1f5c2e" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z" />
+                    <path d="M9 12l2 2 4-4" />
+                  </svg>
+                </span>
+                <span>
+                  <span className="block font-bold text-[15px]">{t.h}</span>
+                  <span className="block text-sm text-ink-500">{t.s}</span>
+                </span>
+              </div>
             ))}
           </div>
         </div>
-      </section>
+      ) : null}
 
       <div className="max-w-6xl mx-auto px-6 py-8">
         {listed && (
@@ -115,6 +162,33 @@ export default async function MarketplacePage({
     </div>
   );
 }
+
+const POPULAR = [
+  { label: "Qi10 driver", href: "/marketplace?brand=taylormade&category=Drivers&q=qi10&search=qi10%20driver" },
+  { label: "Scotty putter", href: "/marketplace?brand=scotty-cameron&category=Putters&search=scotty%20putter" },
+  { label: "Electric trolley", href: "/marketplace?category=Bags+%26+trolleys&subcategory=Electric+trolleys&search=electric%20trolley" },
+  { label: "Under €100", href: "/marketplace?maxPrice=100&search=under%20100" },
+];
+
+const TRUST = [
+  { h: "Members only", s: "Every seller is a PinPals golfer" },
+  { h: "Meet at the club", s: "See it, swing it, then pay" },
+  { h: "Cash or Revolut", s: "No fees to buy or sell" },
+  { h: "Questions & offers in the open", s: "Every buyer sees the same thing" },
+];
+
+/** Category photos (approved mock-ups): the club on grass, or a studio shot on a soft colour. */
+const CATEGORY_PHOTOS: Record<string, string> = {
+  Drivers: "/images/marketplace/drivers.jpg",
+  "Woods & hybrids": "/images/marketplace/woods.jpg",
+  Irons: "/images/marketplace/irons.jpg",
+  Wedges: "/images/marketplace/wedges.jpg",
+  Putters: "/images/marketplace/putters.jpg",
+  "Full sets": "/images/marketplace/sets.jpg",
+  "Bags & trolleys": "/images/marketplace/bags.jpg",
+  "Shoes & apparel": "/images/marketplace/apparel.jpg",
+  "Balls & accessories": "/images/marketplace/balls.jpg",
+};
 
 const CHIPS: { label: string; patch: Partial<MarketplaceFilters> }[] = [
   { label: "Under €100", patch: { maxPriceCents: 10000 } },
@@ -171,6 +245,28 @@ async function UsedGear({ filters, userId }: { filters: MarketplaceFilters; user
         </div>
       ) : null}
 
+      {browsing ? (
+        <section className="mb-10" aria-labelledby="shop-by-category">
+          <h2 id="shop-by-category" className="font-display font-semibold text-3xl text-navy-900 mb-5">
+            Shop by category
+          </h2>
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(130px,1fr))] gap-3.5">
+            {CATEGORIES.map((c) => (
+              <Link
+                key={c}
+                href={`/marketplace?category=${encodeURIComponent(c)}#results`}
+                className="group bg-surface rounded-2xl overflow-hidden shadow-[0_1px_2px_rgba(12,32,56,0.06),0_10px_26px_rgba(12,32,56,0.07)] hover:-translate-y-0.5 transition"
+              >
+                <span className="relative block aspect-square">
+                  <Image src={CATEGORY_PHOTOS[c]} alt="" fill sizes="180px" className="object-cover group-hover:scale-105 transition duration-300" />
+                </span>
+                <span className="block px-3.5 py-3 font-bold text-[15px]">{c}</span>
+              </Link>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
       {featured.length > 0 ? (
         <section className="mb-8">
           <h2 className="font-extrabold text-xl text-navy-900 mb-3">Featured</h2>
@@ -182,6 +278,7 @@ async function UsedGear({ filters, userId }: { filters: MarketplaceFilters; user
         </section>
       ) : null}
 
+      <div id="results" className="scroll-mt-20" />
       <MarketplaceControls filters={filters} brandFacets={brandFacets} />
 
       {/* Keyed by the filters so a search/filter/sort change remounts the
