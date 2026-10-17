@@ -166,6 +166,22 @@ describe("the society day", () => {
     });
   });
 
+  it("takes a big society: 40 groups (0171 — match numbers stopped at 12)", async () => {
+    await withRole("authenticated", SECRETARY, async (c) => {
+      await setUp(c);
+      await as(c, SECRETARY);
+      const groups = JSON.stringify(
+        Array.from({ length: 40 }, (_, i) => ({ players: i === 0 ? [p(SECRETARY, "Eire")] : [p(null, `Guest ${i + 1}`)] })),
+      );
+      const id = (await c.query<{ id: string }>(createDay, [day(), groups, card])).rows[0].id;
+      const { rows } = await c.query<{ n: string; top: number }>(
+        "select count(*) as n, max(match_number) as top from public.live_rounds where match_day_id = $1",
+        [id],
+      );
+      expect([Number(rows[0].n), rows[0].top]).toEqual([40, 40]);
+    });
+  });
+
   it("everyone in the day sees every card, but scores only their own", async () => {
     await withRole("authenticated", SECRETARY, async (c) => {
       await setUp(c);
