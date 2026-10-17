@@ -883,7 +883,7 @@ export default function LiveRoundScreen() {
             const strokes = entered ? (mine!.get(h.hole) ?? null) : null;
             const shown = entered ? strokes : h.par + (shots ?? 0);
             const pts = entered && shots != null ? stablefordPoints(strokes, h.par, shots) : null;
-            const name = entered && strokes != null && shots != null ? netScoreName(strokes, h.par, shots) : entered && strokes == null ? "Picked up" : null;
+            const name = entered && strokes != null && shots != null ? netScoreName(strokes, h.par, shots) : entered && strokes == null ? "No return" : null;
             return (
               <View key={p.id} style={{ gap: spacing.sm }}>
               {sideHeader ? (
@@ -924,13 +924,25 @@ export default function LiveRoundScreen() {
                 </View>
                 {canScore ? (
                   <View style={styles.stepper}>
+                    {/* NR (no return) beside the score, the way a club card
+                        marks a hole the player picked up on. Tap again to clear. */}
+                    <Pressable
+                      onPress={() => void (entered && strokes == null ? score(p.id, null, true) : score(p.id, null))}
+                      style={[styles.nr, entered && strokes == null && styles.nrOn]}
+                      accessibilityRole="button"
+                      accessibilityLabel={entered && strokes == null ? `${p.name}: no return. Tap to clear.` : `No return for ${p.name}`}
+                      accessibilityState={{ selected: entered && strokes == null }}
+                      hitSlop={4}
+                    >
+                      <Text style={[styles.nrText, entered && strokes == null && styles.nrTextOn]}>NR</Text>
+                    </Pressable>
                     <StepButton label="−" a11y={`One fewer for ${p.name}`} onPress={() => void score(p.id, Math.max(1, (shown ?? h.par) - 1))} />
                     <Pressable
                       onPress={() => void score(p.id, shown ?? h.par)}
                       onLongPress={() => entered && void score(p.id, null, true)}
                       style={styles.strokesBox}
                       accessibilityRole="button"
-                      accessibilityLabel={entered ? `${p.name}: ${strokes ?? "picked up"}. Hold to clear.` : `Confirm ${shown} for ${p.name}`}
+                      accessibilityLabel={entered ? `${p.name}: ${strokes ?? "no return"}. Hold to clear.` : `Confirm ${shown} for ${p.name}`}
                     >
                       {/* Marked against par (gross), like the card: circle for a
                           birdie, square for a bogey. */}
@@ -994,14 +1006,7 @@ export default function LiveRoundScreen() {
           />
           {canScore ? (
             <View style={styles.footerRow}>
-              <Text style={styles.footNote}>Tap the number to confirm it · hold it to clear</Text>
-              <View style={styles.pickupRow}>
-                {rows.map((p) => (
-                  <Pressable key={p.id} onPress={() => void score(p.id, null)} style={styles.pickup} accessibilityRole="button">
-                    <Text style={styles.pickupText}>{scr ? (scr.foursomes ? "Pair picked up" : "Team picked up") : `${p.name.split(" ")[0]} picked up`}</Text>
-                  </Pressable>
-                ))}
-              </View>
+              <Text style={styles.footNote}>Tap the number to confirm it · hold it to clear · NR if you picked up</Text>
               {hole < card.length ? (
                 <Pressable onPress={() => setHole(hole + 1)} style={styles.next} accessibilityRole="button">
                   <Text style={styles.nextLabel}>Next hole</Text>
@@ -1436,7 +1441,7 @@ function LiveCard({
                   ) : mode === "strokes" ? (
                     <ScoreMark strokes={v} par={c.par} size={22} />
                   ) : (
-                    <Text style={styles.lcCellText}>{v ?? "P"}</Text>
+                    <Text style={styles.lcCellText}>{v ?? "NR"}</Text>
                   )}
                 </View>
               );
@@ -1557,9 +1562,10 @@ const styles = StyleSheet.create({
 
   footerRow: { gap: spacing.sm },
   footNote: { fontFamily: fonts.body, fontSize: 12, color: colors.ink500, textAlign: "center" },
-  pickupRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, justifyContent: "center" },
-  pickup: { minHeight: 36, paddingHorizontal: 12, borderRadius: radii.pill, borderWidth: 1, borderColor: colors.line, justifyContent: "center", backgroundColor: colors.surface },
-  pickupText: { fontFamily: fonts.body, fontSize: 13, color: colors.ink500 },
+  nr: { width: 38, height: 38, borderRadius: 19, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface, alignItems: "center", justifyContent: "center", marginRight: 2 },
+  nrOn: { backgroundColor: colors.red600, borderColor: colors.red600 },
+  nrText: { fontFamily: fonts.bodyBold, fontSize: 12, letterSpacing: 0.5, color: colors.ink500 },
+  nrTextOn: { color: colors.cream50 },
   next: { minHeight: 54, borderRadius: radii.pill, backgroundColor: colors.green700, alignItems: "center", justifyContent: "center" },
   backLive: { flexDirection: "row", gap: 8, minHeight: 54, borderRadius: radii.pill, backgroundColor: colors.navy900, borderWidth: 1, borderColor: colors.gold500, alignItems: "center", justifyContent: "center" },
   backLiveLabel: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.cream50 },

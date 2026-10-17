@@ -83,6 +83,10 @@ const PHRASES: Array<[string[], Token["kind"], number?]> = [
   [["picked", "the", "ball", "up"], "pickup"],
   [["no", "score"], "pickup"],
   [["no", "return"], "pickup"],
+  [["no", "returns"], "pickup"],
+  [["n", "r"], "pickup"],
+  [["pick", "it", "up"], "pickup"],
+  [["picked", "that", "up"], "pickup"],
   [["did", "not", "finish"], "pickup"],
   [["didn't", "finish"], "pickup"],
   [["didnt", "finish"], "pickup"],
@@ -103,7 +107,7 @@ const ME = new Set(["i", "i'm", "im", "i've", "ive", "i'd", "id", "me", "myself"
 const ALL = new Set(["everyone", "everybody", "all"]);
 const CORRECTIONS = new Set(["no", "sorry", "actually", "correction", "wait", "scratch"]);
 const SAME = new Set(["same", "ditto"]);
-const PICKUP = new Set(["blob", "nr", "wiped"]);
+const PICKUP = new Set(["blob", "nr", "wiped", "lifted", "pickup", "pickedup"]);
 /** A number right after these isn't a score: "two putts", "three putted". */
 const NOT_A_SCORE_AFTER = new Set(["putt", "putts", "putted", "putting", "shots", "clubs", "iron"]);
 /** …nor right after these: "on seven", "hole seven", "on in two". */
@@ -551,5 +555,5 @@ export function listeningHints(players: readonly VoicePlayer[]): string[] {
       if (part.length >= 2 && part.toLowerCase() !== "and") names.add(part);
     }
   }
-  return [...names, "birdie", "bogey", "double bogey", "par", "eagle", "picked up"].slice(0, 40);
+  return [...names, "birdie", "bogey", "double bogey", "par", "eagle", "picked up", "no return"].slice(0, 40);
 }

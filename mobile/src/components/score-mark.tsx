@@ -14,7 +14,7 @@ import { colors, fonts } from "@/lib/theme";
  * Stableford.
  *
  * `size` is the outer shape; the number scales with it. A pick-up (null)
- * shows "P" unmarked.
+ * shows "NR" (no return) unmarked, as a club card does.
  */
 export function ScoreMark({
   strokes,
@@ -30,7 +30,7 @@ export function ScoreMark({
   /** A suggested score not yet confirmed: no shape, faint number. */
   ghost?: boolean;
 }) {
-  const label = strokes == null ? "P" : String(strokes);
+  const label = strokes == null ? "NR" : String(strokes);
   const r = strokes == null || ghost ? null : holeResult(strokes, par);
   const under = r === "birdie" || r === "eagle" || r === "albatross";
   const over = r === "bogey" || r === "double" || r === "worse";
@@ -39,7 +39,8 @@ export function ScoreMark({
   const gap = Math.max(2, Math.round(size * 0.1));
   // The number has to fit inside the inner shape of a double.
   const inner = twice ? size - (line + gap) * 2 : size;
-  const fontSize = Math.round(Math.min(size * 0.56, inner * 0.7));
+  // "NR" is two letters, so it sits a little smaller than a number.
+  const fontSize = Math.round(Math.min(size * 0.56, inner * 0.7) * (strokes == null ? 0.72 : 1));
   const text = (
     <Text style={[styles.text, textStyle, { fontSize, lineHeight: Math.round(fontSize * 1.2) }]} allowFontScaling={false}>
       {label}

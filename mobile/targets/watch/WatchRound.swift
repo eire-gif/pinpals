@@ -74,7 +74,7 @@ extension WatchRound {
   /** "Net par · 2 pts", "Bogey", "Picked up". */
   func describe(_ s: Int?, _ n: Int) -> String {
     guard let h = info(n) else { return "" }
-    guard let s = s, s > 0 else { return format == "points" ? "Picked up · 0 pts" : "Picked up" }
+    guard let s = s, s > 0 else { return format == "points" ? "NR · 0 pts" : "No return" }
     let net = h.shots > 0
     let diff = s - (h.par + h.shots)
     let word: String
@@ -94,7 +94,7 @@ extension WatchRound {
 
   /** "5 · 2 pts", "picked up". */
   func short(_ s: Int?, _ n: Int) -> String {
-    guard let s = s, s > 0 else { return "picked up" }
+    guard let s = s, s > 0 else { return "NR" }
     guard format == "points" else { return "\(s)" }
     let p = points(s, n)
     return "\(s) · \(p) \(p == 1 ? "pt" : "pts")"

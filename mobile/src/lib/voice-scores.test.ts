@@ -57,6 +57,12 @@ describe("parseVoiceScores", () => {
     expect(scoresOf(r)).toEqual({ 1: 4, 2: 1, 3: null });
   });
 
+  it("hears no return and NR as picked up", () => {
+    expect(scoresOf(parseVoiceScores("Dec no return, Niamh N.R., I had a par", 4, group))).toEqual({ 1: 4, 2: null, 3: null });
+    expect(scoresOf(parseVoiceScores("Niamh NR", 4, group))).toEqual({ 2: null });
+    expect(scoresOf(parseVoiceScores("I picked up", 4, group))).toEqual({ 1: null });
+  });
+
   it("gives everyone else the score after 'the rest of us'", () => {
     expect(scoresOf(parseVoiceScores("Dec birdie, the rest of us par", 4, group))).toEqual({ 1: 4, 2: 4, 3: 3, 4: 4 });
     expect(scoresOf(parseVoiceScores("we all had bogeys", 5, group))).toEqual({ 1: 6, 2: 6, 3: 6, 4: 6 });

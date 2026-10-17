@@ -1022,7 +1022,7 @@ function AmendEditor({ entrants, settings, onChange }: { entrants: ResultEntrant
               return (
                 <Pressable key={h.hole} onPress={() => pickHole(h.hole)} style={[styles.holeCell, on && styles.choiceOn]} accessibilityRole="button" accessibilityLabel={`Hole ${h.hole}, ${v === undefined ? "no score" : v === null ? "picked up" : v}`}>
                   <Text style={[styles.holeNo, on && styles.choiceTextOn]}>{h.hole}</Text>
-                  <Text style={[styles.holeScore, on && styles.choiceTextOn]}>{v === undefined ? "–" : v === null ? "P" : v}</Text>
+                  <Text style={[styles.holeScore, on && styles.choiceTextOn]}>{v === undefined ? "–" : v === null ? "NR" : v}</Text>
                 </Pressable>
               );
             })}

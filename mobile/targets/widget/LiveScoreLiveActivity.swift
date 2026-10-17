@@ -117,7 +117,7 @@ struct LiveScoreLockView: View {
 
         HStack(spacing: 8) {
           Button(intent: LiveScorePickedUpIntent(roundId: a.roundId)) {
-            Text("Picked up")
+            Text("NR")
               .font(.system(size: 13, weight: .semibold))
               .foregroundStyle(PP.cream.opacity(0.8))
               .padding(.horizontal, 12)

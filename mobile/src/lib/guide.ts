@@ -1059,7 +1059,7 @@ export const GUIDES: Guide[] = [
       },
       {
         title: "Score each hole",
-        body: "Each player's score starts at par plus their shots. Use − and + to set it, tap the number to confirm, and tap Next hole. Hold a number to clear it.",
+        body: "Each player's score starts at par plus their shots. Use − and + to set it, tap the number to confirm, and tap Next hole. Picked up? Tap NR beside the score — it scores no return (0 points in Stableford). Hold a number to clear it.",
         look: [
           { style: "outline", label: "−" },
           { style: "primary", label: "5" },
@@ -1075,11 +1075,11 @@ export const GUIDES: Guide[] = [
           { style: "primary", label: "Say scores", icon: "mic" },
           { style: "primary", label: "Save & go to hole 8", icon: "checkmark" },
         ],
-        tip: "Birdie, par, bogey, double, picked up, “the same” and “the rest of us par” all work. It listens on your phone, so it works with no signal on most iPhones. Nothing saves until you tap Save.",
+        tip: "Birdie, par, bogey, double, picked up or no return (NR), “the same” and “the rest of us par” all work. It listens on your phone, so it works with no signal on most iPhones. Nothing saves until you tap Save.",
       },
       {
         title: "Score from your lock screen",
-        body: "On an iPhone, your round appears on the lock screen once you open it. Lift the phone, use − and + if you need to, and tap Save — no need to unlock. It moves on to the next hole by itself. Picked up is underneath, and Undo takes you back to the hole you just saved. The gold mic opens the round listening, to say the group's scores, and the yardage is your distance to the centre of the green — tap it for the hole map.",
+        body: "On an iPhone, your round appears on the lock screen once you open it. Lift the phone, use − and + if you need to, and tap Save — no need to unlock. It moves on to the next hole by itself. NR (no return, if you picked up) is underneath, and Undo takes you back to the hole you just saved. The gold mic opens the round listening, to say the group's scores, and the yardage is your distance to the centre of the green — tap it for the hole map.",
         look: [
           { style: "outline", label: "−" },
           { style: "primary", label: "5" },
@@ -1090,7 +1090,7 @@ export const GUIDES: Guide[] = [
       },
       {
         title: "Score from your Apple Watch",
-        body: "With PinPals on your Apple Watch, the round you open on your iPhone is on your wrist too. It shows the hole, par and your distance to the centre of the green. Turn the Digital Crown or use − and +, then tap Save — it moves on to the next hole. Swipe left for your card: your total, Undo, Picked up, and any hole to change.",
+        body: "With PinPals on your Apple Watch, the round you open on your iPhone is on your wrist too. It shows the hole, par and your distance to the centre of the green. Turn the Digital Crown or use − and +, then tap Save — it moves on to the next hole. Swipe left for your card: your total, Undo, NR (no return), and any hole to change.",
         look: [
           { style: "outline", label: "−" },
           { style: "primary", label: "4" },
@@ -1726,6 +1726,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-17", text: "Score a game live: picked up is now NR (no return), a button right beside each player's score; the card shows NR, and saying “no return” or “NR” scores it too." },
   { on: "2026-10-16", text: "PinPals is now open to golfers from 13. New guide: Under 16? Getting your parent to approve — the date of birth at sign-up, Waiting for your parent, Ask a parent in the marketplace, and the Parent dashboard." },
   { on: "2026-10-16", text: "Under 18s: tee times, Social, chats and selling are 18 and over, and finding PinPals 16 and over — those guides now say so. Score a game live: under 16s add their parent and the PinPals their parent approves. Buy gear safely: under 18s see Ask a parent." },
   { on: "2026-10-16", text: "Score a game live: new step, Let family or a friend follow along — Share live sends your card as a link anyone can open, or to PinPals in their app and widget; Who's watching has Stop, and it ends by itself after the round." },

@@ -354,7 +354,7 @@ function CheckRow({
 }) {
   const s = entry.strokes;
   const diff = s == null ? null : s - par;
-  const tag = !entry.include ? "NOT HEARD" : s == null ? "PICKED UP" : s === 1 ? "HOLE IN ONE" : (TERM[diff!] ?? `+${diff}`);
+  const tag = !entry.include ? "NOT HEARD" : s == null ? "NO RETURN" : s === 1 ? "HOLE IN ONE" : (TERM[diff!] ?? `+${diff}`);
   const tone = !entry.include ? styles.tagMuted : diff != null && diff < 0 ? styles.tagGood : diff != null && diff >= 2 ? styles.tagBad : diff === 1 ? styles.tagOver : styles.tagPar;
   const toneText = !entry.include ? styles.tagMutedText : diff != null && diff >= 2 ? styles.tagBadText : diff != null && diff < 0 ? styles.tagGoodText : diff === 1 ? styles.tagOverText : styles.tagParText;
   return (
@@ -381,8 +381,8 @@ function CheckRow({
         <Pressable onPress={onMinus} style={styles.step} accessibilityRole="button" accessibilityLabel={`One fewer for ${name}`}>
           <Text style={styles.stepLabel}>−</Text>
         </Pressable>
-        <Text style={[styles.score, !entry.include && styles.scoreMuted]} accessibilityLabel={`${name}: ${s == null ? "picked up" : s}`}>
-          {!entry.include ? "–" : s == null ? "P" : s}
+        <Text style={[styles.score, !entry.include && styles.scoreMuted]} accessibilityLabel={`${name}: ${s == null ? "no return" : s}`}>
+          {!entry.include ? "–" : s == null ? "NR" : s}
         </Text>
         <Pressable onPress={onPlus} style={styles.step} accessibilityRole="button" accessibilityLabel={`One more for ${name}`}>
           <Text style={styles.stepLabel}>+</Text>
@@ -392,7 +392,7 @@ function CheckRow({
         <View style={styles.flag}>
           <Ionicons name="alert-circle-outline" size={18} color="#6b4403" />
           <Text style={styles.flagText}>{entry.check}</Text>
-          <Pressable onPress={onConfirm} style={styles.flagButton} accessibilityRole="button" accessibilityLabel={`Yes, ${s == null ? "picked up" : s} for ${name}`}>
+          <Pressable onPress={onConfirm} style={styles.flagButton} accessibilityRole="button" accessibilityLabel={`Yes, ${s == null ? "no return" : s} for ${name}`}>
             <Text style={styles.flagButtonLabel}>{s == null ? "Yes" : `Yes, ${s}`}</Text>
           </Pressable>
         </View>

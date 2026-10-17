@@ -38,11 +38,11 @@ export type ShareGame = {
   siteUrl?: string | null;
 };
 
-/** A hole's score as a card shows it: strokes, P for picked up, · not yet. */
+/** A hole's score as a card shows it: strokes, NR for no return (picked up), · not yet. */
 const cellFor = (mine: ReadonlyMap<number, number | null> | undefined, hole: number): string => {
   if (!mine || !mine.has(hole)) return "·";
   const v = mine.get(hole);
-  return v == null ? "P" : String(v);
+  return v == null ? "NR" : String(v);
 };
 
 /** Strokes over a set of holes; null when none of them is in yet. A

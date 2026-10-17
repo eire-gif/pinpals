@@ -235,7 +235,7 @@ struct CardView: View {
             Button {
               model.save(pickedUp: true)
             } label: {
-              Label("Picked up on \(model.hole)", systemImage: "hand.raised")
+              Label("NR on \(model.hole)", systemImage: "hand.raised")
             }
           }
         }
