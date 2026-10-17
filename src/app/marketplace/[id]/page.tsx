@@ -382,6 +382,13 @@ export default async function ListingDetailPage({
               )}
             </div>
 
+            {listing.description && (
+              <div className="mt-4 rounded-2xl border border-line bg-surface p-4">
+                <h2 className="text-sm font-extrabold text-navy-900">Description</h2>
+                <p className="text-ink-700 mt-1.5 whitespace-pre-line">{listing.description}</p>
+              </div>
+            )}
+
             {/* Only the specs this particular seller actually filled in —
              * a row of "Not specified" tells a buyer nothing and makes a
              * sparse listing look broken. */}
@@ -412,8 +419,6 @@ export default async function ListingDetailPage({
                 )}
               </div>
             )}
-
-            {listing.description && <p className="text-ink-700 mt-4">{listing.description}</p>}
 
             {cash ? (
               <CashHowItWorks

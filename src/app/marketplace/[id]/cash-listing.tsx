@@ -27,9 +27,16 @@ export function CashHowItWorks({
   canPost: boolean;
   collectionNotes: string | null;
 }) {
+  // Folded until clicked, so the item itself comes first.
   return (
-    <div className={`${SOFT_CARD} mt-6`}>
-      <h2 className={CARD_TITLE}>How it works</h2>
+    <details className={`${SOFT_CARD} mt-6 group`}>
+      <summary className="flex items-center gap-3 cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+        <h2 className={CARD_TITLE}>How it works</h2>
+        <span className="ml-auto text-sm text-ink-500 group-open:hidden">Message · meet · pay</span>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden className="text-navy-900 transition group-open:rotate-180 group-open:ml-auto">
+          <path d="M6 9l6 6 6-6" />
+        </svg>
+      </summary>
       <ol className="grid gap-3 mt-3">
         <Step n={1} title={`Ask or offer ${sellerFirstName}`} body="In the open under Questions & offers, or privately in Messages." />
         <Step
@@ -43,7 +50,7 @@ export function CashHowItWorks({
       <p className="text-xs text-ink-500 mt-4 pt-3 border-t border-cream-100">
         PinPals doesn&rsquo;t handle payment. Check the item before you pay, and never pay a deposit to someone you haven&rsquo;t met.
       </p>
-    </div>
+    </details>
   );
 }
 
