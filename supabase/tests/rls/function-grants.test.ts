@@ -249,6 +249,20 @@ const EXPECTED: Record<string, Expectation> = {
   "admin_set_age_flag(p_user uuid, p_on boolean, p_note text)": { anon: false, authenticated: true },
   "guardian_link_preview(p_token_hash text)": { anon: true, authenticated: true },
   "guardian_link_decline(p_token_hash text)": { anon: true, authenticated: true },
+  // 0160 cash marketplace. The switch and a member's record are public, as
+  // the listing pages that show them are; the sale writes are members' own;
+  // the helpers are internal.
+  "marketplace_payments_enabled()": { anon: true, authenticated: true },
+  "can_message_about_listing(a uuid, b uuid, p_listing_id bigint)": { anon: false, authenticated: true },
+  "marketplace_feedback_revealed(p_sale_id bigint)": { anon: false, authenticated: false },
+  "marketplace_short_name(p_member uuid)": { anon: false, authenticated: false },
+  "mark_listing_sold(p_listing_id bigint, p_buyer_id uuid, p_final_price_cents integer)": { anon: false, authenticated: true },
+  "leave_marketplace_feedback(p_sale_id bigint, p_positive boolean, p_tags text[], p_body text)": { anon: false, authenticated: true },
+  "decline_marketplace_sale(p_sale_id bigint)": { anon: false, authenticated: true },
+  "marketplace_possible_buyers(p_listing_id bigint)": { anon: false, authenticated: true },
+  "marketplace_sale_summary(p_sale_id bigint)": { anon: false, authenticated: true },
+  "marketplace_member_stats(p_member uuid)": { anon: true, authenticated: true },
+  "marketplace_member_feedback(p_member uuid, p_limit integer, p_before_id bigint)": { anon: true, authenticated: true },
   "member_affinity(p_other uuid)": { anon: false, authenticated: true },
   "played_with_me(p_days integer)": { anon: false, authenticated: true },
   "round_guest_invite(p_player_id bigint)": { anon: false, authenticated: true },

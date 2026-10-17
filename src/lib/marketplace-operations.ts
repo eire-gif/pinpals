@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { checkRateLimit, rateLimitMessage } from "@/lib/rate-limit";
+import { PAYMENTS_OFF_MESSAGE, marketplacePaymentsEnabled } from "@/lib/marketplace-settings";
 import { linkConversationToOrder } from "@/lib/conversations-server";
 import { releaseDueOrders } from "@/lib/marketplace-release";
 import { DEFAULT_CHECKOUT_WINDOW_MINUTES, MIN_OFFER_AMOUNT_CENTS, centsToEur, eurToCents } from "@/lib/marketplace";
@@ -97,6 +98,9 @@ export async function makeOffer(params: {
   amountEur: number;
 }): Promise<OpResult> {
   const { supabase, userId, listingId, amountEur } = params;
+
+  // Cash marketplace (0160): an offer is a chat message, not a hold on the item.
+  if (!(await marketplacePaymentsEnabled(supabase))) return fail("invalid", PAYMENTS_OFF_MESSAGE);
 
   const rateLimit = await checkRateLimit({
     action: "create-offer",
@@ -297,6 +301,8 @@ export async function placeBid(params: {
 }): Promise<OpResult> {
   const { supabase, userId, listingId, amountEur } = params;
 
+  if (!(await marketplacePaymentsEnabled(supabase))) return fail("invalid", PAYMENTS_OFF_MESSAGE);
+
   const rateLimit = await checkRateLimit({
     action: "place-bid",
     identifier: userId,
@@ -378,6 +384,8 @@ export async function buyNow(params: {
   addressId: number | null;
 }): Promise<OpResult<{ orderId: number }>> {
   const { userId, listingId, deliveryMethod, addressId } = params;
+
+  if (!(await marketplacePaymentsEnabled(createAdminClient()))) return fail("invalid", PAYMENTS_OFF_MESSAGE);
 
   const rateLimit = await checkRateLimit({
     action: "checkout-buy-now",

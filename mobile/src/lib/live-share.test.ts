@@ -56,11 +56,11 @@ describe("live game share text", () => {
     expect(text).toContain("Par: 4 4 3 5 4 4 3 4 5  (36) | 4 4 3 5 4 4 3 4 5  (36)");
   });
 
-  it("shows a pick-up as P and leaves it out of the stroke total", () => {
+  it("shows a pick-up as NR (no return) and leaves it out of the stroke total", () => {
     const scores = sheet({ 1: [4, null, 3] });
     const text = liveGameShareText(base({ scores, rows: [{ id: 1, name: "Eire Byrne" }], board: buildBoard("stableford", CARD, [PLAYERS[0]], scores) }));
     expect(text).toContain("Eire Byrne — 7");
-    expect(text).toContain("Out: 4 P 3 · · · · · ·  (7)");
+    expect(text).toContain("Out: 4 NR 3 · · · · · ·  (7)");
   });
 
   it("ranks stroke play on net and gross", () => {

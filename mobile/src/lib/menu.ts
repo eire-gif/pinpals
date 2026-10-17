@@ -33,6 +33,9 @@ export type MenuItem =
       feature?: Feature;
       /** Junior members (0159): shown only to members old enough for it. */
       age?: AgeFeature;
+      /** Cash marketplace (0160): "on" only while the marketplace takes
+       *  payments, "off" only while it doesn't. */
+      payments?: "on" | "off";
     }
   /** A site page, opened inside the app's web view as the signed-in member —
    *  never handed to Safari, where they would be a stranger again. */
@@ -131,16 +134,19 @@ export const MENU: MenuSection[] = [
     items: [
       { kind: "native", label: "Browse the marketplace", icon: "pricetags-outline", to: "/marketplace" },
       { kind: "native", label: "List an item", icon: "camera-outline", to: "/new-listing", age: "sell" },
+      // Cash marketplace: My ads is listings, sold, saved and feedback in one.
+      { kind: "native", label: "My ads", icon: "pricetag-outline", to: "/marketplace/my-ads", age: "sell", payments: "off" },
       {
         kind: "native",
         label: "My listings",
         icon: "list-outline",
         to: "/my-listings",
         age: "sell",
+        payments: "on",
       },
-      { kind: "native", label: "Selling", icon: "cash-outline", to: "/selling", age: "sell" },
-      { kind: "native", label: "Buying & orders", icon: "cart-outline", to: "/buying", age: "buy" },
-      { kind: "native", label: "Payouts", icon: "card-outline", to: "/payouts", age: "sell" },
+      { kind: "native", label: "Selling", icon: "cash-outline", to: "/selling", age: "sell", payments: "on" },
+      { kind: "native", label: "Buying & orders", icon: "cart-outline", to: "/buying", age: "buy", payments: "on" },
+      { kind: "native", label: "Payouts", icon: "card-outline", to: "/payouts", age: "sell", payments: "on" },
     ],
   },
   {
@@ -186,15 +192,18 @@ export const MENU: MenuSection[] = [
 /**
  * The menu as it should draw right now: flagged-off entries left out, and —
  * given the member's age access (lib/age.ts) — anything they're too young
- * for. Without one, nothing is left out by age.
+ * for. Without one, nothing is left out by age. `payments` (whether the
+ * marketplace takes them, lib/marketplace-cash.ts) picks between the checkout
+ * entries and My ads; unknown counts as on, as before 0160.
  */
-export const visibleMenu = (access?: AgeAccess): MenuSection[] =>
+export const visibleMenu = (access?: AgeAccess, payments: boolean = true): MenuSection[] =>
   MENU.map((section) => ({
     ...section,
     items: section.items.filter(
       (item) =>
         (item.kind !== "native" || !item.feature || isOn(item.feature)) &&
-        (!access || !("age" in item) || !item.age || canUse(access, item.age))
+        (!access || !("age" in item) || !item.age || canUse(access, item.age)) &&
+        (item.kind !== "native" || !item.payments || item.payments === (payments ? "on" : "off"))
     ),
   })).filter((section) => section.items.length > 0);
 

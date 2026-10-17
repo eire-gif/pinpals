@@ -87,6 +87,12 @@ const EXACT: Record<string, string> = {
 const PATTERNS: { match: RegExp; to: (id: string, id2: string) => string }[] = [
   { match: /^\/conversations\/(\d+)$/, to: (id) => `/conversation/${id}` },
   { match: /^\/marketplace\/(\d+)$/, to: (id) => `/listing/${id}` },
+  // Cash marketplace (0160): "leave feedback" alerts, and a seller's page.
+  { match: /^\/marketplace\/feedback\/(\d+)$/, to: (id) => `/feedback/${id}` },
+  {
+    match: /^\/marketplace\/sellers\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i,
+    to: (id) => `/seller/${id}`,
+  },
   { match: /^\/tee-times\/(\d+)$/, to: (id) => `/invite/${id}` },
   // The feed (0088). A like or comment alert points at the post.
   { match: /^\/feed\/(\d+)$/, to: (id) => `/post/${id}` },

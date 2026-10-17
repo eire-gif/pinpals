@@ -37,6 +37,16 @@ describe("appRouteFor", () => {
     });
   });
 
+  it("sends a cash-sale feedback alert to the feedback screen, not a listing (0160)", () => {
+    // marketplace_feedback_due / marketplace_feedback_received both carry
+    // /marketplace/feedback/<sale id>.
+    expect(appRouteFor("/marketplace/feedback/17")).toEqual({ kind: "native", path: "/feedback/17" });
+    expect(appRouteFor("/marketplace/sellers/00000000-0000-0000-0000-000000000001")).toEqual({
+      kind: "native",
+      path: "/seller/00000000-0000-0000-0000-000000000001",
+    });
+  });
+
   it("keeps the two tee-time sides the right way round", () => {
     // The host is told someone wants in; the applicant is told about their
     // own request. Swapping these shows each of them the other's screen,

@@ -15,7 +15,16 @@ import { startConversation } from "@/app/conversations/actions";
  * buyer/seller pair gets a fresh thread per listing they message about,
  * never merged into one catch-all conversation.
  */
-export default function MessageSellerButton({ sellerId, listingId }: { sellerId: string; listingId: number }) {
+export default function MessageSellerButton({
+  sellerId,
+  listingId,
+  label,
+}: {
+  sellerId: string;
+  listingId: number;
+  /** Given: the page's main button (cash marketplace, 0160) — navy and gold. */
+  label?: string;
+}) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
@@ -33,9 +42,13 @@ export default function MessageSellerButton({ sellerId, listingId }: { sellerId:
         type="button"
         onClick={handleClick}
         disabled={pending}
-        className="w-full py-2.5 rounded-full font-bold text-sm border-[1.5px] border-navy-900 text-navy-900 hover:bg-cream-100 transition disabled:opacity-60"
+        className={
+          label
+            ? "w-full py-3 rounded-full font-bold bg-navy-900 text-gold-400 hover:brightness-110 transition disabled:opacity-60"
+            : "w-full py-2.5 rounded-full font-bold text-sm border-[1.5px] border-navy-900 text-navy-900 hover:bg-cream-100 transition disabled:opacity-60"
+        }
       >
-        {pending ? "Opening…" : "Message seller"}
+        {pending ? "Opening…" : label ?? "Message seller"}
       </button>
       {error && <p className="text-xs text-red-600">{error}</p>}
     </div>

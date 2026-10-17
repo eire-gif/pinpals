@@ -84,6 +84,12 @@ export const FEATURES = {
    *  and every member is drawn as an adult — the database still enforces the
    *  age limits whatever the app shows. */
   ageBands: true,
+  /** The cash marketplace (claude/cash-marketplace.md, needs 0160): Mark as
+   *  sold with a named buyer, two-way feedback, seller pages, and — while
+   *  marketplace_settings.payments_enabled is off — no Buy now, Buyer
+   *  Protection or payouts anywhere. Off: the marketplace behaves as before
+   *  0160, with checkout. */
+  cashMarketplace: true,
 
   // ---- Gates (unfinished, off) ----
   /** Shared rounds (phase 9): model only — see claude/shared-round-model.md. */

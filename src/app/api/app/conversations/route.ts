@@ -41,8 +41,16 @@ export async function POST(request: Request) {
   const auth = await authenticateAppRequest(request);
   if (!auth) return unauthenticated();
 
-  const body = await readJson<{ other_user_id?: unknown }>(request);
+  const body = await readJson<{ other_user_id?: unknown; listing_id?: unknown }>(request);
   const otherUserId = body?.other_user_id;
+  // Optional: a thread about one listing (0160). Anyone may start one with
+  // the seller of an on-sale listing; the insert policy checks that, not us.
+  const rawListing = body?.listing_id;
+  const listingId =
+    typeof rawListing === "number" && Number.isInteger(rawListing) && rawListing > 0 ? rawListing : null;
+  if (rawListing !== undefined && rawListing !== null && listingId === null) {
+    return badRequest("listing_id must be a positive integer");
+  }
   if (typeof otherUserId !== "string" || otherUserId.trim() === "") {
     return badRequest("other_user_id is required");
   }
@@ -65,17 +73,12 @@ export async function POST(request: Request) {
 
   const [a, b] = [auth.user.id, otherUserId].sort();
 
-  // A direct-message thread carries no listing. The website's own version
-  // takes an optional listingId for marketplace threads; the app has no
-  // caller that needs one yet, and `.is(null)` is what keeps this from
-  // returning somebody's offer conversation instead.
-  const { data: existing } = await auth.supabase
-    .from("conversations")
-    .select("id")
-    .eq("user_a_id", a)
-    .eq("user_b_id", b)
-    .is("listing_id", null)
-    .maybeSingle<Pick<Conversation, "id">>();
+  // One thread per pair, plus one per pair per listing (0049) — the same
+  // lookup the website's startConversation() does. `.is(null)` keeps a plain
+  // "Message" from landing in somebody's listing thread.
+  let lookup = auth.supabase.from("conversations").select("id").eq("user_a_id", a).eq("user_b_id", b);
+  lookup = listingId ? lookup.eq("listing_id", listingId) : lookup.is("listing_id", null);
+  const { data: existing } = await lookup.maybeSingle<Pick<Conversation, "id">>();
 
   if (existing) {
     return Response.json({ conversation_id: existing.id }, { status: 200 });
@@ -83,17 +86,18 @@ export async function POST(request: Request) {
 
   const { data: created, error } = await auth.supabase
     .from("conversations")
-    .insert({ user_a_id: a, user_b_id: b, listing_id: null })
+    .insert({ user_a_id: a, user_b_id: b, listing_id: listingId })
     .select("id")
     .single<Pick<Conversation, "id">>();
 
   if (error || !created) {
-    // can_message() is what rejected this, so the message is the website's
-    // own wording for the same refusal rather than a generic failure.
+    // can_message() (or, for a listing, can_message_about_listing()) is what
+    // rejected this, so the message is the website's wording for the refusal.
     return Response.json(
       {
-        error:
-          "You can only message a golfer you're connected with, have exchanged a marketplace offer with, or have an accepted tee-time interest with.",
+        error: listingId
+          ? "That listing isn't for sale any more, so you can't message the seller about it."
+          : "You can only message a golfer you're connected with, have exchanged a marketplace offer with, or have an accepted tee-time interest with.",
         reason: "forbidden",
       },
       { status: 403 }

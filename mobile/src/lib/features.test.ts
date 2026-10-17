@@ -16,8 +16,8 @@ describe("feature flags", () => {
   });
 
   it("shipped features are on", () => {
-    expect([FEATURES.recapPrompts, FEATURES.achievementClaims, FEATURES.profileSections, FEATURES.video, FEATURES.liveScoring, FEATURES.shotMaps, FEATURES.scorecards, FEATURES.groups, FEATURES.scorecardCertification, FEATURES.ads, FEATURES.clubhouseTv, FEATURES.competitions, FEATURES.voiceScoring, FEATURES.liveFollow, FEATURES.ageBands]).toEqual([
-      true, true, true, true, true, true, true, true, true, true, true, true, true, true, true,
+    expect([FEATURES.recapPrompts, FEATURES.achievementClaims, FEATURES.profileSections, FEATURES.video, FEATURES.liveScoring, FEATURES.shotMaps, FEATURES.scorecards, FEATURES.groups, FEATURES.scorecardCertification, FEATURES.ads, FEATURES.clubhouseTv, FEATURES.competitions, FEATURES.voiceScoring, FEATURES.liveFollow, FEATURES.ageBands, FEATURES.cashMarketplace]).toEqual([
+      true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true,
     ]);
   });
 });
