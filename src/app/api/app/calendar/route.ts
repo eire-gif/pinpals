@@ -1,6 +1,7 @@
 import { asId, authenticateAppRequest, badRequest, readJson, unauthenticated } from "@/lib/app-api";
 import { calendarLinkPath, signCalendarToken, tzForCountry, type CalEvent } from "@/lib/calendar-ics";
 import { getSiteUrl } from "@/lib/site-url";
+import { teeTimeCalendarUrl } from "@/lib/tee-time-calendar";
 
 /**
  * POST /api/app/calendar  { kind: "tee_time" | "match_day", id }  → { url }
@@ -30,52 +31,10 @@ export async function POST(request: Request) {
   let event: CalEvent | null = null;
 
   if (body.kind === "tee_time") {
-    const { data: invite } = await auth.supabase
-      .from("tee_time_invites")
-      .select("id, member_id, status, club_id, club_name, play_date, time_from, exact_tee_time, spaces_available, clubs ( country, town )")
-      .eq("id", id)
-      .maybeSingle<{
-        id: number;
-        member_id: string;
-        status: string;
-        club_id: number | null;
-        club_name: string | null;
-        play_date: string;
-        time_from: string | null;
-        exact_tee_time: string | null;
-        clubs: { country: string | null; town: string | null } | null;
-      }>();
-    if (!invite) return Response.json({ error: "That tee time isn't available.", reason: "not_found" }, { status: 404 });
-
-    const hosting = invite.member_id === auth.user.id;
-    if (!hosting) {
-      const { data: mine } = await auth.supabase
-        .from("tee_time_interests")
-        .select("status")
-        .eq("invite_id", id)
-        .eq("member_id", auth.user.id)
-        .maybeSingle<{ status: string }>();
-      if (!mine || !["confirmed", "accepted"].includes(mine.status)) return notYours();
-    }
-
-    const course = invite.club_name ?? "Golf";
-    const exact = HHMM(invite.exact_tee_time);
-    const from = HHMM(invite.time_from);
-    event = {
-      uid: `tee-time-${invite.id}`,
-      title: `⛳ Golf at ${course}`,
-      date: invite.play_date,
-      time: exact ?? from,
-      tz: tzForCountry(invite.clubs?.country),
-      durationMin: 270,
-      location: [course, invite.clubs?.town].filter(Boolean).join(", "),
-      description: [
-        exact ? `Tee time ${exact}.` : from ? `Teeing off from about ${from} — check the exact time in PinPals.` : "Time to be confirmed in PinPals.",
-        hosting ? "You're hosting." : "You're playing.",
-        "Organised on PinPals.",
-      ].join(" "),
-      url: `${site}/invite/${invite.id}`,
-    };
+    // Shared with the website's My rounds (src/lib/tee-time-calendar.ts).
+    const result = await teeTimeCalendarUrl(auth.supabase, auth.user.id, id);
+    if (!result.ok) return Response.json({ error: result.error, reason: result.reason }, { status: result.status });
+    return Response.json({ url: result.url });
   } else {
     const { data: day } = await auth.supabase
       .from("live_match_days")

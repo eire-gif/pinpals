@@ -4,8 +4,14 @@
  * One page replaced four: Rounds I've posted, Confirmed rounds, Rounds I've
  * asked to join and Places offered to you (claude/my-rounds-redesign.md).
  * Every one of a member's tee times is on it, whichever side they are on,
- * and this module decides what each one says. lib/my-rounds.ts reads the
- * rows; the screen draws what comes out of buildMyRounds().
+ * and this module decides what each one says — in the app (app/my-rounds.tsx,
+ * rows read by lib/my-rounds.ts) and on the website (/tee-times/mine, rows
+ * read by src/lib/my-rounds-server.ts).
+ *
+ * TWO COPIES, BYTE-IDENTICAL: mobile/src/lib/my-rounds-rules.ts and
+ * src/lib/my-rounds-rules.ts. src/lib/my-rounds-rules.test.ts fails if they
+ * differ, so the app and the site can't tell a member different things
+ * about the same round. Change one, copy it to the other.
  *
  * THE PROCESS IS THREE STEPS, and the page says which one each round is on:
  *
@@ -17,7 +23,8 @@
  * a place offered to them — goes in "Needs your answer" at the top, so there
  * is one place to look and one number on the Tee Times tab.
  *
- * Pure so it is unit-tested (my-rounds-rules.test.ts) without a device.
+ * Pure — no database, React or React Native — so it is unit-tested
+ * (mobile/src/lib/my-rounds-rules.test.ts) and runs on both.
  */
 
 export type InterestStatus = "pending" | "accepted" | "confirmed" | "declined";
@@ -262,6 +269,12 @@ const byDateThenTime = (a: { playDate: string; sortTime: string }, b: { playDate
   a.playDate.localeCompare(b.playDate) || a.sortTime.localeCompare(b.sortTime);
 
 const sortTimeOf = (r: RoundRow) => r.exactTeeTime ?? r.timeFrom ?? "99:99";
+
+function withoutSortTime<T extends { sortTime: string }>(item: T): Omit<T, "sortTime"> {
+  const { sortTime, ...rest } = item;
+  void sortTime;
+  return rest;
+}
 
 export function buildMyRounds(input: MyRoundsInput): MyRoundsView {
   const { userId, now } = input;
@@ -562,11 +575,10 @@ export function buildMyRounds(input: MyRoundsInput): MyRoundsView {
   played.sort((a, b) => b.playDate.localeCompare(a.playDate));
 
   const active = upcoming.filter((r) => r.role !== "cancelled" && r.role !== "declined");
-  const strip = <T extends { sortTime: string }>({ sortTime: _s, ...rest }: T) => rest;
 
   return {
-    needs: needs.map(strip) as Need[],
-    upcoming: upcoming.map(strip) as MyRound[],
+    needs: needs.map(withoutSortTime) as Need[],
+    upcoming: upcoming.map(withoutSortTime) as MyRound[],
     played: played.slice(0, PLAYED_SHOWN),
     counts: {
       all: active.length,

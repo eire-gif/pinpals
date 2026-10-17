@@ -213,6 +213,7 @@ describe("every native destination is a screen that exists", () => {
     "/tee-times/interested",
     "/tee-times/requests",
     "/tee-times/confirmed",
+    "/tee-times/mine",
     "/marketplace",
     "/dashboard/listings",
     "/dashboard/selling",
@@ -335,6 +336,10 @@ describe("tee-time alerts open the one round they're about", () => {
     for (const list of ["/tee-times/requests", "/tee-times/confirmed", "/tee-times/interested"]) {
       expect(appRouteFor(`${list}?invite=12`)).toEqual({ kind: "native", path: "/my-rounds?invite=12" });
     }
+  });
+  it("opens the website's My rounds page as the app's", () => {
+    expect(appRouteFor("/tee-times/mine")).toEqual({ kind: "native", path: "/my-rounds" });
+    expect(appRouteFor("/tee-times/mine?invite=7")).toEqual({ kind: "native", path: "/my-rounds?invite=7" });
   });
   it("still opens the right tab when no round is named", () => {
     expect(appRouteFor("/tee-times/requests")).toEqual({ kind: "native", path: "/my-rounds?show=requested" });
