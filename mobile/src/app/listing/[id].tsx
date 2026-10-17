@@ -40,6 +40,7 @@ import { ApiError } from "@/lib/api";
 import { PurchasePanel } from "@/components/purchase-panel";
 import { buyerProtectionFee, eur, sweepMarketplace } from "@/lib/purchase";
 import { shortClub } from "@/lib/used-gear";
+import { EMPTY_STATS, memberStats, positiveShare, useCashMarketplace, type MemberStats } from "@/lib/marketplace-cash";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 
 /**
@@ -50,6 +51,12 @@ import { colors, fonts, radii, spacing, type } from "@/lib/theme";
  * call the same operations as the website — so there is still one
  * implementation of the offer and auction state machines, on the server.
  * The one step that opens the website is Stripe's card form, at the end.
+ *
+ * Cash marketplace (0160): while the marketplace takes no payments, there is
+ * no Buy now or Buyer Protection. "How it works" says message, meet at the
+ * club, pay cash or Revolut; Make offer opens the chat with the offer half
+ * written; the seller card carries their marketplace feedback; and the
+ * seller's Mark as sold names the buyer so both can leave feedback.
  */
 const GALLERY_WIDTH = contentWidthNow();
 
@@ -68,6 +75,8 @@ export default function ListingScreen() {
   const { access, allows } = useAgeAccess();
   const canBuy = allows("buy");
   const [asked, setAsked] = useState(false);
+  const cash = useCashMarketplace();
+  const [sellerStats, setSellerStats] = useState<MemberStats>(EMPTY_STATS);
 
   const load = useCallback(async () => {
     const numeric = Number.parseInt(String(id), 10);
@@ -93,6 +102,12 @@ export default function ListingScreen() {
     void load();
   }, [load]);
 
+  const sellerId = listing?.seller?.id ?? null;
+  useEffect(() => {
+    if (!cash || !sellerId) return;
+    void memberStats(sellerId).then(setSellerStats);
+  }, [cash, sellerId]);
+
   async function favourite() {
     if (!listing || !userId) return;
     const next = !listing.isFavourited;
@@ -100,11 +115,16 @@ export default function ListingScreen() {
     await setFavourite(listing.id, userId, next);
   }
 
-  async function message() {
+  /** `draft`: what to start the message box with (Make offer). */
+  async function message(draft?: string) {
     if (!listing?.seller) return;
     setBusy(true);
     try {
-      router.push(`/conversation/${await conversationWith(listing.seller.id)}`);
+      // A thread about this listing while it's for sale — anyone may start
+      // one with the seller (0160) — else the plain thread between them.
+      const about = cash && (listing.status === "active" || listing.status === "reserved") ? listing.id : undefined;
+      const conversationId = await conversationWith(listing.seller.id, about);
+      router.push(draft ? { pathname: "/conversation/[id]", params: { id: String(conversationId), draft } } : `/conversation/${conversationId}`);
     } catch {
       // can_message() said no, or the network did. Falling back to the
       // listing page on the site, where the same button explains why.
@@ -282,8 +302,26 @@ export default function ListingScreen() {
             )}
           </View>
 
+          {/* -------- How it works (cash marketplace, mock-up 3) -------- */}
+          {cash ? (
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>How it works</Text>
+              <Step n={1} title={`Message ${shop ? shop.name : listing.seller ? listing.seller.name.split(" ")[0] : "the seller"}`} body="Ask questions or make an offer in chat." />
+              <Step
+                n={2}
+                title={meetAt ? `Meet at ${shortClub(meetAt)}` : "Meet up"}
+                body={canPost ? "Or agree postage between you. Try it on the green first if you can." : "Have a look at it, or try it on the green, before you pay."}
+              />
+              <Step n={3} title="Pay cash or Revolut" body="You agree it between you. Then swap feedback in the app." />
+              {listing.collectionNotes ? <Text style={styles.notes}>{listing.collectionNotes}</Text> : null}
+              <Text style={styles.safety}>
+                PinPals doesn&apos;t handle payment. Check the item before you pay, and never pay a deposit to someone you haven&apos;t met.
+              </Text>
+            </View>
+          ) : null}
+
           {/* -------- How you'll get it (mock-up 3) -------- */}
-          <View style={styles.card}>
+          {!cash ? <View style={styles.card}>
             <Text style={styles.cardTitle}>How you&apos;ll get it</Text>
             {canMeet ? (
               <Way
@@ -301,10 +339,10 @@ export default function ListingScreen() {
               <Way icon="cube-outline" title="Tracked post" body="Seller posts it with tracking — pay postage at checkout" />
             ) : null}
             {listing.collectionNotes ? <Text style={styles.notes}>{listing.collectionNotes}</Text> : null}
-          </View>
+          </View> : null}
 
-          {/* -------- Buyer Protection -------- */}
-          {!shop && !listing.isMine ? (
+          {/* -------- Buyer Protection (only while the marketplace takes payments) -------- */}
+          {!shop && !listing.isMine && !cash ? (
             <View style={[styles.card, styles.protectCard]}>
               <View style={styles.protectHead}>
                 <Ionicons name="shield-checkmark" size={22} color={colors.green700} />
@@ -358,7 +396,13 @@ export default function ListingScreen() {
             </Pressable>
           ) : listing.seller ? (
             <View style={styles.card}>
-              <View style={styles.seller}>
+              <Pressable
+                style={styles.seller}
+                disabled={!cash}
+                onPress={() => router.push({ pathname: "/seller/[id]", params: { id: listing.seller!.id } })}
+                accessibilityRole={cash ? "button" : undefined}
+                accessibilityLabel={cash ? `${listing.seller.name}'s marketplace page` : undefined}
+              >
                 <Avatar
                   url={null}
                   color={listing.seller.avatarColor}
@@ -371,7 +415,18 @@ export default function ListingScreen() {
                     {listing.seller.homeClub ?? "No club set"}
                   </Text>
                 </View>
-              </View>
+                {cash ? <Ionicons name="chevron-forward" size={18} color={colors.ink500} /> : null}
+              </Pressable>
+              {cash ? (
+                <View style={styles.trust}>
+                  <Trust
+                    value={positiveShare(sellerStats)?.replace(" positive", "") ?? "New"}
+                    label={sellerStats.positive + sellerStats.negative > 0 ? "positive" : "seller"}
+                  />
+                  <Trust value={String(sellerStats.sales)} label={sellerStats.sales === 1 ? "sale" : "sales"} />
+                  <Trust value={memberSince(listing.seller.memberSince)} label="member since" />
+                </View>
+              ) : (
               <View style={styles.trust}>
                 <Trust
                   value={
@@ -388,8 +443,9 @@ export default function ListingScreen() {
                 <Trust value={memberSince(listing.seller.memberSince)} label="member since" />
                 <Trust value={listing.seller.homeClub ? "✓" : "—"} label="club member" />
               </View>
+              )}
 
-              {!listing.isMine && canBuy && (
+              {!listing.isMine && canBuy && !cash && (
                 <Pressable
                   style={styles.secondary}
                   disabled={busy}
@@ -411,7 +467,7 @@ export default function ListingScreen() {
 
           {listing.isMine ? (
             <>
-              {listing.status === "active" && !shop ? (
+              {listing.status === "active" && !shop && !cash ? (
                 // Information only, no link: a promotion is a digital
                 // service, so under App Store rule 3.1.1 it is bought on the
                 // website, never inside the app (not even its web view).
@@ -433,6 +489,7 @@ export default function ListingScreen() {
                 listingId={listing.id}
                 status={listing.status}
                 userId={userId}
+                cash={cash}
                 onChanged={load}
                 onEdit={openOnSite}
               />
@@ -458,6 +515,36 @@ export default function ListingScreen() {
                 )}
               </Pressable>
             </View>
+          ) : userId && cash ? (
+            // Cash marketplace: an offer is a message.
+            listing.seller && (listing.status === "active" || listing.status === "reserved") ? (
+              <View style={styles.actions}>
+                <Pressable
+                  style={[styles.secondary, styles.actionButton, busy && styles.sellerBusy]}
+                  disabled={busy}
+                  onPress={() =>
+                    void message(
+                      `Hi ${listing.seller!.name.split(" ")[0]}, would you take € for the ${listing.title}?`
+                    )
+                  }
+                  accessibilityRole="button"
+                >
+                  <Text style={styles.secondaryLabel}>Make offer</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.primary, styles.actionButton, styles.actionMain, busy && styles.sellerBusy]}
+                  disabled={busy}
+                  onPress={() => void message()}
+                  accessibilityRole="button"
+                >
+                  {busy ? (
+                    <ActivityIndicator color={colors.gold400} />
+                  ) : (
+                    <Text style={styles.primaryLabel}>Message {listing.seller.name.split(" ")[0]}</Text>
+                  )}
+                </Pressable>
+              </View>
+            ) : null
           ) : userId ? (
             // Buy now, offers and bids, native. See purchase-panel.tsx.
             <PurchasePanel listing={listing} userId={userId} onChanged={() => void load()} />
@@ -484,6 +571,20 @@ function Way({ icon, title, body, tag }: { icon: keyof typeof Ionicons.glyphMap;
         <Text style={styles.wayBody}>{body}</Text>
       </View>
       {tag ? <Text style={styles.wayTag}>{tag}</Text> : null}
+    </View>
+  );
+}
+
+function Step({ n, title, body }: { n: number; title: string; body: string }) {
+  return (
+    <View style={styles.step}>
+      <View style={styles.stepNumber}>
+        <Text style={styles.stepNumberText}>{n}</Text>
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.wayTitle}>{title}</Text>
+        <Text style={styles.wayBody}>{body}</Text>
+      </View>
     </View>
   );
 }
@@ -527,12 +628,15 @@ function SellerControls({
   listingId,
   status,
   userId,
+  cash,
   onChanged,
   onEdit,
 }: {
   listingId: number;
   status: string;
   userId: string | null;
+  /** Cash marketplace: Mark as sold names the buyer (its own screen). */
+  cash: boolean;
   onChanged: () => void | Promise<void>;
   onEdit: () => void;
 }) {
@@ -569,6 +673,10 @@ function SellerControls({
   }
 
   function confirm(action: ListingAction) {
+    if (action === "sold" && cash) {
+      router.push({ pathname: "/mark-sold/[id]", params: { id: String(listingId) } });
+      return;
+    }
     if (action === "publish") {
       void run(action);
       return;
@@ -625,9 +733,9 @@ function SellerControls({
       </Pressable>
 
       <Text style={styles.footnote}>
-        {actions.includes("publish")
+        {actions.includes("publish") && !cash
           ? "Putting it on sale needs your Stripe payouts set up, so a buyer can actually pay you."
-          : "Editing photos, price and auctions still opens the website."}
+          : "Editing photos and price still opens the website."}
       </Text>
     </View>
   );
@@ -784,6 +892,21 @@ const styles = StyleSheet.create({
   primaryLabel: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.gold400 },
 
   sellerBox: { gap: spacing.sm },
+  actions: { flexDirection: "row", gap: spacing.sm },
+  actionButton: { flex: 1, minHeight: 52 },
+  actionMain: { flex: 1.4, paddingVertical: 12 },
+  step: { flexDirection: "row", alignItems: "flex-start", gap: spacing.sm, paddingVertical: 2 },
+  stepNumber: { width: 28, height: 28, borderRadius: 14, backgroundColor: "#f3ead2", alignItems: "center", justifyContent: "center", marginTop: 1 },
+  stepNumberText: { fontFamily: fonts.bodyBold, fontSize: 13.5, color: colors.navy900 },
+  safety: {
+    fontFamily: fonts.body,
+    fontSize: 12.5,
+    lineHeight: 18,
+    color: colors.ink500,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.line,
+    paddingTop: spacing.sm,
+  },
   askCard: { gap: spacing.md },
   askNote: { fontFamily: fonts.body, fontSize: type.small, lineHeight: 19, color: colors.ink500, textAlign: "center" },
   draftNote: { flexDirection: "row", alignItems: "center", gap: 8, padding: spacing.md, borderRadius: radii.lg, backgroundColor: "#f3ead2" },

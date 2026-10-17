@@ -2,6 +2,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { marketplacePaymentsEnabled } from "@/lib/marketplace-settings";
 import { isSellerPaymentReady, sellerOnboardingStatus } from "@/lib/stripe/connect";
 import type { Listing, StripeConnectedAccount } from "@/lib/types";
 
@@ -21,7 +22,8 @@ import type { Listing, StripeConnectedAccount } from "@/lib/types";
  * inheriting it from a policy, because the policy is precisely what is being
  * stepped around.
  *
- * And a listing may only go on sale if the seller can actually be paid.
+ * And, while the marketplace takes payments (0160's switch), a listing may
+ * only go on sale if the seller can actually be paid.
  * `isSellerPaymentReady()` is a TypeScript reading of Stripe's own account
  * flags; there is no policy that could enforce it. A listing that went live
  * without it would take a buyer's money with nowhere to send it.
@@ -49,6 +51,37 @@ export async function publishListingFor(
     return { ok: false, message: "Only a draft listing can be published." };
   }
 
+  // Cash marketplace (0160): with payments off nobody is paid through
+  // PinPals, so there is no payout account to wait for.
+  if (await marketplacePaymentsEnabled(supabase)) {
+    const ready = await sellerCanBePaid(supabase, userId);
+    if (!ready) {
+      return {
+        ok: false,
+        message:
+          "Finish setting up payouts with Stripe before publishing — a listing can't go on sale until you can be paid.",
+      };
+    }
+  }
+
+  const admin = createAdminClient();
+  const { error } = await admin
+    .from("listings")
+    .update({ status: "active" })
+    .eq("id", listingId)
+    .eq("seller_id", userId)
+    // Re-stated so a listing published twice at once still only goes live
+    // from a draft — the read above is not a lock.
+    .eq("status", "draft");
+
+  if (error) {
+    return { ok: false, message: "Couldn't publish that listing — please try again." };
+  }
+
+  return { ok: true };
+}
+
+async function sellerCanBePaid(supabase: SupabaseClient, userId: string): Promise<boolean> {
   const { data: account } = await supabase
     .from("stripe_connected_accounts")
     .select(
@@ -67,27 +100,5 @@ export async function publishListingFor(
       >
     >();
 
-  if (!isSellerPaymentReady(sellerOnboardingStatus(account))) {
-    return {
-      ok: false,
-      message:
-        "Finish setting up payouts with Stripe before publishing — a listing can't go on sale until you can be paid.",
-    };
-  }
-
-  const admin = createAdminClient();
-  const { error } = await admin
-    .from("listings")
-    .update({ status: "active" })
-    .eq("id", listingId)
-    .eq("seller_id", userId)
-    // Re-stated so a listing published twice at once still only goes live
-    // from a draft — the read above is not a lock.
-    .eq("status", "draft");
-
-  if (error) {
-    return { ok: false, message: "Couldn't publish that listing — please try again." };
-  }
-
-  return { ok: true };
+  return isSellerPaymentReady(sellerOnboardingStatus(account));
 }

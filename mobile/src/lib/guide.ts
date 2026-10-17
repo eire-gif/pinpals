@@ -51,10 +51,11 @@ import type { Href } from "expo-router";
  *               app/conversation/[id].tsx
  *    connect  → app/members.tsx, app/connections.tsx, app/invite-friends.tsx
  *    mobile   → app/privacy.tsx, app/group/[id]/contacts.tsx
- *    sell     → app/new-listing.tsx, app/listing/[id].tsx, app/selling.tsx,
- *               app/payouts.tsx, components/handover-panel.tsx
- *    buy      → app/(tabs)/marketplace.tsx, app/listing/[id].tsx, app/checkout.tsx,
- *               app/order/[id].tsx
+ *    sell     → app/new-listing.tsx, app/listing/[id].tsx, app/mark-sold/[id].tsx,
+ *               app/feedback/[id].tsx, app/(tabs)/marketplace/my-ads.tsx,
+ *               app/(tabs)/marketplace/chats.tsx, app/(tabs)/marketplace/_layout.tsx
+ *    buy      → app/(tabs)/marketplace/index.tsx, app/listing/[id].tsx,
+ *               app/seller/[id].tsx, app/feedback/[id].tsx
  *    social   → app/(tabs)/feed.tsx, app/compose.tsx, app/new-post.tsx,
  *               app/comments/[id].tsx, app/share/[id].tsx, app/rate-course.tsx
  *    parentApproval → app/signup.tsx, app/age/waiting.tsx, app/age/date-of-birth.tsx,
@@ -1457,25 +1458,17 @@ export const GUIDES: Guide[] = [
     id: "sell",
     section: "market",
     title: "Sell your gear",
-    blurb: "List clubs and kit in a minute, answer offers, and get paid safely.",
+    blurb: "List clubs and kit in a minute, meet the buyer, get paid in cash or Revolut.",
     icon: "pricetag",
     tone: "gold",
     audience: "18 and over",
     next: "buy",
     steps: [
       {
-        title: "Set up payouts first",
-        body: "In the menu, tap Payouts, then Set up payouts. You give your details and bank account to Stripe directly — never in a PinPals form. When it says Ready to sell, buyers can pay you.",
-        path: [MENU, { icon: "card-outline", label: "Payouts" }],
-        look: [{ style: "primary", label: "Set up payouts" }],
-        go: { label: "Getting paid", to: "/payouts" },
-        tip: "You can list and take offers before this, but nobody can pay you until it's done.",
-      },
-      {
         title: "Photograph it",
-        body: "Tap Sell an item on Home, or List item on the Marketplace. Add up to 8 photos — the first is the cover.",
+        body: "In the Marketplace, tap the green Sell button in the middle of the bottom menu (or Sell an item on Home). Add up to 8 photos — the first is the cover.",
         look: [
-          { style: "tile", label: "Sell an item", icon: "pricetag-outline" },
+          { style: "primary", label: "Sell", icon: "add" },
           { style: "outline", label: "Add photos", icon: "camera-outline" },
         ],
         go: { label: "List an item", to: "/new-listing" },
@@ -1490,39 +1483,37 @@ export const GUIDES: Guide[] = [
         ],
       },
       {
-        title: "Price and delivery",
-        body: "Set your price and choose Fixed price or Open to offers. Choose Post it, Collection or both, and where it is. Tap Save and review.",
+        title: "Price it and post it",
+        body: "Set your price and choose Fixed price or Open to offers, then where it is. Tap Post listing — it's free and goes live straight away.",
         look: [
           { style: "field", label: "€ 180", icon: "cash-outline" },
           { style: "outline", label: "Open to offers" },
-          { style: "primary", label: "Save and review" },
+          { style: "primary", label: "Post listing · it's free" },
         ],
       },
       {
-        title: "Put it on sale",
-        body: "It's saved as a draft only you can see. Check it over, then tap Put on sale.",
-        look: [{ style: "primary", label: "Put on sale" }],
+        title: "Chat to buyers",
+        body: "Buyers message you about the item. Their chats are under Chats in the Marketplace's bottom menu, with the item named on each one.",
+        look: [{ style: "outline", label: "Chats", icon: "chatbubbles-outline" }],
+        go: { label: "Marketplace chats", to: "/marketplace/chats" },
       },
       {
-        title: "Answer offers",
-        body: "Offers are under Selling › Offers. Accept, Decline, or Counter with a higher price. Accepting reserves the item while the buyer pays.",
-        path: [MENU, { icon: "cash-outline", label: "Selling" }],
+        title: "Meet up and get paid",
+        body: "Agree a time — at your club is best — and let them check it over. They pay you in cash or by Revolut. PinPals doesn't handle the money.",
+        look: [{ style: "tile", label: "Meet at the club", icon: "golf-outline" }],
+        tip: "Meet in daylight, somewhere people are about. Never post an item before you've been paid.",
+      },
+      {
+        title: "Mark it sold and leave feedback",
+        body: "Open My ads and tap Sold? on the ad (or Mark as sold on the listing). Pick who bought it from your chats, then tap Good or Not good for them.",
+        path: [{ icon: "pricetag-outline", label: "My ads" }],
         look: [
-          { style: "primary", label: "Accept" },
-          { style: "outline", label: "Counter" },
-          { style: "outline", label: "Decline" },
+          { style: "outline", label: "Sold?" },
+          { style: "primary", label: "Mark as sold" },
+          { style: "outline", label: "Good", icon: "thumbs-up-outline" },
         ],
-        go: { label: "Selling", to: "/selling" },
-      },
-      {
-        title: "Hand it over and get paid",
-        body: "Meeting up? Check they're happy, then ask for their 4-digit code and tap Confirm handover — you're paid. Posting it? Add the tracking number and tap Mark as posted; you're paid when it arrives.",
-        look: [
-          { style: "field", label: "0000", icon: "keypad-outline" },
-          { style: "primary", label: "Confirm handover" },
-          { style: "outline", label: "Mark as posted" },
-        ],
-        tip: "Meet at a golf club, in daylight.",
+        go: { label: "My ads", to: "/marketplace/my-ads" },
+        tip: "Feedback shows on your marketplace page only, never your golf profile. Each side's stays hidden until the other leaves theirs, or a week passes.",
       },
     ],
   },
@@ -1531,14 +1522,14 @@ export const GUIDES: Guide[] = [
     id: "buy",
     section: "market",
     title: "Buy gear safely",
-    blurb: "Find second-hand clubs and kit, with your money held until you have it.",
+    blurb: "Find second-hand clubs and kit near you, meet the seller, and pay them directly.",
     icon: "bag-handle",
     tone: "green",
     audience: "Everyone",
     steps: [
       {
         title: "Browse used gear",
-        body: "Tap the Marketplace tab and Used Gear. Search, or tap Near me, At my club, Under €100 or Left-handed. Filters narrows by brand, condition and price.",
+        body: "Tap the Marketplace tab — it has its own bottom menu, with Home on the left to get back. Search, or tap Near me, At my club, Under €100 or Left-handed. Filters narrows by brand, condition and price.",
         look: [
           { style: "outline", label: "Used Gear" },
           { style: "outline", label: "At my club" },
@@ -1547,37 +1538,31 @@ export const GUIDES: Guide[] = [
         go: { label: "Marketplace", to: "/marketplace" },
       },
       {
-        title: "Buy it or make an offer",
-        body: "Tap Buy now — or, if the seller is open to offers, Make an offer. They have 48 hours to accept, decline or counter. Questions? Tap Message under the seller.",
+        title: "Check the seller",
+        body: "On the listing, the seller's card shows their feedback from other buyers and how many sales they've made. Tap it to read what people said.",
+        look: [{ style: "tile", label: "100% positive · 12 sales", icon: "thumbs-up-outline" }],
+      },
+      {
+        title: "Message or make an offer",
+        body: "Tap Message to ask anything, or Make offer — the chat opens with your offer half written. Fill in the amount and send.",
         look: [
-          { style: "primary", label: "Buy now · €180" },
-          { style: "outline", label: "Make an offer" },
+          { style: "outline", label: "Make offer" },
+          { style: "primary", label: "Message the seller" },
         ],
         tip: "Under 18? You'll see Ask a parent instead. Under 16, it sends the listing to your parent; 16 or 17, it opens your share sheet to send them the link.",
       },
       {
-        title: "Check out",
-        body: "Choose Meet at the club (free) or Tracked post, agree to the terms, and tap Reserve and pay. You pay by card with Stripe, and the item's held for you for 30 minutes.",
-        look: [
-          { style: "outline", label: "Meet at the club" },
-          { style: "primary", label: "Reserve and pay €193.70" },
-        ],
-        tip: "Buyer Protection is added to the price and shown before you pay. Your money's held until you have the item.",
+        title: "Meet, check it, pay",
+        body: "Meet at a golf club if you can, look it over or hit a few balls with it, then pay the seller in cash or by Revolut.",
+        look: [{ style: "tile", label: "Meet at the club", icon: "golf-outline" }],
+        tip: "PinPals doesn't handle payment. Never pay a deposit to someone you haven't met.",
       },
       {
-        title: "Get it",
-        body: "Meeting up? Check the item, then read your 4-digit handover code from the order to the seller — that releases the payment. Posted? When it arrives, tap It arrived — all OK.",
+        title: "Leave feedback",
+        body: "When the seller marks it sold to you, you get an alert. Tap Good or Not good, pick what went well, and send. Not you? Tap I didn't buy this.",
         look: [
-          { style: "tile", label: "4 8 2 7", icon: "keypad-outline" },
-          { style: "primary", label: "It arrived — all OK" },
-        ],
-      },
-      {
-        title: "If something's wrong",
-        body: "On the order, tap Problem with this item, say what's wrong, and tap Report and hold the payment. The seller isn't paid while it's looked at.",
-        look: [
-          { style: "link", label: "Problem with this item" },
-          { style: "primary", label: "Report and hold the payment" },
+          { style: "outline", label: "Good", icon: "thumbs-up-outline" },
+          { style: "primary", label: "Send feedback" },
         ],
       },
     ],
@@ -1726,6 +1711,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-17", text: "The marketplace has its own bottom menu (Home, Browse, Sell, Chats, My ads), and buyers pay sellers directly in cash or by Revolut. Sell your gear and Buy gear safely now cover posting for free, chatting, meeting up, Mark as sold and leaving feedback." },
   { on: "2026-10-17", text: "Score a game live: picked up is now NR (no return), a button right under each player's score (Undo NR takes it back); the card shows NR, and saying “no return” or “NR” scores it too." },
   { on: "2026-10-16", text: "PinPals is now open to golfers from 13. New guide: Under 16? Getting your parent to approve — the date of birth at sign-up, Waiting for your parent, Ask a parent in the marketplace, and the Parent dashboard." },
   { on: "2026-10-16", text: "Under 18s: tee times, Social, chats and selling are 18 and over, and finding PinPals 16 and over — those guides now say so. Score a game live: under 16s add their parent and the PinPals their parent approves. Buy gear safely: under 18s see Ask a parent." },

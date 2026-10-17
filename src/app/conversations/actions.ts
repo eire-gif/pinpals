@@ -88,7 +88,9 @@ export async function startConversation(otherUserId: string, listingId?: number)
     // is_blocked() into can_message() itself) — this is the friendly
     // version of that rejection.
     return {
-      error: "You can only message a golfer you're connected with, have exchanged a marketplace offer with, or have an accepted tee-time interest with.",
+      error: listingId
+        ? "That listing isn't for sale any more, so you can't message the seller about it."
+        : "You can only message a golfer you're connected with, have exchanged a marketplace offer with, or have an accepted tee-time interest with.",
     };
   }
 

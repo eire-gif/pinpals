@@ -6,7 +6,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { AppMenu, MenuButton } from "@/components/app-menu";
 import { useAgeAccess } from "@/lib/age";
 import { useAuth } from "@/lib/auth";
-import { colors, contentColumn, fonts, radii, spacing, headerTitleStyle } from "@/lib/theme";
+import { colors, contentColumn, fonts, spacing, headerTitleStyle } from "@/lib/theme";
 import { useInboxUnread } from "@/lib/unread";
 
 /**
@@ -21,10 +21,8 @@ import { useInboxUnread } from "@/lib/unread";
  * signing up, this one answers "what have I got on, and who is waiting on
  * me", which is the only question a signed-in member opens an app to ask.
  *
- * Every tab is native now. Marketplace was the last web view: browsing and
- * the listing page are native, and buying, offers and bids open the site
- * inside the app because Stripe Checkout needs a real browser and the offer
- * and auction state machines have no business being implemented twice.
+ * Every tab is native now. Marketplace is a section of its own with its own
+ * bottom menu (Oct 2026); this bar hides while you're in it.
  */
 /** A number, not a dot.
  *
@@ -66,7 +64,6 @@ export default function TabsLayout() {
   const teeTimes = allows("teeTimes");
   const social = allows("social");
   const chat = allows("chat");
-  const sell = allows("sell");
   const connections = allows("connections");
 
   return (
@@ -187,49 +184,14 @@ export default function TabsLayout() {
         name="marketplace"
         options={{
           title: "Marketplace",
-          // Names the tab, not the bar: the screen's own photo header
-          // carries the title now.
-          headerTitle: "",
-          // Native since the marketplace stopped being a web view. The
-          // header carries the menu button; browsing, filtering and the
-          // listing page are all native, and only the money actions open the
-          // site.
+          // Oct 2026: the marketplace has its own bottom menu — Home, Browse,
+          // Sell, Chats, My ads — like Adverts (marketplace/_layout.tsx).
+          // This bar steps aside while you're in there, and its own header
+          // with it; the marketplace's Home button brings both back.
+          headerShown: false,
+          tabBarStyle: { display: "none" },
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="pricetags-outline" size={size} color={color} />
-          ),
-          // Selling is half of what this tab is for, so "List item" sits
-          // where Post a tee time sits on Tee Times. A labelled pill rather
-          // than a bare orange "+" (tester feedback, 4 Oct 2026): the words
-          // say what it does, and PinPals green keeps the marketplace orange
-          // for buying, where cream on orange wouldn't read anyway.
-          headerRight: () => !sell ? null : (
-            <Pressable
-              onPress={() => router.push("/new-listing")}
-              hitSlop={8}
-              style={({ pressed }) => [
-                {
-                  marginRight: spacing.md,
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 6,
-                  height: 36,
-                  paddingLeft: 12,
-                  paddingRight: 16,
-                  borderRadius: radii.pill,
-                  backgroundColor: colors.green700,
-                  shadowColor: colors.navy900,
-                  shadowOpacity: 0.18,
-                  shadowRadius: 6,
-                  shadowOffset: { width: 0, height: 2 },
-                },
-                pressed && { opacity: 0.85 },
-              ]}
-              accessibilityRole="button"
-              accessibilityLabel="List an item for sale"
-            >
-              <Ionicons name="pricetag" size={15} color={colors.gold400} />
-              <Text style={{ fontFamily: fonts.bodyBold, fontSize: 15, color: colors.cream50 }}>List item</Text>
-            </Pressable>
           ),
         }}
       />

@@ -82,7 +82,9 @@ import { AgeGateLoading, NotForUnder18, useAgeGate } from "@/components/not-for-
  * top. The data stays newest-first exactly as the query returns it.
  */
 function ConversationScreenInner() {
-  const params = useLocalSearchParams<{ id: string; replyTo?: string; group?: string }>();
+  // `draft`: words to start the box with — "Make offer" on a listing opens the
+  // thread with "Would you take €… for …?" ready to finish and send.
+  const params = useLocalSearchParams<{ id: string; replyTo?: string; group?: string; draft?: string }>();
   const conversationId = Number(params.id);
   const router = useRouter();
   const { session } = useAuth();
@@ -95,7 +97,7 @@ function ConversationScreenInner() {
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [draft, setDraft] = useState("");
+  const [draft, setDraft] = useState(typeof params.draft === "string" ? params.draft.slice(0, 500) : "");
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const [emojiOpen, setEmojiOpen] = useState(false);

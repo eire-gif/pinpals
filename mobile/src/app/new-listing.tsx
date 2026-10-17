@@ -34,6 +34,7 @@ import {
   brandsFor,
   createListing,
   parsePrice,
+  publishListing,
   sellerPlace,
   uploadPhoto,
   type Brand,
@@ -45,6 +46,7 @@ import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 import { FORM_SCROLL_KEYBOARD, KeyboardDoneButton } from "@/components/keyboard";
 import { PHOTO_PICKER_OPTIONS, preparePhotoForUpload } from "@/lib/photo-picking";
 import { AgeGateLoading, NotForUnder18, useAgeGate } from "@/components/not-for-under-18";
+import { useCashMarketplace } from "@/lib/marketplace-cash";
 
 /**
  * Listing something for sale.
@@ -80,6 +82,9 @@ function NewListingScreenInner() {
   const router = useRouter();
   const { session } = useAuth();
   const userId = session?.user?.id ?? null;
+  // Cash marketplace (0160): no payouts to wait for, so it goes straight on
+  // sale — one step, not "save, review, put on sale".
+  const cash = useCashMarketplace();
 
   const [photos, setPhotos] = useState<Photo[]>([]);
   // Kept out of state deliberately: a retry needs the original file, and the
@@ -287,9 +292,14 @@ function NewListingScreenInner() {
         images: ready.map((photo) => photo.uploaded!),
       });
 
-      // Draft, not live. The app's own listing screen shows it with "Put
-      // on sale" first — the same publish route, and payment-readiness
-      // check, as the website (lib/listings.ts publishListing()).
+      // Cash marketplace: straight on sale through the same publish route
+      // (which skips the payout check while payments are off). If that
+      // fails, it's still a draft with "Put on sale" on the next screen.
+      // With payments on: a draft, as before — the listing screen shows
+      // "Put on sale" first, behind the same payment-readiness check.
+      if (cash && created.imagesAttached) {
+        await publishListing(created.listingId).catch(() => undefined);
+      }
       router.replace({ pathname: "/listing/[id]", params: { id: String(created.listingId) } });
 
       if (!created.imagesAttached) {
@@ -545,7 +555,7 @@ function NewListingScreenInner() {
             <ActivityIndicator color={colors.cream50} />
           ) : (
             <Text style={styles.postLabel}>
-              {uploading ? "Waiting for photos…" : "Save and review"}
+              {uploading ? "Waiting for photos…" : cash ? "Post listing · it's free" : "Save and review"}
             </Text>
           )}
         </Pressable>
@@ -553,8 +563,9 @@ function NewListingScreenInner() {
         <View style={styles.footnote}>
           <Ionicons name="lock-closed-outline" size={14} color={colors.ink500} />
           <Text style={styles.footnoteLabel}>
-            Saved as a draft. Nothing goes live until you tap Put on sale on
-            the next screen.
+            {cash
+              ? "Goes live straight away. Buyers message you, you meet up, and they pay you in cash or by Revolut."
+              : "Saved as a draft. Nothing goes live until you tap Put on sale on the next screen."}
           </Text>
         </View>
       </ScrollView>

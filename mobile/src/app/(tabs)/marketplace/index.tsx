@@ -41,9 +41,11 @@ import { supabase } from "@/lib/supabase";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 import { coursesNear } from "@/lib/courses";
 import { decorateCards, kmLabel, loadAtClubs, loadFeatured, loadFresh, shortClub } from "@/lib/used-gear";
+import { useCashMarketplace } from "@/lib/marketplace-cash";
 
 /**
- * The marketplace (Oct 2026 redesign, approved mock-ups 1 and 2).
+ * The marketplace's Browse tab (Oct 2026 redesign, approved mock-ups 1 and 2).
+ * The marketplace has its own bottom menu — see ./_layout.tsx.
  *
  * New Gear | Used Gear at the top, over a photograph.
  *
@@ -71,6 +73,7 @@ export default function MarketplaceScreen() {
   const { session } = useAuth();
   const userId = session?.user?.id ?? null;
   const location = useCurrentLocation();
+  const cash = useCashMarketplace();
 
   const [mode, setMode] = useState<Mode>("used");
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
@@ -248,7 +251,7 @@ export default function MarketplaceScreen() {
 
   const header = (
     <View>
-      <ImageBackground source={mode === "new" ? require("../../../assets/images/scenes/dunes-gold.jpg") : require("../../../assets/images/scenes/links-sunset.jpg")} style={styles.hero}>
+      <ImageBackground source={mode === "new" ? require("../../../../assets/images/scenes/dunes-gold.jpg") : require("../../../../assets/images/scenes/links-sunset.jpg")} style={styles.hero}>
         <View style={styles.scrimTop} />
         <View style={styles.scrimBottom} />
         <View style={styles.eyebrowRow}>
@@ -396,7 +399,11 @@ export default function MarketplaceScreen() {
             <Ionicons name="storefront-outline" size={22} color={colors.gold400} />
             <View style={{ flex: 1 }}>
               <Text style={styles.applyTitle}>Run a pro shop?</Text>
-              <Text style={styles.applyBody}>Sell new stock to the golfers at your club. Click & collect, paid securely.</Text>
+              <Text style={styles.applyBody}>
+                {cash
+                  ? "Show your stock to the golfers near you. Free to join — buyers call, message or visit you."
+                  : "Sell new stock to the golfers at your club. Click & collect, paid securely."}
+              </Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={colors.gold400} />
           </View>

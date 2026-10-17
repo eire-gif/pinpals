@@ -14,10 +14,17 @@ vi.mock("@/lib/supabase/admin", () => ({
 vi.mock("@/lib/conversations-server", () => ({
   linkConversationToOrder: vi.fn(async () => undefined),
 }));
+// These tests are about the checkout world, so payments are on unless a test
+// switches them off (0160's cash marketplace).
+vi.mock("@/lib/marketplace-settings", () => ({
+  marketplacePaymentsEnabled: vi.fn(async () => true),
+  PAYMENTS_OFF_MESSAGE: "PinPals doesn't take payments for used gear.",
+}));
 
 import { buyNow, finishOfferCheckout, isDeliveryMethod, isOfferActionKind, makeOffer, placeBid, respondToOffer } from "./marketplace-operations";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { linkConversationToOrder } from "@/lib/conversations-server";
+import { marketplacePaymentsEnabled } from "@/lib/marketplace-settings";
 
 const ME = "11111111-1111-4111-8111-111111111111";
 
@@ -42,6 +49,23 @@ beforeEach(() => {
   // Sweeps succeed quietly unless a test says otherwise.
   rpc.mockResolvedValue({ data: null, error: null });
   vi.mocked(linkConversationToOrder).mockClear();
+});
+
+describe("with payments off (cash marketplace, 0160)", () => {
+  it("refuses offers, bids and Buy now before anything else happens", async () => {
+    vi.mocked(marketplacePaymentsEnabled).mockResolvedValue(false);
+    vi.mocked(checkRateLimit).mockClear();
+    try {
+      const c = memberClient();
+      expect(await makeOffer({ supabase: c.supabase, userId: ME, listingId: 7, amountEur: 120 })).toMatchObject({ ok: false, reason: "invalid" });
+      expect(c.insert).not.toHaveBeenCalled();
+      expect(await placeBid({ supabase: c.supabase, userId: ME, listingId: 7, amountEur: 120 })).toMatchObject({ ok: false, reason: "invalid" });
+      expect(await buyNow({ userId: ME, listingId: 7, deliveryMethod: "collection", addressId: null })).toMatchObject({ ok: false, reason: "invalid" });
+      expect(checkRateLimit).not.toHaveBeenCalled();
+    } finally {
+      vi.mocked(marketplacePaymentsEnabled).mockResolvedValue(true);
+    }
+  });
 });
 
 describe("makeOffer", () => {

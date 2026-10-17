@@ -25,6 +25,9 @@ import { STORE_COLUMNS, isFeatured, type Store } from "@/lib/marketplace-growth"
 import RelatedListings from "./related-listings";
 import SafetyGuidance from "./safety-guidance";
 import ReviewsSection from "./reviews-section";
+import { CashFeedback, CashHowItWorks, CashPanel } from "./cash-listing";
+import { marketplacePaymentsEnabled } from "@/lib/marketplace-settings";
+import { EMPTY_RECORD, memberFeedback, memberRecord, type FeedbackEntry, type MemberRecord } from "@/lib/marketplace-cash";
 
 type SellerProfile = Pick<Profile, "id" | "first_name" | "last_name" | "home_club" | "county" | "avatar_color" | "created_at">;
 type SellerAccountFields = Pick<
@@ -118,8 +121,14 @@ export default async function ListingDetailPage({
   const isDraft = listing.status === "draft";
   const editHref = `/marketplace/${listing.id}/edit`;
 
-  let paymentReady = false;
-  if (isSeller && isDraft) {
+  // Cash marketplace (0160): with payments off there's no checkout on this
+  // page at all — How it works, Message the seller, Mark as sold — and a
+  // draft can go on sale without Stripe payouts.
+  const payments = await marketplacePaymentsEnabled(supabase);
+  const cash = !payments;
+
+  let paymentReady = cash;
+  if (isSeller && isDraft && !cash) {
     const { data: account } = await supabase
       .from("stripe_connected_accounts")
       .select("charges_enabled, payouts_enabled, details_submitted, requirements_currently_due, requirements_past_due, disabled_reason")
@@ -241,6 +250,15 @@ export default async function ListingDetailPage({
     ? await supabase.from("stores").select(STORE_COLUMNS).eq("id", listing.store_id).maybeSingle<Store>()
     : { data: null };
   const sellerName = sellerProfile ? `${sellerProfile.first_name} ${sellerProfile.last_name}` : "Pinpals member";
+  const sellerFirstName = sellerProfile?.first_name || "the seller";
+  let sellerRecord: MemberRecord = EMPTY_RECORD;
+  let sellerFeedback: FeedbackEntry[] = [];
+  if (cash) {
+    [sellerRecord, sellerFeedback] = await Promise.all([
+      memberRecord(supabase, listing.seller_id),
+      memberFeedback(supabase, listing.seller_id, 3),
+    ]);
+  }
   const sellerVerified = isSellerPaymentReady(sellerOnboardingStatus(sellerAccountResult.data ?? null));
   const ratingSummaryRow = ratingSummaryResult.data as SellerRatingSummary | null;
   const ratingSummary = ratingSummaryRow ? { average: ratingSummaryRow.average_rating, count: ratingSummaryRow.review_count } : null;
@@ -389,16 +407,25 @@ export default async function ListingDetailPage({
 
             {listing.description && <p className="text-ink-700 mt-4">{listing.description}</p>}
 
-            <HowYoullGetIt
-              deliveryOptions={listing.delivery_options}
-              collectionNotes={listing.collection_notes}
-              meetAt={shop?.clubs?.name ?? sellerProfile?.home_club ?? null}
-              isShop={!!shop}
-              priceEur={listing.price_eur}
-              showProtection={!isSeller}
-            />
+            {cash ? (
+              <CashHowItWorks
+                sellerFirstName={shop ? shop.name : sellerFirstName}
+                meetAt={shop?.clubs?.name ?? sellerProfile?.home_club ?? null}
+                canPost={listing.delivery_options.includes("post")}
+                collectionNotes={listing.collection_notes}
+              />
+            ) : (
+              <HowYoullGetIt
+                deliveryOptions={listing.delivery_options}
+                collectionNotes={listing.collection_notes}
+                meetAt={shop?.clubs?.name ?? sellerProfile?.home_club ?? null}
+                isShop={!!shop}
+                priceEur={listing.price_eur}
+                showProtection={!isSeller}
+              />
+            )}
 
-            {isSeller && listing.status === "active" && !listing.store_id ? (
+            {isSeller && listing.status === "active" && !listing.store_id && !cash ? (
               <Link
                 href={`/dashboard/listings/${listing.id}/promote`}
                 className="mt-4 flex items-center gap-4 rounded-2xl bg-navy-900 text-cream-50 p-5 hover:brightness-110 transition"
@@ -419,14 +446,29 @@ export default async function ListingDetailPage({
            * offers/messages, not a stripped-down substitute for it. The
            * fixed MobileActionBar further down just scrolls here. */}
           <div className="lg:hidden mt-8 grid gap-5" id="purchase-panel-mobile">
-            <PurchasePanel
-              listingId={listing.id}
-              editHref={editHref}
-              state={purchaseState}
-              priceEur={listing.price_eur}
-              myOffers={myOffers}
-              myOrder={myOrder}
-            />
+            {cash ? (
+              <CashPanel
+                listingId={listing.id}
+                priceEur={listing.price_eur}
+                openToOffers={listing.sale_type === "offers_allowed"}
+                status={listing.status}
+                sellerId={listing.seller_id}
+                sellerFirstName={sellerFirstName}
+                isSeller={isSeller}
+                signedIn={!!user}
+                browseOnly={browseOnly}
+                editHref={editHref}
+              />
+            ) : (
+              <PurchasePanel
+                listingId={listing.id}
+                editHref={editHref}
+                state={purchaseState}
+                priceEur={listing.price_eur}
+                myOffers={myOffers}
+                myOrder={myOrder}
+              />
+            )}
             {shop ? <ShopCard shop={shop} /> : null}
             <SellerCard
               sellerId={listing.seller_id}
@@ -438,7 +480,8 @@ export default async function ListingDetailPage({
               joinedAtIso={sellerProfile?.created_at ?? listing.created_at}
               verified={sellerVerified}
               rating={ratingSummary}
-              viewerIsSignedIn={!!user && !browseOnly}
+              record={cash ? sellerRecord : null}
+              viewerIsSignedIn={!!user && !browseOnly && !cash}
               viewerIsSeller={isSeller}
             />
           </div>
@@ -451,11 +494,16 @@ export default async function ListingDetailPage({
               editHref={editHref}
               paymentReady={paymentReady}
               sellerOffers={sellerOffers}
+              cash={cash}
             />
           </div>
 
           <div className="mt-8">
-            <ReviewsSection sellerName={sellerName} rating={ratingSummary} reviews={reviews} viewerIsSignedIn={!!user} />
+            {cash && !shop ? (
+              <CashFeedback sellerId={listing.seller_id} sellerName={sellerName} record={sellerRecord} entries={sellerFeedback} />
+            ) : (
+              <ReviewsSection sellerName={sellerName} rating={ratingSummary} reviews={reviews} viewerIsSignedIn={!!user} />
+            )}
           </div>
 
           <RelatedListings listings={relatedListings} signedIn={!!user} />
@@ -466,14 +514,29 @@ export default async function ListingDetailPage({
          * own header comments. */}
         <div className="hidden lg:block">
           <div className="sticky top-24 grid gap-5">
-            <PurchasePanel
-              listingId={listing.id}
-              editHref={editHref}
-              state={purchaseState}
-              priceEur={listing.price_eur}
-              myOffers={myOffers}
-              myOrder={myOrder}
-            />
+            {cash ? (
+              <CashPanel
+                listingId={listing.id}
+                priceEur={listing.price_eur}
+                openToOffers={listing.sale_type === "offers_allowed"}
+                status={listing.status}
+                sellerId={listing.seller_id}
+                sellerFirstName={sellerFirstName}
+                isSeller={isSeller}
+                signedIn={!!user}
+                browseOnly={browseOnly}
+                editHref={editHref}
+              />
+            ) : (
+              <PurchasePanel
+                listingId={listing.id}
+                editHref={editHref}
+                state={purchaseState}
+                priceEur={listing.price_eur}
+                myOffers={myOffers}
+                myOrder={myOrder}
+              />
+            )}
             {shop ? <ShopCard shop={shop} /> : null}
             <SellerCard
               sellerId={listing.seller_id}
@@ -485,14 +548,15 @@ export default async function ListingDetailPage({
               joinedAtIso={sellerProfile?.created_at ?? listing.created_at}
               verified={sellerVerified}
               rating={ratingSummary}
-              viewerIsSignedIn={!!user && !browseOnly}
+              record={cash ? sellerRecord : null}
+              viewerIsSignedIn={!!user && !browseOnly && !cash}
               viewerIsSeller={isSeller}
             />
           </div>
         </div>
       </div>
 
-      <MobileActionBar listingId={listing.id} state={purchaseState} />
+      {cash ? null : <MobileActionBar listingId={listing.id} state={purchaseState} />}
     </div>
   );
 }
@@ -511,6 +575,7 @@ function SafetyGuidanceOrManage({
   editHref,
   paymentReady,
   sellerOffers,
+  cash,
 }: {
   isSeller: boolean;
   isDraft: boolean;
@@ -518,6 +583,8 @@ function SafetyGuidanceOrManage({
   editHref: string;
   paymentReady: boolean;
   sellerOffers: Offer[];
+  /** Cash marketplace: no offers through PinPals, so no offers list. */
+  cash: boolean;
 }) {
   if (!isSeller) {
     return (
@@ -553,8 +620,12 @@ function SafetyGuidanceOrManage({
           )}
         </div>
       )}
-      <h2 className="font-display font-bold text-xl mb-4">Offers on your listing</h2>
-      <OffersList offers={sellerOffers} listingId={listingId} />
+      {cash ? null : (
+        <>
+          <h2 className="font-display font-bold text-xl mb-4">Offers on your listing</h2>
+          <OffersList offers={sellerOffers} listingId={listingId} />
+        </>
+      )}
     </div>
   );
 }

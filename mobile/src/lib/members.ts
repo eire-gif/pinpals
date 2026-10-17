@@ -334,10 +334,12 @@ export async function respondToConnection(
  * conversations one member may start. Reimplementing either here would mean
  * two answers to the same question.
  */
-export async function conversationWith(otherUserId: string): Promise<number> {
+export async function conversationWith(otherUserId: string, listingId?: number): Promise<number> {
+  // With a listing: the thread about that listing (0160 lets anyone start one
+  // with the seller of an on-sale listing).
   const { conversation_id } = await postToSite<{ conversation_id: number }>(
     "/api/app/conversations",
-    { other_user_id: otherUserId }
+    listingId ? { other_user_id: otherUserId, listing_id: listingId } : { other_user_id: otherUserId }
   );
   return conversation_id;
 }

@@ -1,4 +1,6 @@
+import Link from "next/link";
 import { initials, formatJoinedDate } from "@/lib/format";
+import { positiveShare, type MemberRecord } from "@/lib/marketplace-cash";
 import MessageSellerButton from "./message-seller-button";
 
 /**
@@ -23,6 +25,7 @@ export default function SellerCard({
   joinedAtIso,
   verified,
   rating,
+  record = null,
   viewerIsSignedIn,
   viewerIsSeller,
 }: {
@@ -35,6 +38,9 @@ export default function SellerCard({
   joinedAtIso: string;
   verified: boolean;
   rating: { average: number; count: number } | null;
+  /** Cash marketplace (0160): marketplace feedback in place of star reviews,
+   *  and the name links to the seller's marketplace page. */
+  record?: MemberRecord | null;
   viewerIsSignedIn: boolean;
   viewerIsSeller: boolean;
 }) {
@@ -51,7 +57,13 @@ export default function SellerCard({
           {initials(name)}
         </div>
         <div className="min-w-0">
-          <div className="font-bold truncate">{name}</div>
+          {record ? (
+            <Link href={`/marketplace/sellers/${sellerId}`} className="block font-bold truncate hover:underline">
+              {name}
+            </Link>
+          ) : (
+            <div className="font-bold truncate">{name}</div>
+          )}
           {location && <div className="text-xs text-ink-500 truncate">{location}</div>}
         </div>
       </div>
@@ -62,9 +74,20 @@ export default function SellerCard({
             <CheckIcon /> Verified seller
           </span>
         )}
-        <span className="bg-cream-100 text-ink-900 text-xs font-bold px-2.5 py-1 rounded-full">
-          {rating ? `★ ${rating.average} (${rating.count} review${rating.count === 1 ? "" : "s"})` : "No reviews yet"}
-        </span>
+        {record ? (
+          <>
+            <span className="bg-cream-100 text-ink-900 text-xs font-bold px-2.5 py-1 rounded-full">
+              {positiveShare(record) ?? "No feedback yet"}
+            </span>
+            <span className="bg-cream-100 text-ink-900 text-xs font-bold px-2.5 py-1 rounded-full">
+              {record.sales} {record.sales === 1 ? "sale" : "sales"}
+            </span>
+          </>
+        ) : (
+          <span className="bg-cream-100 text-ink-900 text-xs font-bold px-2.5 py-1 rounded-full">
+            {rating ? `★ ${rating.average} (${rating.count} review${rating.count === 1 ? "" : "s"})` : "No reviews yet"}
+          </span>
+        )}
       </div>
 
       <p className="text-xs text-ink-500 mt-2">{formatJoinedDate(joinedAtIso)}</p>

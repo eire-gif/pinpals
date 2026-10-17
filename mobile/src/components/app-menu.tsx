@@ -23,6 +23,7 @@ import { useAgeAccess } from "@/lib/age";
 import { useAuth } from "@/lib/auth";
 import { inviteFriends } from "@/lib/invite-friends";
 import { contactMailto, visibleMenu, type MenuItem } from "@/lib/menu";
+import { usePaymentsEnabled } from "@/lib/marketplace-cash";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 
 /**
@@ -54,6 +55,7 @@ export function AppMenu({ open, onClose }: { open: boolean; onClose: () => void 
   const { signOut } = useAuth();
   // Junior members (0159): leave out what this member is too young for.
   const { access } = useAgeAccess();
+  const payments = usePaymentsEnabled();
   const slide = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -166,7 +168,7 @@ export function AppMenu({ open, onClose }: { open: boolean; onClose: () => void 
               contentContainerStyle={styles.list}
               showsVerticalScrollIndicator={false}
             >
-              {visibleMenu(access).map((section) => (
+              {visibleMenu(access, payments !== false).map((section) => (
                 <View key={section.title} style={styles.section}>
                   <Text style={styles.sectionTitle}>{section.title}</Text>
                   {section.items.map((item) => (
