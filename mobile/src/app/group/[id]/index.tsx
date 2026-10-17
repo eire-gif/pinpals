@@ -692,7 +692,7 @@ export default function GroupScreen() {
 
             {society ? (
               <Text style={[styles.hint, styles.privacy]}>
-                The society&apos;s owner, captain, secretary and handicap secretary can see each member&apos;s handicap and PinPals handicap indicator, to set the handicaps the society plays off. The treasurer sees who has paid.
+                The society&apos;s owner, captain, secretary and handicap secretary can see each member&apos;s handicap and unofficial PinPals handicap indicator, to set the handicaps the society plays off. The treasurer sees who has paid.
               </Text>
             ) : null}
 

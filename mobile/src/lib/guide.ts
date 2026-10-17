@@ -1280,6 +1280,15 @@ export const GUIDES: Guide[] = [
         go: { label: "My bag", to: "/my-bag" },
       },
       {
+        title: "Playing a competition",
+        body: "In a society event or competition round, Plays like and the suggested club switch off for everyone — the Rules of Golf (Rule 4.3) allow distances but not wind adjustments or club advice from a device. You still get every distance, hazards, arcs and Mark shot, and the wind forecast. Playing your club's own competition? Tap Hazards and more and tick Competition round.",
+        look: [
+          { style: "outline", label: "Competition round · distances only (Rule 4.3)", icon: "trophy-outline" },
+          { style: "outline", label: "Hazards and more", icon: "list" },
+        ],
+        tip: "Yards or metres: tap the button top right — PinPals remembers your choice.",
+      },
+      {
         title: "Show distance arcs",
         body: "Tap the circle button on the right for rings every 50 yards across the hole, again for rings at your own clubs' distances, and again to hide them.",
         look: [{ style: "outline", label: "Distance arcs", icon: "radio-button-on" }],
@@ -1785,6 +1794,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-17", text: "Hole map: new step, Playing a competition — in a society event or competition round Plays like and the suggested club are off (Rule 4.3); tick Competition round under Hazards and more for any other competition. Yards or metres is now remembered." },
   { on: "2026-10-17", text: "Tee times: you can take back a request the host hasn't answered yet — Withdraw request under ••• in My rounds, or Withdraw my request on the round. Find a game is updated." },
   { on: "2026-10-17", text: "Share on Social: new steps, See who reacted — tap \"Seán Byrne and 11 others\" for everyone's reaction, with Message or Add PinPal — and Share a post: send to several chats at once, Share to your feed with a few words of your own, or straight to WhatsApp, Messages, Email, Facebook or X. Posts now show how many times they've been shared." },
   { on: "2026-10-17", text: "Tee times: one page, My rounds, for every round you host, play in, have asked to join or been offered — reached from the top of Tee Times, the menu, and every tee-time alert. Requests and offers waiting on you are first, under Needs your answer, and the Tee Times tab shows how many in gold. Post a tee time, Find a game and Fill a place are updated." },

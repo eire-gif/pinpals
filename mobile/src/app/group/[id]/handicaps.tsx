@@ -130,7 +130,7 @@ export default function SocietyHandicapsScreen() {
         <View style={styles.intro}>
           <Text style={styles.introTitle}>{page.group.name}</Text>
           <Text style={styles.introBody}>
-            Set the index the society plays each member off. Their own handicap and their PinPals indicator — the best of their last 20 scorecards — are beside it to help. Society rounds use what you set here.
+            Set the index the society plays each member off. Their own handicap and their PinPals indicator — the best of their last 20 scorecards, unofficial, not a Golf Ireland handicap — are beside it to help. Society rounds use what you set here.
           </Text>
           <Text style={styles.introCount}>{`${counts.set} of ${counts.total} set by the society`}</Text>
         </View>

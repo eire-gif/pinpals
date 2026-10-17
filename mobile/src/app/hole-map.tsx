@@ -50,6 +50,8 @@ import { loadCourseShapes } from "@/lib/osm-fetch";
 import { loadLiveRound, subscribeToLiveRound, type LiveRoundData } from "@/lib/live-rounds";
 import { loadCourse, type CourseDetail } from "@/lib/onboarding";
 import { colors, creamAlpha, fonts, radii, spacing, type } from "@/lib/theme";
+import { assistFor, competitionLine, loadRoundIsCompetition, manualCompetition, setManualCompetition } from "@/lib/competition-mode";
+import { loadDistanceUnit, saveDistanceUnit } from "@/lib/distance-unit";
 
 /**
  * A hole on satellite imagery, with GPS yardages (claude/hole-maps.md).
@@ -122,6 +124,19 @@ export default function HoleMapScreen() {
     setShotCardHidden(false);
   }, [hole]);
   const [unit, setUnit] = useState<Unit>(rememberedUnit ?? "yards");
+  // The member's yards / metres choice, kept on the phone across restarts.
+  useEffect(() => {
+    if (rememberedUnit != null) return;
+    let on = true;
+    void loadDistanceUnit().then((saved) => {
+      if (!on || saved == null || rememberedUnit != null) return;
+      rememberedUnit = saved;
+      setUnit(saved);
+    });
+    return () => {
+      on = false;
+    };
+  }, []);
   const [tap, setTap] = useState<LatLng | null>(null);
   const [playerId, setPlayerId] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
@@ -146,6 +161,22 @@ export default function HoleMapScreen() {
   // Your longest shot with each club this round (0154), for the trophy line.
   const [roundLongest, setRoundLongest] = useState<LongestShot[]>([]);
   const [tagging, setTagging] = useState(false);
+  // Competition mode (0168, Rule 4.3): no plays-like or club in a competition.
+  const [compFromRound, setCompFromRound] = useState(false);
+  const [compManual, setCompManual] = useState(() => manualCompetition(roundId));
+  useEffect(() => {
+    if (roundId == null) return;
+    let on = true;
+    void loadRoundIsCompetition(roundId).then((yes) => on && setCompFromRound(yes));
+    return () => {
+      on = false;
+    };
+  }, [roundId]);
+  const assist = assistFor(compFromRound, compManual);
+  const switchCompetition = (next: boolean) => {
+    setManualCompetition(roundId, next);
+    setCompManual(next);
+  };
   const [savingFix, setSavingFix] = useState(false);
   useEffect(() => {
     let on = true;
@@ -376,9 +407,9 @@ export default function HoleMapScreen() {
   // From you, how far you are from the tee — the drive, before it's marked.
   const fromTeeM = origin?.from === "you" && geo.tee ? distanceM(geo.tee, origin.point) : null;
   const centreM = geo.mapped && greens?.centre != null ? greens.centre : null;
-  const playsLike = windShot && centreM != null && windShot.along !== "calm" ? playsLikeM(centreM, windShot.head) : null;
+  const playsLike = assist.playsLike && windShot && centreM != null && windShot.along !== "calm" ? playsLikeM(centreM, windShot.head) : null;
   const windDelta = playsLike != null && centreM != null ? inUnit(playsLike, unit) - inUnit(centreM, unit) : null;
-  const suggestion = bag && centreM != null ? suggestClub(bag, playsLike ?? centreM) : null;
+  const suggestion = assist.clubSuggestion && bag && centreM != null ? suggestClub(bag, playsLike ?? centreM) : null;
   const bagWithDistances = (bag ?? []).filter((c) => c.inBag && clubDistanceM(c) != null);
   const arcs = useMemo(() => {
     if (arcsMode === "off" || !origin || !geo.mapped || !geo.greenCentre) return [];
@@ -564,6 +595,7 @@ export default function HoleMapScreen() {
     const next = unit === "yards" ? "metres" : "yards";
     rememberedUnit = next;
     setUnit(next);
+    void saveDistanceUnit(next);
   };
 
   // ---- Render ----
@@ -651,7 +683,7 @@ export default function HoleMapScreen() {
           arrowDeg={arrowOnScreen(wind.fromDeg, mapRotation)}
           speed={windSpeed(wind.speedKmh, unit === "yards")}
           gust={wind.gustKmh != null && wind.gustKmh > wind.speedKmh + 5 ? windSpeed(wind.gustKmh, unit === "yards").split(" ")[0] : null}
-          line={windLine(windShot)}
+          line={assist.windOnShot ? windLine(windShot) : "Forecast"}
           showing={windShow}
           level={level}
           onToggle={() => {
@@ -749,7 +781,12 @@ export default function HoleMapScreen() {
           ) : null}
         </View>
 
-        {geo.mapped ? (
+        {assist.on ? (
+          <View style={styles.compRow} accessible accessibilityLabel={`${competitionLine(assist)}. Plays like and suggested clubs are off.`}>
+            <Ionicons name="trophy-outline" size={13} color={colors.gold400} />
+            <Text style={styles.compText}>{competitionLine(assist)}</Text>
+          </View>
+        ) : geo.mapped ? (
           <PlaysLikeRow playsLike={playsLike} windDelta={windDelta} suggestion={suggestion} fmt={(m) => fmt(m)} unit={u} onBag={() => router.push("/my-bag")} />
         ) : null}
 
@@ -852,6 +889,26 @@ export default function HoleMapScreen() {
                     </Text>
                   </View>
                 ))}
+              </View>
+            ) : null}
+
+            {round ? (
+              <View style={styles.block}>
+                <Text style={styles.blockTitle}>Competition round</Text>
+                {assist.canSwitchOff ? (
+                  <Pressable
+                    onPress={() => switchCompetition(!compManual)}
+                    style={styles.compSwitch}
+                    accessibilityRole="switch"
+                    accessibilityState={{ checked: compManual }}
+                    accessibilityLabel="Competition mode"
+                  >
+                    <Ionicons name={compManual ? "checkbox" : "square-outline"} size={20} color={compManual ? colors.gold400 : creamAlpha(0.6)} />
+                    <Text style={styles.compSwitchText}>Distances only — turns off plays like and suggested clubs</Text>
+                  </Pressable>
+                ) : (
+                  <Text style={styles.muted}>This round is part of a society event or competition, so plays like and suggested clubs are off for everyone (Rule 4.3).</Text>
+                )}
               </View>
             ) : null}
 
@@ -1067,6 +1124,10 @@ const styles = StyleSheet.create({
   yardageBig: { fontSize: 50, lineHeight: 56, color: colors.gold400 },
   fixRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 },
   fixText: { fontFamily: fonts.body, fontSize: 12.5, color: creamAlpha(0.75) },
+  compRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 6 },
+  compText: { fontFamily: fonts.bodyBold, fontSize: 12.5, color: colors.gold400 },
+  compSwitch: { flexDirection: "row", alignItems: "center", gap: spacing.sm, minHeight: 44 },
+  compSwitchText: { flex: 1, fontFamily: fonts.body, fontSize: 14, color: colors.cream50 },
   fixLink: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.gold400, marginLeft: spacing.sm },
 
   actionRow: { flexDirection: "row", gap: spacing.sm, marginTop: 4 },
