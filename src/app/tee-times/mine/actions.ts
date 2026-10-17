@@ -55,7 +55,7 @@ export async function answerOffer(interestId: number, attending: boolean): Promi
   return {};
 }
 
-/** Golfer: take back a request the host hasn't answered (0166). */
+/** Golfer: take back a request the host hasn't answered (0167). */
 export async function withdrawMyRequest(interestId: number): Promise<ActionResult> {
   const { supabase } = await member();
   const result = await withdrawRequest(supabase, interestId);
