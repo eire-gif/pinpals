@@ -47,6 +47,8 @@ import { FORM_SCROLL_KEYBOARD, KeyboardDoneButton } from "@/components/keyboard"
 import { PHOTO_PICKER_OPTIONS, preparePhotoForUpload } from "@/lib/photo-picking";
 import { AgeGateLoading, NotForUnder18, useAgeGate } from "@/components/not-for-under-18";
 import { useCashMarketplace } from "@/lib/marketplace-cash";
+import { loadSmartBrands, similarAskingPrices } from "@/lib/listing-posts";
+import { parseListingTitle, priceGuide, type ListingDraft, type SmartBrand } from "@/lib/smart-search";
 
 /**
  * Listing something for sale.
@@ -106,6 +108,18 @@ function NewListingScreenInner() {
   const [counties, setCounties] = useState<string[]>([]);
   const [description, setDescription] = useState("");
 
+  // ---- smart sell (approved mock-up 7): the title fills the form ---------
+  // "taylormade qi10 driver 10.5 stiff" -> Drivers, TaylorMade, Qi10, 10.5°,
+  // Stiff. Only fields the seller hasn't chosen themselves are filled.
+  const [smartBrands, setSmartBrands] = useState<SmartBrand[]>([]);
+  const [draft, setDraft] = useState<ListingDraft | null>(null);
+  const [specs, setSpecs] = useState<{ model: string; loft: string; shaftFlex: string; shaftMaterial: string; dexterity: string }>({ model: "", loft: "", shaftFlex: "", shaftMaterial: "", dexterity: "" });
+  const chose = useRef({ category: false, brand: false });
+  const [guide, setGuide] = useState<{ lowCents: number; highCents: number; count: number } | null>(null);
+  useEffect(() => {
+    void loadSmartBrands().then(setSmartBrands);
+  }, []);
+
   const [open, setOpen] = useState<OpenSection>(null);
   const [posting, setPosting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -143,6 +157,43 @@ function NewListingScreenInner() {
     if (!brand || brand === BRAND_OTHER) return;
     if (brands.length > 0 && !brands.some((b) => b.id === brand)) setBrand(null);
   }, [brands, brand]);
+
+  useEffect(() => {
+    if (title.trim().length < 4) {
+      setDraft(null);
+      return;
+    }
+    const timer = setTimeout(() => {
+      const d = parseListingTitle(title, smartBrands);
+      setDraft(d.filled.length ? d : null);
+      if (d.category && !chose.current.category && d.category !== category) {
+        // The old category's brand list would otherwise clear the new brand.
+        setBrands([]);
+        setCategory(d.category as Category);
+        setSubcategory(d.subcategory || null);
+      }
+      if (d.brand && !chose.current.brand) setBrand(d.brand);
+      setSpecs({ model: d.model, loft: d.loft, shaftFlex: d.shaftFlex, shaftMaterial: d.shaftMaterial, dexterity: d.dexterity });
+    }, 400);
+    return () => clearTimeout(timer);
+    // `category` is read only to skip a no-op change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [title, smartBrands]);
+
+  // "Similar ads are priced…" once there's a category (and a brand, if any).
+  useEffect(() => {
+    if (!category) {
+      setGuide(null);
+      return;
+    }
+    let live = true;
+    void similarAskingPrices(category, brand && brand !== BRAND_OTHER ? brand : null, specs.model || null).then((prices) => {
+      if (live) setGuide(priceGuide(prices));
+    });
+    return () => {
+      live = false;
+    };
+  }, [category, brand, specs.model]);
 
   // ---- photos ------------------------------------------------------------
 
@@ -290,6 +341,11 @@ function NewListingScreenInner() {
         priceEur: priceValue!,
         deliveryOptions: delivery,
         images: ready.map((photo) => photo.uploaded!),
+        model: specs.model || null,
+        dexterity: specs.dexterity || null,
+        shaftFlex: specs.shaftFlex || null,
+        shaftMaterial: specs.shaftMaterial || null,
+        loft: specs.loft || null,
       });
 
       // Cash marketplace: straight on sale through the same publish route
@@ -350,6 +406,38 @@ function NewListingScreenInner() {
             maxLength={MAX_TITLE_LENGTH}
             accessibilityLabel="Title"
           />
+          {draft ? (
+            <View style={styles.smart}>
+              <View style={styles.smartHead}>
+                <Ionicons name="sparkles" size={13} color="#8a6a1f" />
+                <Text style={styles.smartEyebrow}>Filled in for you</Text>
+              </View>
+              <View style={styles.smartGrid}>
+                {[
+                  ["Category", category ? (subcategory ? `${category} · ${subcategory}` : category) : ""],
+                  ["Brand · model", [brands.find((b) => b.id === brand)?.label ?? smartBrands.find((b) => b.id === brand)?.label, specs.model].filter(Boolean).join(" ")],
+                  ["Loft", specs.loft],
+                  ["Shaft", [specs.shaftFlex, specs.shaftMaterial].filter(Boolean).join(", ")],
+                  ["Hand", specs.dexterity],
+                ]
+                  .filter(([, v]) => v)
+                  .map(([k, v]) => (
+                    <View key={k} style={styles.smartCell}>
+                      <Text style={styles.smartKey}>{k}</Text>
+                      <Text style={styles.smartValue} numberOfLines={1}>{v}</Text>
+                    </View>
+                  ))}
+              </View>
+              {draft.title && draft.title !== title.trim() && draft.category ? (
+                <Pressable onPress={() => setTitle(draft.title)} style={styles.smartTidy} accessibilityRole="button" accessibilityLabel={`Use the title ${draft.title}`}>
+                  <Text style={styles.smartTidyText} numberOfLines={2}>
+                    Use “{draft.title}”
+                  </Text>
+                </Pressable>
+              ) : null}
+              <Text style={styles.hint}>Change any of these below.</Text>
+            </View>
+          ) : null}
         </Section>
 
         <Section title="Category">
@@ -357,6 +445,7 @@ function NewListingScreenInner() {
             tiles={CATEGORY_TILES}
             selected={category}
             onPick={(key) => {
+              chose.current.category = true;
               setCategory(key as Category);
               setSubcategory(null);
               setBrand(null);
@@ -411,6 +500,7 @@ function NewListingScreenInner() {
                 label={item.label}
                 selected={brand === item.id}
                 onPress={() => {
+                  chose.current.brand = true;
                   setBrand(brand === item.id ? null : item.id);
                   if (item.id !== BRAND_OTHER) setOpen(null);
                 }}
@@ -456,6 +546,19 @@ function NewListingScreenInner() {
               accessibilityLabel="Price in euro"
             />
           </View>
+          {guide ? (
+            <Pressable
+              onPress={() => setPrice(String(Math.round((guide.lowCents + guide.highCents) / 200 / 5) * 5))}
+              style={styles.guide}
+              accessibilityRole="button"
+              accessibilityLabel={`Similar ads are priced ${guide.lowCents / 100} to ${guide.highCents / 100} euro. Tap to use the middle.`}
+            >
+              <Text style={styles.guideText}>
+                Similar ads on PinPals: <Text style={styles.guideBold}>€{guide.lowCents / 100}–€{guide.highCents / 100}</Text>
+              </Text>
+              <Text style={styles.guideUse}>Use €{Math.round((guide.lowCents + guide.highCents) / 200 / 5) * 5}</Text>
+            </Pressable>
+          ) : null}
           <ChipGroup>
             {SALE_TYPES.map((item) => (
               <Chip
@@ -600,6 +703,19 @@ const styles = StyleSheet.create({
   priceInput: { flex: 1 },
 
   hint: { fontFamily: fonts.body, fontSize: type.label, color: colors.ink500 },
+  smart: { marginTop: 10, padding: 12, gap: 10, borderRadius: radii.lg, borderWidth: 1, borderColor: colors.gold500, backgroundColor: colors.surface },
+  smartHead: { flexDirection: "row", alignItems: "center", gap: 6 },
+  smartEyebrow: { fontFamily: fonts.bodyBold, fontSize: 11.5, letterSpacing: 1.2, textTransform: "uppercase", color: "#8a6a1f" },
+  smartGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  smartCell: { flexBasis: "47%", flexGrow: 1, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 10, backgroundColor: colors.cream50, borderWidth: 1, borderColor: colors.line },
+  smartKey: { fontFamily: fonts.body, fontSize: 11.5, color: colors.ink500 },
+  smartValue: { fontFamily: fonts.bodyBold, fontSize: 14, color: colors.ink900 },
+  smartTidy: { paddingHorizontal: 12, paddingVertical: 9, borderRadius: 10, backgroundColor: colors.green100 },
+  smartTidyText: { fontFamily: fonts.bodySemi, fontSize: 13.5, color: colors.green800 },
+  guide: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10, marginTop: 8, paddingHorizontal: 12, paddingVertical: 10, borderRadius: radii.md, backgroundColor: colors.green100 },
+  guideText: { flex: 1, fontFamily: fonts.body, fontSize: 13.5, color: colors.green800 },
+  guideBold: { fontFamily: fonts.bodyBold },
+  guideUse: { fontFamily: fonts.bodyBold, fontSize: 13.5, color: colors.green700 },
   error: { fontFamily: fonts.bodySemi, fontSize: type.small, color: colors.red600 },
 
   post: {

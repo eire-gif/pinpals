@@ -117,14 +117,22 @@ export default function MarketplaceLayout() {
         <Tabs.Screen
           name="chats"
           options={{
-            title: "Chats",
+            // Oct 2026: marketplace chats live in the main Messages section —
+            // this opens it on the Marketplace filter, rather than a second
+            // inbox of its own.
+            title: "Messages",
             href: chat ? undefined : null,
-            headerTitle: () => <Text style={[headerTitleStyle, { color: colors.ink900 }]}>Marketplace chats</Text>,
             tabBarBadge: unread > 0 ? (unread > 99 ? "99+" : unread) : undefined,
             tabBarBadgeStyle: { backgroundColor: colors.red600 },
             tabBarIcon: ({ color, size, focused }) => (
               <Ionicons name={focused ? "chatbubbles" : "chatbubbles-outline"} size={size} color={color} />
             ),
+          }}
+          listeners={{
+            tabPress: (event) => {
+              event.preventDefault();
+              router.navigate({ pathname: "/inbox", params: { filter: "marketplace", at: String(Date.now()) } });
+            },
           }}
         />
         <Tabs.Screen

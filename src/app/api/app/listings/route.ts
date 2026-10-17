@@ -31,8 +31,8 @@ import { createListingSchema } from "@/lib/validation/listing";
  * The shaft specs (dexterity, flex, material, loft, size) are the same
  * judgement in softer form: the schema leaves them optional, the app omits
  * them, and the listing's edit page on the website is where a seller adds
- * them if they matter. Nothing here rejects them, so the app can grow into
- * them later without a server change.
+ * them if they matter. Since Oct 2026 the app sends the ones it can read out
+ * of the title (smart-search.ts), and they're validated as on the website.
  */
 
 /** Both the app's sale types. Neither needs a date. */
@@ -110,6 +110,13 @@ export async function POST(request: Request) {
     collectionNotes: body.collection_notes ?? "",
     saleType: body.sale_type,
     priceEur: body.price_eur,
+    // Filled in from the title by the app's smart sell form (Oct 2026);
+    // validated here exactly as the website's own form is.
+    model: body.model || undefined,
+    dexterity: body.dexterity || undefined,
+    shaftFlex: body.shaft_flex || undefined,
+    shaftMaterial: body.shaft_material || undefined,
+    loft: body.loft || undefined,
   });
 
   if (!parsed.success) {

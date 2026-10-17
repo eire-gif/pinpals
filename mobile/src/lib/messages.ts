@@ -115,6 +115,11 @@ export type ConversationHeader = {
   otherAvatarColor: string | null;
   listingId: number | null;
   listingTitle: string | null;
+  /** The item pinned at the top of a marketplace chat (Oct 2026). */
+  listingPriceCents: number | null;
+  listingImageUrl: string | null;
+  listingStatus: string | null;
+  listingIsMine: boolean;
   /** Everyone in it, including you. A group's bubbles need a name per sender;
    *  a direct thread's do not, but carrying the list either way means the
    *  screen has one shape to render rather than two. */
@@ -149,7 +154,7 @@ type ConversationRow = {
   last_message_at: string | null;
   created_at: string;
   members: MemberRow[];
-  listing: { id: number; title: string } | null;
+  listing: { id: number; title: string; price_cents?: number | null; image_url?: string | null; status?: string; seller_id?: string } | null;
 };
 
 /**
@@ -164,7 +169,7 @@ const CONVERSATION_SELECT = `
     member_id, role, last_read_at, archived_at,
     profile:profiles(id, first_name, last_name, avatar_url, avatar_color)
   ),
-  listing:listings(id, title)
+  listing:listings(id, title, price_cents, image_url, status, seller_id)
 `;
 
 /**
@@ -336,6 +341,10 @@ export async function conversationHeader(
     otherAvatarColor: data.kind === "group" ? null : (other?.avatar_color ?? null),
     listingId: data.listing_id,
     listingTitle: data.listing?.title ?? null,
+    listingPriceCents: data.listing?.price_cents ?? null,
+    listingImageUrl: data.listing?.image_url ?? null,
+    listingStatus: data.listing?.status ?? null,
+    listingIsMine: !!data.listing && data.listing.seller_id === userId,
     members: membersOf(data).map((m) => ({
       id: m.member_id,
       name: nameOf(m.profile),

@@ -209,6 +209,12 @@ export type NewListing = {
   deliveryOptions: string[];
   /** Already uploaded. Position 0 is the cover photo. */
   images: UploadedPhoto[];
+  /** Read out of the title (smart-search.ts parseListingTitle). Optional. */
+  model?: string | null;
+  dexterity?: string | null;
+  shaftFlex?: string | null;
+  shaftMaterial?: string | null;
+  loft?: string | null;
 };
 
 export type CreatedListing = {
@@ -235,6 +241,11 @@ export async function createListing(listing: NewListing): Promise<CreatedListing
     sale_type: listing.saleType,
     price_eur: listing.priceEur,
     delivery_options: listing.deliveryOptions,
+    model: listing.model || null,
+    dexterity: listing.dexterity || null,
+    shaft_flex: listing.shaftFlex || null,
+    shaft_material: listing.shaftMaterial || null,
+    loft: listing.loft || null,
     images: listing.images.map((photo, index) => ({
       url: photo.url,
       position: index,
