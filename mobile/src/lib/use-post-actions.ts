@@ -72,7 +72,13 @@ export function usePostActions(handlers: {
    */
   const react = useCallback(
     async (post: FeedPost, reaction: ReactionKey | null) => {
-      const before = { myReaction: post.myReaction, likedByMe: post.likedByMe, likeCount: post.likeCount, reactionCounts: post.reactionCounts };
+      const before = {
+        myReaction: post.myReaction,
+        likedByMe: post.likedByMe,
+        likeCount: post.likeCount,
+        reactionCounts: post.reactionCounts,
+        reactors: post.reactors,
+      };
       if (reaction === post.myReaction) return;
       const guess = applyReaction(post.reactionCounts, post.likeCount, post.myReaction, reaction);
       update(post.id, (p) => ({
@@ -81,6 +87,7 @@ export function usePostActions(handlers: {
         likedByMe: reaction !== null,
         likeCount: guess.total,
         reactionCounts: guess.counts,
+        reactors: { ...p.reactors, me: reaction !== null },
       }));
       try {
         const result = await setLike(post.id, reaction !== null, reaction ?? undefined);
@@ -90,6 +97,7 @@ export function usePostActions(handlers: {
           likeCount: result.likeCount,
           myReaction: result.reaction !== undefined ? result.reaction : p.myReaction,
           reactionCounts: result.reactionCounts ?? p.reactionCounts,
+          reactors: { ...p.reactors, me: result.liked },
         }));
       } catch (err) {
         update(post.id, (p) => ({ ...p, ...before }));

@@ -2,7 +2,10 @@ import { authenticateAppRequest, badRequest, readJson, unauthenticated } from "@
 import { createPost, statusForFeedFailure } from "@/lib/feed-operations";
 
 /**
- * POST /api/app/posts   { body, visibility, club_id, photo_paths, kind?, details?, video? }
+ * POST /api/app/posts   { body, visibility, club_id, photo_paths, kind?, details?, video?, shared_post_id? }
+ *
+ * `shared_post_id` (0164) is "Share to your feed": a plain post with the
+ * member's own words that shows the shared post under them.
  *
  * `video` (0102) is { path, duration_ms?, width?, height? }: the path from
  * POST /api/app/posts/videos, after the phone has uploaded to it.
@@ -32,6 +35,7 @@ export async function POST(request: Request) {
     kind?: unknown;
     details?: unknown;
     video?: unknown;
+    shared_post_id?: unknown;
   }>(request);
   if (!input) return badRequest("Expected JSON.");
 
@@ -45,6 +49,7 @@ export async function POST(request: Request) {
     kind: input.kind,
     details: input.details,
     video: input.video,
+    sharedPostId: input.shared_post_id,
   });
 
   if (!result.ok) {

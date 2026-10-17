@@ -151,6 +151,11 @@ export async function createPost(input: {
   /** 0102. A staged video: { path, duration_ms?, width?, height? }, the path
    *  from POST /api/app/posts/videos. One per post, never with photos. */
   video?: unknown;
+  /** 0164. "Share to your feed": the post being shared. The database
+   *  (posts_check_repost) decides whether it may be — seen by the member,
+   *  shared with all members, not hidden — and points a share of a share
+   *  at the original. */
+  sharedPostId?: unknown;
 }): Promise<FeedResult<{ id: number }>> {
   const { supabase, userId } = input;
 
@@ -169,6 +174,13 @@ export async function createPost(input: {
 
   const visibility = parseVisibility(input.visibility);
   if (!visibility) return fail("invalid", "Choose who can see this post.");
+
+  let sharedPostId: number | null = null;
+  if (input.sharedPostId !== undefined && input.sharedPostId !== null) {
+    const n = typeof input.sharedPostId === "number" ? input.sharedPostId : Number(input.sharedPostId);
+    if (!Number.isInteger(n) || n <= 0) return fail("invalid", "That post couldn't be found.");
+    sharedPostId = n;
+  }
 
   const clubId = parseClubId(input.clubId);
   if (clubId === "invalid") return fail("invalid", "That course couldn't be found — try choosing it again.");
@@ -240,8 +252,36 @@ export async function createPost(input: {
     photoCount: photoPaths.length,
     hasDetails: kind !== "general",
     hasVideo: video !== null,
+    sharesPost: sharedPostId !== null,
   });
   if (problem) return fail("invalid", problem);
+
+  // The post being shared, read under the member's own RLS: one they can't
+  // see is "not found" here exactly as everywhere else. Reposting the
+  // original of a repost is the database's job (posts_check_repost).
+  let shared: { id: number; author_id: string; visibility: string } | null = null;
+  if (sharedPostId !== null) {
+    const { data } = await supabase
+      .from("posts")
+      .select("id, author_id, visibility, shared_post_id")
+      .eq("id", sharedPostId)
+      .maybeSingle<{ id: number; author_id: string; visibility: string; shared_post_id: number | null }>();
+    if (!data) return fail("not_found", "That post is no longer available.");
+    if (data.shared_post_id !== null) {
+      const { data: original } = await supabase
+        .from("posts")
+        .select("id, author_id, visibility")
+        .eq("id", data.shared_post_id)
+        .maybeSingle<{ id: number; author_id: string; visibility: string }>();
+      if (!original) return fail("not_found", "That post is no longer available.");
+      shared = original;
+    } else {
+      shared = data;
+    }
+    if (shared.visibility !== "members") {
+      return fail("invalid", "Only posts shared with all members can be shared to your feed.");
+    }
+  }
 
   // Refuse a stranger's staging path before anything is written, rather
   // than after a post exists that would then have to be taken back out.
@@ -262,11 +302,36 @@ export async function createPost(input: {
   // the id it returns, which is the moment they become visible to anyone.
   const { data: post, error } = await supabase
     .from("posts")
-    .insert({ author_id: userId, body: input.body.trim(), visibility, club_id: clubId, kind, details })
+    .insert({
+      author_id: userId,
+      body: input.body.trim(),
+      visibility,
+      club_id: clubId,
+      kind,
+      details,
+      // Only named when sharing, so a database without 0164 still takes
+      // every ordinary post.
+      ...(shared ? { shared_post_id: shared.id } : {}),
+    })
     .select("id")
     .single<{ id: number }>();
 
   if (error || !post) return fail("failed", "Couldn't post that just now — please try again.");
+
+  if (shared && shared.author_id !== userId) {
+    // In-app only, like a reaction (see likePost): best-effort, and it must
+    // never undo the post the member can already see.
+    const name = await memberName(supabase, userId);
+    const { error: notifyError } = await createAdminClient().rpc("notify_user", {
+      p_user_id: shared.author_id,
+      p_type: "post_shared",
+      p_title: `${name} shared your post`,
+      p_body: input.body.trim() ? input.body.trim().slice(0, 140) : "Tap to see it.",
+      p_data: { href: `/feed/${post.id}`, post_id: post.id },
+      p_dedupe_key: buildDedupeKey(["post_shared", shared.id, userId]),
+    });
+    if (notifyError) console.error("[feed] share notification failed:", notifyError.message);
+  }
 
   if (video) {
     // Same all-or-nothing as photos: a video post whose video didn't arrive

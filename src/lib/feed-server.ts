@@ -88,6 +88,14 @@ export type FeedPost = {
   hidden: boolean;
   createdAt: string;
   comments: FeedComment[];
+  /** 0164. How many times it has been shared — a number only; who sent it
+   *  where is private. */
+  shareCount: number;
+  /** 0164. Set when this post shares another to the author's feed: that
+   *  post, read under the viewer's own RLS, or null when it has gone or the
+   *  viewer may not see it. Never nested — a share of a share points at
+   *  the original. */
+  shared: { post: FeedPost | null } | null;
 };
 
 export type FeedListing = MarketplaceListing & { createdAt: string };
@@ -247,12 +255,13 @@ async function hydratePosts(
   supabase: SupabaseClient,
   viewerId: string,
   rows: PostRow[],
-  commentsPerPost: number
+  commentsPerPost: number,
+  withShared = true
 ): Promise<FeedPost[]> {
   if (rows.length === 0) return [];
   const ids = rows.map((r) => r.id);
 
-  const [likes, comments, urls, videos] = await Promise.all([
+  const [likes, comments, urls, videos, shareInfo] = await Promise.all([
     supabase
       .from("post_likes")
       .select("post_id")
@@ -277,7 +286,19 @@ async function hydratePosts(
       rows.flatMap((r) => r.post_images.map((img) => img.path))
     ),
     loadVideos(supabase, ids),
+    loadShareInfo(supabase, ids),
   ]);
+
+  // The posts these share, hydrated the same way (no comments, no further
+  // sharing). One query for the page.
+  const sharedIds = withShared
+    ? [...new Set([...shareInfo.values()].map((s) => s.sharedPostId).filter((id): id is number => id !== null))]
+    : [];
+  const sharedById = new Map<number, FeedPost>();
+  if (sharedIds.length > 0) {
+    const { data: sharedRows } = await supabase.from("posts").select(POST_SELECT).in("id", sharedIds).returns<PostRow[]>();
+    for (const p of await hydratePosts(supabase, viewerId, sharedRows ?? [], 0, false)) sharedById.set(p.id, p);
+  }
 
   const liked = new Set((likes.data ?? []).map((l) => l.post_id));
   const authorOf = new Map(rows.map((r) => [r.id, r.author_id]));
@@ -335,7 +356,38 @@ async function hydratePosts(
     // Fetched newest first so the limit keeps the latest; shown oldest
     // first, as a conversation reads.
     comments: threadComments(commentsByPost.get(row.id) ?? []),
+    shareCount: shareInfo.get(row.id)?.shareCount ?? 0,
+    shared: (() => {
+      const info = shareInfo.get(row.id);
+      if (!info?.isRepost) return null;
+      return { post: info.sharedPostId !== null ? sharedById.get(info.sharedPostId) ?? null : null };
+    })(),
   }));
+}
+
+/**
+ * 0164's columns, read on their own so a database without them yet still
+ * loads every post (as unshared, with no share count).
+ */
+async function loadShareInfo(
+  supabase: SupabaseClient,
+  ids: number[]
+): Promise<Map<number, { shareCount: number; sharedPostId: number | null; isRepost: boolean }>> {
+  const out = new Map<number, { shareCount: number; sharedPostId: number | null; isRepost: boolean }>();
+  try {
+    const { data, error } = await supabase
+      .from("posts")
+      .select("id, share_count, shared_post_id, is_repost")
+      .in("id", ids)
+      .returns<{ id: number; share_count: number; shared_post_id: number | null; is_repost: boolean }[]>();
+    if (error || !data) return out;
+    for (const r of data) {
+      out.set(r.id, { shareCount: r.share_count ?? 0, sharedPostId: r.shared_post_id, isRepost: !!r.is_repost });
+    }
+  } catch {
+    // Older database: nothing shared, nothing counted.
+  }
+  return out;
 }
 
 function toComment(row: CommentRow, viewerId: string, postAuthorId: string | null): FeedComment {

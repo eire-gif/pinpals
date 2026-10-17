@@ -59,7 +59,8 @@ import type { Href } from "expo-router";
  *               app/listing/[id].tsx, app/listing-offers/[id].tsx,
  *               app/seller/[id].tsx, app/feedback/[id].tsx
  *    social   → app/(tabs)/feed.tsx, app/compose.tsx, app/new-post.tsx,
- *               app/comments/[id].tsx, app/share/[id].tsx, app/rate-course.tsx
+ *               app/comments/[id].tsx, app/share/[id].tsx, app/rate-course.tsx,
+ *               app/reactions/[id].tsx, app/share-to-feed/[id].tsx
  *    parentApproval → app/signup.tsx, app/age/waiting.tsx, app/age/date-of-birth.tsx,
  *               app/privacy.tsx (My parent), app/listing/[id].tsx (Ask a parent)
  *
@@ -1644,13 +1645,31 @@ export const GUIDES: Guide[] = [
         ],
       },
       {
-        title: "React, comment and share",
-        body: "Tap the flag on a post for Great Shot, or hold it for On Fire, Nice Round and more. Comment — type @ to mention someone. Share sends it to a chat or out to WhatsApp and Instagram.",
+        title: "React and comment",
+        body: "Tap the golf ball on a post for Great Shot, or hold it for On Fire, Nice Round, Amazing and Unlucky. Tap your reaction again to take it away. Comment — type @ to mention someone.",
         look: [
-          { style: "outline", label: "Great Shot", icon: "flag" },
+          { style: "outline", label: "Great Shot", icon: "golf" },
           { style: "outline", label: "Comment", icon: "chatbubble-outline" },
-          { style: "outline", label: "Share", icon: "share-outline" },
         ],
+      },
+      {
+        title: "See who reacted",
+        body: "Under a post, tap the reactions — \"Seán Byrne and 11 others\" — to see everyone who reacted and how. Tap a reaction to see just those. Message your PinPals from the list, or tap Add PinPal for anyone else. Shares shows who shared it to their feed.",
+        look: [
+          { style: "outline", label: "Seán Byrne and 11 others" },
+          { style: "outline", label: "Add PinPal", icon: "person-add-outline" },
+        ],
+      },
+      {
+        title: "Share a post",
+        body: "Tap Share. Under Send in PinPals, tap one or more chats or PinPals (or Search), add a message and tap Send. Share to your feed puts it on your page with your own words. Or send it out on WhatsApp, Messages, Email, Facebook or X — More has Instagram and Copy.",
+        look: [
+          { style: "outline", label: "Share", icon: "arrow-redo-outline" },
+          { style: "primary", label: "Send to 3", icon: "paper-plane" },
+          { style: "outline", label: "Share to your feed", icon: "repeat" },
+          { style: "outline", label: "WhatsApp", icon: "logo-whatsapp" },
+        ],
+        tip: "Posts for someone's connections only can be sent in a chat, but not shared to your feed. Shares are counted on the post — who sent it where is never shown.",
       },
       {
         title: "Rate a course",
@@ -1745,6 +1764,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-17", text: "Share on Social: new steps, See who reacted — tap \"Seán Byrne and 11 others\" for everyone's reaction, with Message or Add PinPal — and Share a post: send to several chats at once, Share to your feed with your own words, or straight to WhatsApp, Messages, Email, Facebook or X. Posts now show how many times they've been shared." },
   { on: "2026-10-17", text: "Marketplace: find gear in three steps — club type, brand, model — with the listings always below, narrowing as you pick. Top picks, at the top, are paid adverts marked PREMIUM. Selling, you can pick the exact model. Buy gear safely and Sell your gear are updated." },
   { on: "2026-10-17", text: "Score a game live: once every hole is in, the Score tab shows All 18 holes in with Complete scorecard (it was Finish round, on the Leaderboard tab only), and the card says Complete. On the last hole with holes missing, it lists them to tap. Tapping the lock screen card after the last hole opens the round there." },
   { on: "2026-10-17", text: "Marketplace redesign: smart search that understands brands, prices, places and typos; public Questions & offers under every ad (ask, offer, and the seller accepts, counters or declines in the open); the sell form fills itself in from the title; marketplace chats are in Messages under Marketplace, with the item pinned. Sell your gear and Buy gear safely are updated." },

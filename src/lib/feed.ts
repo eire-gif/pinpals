@@ -57,12 +57,18 @@ export type PostDraft = {
   hasDetails?: boolean;
   /** A video (0102) is media too: a clip with no caption is a post. */
   hasVideo?: boolean;
+  /** Sharing someone's post to your feed (0164): the shared post is the
+   *  content, so no caption is needed — and it carries no media of its own. */
+  sharesPost?: boolean;
 };
 
 /** Null when the draft is fine; otherwise a sentence a member can act on. */
 export function validatePostDraft(draft: PostDraft): string | null {
   const body = draft.body.trim();
-  if (body.length === 0 && draft.photoCount === 0 && !draft.hasVideo && !draft.hasDetails) {
+  if (draft.sharesPost && (draft.photoCount > 0 || draft.hasVideo || draft.hasDetails)) {
+    return "A shared post can have your words, but not photos, a video or a score of its own.";
+  }
+  if (body.length === 0 && draft.photoCount === 0 && !draft.hasVideo && !draft.hasDetails && !draft.sharesPost) {
     return "Add a photo or write something to post.";
   }
   if (draft.hasVideo && draft.photoCount > 0) {
