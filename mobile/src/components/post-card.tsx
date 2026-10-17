@@ -22,12 +22,14 @@ import { AchievementCard } from "@/components/achievement-card";
 import { Avatar } from "@/components/avatar";
 import { coursePhoto } from "@/components/course-photos";
 import { PostVideo } from "@/components/post-video";
+import { QuotedPost } from "@/components/quoted-post";
 import { RoundCard } from "@/components/round-card";
 import { ReactionDisc, ReactionPicker, ReactionStack } from "@/components/reactions";
 import { achievementOf } from "@/lib/achievements";
 import type { FeedAuthor, FeedClub, FeedComment, FeedPhoto, FeedPost } from "@/lib/feed";
 import { POST_VISIBILITY_SHORT, ago, compactCount, handicapLabel, photoHeight } from "@/lib/feed-rules";
 import { detailChips, type RoundDetails } from "@/lib/post-details";
+import { engagementLine, reactionSummary } from "@/lib/reaction-summary";
 import { REACTION_INFO, topReactions, type ReactionKey } from "@/lib/reactions";
 import { colors, creamAlpha, fonts, navyAlpha, radii, spacing, type } from "@/lib/theme";
 
@@ -51,9 +53,13 @@ const MEDIA_INSET = 12;
  *   2. text
  *   3. media    — inset, rounded, never taller than 4:5; tap for full size
  *   4. golf     — a round, hole or shot's facts as chips (post-details.ts)
- *   5. actions  — one condensed row (Oct 2026, after Facebook's): React
- *                 with its count, Comment with its count, Share; on the
- *                 right the top reactions as discs, then Save. React: tap
+ *   5. who      — (Oct 2026, the "Reactions & Share" mock-ups) the top
+ *                 reactions as discs with "Seán Byrne and 11 others",
+ *                 opening who reacted (app/reactions/[id].tsx); on the
+ *                 right "4 comments · 2 shares"
+ *   6. actions  — one condensed row (Oct 2026, after Facebook's): React
+ *                 with its count, Comment with its count, Share, then Save
+ *                 on the right. React: tap
  *                 for Great Shot (or to take yours away), long-press to
  *                 choose (components/reactions.tsx). The comment count is
  *                 the way into the conversation — the card no longer lists
@@ -149,6 +155,12 @@ export function PostCard({
         </Text>
       ) : null}
 
+      {post.shared ? (
+        <View style={styles.quoted}>
+          <QuotedPost post={post.shared.post} width={mediaWidth} />
+        </View>
+      ) : null}
+
       {achievement ? (
         <View style={styles.media}>
           <AchievementCard
@@ -191,6 +203,8 @@ export function PostCard({
         </View>
       )}
 
+      <WhoRow post={post} onComments={() => onComment(post)} />
+
       <View style={styles.actions}>
         <ReactButton post={post} onTap={() => onLike(post)} onReact={(r) => onReact(post, r)} />
         <ActionButton
@@ -203,19 +217,15 @@ export function PostCard({
               : "Comment"
           }
         />
-        <ActionButton icon="arrow-redo-outline" onPress={() => onShare(post)} accessibilityLabel="Share" />
+        <ActionButton
+          icon="arrow-redo-outline"
+          count={post.shareCount}
+          onPress={() => onShare(post)}
+          accessibilityLabel={
+            post.shareCount > 0 ? `Share. Shared ${post.shareCount} ${post.shareCount === 1 ? "time" : "times"}` : "Share"
+          }
+        />
         <View style={styles.actionsSpacer} />
-        {post.likeCount > 0 && (
-          <View
-            style={styles.topReactions}
-            accessible
-            accessibilityLabel={`Reactions: ${topReactions(post.reactionCounts)
-              .map((r) => REACTION_INFO[r].label)
-              .join(", ")}`}
-          >
-            <ReactionStack reactions={topReactions(post.reactionCounts)} size={20} />
-          </View>
-        )}
         <ActionButton
           icon={post.savedByMe ? "bookmark" : "bookmark-outline"}
           active={post.savedByMe}
@@ -228,6 +238,61 @@ export function PostCard({
       <View style={styles.foot} />
 
       <PhotoViewer photos={post.photos} index={viewer} onClose={() => setViewer(null)} />
+    </View>
+  );
+}
+
+/**
+ * Who reacted, Facebook-style: the top reactions as overlapping discs and
+ * "Seán Byrne and 11 others", which opens the who-reacted sheet; and on the
+ * right the comment and share counts. Nothing at all on a post nobody has
+ * reacted to, commented on or shared yet.
+ */
+function WhoRow({ post, onComments }: { post: FeedPost; onComments: () => void }) {
+  const summary = reactionSummary(post.likeCount, post.reactors.me, post.reactors.other);
+  const tops = topReactions(post.reactionCounts);
+  if (!summary && post.commentCount === 0 && post.shareCount === 0) return null;
+  const open = (tab?: "shares") =>
+    router.push({ pathname: "/reactions/[id]", params: tab ? { id: String(post.id), tab } : { id: String(post.id) } });
+  return (
+    <View style={styles.who}>
+      {summary ? (
+        <Pressable
+          onPress={() => open()}
+          style={({ pressed }) => [styles.whoLeft, pressed && styles.actionPressed]}
+          accessibilityRole="button"
+          accessibilityLabel={`${summary} reacted: ${tops.map((r) => REACTION_INFO[r].label).join(", ")}. See who reacted`}
+          hitSlop={4}
+        >
+          <ReactionStack reactions={tops} size={20} />
+          <Text style={styles.whoText} numberOfLines={1}>
+            {summary}
+          </Text>
+        </Pressable>
+      ) : (
+        <View style={{ flex: 1 }} />
+      )}
+      {post.commentCount > 0 || post.shareCount > 0 ? (
+        <View style={styles.whoRight}>
+          {post.commentCount > 0 ? (
+            <Text style={styles.whoCount} onPress={onComments} suppressHighlighting accessibilityRole="button">
+              {engagementLine(post.commentCount, 0)}
+            </Text>
+          ) : null}
+          {post.commentCount > 0 && post.shareCount > 0 ? <Text style={styles.whoCount}> · </Text> : null}
+          {post.shareCount > 0 ? (
+            <Text
+              style={styles.whoCount}
+              onPress={() => open("shares")}
+              suppressHighlighting
+              accessibilityRole="button"
+              accessibilityHint="See who shared it"
+            >
+              {engagementLine(0, post.shareCount)}
+            </Text>
+          ) : null}
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -725,12 +790,38 @@ const styles = StyleSheet.create({
   },
   chipText: { fontFamily: fonts.bodySemi, fontSize: 12.5, color: colors.ink900 },
 
-  // 5. Actions — one condensed row
+  // Shared post (0166)
+  quoted: { marginHorizontal: MEDIA_INSET },
+
+  // 5. Who reacted
+  who: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    marginHorizontal: spacing.sm,
+    marginTop: spacing.sm,
+    minHeight: 36,
+  },
+  whoLeft: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm - 2,
+    paddingHorizontal: spacing.xs,
+    paddingVertical: 6,
+    borderRadius: radii.sm,
+  },
+  whoText: { flexShrink: 1, fontFamily: fonts.body, fontSize: 13.5, color: colors.ink900 },
+  whoRight: { flexDirection: "row", alignItems: "center", paddingHorizontal: spacing.xs },
+  whoCount: { fontFamily: fonts.body, fontSize: 13, color: colors.ink500, paddingVertical: 6 },
+
+  // 6. Actions — one condensed row
   actions: {
     flexDirection: "row",
     alignItems: "center",
     marginHorizontal: spacing.sm,
-    marginTop: spacing.sm,
+    marginTop: spacing.xs,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.line,
     paddingTop: 2,
@@ -748,7 +839,6 @@ const styles = StyleSheet.create({
   actionPressed: { backgroundColor: colors.surfaceTint },
   actionCount: { fontFamily: fonts.bodySemi, fontSize: 15 },
   actionsSpacer: { flex: 1 },
-  topReactions: { paddingHorizontal: spacing.xs },
   foot: { height: spacing.md - 4 },
 
   viewer: { flex: 1, backgroundColor: navyAlpha(0.97) },

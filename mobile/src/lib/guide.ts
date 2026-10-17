@@ -59,7 +59,8 @@ import type { Href } from "expo-router";
  *               app/listing/[id].tsx, app/listing-offers/[id].tsx,
  *               app/seller/[id].tsx, app/feedback/[id].tsx
  *    social   → app/(tabs)/feed.tsx, app/compose.tsx, app/new-post.tsx,
- *               app/comments/[id].tsx, app/share/[id].tsx, app/rate-course.tsx
+ *               app/comments/[id].tsx, app/share/[id].tsx, app/rate-course.tsx,
+ *               app/reactions/[id].tsx, app/share-to-feed/[id].tsx
  *    parentApproval → app/signup.tsx, app/age/waiting.tsx, app/age/date-of-birth.tsx,
  *               app/privacy.tsx (My parent), app/listing/[id].tsx (Ask a parent)
  *
@@ -1665,13 +1666,31 @@ export const GUIDES: Guide[] = [
         ],
       },
       {
-        title: "React, comment and share",
-        body: "Tap the flag on a post for Great Shot, or hold it for On Fire, Nice Round and more. Comment — type @ to mention someone. Share sends it to a chat or out to WhatsApp and Instagram.",
+        title: "React and comment",
+        body: "Tap the golf ball on a post for Great Shot, or hold it for On Fire, Nice Round, Amazing and Unlucky. Tap your reaction again to take it away. Comment — type @ to mention someone.",
         look: [
-          { style: "outline", label: "Great Shot", icon: "flag" },
+          { style: "outline", label: "Great Shot", icon: "golf" },
           { style: "outline", label: "Comment", icon: "chatbubble-outline" },
-          { style: "outline", label: "Share", icon: "share-outline" },
         ],
+      },
+      {
+        title: "See who reacted",
+        body: "Under a post, tap the reactions — \"Seán Byrne and 11 others\" — to see everyone who reacted and how. Tap a reaction to see just those. Message your PinPals from the list, or tap Add PinPal for anyone else. Shares shows who shared it to their feed.",
+        look: [
+          { style: "outline", label: "Seán Byrne and 11 others" },
+          { style: "outline", label: "Add PinPal", icon: "person-add-outline" },
+        ],
+      },
+      {
+        title: "Share a post",
+        body: "Tap Share. Under Send in PinPals, tap one or more chats or PinPals (or Search), add a message and tap Send. Share to your feed puts it on your page, with a few words of your own. Or send it out on WhatsApp, Messages, Email, Facebook or X — More has Instagram and Copy.",
+        look: [
+          { style: "outline", label: "Share", icon: "arrow-redo-outline" },
+          { style: "primary", label: "Send to 3", icon: "paper-plane" },
+          { style: "outline", label: "Share to your feed", icon: "repeat" },
+          { style: "outline", label: "WhatsApp", icon: "logo-whatsapp" },
+        ],
+        tip: "Posts for someone's connections only can be sent in a chat, but not shared to your feed. Shares are counted on the post — who sent it where is never shown.",
       },
       {
         title: "Rate a course",
@@ -1766,6 +1785,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-17", text: "Share on Social: new steps, See who reacted — tap \"Seán Byrne and 11 others\" for everyone's reaction, with Message or Add PinPal — and Share a post: send to several chats at once, Share to your feed with a few words of your own, or straight to WhatsApp, Messages, Email, Facebook or X. Posts now show how many times they've been shared." },
   { on: "2026-10-17", text: "Tee times: one page, My rounds, for every round you host, play in, have asked to join or been offered — reached from the top of Tee Times, the menu, and every tee-time alert. Requests and offers waiting on you are first, under Needs your answer, and the Tee Times tab shows how many in gold. Post a tee time, Find a game and Fill a place are updated." },
   { on: "2026-10-17", text: "Selling is now six short steps — photos and a description, what it is (clubs or anything else golf), brand, model, details, price — with a preview of the ad before you post. A brand or model that isn't listed can be typed in, and joins the list once a few sellers use it. Sell your gear is updated." },
   { on: "2026-10-17", text: "Marketplace: find gear in three steps — club type, brand, model — with the listings always below, narrowing as you pick. Top picks, at the top, are paid adverts marked PREMIUM. Selling, you can pick the exact model. Buy gear safely and Sell your gear are updated." },

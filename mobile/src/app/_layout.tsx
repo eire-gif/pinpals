@@ -287,6 +287,10 @@ function RootNavigator() {
       <Stack.Screen name="comments/[id]" options={{ presentation: "modal", title: "Comments" }} />
       {/* Share a post (phase 6): a sheet like Comments. */}
       <Stack.Screen name="share/[id]" options={{ presentation: "modal", title: "Share post" }} />
+      {/* Who reacted (Oct 2026): a sheet like Comments and Share. */}
+      <Stack.Screen name="reactions/[id]" options={{ presentation: "modal", title: "Reactions" }} />
+      {/* Share to your feed (0166): the sharer's words over the post. */}
+      <Stack.Screen name="share-to-feed/[id]" options={{ presentation: "modal", title: "Share to your feed" }} />
       <Stack.Screen name="saved" options={{ title: "Saved posts", headerBackTitle: "Back" }} />
       <Stack.Screen
         name="invite/[id]"

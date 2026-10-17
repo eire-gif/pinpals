@@ -248,6 +248,13 @@ export type Connections = {
   outgoing: Member[];
 };
 
+/** Where the viewer stands with everyone they have a connection row with,
+ *  keyed by the other member — for lists that draw a Message / Add PinPal
+ *  button per person (the who-reacted sheet). One query. */
+export async function connectionStates(userId: string): Promise<Map<string, ConnectionState>> {
+  return stateMap(await listConnectionLinks(userId));
+}
+
 export async function listConnections(userId: string): Promise<Connections> {
   const links = await listConnectionLinks(userId);
 

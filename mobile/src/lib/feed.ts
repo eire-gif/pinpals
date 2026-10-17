@@ -21,6 +21,7 @@ import {
 import type { HoleDetails, PostKind, RoundDetails, ShotDetails } from "./post-details";
 import type { MentionTarget } from "./mentions";
 import { isReaction, normaliseCounts, type ReactionCounts, type ReactionKey } from "./reactions";
+import type { ShareChannel } from "./reaction-summary";
 
 /**
  * The feed, for the app.
@@ -121,6 +122,16 @@ export type FeedPost = {
   hidden: boolean;
   createdAt: string;
   comments: FeedComment[];
+  /** How many times it has been shared (0166) — a number only; who sent
+   *  it where is private to each sharer. 0 before 0166. */
+  shareCount: number;
+  /** Set when this post shares another to the author's feed (0166): that
+   *  post, read under the viewer's own RLS — null when it has been deleted
+   *  or the viewer may not see it. Never nested. */
+  shared: { post: FeedPost | null } | null;
+  /** Who to name beside the reaction discs: whether the viewer reacted,
+   *  and the most recent other member who did (see reaction-summary.ts). */
+  reactors: { me: boolean; other: string | null };
 };
 
 export type FeedEntry = { kind: "post"; item: FeedPost } | { kind: "listing"; item: Card };
@@ -389,11 +400,11 @@ async function loadVideos(ids: number[]): Promise<Map<number, FeedVideo>> {
   return out;
 }
 
-async function hydrate(viewerId: string, rows: PostRow[], commentsPerPost: number): Promise<FeedPost[]> {
+async function hydrate(viewerId: string, rows: PostRow[], commentsPerPost: number, withShared = true): Promise<FeedPost[]> {
   if (rows.length === 0) return [];
   const ids = rows.map((r) => r.id);
 
-  const [likes, saves, comments, urls, videos] = await Promise.all([
+  const [likes, saves, comments, urls, videos, shareInfo, named] = await Promise.all([
     myReactions(viewerId, ids),
     // Before 0094 is applied this errors, and every post simply shows as
     // not saved — the feed must not depend on the newest table.
@@ -412,7 +423,28 @@ async function hydrate(viewerId: string, rows: PostRow[], commentsPerPost: numbe
       : Promise.resolve({ data: [] as CommentRow[], error: null }),
     signPhotos(rows.flatMap((r) => r.post_images.map((img) => img.path))),
     loadVideos(ids),
+    // A quoted post (withShared false) shows neither, so skips both.
+    withShared ? loadShareInfo(ids) : Promise.resolve(new Map<number, ShareInfo>()),
+    withShared
+      ? latestReactors(
+          viewerId,
+          rows.filter((r) => r.like_count > 0).map((r) => r.id)
+        )
+      : Promise.resolve(new Map<number, string>()),
   ]);
+
+  // The posts these share (0166), hydrated once for the page: no comments,
+  // no further sharing.
+  const sharedIds = withShared
+    ? [...new Set([...shareInfo.values()].map((s) => s.sharedPostId).filter((id): id is number => id !== null))]
+    : [];
+  const sharedById = new Map<number, FeedPost>();
+  if (sharedIds.length > 0) {
+    const { data: sharedRows } = await selectPosts<PostRow[]>((select) =>
+      supabase.from("posts").select(select).in("id", sharedIds).overrideTypes<PostRow[]>()
+    );
+    for (const p of await hydrate(viewerId, (sharedRows ?? []) as PostRow[], 0, false)) sharedById.set(p.id, p);
+  }
 
   const reacted = new Map(likes.map((l) => [l.post_id, l.reaction]));
   const saved = new Set((saves.data ?? []).map((l) => l.post_id));
@@ -474,7 +506,175 @@ async function hydrate(viewerId: string, rows: PostRow[], commentsPerPost: numbe
     hidden: row.hidden_at !== null,
     createdAt: row.created_at,
     comments: threadComments(byPost.get(row.id) ?? []),
+    shareCount: shareInfo.get(row.id)?.shareCount ?? 0,
+    shared: (() => {
+      const info = shareInfo.get(row.id);
+      if (!info?.isRepost) return null;
+      return { post: info.sharedPostId !== null ? sharedById.get(info.sharedPostId) ?? null : null };
+    })(),
+    reactors: { me: reacted.has(row.id), other: named.get(row.id) ?? null },
   }));
+}
+
+type ShareInfo = { shareCount: number; sharedPostId: number | null; isRepost: boolean };
+
+/**
+ * 0166's columns, read on their own so a database without them still loads
+ * every post (unshared, with no share count) — the selectPosts() fallback
+ * would otherwise drop kind and reactions along with them.
+ */
+async function loadShareInfo(ids: number[]): Promise<Map<number, ShareInfo>> {
+  const out = new Map<number, ShareInfo>();
+  if (ids.length === 0) return out;
+  try {
+    const { data, error } = await supabase
+      .from("posts")
+      .select("id, share_count, shared_post_id, is_repost")
+      .in("id", ids)
+      .overrideTypes<{ id: number; share_count: number | null; shared_post_id: number | null; is_repost: boolean | null }[]>();
+    if (error || !data) return out;
+    for (const r of data) {
+      out.set(r.id, { shareCount: r.share_count ?? 0, sharedPostId: r.shared_post_id, isRepost: !!r.is_repost });
+    }
+  } catch {
+    // Older database: nothing shared, nothing counted.
+  }
+  return out;
+}
+
+/** The members the viewer has blocked. The database already hides
+ *  reactions across a block (0166's post_likes policy, both directions);
+ *  this is a second guard, and covers a database without 0166. */
+async function myBlocks(viewerId: string): Promise<Set<string>> {
+  const { data } = await supabase
+    .from("blocked_users")
+    .select("blocked_id")
+    .eq("blocker_id", viewerId)
+    .overrideTypes<{ blocked_id: string }[]>();
+  return new Set((data ?? []).map((r) => r.blocked_id));
+}
+
+const fullName = (p: { first_name: string | null; last_name: string | null } | null): string | null =>
+  p ? [p.first_name, p.last_name].filter(Boolean).join(" ") || null : null;
+
+/**
+ * For each post, the most recent member other than the viewer who reacted
+ * — the name in "Seán Byrne and 11 others". One query for the page; a post
+ * past the limit just shows its number.
+ */
+async function latestReactors(viewerId: string, ids: number[]): Promise<Map<number, string>> {
+  const out = new Map<number, string>();
+  if (ids.length === 0) return out;
+  try {
+    const [{ data }, blocked] = await Promise.all([
+      supabase
+        .from("post_likes")
+        .select("post_id, user_id, member:profiles!post_likes_user_id_fkey ( first_name, last_name )")
+        .in("post_id", ids)
+        .neq("user_id", viewerId)
+        .order("created_at", { ascending: false })
+        .limit(Math.min(ids.length * 6, 300))
+        .overrideTypes<{ post_id: number; user_id: string; member: { first_name: string | null; last_name: string | null } | null }[]>(),
+      myBlocks(viewerId),
+    ]);
+    for (const row of data ?? []) {
+      if (out.has(row.post_id) || blocked.has(row.user_id)) continue;
+      const name = fullName(row.member);
+      if (name) out.set(row.post_id, name);
+    }
+  } catch {
+    // Just the numbers, then.
+  }
+  return out;
+}
+
+export type Reactor = {
+  memberId: string;
+  name: string;
+  avatarUrl: string | null;
+  avatarColor: string | null;
+  handicap: number | null;
+  homeClub: string | null;
+  reaction: ReactionKey;
+  isMe: boolean;
+};
+
+/**
+ * Everyone who reacted to a post, newest first — the who-reacted sheet.
+ * post_likes is readable by anyone who can see the post (0088: liking is a
+ * public act) — except across a block, either way (0166); a member whose
+ * profile the viewer can't see (0159) is left out too.
+ */
+export async function loadReactors(viewerId: string, postId: number): Promise<Reactor[]> {
+  const [{ data, error }, blocked] = await Promise.all([
+    supabase
+      .from("post_likes")
+      .select(
+        "user_id, reaction, created_at, member:profiles!post_likes_user_id_fkey ( id, first_name, last_name, avatar_url, avatar_color, home_club, handicap, handicap_visible )"
+      )
+      .eq("post_id", postId)
+      .order("created_at", { ascending: false })
+      .limit(500)
+      .overrideTypes<{ user_id: string; reaction: string | null; created_at: string; member: ProfileEmbed | null }[]>(),
+    myBlocks(viewerId),
+  ]);
+  if (error) throw new Error("Couldn't load reactions.");
+  return (data ?? [])
+    .filter((r) => r.member && !blocked.has(r.user_id))
+    .map((r) => {
+      const a = toAuthor(r.member, r.user_id);
+      return {
+        memberId: r.user_id,
+        name: a.name,
+        avatarUrl: a.avatarUrl,
+        avatarColor: a.avatarColor,
+        handicap: a.handicap,
+        homeClub: a.homeClub,
+        reaction: isReaction(r.reaction) ? r.reaction : "great_shot",
+        isMe: r.user_id === viewerId,
+      };
+    });
+}
+
+export type Resharer = { postId: number; memberId: string; name: string; avatarUrl: string | null; avatarColor: string | null; body: string; createdAt: string };
+
+/**
+ * Who shared a post to their feed (0166) — the only shares with names,
+ * because a repost is itself a post. Read under the viewer's RLS, so a
+ * repost to someone's connections only appears to their connections.
+ */
+export async function loadResharers(postId: number): Promise<Resharer[]> {
+  const { data, error } = await supabase
+    .from("posts")
+    .select("id, author_id, body, created_at, author:profiles!posts_author_id_fkey ( id, first_name, last_name, avatar_url, avatar_color, home_club, handicap, handicap_visible )")
+    .eq("shared_post_id", postId)
+    .order("created_at", { ascending: false })
+    .limit(200)
+    .overrideTypes<{ id: number; author_id: string; body: string; created_at: string; author: ProfileEmbed | null }[]>();
+  if (error) {
+    if (error.code === "42703") return [];
+    throw new Error("Couldn't load shares.");
+  }
+  return (data ?? []).map((r) => {
+    const a = toAuthor(r.author, r.author_id);
+    return { postId: r.id, memberId: r.author_id, name: a.name, avatarUrl: a.avatarUrl, avatarColor: a.avatarColor, body: r.body, createdAt: r.created_at };
+  });
+}
+
+/**
+ * Counts a share (0166): after a send in a chat, or once the phone's share
+ * sheet has handed the link to an app. Best-effort — a share that went out
+ * but wasn't counted is no reason to bother the member. Returns the new
+ * count, or null.
+ */
+export async function recordShare(postId: number, channel: ShareChannel): Promise<number | null> {
+  try {
+    const { data, error } = await supabase.rpc("record_post_share", { p_post_id: postId, p_channel: channel });
+    if (error || typeof data !== "number") return null;
+    return data;
+  } catch {
+    return null;
+  }
 }
 
 /** The viewer's reactions on these posts. Before 0096 there is no reaction
@@ -860,6 +1060,8 @@ export const createPost = (input: {
   details?: RoundDetails | HoleDetails | ShotDetails | null;
   /** 0102. A video staged by stageVideo(); never with photos. */
   video?: { path: string; durationMs: number | null; width: number | null; height: number | null } | null;
+  /** 0166. "Share to your feed": the post being shared. */
+  sharedPostId?: number | null;
 }): Promise<{ id: number }> =>
   postToSite<{ id: number }>("/api/app/posts", {
     body: input.body,
@@ -870,6 +1072,7 @@ export const createPost = (input: {
     ...(input.video
       ? { video: { path: input.video.path, duration_ms: input.video.durationMs, width: input.video.width, height: input.video.height } }
       : {}),
+    ...(input.sharedPostId ? { shared_post_id: input.sharedPostId } : {}),
   });
 
 export type ReactionResult = {

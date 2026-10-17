@@ -392,6 +392,8 @@ const EXPECTED: Record<string, Expectation> = {
   "scorecard_certification_decline(p_id bigint)": { anon: false, authenticated: true },
   // 0130 chat reactions, replies, deletes
   "react_to_message(p_message_id bigint, p_emoji text)": { anon: false, authenticated: true },
+  // 0166: counts a share of a post the caller can see; the count is all it reveals.
+  "record_post_share(p_post_id bigint, p_channel text)": { anon: false, authenticated: true },
   "hide_message_for_me(p_message_id bigint)": { anon: false, authenticated: true },
   "delete_message_for_everyone(p_message_id bigint)": { anon: false, authenticated: true },
   "start_private_reply(p_message_id bigint)": { anon: false, authenticated: true },
@@ -493,6 +495,10 @@ const EXPECTED: Record<string, Expectation> = {
   "bump_post_comment_count()": { anon: false, authenticated: false },
   "prepare_post_comment_reply()": { anon: false, authenticated: false },
   "bump_post_like_count()": { anon: false, authenticated: false },
+  "bump_post_share_count()": { anon: false, authenticated: false },
+  "posts_check_repost()": { anon: false, authenticated: false },
+  "posts_repost_shared()": { anon: false, authenticated: false },
+  "posts_repost_unshared()": { anon: false, authenticated: false },
   // 0097. A trigger that cleans @mentions (reads connections, blocks and
   // posts the commenter can't), and the comment-like counter (members have
   // no UPDATE on like_count). Triggers only — callable by nobody.

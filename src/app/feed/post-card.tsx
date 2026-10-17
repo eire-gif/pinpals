@@ -256,6 +256,8 @@ export default function PostCard({ post, standalone = false }: { post: FeedPost;
         </div>
       )}
 
+      {post.shared && <SharedEmbed shared={post.shared.post} />}
+
       {post.photos.length > 0 && <PhotoGrid photos={post.photos} onOpen={setLightbox} />}
       {post.video && (
         // 0102. Loads nothing but its first frame until played; the signed
@@ -270,14 +272,21 @@ export default function PostCard({ post, standalone = false }: { post: FeedPost;
         />
       )}
 
-      {(summary || post.commentCount > 0) && (
+      {(summary || post.commentCount > 0 || post.shareCount > 0) && (
         <div className="px-5 pt-3 flex items-center justify-between text-xs text-ink-500">
           <span>{summary}</span>
-          {post.commentCount > 0 && (
-            <Link href={permalink} className="hover:underline">
-              {post.commentCount} {post.commentCount === 1 ? "comment" : "comments"}
-            </Link>
-          )}
+          <span className="flex gap-2">
+            {post.commentCount > 0 && (
+              <Link href={permalink} className="hover:underline">
+                {post.commentCount} {post.commentCount === 1 ? "comment" : "comments"}
+              </Link>
+            )}
+            {post.shareCount > 0 && (
+              <span>
+                {post.shareCount} {post.shareCount === 1 ? "share" : "shares"}
+              </span>
+            )}
+          </span>
         </div>
       )}
 
@@ -626,5 +635,39 @@ function ReportDialog({
         )}
       </div>
     </div>
+  );
+}
+
+/**
+ * 0166. The post a repost shares, as a quoted card under the sharer's own
+ * words. Loaded under the viewer's RLS, so it may be null: deleted, hidden,
+ * or from someone who has blocked them.
+ */
+function SharedEmbed({ shared }: { shared: FeedPost | null }) {
+  if (!shared) {
+    return (
+      <p className="mx-5 mt-3 rounded-xl border border-line bg-cream-100 px-4 py-3 text-sm text-ink-500">
+        This post is no longer available.
+      </p>
+    );
+  }
+  const photo = shared.photos[0]?.url ?? null;
+  return (
+    <Link
+      href={`/feed/${shared.id}`}
+      className="mx-5 mt-3 block overflow-hidden rounded-xl border border-line hover:bg-cream-100 transition"
+    >
+      {photo && (
+        // eslint-disable-next-line @next/next/no-img-element -- a signed, expiring URL; next/image can't cache it
+        <img src={photo} alt="" className="w-full max-h-80 object-cover" />
+      )}
+      <div className="px-4 py-3">
+        <p className="text-sm font-bold text-ink-900">
+          {shared.author.name}
+          {shared.club ? <span className="font-normal text-ink-500"> · {shared.club.name}</span> : null}
+        </p>
+        {shared.body && <p className="mt-1 text-sm text-ink-900 line-clamp-3 whitespace-pre-line break-words">{shared.body}</p>}
+      </div>
+    </Link>
   );
 }
