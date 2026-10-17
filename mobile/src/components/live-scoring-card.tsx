@@ -23,6 +23,18 @@ const GOLD_LIGHT = "#f6dc97";
 const GOLD_SHADE = "#c99d3e";
 const RAISED = "#18375f";
 
+/**
+ * Oct 2026 (option A): the live hub's three ways in each get their own
+ * colour, all with the same gold rim, so they can be told apart at a glance —
+ * navy for a round, green for groups and societies, claret for match days.
+ */
+export type RaisedTone = "navy" | "green" | "claret";
+const TONES: Record<RaisedTone, { card: string; disc: string; chevron: string; sheen: string }> = {
+  navy: { card: colors.navy900, disc: colors.navy800, chevron: RAISED, sheen: "rgba(24,58,104,0.55)" },
+  green: { card: "#0f3424", disc: "#17482f", chevron: "#1f5a3b", sheen: "rgba(34,92,62,0.55)" },
+  claret: { card: "#3a121c", disc: "#55202c", chevron: "#6a2836", sheen: "rgba(112,42,58,0.5)" },
+};
+
 export function LiveScoringCard() {
   if (!isOn("liveScoring")) return null;
   return (
@@ -49,6 +61,8 @@ export function RaisedCard({
   icon,
   marginTop = spacing.md,
   inset = true,
+  tone = "navy",
+  kicker,
 }: {
   title: string;
   subtitle: string;
@@ -58,7 +72,12 @@ export function RaisedCard({
   marginTop?: number;
   /** Home insets the card from the screen edge; a padded screen doesn't. */
   inset?: boolean;
+  /** The card's colour; navy unless the hub asks for another. */
+  tone?: RaisedTone;
+  /** A small gold label above the title. */
+  kicker?: string;
 }) {
+  const t = TONES[tone];
   return (
     <Pressable
       onPress={onPress}
@@ -68,9 +87,9 @@ export function RaisedCard({
     >
       {({ pressed }) => (
         <View style={[styles.lip, pressed && styles.lipPressed]}>
-          <View style={styles.card}>
+          <View style={[styles.card, { backgroundColor: t.card }]}>
             {/* Light from above, shade below — a few soft bands each. */}
-            <View style={styles.sheen} pointerEvents="none" />
+            <View style={[styles.sheen, { backgroundColor: t.sheen }]} pointerEvents="none" />
             <View style={styles.ring} pointerEvents="none" />
             {[0.12, 0.24, 0.36, 0.48].map((h) => (
               <View key={h} style={[styles.band, { height: `${h * 100}%` }]} pointerEvents="none" />
@@ -80,7 +99,7 @@ export function RaisedCard({
             ))}
             <View style={styles.topEdge} pointerEvents="none" />
 
-            <View style={[styles.disc, icon ? styles.discIcon : null]}>
+            <View style={[styles.disc, icon ? styles.discIcon : null, { backgroundColor: t.disc }]}>
               <View style={styles.glare} pointerEvents="none" />
               {icon ? (
                 <Ionicons name={icon} size={24} color={colors.gold400} style={styles.iconShadow} />
@@ -94,6 +113,11 @@ export function RaisedCard({
             </View>
 
             <View style={styles.middle}>
+              {kicker ? (
+                <Text style={styles.kicker} numberOfLines={1}>
+                  {kicker}
+                </Text>
+              ) : null}
               <Text style={styles.title} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
                 {title}
               </Text>
@@ -102,7 +126,7 @@ export function RaisedCard({
               </Text>
             </View>
 
-            <View style={styles.chevron}>
+            <View style={[styles.chevron, { backgroundColor: t.chevron }]}>
               <Ionicons name="chevron-forward" size={20} color={colors.gold400} />
             </View>
           </View>
@@ -231,6 +255,7 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 3,
   },
+  kicker: { fontSize: 10.5, fontWeight: "800", letterSpacing: 1.6, color: colors.gold400, textTransform: "uppercase", marginBottom: 2 },
   body: { fontSize: 13.5, lineHeight: 18, color: colors.cream100, opacity: 0.92, textAlign: "center", marginTop: 3 },
 
   chevron: {
