@@ -156,7 +156,7 @@ function ScrambleDrives() {
           <View style={art.teeBox} />
           <Text style={art.teeLabel}>TEE</Text>
         </View>
-        <Text style={art.frameNote}>Everyone drops within a club-length of the chosen ball and plays the next shot. Repeat until it's holed.</Text>
+        <Text style={art.frameNote}>Everyone plays the next shot from beside the chosen ball — no nearer the hole. Repeat until it's holed.</Text>
       </GoldFrame>
 
       <View style={[art.card, art.dashed]}>
@@ -175,7 +175,7 @@ function ScrambleDrives() {
             <Text style={art.tableTotalVal}>{Math.floor(total + 0.5)}</Text>
           </View>
         </View>
-        <Text style={art.cardNote}>Team of two: 35% of the lower course handicap plus 15% of the higher.</Text>
+        <Text style={art.cardNote}>Team of three: 30%, 20% and 10%. Team of two: 35% of the lower plus 15% of the higher.</Text>
       </View>
     </>
   );

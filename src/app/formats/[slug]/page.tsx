@@ -59,7 +59,7 @@ export default async function FormatPage({ params }: { params: Promise<Params> }
   return (
     <div>
       <div className="relative bg-navy-900 text-white pt-14 pb-12 overflow-hidden">
-        <Image src={HEADER[format.category]} alt="" fill priority className="object-cover -z-10 opacity-40" />
+        <Image src={HEADER[format.category]} alt="" fill priority sizes="100vw" className="object-cover -z-10 opacity-40" />
         <div className="absolute inset-0 bg-gradient-to-b from-[rgba(9,22,40,0.55)] to-[rgba(9,22,40,0.92)] -z-10" />
         <div className="max-w-6xl mx-auto px-6">
           <Link href="/formats" className="inline-flex items-center gap-1.5 text-sm font-bold text-gold-400 hover:text-cream-50">

@@ -60,7 +60,7 @@ export default function GameFormatsScreen() {
   const [filter, setFilter] = useState<Filter>("all");
   const searching = query.trim().length > 0;
   const hits = useMemo(() => searchFormats(query), [query]);
-  const popular = useMemo(() => popularFormats().slice(0, 6), []);
+  const popular = useMemo(() => popularFormats(), []);
 
   const open = (f: GameFormat) => router.push(`/formats/${f.id}`);
   const groups = FORMAT_CATEGORIES.filter((c) => filter === "all" || c.id === filter);

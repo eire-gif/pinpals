@@ -32,6 +32,7 @@ export default async function FormatsPage({
           alt=""
           fill
           priority
+          sizes="100vw"
           className="object-cover -z-10 opacity-40"
         />
         <div className="absolute inset-0 bg-gradient-to-b from-[rgba(9,22,40,0.55)] to-[rgba(9,22,40,0.92)] -z-10" />

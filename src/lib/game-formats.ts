@@ -29,6 +29,8 @@ export type GameFormat = {
   category: FormatCategory;
   /** Other names it goes by, for search and the page. */
   aka?: string[];
+  /** Misspellings and loose terms — found by search, never shown. */
+  searchAlso?: string[];
   /** One line under the name in the list. */
   blurb: string;
   /** Who plays: "1+", "2", "Pairs", "Teams of 4". */
@@ -77,7 +79,8 @@ export const GAME_FORMATS: GameFormat[] = [
     name: "Stroke Play (Medal)",
     code: "SP",
     category: "individual",
-    aka: ["Medal", "Strokeplay", "Gross and net"],
+    aka: ["Medal"],
+    searchAlso: ["Strokeplay", "Gross and net"],
     blurb: "Count every shot. Lowest net score wins.",
     players: "1+",
     scoring: "Strokes",
@@ -90,8 +93,8 @@ export const GAME_FORMATS: GameFormat[] = [
       "Take off your playing handicap for your net score.",
       "Lowest net score wins. Many competitions also give a prize for the best gross.",
     ],
-    example: "Gross 92, playing handicap 19 → net 73. On a par 72, that's one over your handicap.",
-    tips: ["A medal round counts for your handicap when it's a qualifying competition.", "Mark your partner's card hole by hole — don't leave it to the 18th."],
+    example: "Gross 92, playing handicap 19 → net 73. On a par 72, that's one over net par.",
+    tips: ["A medal round counts for your handicap when the competition is set up as an acceptable score for handicap.", "Your marker records your score hole by hole — check it before you sign, not on the 18th."],
     ties: COUNTBACK,
     related: ["stableford", "maximum-score", "par-bogey"],
     live: true,
@@ -102,7 +105,8 @@ export const GAME_FORMATS: GameFormat[] = [
     name: "Stableford",
     code: "SF",
     category: "individual",
-    aka: ["Points", "Stapleford"],
+    aka: ["Points"],
+    searchAlso: ["Stapleford"],
     blurb: "Points per hole against your handicap.",
     players: "1+",
     scoring: "Points",
@@ -159,7 +163,7 @@ export const GAME_FORMATS: GameFormat[] = [
     winner: "Lowest net score",
     intro: "Stroke play without the blow-up hole. The committee sets a most-you-can-take on each hole, and once you reach it you pick up.",
     steps: [
-      "Before the round the committee sets the cap — commonly net double bogey, or par plus three.",
+      "Before the round the committee sets the cap — net double bogey, twice par, or a fixed number.",
       "Play each hole as stroke play.",
       "Reach the cap and pick up: you score the cap for that hole.",
       "Add up and take off your handicap. Lowest net wins.",
@@ -308,16 +312,16 @@ export const GAME_FORMATS: GameFormat[] = [
     blurb: "Pairs share one ball, alternate shots.",
     players: "4 — two pairs",
     scoring: "Holes won",
-    allowance: "50% of the difference in combined course handicaps",
+    allowance: "50% of each pair's combined course handicaps — the higher pair gets the difference",
     winner: "Most holes won",
     intro: "The Ryder Cup's most nervous format. Each pair plays one ball, taking turns, against another pair doing the same.",
     steps: [
-      "Add each pair's course handicaps together. The pair with more gets half the difference, as shots.",
+      "Each pair's handicap is half its combined course handicaps. The pair with the higher one gets the difference, as shots.",
       "One partner drives the odd holes, the other the even holes.",
       "Take turns hitting the ball until it's holed.",
       "Lower net score wins the hole.",
     ],
-    example: "Pair A: 6 + 12 = 18. Pair B: 10 + 20 = 30. Difference 12, so Pair B gets 6 shots.",
+    example: "Pair A: 6 + 12 = 18, so 9. Pair B: 10 + 20 = 30, so 15. Pair B gets 6 shots.",
     related: ["foursomes", "greensomes-matchplay", "ryder-cup"],
     live: true,
   },
@@ -553,18 +557,18 @@ export const GAME_FORMATS: GameFormat[] = [
     blurb: "All tee off, play the best shot every time.",
     players: "Teams of 2–4",
     scoring: "Net strokes",
-    allowance: "4s: 25% / 20% / 15% / 10%. 2s: 35% / 15%",
+    allowance: "4s: 25% / 20% / 15% / 10%. 3s: 30% / 20% / 10%. 2s: 35% / 15%",
     winner: "Lowest net team score",
     intro: "The society classic. Everyone plays, the best shot counts, and nobody has a bad day.",
     steps: [
       "Everyone in the team tees off.",
-      "Choose the best ball. Everyone picks theirs up and plays from within a club-length of it.",
+      "Choose the best ball. Everyone plays from within a club-length of it — no nearer the hole, and in the same kind of ground (fairway stays fairway, bunker stays bunker). On the green, within a putter-head.",
       "Repeat every shot until the ball's holed. One team score per hole.",
       "Each player must have a set number of drives used — usually 3 or 4 each over 18 holes.",
     ],
     example: "Course handicaps 6, 12, 18 and 24 → 1.5 + 2.4 + 2.7 + 2.4 = 9. The team plays off 9.",
-    tips: ["PinPals tracks drives used and warns you when someone's running short.", "Shares go lowest handicap to highest: the 25% is always the best player's."],
-    ties: "Level? Most clubs use the countback on the back nine, then the last six, three and one.",
+    tips: ["PinPals tracks drives used and warns you when someone's running short. Live scoring takes teams of two or four.", "Shares go lowest handicap to highest: the 25% is always the best player's."],
+    ties: "Level? Most clubs use the countback on the back nine, then the last six, three and one — taking off half, a third, a sixth and an eighteenth of the team handicap in turn.",
     related: ["florida-scramble", "ambrose", "shamble", "waltz"],
     live: true,
     popular: true,
@@ -599,13 +603,13 @@ export const GAME_FORMATS: GameFormat[] = [
     blurb: "Scramble with a team handicap off the total.",
     players: "Teams of 2–4",
     scoring: "Net strokes",
-    allowance: "Combined handicaps ÷ 8 for a four, ÷ 4 for a pair",
+    allowance: "Combined handicaps ÷ 8 for a four, ÷ 6 for a three, ÷ 4 for a pair",
     winner: "Lowest net team score",
     intro: "A scramble by another name, popular in Australia — the difference is how the team handicap is worked out.",
     steps: [
       "Play as a scramble: everyone tees off, pick the best, all play from there.",
       "Add the team's handicaps together.",
-      "Divide by 8 for a team of four, or by 4 for a pair. That's the team handicap.",
+      "Divide by 8 for a team of four, 6 for a three, or 4 for a pair. That's the team handicap.",
       "Take it off the team's gross score.",
     ],
     related: ["texas-scramble", "florida-scramble"],
@@ -850,7 +854,7 @@ export const GAME_FORMATS: GameFormat[] = [
       "Optional: a birdie flips the other pair's number, high first.",
       "Most points after 18 wins.",
     ],
-    tips: ["A 10 or more is written as two digits on the end: a 4 and a 10 make 410. Ouch."],
+    tips: ["A 10 or more goes first: a 4 and a 10 make 104. Ouch."],
     related: ["wolf", "nines"],
   },
   {
@@ -993,7 +997,7 @@ export function searchFormats(query: string): GameFormat[] {
   if (words.length === 0) return GAME_FORMATS.slice();
   const scored: { f: GameFormat; score: number; i: number }[] = [];
   GAME_FORMATS.forEach((f, i) => {
-    const name = norm([f.name, ...(f.aka ?? [])].join(" "));
+    const name = norm([f.name, ...(f.aka ?? []), ...(f.searchAlso ?? [])].join(" "));
     const text = norm([f.blurb, f.intro, categoryOf(f.category).label, f.scoring, ...f.steps].join(" "));
     // The whole phrase in a name ("cha cha cha") beats its words scattered.
     let score = name.includes(words.join(" ")) ? 20 : 0;

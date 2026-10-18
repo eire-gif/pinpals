@@ -62,7 +62,7 @@ export function FormatsBrowser({ initialQuery = "" }: { initialQuery?: string })
 
   const hits = useMemo(() => searchFormats(query), [query]);
   const searching = query.trim().length > 0;
-  const popular = useMemo(() => popularFormats().slice(0, 6), []);
+  const popular = useMemo(() => popularFormats(), []);
   const groups = FORMAT_CATEGORIES.filter((c) => filter === "all" || c.id === filter);
 
   return (
@@ -106,11 +106,12 @@ export function FormatsBrowser({ initialQuery = "" }: { initialQuery?: string })
         ) : null}
       </div>
 
+      <p aria-live="polite" className={searching ? "text-xs font-bold tracking-[0.12em] uppercase text-green-700 -mb-4" : "sr-only"}>
+        {searching ? (hits.length === 0 ? "No matches" : `${hits.length} ${hits.length === 1 ? "format" : "formats"} for “${query.trim()}”`) : ""}
+      </p>
+
       {searching ? (
-        <section aria-live="polite" className="flex flex-col gap-4">
-          <p className="text-xs font-bold tracking-[0.12em] uppercase text-green-700">
-            {hits.length === 0 ? "No matches" : `${hits.length} ${hits.length === 1 ? "format" : "formats"} for “${query.trim()}”`}
-          </p>
+        <section className="flex flex-col gap-4">
           {hits.length === 0 ? (
             <p className="rounded-2xl border border-line bg-surface p-5 text-ink-500 max-w-[720px]">
               Nothing matched &ldquo;{query.trim()}&rdquo;. Try a simpler word &mdash; pairs, team, points &mdash; or a format&rsquo;s other name.
@@ -167,9 +168,11 @@ export function FormatsBrowser({ initialQuery = "" }: { initialQuery?: string })
                       </span>
                     </div>
                   </div>
-                  {items.map((f) => (
-                    <FormatRow key={f.id} format={f} />
-                  ))}
+                  <div>
+                    {items.map((f) => (
+                      <FormatRow key={f.id} format={f} />
+                    ))}
+                  </div>
                 </section>
               );
             })}

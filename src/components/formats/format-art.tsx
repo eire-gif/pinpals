@@ -159,7 +159,7 @@ function ScrambleDrives() {
           <span className="absolute left-2 bottom-2 text-[10px] font-bold text-cream-100">TEE</span>
         </div>
         <p className="text-sm text-cream-100 leading-relaxed">
-          Everyone drops within a club-length of the chosen ball and plays the next shot. Repeat until it&rsquo;s holed.
+          Everyone plays the next shot from beside the chosen ball &mdash; no nearer the hole. Repeat until it&rsquo;s holed.
         </p>
       </GoldFrame>
 
@@ -181,7 +181,7 @@ function ScrambleDrives() {
             </tr>
           </tbody>
         </table>
-        <p className="text-sm text-ink-500">Team of two: 35% of the lower course handicap plus 15% of the higher.</p>
+        <p className="text-sm text-ink-500">Team of three: 30%, 20% and 10%. Team of two: 35% of the lower plus 15% of the higher.</p>
       </figure>
     </div>
   );
