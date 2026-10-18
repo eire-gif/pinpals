@@ -22,6 +22,8 @@
 --
 -- No drop statements.
 --
+-- Applied to production 18 Oct 2026.
+--
 -- Rollback:
 --   drop trigger if exists competition_results_reveal on public.competition_results;
 --   drop function if exists public.competition_results_reveal();
