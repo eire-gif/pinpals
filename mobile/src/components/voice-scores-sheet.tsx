@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useVoiceListener } from "@/lib/voice-listening";
 import { listeningHints, parseVoiceScores, type VoicePlayer } from "@/lib/voice-scores";
+import { parseVoiceStats, STAT_HINTS, voiceStatsLine, type VoiceStatPatch } from "@/lib/voice-stats";
 import { colors, creamAlpha, fonts, navyAlpha, radii, spacing } from "@/lib/theme";
 
 /**
@@ -38,6 +39,7 @@ export function VoiceScoresSheet({
   rows,
   onSave,
   onClose,
+  trackStats = false,
 }: {
   visible: boolean;
   hole: number;
@@ -45,8 +47,11 @@ export function VoiceScoresSheet({
   /** The hole Save moves on to, or null on the last hole. */
   nextHole: number | null;
   rows: readonly VoiceRow[];
-  onSave: (scores: Array<{ id: number; strokes: number | null }>) => Promise<void>;
+  /** Your own stats go along with the scores (My Game, 0178): null when there's nothing to keep. */
+  onSave: (scores: Array<{ id: number; strokes: number | null }>, stats: VoiceStatPatch | null) => Promise<void>;
   onClose: () => void;
+  /** The member tracks their stats: listen for "two putts, missed short" too. */
+  trackStats?: boolean;
 }) {
   const insets = useSafeAreaInsets();
   const listener = useVoiceListener();
@@ -54,7 +59,10 @@ export function VoiceScoresSheet({
   const [entries, setEntries] = useState<Map<number, Entry>>(new Map());
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const hints = useMemo(() => listeningHints(rows), [rows]);
+  const hints = useMemo(() => [...listeningHints(rows), ...(trackStats ? STAT_HINTS : [])].slice(0, 46), [rows, trackStats]);
+  // Your own stats heard alongside the scores, and whether to keep them.
+  const [stats, setStats] = useState<{ patch: VoiceStatPatch; unclear: boolean } | null>(null);
+  const [keepStats, setKeepStats] = useState(true);
   // Each listen is worked out once: the round screen re-renders underneath
   // (the group's scores arrive live) and must not wipe a fix in progress.
   const session = useRef(0);
@@ -71,6 +79,7 @@ export function VoiceScoresSheet({
       setPhase("listen");
       setEntries(new Map());
       setSaveError(null);
+      setStats(null);
       listen();
     }
     if (!visible && wasVisible.current) listener.cancel();
@@ -83,6 +92,12 @@ export function VoiceScoresSheet({
     if (!listener.transcript.trim() || parsedSession.current === session.current) return;
     parsedSession.current = session.current;
     const result = parseVoiceScores(listener.transcript, par, rows);
+    if (trackStats) {
+      const heard = parseVoiceStats(listener.transcript, rows);
+      // "Say it again" with no stats keeps what was heard the first time.
+      setStats((before) => (Object.keys(heard.patch).length || heard.unclear || !before ? heard : before));
+      setKeepStats(true);
+    }
     setEntries((before) => {
       const next = new Map<number, Entry>();
       for (const r of rows) {
@@ -97,7 +112,7 @@ export function VoiceScoresSheet({
       return next;
     });
     setPhase("check");
-  }, [listener.state, listener.transcript, visible, par, rows]);
+  }, [listener.state, listener.transcript, visible, par, rows, trackStats]);
 
   const change = (id: number, delta: number) =>
     setEntries((m) => {
@@ -128,7 +143,11 @@ export function VoiceScoresSheet({
     setSaving(true);
     setSaveError(null);
     try {
-      await onSave(included.map((r) => ({ id: r.id, strokes: entries.get(r.id)!.strokes })));
+      const mine = stats && keepStats && Object.keys(stats.patch).length ? stats.patch : null;
+      await onSave(
+        included.map((r) => ({ id: r.id, strokes: entries.get(r.id)!.strokes })),
+        mine
+      );
     } catch (e) {
       setSaveError(e instanceof Error ? e.message : "The scores didn't save. Please try again.");
     } finally {
@@ -186,6 +205,21 @@ export function VoiceScoresSheet({
                   );
                 })}
               </ScrollView>
+              {stats && (Object.keys(stats.patch).length > 0 || stats.unclear) ? (
+                <View style={styles.statsBox}>
+                  <View style={{ flex: 1, gap: 2 }}>
+                    <Text style={styles.statsTitle}>YOUR STATS</Text>
+                    <Text style={[styles.statsLine, !keepStats && styles.statsOff]}>
+                      {Object.keys(stats.patch).length ? voiceStatsLine(stats.patch) : "Heard stats, but not whose — tap yours in under your score."}
+                    </Text>
+                  </View>
+                  {Object.keys(stats.patch).length ? (
+                    <Pressable onPress={() => setKeepStats((k) => !k)} style={styles.statsToggle} accessibilityRole="button" accessibilityState={{ selected: keepStats }}>
+                      <Text style={styles.statsToggleText}>{keepStats ? "Leave out" : "Keep"}</Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+              ) : null}
               {saveError ? <Text style={styles.error}>{saveError}</Text> : null}
               <Pressable
                 onPress={() => void save()}
@@ -480,6 +514,12 @@ const styles = StyleSheet.create({
   flagButton: { minHeight: 36, paddingHorizontal: 14, borderRadius: 18, backgroundColor: colors.navy900, justifyContent: "center" },
   flagButtonLabel: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.cream50 },
   error: { fontFamily: fonts.bodySemi, fontSize: 14, color: colors.red600 },
+  statsBox: { flexDirection: "row", alignItems: "center", gap: spacing.sm, padding: spacing.sm + 2, borderRadius: radii.md, borderWidth: 1.5, borderColor: colors.gold500, backgroundColor: colors.surfaceTint },
+  statsTitle: { fontFamily: fonts.bodyBold, fontSize: 11.5, letterSpacing: 1.2, color: "#8a6a1f" },
+  statsLine: { fontFamily: fonts.bodySemi, fontSize: 15, color: colors.ink900 },
+  statsOff: { color: colors.ink500, textDecorationLine: "line-through" },
+  statsToggle: { minHeight: 40, paddingHorizontal: 12, borderRadius: radii.pill, borderWidth: 1.5, borderColor: colors.line, alignItems: "center", justifyContent: "center" },
+  statsToggleText: { fontFamily: fonts.bodySemi, fontSize: 14, color: colors.ink900 },
   save: {
     height: 56,
     borderRadius: 28,

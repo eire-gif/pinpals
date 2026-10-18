@@ -63,7 +63,8 @@ import { voiceSupported } from "@/lib/voice-listening";
 import { VoiceScoresSheet, type VoiceRow } from "@/components/voice-scores-sheet";
 import { positionLine } from "@/lib/lock-screen-rules";
 import { LiveStatsRow } from "@/components/live-stats-row";
-import { useTracking } from "@/lib/my-stats";
+import { loadStatsFor, saveHoleStat, useTracking } from "@/lib/my-stats";
+import type { VoiceStatPatch } from "@/lib/voice-stats";
 import { useMembership } from "@/lib/membership";
 
 /**
@@ -109,6 +110,8 @@ export default function LiveRoundScreen() {
   // My Game (0178): your own stats under your score, if you track them.
   const [trackStats] = useTracking();
   const { gate } = useMembership();
+  // Bumped when Say scores saves your stats, so the stats row reloads them.
+  const [statsVersion, setStatsVersion] = useState(0);
   const started = useRef(false);
   const alertsLoaded = useRef<number | null>(null);
   // The card view, so finishing can bring its top — the result — into view.
@@ -479,10 +482,20 @@ export default function LiveRoundScreen() {
   });
   const holeAfter = order[order.findIndex((c) => c.hole === vh.hole) + 1]?.hole ?? null;
   /** Saved one by one through the same path as tapping them in, then on to the next hole. */
-  const saveVoice = async (list: Array<{ id: number; strokes: number | null }>) => {
+  const saveVoice = async (list: Array<{ id: number; strokes: number | null }>, stats: VoiceStatPatch | null) => {
     for (const v of list) {
       if (!(await score(v.id, v.strokes, false, vh, true))) {
         throw new Error("A score didn't save. Check them on the card and try again.");
+      }
+    }
+    // Your own stats, said with the scores (My Game): added to what's tapped already.
+    if (stats && statsPlayer) {
+      try {
+        const have = (await loadStatsFor({ liveRoundId: round.id }).catch(() => new Map())).get(vh.hole);
+        await saveHoleStat({ liveRoundId: round.id }, { hole: vh.hole, putts: null, tee: null, greenMiss: null, penalties: null, ...have, ...stats });
+        setStatsVersion((n) => n + 1);
+      } catch (e) {
+        Alert.alert("Your stats didn't save", e instanceof Error ? e.message : (e as { message?: string })?.message ?? "Tap them in under your score.");
       }
     }
     setVoiceAt(null);
@@ -538,6 +551,9 @@ export default function LiveRoundScreen() {
   // or team in the group, who are on other cards, so the server decides who
   // can (scorecard_certify_candidates). A lone pair has nobody to ask.
   const sideCard = scr != null || (matchFormat != null && isOneBallPerSide(matchFormat));
+  // My Game (0178): your own ball only — not a pair's or team's card, not someone else's row.
+  const statsPlayer =
+    trackStats && live && !sideCard && gate("stats") === "show" ? (players.find((p) => p.memberId != null && p.memberId === me) ?? null) : null;
   const offerCertification = () => {
     if (!isOn("scorecards") || !isOn("scorecardCertification") || me == null) return;
     if (!players.some((p) => p.memberId === me)) return;
@@ -1061,12 +1077,9 @@ export default function LiveRoundScreen() {
             );
           })}
 
-          {(() => {
-            // Your own ball only: not a pair's or team's card, and not someone else's row.
-            const mine = players.find((p) => p.memberId != null && p.memberId === me);
-            if (!trackStats || !live || sideCard || !mine || gate("stats") !== "show") return null;
-            return <LiveStatsRow roundId={round.id} hole={h.hole} par={h.par} strokes={scores.get(mine.id)?.get(h.hole) ?? null} />;
-          })()}
+          {statsPlayer ? (
+            <LiveStatsRow key={`${h.hole}:${statsVersion}`} roundId={round.id} hole={h.hole} par={h.par} strokes={scores.get(statsPlayer.id)?.get(h.hole) ?? null} />
+          ) : null}
 
           {voiceOn ? (
             <Pressable
@@ -1341,6 +1354,7 @@ export default function LiveRoundScreen() {
           rows={voiceRows}
           onSave={saveVoice}
           onClose={() => setVoiceAt(null)}
+          trackStats={statsPlayer != null}
         />
       ) : null}
     </View>
