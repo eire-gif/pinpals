@@ -463,6 +463,7 @@ export const GAME_FORMATS: GameFormat[] = [
     example: "Course handicaps 8 and 20 → 4.8 + 8 = 12.8, so the pair plays off 13.",
     ties: COUNTBACK,
     related: ["foursomes", "gruesomes", "chapman", "greensomes-matchplay"],
+    live: true,
     popular: true,
   },
   {

@@ -41,6 +41,7 @@ import {
   type OutingEntry,
   type OutingGuest,
   type OutingPage,
+  type OutingStart,
   type QueueEntry,
 } from "@/lib/outings";
 import { mySocietyAreas } from "@/lib/society";
@@ -139,12 +140,12 @@ export default function OutingScreen() {
   // Members and guests, as one list: who's in, and the tee groups.
   const groups = useMemo(() => {
     const rows: Row[] = [
-      ...(page?.entries ?? []).map((e): Row => ({ key: `m:${e.memberId}`, name: e.name, member: e, guest: null, teeGroup: e.teeGroup, teeTime: e.teeTime, teePosition: e.teePosition })),
-      ...(page?.guests ?? []).map((g): Row => ({ key: `g:${g.id}`, name: g.name, member: null, guest: g, teeGroup: g.teeGroup, teeTime: g.teeTime, teePosition: g.teePosition })),
+      ...(page?.entries ?? []).map((e): Row => ({ key: `m:${e.memberId}`, name: e.name, member: e, guest: null, teeGroup: e.teeGroup, teeTime: e.teeTime, teePosition: e.teePosition, start: e.start })),
+      ...(page?.guests ?? []).map((g): Row => ({ key: `g:${g.id}`, name: g.name, member: null, guest: g, teeGroup: g.teeGroup, teeTime: g.teeTime, teePosition: g.teePosition, start: g.start })),
     ];
     const drawn = new Map<number, Row[]>();
     for (const r of rows) if (r.teeGroup) drawn.set(r.teeGroup, [...(drawn.get(r.teeGroup) ?? []), r]);
-    const ordered = [...drawn.entries()].sort((a, b) => a[0] - b[0]).map(([n, list]) => ({ n, time: list[0]?.teeTime ?? null, list: list.sort((a, b) => (a.teePosition ?? 0) - (b.teePosition ?? 0)) }));
+    const ordered = [...drawn.entries()].sort((a, b) => a[0] - b[0]).map(([n, list]) => ({ n, time: list[0]?.teeTime ?? null, start: list[0]?.start ?? null, list: list.sort((a, b) => (a.teePosition ?? 0) - (b.teePosition ?? 0)) }));
     return { all: rows, ordered, undrawn: rows.filter((r) => !r.teeGroup) };
   }, [page]);
 
@@ -541,8 +542,9 @@ export default function OutingScreen() {
         {/* You */}
         {myGroup ? (
           <View style={styles.teeCard}>
-            <Text style={styles.teeKicker}>YOUR TEE TIME</Text>
+            <Text style={styles.teeKicker}>{myGroup.start ? "SHOTGUN START" : "YOUR TEE TIME"}</Text>
             <Text style={styles.teeTime}>{clock(myGroup.time) ?? `Group ${myGroup.n}`}</Text>
+            {myGroup.start ? <Text style={styles.teeWith}>{`You start on the ${ordinal(myGroup.start.hole)} tee${myGroup.start.letter && groups.ordered.some((o) => o !== myGroup && o.start?.hole === myGroup.start?.hole) ? ` — group ${myGroup.start.hole}${myGroup.start.letter}` : ""}`}</Text> : null}
             <Text style={styles.teeWith}>
               {myGroup.list.filter((p) => p.member?.memberId !== userId).length > 0
                 ? `Group ${myGroup.n} · with ${myGroup.list
@@ -835,7 +837,7 @@ export default function OutingScreen() {
             <SectionTitle>Tee times</SectionTitle>
             {groups.ordered.map((g) => (
               <View key={g.n} style={[styles.group, g.n === me?.teeGroup && styles.groupMine]}>
-                <Text style={styles.groupTitle}>{`${clock(g.time) ?? ""}${g.time ? " · " : ""}Group ${g.n}`}</Text>
+                <Text style={styles.groupTitle}>{`${clock(g.time) ?? ""}${g.time ? " · " : ""}${g.start ? `Starts ${g.start.hole}${g.start.letter && groups.ordered.some((o) => o !== g && o.start?.hole === g.start?.hole) ? g.start.letter : ""} · ` : ""}Group ${g.n}`}</Text>
                 {g.list.map(person)}
               </View>
             ))}
@@ -959,4 +961,6 @@ type Row = {
   teeGroup: number | null;
   teeTime: string | null;
   teePosition: number | null;
+  /** Shotgun start (0173). */
+  start: OutingStart;
 };

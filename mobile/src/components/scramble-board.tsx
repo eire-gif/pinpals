@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { router } from "expo-router";
 
 import type { Match } from "@/lib/live-match-days";
-import { buildBoard, toParLabel } from "@/lib/live-scoring";
+import { buildBoard, startLabel, toParLabel } from "@/lib/live-scoring";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 
 /**
@@ -117,10 +117,11 @@ export function ScrambleBoard({ matches, isMine }: { matches: Match[]; isMine: (
                   {mine ? <Text style={styles.you}>  · You</Text> : null}
                 </Text>
                 <Text style={styles.members} numberOfLines={1}>
+                  {r.m.round.start ? `${startLabel(r.m.round.start)} · ` : ""}
                   {r.members}
                 </Text>
               </View>
-              <Text style={[styles.cell, styles.cNum]}>{r.thru === 0 ? (r.m.round.teeTime ?? "–") : r.done ? "F" : r.thru}</Text>
+              <Text style={[styles.cell, styles.cNum]}>{r.thru === 0 ? (r.m.round.start ? startLabel(r.m.round.start) : (r.m.round.teeTime ?? "–")) : r.done ? "F" : r.thru}</Text>
               <Text style={[styles.cell, styles.cNum]}>{r.thru ? show(r, other) : "–"}</Text>
               <Text style={[styles.big, styles.cBig, r.thru > 0 && good && { color: colors.green700 }]}>{r.thru ? show(r, by) : "–"}</Text>
             </Pressable>

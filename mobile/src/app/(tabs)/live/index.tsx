@@ -249,7 +249,7 @@ function DayList({ days, me, onDelete }: { days: MatchDaySummary[]; me: string |
           live={d.live}
           title={d.title}
           place={d.courseName}
-          tag={d.foursomes ? "Foursomes" : d.kind === "scramble" ? "Scramble" : d.kind === "fourballs" ? "Society day" : "Match day"}
+          tag={d.foursomes ? (d.greensomes ? "Greensomes" : "Foursomes") : d.kind === "scramble" ? "Scramble" : d.kind === "fourballs" ? "Society day" : "Match day"}
           tagTone={d.kind === "match" ? "navy" : "gold"}
           count={
             d.foursomes

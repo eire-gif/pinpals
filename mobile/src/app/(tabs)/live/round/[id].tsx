@@ -30,15 +30,17 @@ import {
   driveCounts,
   driveShortfall,
   formatInfo,
-  foursomesLabel,
   foursomesTeeShot,
   holesStillToScore,
   isOneBallPerSide,
   matchCompetitors,
   netScoreName,
+  pairsLabel,
+  playOrder,
   scoringPlayerIds,
   shotsSoFar,
   stablefordPoints,
+  startLabel,
   teamMatchState,
   toParLabel,
   type CardHole,
@@ -160,8 +162,10 @@ export default function LiveRoundScreen() {
       // Open on the first hole anyone still has to score, once.
       if (d && !started.current) {
         started.current = true;
-        const next = d.card.find((h) => d.players.some((p) => !d.scores.get(p.id)?.has(h.hole)));
-        setHole(next?.hole ?? d.card[d.card.length - 1]?.hole ?? 1);
+        // A shotgun group (0173) plays from its own hole, round to the one before.
+        const order = playOrder(d.card, d.round.start?.hole ?? null);
+        const next = order.find((h) => d.players.some((p) => !d.scores.get(p.id)?.has(h.hole)));
+        setHole(next?.hole ?? order[order.length - 1]?.hole ?? 1);
       }
     } catch {
       setFailed(true);
@@ -246,7 +250,8 @@ export default function LiveRoundScreen() {
     started.current = true;
     if (at != null) setHole(at);
     setView("score");
-    setVoiceAt(at ?? data.card.find((c) => data.players.some((p) => !data.scores.get(p.id)?.has(c.hole)))?.hole ?? data.card[0]?.hole ?? 1);
+    const order = playOrder(data.card, data.round.start?.hole ?? null);
+    setVoiceAt(at ?? order.find((c) => data.players.some((p) => !data.scores.get(p.id)?.has(c.hole)))?.hole ?? order[0]?.hole ?? 1);
   }, [data, me, voice, holeParam]);
 
   // ---- Finishing (Oct 2026) ----
@@ -294,7 +299,8 @@ export default function LiveRoundScreen() {
       jumpedOnFocus.current = focusTick;
       started.current = true;
       setView("score");
-      setHole(data.card[data.card.length - 1]?.hole ?? 1);
+      const order = playOrder(data.card, data.round.start?.hole ?? null);
+      setHole(order[order.length - 1]?.hole ?? 1);
       finishJump.current = true;
       // The section may already be on screen (just completed); otherwise its
       // onLayout does the scroll once it's drawn.
@@ -319,11 +325,18 @@ export default function LiveRoundScreen() {
   const h = card.find((c) => c.hole === hole) ?? card[0];
   const matchFormat: MatchFormat | null = round.matchFormat;
   const info = formatInfo(matchFormat ?? round.format);
-  const formatLabel = scr?.foursomes ? foursomesLabel(scr.foursomes) : scr ? `${scr.size}-person scramble` : info.label;
+  const formatLabel = scr?.foursomes ? pairsLabel(scr.foursomes, scr.greensomes) : scr ? `${scr.size}-person scramble` : info.label;
+  /** The holes in the order this group plays them: from its shotgun hole (0173), else 1–18. */
+  const order = playOrder(card, round.start?.hole ?? null);
+  const at = order.findIndex((c) => c.hole === hole);
+  const prevHole = at > 0 ? order[at - 1].hole : null;
+  const nextHole = at >= 0 && at < order.length - 1 ? order[at + 1].hole : null;
 
   /** Foursomes, as a match or a pair on a leaderboard: who tees off on this
    *  hole — the first player on odd holes, the partner on even ones. */
   const teeOff = (row: { side: number | null }): string | null => {
+    // Greensomes (0173): both partners drive — nobody "tees off" alone.
+    if (scr?.greensomes) return null;
     const pair = scr?.foursomes
       ? [...players].sort((a, b) => a.position - b.position)
       : matchFormat === "foursomes"
@@ -379,7 +392,8 @@ export default function LiveRoundScreen() {
   // Finishing: which holes still need a score, and from whom.
   const stillToScore = holesStillToScore(card, rows.map((r) => r.id), scores);
   const cardFull = rows.length > 0 && stillToScore.length === 0;
-  const lastHole = card[card.length - 1]?.hole ?? 1;
+  // The last hole this group plays: the 18th, or the one before its shotgun hole.
+  const lastHole = order[order.length - 1]?.hole ?? 1;
   const finishLabel = matchFormat ? "Finish match" : "Complete scorecard";
 
   /**
@@ -451,7 +465,7 @@ export default function LiveRoundScreen() {
     const mine = scores.get(r.id);
     return { id: r.id, name: r.name, isMe: mineIn(r), shots: shotsAt(r.id, vh.hole), current: mine?.has(vh.hole) ? (mine.get(vh.hole) ?? null) : undefined };
   });
-  const holeAfter = card[card.findIndex((c) => c.hole === vh.hole) + 1]?.hole ?? null;
+  const holeAfter = order[order.findIndex((c) => c.hole === vh.hole) + 1]?.hole ?? null;
   /** Saved one by one through the same path as tapping them in, then on to the next hole. */
   const saveVoice = async (list: Array<{ id: number; strokes: number | null }>) => {
     for (const v of list) {
@@ -820,6 +834,7 @@ export default function LiveRoundScreen() {
               <Text style={styles.holeMeta}>
                 {formatLabel}
                 {round.teeName ? ` · ${round.teeName} tees` : ""}
+                {round.start ? ` · shotgun, from ${startLabel(round.start)}` : ""}
               </Text>
               {live ? (
                 <View style={styles.liveTag}>
@@ -831,7 +846,7 @@ export default function LiveRoundScreen() {
               )}
             </View>
             <View style={styles.holeNav}>
-              <RoundButton icon="chevron-back" label="Previous hole" disabled={hole <= 1} onPress={() => setHole(hole - 1)} />
+              <RoundButton icon="chevron-back" label="Previous hole" disabled={prevHole == null} onPress={() => prevHole != null && setHole(prevHole)} />
               <View style={{ alignItems: "center" }}>
                 <Text style={styles.holeEyebrow}>Hole</Text>
                 <Text style={styles.holeNumber}>{h.hole}</Text>
@@ -863,7 +878,7 @@ export default function LiveRoundScreen() {
                   </Pressable>
                 ) : null}
               </View>
-              <RoundButton icon="chevron-forward" label="Next hole" disabled={hole >= card.length} onPress={() => setHole(hole + 1)} />
+              <RoundButton icon="chevron-forward" label="Next hole" disabled={nextHole == null} onPress={() => nextHole != null && setHole(nextHole)} />
             </View>
             <View style={styles.strip}>
               {card.map((c) => {
@@ -983,6 +998,10 @@ export default function LiveRoundScreen() {
                   {teeOff(p) ? (
                     <Text style={styles.playerMeta} numberOfLines={1}>
                       <Ionicons name="golf-outline" size={12} color={colors.ink500} /> {teeOff(p)} tees off
+                    </Text>
+                  ) : scr?.greensomes ? (
+                    <Text style={styles.playerMeta} numberOfLines={2}>
+                      <Ionicons name="golf-outline" size={12} color={colors.ink500} /> Both drive — play the better; the other partner hits the next shot
                     </Text>
                   ) : null}
                   <View style={styles.nameRow}>
@@ -1127,8 +1146,8 @@ export default function LiveRoundScreen() {
           {canScore ? (
             <View style={styles.footerRow}>
               <Text style={styles.footNote}>Tap the number to confirm it · hold it to clear · NR = picked up, no return</Text>
-              {hole < card.length ? (
-                <Pressable onPress={() => setHole(hole + 1)} style={styles.next} accessibilityRole="button">
+              {nextHole != null ? (
+                <Pressable onPress={() => setHole(nextHole)} style={styles.next} accessibilityRole="button">
                   <Text style={styles.nextLabel}>Next hole</Text>
                 </Pressable>
               ) : cardFull ? (
@@ -1188,7 +1207,9 @@ export default function LiveRoundScreen() {
 
           <View style={styles.handicaps}>
             <Text style={styles.editorLabel}>
-              {scr?.foursomes
+              {scr?.greensomes
+                ? "Pair handicap · greensomes, 60% of the lower course handicap and 40% of the higher"
+                : scr?.foursomes
                 ? "Pair handicap · foursomes, half the pair's combined course handicaps"
                 : scr
                   ? `Team handicap · ${scr.size}-person scramble`

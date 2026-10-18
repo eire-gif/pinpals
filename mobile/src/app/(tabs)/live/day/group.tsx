@@ -16,7 +16,24 @@ import { draw, honourWishes, indexTotal, swapPlayers, teamSizes, teeGroupSizes, 
 import { canDrawFrom, loadGroupRoster, loadMyGroups, type Group, type RosterPlayer } from "@/lib/groups-data";
 import type { GroupRole } from "@/lib/groups";
 import { SIDE_COLORS, createFourballDay, createMatchDay, createScrambleDay } from "@/lib/live-match-days";
-import { FOURSOMES_ALLOWANCE, courseHandicap, formatInfo, foursomesHandicap, indexLabel, parseIndex, playingHandicap, scrambleHandicap, type FoursomesScoring, type MatchFormat } from "@/lib/live-scoring";
+import {
+  FOURSOMES_ALLOWANCE,
+  GREENSOMES_ALLOWANCE,
+  courseHandicap,
+  formatInfo,
+  foursomesHandicap,
+  greensomesHandicap,
+  indexLabel,
+  parseIndex,
+  playingHandicap,
+  scrambleHandicap,
+  shotgunCapacity,
+  shotgunStarts,
+  startLabel,
+  type FoursomesScoring,
+  type MatchFormat,
+  type ShotgunStart,
+} from "@/lib/live-scoring";
 import { irishToday, isOutingDay, outingDateLabel } from "@/lib/outing-rules";
 import { addOutingGuest, linkOutingMatchDay, loadClub, loadDrawWishes, loadOuting, publishOutingDraw, saveOuting, setOutingEntry, updateOutingGuest, type DrawSeat, type OutingPage } from "@/lib/outings";
 import { loadItineraryItem, setItemPeople, type ItineraryItem } from "@/lib/itinerary";
@@ -43,6 +60,14 @@ import { explainStartError } from "@/lib/open-game-alert";
  *                              3 & 4); one card per pair, one pairs
  *                              leaderboard (live_scramble_day_create with
  *                              foursomes_scoring). Scotch foursomes.
+ *   Greensomes Stableford /  → the same, for greensomes pairs (0173): both
+ *   Greensomes stroke play     drive, play the better, then alternate; each
+ *                              pair off 60% low + 40% high.
+ *
+ * SHOTGUN START (0173): instead of tee times one after another, every group
+ * goes off at the same time from its own hole — with more groups than
+ * holes, an A and a B group on a hole (B groups on the par 5s and 4s
+ * first). Each group's card starts on its hole. Not for matches.
  *
  * Who can be drawn is the database's rule (live_can_add_player): anyone in a
  * crew or trip, or everyone in a society you run. Guests can be added by
@@ -71,7 +96,19 @@ import { explainStartError } from "@/lib/open-game-alert";
  * group (the outings rule), and no guests — they're added on the day.
  */
 
-type Format = "stableford" | "stroke" | "scramble2" | "scramble4" | "foursomesPts" | "foursomesNet" | "singles" | "fourball" | "foursomes" | "greensomes";
+type Format =
+  | "stableford"
+  | "stroke"
+  | "scramble2"
+  | "scramble4"
+  | "foursomesPts"
+  | "foursomesNet"
+  | "greensomesPts"
+  | "greensomesNet"
+  | "singles"
+  | "fourball"
+  | "foursomes"
+  | "greensomes";
 
 const FORMATS: { id: Format; label: string; hint: string }[] = [
   { id: "stableford", label: "Stableford", hint: "Tee groups, everyone on one points leaderboard" },
@@ -80,10 +117,13 @@ const FORMATS: { id: Format; label: string; hint: string }[] = [
   { id: "scramble2", label: "Scramble 2s", hint: "Pairs, one ball per pair" },
   { id: "foursomesPts", label: "Foursomes Stableford", hint: "Scotch foursomes: pairs, alternate shot, on points" },
   { id: "foursomesNet", label: "Foursomes stroke play", hint: "Scotch foursomes: pairs, alternate shot, net score" },
+  { id: "greensomesPts", label: "Greensomes Stableford", hint: "Pairs: both drive, play the better, then alternate — on points" },
+  { id: "greensomesNet", label: "Greensomes stroke play", hint: "Pairs: both drive, play the better, then alternate — net score" },
 ];
 
-/** The foursomes competitions (0136), and how each is ranked. */
-const FOURSOMES_COMP: Partial<Record<Format, FoursomesScoring>> = { foursomesPts: "stableford", foursomesNet: "stroke" };
+/** The pairs competitions — foursomes (0136) and greensomes (0173) — and how each is ranked. */
+const FOURSOMES_COMP: Partial<Record<Format, FoursomesScoring>> = { foursomesPts: "stableford", foursomesNet: "stroke", greensomesPts: "stableford", greensomesNet: "stroke" };
+const GREENSOMES_COMP = new Set<Format>(["greensomesPts", "greensomesNet"]);
 
 /** Foursomes pairs, two to a tee group: groups of four, and a group of two
  *  when the pairs are odd. An odd player out is left over. */
@@ -164,6 +204,8 @@ export default function DrawFromGroup() {
   const [playsOn, setPlaysOn] = useState(() => irishToday());
   const [sheet, setSheet] = useState<null | "date" | "time">(null);
   const [gap, setGap] = useState(10);
+  /** Off the 1st in turn, or a shotgun start (0173). */
+  const [shotgun, setShotgun] = useState(false);
   const [drawn, setDrawn] = useState<Entrant[][] | null>(null);
   const [picked, setPicked] = useState<Seat | null>(null);
   const [saving, setSaving] = useState(false);
@@ -263,6 +305,7 @@ export default function DrawFromGroup() {
           const saved = [...byGroup.entries()].sort((a, b) => a[0] - b[0]).map(([, g]) => g);
           if (saved.length > 0) {
             setDrawn(saved);
+            if ([...page.entries, ...page.guests].some((e) => e.teeGroup && e.start)) setShotgun(true);
             const t = [...page.entries, ...page.guests].filter((e) => e.teeGroup && e.teeTime).sort((a, b) => (a.teeGroup ?? 0) - (b.teeGroup ?? 0));
             const first = t.find((e) => e.teeGroup === 1)?.teeTime;
             const second = t.find((e) => e.teeGroup === 2)?.teeTime;
@@ -301,6 +344,7 @@ export default function DrawFromGroup() {
   const scramble = format === "scramble2" || format === "scramble4";
   const matchFormat = MATCH_FORMAT[format] ?? null;
   const foursomesComp = FOURSOMES_COMP[format] ?? null;
+  const greensomes = GREENSOMES_COMP.has(format);
   const teamSize = matchFormat ? (matchFormat === "matchplay" ? 2 : 4) : format === "scramble2" ? 2 : 4;
   const sizing = foursomesComp
     ? pairGroupSizes(entrants.length)
@@ -370,7 +414,19 @@ export default function DrawFromGroup() {
     setPicked(null);
   };
 
-  const times = drawnNow ? teeTimes(firstTee, gap, drawnNow.length) : [];
+  // A shotgun: everyone at the first tee time, each group from its own hole.
+  const shotgunOn = shotgun && !matchFormat;
+  const card = course.holeCard();
+  const holesHere = card.length;
+  let starts: ShotgunStart[] | null = null;
+  if (shotgunOn && drawnNow && drawnNow.length <= shotgunCapacity(holesHere)) starts = shotgunStarts(card, drawnNow.length);
+  const times = drawnNow ? (shotgunOn ? drawnNow.map(() => (/^\d{2}:\d{2}$/.test(firstTee) ? firstTee : "")) : teeTimes(firstTee, gap, drawnNow.length)) : [];
+  /** "7B": a group's start in a shotgun, with no letter when it's alone on its hole. */
+  const startText = (gi: number): string => {
+    const st = starts?.[gi];
+    if (!st) return "";
+    return startLabel(st, !starts!.some((o) => o !== st && o.hole === st.hole));
+  };
   const handicaps = (e: Entrant) => {
     if (e.index == null) return null;
     return { index: e.index, ...courseHandicap(e.index, { slope: course.slope, courseRating: course.rating, par: course.par }) };
@@ -387,16 +443,18 @@ export default function DrawFromGroup() {
   if (matchFormat && sizing.leftOver > 0) problems.push(`${sizing.leftOver} left over — ${matchFormat === "matchplay" ? "singles need an even number" : "pairs matches need groups of four"}: add ${teamSize - sizing.leftOver === 1 ? "a guest" : "guests"} or untick someone`);
   if (matchFormat && sizing.sizes.length > 40) problems.push("40 matches at most");
   if (matchFormat && teamsOn && (teamNames[0].trim() === "" || teamNames[1].trim() === "")) problems.push("Name both teams");
-  if (foursomesComp && sizing.leftOver > 0) problems.push("Foursomes is played in pairs — one left over: add a guest or untick someone");
-  if (foursomesComp && sizing.sizes.length > 30) problems.push("60 pairs at most");
-  if (!scramble && !foursomesComp && sizing.sizes.length > 40) problems.push("40 groups at most");
-  if (scramble && sizing.sizes.length > 60) problems.push("60 teams at most");
+  if (foursomesComp && sizing.leftOver > 0) problems.push(`${greensomes ? "Greensomes" : "Foursomes"} is played in pairs — one left over: add a guest or untick someone`);
+  if (foursomesComp && sizing.sizes.length > 50) problems.push("100 pairs at most");
+  if (!scramble && !foursomesComp && !matchFormat && sizing.sizes.length > 60) problems.push("60 groups at most");
+  if (scramble && sizing.sizes.length > 100) problems.push("100 teams at most");
+  if (shotgunOn && sizing.sizes.length > shotgunCapacity(holesHere)) problems.push(`A shotgun takes ${shotgunCapacity(holesHere)} groups at most — two to a hole`);
+  if (shotgunOn && !/^\d{2}:\d{2}$/.test(firstTee)) problems.push("Set the shotgun's start time");
   problems.push(...course.problems);
   if (title.trim() === "") problems.push("Give the day a name");
   if (!drawnNow) problems.push("Make the draw");
   // A draw saved for tee groups (an event, a trip round) doesn't fit matches of another size.
   else if (matchFormat && drawnNow.some((g) => g.length !== teamSize)) problems.push(`Draw again — ${matchFormat === "matchplay" ? "singles are two to a match" : "pairs matches are four to a match"}`);
-  else if (foursomesComp && drawnNow.some((g) => g.length % 2 !== 0)) problems.push("Draw again — foursomes groups are two pairs");
+  else if (foursomesComp && drawnNow.some((g) => g.length % 2 !== 0)) problems.push(`Draw again — ${greensomes ? "greensomes" : "foursomes"} groups are two pairs`);
 
   const start = async (startAnyway = false) => {
     if (problems.length > 0 || !drawnNow || !course.club) return;
@@ -449,23 +507,29 @@ export default function DrawFromGroup() {
       } else if (foursomesComp) {
         // Each tee group is two pairs: seats 1 & 2, 3 & 4. One card per pair.
         id = await createScrambleDay(
-          { ...day, size: 2, driveMinimum: null, foursomes: foursomesComp },
+          { ...day, size: 2, driveMinimum: null, foursomes: foursomesComp, greensomes },
           drawnNow.flatMap((g, gi) =>
             [0, 2]
               .filter((i) => i < g.length)
               .map((i) => {
                 const pair = [g[i], g[i + 1]];
                 const ws = pair.map((p) => handicaps(p)!);
+                const chs = ws.map((w) => w.courseHandicap);
+                const low = Math.min(...chs);
                 return {
                   name: pair.map((p) => p.name.split(" ")[0]).join(" & "),
                   teeTime: times[gi] || null,
-                  teamHandicap: foursomesHandicap(ws.map((w) => w.courseHandicap)),
+                  start: starts?.[gi] ?? null,
+                  teamHandicap: greensomes ? greensomesHandicap(chs) : foursomesHandicap(chs),
                   players: pair.map((p, k) => ({
                     memberId: p.memberId,
                     name: p.name,
                     handicapIndex: ws[k].index,
                     courseHandicap: ws[k].courseHandicap,
-                    playingHandicap: playingHandicap(ws[k].courseHandicap, FOURSOMES_ALLOWANCE),
+                    // Greensomes: the lower handicap's 60%, the higher's 40% (shown on the card; the pair plays off the total).
+                    playingHandicap: greensomes
+                      ? playingHandicap(ws[k].courseHandicap, ws[k].courseHandicap === low && chs.indexOf(low) === k ? GREENSOMES_ALLOWANCE : 0.4)
+                      : playingHandicap(ws[k].courseHandicap, FOURSOMES_ALLOWANCE),
                     estimated: ws[k].estimated,
                   })),
                 };
@@ -482,6 +546,7 @@ export default function DrawFromGroup() {
             return {
               name: null,
               teeTime: times[ti] || null,
+              start: starts?.[ti] ?? null,
               teamHandicap: hcp.team,
               players: team.map((p, i) => ({
                 memberId: p.memberId,
@@ -500,6 +565,7 @@ export default function DrawFromGroup() {
           { ...day, format: format === "stroke" ? "stroke" : "stableford", allowance: ALLOWANCE },
           drawnNow.map((g, gi) => ({
             teeTime: times[gi] || null,
+            start: starts?.[gi] ?? null,
             players: g.map((p) => {
               const w = handicaps(p)!;
               return {
@@ -567,6 +633,7 @@ export default function DrawFromGroup() {
   const seatsFor = (groupsNow: Entrant[][], guestIds: Map<string, number>) =>
     groupsNow.map((g, gi) => ({
       teeTime: times[gi] || null,
+      start: starts?.[gi] ?? null,
       members: g.map((p): DrawSeat => (p.memberId ? p.memberId : { guest: guestIds.get(p.key) as number })),
     }));
 
@@ -909,7 +976,7 @@ export default function DrawFromGroup() {
               : matchFormat
                 ? `${sizing.sizes.length} ${sizing.sizes.length === 1 ? "match" : "matches"}${matchFormat === "matchplay" ? ", one v one" : ", pair v pair"}${sizing.leftOver ? ` · ${sizing.leftOver} left over` : ""} · ${Math.round(formatInfo(matchFormat).allowance * 100)}% handicap allowance`
               : foursomesComp
-                ? `${Math.floor(entrants.length / 2)} ${Math.floor(entrants.length / 2) === 1 ? "pair" : "pairs"}, two to a tee group${sizing.leftOver ? " · 1 left over" : ""} · each pair plays off half its combined course handicaps`
+                ? `${Math.floor(entrants.length / 2)} ${Math.floor(entrants.length / 2) === 1 ? "pair" : "pairs"}, two to a tee group${sizing.leftOver ? " · 1 left over" : ""} · ${greensomes ? "each pair plays off 60% of the lower course handicap and 40% of the higher" : "each pair plays off half its combined course handicaps"}`
               : scramble
                 ? `${sizing.sizes.length} ${sizing.sizes.length === 1 ? "team" : "teams"} of ${teamSize}${sizing.leftOver ? ` · ${sizing.leftOver} left over` : ""}`
                 : `${teeGroupSummary(sizing.sizes)} · ${Math.round(ALLOWANCE * 100)}% handicap allowance`}
@@ -951,20 +1018,45 @@ export default function DrawFromGroup() {
             >
               <Ionicons name="time-outline" size={20} color={colors.green700} />
               <View style={{ flex: 1 }}>
-                <Text style={styles.whenLabel}>First tee</Text>
+                <Text style={styles.whenLabel}>{shotgunOn ? "Shotgun at" : "First tee"}</Text>
                 <Text style={[styles.whenValue, !firstTee && styles.whenEmpty]} numberOfLines={1}>{firstTee ? clockLabel(firstTee) : "Set time"}</Text>
               </View>
               <Ionicons name="chevron-down" size={16} color={colors.ink500} />
             </Pressable>
           </View>
-          <View style={styles.timeRow}>
-            <Text style={[styles.meta, { flex: 1 }]}>Minutes between groups</Text>
-            {GAPS.map((g) => (
-              <Pressable key={g} onPress={() => setGap(g)} style={[styles.gap, gap === g && styles.pillOn]} accessibilityRole="radio" accessibilityState={{ checked: gap === g }} accessibilityLabel={`${g} minutes apart`}>
-                <Text style={[styles.pillText, gap === g && styles.pillTextOn]}>{g}′</Text>
-              </Pressable>
-            ))}
-          </View>
+          {!matchFormat ? (
+            <View style={styles.row}>
+              {([false, true] as const).map((on) => (
+                <Pressable
+                  key={String(on)}
+                  onPress={() => setShotgun(on)}
+                  style={[styles.pill, shotgun === on && styles.pillOn]}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: shotgun === on }}
+                  accessibilityLabel={on ? "Shotgun start: every group off at once, from its own hole" : "Tee times: groups off the 1st in turn"}
+                >
+                  <Text style={[styles.pillText, shotgun === on && styles.pillTextOn]}>{on ? "Shotgun start" : "Tee times"}</Text>
+                </Pressable>
+              ))}
+            </View>
+          ) : null}
+          {shotgunOn ? (
+            <Text style={styles.meta}>
+              Every group goes off at {firstTee ? clockLabel(firstTee) : "the start time"} from its own hole.{" "}
+              {drawnNow && drawnNow.length > holesHere
+                ? `${drawnNow.length - holesHere} holes have a second group (B), on the par 5s and 4s first. B groups tee off once the A group is clear.`
+                : `Up to ${shotgunCapacity(holesHere)} groups — two to a hole.`}
+            </Text>
+          ) : (
+            <View style={styles.timeRow}>
+              <Text style={[styles.meta, { flex: 1 }]}>Minutes between groups</Text>
+              {GAPS.map((g) => (
+                <Pressable key={g} onPress={() => setGap(g)} style={[styles.gap, gap === g && styles.pillOn]} accessibilityRole="radio" accessibilityState={{ checked: gap === g }} accessibilityLabel={`${g} minutes apart`}>
+                  <Text style={[styles.pillText, gap === g && styles.pillTextOn]}>{g}′</Text>
+                </Pressable>
+              ))}
+            </View>
+          )}
           <Pressable
             onPress={makeDraw}
             disabled={entrants.length === 0 || sizing.sizes.length === 0}
@@ -993,6 +1085,7 @@ export default function DrawFromGroup() {
               <View style={styles.drawnTop}>
                 <Text style={styles.drawnTitle}>
                   {unitWord} {gi + 1}
+                  {startText(gi) ? ` · starts ${startText(gi)}` : ""}
                   {times[gi] ? ` · ${times[gi]}` : ""}
                 </Text>
                 <Text style={styles.meta}>Indexes add to {indexTotal(g)}</Text>

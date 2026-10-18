@@ -245,12 +245,14 @@ export default function ResultsScreen() {
         courseName: results.event?.courseName ?? "",
         playedOn: results.event?.playedOn ?? "",
         foursomes: results.team && results.divisions[0]?.label === "Pairs" ? results.basis : null,
+        // A published result read back later doesn't say which pairs game it was.
+        greensomes: false,
       };
   const divisions = results.divisions;
   const tabIndex = tab === "prizes" ? "prizes" : Math.min(tab, divisions.length - 1);
   const division: Division | null = tabIndex === "prizes" ? null : divisions[tabIndex];
   const basisLabel = results.team
-    ? `${day.foursomes ? "Foursomes" : "Scramble"} · ${results.basis === "stableford" ? "Stableford" : "stroke play"}`
+    ? `${day.foursomes ? (day.greensomes ? "Greensomes" : "Foursomes") : "Scramble"} · ${results.basis === "stableford" ? "Stableford" : "stroke play"}`
     : results.basis === "stableford"
       ? "Stableford"
       : "Stroke play (net)";
