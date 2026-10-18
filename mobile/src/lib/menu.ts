@@ -70,6 +70,9 @@ export const MENU: MenuSection[] = [
       { kind: "native", label: "My scorecards", icon: "document-text-outline", to: "/scorecards", feature: "scorecards" },
       // Competitions (0148): matchplay leagues, ladders and opens.
       { kind: "native", label: "Competitions", icon: "trophy-outline", to: "/compete", feature: "competitions" },
+      // Game formats (Oct 2026): every way to play, explained — offline,
+      // from lib/game-formats.ts (shared with the website's /formats).
+      { kind: "native", label: "Game formats", icon: "library-outline", to: "/formats" },
       // One entry for what used to be four (Oct 2026): rounds you host, play
       // in, have asked to join or been offered — all on My rounds.
       {

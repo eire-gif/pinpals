@@ -710,7 +710,7 @@ export const GUIDES: Guide[] = [
           { icon: "swap-horizontal", label: "Greensomes Stableford or stroke play", blurb: "Pairs: both drive, play the better drive, then alternate shots. Two pairs to a tee group." },
           { icon: "git-compare", label: "Matchplay", blurb: "Singles, fourball, foursomes, greensomes." },
         ],
-        tip: "Foursomes and Scotch foursomes are the same game; each pair plays off half its combined course handicaps. In greensomes a pair plays off 60% of the lower course handicap and 40% of the higher. Both are worked out for you.",
+        tip: "Foursomes and Scotch foursomes are the same game; each pair plays off half its combined course handicaps. In greensomes a pair plays off 60% of the lower course handicap and 40% of the higher. Both are worked out for you. New to a format? Menu → Game formats explains every one.",
       },
       {
         title: "Name the day and pick when",
@@ -1807,6 +1807,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
   { on: "2026-10-18", text: "Play a round together: new step, Keep the leaderboard secret — players see only their own group until you publish the results, so the winners stay a surprise for the prize-giving. The TV stays live. Publish the results mentions it too." },
+  { on: "2026-10-18", text: "New: Game formats, under Menu → Play — all 41 ways to play explained in plain English, from Stableford and foursomes to scrambles, skins and Wolf, with handicap allowances and pictures. Play a round together now points to it when you choose the format." },
   { on: "2026-10-18", text: "Play a round together: new Greensomes Stableford and Greensomes stroke play (pairs both drive, play the better, then alternate), and a Shotgun start — every group off at once from its own hole, an A and a B group where needed. Choose the format and Name the day and pick when are updated." },
   { on: "2026-10-17", text: "Societies: the committee can upload the member list from a spreadsheet on the website (Members → Import from spreadsheet). Everyone is emailed, and joins the society as soon as they sign in to PinPals with that address. Set up a society and Join a society are updated." },
   { on: "2026-10-17", text: "Hole map: new step, Playing a competition — in a society event or competition round Plays like and the suggested club are off (Rule 4.3); tick Competition round under Hazards and more for any other competition. Yards or metres is now remembered." },

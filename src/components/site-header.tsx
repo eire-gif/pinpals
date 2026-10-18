@@ -167,7 +167,18 @@ export default async function SiteHeader() {
     { href: "/feed", label: "Social", needs: "social" },
     { href: "/news", label: "News" },
     // Public, like News: a rules lookup is as useful to a visitor as a member.
-    { href: "/rules", label: "Rules" },
+    // Game formats (Oct 2026) sit under Rules rather than as an eighth link:
+    // the bar is full at tablet width, and "how do we play this" is the
+    // same kind of question as "what's the ruling".
+    {
+      href: "/rules",
+      label: "Rules",
+      menuLabel: "Rules and game formats",
+      children: [
+        { href: "/rules", label: "Rules of Golf" },
+        { href: "/formats", label: "Game formats" },
+      ],
+    },
   ];
   // Waiting for a parent: nothing in the top bar would open (every signed-in
   // page shows the waiting panel), so only the public pages stay.
