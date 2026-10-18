@@ -388,9 +388,9 @@ export default function DrawFromGroup() {
   if (matchFormat && sizing.sizes.length > 40) problems.push("40 matches at most");
   if (matchFormat && teamsOn && (teamNames[0].trim() === "" || teamNames[1].trim() === "")) problems.push("Name both teams");
   if (foursomesComp && sizing.leftOver > 0) problems.push("Foursomes is played in pairs — one left over: add a guest or untick someone");
-  if (foursomesComp && sizing.sizes.length > 30) problems.push("60 pairs at most");
-  if (!scramble && !foursomesComp && sizing.sizes.length > 40) problems.push("40 groups at most");
-  if (scramble && sizing.sizes.length > 60) problems.push("60 teams at most");
+  if (foursomesComp && sizing.sizes.length > 50) problems.push("100 pairs at most");
+  if (!scramble && !foursomesComp && !matchFormat && sizing.sizes.length > 60) problems.push("60 groups at most");
+  if (scramble && sizing.sizes.length > 100) problems.push("100 teams at most");
   problems.push(...course.problems);
   if (title.trim() === "") problems.push("Give the day a name");
   if (!drawnNow) problems.push("Make the draw");

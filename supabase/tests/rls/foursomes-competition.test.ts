@@ -222,6 +222,28 @@ describe("foursomes: a day of pairs", () => {
   });
 });
 
+describe("foursomes: a big society (0172)", () => {
+  it("takes 65 pairs — 130 players — and refuses 101", async () => {
+    await withRole("authenticated", ME, async (c) => {
+      await setUp(c);
+      await as(c, ME);
+      const pairs = (n: number) =>
+        JSON.stringify(
+          Array.from({ length: n }, (_, i) => ({
+            team_handicap: 12,
+            players: i === 0 ? [p(ME, "Eire"), p(PAL, "Ciarán")] : [p(null, `Guest ${i}a`), p(null, `Guest ${i}b`)],
+          })),
+        );
+      const { rows } = await c.query<{ id: string }>(CREATE_DAY, [day(), pairs(65), card]);
+      const r = await asService(c, () =>
+        c.query<{ n: string; top: number }>("select count(*) as n, max(team_number) as top from public.live_rounds where match_day_id = $1", [rows[0].id]),
+      );
+      expect([Number(r.rows[0].n), r.rows[0].top]).toEqual([65, 65]);
+      await rejects(c, CREATE_DAY, [day(), pairs(101), card]);
+    });
+  });
+});
+
 describe("foursomes: the columns", () => {
   it("foursomes_scoring belongs only on a pair", async () => {
     await withRole("authenticated", ME, async (c) => {
