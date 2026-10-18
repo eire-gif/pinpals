@@ -28,11 +28,13 @@ const RAISED = "#18375f";
  * colour, all with the same gold rim, so they can be told apart at a glance —
  * navy for a round, green for groups and societies, claret for match days.
  */
-export type RaisedTone = "navy" | "green" | "claret";
+export type RaisedTone = "navy" | "green" | "claret" | "bronze";
 const TONES: Record<RaisedTone, { card: string; disc: string; chevron: string; sheen: string }> = {
   navy: { card: colors.navy900, disc: colors.navy800, chevron: RAISED, sheen: "rgba(24,58,104,0.55)" },
   green: { card: "#0f3424", disc: "#17482f", chevron: "#1f5a3b", sheen: "rgba(34,92,62,0.55)" },
   claret: { card: "#3a121c", disc: "#55202c", chevron: "#6a2836", sheen: "rgba(112,42,58,0.5)" },
+  // Oct 2026: Home's Marketplace button — the same gold rim on a dark bronze.
+  bronze: { card: "#3a2a0e", disc: "#54401a", chevron: "#6a5122", sheen: "rgba(122,92,36,0.5)" },
 };
 
 export function LiveScoringCard() {
@@ -63,6 +65,7 @@ export function RaisedCard({
   inset = true,
   tone = "navy",
   kicker,
+  wrapTitle = false,
 }: {
   title: string;
   subtitle: string;
@@ -76,6 +79,12 @@ export function RaisedCard({
   tone?: RaisedTone;
   /** A small gold label above the title. */
   kicker?: string;
+  /**
+   * Keep the title at full size and let a long one wrap onto a second line,
+   * rather than shrinking it to fit. Home's four buttons use this so all four
+   * titles are the same size (Oct 2026).
+   */
+  wrapTitle?: boolean;
 }) {
   const t = TONES[tone];
   return (
@@ -118,9 +127,15 @@ export function RaisedCard({
                   {kicker}
                 </Text>
               ) : null}
-              <Text style={styles.title} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
-                {title}
-              </Text>
+              {wrapTitle ? (
+                <Text style={styles.title} numberOfLines={2}>
+                  {title}
+                </Text>
+              ) : (
+                <Text style={styles.title} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
+                  {title}
+                </Text>
+              )}
               <Text style={styles.body} numberOfLines={2}>
                 {subtitle}
               </Text>

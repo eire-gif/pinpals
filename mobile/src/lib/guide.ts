@@ -212,7 +212,7 @@ export const GUIDES: Guide[] = [
     steps: [
       {
         title: "Open Groups & societies",
-        body: "Open the menu at the top left and tap Groups & societies. You can also tap Your groups & societies on the Home screen.",
+        body: "Open the menu at the top left and tap Groups & societies. You can also tap the green Groups & Societies button on Home.",
         path: [MENU, GROUPS],
         go: { label: "Groups & societies", to: "/groups" },
       },
@@ -890,9 +890,9 @@ export const GUIDES: Guide[] = [
     steps: [
       {
         title: "Open Post a tee time",
-        body: "Tap Post a tee time on Home, or the round green + at the top of the Tee Times tab.",
+        body: "Tap Find Golfers on Home (or the Tee Times tab), then the round green + at the top.",
         look: [
-          { style: "tile", label: "Post a tee time", icon: "flag" },
+          { style: "raised", label: "Find Golfers", icon: "search", tone: "claret", kicker: "Play", subtitle: "Join a fourball or fill your own tee time" },
           { style: "primary", label: "+", icon: "add" },
         ],
         go: { label: "Post a tee time", to: "/post-tee-time" },
@@ -967,7 +967,7 @@ export const GUIDES: Guide[] = [
     steps: [
       {
         title: "Open Tee Times",
-        body: "Tap the Tee Times tab. All tee times shows every round looking for players; Near me shows those within 50 km.",
+        body: "Tap Find Golfers on Home, or the Tee Times tab. All tee times shows every round looking for players; Near me shows those within 50 km.",
         look: [
           { style: "outline", label: "All tee times" },
           { style: "outline", label: "Near me", icon: "navigate" },
@@ -1055,8 +1055,8 @@ export const GUIDES: Guide[] = [
     steps: [
       {
         title: "Open Live scoring",
-        body: "On Home, tap the big Live Scoring card. It's in the menu too.",
-        look: [{ style: "raised", label: "Live Scoring", subtitle: "Score with your group, watch the leaderboard move" }],
+        body: "On Home, tap the big Start a Round button. On the day of a tee time, crew round or society outing, the card at the top of Home has Start your round here too. It's in the menu as well.",
+        look: [{ style: "raised", label: "Start a Round", icon: "flag", kicker: "Live scoring", subtitle: "Score with your group, watch the leaderboard move" }],
         go: { label: "Live scoring", to: "/live" },
         tip: "Playing a tee time? Only one of you needs to start: open it and tap Start live scoring — everyone on it is added and gets an alert that opens the game. If someone already started it, the button says Open the live game. A player can only be in one game at a time.",
       },
@@ -1449,7 +1449,7 @@ export const GUIDES: Guide[] = [
       },
       {
         title: "Bring your fourball",
-        body: "Tap the QR button beside Find your next fourball on Home, or Invite friends to PinPals in the menu. Send your link on WhatsApp or by text, or show your QR code in the clubhouse — when they join, you're connected straight away.",
+        body: "Tap the QR button beside your name at the top of Home, or Invite friends to PinPals in the menu. Send your link on WhatsApp or by text, or show your QR code in the clubhouse — when they join, you're connected straight away.",
         look: [
           { style: "primary", label: "WhatsApp", icon: "logo-whatsapp" },
           { style: "outline", label: "Show full screen", icon: "qr-code-outline" },
@@ -1587,7 +1587,7 @@ export const GUIDES: Guide[] = [
     steps: [
       {
         title: "Photos and a description",
-        body: "In the Marketplace, tap the green Sell button in the middle of the bottom menu (or Sell an item on Home). Add up to 8 photos — the first is the cover — then say a bit about it under Description; the + buttons add a line for how long you've had it, any marks and what's included.",
+        body: "In the Marketplace, tap the green Sell button in the middle of the bottom menu (the Marketplace button on Home takes you there). Add up to 8 photos — the first is the cover — then say a bit about it under Description; the + buttons add a line for how long you've had it, any marks and what's included.",
         look: [
           { style: "primary", label: "Sell", icon: "add" },
           { style: "outline", label: "Add photos", icon: "camera-outline" },
@@ -1889,6 +1889,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-18", text: "Home has four big buttons — Find Golfers, Start a Round, Groups & Societies and Marketplace — and, on the day of a round, a card at the top with Start your round here. Post a tee time, Find a game, Score a game live, Start a group, Bring your fourball and Sell your gear are updated." },
   { on: "2026-10-18", text: "Score a game live: new step, Not sure how to play it? — Lie help under the players gives the club, aim and three things to do for a slope, bunker, rough or wind. Track my stats now asks how far your first putt was, once you've tapped your putts." },
   { on: "2026-10-18", text: "See where your shots go: new step, Or just say them — with Say scores, add your stats after your score (“I had a five, two putts, missed it short”). Score a game live: Or say the scores mentions it." },
   { on: "2026-10-18", text: "See where your shots go: new steps — Where your shots go (against your goal handicap, with your biggest leak) and Your practice focus." },

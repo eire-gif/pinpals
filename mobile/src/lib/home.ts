@@ -1,3 +1,4 @@
+import { isGroupKind, type GroupKind } from "./groups";
 import { supabase } from "./supabase";
 import { clockTime, todayIso } from "./tee-times";
 
@@ -17,6 +18,7 @@ import { clockTime, todayIso } from "./tee-times";
 
 type InviteRow = {
   id: number;
+  member_id: string;
   club_name: string | null;
   play_date: string;
   time_from: string | null;
@@ -31,10 +33,52 @@ export type NextRound = {
   playDate: string;
   when: string;
   role: "hosting" | "playing";
+  /** Exact tee time ("09:00:00") when there is one — for "in 42 min". */
+  exactTime: string | null;
+  /** The host, needed for the players on the day's card. */
+  hostId: string;
+};
+
+/** A golfer shown on Home's top card: a face, or initials on their colour. */
+export type HomePlayer = { name: string; avatarUrl: string | null; avatarColor: string | null };
+
+/**
+ * A group event the member is entered in (society outing, crew round or a
+ * trip day — all society_outings since 0125/0142), the soonest in the next
+ * week. Drives the top of Home: the full card on the day, "Up next" before.
+ */
+export type HomeEvent = {
+  outingId: number;
+  groupId: number;
+  groupName: string;
+  groupKind: GroupKind;
+  title: string;
+  course: string | null;
+  playsOn: string;
+  /** The event's first tee ("10:00:00"), if set. */
+  firstTee: string | null;
+  /** Your group's tee time once the draw is out. */
+  myTeeTime: string | null;
+  myTeeGroup: number | null;
+  /** Shotgun start (0173): the hole your group starts on. */
+  start: { hole: number; letter: string | null } | null;
+  matchDayId: number | null;
+  /** Everyone entered. */
+  playing: number;
+  /** The rest of your tee group, once drawn. */
+  partners: HomePlayer[];
+  /** There's an entry fee. */
+  hasFee: boolean;
+  /** There's a fee and it isn't marked paid. */
+  paymentDue: boolean;
 };
 
 export type HomeSummary = {
   nextRound: NextRound | null;
+  /** Players on nextRound, read only when it is today (host first). */
+  todayPlayers: HomePlayer[];
+  /** The soonest group event you're entered in, within the next week. */
+  nextEvent: HomeEvent | null;
   /** Members waiting on an answer from me, on rounds I host. */
   requestsWaiting: number;
   /** Places I have been offered and not yet confirmed. */
@@ -89,7 +133,7 @@ async function profileCompletion(userId: string): Promise<number | null> {
 }
 
 const INVITE_SELECT =
-  "id, club_name, play_date, time_from, time_to, exact_tee_time, club:clubs!tee_time_invites_club_id_fkey (name)";
+  "id, member_id, club_name, play_date, time_from, time_to, exact_tee_time, club:clubs!tee_time_invites_club_id_fkey (name)";
 
 /** The club embed is the reliable one: an invite posted from the app carries
  *  `club_id` and leaves `club_name` null, while older website rows have the
@@ -112,6 +156,8 @@ const toRound = (row: InviteRow, role: NextRound["role"]): NextRound => ({
   playDate: row.play_date,
   when: whenOf(row),
   role,
+  exactTime: row.exact_tee_time,
+  hostId: row.member_id,
 });
 
 /**
@@ -220,6 +266,120 @@ async function onboarded(userId: string): Promise<boolean> {
   return Boolean(data?.onboarded_at);
 }
 
+/** YYYY-MM-DD, `days` from today, in local time (as todayIso). */
+const isoInDays = (days: number): string => {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+
+type ProfileBits = { first_name: string | null; last_name: string | null; avatar_url: string | null; avatar_color: string | null };
+const toPlayer = (p: ProfileBits | null): HomePlayer => ({
+  name: [p?.first_name, p?.last_name].filter(Boolean).join(" ") || "A member",
+  avatarUrl: p?.avatar_url ?? null,
+  avatarColor: p?.avatar_color ?? null,
+});
+
+/** Host first, then everyone confirmed — the fourball on the day's card. */
+async function playersFor(round: NextRound): Promise<HomePlayer[]> {
+  const [host, joined] = await Promise.all([
+    supabase.from("profiles").select("first_name, last_name, avatar_url, avatar_color").eq("id", round.hostId).maybeSingle<ProfileBits>(),
+    supabase
+      .from("tee_time_interests")
+      .select("member_id, profiles (first_name, last_name, avatar_url, avatar_color)")
+      .eq("invite_id", round.inviteId)
+      .eq("status", "confirmed")
+      .overrideTypes<{ member_id: string; profiles: ProfileBits | null }[]>(),
+  ]);
+  return [...(host.data ? [toPlayer(host.data)] : []), ...(joined.data ?? []).map((r) => toPlayer(r.profiles))];
+}
+
+type EntryRow = {
+  tee_group: number | null;
+  tee_time: string | null;
+  start_hole: number | null;
+  start_letter: string | null;
+  outing: {
+    id: number;
+    group_id: number;
+    title: string;
+    course_name: string | null;
+    plays_on: string;
+    first_tee: string | null;
+    match_day_id: number | null;
+    entry_fee_cents: number | null;
+  };
+};
+
+/**
+ * The soonest group event you're entered in, today or within a week. Reads
+ * from your own entries (RLS lets a member see their group's), then the
+ * group, the field and your payment, together.
+ */
+async function nextEvent(userId: string): Promise<HomeEvent | null> {
+  const { data, error } = await supabase
+    .from("society_outing_entries")
+    .select(
+      "tee_group, tee_time, start_hole, start_letter, outing:society_outings!inner(id, group_id, title, course_name, plays_on, first_tee, match_day_id, entry_fee_cents, status)"
+    )
+    .eq("member_id", userId)
+    .eq("outing.status", "open")
+    .gte("outing.plays_on", todayIso())
+    .lte("outing.plays_on", isoInDays(7))
+    .overrideTypes<EntryRow[]>();
+  if (error || !data || data.length === 0) return null;
+
+  const mine = [...data].sort(
+    (a, b) => a.outing.plays_on.localeCompare(b.outing.plays_on) || (a.tee_time ?? a.outing.first_tee ?? "").localeCompare(b.tee_time ?? b.outing.first_tee ?? "")
+  )[0];
+  const o = mine.outing;
+
+  const [group, field, paid] = await Promise.all([
+    supabase.from("groups").select("name, kind").eq("id", o.group_id).maybeSingle<{ name: string; kind: string }>(),
+    supabase
+      .from("society_outing_entries")
+      .select("member_id, tee_group, tee_position, profile:profiles(first_name, last_name, avatar_url, avatar_color)")
+      .eq("outing_id", o.id)
+      .overrideTypes<{ member_id: string; tee_group: number | null; tee_position: number | null; profile: ProfileBits | null }[]>(),
+    supabase
+      .from("society_outing_payments")
+      .select("status")
+      .eq("outing_id", o.id)
+      .eq("member_id", userId)
+      .overrideTypes<{ status: string }[]>(),
+  ]);
+
+  const entries = field.data ?? [];
+  const partners =
+    mine.tee_group == null
+      ? []
+      : entries
+          .filter((e) => e.tee_group === mine.tee_group && e.member_id !== userId)
+          .sort((a, b) => (a.tee_position ?? 0) - (b.tee_position ?? 0))
+          .map((e) => toPlayer(e.profile));
+  const hasFee = (o.entry_fee_cents ?? 0) > 0;
+  const isPaid = (paid.data ?? []).some((p) => p.status !== "refunded");
+
+  return {
+    outingId: o.id,
+    groupId: o.group_id,
+    groupName: group.data?.name ?? "Your group",
+    groupKind: group.data && isGroupKind(group.data.kind) ? group.data.kind : "society",
+    title: o.title,
+    course: o.course_name,
+    playsOn: o.plays_on,
+    firstTee: o.first_tee,
+    myTeeTime: mine.tee_time,
+    myTeeGroup: mine.tee_group,
+    start: mine.start_hole == null ? null : { hole: mine.start_hole, letter: mine.start_letter },
+    matchDayId: o.match_day_id,
+    playing: entries.length,
+    partners,
+    hasFee,
+    paymentDue: hasFee && !isPaid,
+  };
+}
+
 /**
  * One await for the whole screen. Every part is independent, so they run
  * together and a failure in any one leaves the rest of the page intact —
@@ -227,8 +387,9 @@ async function onboarded(userId: string): Promise<boolean> {
  * worse outcome than a home screen missing a count.
  */
 export async function loadHome(userId: string): Promise<HomeSummary> {
-  const [round, requests, offers, courses, completion, builderDone] = await Promise.all([
+  const [round, event, requests, offers, courses, completion, builderDone] = await Promise.all([
     nextRound(userId).catch(() => null),
+    nextEvent(userId).catch(() => null),
     requestsWaiting(userId).catch(() => 0),
     offersWaiting(userId).catch(() => 0),
     courseCount().catch(() => null),
@@ -236,8 +397,13 @@ export async function loadHome(userId: string): Promise<HomeSummary> {
     onboarded(userId).catch(() => true),
   ]);
 
+  // The fourball's faces only matter on the day, so only then are they read.
+  const todayPlayers = round && round.playDate === todayIso() ? await playersFor(round).catch(() => []) : [];
+
   return {
     nextRound: round,
+    todayPlayers,
+    nextEvent: event,
     requestsWaiting: requests,
     offersWaiting: offers,
     courseCount: courses,
