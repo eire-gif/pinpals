@@ -773,13 +773,13 @@ export const GUIDES: Guide[] = [
           { style: "primary", label: "Complete scorecard", icon: "checkmark-done" },
           { style: "link", label: "Choose who", icon: "finger-print" },
         ],
-        tip: "Scores can't be changed once the round is finished.",
+        tip: "When the round is finished, everyone on PinPals who played gets their card saved to My scorecards automatically — whoever tapped Complete scorecard. Scores can't be changed once the round is finished.",
       },
       {
         title: "Foursomes and scrambles: the pair's card",
         body: "Playing foursomes or a scramble, it's your pair's (or team's) card — one ball. After the last hole, tap Choose who and pick someone from the OTHER pair in your group to certify it with Face ID. Your partner can't mark your own card.",
         look: [
-          { style: "link", label: "Save our pair's card", icon: "document-text-outline" },
+          { style: "link", label: "Open our pair's card", icon: "document-text-outline" },
           { style: "link", label: "Choose who", icon: "finger-print" },
         ],
         tip: "A pair's or team's card isn't used for your handicap — the World Handicap System only counts individual rounds.",
@@ -1889,6 +1889,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-18", text: "Play a round together: when a round is finished, every member who played gets their card saved to My scorecards — not just whoever tapped Complete scorecard. After certifying someone's card, Open my card takes you to yours." },
   { on: "2026-10-18", text: "Home has four big buttons — Find Golfers, Start a Round, Groups & Societies and Marketplace — and, on the day of a round, a card at the top with Start your round here. Post a tee time, Find a game, Score a game live, Start a group, Bring your fourball and Sell your gear are updated." },
   { on: "2026-10-18", text: "Score a game live: new step, Not sure how to play it? — Lie help under the players gives the club, aim and three things to do for a slope, bunker, rough or wind. Track my stats now asks how far your first putt was, once you've tapped your putts." },
   { on: "2026-10-18", text: "See where your shots go: new step, Or just say them — with Say scores, add your stats after your score (“I had a five, two putts, missed it short”). Score a game live: Or say the scores mentions it." },
