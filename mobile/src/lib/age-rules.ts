@@ -205,10 +205,10 @@ export function gateFor(access: AgeAccess): AgeGate | null {
 
 /**
  * Where a 13–15 year old still waiting for their parent may go: the waiting
- * screen itself, the Rules of Golf, the course directory and the how-to
+ * screen itself, the Rules of Golf, game formats, the course directory and the how-to
  * guides. Keyed on the first route segment, as the auth gate is.
  */
-const OPEN_WHILE_WAITING = new Set(["age", "rules", "courses", "course", "guide"]);
+const OPEN_WHILE_WAITING = new Set(["age", "rules", "formats", "courses", "course", "guide"]);
 
 export const openWhileWaiting = (firstSegment: string | undefined): boolean =>
   firstSegment !== undefined && OPEN_WHILE_WAITING.has(firstSegment);
