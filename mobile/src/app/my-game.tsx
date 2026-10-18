@@ -450,9 +450,22 @@ function YourStats({
             sub={isMeasured(stats!.putting) ? `3-putts ${stats!.putting.value.threePutts} · 1-putts ${stats!.putting.value.onePutts} a round` : undefined}
             unit="holes"
           />
+          <Row
+            label="First putts holed, by distance"
+            figure={stats!.byDistance}
+            show={() => ""}
+            sub={isMeasured(stats!.byDistance) ? stats!.byDistance.value.map((d) => `${d.label} ${d.holedPct}%`).join(" · ") : undefined}
+            unit="putts with a distance"
+          />
           <Row label="Penalty shots a round" figure={stats!.penalties} show={(v) => String(v)} unit="holes" />
         </>
       )}
+      {has ? (
+        <Pressable onPress={() => router.push("/train/putting")} style={({ pressed }) => [styles.reviewButton, pressed && styles.pressed]} accessibilityRole="button">
+          <Ionicons name="barbell-outline" size={17} color={colors.green700} />
+          <Text style={styles.reviewText}>Practise your putting in Training</Text>
+        </Pressable>
+      ) : null}
       {onReview && tracking ? (
         <Pressable onPress={onReview} style={({ pressed }) => [styles.reviewButton, pressed && styles.pressed]} accessibilityRole="button">
           <Ionicons name="create-outline" size={17} color={colors.green700} />

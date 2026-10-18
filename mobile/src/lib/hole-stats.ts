@@ -16,16 +16,30 @@ import { patternCards, type Figure, type PatternCard, type Read } from "./scorin
 export type TeeShot = "left" | "fairway" | "right";
 export type GreenMiss = "short" | "long" | "left" | "right";
 
+/** How far the first putt was, in feet (0179) — tapped once there are putts. */
+export type FirstPutt = "0-3" | "3-6" | "6-10" | "10-20" | "20-30" | "30+";
+
 export type HoleStat = {
   hole: number;
   putts: number | null;
   tee: TeeShot | null;
   greenMiss: GreenMiss | null;
   penalties: number | null;
+  /** Optional so stats saved before 0179, and older builds' queued saves, still read. */
+  firstPutt?: FirstPutt | null;
 };
 
 export const TEE_SHOTS: TeeShot[] = ["left", "fairway", "right"];
 export const GREEN_MISSES: GreenMiss[] = ["short", "long", "left", "right"];
+export const FIRST_PUTTS: { id: FirstPutt; label: string; long: string }[] = [
+  { id: "0-3", label: "<3", long: "under 3ft" },
+  { id: "3-6", label: "3–6", long: "3–6ft" },
+  { id: "6-10", label: "6–10", long: "6–10ft" },
+  { id: "10-20", label: "10–20", long: "10–20ft" },
+  { id: "20-30", label: "20–30", long: "20–30ft" },
+  { id: "30+", label: "30+", long: "30ft+" },
+];
+export const isFirstPutt = (v: unknown): v is FirstPutt => FIRST_PUTTS.some((f) => f.id === v);
 
 /** A card with the member's own stats on it, by hole. */
 export type StatsCard = PatternCard & { stats: ReadonlyMap<number, HoleStat> };
@@ -41,7 +55,7 @@ export const hasTeeShot = (par: number) => par >= 4;
 
 /** A hole with nothing tapped on it. */
 export const isEmptyStat = (s: HoleStat | null | undefined) =>
-  !s || (s.putts == null && s.tee == null && s.greenMiss == null && !s.penalties);
+  !s || (s.putts == null && s.tee == null && s.greenMiss == null && !s.penalties && s.firstPutt == null);
 
 export const STAT_MINIMUMS = {
   fairways: { early: 14, good: 70, unit: "drives" },
@@ -49,6 +63,8 @@ export const STAT_MINIMUMS = {
   misses: { early: 10, good: 40, unit: "missed greens" },
   scrambling: { early: 10, good: 40, unit: "chances" },
   putting: { early: 18, good: 90, unit: "holes" },
+  /** Per distance band, so each band needs its own handful before it shows. */
+  firstPutt: { early: 5, good: 25, unit: "putts" },
   penalties: { early: 18, good: 90, unit: "holes" },
 } as const;
 
@@ -76,6 +92,8 @@ export type StatsSummary = {
   /** Par or better after missing the green in regulation, %. */
   scrambling: Figure<number>;
   putting: Figure<{ perRound: number; threePutts: number; onePutts: number }>;
+  /** By first-putt distance (0179): % holed with the first putt, and % three-putted. Bands below their minimum are left out. */
+  byDistance: Figure<{ band: FirstPutt; label: string; n: number; holedPct: number; threePuttPct: number }[]>;
   penalties: Figure<number>;
 };
 
@@ -124,9 +142,18 @@ export function statsSummary(cards: readonly StatsCard[], limit = 20): StatsSumm
     onePutts: perRound(putted.filter((j) => j.stat.putts === 1).length, putted.length),
   }));
 
+  const measured = putted.filter((j) => j.stat.firstPutt != null && j.stat.putts! >= 1);
+  const bands = FIRST_PUTTS.map((f) => {
+    const in_ = measured.filter((j) => j.stat.firstPutt === f.id);
+    return { band: f.id, label: f.long, n: in_.length, holedPct: in_.length ? pct(in_.filter((j) => j.stat.putts === 1).length, in_.length) : 0, threePuttPct: in_.length ? pct(in_.filter((j) => j.stat.putts! >= 3).length, in_.length) : 0 };
+  }).filter((b) => b.n >= STAT_MINIMUMS.firstPutt.early);
+  // Shown once any band has enough putts; the read follows the total measured.
+  const byDistance: StatsSummary["byDistance"] =
+    bands.length === 0 ? { need: STAT_MINIMUMS.firstPutt.early - Math.max(0, ...FIRST_PUTTS.map((f) => measured.filter((j) => j.stat.firstPutt === f.id).length)), unit: STAT_MINIMUMS.firstPutt.unit } : { value: bands, n: measured.length, read: measured.length >= STAT_MINIMUMS.putting.good ? "good" : "early" };
+
   const penalties = figure("penalties", joined.length, () => perRound(joined.reduce((s, j) => s + (j.stat.penalties ?? 0), 0), joined.length));
 
-  return { holes: joined.length, rounds: withStats.size, tee, greens, misses, scrambling, putting, penalties };
+  return { holes: joined.length, rounds: withStats.size, tee, greens, misses, scrambling, putting, byDistance, penalties };
 }
 
 export type StatInsight = { text: string; read: Read; basis: string };
@@ -154,6 +181,12 @@ export function statInsights(s: StatsSummary): StatInsight[] {
   }
   if ("read" in s.putting && s.putting.value.threePutts >= 2) {
     out.push({ text: `${s.putting.value.threePutts} three-putts a round. Lag putting from distance is the quickest win.`, read: s.putting.read, basis: `${s.putting.n} holes` });
+  }
+  if ("read" in s.byDistance) {
+    const worst = [...s.byDistance.value].sort((a, b) => b.threePuttPct - a.threePuttPct)[0];
+    if (worst && worst.threePuttPct >= 15) {
+      out.push({ text: `${worst.threePuttPct}% of your putts from ${worst.label} end in a three-putt. The Putting Lab's Ladder lag works on exactly that.`, read: s.byDistance.read, basis: `${worst.n} putts from ${worst.label}` });
+    }
   }
   if ("read" in s.penalties && s.penalties.value >= 1) {
     out.push({ text: `${s.penalties.value} penalty ${s.penalties.value === 1 ? "shot" : "shots"} a round.`, read: s.penalties.read, basis: `${s.penalties.n} holes` });
