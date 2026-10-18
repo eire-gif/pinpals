@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   ImageBackground,
@@ -9,7 +9,7 @@ import {
   Text,
   View,
 } from "react-native";
-import { useFocusEffect, useRouter } from "expo-router";
+import { useFocusEffect, useNavigation, useRouter } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import {
@@ -126,6 +126,23 @@ export default function HomeScreen() {
     }, [load])
   );
 
+  // Tapping Home while already on Home takes you back to the top — what
+  // every phone app does with its first tab, and the only way back up from
+  // the bottom of a long page without swiping all the way. Tapping it from
+  // another tab still just switches to Home where you left it.
+  const scrollRef = useRef<ScrollView>(null);
+  const navigation = useNavigation();
+  useEffect(() => {
+    // tabPress isn't in the generic navigation event map, hence the cast.
+    const nav = navigation as unknown as {
+      addListener: (event: "tabPress", cb: () => void) => () => void;
+      isFocused: () => boolean;
+    };
+    return nav.addListener("tabPress", () => {
+      if (nav.isFocused()) scrollRef.current?.scrollTo({ y: 0, animated: true });
+    });
+  }, [navigation]);
+
   const courses = summary?.courseCount;
   // iPad: the photo runs edge to edge; on its side the cards go in two
   // columns under it (claude/ipad.md). A phone is unchanged.
@@ -133,6 +150,7 @@ export default function HomeScreen() {
 
   return (
     <ScrollView
+      ref={scrollRef}
       style={styles.fill}
       contentContainerStyle={styles.content}
       refreshControl={
