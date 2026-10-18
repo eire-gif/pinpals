@@ -45,7 +45,9 @@ import type { Href } from "expo-router";
  *               app/(tabs)/live/follow/[id].tsx (Share live / Following)
  *    compete  → app/compete/index.tsx, app/compete/[id].tsx, app/compete/match/[id].tsx,
  *               app/compete/new.tsx, app/compete/opens.tsx, app/compete/share-open.tsx
- *    myGame   → app/my-game.tsx, app/scorecards/index.tsx, app/(tabs)/profile.tsx
+ *    myGame   → app/my-game.tsx, app/scorecards/index.tsx, app/(tabs)/profile.tsx,
+ *               app/scorecards/review/[id].tsx, app/scorecards/[id].tsx,
+ *               components/stats-tap-row.tsx, components/live-stats-row.tsx (on the live round)
  *    holeMap  → app/hole-map.tsx, components/hole-map-page.ts, components/hole-map-extras.tsx,
  *               app/my-bag.tsx, app/course/[id].tsx
  *    messages → app/(tabs)/inbox.tsx, app/new-chat.tsx, app/new-group.tsx,
@@ -1338,7 +1340,7 @@ export const GUIDES: Guide[] = [
     id: "myGame",
     section: "play",
     title: "See where your shots go",
-    blurb: "My Game reads your scorecards: par 3s, 4s and 5s, your start, doubles, and your course hole by hole.",
+    blurb: "My Game reads your scorecards — and, if you track them, your fairways, greens, putts and where you miss.",
     icon: "stats-chart",
     tone: "green",
     audience: "Everyone",
@@ -1363,6 +1365,22 @@ export const GUIDES: Guide[] = [
         title: "Your course, hole by hole",
         body: "The course you play most is drawn hole by hole: the darker the square, the more that hole costs you on average. A hole shows once you've played it twice.",
         tip: "Team cards — foursomes, greensomes and scramble — aren't counted, and neither are holes you didn't score.",
+      },
+      {
+        title: "Track my stats",
+        body: "Want more? Under Your stats, switch on Track my stats. In a live round a small row then appears under your own score: tee shot (left, fairway, right), putts, which way you missed the green, and +1 penalty. About four taps a hole. Only you see them.",
+        look: [{ style: "outline", label: "Track my stats" }],
+        tip: "Greens in regulation and par saves are worked out from your score and putts — you never enter them. Tap a chosen answer again to clear it.",
+      },
+      {
+        title: "Or add them in 60 seconds",
+        body: "Rather not tap while you play? Open the card in My scorecards and tap Your stats for this round. Swipe through the holes with the same taps — it opens on the first one you haven't done.",
+        look: [{ style: "outline", label: "Your stats for this round · 60 seconds", icon: "stats-chart-outline" }],
+      },
+      {
+        title: "See them add up",
+        body: "Your stats on My Game shows fairways hit, greens in regulation, where you miss greens, par saves, putts and penalties — with a plain-English line when something stands out, like most of your missed greens finishing short.",
+        tip: "No signal on the course? Your taps are kept on the phone and sent when it's back.",
       },
     ],
   },
@@ -1849,6 +1867,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-18", text: "See where your shots go: new steps — Track my stats (a row under your score in a live round: tee shot, putts, missed green, penalty), Or add them in 60 seconds (from a saved card), and See them add up on My Game." },
   { on: "2026-10-18", text: "New guide, See where your shots go: My Game on your Profile (and at the top of My scorecards) reads your scorecards — what's costing you most, par 3s, 4s and 5s, your start, doubles, and your course hole by hole." },
   { on: "2026-10-18", text: "Mixed tees: members can say in Edit profile (or when they join) which course ratings they play off — Men's, Women's or Prefer not to say. With Mixed tees on, ladies are placed on the ladies' tees, on the women's ratings, by themselves." },
   { on: "2026-10-18", text: "Play a round together: new step, Ladies off the reds? Mixed tees — put some players on other tees; each handicap comes from their own tees, with the World Handicap System adjustment for the difference in par as an option." },

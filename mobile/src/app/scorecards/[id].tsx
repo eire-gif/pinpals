@@ -12,6 +12,7 @@ import { goHome } from "@/lib/go-home";
 import { Nine } from "@/components/scorecard-grid";
 import { useAgeAccess } from "@/lib/age";
 import { useAuth } from "@/lib/auth";
+import { useTracking } from "@/lib/my-stats";
 import { isOn } from "@/lib/features";
 import { indexLabel } from "@/lib/live-scoring";
 import { saveScorecardPhoto } from "@/lib/scorecard-photo";
@@ -43,6 +44,8 @@ export default function ScorecardScreen() {
   // Junior members (0159): Social is 18+, so no "Post to Social".
   const social = useAgeAccess().allows("social");
   const me = session?.user?.id ?? null;
+  // My Game (0178): "Add your stats" for members who track them.
+  const [trackStats] = useTracking();
   const [card, setCard] = useState<Scorecard | null | undefined>(undefined);
   const [failed, setFailed] = useState(false);
   const [busy, setBusy] = useState<null | "share" | "photo" | "refresh" | "visibility">(null);
@@ -254,6 +257,17 @@ export default function ScorecardScreen() {
               <Action icon="share-outline" label="Send" busy={busy === "share" || busy === "photo"} onPress={chooseSend} />
               <Action icon="create-outline" label="Edit" onPress={() => router.push({ pathname: "/scorecards/new", params: { id: String(card.id) } })} />
             </View>
+            {trackStats && card.teamCard == null ? (
+              <Pressable
+                onPress={() => router.push({ pathname: "/scorecards/review/[id]", params: { id: String(card.id) } })}
+                style={({ pressed }) => [styles.statsButton, pressed && { opacity: 0.85 }]}
+                accessibilityRole="button"
+              >
+                <Ionicons name="stats-chart-outline" size={18} color={colors.green700} />
+                <Text style={styles.statsLabel}>Your stats for this round · 60 seconds</Text>
+                <Ionicons name="chevron-forward" size={16} color={colors.ink500} />
+              </Pressable>
+            ) : null}
             {photoSaved ? (
               <View style={styles.savedBanner} accessibilityRole="alert">
                 <Ionicons name="checkmark-circle" size={18} color={colors.green700} />
@@ -317,6 +331,8 @@ function Action({ icon, label, onPress, busy = false }: { icon: keyof typeof Ion
 }
 
 const styles = StyleSheet.create({
+  statsButton: { flexDirection: "row", alignItems: "center", gap: spacing.sm, minHeight: 48, paddingHorizontal: spacing.md, borderRadius: radii.md, borderWidth: 1.5, borderColor: colors.gold500, backgroundColor: colors.surfaceTint },
+  statsLabel: { flex: 1, fontFamily: fonts.bodySemi, fontSize: 15, color: colors.ink900 },
   page: { padding: spacing.md, gap: spacing.md, paddingBottom: spacing.xl * 2 },
   hero: { backgroundColor: colors.navy900, borderRadius: radii.lg, padding: spacing.md + 4, gap: 4 },
   teamNote: { flexDirection: "row", gap: spacing.sm, alignItems: "flex-start", backgroundColor: colors.cream100, borderRadius: radii.md, padding: spacing.md },

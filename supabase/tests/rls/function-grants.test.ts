@@ -332,6 +332,8 @@ const EXPECTED: Record<string, Expectation> = {
   "live_round_is_competition(p_round_id bigint)": { anon: false, authenticated: true },
   // 0169 the website address the scheduled jobs call — database only
   "pinpals_site_url()": { anon: false, authenticated: false },
+  // 0178 My Game stats — the caller's own rows only
+  "my_hole_stats_set(p_live_round_id bigint, p_scorecard_id bigint, p_hole smallint, p_putts smallint, p_tee text, p_green_miss text, p_penalties smallint)": { anon: false, authenticated: true },
   // 0110 scorecards
   "scorecard_visible_row(p_member uuid, p_visibility text)": { anon: false, authenticated: true },
   "scorecard_save(p_id bigint, p_card jsonb, p_holes jsonb)": { anon: false, authenticated: true },
