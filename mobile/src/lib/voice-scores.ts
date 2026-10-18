@@ -108,8 +108,8 @@ const ALL = new Set(["everyone", "everybody", "all"]);
 const CORRECTIONS = new Set(["no", "sorry", "actually", "correction", "wait", "scratch"]);
 const SAME = new Set(["same", "ditto"]);
 const PICKUP = new Set(["blob", "nr", "wiped", "lifted", "pickup", "pickedup"]);
-/** A number right after these isn't a score: "two putts", "three putted". */
-const NOT_A_SCORE_AFTER = new Set(["putt", "putts", "putted", "putting", "shots", "clubs", "iron"]);
+/** A number right before these isn't a score: "two putts", "three putted", "two penalty shots". */
+const NOT_A_SCORE_AFTER = new Set(["putt", "putts", "putted", "putting", "shots", "clubs", "iron", "penalty", "penalties"]);
 /** …nor right after these: "on seven", "hole seven", "on in two". */
 const NOT_A_SCORE_BEFORE = new Set(["hole", "on", "number", "in"]);
 
@@ -174,7 +174,7 @@ export const NAME_SOUNDS: Record<string, string[]> = {
 // Tokens
 // ---------------------------------------------------------------------------
 
-type Token =
+export type Token =
   | { kind: "name"; players: number[]; text: string }
   | { kind: "me"; text: string }
   | { kind: "abs"; value: number; text: string }
@@ -264,7 +264,8 @@ function isScoreWord(w: string): boolean {
   return w in NUMBERS || w in TERMS || w in SOUNDS_LIKE || /^\d{1,2}$/.test(w) || PICKUP.has(w) || w === "ace" || w === "net";
 }
 
-function tokenise(words: string[], players: readonly VoicePlayer[]): Token[] {
+/** Exported for voice-stats.ts, which reads the same words for the speaker's own stats. */
+export function tokenise(words: string[], players: readonly VoicePlayer[]): Token[] {
   const keys = players.map((p) => ({ id: p.id, ...nameKeys(p.name) }));
   const out: Token[] = [];
   for (let i = 0; i < words.length; i++) {

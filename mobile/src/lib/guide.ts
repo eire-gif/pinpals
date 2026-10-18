@@ -1117,7 +1117,7 @@ export const GUIDES: Guide[] = [
           { style: "primary", label: "Say scores", icon: "mic" },
           { style: "primary", label: "Save & go to hole 8", icon: "checkmark" },
         ],
-        tip: "Birdie, par, bogey, double, picked up or no return (NR), “the same” and “the rest of us par” all work. It listens on your phone, so it works with no signal on most iPhones. Nothing saves until you tap Save.",
+        tip: "Birdie, par, bogey, double, picked up or no return (NR), “the same” and “the rest of us par” all work. It listens on your phone, so it works with no signal on most iPhones. Nothing saves until you tap Save. Tracking your stats? Add them as you say your score — “I had a five, two putts, missed it short”.",
       },
       {
         title: "Score from your lock screen",
@@ -1371,6 +1371,12 @@ export const GUIDES: Guide[] = [
         body: "Want more? Under Your stats, switch on Track my stats. In a live round a small row then appears under your own score: tee shot (left, fairway, right), putts, which way you missed the green, and +1 penalty. About four taps a hole. Only you see them.",
         look: [{ style: "outline", label: "Track my stats" }],
         tip: "Greens in regulation and par saves are worked out from your score and putts — you never enter them. Tap a chosen answer again to clear it.",
+      },
+      {
+        title: "Or just say them",
+        body: "With Say scores, add your stats after your score: “I had a five, two putts, missed it short” or “bogey, hit the fairway, three putted”. They show under YOUR STATS on the check screen — tap Leave out if it heard wrong — and save with the scores.",
+        look: [{ style: "outline", label: "2 putts · missed short" }],
+        tip: "Only your own stats are kept: say them after “I” or your name. Penalties work too — “out of bounds”, “in the water”, “two penalty shots”.",
       },
       {
         title: "Or add them in 60 seconds",
@@ -1877,6 +1883,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-18", text: "See where your shots go: new step, Or just say them — with Say scores, add your stats after your score (“I had a five, two putts, missed it short”). Score a game live: Or say the scores mentions it." },
   { on: "2026-10-18", text: "See where your shots go: new steps — Where your shots go (against your goal handicap, with your biggest leak) and Your practice focus." },
   { on: "2026-10-18", text: "See where your shots go: new steps — Track my stats (a row under your score in a live round: tee shot, putts, missed green, penalty), Or add them in 60 seconds (from a saved card), and See them add up on My Game." },
   { on: "2026-10-18", text: "New guide, See where your shots go: My Game on your Profile (and at the top of My scorecards) reads your scorecards — what's costing you most, par 3s, 4s and 5s, your start, doubles, and your course hole by hole." },
