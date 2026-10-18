@@ -15,7 +15,7 @@ import { isOn } from "@/lib/features";
 import { draw, honourWishes, indexTotal, swapPlayers, teamSizes, teeGroupSizes, teeTimes, type DrawMode, type DrawPlayer, type DrawWishes, type Seat } from "@/lib/group-draw";
 import { canDrawFrom, loadGroupRoster, loadMyGroups, type Group, type RosterPlayer } from "@/lib/groups-data";
 import type { GroupRole } from "@/lib/groups";
-import { SIDE_COLORS, createFourballDay, createMatchDay, createScrambleDay } from "@/lib/live-match-days";
+import { SIDE_COLORS, createFourballDay, createMatchDay, createScrambleDay, setDayLeaderboardHidden } from "@/lib/live-match-days";
 import {
   FOURSOMES_ALLOWANCE,
   GREENSOMES_ALLOWANCE,
@@ -63,6 +63,11 @@ import { explainStartError } from "@/lib/open-game-alert";
  *   Greensomes Stableford /  → the same, for greensomes pairs (0173): both
  *   Greensomes stroke play     drive, play the better, then alternate; each
  *                              pair off 60% low + 40% high.
+ *
+ * SECRET LEADERBOARD (0174): "Keep the leaderboard secret" — players see
+ * only their own card and tee group; the organiser and the event's officers
+ * see the whole field; the clubhouse TV stays live. It comes off when the
+ * results are published, or from the day's board.
  *
  * SHOTGUN START (0173): instead of tee times one after another, every group
  * goes off at the same time from its own hole — with more groups than
@@ -206,6 +211,8 @@ export default function DrawFromGroup() {
   const [gap, setGap] = useState(10);
   /** Off the 1st in turn, or a shotgun start (0173). */
   const [shotgun, setShotgun] = useState(false);
+  /** Only the organiser sees who's winning until the results are out (0174). */
+  const [secret, setSecret] = useState(false);
   const [drawn, setDrawn] = useState<Entrant[][] | null>(null);
   const [picked, setPicked] = useState<Seat | null>(null);
   const [saving, setSaving] = useState(false);
@@ -579,6 +586,13 @@ export default function DrawFromGroup() {
             }),
           })),
           course.holeCard()
+        );
+      }
+      if (secret && !matchFormat) {
+        // Before anyone opens the board. If it fails, say so: the organiser
+        // can still hide it from the day's board.
+        await setDayLeaderboardHidden(id, true).catch(() =>
+          Alert.alert("The leaderboard isn't hidden yet", "Open the day and tap Keep the leaderboard secret.")
         );
       }
       if (outing) {
@@ -1066,6 +1080,20 @@ export default function DrawFromGroup() {
             <Ionicons name="shuffle" size={20} color={colors.cream50} />
             <Text style={styles.startLabel}>{drawnNow ? "Draw again" : "Make the draw"}</Text>
           </Pressable>
+          {!matchFormat ? (
+            <Pressable
+              onPress={() => setSecret((v) => !v)}
+              style={styles.timeRow}
+              accessibilityRole="switch"
+              accessibilityState={{ checked: secret }}
+              accessibilityLabel="Keep the leaderboard secret until the results are announced"
+            >
+              <Ionicons name={secret ? "checkbox" : "square-outline"} size={22} color={colors.navy900} />
+              <Text style={[styles.meta, { flex: 1 }]}>
+                Keep the leaderboard secret — players see only their own group; you see who&apos;s winning. The TV stays live. It&apos;s shown to everyone when you publish the results.
+              </Text>
+            </Pressable>
+          ) : null}
           {wishes && !scramble && !matchFormat && !foursomesComp ? (
             <Pressable
               onPress={() => setUseWishes((v) => !v)}

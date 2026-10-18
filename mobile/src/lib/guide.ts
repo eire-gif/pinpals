@@ -733,6 +733,15 @@ export const GUIDES: Guide[] = [
         ],
       },
       {
+        title: "Keep the leaderboard secret, if you like",
+        body: "Announcing the winners at a dinner? Before you start the day, tick Keep the leaderboard secret. Players then see only their own group's card, not who's winning; you see the whole board, and the TV in the clubhouse stays live. It's shown to everyone the moment you publish the results.",
+        look: [{ style: "outline", label: "Keep the leaderboard secret", icon: "eye-off-outline" }],
+        tip: "Forgot? Open the day's board and tap Keep the leaderboard secret, or Show it to everyone to open it up early. Only you can put a secret day on a TV.",
+        as: {
+          society: { tip: "The captain, secretary and event organisers see the whole board too. Forgot? Open the day's board and tap Keep the leaderboard secret, or Show it to everyone to open it up early." },
+        },
+      },
+      {
         title: "Tee off — or save it for the day",
         body: "Playing today? Tap Start the day. For a later date, tap Save for that day — everyone sees their tee time under the group's Events, and you start it there on the morning.",
         look: [
@@ -784,7 +793,7 @@ export const GUIDES: Guide[] = [
         look: [{ style: "primary", label: "Prepare results" }],
         who: "Whoever started the day. Everyone else sees the results once you publish them.",
         go: { label: "Live scoring", to: "/live" },
-        tip: "Results are for Stableford and stroke-play days, scrambles and foursomes. A match day's result is its team score, already on its board.",
+        tip: "Results are for Stableford and stroke-play days, scrambles and foursomes. A match day's result is its team score, already on its board. Kept the leaderboard secret? Publishing shows it to everyone — so publish after you've read out the winners.",
       },
       {
         title: "How the winners are decided",
@@ -1797,6 +1806,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-18", text: "Play a round together: new step, Keep the leaderboard secret — players see only their own group until you publish the results, so the winners stay a surprise for the prize-giving. The TV stays live. Publish the results mentions it too." },
   { on: "2026-10-18", text: "New: Game formats, under Menu → Play — all 41 ways to play explained in plain English, from Stableford and foursomes to scrambles, skins and Wolf, with handicap allowances and pictures. Play a round together now points to it when you choose the format." },
   { on: "2026-10-18", text: "Play a round together: new Greensomes Stableford and Greensomes stroke play (pairs both drive, play the better, then alternate), and a Shotgun start — every group off at once from its own hole, an A and a B group where needed. Choose the format and Name the day and pick when are updated." },
   { on: "2026-10-17", text: "Societies: the committee can upload the member list from a spreadsheet on the website (Members → Import from spreadsheet). Everyone is emailed, and joins the society as soon as they sign in to PinPals with that address. Set up a society and Join a society are updated." },

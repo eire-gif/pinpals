@@ -53,9 +53,15 @@ export async function cardForFollow(db: SupabaseClient, follow: FollowRow, now =
   if (error) throw error;
   if (!round) return { ok: false, reason: "gone" };
 
-  // A scramble / foursomes team's place is among the day's teams.
+  // A scramble / foursomes team's place is among the day's teams — unless
+  // the day's leaderboard is secret (0174), when no place is given away.
   let rows: RoundRow[] = [round];
+  let secret = false;
   if (round.match_day_id != null && round.scramble_size != null) {
+    const { data: day } = await db.from("live_match_days").select("leaderboard_hidden").eq("id", round.match_day_id).maybeSingle<{ leaderboard_hidden: boolean | null }>();
+    secret = day?.leaderboard_hidden === true;
+  }
+  if (round.match_day_id != null && round.scramble_size != null && !secret) {
     const { data: dayRounds, error: e2 } = await db.from("live_rounds").select(ROUND_COLS).eq("match_day_id", round.match_day_id);
     if (e2) throw e2;
     rows = (dayRounds ?? []) as RoundRow[];

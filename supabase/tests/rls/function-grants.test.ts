@@ -587,6 +587,11 @@ const EXPECTED: Record<string, Expectation> = {
   "claim_group_email_invite(p_token text)": { anon: false, authenticated: true },
   "claim_group_email_invites_for(p_user uuid, p_email text)": { anon: false, authenticated: false },
   "on_auth_user_email_invites()": { anon: false, authenticated: false },
+  // 0174: a secret leaderboard until the prize-giving.
+  "live_day_organiser(p_day_id bigint, p_user uuid)": { anon: false, authenticated: false },
+  "live_day_is_organiser(p_day_id bigint)": { anon: false, authenticated: true },
+  "set_day_leaderboard_hidden(p_day_id bigint, p_hidden boolean)": { anon: false, authenticated: true },
+  "competition_results_reveal()": { anon: false, authenticated: false },
 };
 
 type ActualRow = { signature: string; anon: boolean; authenticated: boolean };

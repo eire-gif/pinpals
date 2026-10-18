@@ -53,6 +53,8 @@ export type MatchDay = {
   foursomes: FoursomesScoring | null;
   /** Greensomes pairs (0173), with `foursomes` saying how they're ranked. */
   greensomes: boolean;
+  /** Secret leaderboard (0174): players see only their own tee group until the results are out. */
+  leaderboardHidden: boolean;
 };
 
 export type DayKind = "match" | "scramble" | "fourballs";
@@ -101,9 +103,10 @@ type DayRow = {
   kind: string | null;
   foursomes_scoring: FoursomesScoring | null;
   greensomes: boolean | null;
+  leaderboard_hidden: boolean | null;
 };
 
-const DAY_SELECT = "id, created_by, title, club_id, course_name, tee_name, holes, played_on, team_names, kind, foursomes_scoring, greensomes";
+const DAY_SELECT = "id, created_by, title, club_id, course_name, tee_name, holes, played_on, team_names, kind, foursomes_scoring, greensomes, leaderboard_hidden";
 
 const toDay = (d: DayRow): MatchDay => ({
   id: d.id,
@@ -118,6 +121,7 @@ const toDay = (d: DayRow): MatchDay => ({
   kind: asKind(d.kind),
   foursomes: d.foursomes_scoring ?? null,
   greensomes: !!d.greensomes && d.foursomes_scoring != null,
+  leaderboardHidden: !!d.leaderboard_hidden,
 });
 
 export const asMatchPlayers = (players: LiveRoundPlayer[]): MatchPlayer[] =>
@@ -443,3 +447,20 @@ export async function loadMatchDayHeader(dayId: number): Promise<Pick<MatchDay, 
  *  hue, so they read apart for colour-blind players too. */
 export const SIDE_COLORS = ["#1e4e8c", "#d3a53f"] as const;
 export const SIDE_TEXT = ["#ffffff", "#0e1520"] as const;
+
+// ---------------------------------------------------------------------------
+// A secret leaderboard (0174)
+// ---------------------------------------------------------------------------
+
+/** Whether I run this day: I started it, or I'm an officer of its society event. */
+export async function isDayOrganiser(dayId: number): Promise<boolean> {
+  const { data, error } = await supabase.rpc("live_day_is_organiser", { p_day_id: dayId });
+  if (error) return false;
+  return data === true;
+}
+
+/** Hide the leaderboard from the players (only the organiser sees who's winning), or show it to everyone. */
+export async function setDayLeaderboardHidden(dayId: number, hidden: boolean): Promise<void> {
+  const { error } = await supabase.rpc("set_day_leaderboard_hidden", { p_day_id: dayId, p_hidden: hidden });
+  if (error) throw new Error(error.message || "Couldn't change the leaderboard.");
+}
