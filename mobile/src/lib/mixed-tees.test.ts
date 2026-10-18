@@ -37,3 +37,36 @@ describe("extraLabel", () => {
     expect(extraLabel(0, "Red")).toBeNull();
   });
 });
+
+import { cardForRatings, ladiesTees } from "./mixed-tees";
+
+const cards = [
+  { id: 1, teeName: "White", holes: 18 },
+  { id: 2, teeName: "White (Women)", holes: 18 },
+  { id: 3, teeName: "Red", holes: 18 },
+  { id: 4, teeName: "Red (Women)", holes: 18 },
+  { id: 5, teeName: "Yellow", holes: 18 },
+];
+
+describe("cardForRatings", () => {
+  it("a woman on the reds plays off the women's card; a man off the men's", () => {
+    expect(cardForRatings(cards[2], cards, "women").teeName).toBe("Red (Women)");
+    expect(cardForRatings(cards[3], cards, "men").teeName).toBe("Red");
+  });
+  it("a woman on the whites plays off White (Women)", () => {
+    expect(cardForRatings(cards[0], cards, "women").teeName).toBe("White (Women)");
+  });
+  it("no answer, or no women's card for that tee: the tee as picked", () => {
+    expect(cardForRatings(cards[2], cards, null).teeName).toBe("Red");
+    expect(cardForRatings(cards[4], cards, "women").teeName).toBe("Yellow");
+  });
+});
+
+describe("ladiesTees", () => {
+  it("Red (Women) first, never the day's own card", () => {
+    expect(ladiesTees(cards, 1)?.teeName).toBe("Red (Women)");
+    expect(ladiesTees(cards, 4)?.teeName).toBe("White (Women)");
+    expect(ladiesTees([cards[0], cards[2]], 1)?.teeName).toBe("Red");
+    expect(ladiesTees([cards[0]], 1)).toBeNull();
+  });
+});

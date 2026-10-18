@@ -336,6 +336,9 @@ const EXPECTED: Record<string, Expectation> = {
   "scorecard_visible_row(p_member uuid, p_visibility text)": { anon: false, authenticated: true },
   "scorecard_save(p_id bigint, p_card jsonb, p_holes jsonb)": { anon: false, authenticated: true },
   "scorecard_from_live_round(p_round_id bigint)": { anon: false, authenticated: true },
+  // 0177: the draw reads a group's men's/women's ratings answers; it checks
+  // the caller can put the group on cards itself.
+  "group_ratings_categories(p_group_id bigint)": { anon: false, authenticated: true },
   // 0120 groups (step B)
   "is_group_member(p_group_id bigint, p_user_id uuid)": { anon: false, authenticated: true },
   "group_role(p_group_id bigint, p_user_id uuid)": { anon: false, authenticated: true },

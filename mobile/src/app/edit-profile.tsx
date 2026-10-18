@@ -19,6 +19,8 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import * as ImagePicker from "expo-image-picker";
 
 import { Chip, ChipGroup, Section } from "@/components/form-bits";
+import { RatingsChoice } from "@/components/ratings-choice";
+import { RATINGS_HINT } from "@/lib/ratings-category";
 import { membershipLabel } from "@/lib/membership-number";
 import { useAuth } from "@/lib/auth";
 import { birthdayLabel } from "@/components/birth-date-field";
@@ -377,6 +379,12 @@ export default function EditProfileScreen() {
             onValueChange={(v) => set({ handicapVisible: v })}
           />
         </Section>
+
+        {userId ? (
+          <Section title="Which course ratings do you play off?" hint={RATINGS_HINT}>
+            <RatingsChoice userId={userId} />
+          </Section>
+        ) : null}
 
         <Section title="About you" hint="A line or two. Other members see this.">
           <TextInput

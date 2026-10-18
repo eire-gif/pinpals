@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Switch, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 
 import { OnboardingFrame } from "@/components/onboarding-frame";
+import { RATINGS_CHOICES, loadMyRatingsCategory, saveMyRatingsCategory, type RatingsCategory } from "@/lib/ratings-category";
 import { useAuth } from "@/lib/auth";
 import {
   FREQUENCIES,
@@ -38,6 +39,8 @@ export default function GameStep() {
   const [visible, setVisible] = useState(true);
   const [frequency, setFrequency] = useState<Frequency | null>(null);
   const [interests, setInterests] = useState<Interest[]>([]);
+  /** Which course ratings they play off (0177): optional. */
+  const [ratings, setRatings] = useState<RatingsCategory | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -47,6 +50,7 @@ export default function GameStep() {
       if (p?.handicap !== null && p?.handicap !== undefined) setTenths(Math.round(p.handicap * 10));
       if (p) setVisible(p.handicapVisible || p.handicap === null);
     });
+    void loadMyRatingsCategory(userId).then(setRatings);
     void loadGameDetails(userId).then((g) => {
       setFrequency(g.frequency);
       setInterests(g.interests);
@@ -69,6 +73,7 @@ export default function GameStep() {
         handicapVisible: tenths !== null && visible,
       });
       await saveGameDetails(userId, frequency, interests);
+      if (ratings) await saveMyRatingsCategory(userId, ratings);
       router.push("/onboarding/played");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Couldn't save that. Please try again.");
@@ -118,6 +123,16 @@ export default function GameStep() {
           <Text style={styles.link}>{tenths === null ? "I do have a handicap" : "I don't have a handicap yet"}</Text>
         </Pressable>
       </View>
+
+      <Text style={[styles.label, styles.gap]}>
+        Which course ratings do you play off? <Text style={styles.soft}>Optional</Text>
+      </Text>
+      <View style={styles.chips}>
+        {RATINGS_CHOICES.map((c) => (
+          <Chip key={c.value} label={c.label} on={ratings === c.value} onPress={() => setRatings(ratings === c.value ? null : c.value)} />
+        ))}
+      </View>
+      <Text style={styles.hint}>Men and women have separate course ratings, even off the same tee — this puts you on the right ones in a society draw. Never shown on your profile.</Text>
 
       <Text style={[styles.label, styles.gap]}>How often do you play?</Text>
       <View style={styles.chips}>

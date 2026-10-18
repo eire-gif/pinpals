@@ -269,7 +269,7 @@ export default function PrivacyScreen() {
         <Pressable onPress={() => router.push("/edit-profile")} style={styles.linkRow} accessibilityRole="link">
           <Text style={styles.link}>Who sees my handicap? Edit profile →</Text>
         </Pressable>
-        <Text style={styles.foot}>Your handicap shows only while you switch it on; your Golf Ireland number never shows. Questions: privacy@pinpals.ie</Text>
+        <Text style={styles.foot}>Your handicap shows only while you switch it on; your Golf Ireland number never shows. Which course ratings you play off (men's or women's), if you say, is used only to place you on the right tees in a draw — it's never shown on your profile. Questions: privacy@pinpals.ie</Text>
       </ScrollView>
     </>
   );

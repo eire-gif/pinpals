@@ -40,6 +40,7 @@ export const EXPORT_SOURCES: readonly ExportSource[] = [
   { section: "approved_contacts", table: "junior_contacts", column: "junior_id", about: "PinPals your parent approved for you to play with." },
   { section: "approved_as_contact", table: "junior_contacts", column: "contact_id", about: "Members under 16 whose parent approved you to play with them." },
   { section: "contacts_you_approved", table: "junior_contacts", column: "approved_by", about: "PinPals you approved for your child to play with." },
+  { section: "course_ratings", table: "member_ratings_category", column: "member_id", about: "Which course ratings you play off (men's or women's), if you said — used only to place you on the right tees in a draw." },
   { section: "mobile_number", table: "member_phones", column: "member_id", about: "Your mobile number." },
   { section: "mobile_sharing", table: "member_phone_shares", column: "member_id", about: "The groups whose captain and secretary can see your mobile." },
   { section: "addresses", table: "addresses", column: "user_id", about: "Delivery addresses." },

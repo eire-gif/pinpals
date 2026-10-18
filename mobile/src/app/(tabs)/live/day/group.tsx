@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
 import { Stack, router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -39,7 +39,9 @@ import { addOutingGuest, linkOutingMatchDay, loadClub, loadDrawWishes, loadOutin
 import { loadItineraryItem, setItemPeople, type ItineraryItem } from "@/lib/itinerary";
 import type { PlayFormat } from "@/lib/itinerary-rules";
 import { clockLabel } from "@/lib/tee-time-post";
-import { extraLabel, playerTees, type TeeSet } from "@/lib/mixed-tees";
+import { cardForRatings, extraLabel, ladiesTees, playerTees, type TeeSet } from "@/lib/mixed-tees";
+import { loadGroupRatings } from "@/lib/ratings-category";
+import type { CourseCard } from "@/lib/live-rounds";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 import { explainStartError } from "@/lib/open-game-alert";
 
@@ -99,6 +101,11 @@ import { explainStartError } from "@/lib/open-game-alert";
  * for the different tees" on, the par difference is added (WHS Rule 6.2b).
  * Everyone is scored on the day's one card. Stored on each player as
  * tee_name and tee_extra.
+ *
+ * RATINGS (0177): members who've said which course ratings they play off
+ * are placed by themselves — women on the ladies' tees, each on the women's
+ * card for their tee ("Red (Women)", or "White (Women)" for a lady on the
+ * whites), men on the men's. The organiser can still move anyone.
  *
  * A FUTURE DATE (Oct 2026): the date and first tee are picked on scroll
  * wheels. Today → "Start the day" as before. A later date → "Save for
@@ -226,6 +233,10 @@ export default function DrawFromGroup() {
   const [otherCardId, setOtherCardId] = useState<number | null>(null);
   const [onOther, setOnOther] = useState<Set<string>>(new Set());
   const [adjustTees, setAdjustTees] = useState(true);
+  /** The group's men's/women's ratings answers (0177), for placing players on tees. */
+  const [ratings, setRatings] = useState<Map<string, "men" | "women">>(new Map());
+  /** Players already put on the other tees by their answer, so an organiser's untick sticks. */
+  const autoPlaced = useRef<Set<string>>(new Set());
   const [drawn, setDrawn] = useState<Entrant[][] | null>(null);
   const [picked, setPicked] = useState<Seat | null>(null);
   const [saving, setSaving] = useState(false);
@@ -350,6 +361,16 @@ export default function DrawFromGroup() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [groupId, groupKind, groupName, userId, outingId, roundId]);
 
+  useEffect(() => {
+    setRatings(new Map());
+    if (groupId == null) return;
+    let live = true;
+    void loadGroupRatings(groupId).then((m) => live && setRatings(m));
+    return () => {
+      live = false;
+    };
+  }, [groupId]);
+
   const entrants: Entrant[] = useMemo(() => {
     const members = (roster ?? [])
       .filter((p) => ticked.has(p.id))
@@ -450,14 +471,38 @@ export default function DrawFromGroup() {
   // Mixed tees (0176): the other tees, if picked, and who's on them.
   const otherCard = mixedTees ? (course.cards?.find((c) => c.id === otherCardId && c.id !== course.cardId) ?? null) : null;
   const dayTees: TeeSet = { name: course.teeName.trim() || "day's", courseRating: course.rating, slope: course.slope, par: course.par };
-  const otherTees: TeeSet | null = otherCard
-    ? { name: otherCard.teeName, courseRating: otherCard.courseRating, slope: otherCard.slope, par: otherCard.parTotal ?? otherCard.card.reduce((n, h) => n + h.par, 0) }
-    : null;
+  const teeSetOf = (c: CourseCard): TeeSet => ({ name: c.teeName, courseRating: c.courseRating, slope: c.slope, par: c.parTotal ?? c.card.reduce((n, h) => n + h.par, 0) });
+  const otherTees: TeeSet | null = otherCard ? teeSetOf(otherCard) : null;
+  const dayCard = course.card;
+  /** A player's own card, when not the day's: the other tees if they're on them, then the right ratings for them (0177). */
+  const ownCard = (e: Entrant): CourseCard | null => {
+    if (!mixedTees) return null;
+    const base = otherCard && onOther.has(e.key) ? otherCard : dayCard;
+    if (!base) return null;
+    const c = cardForRatings(base, course.cards ?? [], e.memberId ? ratings.get(e.memberId) : null);
+    return c.id === dayCard?.id ? null : c;
+  };
   const handicaps = (e: Entrant) => {
     if (e.index == null) return null;
-    const t = playerTees(e.index, dayTees, otherTees && onOther.has(e.key) ? otherTees : null, adjustTees);
+    const own = ownCard(e);
+    const t = playerTees(e.index, dayTees, own ? teeSetOf(own) : null, adjustTees);
     return { index: e.index, ...t };
   };
+  const ladiesIn = entrants.filter((e) => e.memberId && ratings.get(e.memberId) === "women").length;
+
+  // Mixed tees on: start from the ladies' tees, and put the women there.
+  useEffect(() => {
+    if (!mixedTees || otherCardId != null || !course.cards) return;
+    const t = ladiesTees(course.cards, course.cardId);
+    if (t) setOtherCardId(t.id);
+  }, [mixedTees, otherCardId, course.cards, course.cardId]);
+  useEffect(() => {
+    if (!mixedTees || otherCardId == null) return;
+    const add = entrants.filter((e) => e.memberId && ratings.get(e.memberId) === "women" && !autoPlaced.current.has(e.key)).map((e) => e.key);
+    if (add.length === 0) return;
+    for (const k of add) autoPlaced.current.add(k);
+    setOnOther((prev) => new Set([...prev, ...add]));
+  }, [mixedTees, otherCardId, entrants, ratings]);
 
   const problems: string[] = [];
   if (!group) problems.push("Choose a group");
@@ -478,11 +523,14 @@ export default function DrawFromGroup() {
   if (shotgunOn && !/^\d{2}:\d{2}$/.test(firstTee)) problems.push("Set the shotgun's start time");
   problems.push(...course.problems);
   if (mixedTees) {
-    if (!otherCard) problems.push("Pick the other tees, or untick Some players play off other tees");
-    else {
-      if (otherCard.courseRating == null || otherCard.slope == null) problems.push(`The ${otherCard.teeName} tees have no rating or slope on file`);
+    const owns = entrants.map(ownCard).filter((c): c is CourseCard => c != null);
+    if (!otherCard && owns.length === 0) problems.push("Pick the other tees, or untick Some players play off other tees");
+    if (otherCard) {
       if (otherCard.holes !== course.holes) problems.push(`The ${otherCard.teeName} card is ${otherCard.holes} holes — the day is ${course.holes}`);
-      if (!entrants.some((e) => onOther.has(e.key))) problems.push(`Tick who plays off the ${otherCard.teeName} tees`);
+      if (!entrants.some((e) => onOther.has(e.key)) && owns.length === 0) problems.push(`Tick who plays off the ${otherCard.teeName} tees`);
+    }
+    for (const c of new Map(owns.map((o) => [o.id, o])).values()) {
+      if (c.courseRating == null || c.slope == null) problems.push(`The ${c.teeName} tees have no rating or slope on file`);
     }
   }
   if (title.trim() === "") problems.push("Give the day a name");
@@ -1001,6 +1049,11 @@ export default function DrawFromGroup() {
                           : ""}
                       </Text>
                     </Pressable>
+                    {ladiesIn > 0 ? (
+                      <Text style={styles.meta}>
+                        {ladiesIn === 1 ? "One player plays" : `${ladiesIn} players play`} off women&apos;s ratings (from their profile) and {ladiesIn === 1 ? "is" : "are"} on these tees already — tap to move anyone. Each is on the women&apos;s card for their tees.
+                      </Text>
+                    ) : null}
                     <Text style={styles.meta}>
                       Each player&apos;s handicap comes from their own tees. Everyone is scored on the {course.teeName.trim() || "day's"} card, so the pars and stroke indexes are the same for all.
                     </Text>
@@ -1244,7 +1297,7 @@ export default function DrawFromGroup() {
                       {p.memberId === userId ? `${p.name} (you)` : p.name || "Guest"}
                       {matchFormat && teamsOn ? <Text style={styles.sideName}>{`  ${teamNames[sideOf(pi, g.length) - 1]}`}</Text> : null}
                     </Text>
-                    {otherCard && onOther.has(p.key) ? <Text style={[styles.meta, on && styles.drawnNameOn]}>{otherCard.teeName}</Text> : null}
+                    {mixedTees && handicaps(p)?.teeName ? <Text style={[styles.meta, on && styles.drawnNameOn]}>{handicaps(p)!.teeName}</Text> : null}
                     <Text style={[styles.meta, on && styles.drawnNameOn]}>{p.index != null ? indexLabel(p.index) : "no index"}</Text>
                     {on ? <Ionicons name="swap-vertical" size={18} color={colors.cream50} /> : null}
                   </Pressable>

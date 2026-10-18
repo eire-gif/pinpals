@@ -38,3 +38,32 @@ export function extraLabel(extra: number, teeName: string): string | null {
   const n = Math.abs(extra);
   return extra > 0 ? `${n} extra ${n === 1 ? "shot" : "shots"} off the ${teeName} tees` : `${n} ${n === 1 ? "shot" : "shots"} fewer off the ${teeName} tees`;
 }
+
+type NamedCard = { id: number; teeName: string; holes: number };
+
+const stemOf = (teeName: string) => teeName.replace(/\s*\(women\)\s*$/i, "").trim();
+
+/**
+ * The card for a player's ratings (0177): course ratings are set separately
+ * for men and women off the same tee, and the directory holds them as "Red"
+ * and "Red (Women)". A woman on the reds plays off "Red (Women)", a man put
+ * on the ladies' tees off "Red"; with no answer, or no such card, the tee
+ * picked is used as it is.
+ */
+export function cardForRatings<C extends NamedCard>(tee: C, cards: readonly C[], category: "men" | "women" | null | undefined): C {
+  if (!category) return tee;
+  const stem = stemOf(tee.teeName);
+  const want = (category === "women" ? `${stem} (Women)` : stem).toLowerCase();
+  return cards.find((c) => c.holes === tee.holes && c.teeName.trim().toLowerCase() === want) ?? tee;
+}
+
+/** The usual ladies' tees on a card list: Red (Women), else any women's card, else Red; never the day's own. */
+export function ladiesTees<C extends NamedCard>(cards: readonly C[], dayCardId: number | null): C | null {
+  const pool = cards.filter((c) => c.id !== dayCardId);
+  return (
+    pool.find((c) => /^red \(women\)$/i.test(c.teeName.trim())) ??
+    pool.find((c) => /\(women\)\s*$/i.test(c.teeName)) ??
+    pool.find((c) => /^red$/i.test(c.teeName.trim())) ??
+    null
+  );
+}
