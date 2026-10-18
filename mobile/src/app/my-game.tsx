@@ -1,6 +1,6 @@
 import { useCallback, useState, type ReactNode } from "react";
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
-import { Stack, router, useFocusEffect } from "expo-router";
+import { Stack, router, useFocusEffect, type Href } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { LoadError, StateMessage } from "@/components/state-message";
@@ -377,6 +377,12 @@ function FocusCard({ focus: f }: { focus: Focus }) {
         </View>
         <Text style={styles.rowRead}>{met ? "Target reached — nice work. Keep it there, or raise your goal." : "This updates with every round you keep stats for."}</Text>
       </View>
+      {f.train ? (
+        <Pressable onPress={() => router.push(f.train!.to as Href)} style={({ pressed }) => [styles.reviewButton, pressed && styles.pressed]} accessibilityRole="button">
+          <Ionicons name="barbell-outline" size={17} color={colors.green700} />
+          <Text style={styles.reviewText}>{f.train.label}</Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 }

@@ -127,3 +127,11 @@ describe("warm-ups", () => {
     for (const w of Object.values(WARM_UPS)) expect(w.steps.reduce((n, s) => n + s.minutes, 0)).toBe(w.minutes);
   });
 });
+
+describe("links from My Game's practice focus", () => {
+  it("point at drills that exist", () => {
+    // shots-breakdown.ts names these two; keep them in step.
+    expect(drillById("ladder-lag")).toBeDefined();
+    expect(drillById("clock")).toBeDefined();
+  });
+});
