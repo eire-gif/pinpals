@@ -159,7 +159,7 @@ export default function ExploreScreen() {
             <Pressable
               key={c.key}
               style={({ pressed }) => [styles.tocRow, i === shown.length - 1 && styles.tocLast, pressed && styles.pressed]}
-              onPress={() => scroll.current?.scrollTo({ y: (tops.current[c.key] ?? 0) - 8, animated: true })}
+              onPress={() => scroll.current?.scrollTo({ y: Math.max(0, (tops.current[c.key] ?? 0) - 8), animated: true })}
               accessibilityRole="button"
               accessibilityLabel={`Chapter ${c.numeral}: ${c.button.title}`}
             >
@@ -175,8 +175,10 @@ export default function ExploreScreen() {
 
         {/* CHAPTERS */}
         {shown.map((c, i) => (
-          <View key={c.key}>
-            <View style={styles.chapter} onLayout={(e) => (tops.current[c.key] = e.nativeEvent.layout.y)}>
+          // onLayout on the outer View: its y is measured within the scroll
+          // content. The chapter's own y would be relative to this wrapper (0).
+          <View key={c.key} onLayout={(e) => (tops.current[c.key] = e.nativeEvent.layout.y)}>
+            <View style={styles.chapter}>
               <View style={styles.chapterHead}>
                 <Text style={styles.numeral}>{c.numeral}</Text>
                 <Text style={styles.chapterEyebrow}>{c.eyebrow}</Text>
