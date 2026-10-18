@@ -8,7 +8,8 @@ import { signLiveScoreToken } from "@/lib/live-score-token";
  * scores with, for this round only (src/lib/live-score-token.ts). The app
  * asks when it starts or refreshes the card.
  *
- * Only for a live round the member is playing in with their own ball: the
+ * Only for a live round the member is playing in — their own ball, or their
+ * pair's or team's card: the
  * same rule live_round_set_own_score() (0155) enforces on every save, checked
  * here too so the app doesn't offer a lock screen card that can't save.
  */
@@ -26,7 +27,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     .maybeSingle<{ id: number; status: string; scramble_size: number | null; match_type: string | null }>();
   if (!round) return Response.json({ error: "Round not found" }, { status: 404 });
   if (round.status !== "live") return Response.json({ error: "This round has finished" }, { status: 409 });
-  if (round.scramble_size != null || round.match_type === "foursomes" || round.match_type === "greensomes") {
+  // A pair or scramble team scores its one card (0175); a foursomes or
+  // greensomes match stays in the app.
+  if (round.match_type === "foursomes" || round.match_type === "greensomes") {
     return Response.json({ error: "This format is scored in the app" }, { status: 409 });
   }
 
