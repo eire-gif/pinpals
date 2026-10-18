@@ -295,6 +295,12 @@ export default function CertifyScreen() {
           <Pressable onPress={() => router.replace({ pathname: "/scorecards/[id]", params: { id: String(req.scorecardId) } })} style={styles.link} accessibilityRole="button">
             <Text style={styles.linkText}>Open the card</Text>
           </Pressable>
+        ) : !open ? (
+          // 0180: a certifier who played has their own card saved when the
+          // round finished — it's at the top of My scorecards.
+          <Pressable onPress={() => router.replace("/scorecards")} style={styles.link} accessibilityRole="button">
+            <Text style={styles.linkText}>Open my card</Text>
+          </Pressable>
         ) : null}
       </ScrollView>
     </KeyboardAvoidingView>

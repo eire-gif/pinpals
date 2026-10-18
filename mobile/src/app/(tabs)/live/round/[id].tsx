@@ -1329,7 +1329,9 @@ export default function LiveRoundScreen() {
           ) : null}
 
           {/* Scorecards (0110): your own line as a card in your profile.
-              Saving again later refreshes the same card. */}
+              Saving again later refreshes the same card. Since 0180 a
+              finished round has already saved every member's card, so
+              there it just opens yours. */}
           {isOn("scorecards") && me != null && players.some((p) => p.memberId === me) ? (
             <Pressable onPress={() => void saveMyScorecard()} style={styles.secondary} accessibilityRole="button">
               <Ionicons name="document-text-outline" size={18} color={colors.green700} />
@@ -1337,10 +1339,10 @@ export default function LiveRoundScreen() {
                 {sideCard
                   ? live
                     ? `Save our ${scr && !scr.foursomes ? "team" : "pair"}'s card so far`
-                    : `Save our ${scr && !scr.foursomes ? "team" : "pair"}'s card`
+                    : `Open our ${scr && !scr.foursomes ? "team" : "pair"}'s card`
                   : live
                     ? "Save my scorecard so far"
-                    : "Save my scorecard"}
+                    : "Open my scorecard"}
               </Text>
             </Pressable>
           ) : null}
