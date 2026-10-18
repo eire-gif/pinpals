@@ -730,7 +730,7 @@ export const GUIDES: Guide[] = [
           { style: "outline", label: "Red", icon: "golf" },
           { style: "outline", label: "Adjust for the different tees" },
         ],
-        tip: "Everyone is scored on the day's one card, so the pars and stroke indexes are the same for all. Saved to My scorecards, a card off the reds goes in on the reds' rating and slope, so the handicap record is right. Only tees with a card on file can be picked.",
+        tip: "Members who've said in Edit profile which course ratings they play off are placed for you: ladies on the ladies' tees, each on the women's card for their tees (Red (Women), or White (Women) for a lady on the whites). Tap anyone to move them. Everyone is scored on the day's one card. Saved to My scorecards, a card goes in on the player's own tees, so the handicap record is right.",
       },
       {
         title: "Make the draw",
@@ -1815,6 +1815,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-18", text: "Mixed tees: members can say in Edit profile (or when they join) which course ratings they play off — Men's, Women's or Prefer not to say. With Mixed tees on, ladies are placed on the ladies' tees, on the women's ratings, by themselves." },
   { on: "2026-10-18", text: "Play a round together: new step, Ladies off the reds? Mixed tees — put some players on other tees; each handicap comes from their own tees, with the World Handicap System adjustment for the difference in par as an option." },
   { on: "2026-10-18", text: "Score from your lock screen now works for foursomes and greensomes pairs and scramble teams too: either of you saves the pair's card without unlocking." },
   { on: "2026-10-18", text: "Play a round together: new step, Keep the leaderboard secret — players see only their own group until you publish the results, so the winners stay a surprise for the prize-giving. The TV stays live. Publish the results mentions it too." },
