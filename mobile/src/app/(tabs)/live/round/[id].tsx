@@ -62,6 +62,9 @@ import { voiceScoringEnabled } from "@/lib/native-capabilities";
 import { voiceSupported } from "@/lib/voice-listening";
 import { VoiceScoresSheet, type VoiceRow } from "@/components/voice-scores-sheet";
 import { positionLine } from "@/lib/lock-screen-rules";
+import { LiveStatsRow } from "@/components/live-stats-row";
+import { useTracking } from "@/lib/my-stats";
+import { useMembership } from "@/lib/membership";
 
 /**
  * Scoring a round, and its leaderboard.
@@ -103,6 +106,9 @@ export default function LiveRoundScreen() {
   const [alertsOn, setAlertsOn] = useState<boolean | null>(null);
   const { session } = useAuth();
   const me = session?.user?.id ?? null;
+  // My Game (0178): your own stats under your score, if you track them.
+  const [trackStats] = useTracking();
+  const { gate } = useMembership();
   const started = useRef(false);
   const alertsLoaded = useRef<number | null>(null);
   // The card view, so finishing can bring its top — the result — into view.
@@ -1054,6 +1060,13 @@ export default function LiveRoundScreen() {
               </View>
             );
           })}
+
+          {(() => {
+            // Your own ball only: not a pair's or team's card, and not someone else's row.
+            const mine = players.find((p) => p.memberId != null && p.memberId === me);
+            if (!trackStats || !live || sideCard || !mine || gate("stats") !== "show") return null;
+            return <LiveStatsRow roundId={round.id} hole={h.hole} par={h.par} strokes={scores.get(mine.id)?.get(h.hole) ?? null} />;
+          })()}
 
           {voiceOn ? (
             <Pressable
