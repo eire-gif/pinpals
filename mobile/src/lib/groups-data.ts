@@ -616,3 +616,54 @@ export async function uploadGroupImage(groupId: number, which: GroupImage, file:
 export async function removeGroupImage(groupId: number, which: GroupImage): Promise<void> {
   await postFormToSite<{ ok: true }>(`/api/app/groups/${groupId}/image`, { which, remove: "on" });
 }
+
+// ---------------------------------------------------------------------------
+// Each group's next event (Oct 2026: My Groups & Societies)
+// ---------------------------------------------------------------------------
+
+export type NextOuting = {
+  outingId: number;
+  title: string;
+  course: string | null;
+  playsOn: string;
+  firstTee: string | null;
+  /** Everyone entered (members; guests aren't counted here). */
+  going: number;
+  /** You're entered. */
+  mine: boolean;
+};
+
+/**
+ * The soonest open event in each of these groups, from today on, in one
+ * read. RLS decides which come back; a group whose events you can't read
+ * simply has none here. Never throws — a missing line is better than a
+ * screen that won't open.
+ */
+export async function loadNextOutings(groupIds: number[], userId: string, today: string): Promise<Map<number, NextOuting>> {
+  const out = new Map<number, NextOuting>();
+  if (groupIds.length === 0) return out;
+  const { data, error } = await supabase
+    .from("society_outings")
+    .select("id, group_id, title, course_name, plays_on, first_tee, entries:society_outing_entries(member_id)")
+    .in("group_id", groupIds)
+    .eq("status", "open")
+    .gte("plays_on", today)
+    .order("plays_on")
+    .overrideTypes<
+      { id: number; group_id: number; title: string; course_name: string | null; plays_on: string; first_tee: string | null; entries: { member_id: string }[] }[]
+    >();
+  if (error) return out;
+  for (const r of data ?? []) {
+    if (out.has(r.group_id)) continue;
+    out.set(r.group_id, {
+      outingId: r.id,
+      title: r.title,
+      course: r.course_name,
+      playsOn: r.plays_on,
+      firstTee: r.first_tee,
+      going: r.entries.length,
+      mine: r.entries.some((e) => e.member_id === userId),
+    });
+  }
+  return out;
+}

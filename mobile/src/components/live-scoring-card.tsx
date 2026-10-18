@@ -66,6 +66,7 @@ export function RaisedCard({
   tone = "navy",
   kicker,
   wrapTitle = false,
+  badge,
 }: {
   title: string;
   subtitle: string;
@@ -85,6 +86,8 @@ export function RaisedCard({
    * titles are the same size (Oct 2026).
    */
   wrapTitle?: boolean;
+  /** A small red count over the top-right corner ("2 new"). */
+  badge?: string;
 }) {
   const t = TONES[tone];
   return (
@@ -145,6 +148,11 @@ export function RaisedCard({
               <Ionicons name="chevron-forward" size={20} color={colors.gold400} />
             </View>
           </View>
+          {badge ? (
+            <View style={styles.badge} pointerEvents="none">
+              <Text style={styles.badgeText}>{badge}</Text>
+            </View>
+          ) : null}
         </View>
       )}
     </Pressable>
@@ -256,6 +264,18 @@ const styles = StyleSheet.create({
   barSide: { position: "absolute", right: 0, top: 0, bottom: 0, width: "40%", backgroundColor: GOLD_SHADE },
   barTop: { position: "absolute", left: 0, right: 0, top: 0, height: 3, backgroundColor: GOLD_LIGHT },
 
+  badge: {
+    position: "absolute",
+    top: -9,
+    right: 14,
+    backgroundColor: colors.red600,
+    borderRadius: 999,
+    paddingHorizontal: 9,
+    paddingVertical: 3,
+    borderWidth: 2,
+    borderColor: colors.cream50,
+  },
+  badgeText: { fontSize: 11, fontWeight: "800", color: "#ffffff" },
   middle: { flex: 1, alignItems: "center" },
   // No fontFamily: the system font, which iOS draws as SF Pro Display at
   // this size.

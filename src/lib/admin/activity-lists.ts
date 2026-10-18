@@ -181,7 +181,7 @@ function snippet(text: string | null, n = 90): string {
   return t.length > n ? `${t.slice(0, n - 1)}…` : t;
 }
 
-const GROUP_KINDS: Record<string, string> = { crew: "Crew", trip: "Golf trip", society: "Society", area: "Area", club: "Club" };
+const GROUP_KINDS: Record<string, string> = { crew: "Golf Buddies", trip: "Golf trip", society: "Society", area: "Area", club: "Club" };
 
 async function listSimple(kind: Exclude<ActivityKind, "scorecards" | "games">, w: Window): Promise<SimpleRow[]> {
   const admin = createAdminClient();

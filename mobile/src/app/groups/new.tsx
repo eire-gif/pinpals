@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
-import { Stack, router } from "expo-router";
+import { Stack, router, useLocalSearchParams } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { CourseSearch } from "@/components/course-search";
 import { GroupIcon } from "@/components/group-bits";
-import { CREATABLE_GROUP_KINDS, GROUP_ABOUT_MAX, GROUP_KIND_INFO, GROUP_NAME_MAX, groupNameProblem, type CreatableGroupKind } from "@/lib/groups";
+import { CREATABLE_GROUP_KINDS, GROUP_ABOUT_MAX, GROUP_KIND_INFO, GROUP_NAME_MAX, groupNameProblem, isCreatableGroupKind, type CreatableGroupKind } from "@/lib/groups";
 import { createGroup } from "@/lib/groups-data";
 import type { Club } from "@/lib/courses";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
@@ -13,7 +13,7 @@ import { AgeGateLoading, NotForUnder18, useAgeGate } from "@/components/not-for-
 
 /** What each kind is for, in the words a golfer would use. */
 const BLURB: Record<CreatableGroupKind, string> = {
-  crew: "Your regular fourball and the friends who fill in. Invite only, with a group chat.",
+  crew: "Your golf buddies — your regular fourball and the friends who fill in. Invite only, with a group chat.",
   trip: "Everyone on a golf trip. Invite only, with a group chat.",
   society: "A golf society. Golfers can find it and ask to join; you approve them.",
 };
@@ -27,7 +27,10 @@ const BLURB: Record<CreatableGroupKind, string> = {
  * the description, and its messages are shown as they come.
  */
 function NewGroupScreenInner() {
-  const [kind, setKind] = useState<CreatableGroupKind>("crew");
+  // Groups & societies' three start buttons pass the kind (Oct 2026); it can
+  // still be changed here.
+  const params = useLocalSearchParams<{ kind?: string }>();
+  const [kind, setKind] = useState<CreatableGroupKind>(isCreatableGroupKind(params.kind) ? params.kind : "crew");
   const [name, setName] = useState("");
   const [about, setAbout] = useState("");
   const [club, setClub] = useState<Club | null>(null);
@@ -127,7 +130,7 @@ function NewGroupScreenInner() {
 
       <View style={styles.footer}>
         <Pressable style={[styles.cta, !ready && styles.ctaOff]} onPress={() => void create()} disabled={!ready} accessibilityRole="button">
-          <Text style={styles.ctaLabel}>{busy ? "Creating…" : `Create ${GROUP_KIND_INFO[kind].label.toLowerCase()}`}</Text>
+          <Text style={styles.ctaLabel}>{busy ? "Creating…" : `Create ${kind === "crew" ? "group" : GROUP_KIND_INFO[kind].label.toLowerCase()}`}</Text>
         </Pressable>
       </View>
     </KeyboardAvoidingView>

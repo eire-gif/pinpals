@@ -33,7 +33,7 @@ describe("groups.ts", () => {
 
   it("has the four kinds the brief names, plus societies", () => {
     expect(GROUP_KINDS.map((k) => GROUP_KIND_INFO[k].example)).toEqual([
-      "Saturday Golf Crew",
+      "Saturday Golf Buddies",
       "Dublin Golfers",
       "Portmarnock members",
       "Algarve 2027",
