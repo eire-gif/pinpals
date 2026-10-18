@@ -428,9 +428,7 @@ export function matchCompetitors(format: MatchFormat, players: readonly MatchPla
       const pair = bySide(n);
       const chs = pair.map((p) => p.courseHandicap).sort((a, b) => a - b);
       const hcp =
-        format === "foursomes"
-          ? foursomesHandicap(chs)
-          : roundHalfUp(0.6 * (chs[0] ?? 0) + 0.4 * (chs[chs.length - 1] ?? 0));
+        format === "foursomes" ? foursomesHandicap(chs) : greensomesHandicap(chs);
       return { key: `side${n}`, side: n as 1 | 2, playerIds: pair.map((p) => p.id), matchHandicap: hcp };
     });
   } else {
@@ -686,6 +684,78 @@ export function foursomesLabel(scoring: FoursomesScoring): string {
  */
 export function foursomesTeeShot(hole: number): 1 | 2 {
   return hole % 2 === 1 ? 1 : 2;
+}
+
+// ---------------------------------------------------------------------------
+// Greensomes as a competition (0173)
+// ---------------------------------------------------------------------------
+//
+// Greensomes — "foursomes off the best drive" — both partners drive, the
+// pair picks the better drive, and the partner whose drive wasn't taken
+// plays the next shot; alternate shots from there. Stored and ranked like a
+// foursomes pair (one card, one leaderboard), off a different handicap.
+
+/** WHS (Appendix C): 60% of the lower course handicap, 40% of the higher. */
+export const GREENSOMES_ALLOWANCE = 0.6;
+
+/** A greensomes pair's handicap: 60% low + 40% high, rounded once — 9 and 18 → 5.4 + 7.2 = 12.6 → 13. */
+export function greensomesHandicap(courseHandicaps: readonly number[]): number {
+  if (courseHandicaps.length !== 2) throw new Error("A greensomes pair is two players");
+  const [low, high] = [...courseHandicaps].sort((a, b) => a - b);
+  return roundHalfUp(GREENSOMES_ALLOWANCE * low + 0.4 * high);
+}
+
+/** "Foursomes Stableford", "Greensomes stroke play"… */
+export function pairsLabel(scoring: FoursomesScoring, greensomes: boolean): string {
+  return greensomes ? (scoring === "stableford" ? "Greensomes Stableford" : "Greensomes stroke play") : foursomesLabel(scoring);
+}
+
+// ---------------------------------------------------------------------------
+// Shotgun starts (0173)
+// ---------------------------------------------------------------------------
+//
+// Every group goes off at the same time from its own hole. With more groups
+// than holes, a second group — "B" — starts on a hole once the "A" group has
+// hit its tee shots. B groups go on the par 5s first, then the par 4s, and
+// only then the par 3s, where a second group waits longest.
+
+export type StartLetter = "A" | "B" | "C" | "D";
+export type ShotgunStart = { hole: number; letter: StartLetter };
+
+/** Two groups a hole at most: 36 on 18 holes, 18 on 9. */
+export const shotgunCapacity = (holes: number): number => holes * 2;
+
+/**
+ * Where each group starts, in tee-group order: 1A, 1B, 2A, 3A, 3B… Fewer
+ * groups than holes: one a hole from the 1st. More: every hole has an A
+ * group and the rest are B groups, longest holes first.
+ */
+export function shotgunStarts(card: readonly { hole: number; par: number }[], groups: number): ShotgunStart[] {
+  const holes = [...card].sort((a, b) => a.hole - b.hole);
+  if (groups <= 0) return [];
+  if (groups > shotgunCapacity(holes.length)) throw new Error(`A shotgun takes ${shotgunCapacity(holes.length)} groups at most`);
+  if (groups <= holes.length) return holes.slice(0, groups).map((h) => ({ hole: h.hole, letter: "A" }));
+  const extra = groups - holes.length;
+  const twice = new Set(
+    [...holes]
+      .sort((a, b) => b.par - a.par || a.hole - b.hole)
+      .slice(0, extra)
+      .map((h) => h.hole)
+  );
+  return holes.flatMap((h): ShotgunStart[] => (twice.has(h.hole) ? [{ hole: h.hole, letter: "A" }, { hole: h.hole, letter: "B" }] : [{ hole: h.hole, letter: "A" }]));
+}
+
+/** "7B" — or "7" when the hole has only one group. */
+export function startLabel(start: { hole: number; letter: StartLetter | null } | null, alone = false): string {
+  if (!start) return "";
+  return alone || !start.letter ? String(start.hole) : `${start.hole}${start.letter}`;
+}
+
+/** The holes in the order a group plays them: from its start hole, round to the one before. */
+export function playOrder<T extends { hole: number }>(card: readonly T[], startHole: number | null): T[] {
+  const sorted = [...card].sort((a, b) => a.hole - b.hole);
+  const at = startHole == null ? -1 : sorted.findIndex((h) => h.hole === startHole);
+  return at <= 0 ? sorted : [...sorted.slice(at), ...sorted.slice(0, at)];
 }
 
 // ---------------------------------------------------------------------------

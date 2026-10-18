@@ -707,18 +707,21 @@ export const GUIDES: Guide[] = [
           { icon: "list", label: "Stroke play", blurb: "Ranked by net score." },
           { icon: "people", label: "Scramble 4s or 2s", blurb: "Teams, one ball per team." },
           { icon: "swap-horizontal", label: "Foursomes Stableford or stroke play", blurb: "Scotch foursomes: pairs share a ball and take alternate shots. Two pairs to a tee group." },
+          { icon: "swap-horizontal", label: "Greensomes Stableford or stroke play", blurb: "Pairs: both drive, play the better drive, then alternate shots. Two pairs to a tee group." },
           { icon: "git-compare", label: "Matchplay", blurb: "Singles, fourball, foursomes, greensomes." },
         ],
-        tip: "Foursomes and Scotch foursomes are the same game. Each pair plays off half its combined course handicaps — worked out for you.",
+        tip: "Foursomes and Scotch foursomes are the same game; each pair plays off half its combined course handicaps. In greensomes a pair plays off 60% of the lower course handicap and 40% of the higher. Both are worked out for you.",
       },
       {
         title: "Name the day and pick when",
-        body: "Give the day a name. Tap Date and scroll to a later day to set it up ahead, and tap First tee to set the start time. Choose Fourballs or Threeballs and the minutes between groups.",
+        body: "Give the day a name. Tap Date and scroll to a later day to set it up ahead, and tap First tee to set the start time. Choose Fourballs or Threeballs, then Tee times (groups off the 1st, so many minutes apart) or Shotgun start (every group off at once from its own hole).",
         look: [
           { style: "field", label: "Date", icon: "calendar-outline" },
           { style: "field", label: "First tee", icon: "time-outline" },
+          { style: "outline", label: "Tee times" },
+          { style: "outline", label: "Shotgun start" },
         ],
-        tip: "Only whoever runs the group can set a round up for a later date.",
+        tip: "A shotgun takes two groups a hole: with more groups than holes, the extra B groups go on the par 5s and 4s first. Each group's card starts on its own hole. Only whoever runs the group can set a round up for a later date.",
       },
       {
         title: "Make the draw",
@@ -1794,6 +1797,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-18", text: "Play a round together: new Greensomes Stableford and Greensomes stroke play (pairs both drive, play the better, then alternate), and a Shotgun start — every group off at once from its own hole, an A and a B group where needed. Choose the format and Name the day and pick when are updated." },
   { on: "2026-10-17", text: "Societies: the committee can upload the member list from a spreadsheet on the website (Members → Import from spreadsheet). Everyone is emailed, and joins the society as soon as they sign in to PinPals with that address. Set up a society and Join a society are updated." },
   { on: "2026-10-17", text: "Hole map: new step, Playing a competition — in a society event or competition round Plays like and the suggested club are off (Rule 4.3); tick Competition round under Hazards and more for any other competition. Yards or metres is now remembered." },
   { on: "2026-10-17", text: "Tee times: you can take back a request the host hasn't answered yet — Withdraw request under ••• in My rounds, or Withdraw my request on the round. Find a game is updated." },

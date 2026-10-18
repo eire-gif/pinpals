@@ -4,7 +4,7 @@ import { requireOptionalNativeModule } from "expo-modules-core";
 import { postToSite } from "./api";
 import { SITE_URL } from "./config";
 import type { LiveRound } from "./live-rounds";
-import { isOneBallPerSide, type CardHole } from "./live-scoring";
+import { isOneBallPerSide, playOrder, type CardHole } from "./live-scoring";
 import { sendScore } from "./score-queue";
 import { anySpots, lockScreenHole, lockScreenLinks, lockScreenSpots, lockScreenStrokes } from "./lock-screen-rules";
 import { isOn } from "./features";
@@ -130,7 +130,8 @@ export async function syncLockScreen(input: LockScreenRound): Promise<void> {
   if (!lockScreenEligible(round) || refused.has(round.id)) return;
 
   const strokes = lockScreenStrokes(input.scores);
-  const hole = lockScreenHole(input.card, input.scores);
+  // A shotgun group (0173) plays from its own hole round to the one before.
+  const hole = lockScreenHole(playOrder(input.card, round.start?.hole ?? null), input.scores);
   const key = await keyFor(round.id);
   if (!key) return;
   const api = `${SITE_URL.replace(/\/$/, "")}/api/widget/live/score`;

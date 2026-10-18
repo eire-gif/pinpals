@@ -215,7 +215,7 @@ export default function SocietyEventsScreen() {
                   <Text style={styles.meta}>
                     {cancelled
                       ? "Cancelled"
-                      : `${o.entered}${o.maxEntries ? ` of ${o.maxEntries}` : ""} in${o.mine && o.myTeeGroup ? ` · your tee time ${clock(o.myTeeTime) ?? `group ${o.myTeeGroup}`}` : ""}`}
+                      : `${o.entered}${o.maxEntries ? ` of ${o.maxEntries}` : ""} in${o.mine && o.myTeeGroup ? ` · ${o.myStart ? `shotgun ${clock(o.myTeeTime) ?? ""}, tee ${o.myStart.hole}${o.myStart.letter ?? ""}` : `your tee time ${clock(o.myTeeTime) ?? `group ${o.myTeeGroup}`}`}` : ""}`}
                   </Text>
                   {!cancelled && (o.myPlace || o.myPaymentDue) ? (
                     <View style={styles.chips}>

@@ -27,6 +27,7 @@ type RoundRow = {
   team_number: number | null;
   team_handicap: number | null;
   foursomes_scoring: "stableford" | "stroke" | null;
+  greensomes: boolean | null;
 };
 type PlayerRow = {
   id: number;
@@ -40,7 +41,7 @@ type PlayerRow = {
 };
 
 const ROUND_COLS =
-  "id, course_name, format, status, match_day_id, match_number, match_type, tee_time, scramble_size, team_name, team_number, team_handicap, foursomes_scoring";
+  "id, course_name, format, status, match_day_id, match_number, match_type, tee_time, scramble_size, team_name, team_number, team_handicap, foursomes_scoring, greensomes";
 
 const toRound = (r: RoundRow): TvRound => ({
   id: r.id,
@@ -52,7 +53,7 @@ const toRound = (r: RoundRow): TvRound => ({
   teeTime: r.tee_time ? r.tee_time.slice(0, 5) : null,
   scramble:
     r.scramble_size != null
-      ? { teamName: r.team_name, teamNumber: r.team_number, teamHandicap: r.team_handicap ?? 0, foursomes: r.foursomes_scoring ?? null }
+      ? { teamName: r.team_name, teamNumber: r.team_number, teamHandicap: r.team_handicap ?? 0, foursomes: r.foursomes_scoring ?? null, greensomes: !!r.greensomes }
       : null,
 });
 

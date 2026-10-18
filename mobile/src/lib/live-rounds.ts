@@ -1,7 +1,7 @@
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
 import { postToSite } from "./api";
-import type { CardHole, FoursomesScoring, LiveFormat, LivePlayer, MatchFormat, ScoreSheet, ScrambleSize } from "./live-scoring";
+import type { CardHole, FoursomesScoring, LiveFormat, LivePlayer, MatchFormat, ScoreSheet, ScrambleSize, StartLetter } from "./live-scoring";
 import type { ClubCardRow } from "./scorecards";
 import { supabase } from "./supabase";
 
@@ -46,6 +46,8 @@ export type LiveRound = {
   /** The match's format for the engine: "matchplay" is singles. */
   matchFormat: MatchFormat | null;
   teeTime: string | null;
+  /** Shotgun start (0173): the hole this group starts on, and A/B. Null = from the 1st. */
+  start: { hole: number; letter: StartLetter | null } | null;
   /** Set when this round is one scramble team (0113). */
   scramble: ScrambleInfo | null;
 };
@@ -60,6 +62,8 @@ export type ScrambleInfo = {
   /** Set when the team is a foursomes (Scotch foursomes) pair, 0136: how
    *  it's ranked. The round's format is then this too, not "scramble". */
   foursomes: FoursomesScoring | null;
+  /** A greensomes pair (0173): both drive, play the better one. Only with `foursomes`. */
+  greensomes: boolean;
 };
 
 export type LiveRoundPlayer = LivePlayer & {
@@ -103,6 +107,9 @@ type RoundRow = {
   team_handicap: number | null;
   drive_minimum: number | null;
   foursomes_scoring: FoursomesScoring | null;
+  greensomes: boolean | null;
+  start_hole: number | null;
+  start_letter: StartLetter | null;
 };
 
 type PlayerRow = {
@@ -119,7 +126,7 @@ type PlayerRow = {
 };
 
 export const ROUND_SELECT =
-  "id, created_by, club_id, course_name, tee_name, format, holes, course_rating, slope, par_total, allowance, status, played_on, match_day_id, match_number, match_type, tee_time, scramble_size, team_name, team_number, team_handicap, drive_minimum, foursomes_scoring";
+  "id, created_by, club_id, course_name, tee_name, format, holes, course_rating, slope, par_total, allowance, status, played_on, match_day_id, match_number, match_type, tee_time, scramble_size, team_name, team_number, team_handicap, drive_minimum, foursomes_scoring, greensomes, start_hole, start_letter";
 
 export const toMatchFormat = (t: RoundRow["match_type"]): MatchFormat | null =>
   t == null ? null : t === "singles" ? "matchplay" : t;
@@ -146,6 +153,7 @@ export const toRound = (r: RoundRow): LiveRound => ({
   matchNumber: r.match_number,
   matchFormat: toMatchFormat(r.match_type) ?? (r.format === "matchplay" ? "matchplay" : null),
   teeTime: r.tee_time ? r.tee_time.slice(0, 5) : null,
+  start: r.start_hole != null ? { hole: r.start_hole, letter: r.start_letter ?? null } : null,
   scramble:
     r.scramble_size != null
       ? {
@@ -155,6 +163,7 @@ export const toRound = (r: RoundRow): LiveRound => ({
           teamHandicap: r.team_handicap ?? 0,
           driveMinimum: r.drive_minimum,
           foursomes: r.foursomes_scoring ?? null,
+          greensomes: !!r.greensomes && r.foursomes_scoring != null,
         }
       : null,
 });

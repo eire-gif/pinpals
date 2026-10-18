@@ -222,6 +222,73 @@ describe("foursomes: a day of pairs", () => {
   });
 });
 
+describe("foursomes: a big society (0172)", () => {
+  it("takes 65 pairs — 130 players — and refuses 101", async () => {
+    await withRole("authenticated", ME, async (c) => {
+      await setUp(c);
+      await as(c, ME);
+      const pairs = (n: number) =>
+        JSON.stringify(
+          Array.from({ length: n }, (_, i) => ({
+            team_handicap: 12,
+            players: i === 0 ? [p(ME, "Eire"), p(PAL, "Ciarán")] : [p(null, `Guest ${i}a`), p(null, `Guest ${i}b`)],
+          })),
+        );
+      const { rows } = await c.query<{ id: string }>(CREATE_DAY, [day(), pairs(65), card]);
+      const r = await asService(c, () =>
+        c.query<{ n: string; top: number }>("select count(*) as n, max(team_number) as top from public.live_rounds where match_day_id = $1", [rows[0].id]),
+      );
+      expect([Number(r.rows[0].n), r.rows[0].top]).toEqual([65, 65]);
+      await rejects(c, CREATE_DAY, [day(), pairs(101), card]);
+    });
+  });
+});
+
+describe("greensomes pairs and a shotgun start (0173)", () => {
+  it("a greensomes day: pairs flagged, allowance 0.6, each pair's start hole kept", async () => {
+    await withRole("authenticated", ME, async (c) => {
+      await setUp(c);
+      await as(c, ME);
+      const teams = JSON.stringify([
+        { tee_time: "09:00", start_hole: 1, start_letter: "A", team_handicap: 13, players: [p(ME, "Eire", 9), p(PAL, "Ciarán", 18)] },
+        { tee_time: "09:00", start_hole: 1, start_letter: "A", team_handicap: 9, players: [p(PAL2, "Niamh", 6), p(null, "Darragh", 12)] },
+        { tee_time: "09:00", start_hole: 1, start_letter: "B", team_handicap: 10, players: [p(null, "A", 8), p(null, "B", 14)] },
+        { tee_time: "09:00", start_hole: 10, start_letter: "A", team_handicap: 10, players: [p(null, "C", 8), p(null, "D", 14)] },
+      ]);
+      const { rows } = await c.query<{ id: string }>(CREATE_DAY, [day({ greensomes: true }), teams, card]);
+      const d = await asService(c, () => c.query("select greensomes, foursomes_scoring from public.live_match_days where id = $1", [rows[0].id]));
+      expect(d.rows[0]).toEqual({ greensomes: true, foursomes_scoring: "stableford" });
+      const r = await asService(c, () =>
+        c.query(
+          "select team_number, greensomes, allowance::float as allowance, start_hole, start_letter from public.live_rounds where match_day_id = $1 order by team_number",
+          [rows[0].id],
+        ),
+      );
+      expect(r.rows.map((x) => [x.team_number, x.greensomes, x.allowance, x.start_hole, x.start_letter])).toEqual([
+        [1, true, 0.6, 1, "A"],
+        [2, true, 0.6, 1, "A"],
+        [3, true, 0.6, 1, "B"],
+        [4, true, 0.6, 10, "A"],
+      ]);
+    });
+  });
+
+  it("refuses greensomes that isn't pairs scoring, and a start off the course", async () => {
+    await withRole("authenticated", ME, async (c) => {
+      await setUp(c);
+      await as(c, ME);
+      const one = (extra: object) => JSON.stringify([{ team_handicap: 9, players: [p(ME, "Eire"), p(PAL, "Ciarán")], ...extra }]);
+      await rejects(c, CREATE_DAY, [day({ greensomes: true, foursomes_scoring: null }), one({}), card], /Greensomes is played in pairs/);
+      await rejects(c, CREATE_DAY, [day(), one({ start_hole: 19, start_letter: "A" }), card], /hole of the course/);
+      await rejects(c, CREATE_DAY, [day(), one({ start_letter: "B" }), card], /starting hole/);
+      await rejects(c, CREATE_DAY, [day(), one({ start_hole: 3, start_letter: "Z" }), card], /A, B, C or D/);
+      // A 9-hole day starts on holes 1–9 only.
+      const nine = JSON.stringify(Array.from({ length: 9 }, (_, i) => ({ hole: i + 1, par: 4, stroke_index: i + 1 })));
+      await rejects(c, CREATE_DAY, [day({ holes: 9 }), one({ start_hole: 10, start_letter: "A" }), nine], /hole of the course/);
+    });
+  });
+});
+
 describe("foursomes: the columns", () => {
   it("foursomes_scoring belongs only on a pair", async () => {
     await withRole("authenticated", ME, async (c) => {
