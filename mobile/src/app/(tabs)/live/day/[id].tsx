@@ -13,7 +13,17 @@ import { useAuth } from "@/lib/auth";
 import { addToCalendar, offerCalendar } from "@/lib/calendar";
 import { todayIso } from "@/lib/tee-times";
 import { isOn } from "@/lib/features";
-import { SIDE_COLORS, SIDE_TEXT, deleteMatchDay, loadMatchDay, subscribeToMatchDay, type Match, type MatchDayData } from "@/lib/live-match-days";
+import {
+  SIDE_COLORS,
+  SIDE_TEXT,
+  deleteMatchDay,
+  isDayOrganiser,
+  loadMatchDay,
+  setDayLeaderboardHidden,
+  subscribeToMatchDay,
+  type Match,
+  type MatchDayData,
+} from "@/lib/live-match-days";
 import { formatInfo, pointsLabel } from "@/lib/live-scoring";
 import { dateLabel } from "@/lib/tee-times";
 import { useLiveRefresh } from "@/lib/use-live-refresh";
@@ -27,6 +37,11 @@ import { refreshWidget } from "@/lib/widgets";
  *
  * Tapping a match opens its scorecard: your own to score, anyone else's to
  * watch.
+ *
+ * A SECRET LEADERBOARD (0174): players see their own tee group's card and a
+ * note that the results come at the prize-giving; the organiser (and the
+ * event's officers) see the whole board, with a button to show it to
+ * everyone. The database decides who can read which card.
  */
 export default function MatchDayBoard() {
   // created=1: just set up (day/new.tsx) — offer the calendar once.
@@ -37,13 +52,18 @@ export default function MatchDayBoard() {
   const [data, setData] = useState<MatchDayData | null | undefined>(undefined);
   const [failed, setFailed] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  /** I run this day (0174): started it, or an officer of its society event. */
+  const [runs, setRuns] = useState(false);
+  const [revealing, setRevealing] = useState(false);
   // iPad on its side: the leaderboard on the left, the day beside it (claude/ipad.md).
   const wide = useWideLayout();
 
   const load = useCallback(async () => {
     try {
       setFailed(false);
-      setData(await loadMatchDay(dayId));
+      const [d, organiser] = await Promise.all([loadMatchDay(dayId), isDayOrganiser(dayId)]);
+      setData(d);
+      setRuns(organiser);
       refreshWidget();
     } catch {
       setFailed(true);
@@ -85,6 +105,32 @@ export default function MatchDayBoard() {
   const mine = (m: Match) => m.players.some((p) => p.memberId != null && p.memberId === me);
   // Your own match first, then in match order.
   const isOrganiser = me != null && day.createdBy === me;
+  // A secret leaderboard (0174): players see their own group only.
+  const secretForMe = day.leaderboardHidden && !runs && !isOrganiser;
+  const toggleSecret = (hidden: boolean) =>
+    Alert.alert(
+      hidden ? "Keep the leaderboard secret?" : "Show the leaderboard to everyone?",
+      hidden
+        ? "Players will see only their own group's card until you show it or publish the results. The TV stays live."
+        : "Everyone in the day will see the full leaderboard straight away.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: hidden ? "Keep it secret" : "Show it",
+          onPress: async () => {
+            setRevealing(true);
+            try {
+              await setDayLeaderboardHidden(day.id, hidden);
+              await load();
+            } catch (e) {
+              Alert.alert("Couldn't change it", e instanceof Error ? e.message : "Please try again.");
+            } finally {
+              setRevealing(false);
+            }
+          },
+        },
+      ]
+    );
   const remove = () =>
     Alert.alert(
       `Delete this ${what}?`,
@@ -199,7 +245,7 @@ export default function MatchDayBoard() {
         </Pressable>
       ) : null}
 
-      {isOn("clubhouseTv") ? (
+      {isOn("clubhouseTv") && !secretForMe ? (
         <Pressable
           onPress={() => router.push({ pathname: "/live/tv", params: { day: String(day.id) } })}
           style={({ pressed }) => [styles.calendar, pressed && { opacity: 0.85 }]}
@@ -211,14 +257,54 @@ export default function MatchDayBoard() {
         </Pressable>
       ) : null}
 
+      {day.leaderboardHidden && !secretForMe ? (
+        <View style={styles.secret}>
+          <Ionicons name="eye-off-outline" size={20} color={colors.navy900} />
+          <View style={{ flex: 1, gap: 4 }}>
+            <Text style={styles.secretTitle}>Leaderboard secret</Text>
+            <Text style={styles.secretBody}>Only you and the committee can see who&apos;s winning. Players see their own group. The TV is still live.</Text>
+            <Pressable onPress={() => toggleSecret(false)} disabled={revealing} accessibilityRole="button" hitSlop={8}>
+              <Text style={styles.secretLink}>{revealing ? "…" : "Show it to everyone"}</Text>
+            </Pressable>
+          </View>
+        </View>
+      ) : !day.leaderboardHidden && (runs || isOrganiser) && (scramble || fourballs) && !allDone ? (
+        <Pressable onPress={() => toggleSecret(true)} disabled={revealing} style={({ pressed }) => [styles.calendar, pressed && { opacity: 0.85 }]} accessibilityRole="button">
+          <Ionicons name="eye-off-outline" size={18} color={colors.green700} />
+          <Text style={styles.calendarLabel}>Keep the leaderboard secret</Text>
+        </Pressable>
+      ) : null}
+
       <ResultsEntry data={data} me={me} />
       </>
         }
         left={
       <>
 
-      {scramble ? <ScrambleBoard matches={matches} isMine={mine} /> : null}
-      {fourballs ? <DayBoard matches={matches} me={me} /> : null}
+      {secretForMe ? (
+        <View style={styles.secret}>
+          <Ionicons name="trophy-outline" size={20} color={colors.navy900} />
+          <View style={{ flex: 1, gap: 4 }}>
+            <Text style={styles.secretTitle}>The leaderboard is a secret</Text>
+            <Text style={styles.secretBody}>The organiser is keeping who&apos;s winning under wraps until the prize-giving. You&apos;ll see the full results once they&apos;re announced.</Text>
+          </View>
+        </View>
+      ) : null}
+      {secretForMe
+        ? matches.map((m) => (
+            <Pressable
+              key={m.round.id}
+              onPress={() => router.push({ pathname: "/live/round/[id]", params: { id: String(m.round.id) } })}
+              style={({ pressed }) => [styles.match, mine(m) && styles.matchMine, pressed && { opacity: 0.9 }]}
+              accessibilityRole="button"
+            >
+              <Text style={styles.matchMeta}>{mine(m) ? (pairs ? "Your pair's card" : scramble ? "Your team's card" : "Your group's card") : pairs ? "Your playing partners' card" : "Card"}</Text>
+              <Text style={styles.names}>{m.round.scramble?.teamName ?? m.players.map((p) => p.name.split(" ")[0]).join(" · ")}</Text>
+            </Pressable>
+          ))
+        : null}
+      {scramble && !secretForMe ? <ScrambleBoard matches={matches} isMine={mine} /> : null}
+      {fourballs && !secretForMe ? <DayBoard matches={matches} me={me} /> : null}
 
       {(scramble || fourballs ? [] : ordered).map((m) => {
         const st = m.state;
@@ -333,4 +419,8 @@ const styles = StyleSheet.create({
   calendar: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, minHeight: 48, borderRadius: radii.pill, borderWidth: 1, borderColor: colors.green700, backgroundColor: colors.surface },
   calendarLabel: { fontFamily: fonts.bodyBold, fontSize: type.small, color: colors.green700 },
   footNote: { fontFamily: fonts.body, fontSize: 12, color: colors.ink500, textAlign: "center" },
+  secret: { flexDirection: "row", gap: spacing.sm, alignItems: "flex-start", backgroundColor: colors.cream100, borderRadius: radii.lg, padding: spacing.md },
+  secretTitle: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.navy900 },
+  secretBody: { fontFamily: fonts.body, fontSize: type.small, color: colors.ink900, lineHeight: 20 },
+  secretLink: { fontFamily: fonts.bodyBold, fontSize: type.small, color: colors.green700, marginTop: 4 },
 });

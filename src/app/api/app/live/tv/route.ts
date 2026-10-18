@@ -11,7 +11,8 @@ import { normaliseTvCode, signTvToken, type TvTarget } from "@/lib/tv-token";
  * "Show on TV" in the app. With a code, pairs the TV showing it to this
  * game; without, just returns the TV link (for a laptop, a TV browser or
  * AirPlay). Read with the member's own client first, so RLS decides: only
- * someone who can see the game in the app can put it on a screen.
+ * someone who can see the game in the app can put it on a screen. A day
+ * with a secret leaderboard can only be put on a TV by its organiser.
  */
 
 type Body = { kind?: unknown; id?: unknown; code?: unknown };
@@ -27,9 +28,18 @@ export async function POST(request: Request) {
 
   const seen =
     target.kind === "day"
-      ? await auth.supabase.from("live_match_days").select("id").eq("id", id).maybeSingle()
+      ? await auth.supabase.from("live_match_days").select("id, leaderboard_hidden").eq("id", id).maybeSingle()
       : await auth.supabase.from("live_rounds").select("id").eq("id", id).maybeSingle();
   if (seen.error || !seen.data) return Response.json({ error: "That game isn't available.", reason: "not_found" }, { status: 404 });
+
+  // A secret leaderboard (0174): the TV board shows the whole field, so only
+  // the organiser can put it on a screen.
+  if (target.kind === "day" && (seen.data as { leaderboard_hidden?: boolean }).leaderboard_hidden) {
+    const { data: organiser } = await auth.supabase.rpc("live_day_is_organiser", { p_day_id: id });
+    if (organiser !== true) {
+      return Response.json({ error: "Only the organiser can put a secret leaderboard on a TV.", reason: "secret" }, { status: 403 });
+    }
+  }
 
   let paired = false;
   if (body.code !== undefined && body.code !== null && body.code !== "") {

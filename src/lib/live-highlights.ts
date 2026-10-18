@@ -58,8 +58,21 @@ export async function notifyHighlight(
   if (!kind) return { sent: 0, kind: null };
 
   // Everyone in the game: this round, or every round of its day.
+  // A secret leaderboard (0174): only this round's players and the person
+  // running the day hear about it — not the rest of the field.
   const roundIds = [round.id];
+  let secretOrganiser: string | null = null;
+  let secret = false;
   if (round.match_day_id != null) {
+    const { data: day } = await admin
+      .from("live_match_days")
+      .select("created_by, leaderboard_hidden")
+      .eq("id", round.match_day_id)
+      .maybeSingle<{ created_by: string | null; leaderboard_hidden: boolean | null }>();
+    secret = day?.leaderboard_hidden === true;
+    secretOrganiser = day?.created_by ?? null;
+  }
+  if (round.match_day_id != null && !secret) {
     const { data: dayRounds } = await admin.from("live_rounds").select("id").eq("match_day_id", round.match_day_id);
     for (const r of (dayRounds ?? []) as { id: number }[]) if (!roundIds.includes(r.id)) roundIds.push(r.id);
   }
@@ -99,7 +112,9 @@ export async function notifyHighlight(
   const { data: mutes } = await admin.from("live_highlight_mutes").select("member_id").eq("game_key", gameKey).eq("muted", true);
   const muted = new Set(((mutes ?? []) as { member_id: string }[]).map((m) => m.member_id));
 
-  const recipients = [...new Set((players ?? []).map((p) => p.member_id).filter((m): m is string => !!m))].filter(
+  const everyone = (players ?? []).map((p) => p.member_id).filter((m): m is string => !!m);
+  if (secret && secretOrganiser) everyone.push(secretOrganiser);
+  const recipients = [...new Set(everyone)].filter(
     (m) => !makers.has(m) && m !== input.triggeredBy && !muted.has(m)
   );
   for (const userId of recipients) {

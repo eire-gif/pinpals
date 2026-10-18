@@ -121,7 +121,7 @@ export async function notifyRoundPlayers(admin: SupabaseClient, roundId: number)
   return sent;
 }
 
-type DayRow = { id: number; created_by: string | null; title: string; course_name: string; played_on: string; team_names: string[] | null; kind?: string | null };
+type DayRow = { id: number; created_by: string | null; title: string; course_name: string; played_on: string; team_names: string[] | null; kind?: string | null; leaderboard_hidden?: boolean | null };
 
 /** "You're in Match 2": each member player, about their own match. */
 export async function notifyMatchDayPlayers(admin: SupabaseClient, dayId: number): Promise<number> {
@@ -213,10 +213,13 @@ export async function notifyMatchResult(admin: SupabaseClient, roundId: number):
   if (!round || round.match_day_id == null || round.status !== "finished") return 0;
   const { data: day } = await admin
     .from("live_match_days")
-    .select("id, created_by, title, course_name, played_on, team_names, kind")
+    .select("id, created_by, title, course_name, played_on, team_names, kind, leaderboard_hidden")
     .eq("id", round.match_day_id)
     .maybeSingle<DayRow>();
   if (!day) return 0;
+  // A secret leaderboard (0174): the finishing players hear their own score,
+  // the organiser hears where it sits; nobody else is told anything.
+  const secret = day.leaderboard_hidden === true;
   // A society day (0121) has no match results: a group finishing isn't news
   // to the other forty players, and the leaderboard already shows it.
   if (day.kind === "fourballs") return 0;
@@ -289,7 +292,12 @@ export async function notifyMatchResult(admin: SupabaseClient, roundId: number):
       place > 0
         ? `${place === 1 ? "Leading" : `${place}${place === 2 ? "nd" : place === 3 ? "rd" : "th"}`} of ${done.length} ${done.length === 1 ? (round.foursomes_scoring ? "pair" : "team") : round.foursomes_scoring ? "pairs" : "teams"} in${out > 0 ? `, ${out} still out` : ". That's everyone"}. Tap for the board.`
         : `${day.title} at ${day.course_name}. Tap for the board.`;
-    const recipients = new Set((players ?? []).map((p) => p.member_id).filter((m): m is string => !!m));
+    const recipients = new Set(
+      (players ?? [])
+        .filter((p) => !secret || p.round_id === round.id)
+        .map((p) => p.member_id)
+        .filter((m): m is string => !!m)
+    );
     if (day.created_by) recipients.add(day.created_by);
     let sent = 0;
     for (const memberId of recipients) {
@@ -297,7 +305,7 @@ export async function notifyMatchResult(admin: SupabaseClient, roundId: number):
         userId: memberId,
         type: "live_match_result",
         title: headline,
-        body,
+        body: secret && memberId !== day.created_by ? "The leaderboard is secret until the prize-giving. Good luck!" : body,
         href: `/live/days/${day.id}`,
         dedupeKey: `live_match_result:${round.id}:${memberId}`,
       });
@@ -332,7 +340,12 @@ export async function notifyMatchResult(admin: SupabaseClient, roundId: number):
     totals += out === 0 ? ". That's the final score." : out === 1 ? ", one match still out." : `, ${out} matches still out.`;
   }
 
-  const recipients = new Set((players ?? []).map((p) => p.member_id).filter((m): m is string => !!m));
+  const recipients = new Set(
+    (players ?? [])
+      .filter((p) => !secret || p.round_id === round.id)
+      .map((p) => p.member_id)
+      .filter((m): m is string => !!m)
+  );
   if (day.created_by) recipients.add(day.created_by);
   let sent = 0;
   for (const memberId of recipients) {
@@ -340,7 +353,7 @@ export async function notifyMatchResult(admin: SupabaseClient, roundId: number):
       userId: memberId,
       type: "live_match_result",
       title: headline,
-      body: totals || `${day.title} at ${day.course_name}. Tap for the board.`,
+      body: secret && memberId !== day.created_by ? `${day.title} at ${day.course_name}.` : totals || `${day.title} at ${day.course_name}. Tap for the board.`,
       href: `/live/days/${day.id}`,
       dedupeKey: `live_match_result:${round.id}:${memberId}`,
     });
