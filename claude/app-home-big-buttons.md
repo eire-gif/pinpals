@@ -28,7 +28,7 @@ Over the hero photograph, top to bottom:
      requests waiting / Pay entry / You're in).
    - Nothing in the week: nothing shown.
 4. **Four big buttons** — the live hub's `RaisedCard`, all titles the same
-   size (`wrapTitle`): Find Golfers (claret → Tee Times), Start a Round (navy
+   size (`wrapTitle`): Find Golfers (claret → Find PinPals, `/members`), Start a Round (navy
    → the Score it together hub, `/live`), Groups & Societies (green →
    `/groups`), Marketplace (new **bronze** tone → Marketplace tab).
 
@@ -40,7 +40,7 @@ top card.
 
 Removed from the hero: "Ireland · UK · Spain · Portugal", "Find your next
 fourball", the club count, the gold Find PinPals button and the four glass
-tiles. Members are still reached from PinPals near you → See all and the menu.
+tiles. Tee Times is its own tab.
 
 ## Data (`mobile/src/lib/home.ts`)
 

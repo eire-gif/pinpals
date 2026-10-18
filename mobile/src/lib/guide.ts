@@ -890,11 +890,8 @@ export const GUIDES: Guide[] = [
     steps: [
       {
         title: "Open Post a tee time",
-        body: "Tap Find Golfers on Home (or the Tee Times tab), then the round green + at the top.",
-        look: [
-          { style: "raised", label: "Find Golfers", icon: "search", tone: "claret", kicker: "Play", subtitle: "Join a fourball or fill your own tee time" },
-          { style: "primary", label: "+", icon: "add" },
-        ],
+        body: "Tap the round green + at the top of the Tee Times tab.",
+        look: [{ style: "primary", label: "+", icon: "add" }],
         go: { label: "Post a tee time", to: "/post-tee-time" },
         who: "Members 18 and over — tee times aren't shown to under 18s",
       },
@@ -967,7 +964,7 @@ export const GUIDES: Guide[] = [
     steps: [
       {
         title: "Open Tee Times",
-        body: "Tap Find Golfers on Home, or the Tee Times tab. All tee times shows every round looking for players; Near me shows those within 50 km.",
+        body: "Tap the Tee Times tab. All tee times shows every round looking for players; Near me shows those within 50 km.",
         look: [
           { style: "outline", label: "All tee times" },
           { style: "outline", label: "Near me", icon: "navigate" },
@@ -1422,9 +1419,10 @@ export const GUIDES: Guide[] = [
     steps: [
       {
         title: "Open Find PinPals",
-        body: "In the menu, tap Browse all members. For you suggests golfers you've played with and people at your club; search by name or club at the top.",
+        body: "On Home, tap Find Golfers — or in the menu, Browse all members. For you suggests golfers you've played with and people at your club; search by name or club at the top.",
         path: [MENU, { icon: "search-outline", label: "Browse all members" }],
         look: [
+          { style: "raised", label: "Find Golfers", icon: "search", tone: "claret", kicker: "Play", subtitle: "Golfers at your club and near you — connect and play" },
           { style: "outline", label: "For you" },
           { style: "outline", label: "My club" },
           { style: "outline", label: "Nearby" },
@@ -1889,6 +1887,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-18", text: "Find Golfers on Home now opens Find PinPals. Find PinPals, Post a tee time and Find a game are updated." },
   { on: "2026-10-18", text: "Play a round together: when a round is finished, every member who played gets their card saved to My scorecards — not just whoever tapped Complete scorecard. After certifying someone's card, Open my card takes you to yours." },
   { on: "2026-10-18", text: "Home has four big buttons — Find Golfers, Start a Round, Groups & Societies and Marketplace — and, on the day of a round, a card at the top with Start your round here. Post a tee time, Find a game, Score a game live, Start a group, Bring your fourball and Sell your gear are updated." },
   { on: "2026-10-18", text: "Score a game live: new step, Not sure how to play it? — Lie help under the players gives the club, aim and three things to do for a slope, bunker, rough or wind. Track my stats now asks how far your first putt was, once you've tapped your putts." },
