@@ -1225,6 +1225,8 @@ export default function LiveRoundScreen() {
             {players.map((p) => (
               <Text key={p.id} style={styles.playerMeta}>
                 {p.name}: index {p.handicapIndex}, course {p.courseHandicap}
+                {p.teeName ? ` off the ${p.teeName} tees` : ""}
+                {p.teeExtra ? ` (${p.teeExtra > 0 ? "+" : "−"}${Math.abs(p.teeExtra)} for the tees)` : ""}
                 {p.estimated ? " (estimated)" : ""}
                 {scr?.foursomes ? "" : scr ? `, share ${p.playingHandicap}` : matchFormat ? "" : `, plays off ${p.playingHandicap}`}
               </Text>

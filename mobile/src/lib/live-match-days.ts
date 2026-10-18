@@ -233,6 +233,10 @@ export type NewMatchPlayer = {
   playingHandicap: number;
   estimated: boolean;
   side: 1 | 2;
+  /** Mixed tees (0176): the tees they play from when not the day's. */
+  teeName?: string | null;
+  /** Mixed tees (0176): shots for the difference in par, already in playingHandicap. */
+  teeExtra?: number;
 };
 
 export type NewMatch = {
@@ -278,6 +282,8 @@ export async function createMatchDay(day: NewMatchDay, matches: NewMatch[], card
         course_handicap: p.courseHandicap,
         playing_handicap: p.playingHandicap,
         handicap_estimated: p.estimated,
+        tee_name: p.teeName ?? null,
+        tee_extra: p.teeExtra ?? 0,
         side: p.side,
       })),
     })),
@@ -344,6 +350,8 @@ export async function createScrambleDay(
         course_handicap: p.courseHandicap,
         playing_handicap: p.playingHandicap,
         handicap_estimated: p.estimated,
+        tee_name: p.teeName ?? null,
+        tee_extra: p.teeExtra ?? 0,
       })),
     })),
     p_card: card.map((h) => ({ hole: h.hole, par: h.par, stroke_index: h.strokeIndex })),
@@ -393,6 +401,8 @@ export async function createFourballDay(
         course_handicap: p.courseHandicap,
         playing_handicap: p.playingHandicap,
         handicap_estimated: p.estimated,
+        tee_name: p.teeName ?? null,
+        tee_extra: p.teeExtra ?? 0,
       })),
     })),
     p_card: card.map((h) => ({ hole: h.hole, par: h.par, stroke_index: h.strokeIndex })),
