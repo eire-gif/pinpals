@@ -226,3 +226,20 @@ export async function saveHoleStat(target: StatsTarget, stat: HoleStat): Promise
     return "queued";
   }
 }
+
+// ---------------------------------------------------------------------------
+// My goal handicap (stage 3) — what My Game compares you with
+// ---------------------------------------------------------------------------
+
+const GOAL_KEY = "pp_goal_handicap";
+
+/** The goal handicap kept on this phone, or null if never set. */
+export async function loadGoal(): Promise<number | null> {
+  const v = await SecureStore.getItemAsync(GOAL_KEY).catch(() => null);
+  const n = v == null ? NaN : Number(v);
+  return Number.isFinite(n) && n >= 0 && n <= 36 ? n : null;
+}
+
+export async function saveGoal(goal: number): Promise<void> {
+  await SecureStore.setItemAsync(GOAL_KEY, String(goal)).catch(() => undefined);
+}
