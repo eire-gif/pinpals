@@ -166,7 +166,7 @@ export default function ExploreScreen() {
               <Text style={styles.tocNum}>{c.numeral}</Text>
               <View style={{ flex: 1 }}>
                 <Text style={styles.tocTitle}>{c.button.title}</Text>
-                <Text style={styles.tocSub}>{c.eyebrow.split(" · ")[1]}</Text>
+                <Text style={styles.tocSub}>{c.button.kicker}</Text>
               </View>
               <Ionicons name="chevron-forward" size={18} color={GOLD} />
             </Pressable>
