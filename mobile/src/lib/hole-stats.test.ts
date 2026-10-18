@@ -112,3 +112,35 @@ describe("small samples", () => {
     expect("need" in statsSummary([par3]).tee).toBe(true);
   });
 });
+
+describe("first-putt distance (0179)", () => {
+  it("counts a tap of only the distance as a stat", () => {
+    expect(isEmptyStat({ hole: 1, putts: null, tee: null, greenMiss: null, penalties: null, firstPutt: "3-6" })).toBe(false);
+  });
+
+  it("waits for five putts in a band, then gives holed and three-putt %", () => {
+    // 4 from 3–6ft: not enough on its own.
+    const few = card(Array.from({ length: 4 }, () => ({ strokes: 4, stat: { putts: 1, firstPutt: "3-6" as const } })));
+    const s1 = statsSummary([few]);
+    expect("need" in s1.byDistance && s1.byDistance.need).toBe(1);
+
+    // 6 from 30ft+: none holed, 2 three-putts. 5 from 3–6ft: 3 holed.
+    const c = card([
+      ...Array.from({ length: 4 }, () => ({ strokes: 5, stat: { putts: 2, firstPutt: "30+" as const } })),
+      ...Array.from({ length: 2 }, () => ({ strokes: 6, stat: { putts: 3, firstPutt: "30+" as const } })),
+      ...Array.from({ length: 3 }, () => ({ strokes: 4, stat: { putts: 1, firstPutt: "3-6" as const } })),
+      ...Array.from({ length: 2 }, () => ({ strokes: 5, stat: { putts: 2, firstPutt: "3-6" as const } })),
+    ]);
+    const s = statsSummary([c]);
+    expect("value" in s.byDistance && s.byDistance.value).toEqual([
+      { band: "3-6", label: "3–6ft", n: 5, holedPct: 60, threePuttPct: 0 },
+      { band: "30+", label: "30ft+", n: 6, holedPct: 0, threePuttPct: 33 },
+    ]);
+    expect(statInsights(s).some((i) => i.text.startsWith("33% of your putts from 30ft+"))).toBe(true);
+  });
+
+  it("ignores a distance on a hole with no putts", () => {
+    const c = card(Array.from({ length: 6 }, () => ({ strokes: 3, stat: { putts: 0, firstPutt: "0-3" as const } })));
+    expect("need" in statsSummary([c]).byDistance).toBe(true);
+  });
+});

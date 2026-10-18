@@ -73,6 +73,9 @@ export const MENU: MenuSection[] = [
       // Game formats (Oct 2026): every way to play, explained — offline,
       // from lib/game-formats.ts (shared with the website's /formats).
       { kind: "native", label: "Game formats", icon: "library-outline", to: "/formats" },
+      // Training (Oct 2026, claude/training.md): lie guides, the Putting
+      // Lab, practice plans and a warm-up — offline, from lib/training.ts.
+      { kind: "native", label: "Training", icon: "barbell-outline", to: "/train" },
       // One entry for what used to be four (Oct 2026): rounds you host, play
       // in, have asked to join or been offered — all on My rounds.
       {

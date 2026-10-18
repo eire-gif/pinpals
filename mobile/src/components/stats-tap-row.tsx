@@ -1,13 +1,14 @@
 import type { ReactNode } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
-import { GREEN_MISSES, hasTeeShot, missedGreen, type GreenMiss, type HoleStat, type TeeShot } from "@/lib/hole-stats";
+import { FIRST_PUTTS, GREEN_MISSES, hasTeeShot, missedGreen, type GreenMiss, type HoleStat, type TeeShot } from "@/lib/hole-stats";
 import { colors, fonts, radii, spacing } from "@/lib/theme";
 
 /**
  * My Game's taps for one hole (0178): tee shot on par 4s and 5s, putts,
- * which way the green was missed (only when the score and putts say it was),
- * and penalty strokes. Used on the live scoring screen and in the 60-second
+ * how far the first putt was (0179, once there are putts — it feeds holing
+ * % by distance in My Game and the Putting Lab), which way the green was
+ * missed (only when the score and putts say it was), and penalty strokes. Used on the live scoring screen and in the 60-second
  * review. Tapping a chosen chip again clears it.
  */
 export function StatsTapRow({
@@ -52,9 +53,31 @@ export function StatsTapRow({
 
       <Group label="Putts">
         {[0, 1, 2, 3, 4].map((n) => (
-          <Chip key={n} label={n === 4 ? "4+" : String(n)} on={value.putts === n} onPress={() => set({ putts: value.putts === n ? null : n })} a11y={`${n === 4 ? "4 or more" : n} putts`} />
+          <Chip
+            key={n}
+            label={n === 4 ? "4+" : String(n)}
+            on={value.putts === n}
+            // No putts (chipped in) means no first putt to measure.
+            onPress={() => set(value.putts === n ? { putts: null, firstPutt: null } : n === 0 ? { putts: 0, firstPutt: null } : { putts: n })}
+            a11y={`${n === 4 ? "4 or more" : n} putts`}
+          />
         ))}
       </Group>
+
+      {value.putts != null && value.putts >= 1 ? (
+        <Group label="First putt from (feet)">
+          {FIRST_PUTTS.map((f) => (
+            <Chip
+              key={f.id}
+              label={f.label}
+              on={value.firstPutt === f.id}
+              onPress={() => set({ firstPutt: value.firstPutt === f.id ? null : f.id })}
+              a11y={`First putt from ${f.long}`}
+              small
+            />
+          ))}
+        </Group>
+      ) : null}
 
       {missed ? (
         <Group label="Missed the green — which way?">
@@ -96,7 +119,7 @@ function Group({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-function Chip({ label, on, onPress, a11y }: { label: string; on: boolean; onPress: () => void; a11y: string }) {
+function Chip({ label, on, onPress, a11y, small = false }: { label: string; on: boolean; onPress: () => void; a11y: string; small?: boolean }) {
   return (
     <Pressable
       onPress={onPress}
@@ -105,7 +128,9 @@ function Chip({ label, on, onPress, a11y }: { label: string; on: boolean; onPres
       accessibilityLabel={a11y}
       accessibilityState={{ selected: on }}
     >
-      <Text style={[styles.chipText, on && styles.chipTextOn]}>{label}</Text>
+      <Text style={[styles.chipText, small && styles.chipTextSmall, on && styles.chipTextOn]} numberOfLines={1} adjustsFontSizeToFit>
+        {label}
+      </Text>
     </Pressable>
   );
 }
@@ -121,6 +146,7 @@ const styles = StyleSheet.create({
   chipOn: { backgroundColor: colors.navy900, borderColor: colors.navy900 },
   chipText: { fontFamily: fonts.bodySemi, fontSize: 15, color: colors.ink900 },
   chipTextOn: { color: colors.gold400 },
+  chipTextSmall: { fontSize: 13 },
   foot: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.sm },
   derived: { flex: 1, fontFamily: fonts.body, fontSize: 13, color: colors.ink500 },
   penalty: { flex: 0, paddingHorizontal: 14 },

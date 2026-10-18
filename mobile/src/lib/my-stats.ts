@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { AppState } from "react-native";
 import * as SecureStore from "expo-secure-store";
 
-import type { GreenMiss, HoleStat, TeeShot } from "@/lib/hole-stats";
+import { isFirstPutt, type GreenMiss, type HoleStat, type TeeShot } from "@/lib/hole-stats";
 import { isNetworkError } from "@/lib/score-queue-rules";
 import { supabase } from "@/lib/supabase";
 
@@ -68,9 +68,26 @@ type Row = {
   tee: TeeShot | null;
   green_miss: GreenMiss | null;
   penalties: number | null;
+  first_putt?: string | null;
 };
 
-const toStat = (r: Row): HoleStat => ({ hole: r.hole, putts: r.putts, tee: r.tee, greenMiss: r.green_miss, penalties: r.penalties });
+const toStat = (r: Row): HoleStat => ({
+  hole: r.hole,
+  putts: r.putts,
+  tee: r.tee,
+  greenMiss: r.green_miss,
+  penalties: r.penalties,
+  firstPutt: isFirstPutt(r.first_putt) ? r.first_putt : null,
+});
+
+/**
+ * First-putt distance (0179) is a newer column. Until the migration is
+ * applied, asking for it fails with 42703 — so read without it rather than
+ * show no stats at all (an OTA can land before a migration; it has before).
+ */
+const COLS = "live_round_id, scorecard_id, hole, putts, tee, green_miss, penalties";
+const COLS_0179 = `${COLS}, first_putt`;
+const isMissingColumn = (e: { code?: string } | null) => e?.code === "42703";
 
 /** Where a set of stats hangs: a live round, or a saved card. */
 export type StatsTarget = { liveRoundId: number } | { scorecardId: number };
@@ -79,10 +96,14 @@ const targetKey = (t: StatsTarget) => ("liveRoundId" in t ? `r${t.liveRoundId}` 
 
 /** My stats on one round or card, by hole (pending saves from this phone included). */
 export async function loadStatsFor(target: StatsTarget): Promise<Map<number, HoleStat>> {
-  const q = supabase.from("member_hole_stats").select("live_round_id, scorecard_id, hole, putts, tee, green_miss, penalties");
-  const { data, error } = await ("liveRoundId" in target ? q.eq("live_round_id", target.liveRoundId) : q.eq("scorecard_id", target.scorecardId));
+  const read = (cols: string) => {
+    const q = supabase.from("member_hole_stats").select(cols);
+    return "liveRoundId" in target ? q.eq("live_round_id", target.liveRoundId) : q.eq("scorecard_id", target.scorecardId);
+  };
+  let { data, error } = await read(COLS_0179);
+  if (isMissingColumn(error)) ({ data, error } = await read(COLS));
   if (error) throw error;
-  const out = new Map<number, HoleStat>(((data ?? []) as Row[]).map((r) => [r.hole, toStat(r)]));
+  const out = new Map<number, HoleStat>(((data ?? []) as unknown as Row[]).map((r) => [r.hole, toStat(r)]));
   for (const p of await pendingStats()) if (targetKey(p.target) === targetKey(target)) out.set(p.stat.hole, p.stat);
   return out;
 }
@@ -93,15 +114,13 @@ export async function loadStatsFor(target: StatsTarget): Promise<Map<number, Hol
  * taps added later in the review are on the card and win, hole by hole.
  */
 export async function loadAllMyStats(): Promise<{ byRound: Map<number, Map<number, HoleStat>>; byCard: Map<number, Map<number, HoleStat>> }> {
-  const { data, error } = await supabase
-    .from("member_hole_stats")
-    .select("live_round_id, scorecard_id, hole, putts, tee, green_miss, penalties")
-    .order("updated_at", { ascending: false })
-    .limit(2000);
+  const read = (cols: string) => supabase.from("member_hole_stats").select(cols).order("updated_at", { ascending: false }).limit(2000);
+  let { data, error } = await read(COLS_0179);
+  if (isMissingColumn(error)) ({ data, error } = await read(COLS));
   if (error) throw error;
   const byRound = new Map<number, Map<number, HoleStat>>();
   const byCard = new Map<number, Map<number, HoleStat>>();
-  for (const r of (data ?? []) as Row[]) {
+  for (const r of (data ?? []) as unknown as Row[]) {
     const [map, id] = r.live_round_id != null ? [byRound, r.live_round_id] : [byCard, r.scorecard_id as number];
     if (!map.has(id)) map.set(id, new Map());
     map.get(id)!.set(r.hole, toStat(r));
@@ -155,7 +174,7 @@ async function persist(): Promise<void> {
 }
 
 async function send(target: StatsTarget, s: HoleStat): Promise<void> {
-  const { error } = await supabase.rpc("my_hole_stats_set", {
+  const args = {
     p_live_round_id: "liveRoundId" in target ? target.liveRoundId : null,
     p_scorecard_id: "scorecardId" in target ? target.scorecardId : null,
     p_hole: s.hole,
@@ -163,7 +182,16 @@ async function send(target: StatsTarget, s: HoleStat): Promise<void> {
     p_tee: s.tee,
     p_green_miss: s.greenMiss,
     p_penalties: s.penalties,
-  });
+  };
+  // The 0179 version takes the first-putt distance. Older databases only
+  // have the 0178 one (PGRST202: no function with these arguments): save
+  // the rest rather than nothing.
+  const { error } = await supabase.rpc("my_hole_stats_set", { ...args, p_first_putt: s.firstPutt ?? null });
+  if (error?.code === "PGRST202") {
+    const retry = await supabase.rpc("my_hole_stats_set", args);
+    if (retry.error) throw retry.error;
+    return;
+  }
   if (error) throw error;
 }
 

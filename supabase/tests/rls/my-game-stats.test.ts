@@ -132,6 +132,34 @@ describe("My Game stats (member_hole_stats)", () => {
     });
   });
 
+  it("keep the first putt's distance (0179), and older builds' saves don't wipe it", async () => {
+    const SET8 = "select public.my_hole_stats_set($1, $2, $3::smallint, $4::smallint, $5, $6, $7::smallint, $8)";
+    const FIRST = "select hole, putts, first_putt from public.member_hole_stats order by hole";
+    await withRole("authenticated", ME, async (c) => {
+      const r = await round(c);
+      await c.query(SET8, [r, null, 4, 2, null, null, null, "20-30"]);
+      expect((await c.query(FIRST)).rows).toEqual([{ hole: 4, putts: 2, first_putt: "20-30" }]);
+
+      // An older build saves the same hole through the 0178 version: the distance stays.
+      await c.query(SET, [r, null, 4, 3, "right", null, null]);
+      expect((await c.query(FIRST)).rows).toEqual([{ hole: 4, putts: 3, first_putt: "20-30" }]);
+
+      // A chip-in has no first putt, whatever was sent.
+      await c.query(SET8, [r, null, 5, 0, null, null, null, "0-3"]);
+      expect((await c.query(FIRST)).rows[1]).toEqual({ hole: 5, putts: 0, first_putt: null });
+
+      // A distance on its own is still a stat; clearing it too removes the row.
+      await c.query(SET8, [r, null, 6, null, null, null, null, "3-6"]);
+      expect((await c.query(FIRST)).rowCount).toBe(3);
+      await c.query(SET8, [r, null, 6, null, null, null, null, null]);
+      expect((await c.query(FIRST)).rowCount).toBe(2);
+
+      await refused(c, SET8, [r, null, 4, 2, null, null, null, "40ft"], /check/);
+      await as(c, STRANGER);
+      await refused(c, SET8, [r, null, 4, 2, null, null, null, "3-6"], /round you played in/);
+    });
+  });
+
   it("can't be saved signed out", async () => {
     await withRole("anon", null, async (c) => {
       await refused(c, SET, [1, null, 1, 2, null, null, null], /permission denied/);

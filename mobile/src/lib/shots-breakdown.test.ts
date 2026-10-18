@@ -42,6 +42,7 @@ function summary(over: Partial<{ greens: number; scramble: number; putts: number
     misses: m({ short: o.short, long: 10, left: 10, right: 100 - o.short - 20 }) as StatsSummary["misses"],
     scrambling: m(o.scramble) as StatsSummary["scrambling"],
     putting: m({ perRound: o.putts, threePutts: o.threePutts, onePutts: 4 }) as StatsSummary["putting"],
+    byDistance: { need: 5, unit: "putts" },
     penalties: m(o.pens) as StatsSummary["penalties"],
   };
 }

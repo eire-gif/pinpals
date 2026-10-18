@@ -129,6 +129,8 @@ export type Focus = {
   drill: string;
   /** What to move, from where to where. Lower is better unless `higherIsBetter`. */
   target: { label: string; now: number; goal: number; unit: string; higherIsBetter: boolean };
+  /** Where Training covers it (claude/training.md): a drill, a lie guide or the Putting Lab. */
+  train?: { label: string; to: string };
 };
 
 /** One thing to practise, for the biggest leak, with a number to move. */
@@ -171,6 +173,7 @@ export function practiceFocus(b: Breakdown, s: StatsSummary): Focus | null {
       title: "Up and down from around the green",
       drill: "Pick three spots off the practice green — a short chip, a longer one, a bunker if there is one. Ten balls from each, and play every one out. Count how many you get down in two.",
       target: { label: "Par saved after missing the green", now: s.scrambling.value, goal: Math.round(bench.upDownPct), unit: "%", higherIsBetter: true },
+      train: { label: "Bunker and lie guides in Training", to: "/train/lies" },
     };
   }
 
@@ -185,6 +188,7 @@ export function practiceFocus(b: Breakdown, s: StatsSummary): Focus | null {
       target: lag
         ? { label: "Three-putts a round", now: s.putting.value.threePutts, goal: Math.max(0.5, round1(s.putting.value.threePutts / 2)), unit: "", higherIsBetter: false }
         : { label: "Putts a round", now: s.putting.value.perRound, goal: bench.puttsPerRound, unit: "", higherIsBetter: false },
+      train: lag ? { label: "Ladder lag in the Putting Lab", to: "/train/drill/ladder-lag" } : { label: "Clock drill in the Putting Lab", to: "/train/drill/clock" },
     };
   }
 

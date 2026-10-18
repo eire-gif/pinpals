@@ -63,6 +63,7 @@ import { voiceSupported } from "@/lib/voice-listening";
 import { VoiceScoresSheet, type VoiceRow } from "@/components/voice-scores-sheet";
 import { positionLine } from "@/lib/lock-screen-rules";
 import { LiveStatsRow } from "@/components/live-stats-row";
+import { LieHelpSheet } from "@/components/lie-help-sheet";
 import { loadStatsFor, saveHoleStat, useTracking } from "@/lib/my-stats";
 import type { VoiceStatPatch } from "@/lib/voice-stats";
 import { useMembership } from "@/lib/membership";
@@ -121,6 +122,8 @@ export default function LiveRoundScreen() {
   // can move underneath (a reload, the group scoring) and the spoken scores
   // must land on the hole they were said for. Null = closed.
   const [voiceAt, setVoiceAt] = useState<number | null>(null);
+  // Training's Lie help sheet (claude/training.md): the lie you're facing, in three lines.
+  const [lieHelp, setLieHelp] = useState(false);
   const voiceLink = useRef<string | null>(null);
 
   const load = useCallback(async () => {
@@ -1081,6 +1084,24 @@ export default function LiveRoundScreen() {
             <LiveStatsRow key={`${h.hole}:${statsVersion}`} roundId={round.id} hole={h.hole} par={h.par} strokes={scores.get(statsPlayer.id)?.get(h.hole) ?? null} />
           ) : null}
 
+          {live ? (
+            <Pressable
+              onPress={() => setLieHelp(true)}
+              style={({ pressed }) => [styles.lieHelp, pressed && { opacity: 0.85 }]}
+              accessibilityRole="button"
+              accessibilityLabel="Lie help: how to play a slope, bunker, rough or wind"
+            >
+              <Ionicons name="help-buoy-outline" size={20} color={colors.gold500} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.lieHelpLabel}>Lie help</Text>
+                <Text style={styles.lieHelpSub} numberOfLines={1}>
+                  Slope, bunker, rough or wind? Three things to do
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={colors.gold500} />
+            </Pressable>
+          ) : null}
+
           {voiceOn ? (
             <Pressable
               onPress={() => setVoiceAt(h.hole)}
@@ -1345,6 +1366,14 @@ export default function LiveRoundScreen() {
           ) : null}
         </ScrollView>
       )}
+      <LieHelpSheet
+        visible={lieHelp}
+        onClose={() => setLieHelp(false)}
+        onOpenGuide={(lieId) => {
+          setLieHelp(false);
+          router.push({ pathname: "/train/lie/[id]", params: { id: lieId } });
+        }}
+      />
       {voiceOn ? (
         <VoiceScoresSheet
           visible={voiceAt != null}
@@ -1707,6 +1736,9 @@ const styles = StyleSheet.create({
   voiceIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: creamAlpha(0.55), alignItems: "center", justifyContent: "center" },
   voiceLabel: { fontFamily: fonts.bodyBold, fontSize: 16, color: colors.navy900 },
   voiceSub: { fontFamily: fonts.body, fontSize: 13, color: colors.navy900 },
+  lieHelp: { flexDirection: "row", alignItems: "center", gap: 12, minHeight: 56, paddingHorizontal: 14, borderRadius: radii.lg, borderWidth: 1.5, borderColor: colors.gold500, backgroundColor: colors.surface },
+  lieHelpLabel: { fontFamily: fonts.bodyBold, fontSize: 15.5, color: colors.navy900 },
+  lieHelpSub: { fontFamily: fonts.body, fontSize: 12.5, color: colors.ink500 },
   mapPill: { flexDirection: "row", alignItems: "center", gap: 9, marginTop: 8, paddingLeft: 6, paddingRight: 12, paddingVertical: 6, borderRadius: radii.pill, backgroundColor: colors.gold400 },
   mapPillIcon: { width: 30, height: 30, borderRadius: 15, backgroundColor: colors.navy900, alignItems: "center", justifyContent: "center" },
   mapPillText: { fontFamily: fonts.bodyBold, fontSize: 14, color: colors.navy900 },

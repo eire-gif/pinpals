@@ -1120,6 +1120,12 @@ export const GUIDES: Guide[] = [
         tip: "Birdie, par, bogey, double, picked up or no return (NR), “the same” and “the rest of us par” all work. It listens on your phone, so it works with no signal on most iPhones. Nothing saves until you tap Save. Tracking your stats? Add them as you say your score — “I had a five, two putts, missed it short”.",
       },
       {
+        title: "Not sure how to play it?",
+        body: "On a slope, in a bunker, in thick rough or into the wind, tap Lie help under the players. Pick the lie and you get the club, the aim and three things to do. Full guide opens the whole lesson in Training.",
+        look: [{ style: "outline", label: "Lie help", icon: "help-buoy-outline" }],
+        tip: "Right- or left-handed is remembered from Training, so the aim is the right way round for you.",
+      },
+      {
         title: "Score from your lock screen",
         body: "On an iPhone, your round appears on the lock screen once you open it. Lift the phone, use − and + if you need to, and tap Save — no need to unlock. It moves on to the next hole by itself. NR (no return, if you picked up) is underneath, and Undo takes you back to the hole you just saved. The gold mic opens the round listening, to say the group's scores, and the yardage is your distance to the centre of the green — tap it for the hole map.",
         look: [
@@ -1368,7 +1374,7 @@ export const GUIDES: Guide[] = [
       },
       {
         title: "Track my stats",
-        body: "Want more? Under Your stats, switch on Track my stats. In a live round a small row then appears under your own score: tee shot (left, fairway, right), putts, which way you missed the green, and +1 penalty. About four taps a hole. Only you see them.",
+        body: "Want more? Under Your stats, switch on Track my stats. In a live round a small row then appears under your own score: tee shot (left, fairway, right), putts, how far your first putt was, which way you missed the green, and +1 penalty. About five taps a hole. Only you see them.",
         look: [{ style: "outline", label: "Track my stats" }],
         tip: "Greens in regulation and par saves are worked out from your score and putts — you never enter them. Tap a chosen answer again to clear it.",
       },
@@ -1883,6 +1889,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-18", text: "Score a game live: new step, Not sure how to play it? — Lie help under the players gives the club, aim and three things to do for a slope, bunker, rough or wind. Track my stats now asks how far your first putt was, once you've tapped your putts." },
   { on: "2026-10-18", text: "See where your shots go: new step, Or just say them — with Say scores, add your stats after your score (“I had a five, two putts, missed it short”). Score a game live: Or say the scores mentions it." },
   { on: "2026-10-18", text: "See where your shots go: new steps — Where your shots go (against your goal handicap, with your biggest leak) and Your practice focus." },
   { on: "2026-10-18", text: "See where your shots go: new steps — Track my stats (a row under your score in a live round: tee shot, putts, missed green, penalty), Or add them in 60 seconds (from a saved card), and See them add up on My Game." },

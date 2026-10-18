@@ -60,7 +60,7 @@ export const EXPORT_SOURCES: readonly ExportSource[] = [
   { section: "my_bag", table: "member_bag", column: "member_id", about: "Your clubs and how far you said you hit them (My bag)." },
   { section: "hole_tips", table: "hole_tips", column: "member_id", about: "Tips you left for holes (local knowledge)." },
   { section: "hole_tip_votes", table: "hole_tip_votes", column: "member_id", about: "Tips you marked useful." },
-  { section: "my_game_stats", table: "member_hole_stats", column: "member_id", about: "The stats you kept per hole for My Game: tee shot, putts, missed greens, penalties." },
+  { section: "my_game_stats", table: "member_hole_stats", column: "member_id", about: "The stats you kept per hole for My Game: tee shot, putts, first-putt distance, missed greens, penalties." },
 
   { section: "posts", table: "posts", column: "author_id", about: "Your posts." },
   { section: "comments", table: "post_comments", column: "author_id", about: "Your comments." },
