@@ -1378,6 +1378,16 @@ export const GUIDES: Guide[] = [
         look: [{ style: "outline", label: "Your stats for this round · 60 seconds", icon: "stats-chart-outline" }],
       },
       {
+        title: "Where your shots go",
+        body: "Once you've kept stats for a round or so, Where your shots go sets your approach play, short game, putting and penalties against golfers at your goal handicap, in shots a round. The biggest one is your leak, at the top of My Game. Change your goal with − and +.",
+        look: [{ style: "outline", label: "Your goal handicap  −  12  +" }],
+        tip: "It's an estimate, set against Shot Scope's published averages by handicap. Length and tee shots aren't counted, so the real gap is usually a little bigger.",
+      },
+      {
+        title: "Your practice focus",
+        body: "Under it, one thing to practise for your biggest leak — a drill, and a number to move, like missed greens that finish short from 71% to 50%. It updates with every round you keep stats for.",
+      },
+      {
         title: "See them add up",
         body: "Your stats on My Game shows fairways hit, greens in regulation, where you miss greens, par saves, putts and penalties — with a plain-English line when something stands out, like most of your missed greens finishing short.",
         tip: "No signal on the course? Your taps are kept on the phone and sent when it's back.",
@@ -1867,6 +1877,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-18", text: "See where your shots go: new steps — Where your shots go (against your goal handicap, with your biggest leak) and Your practice focus." },
   { on: "2026-10-18", text: "See where your shots go: new steps — Track my stats (a row under your score in a live round: tee shot, putts, missed green, penalty), Or add them in 60 seconds (from a saved card), and See them add up on My Game." },
   { on: "2026-10-18", text: "New guide, See where your shots go: My Game on your Profile (and at the top of My scorecards) reads your scorecards — what's costing you most, par 3s, 4s and 5s, your start, doubles, and your course hole by hole." },
   { on: "2026-10-18", text: "Mixed tees: members can say in Edit profile (or when they join) which course ratings they play off — Men's, Women's or Prefer not to say. With Mixed tees on, ladies are placed on the ladies' tees, on the women's ratings, by themselves." },
