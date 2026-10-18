@@ -45,6 +45,7 @@ import type { Href } from "expo-router";
  *               app/(tabs)/live/follow/[id].tsx (Share live / Following)
  *    compete  → app/compete/index.tsx, app/compete/[id].tsx, app/compete/match/[id].tsx,
  *               app/compete/new.tsx, app/compete/opens.tsx, app/compete/share-open.tsx
+ *    myGame   → app/my-game.tsx, app/scorecards/index.tsx, app/(tabs)/profile.tsx
  *    holeMap  → app/hole-map.tsx, components/hole-map-page.ts, components/hole-map-extras.tsx,
  *               app/my-bag.tsx, app/course/[id].tsx
  *    messages → app/(tabs)/inbox.tsx, app/new-chat.tsx, app/new-group.tsx,
@@ -1333,6 +1334,39 @@ export const GUIDES: Guide[] = [
     ],
   },
 
+  {
+    id: "myGame",
+    section: "play",
+    title: "See where your shots go",
+    blurb: "My Game reads your scorecards: par 3s, 4s and 5s, your start, doubles, and your course hole by hole.",
+    icon: "stats-chart",
+    tone: "green",
+    audience: "Everyone",
+    steps: [
+      {
+        title: "Open My Game",
+        body: "On your Profile, under Golf, tap My Game. It's also at the top of My scorecards, under your stats.",
+        path: [{ icon: "person-circle-outline", label: "Profile" }, { icon: "stats-chart-outline", label: "My Game" }],
+        go: { label: "My Game", to: "/my-game" },
+      },
+      {
+        title: "What's costing you most",
+        body: "The navy card at the top says, in plain words, what's costing you most — up to three things, the biggest first. It's worked out from the scores on your last 20 cards; nothing extra to fill in.",
+        look: [{ style: "raised", label: "Doubles or worse: 2.8 a round", kicker: "WHAT'S COSTING YOU MOST", tone: "navy" }],
+      },
+      {
+        title: "How sure it is",
+        body: "Under every figure it says how much it's based on. Early read: enough to show, not yet to trust. Good read: enough to go on. With too few cards a figure stays blank and tells you how many more it needs.",
+        look: [{ style: "outline", label: "Good read · 15 rounds" }],
+      },
+      {
+        title: "Your course, hole by hole",
+        body: "The course you play most is drawn hole by hole: the darker the square, the more that hole costs you on average. A hole shows once you've played it twice.",
+        tip: "Team cards — foursomes, greensomes and scramble — aren't counted, and neither are holes you didn't score.",
+      },
+    ],
+  },
+
   // =========================================================================
   // Messages & friends
   // =========================================================================
@@ -1815,6 +1849,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-18", text: "New guide, See where your shots go: My Game on your Profile (and at the top of My scorecards) reads your scorecards — what's costing you most, par 3s, 4s and 5s, your start, doubles, and your course hole by hole." },
   { on: "2026-10-18", text: "Mixed tees: members can say in Edit profile (or when they join) which course ratings they play off — Men's, Women's or Prefer not to say. With Mixed tees on, ladies are placed on the ladies' tees, on the women's ratings, by themselves." },
   { on: "2026-10-18", text: "Play a round together: new step, Ladies off the reds? Mixed tees — put some players on other tees; each handicap comes from their own tees, with the World Handicap System adjustment for the difference in par as an option." },
   { on: "2026-10-18", text: "Score from your lock screen now works for foursomes and greensomes pairs and scramble teams too: either of you saves the pair's card without unlocking." },

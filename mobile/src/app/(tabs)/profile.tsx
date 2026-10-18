@@ -349,6 +349,7 @@ export default function ProfileScreen() {
             </>
           ) : null}
           <NativeLink icon="document-text-outline" label="My scorecards" to="/scorecards" />
+          <NativeLink icon="stats-chart-outline" label="My Game" to="/my-game" />
           <NativeLink icon="briefcase-outline" label="My bag" to="/my-bag" />
           <NativeLink icon="flag-outline" label="Courses & favourites" to="/courses" last />
         </View>
