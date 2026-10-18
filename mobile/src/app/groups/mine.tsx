@@ -27,9 +27,9 @@ import { colors, fonts, radii, spacing } from "@/lib/theme";
  */
 const RICH_UP_TO = 5;
 
-/** The cards' frame: the big buttons' gold rim, and a heavier edge below. */
-const GOLD_RIM = "#c9a65a";
-const GOLD_EDGE = "#b8913c";
+/** The cards' frame: a navy rim, and a heavier navy edge below. */
+const RIM = "#16305a";
+const EDGE = "#0c2038";
 
 type MyGroup = MyGroups["groups"][number];
 
@@ -448,7 +448,7 @@ const styles = StyleSheet.create({
 
   stripWrap: { marginHorizontal: -spacing.md },
   strip: { gap: 12, paddingHorizontal: spacing.md, paddingBottom: 4 },
-  ev: { width: 220, borderRadius: 20, overflow: "hidden", backgroundColor: colors.surface, borderWidth: 1.5, borderColor: GOLD_RIM, borderBottomWidth: 4, borderBottomColor: GOLD_EDGE },
+  ev: { width: 220, borderRadius: 20, overflow: "hidden", backgroundColor: colors.surface, borderWidth: 1.5, borderColor: RIM, borderBottomWidth: 4, borderBottomColor: EDGE },
   evBand: { height: 92, justifyContent: "flex-end", padding: 10 },
   evVeil: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(10,18,34,0.42)" },
   evDate: { fontFamily: fonts.bodyBold, fontSize: 11, letterSpacing: 1.2, color: "#ffffff" },
@@ -464,15 +464,15 @@ const styles = StyleSheet.create({
   chipCountOn: { color: colors.gold400 },
 
   cards: { gap: 16 },
-  // A gold rim with a heavier gold edge along the bottom — the big
-  // buttons' frame, so each group reads as its own card (Oct 2026).
+  // A navy rim with a heavier navy edge along the bottom, so each group
+  // reads as its own card (Oct 2026).
   card: {
     borderRadius: 22,
     backgroundColor: colors.surface,
     borderWidth: 1.5,
-    borderColor: GOLD_RIM,
+    borderColor: RIM,
     borderBottomWidth: 4,
-    borderBottomColor: GOLD_EDGE,
+    borderBottomColor: EDGE,
     overflow: "hidden",
     shadowColor: colors.navy900,
     shadowOpacity: 0.12,
@@ -524,9 +524,9 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     backgroundColor: colors.surface,
     borderWidth: 1.5,
-    borderColor: GOLD_RIM,
+    borderColor: RIM,
     borderBottomWidth: 4,
-    borderBottomColor: GOLD_EDGE,
+    borderBottomColor: EDGE,
     shadowColor: colors.navy900,
     shadowOpacity: 0.1,
     shadowRadius: 8,
@@ -537,7 +537,7 @@ const styles = StyleSheet.create({
   roleText: { color: "#8a6a1f", fontFamily: fonts.bodyBold },
   nextSmall: { fontFamily: fonts.bodyBold, fontSize: 12, color: colors.green700, marginTop: 3 },
 
-  listCard: { borderRadius: 22, backgroundColor: colors.surface, borderWidth: 1.5, borderColor: GOLD_RIM, borderBottomWidth: 4, borderBottomColor: GOLD_EDGE, overflow: "hidden" },
+  listCard: { borderRadius: 22, backgroundColor: colors.surface, borderWidth: 1.5, borderColor: RIM, borderBottomWidth: 4, borderBottomColor: EDGE, overflow: "hidden" },
   row: { flexDirection: "row", alignItems: "center", gap: 12, padding: 14 },
   rowLine: { borderTopWidth: 1, borderTopColor: "#eee6d4" },
 
