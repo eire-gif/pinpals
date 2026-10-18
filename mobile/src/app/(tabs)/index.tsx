@@ -174,7 +174,7 @@ export default function HomeScreen() {
           <WatchLiveStrip />
           <HomeGreeting firstName={me?.firstName || null} showQr={connections} />
           {!loading ? <HomeToday summary={summary} teeTimes={teeTimes} /> : null}
-          <HomeButtons teeTimes={teeTimes} />
+          <HomeButtons connections={connections} />
         </View>
       </ImageBackground>
 

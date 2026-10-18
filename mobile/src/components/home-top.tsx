@@ -405,10 +405,12 @@ function Link({ label, onPress }: { label: string; onPress: () => void }) {
 // The four buttons
 // ---------------------------------------------------------------------------
 
-export function HomeButtons({ teeTimes }: { teeTimes: boolean }) {
+/** Find Golfers opens Find PinPals (the member directory), for members old
+ *  enough to make connections. */
+export function HomeButtons({ connections }: { connections: boolean }) {
   return (
     <View style={styles.buttons}>
-      {teeTimes ? (
+      {connections ? (
         <RaisedCard
           inset={false}
           marginTop={0}
@@ -416,9 +418,9 @@ export function HomeButtons({ teeTimes }: { teeTimes: boolean }) {
           icon="search"
           kicker="Play"
           title="Find Golfers"
-          subtitle="Join a fourball or fill your own tee time"
+          subtitle="Golfers at your club and near you — connect and play"
           wrapTitle
-          onPress={() => router.navigate("/tee-times")}
+          onPress={() => router.push("/members")}
         />
       ) : null}
       {isOn("liveScoring") ? (
