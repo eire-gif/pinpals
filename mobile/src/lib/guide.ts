@@ -709,7 +709,7 @@ export const GUIDES: Guide[] = [
           { icon: "swap-horizontal", label: "Foursomes Stableford or stroke play", blurb: "Scotch foursomes: pairs share a ball and take alternate shots. Two pairs to a tee group." },
           { icon: "git-compare", label: "Matchplay", blurb: "Singles, fourball, foursomes, greensomes." },
         ],
-        tip: "Foursomes and Scotch foursomes are the same game. Each pair plays off half its combined course handicaps — worked out for you.",
+        tip: "Foursomes and Scotch foursomes are the same game. Each pair plays off half its combined course handicaps — worked out for you. New to a format? Menu → Game formats explains every one.",
       },
       {
         title: "Name the day and pick when",
@@ -1794,6 +1794,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-18", text: "New: Game formats, under Menu → Play — all 41 ways to play explained in plain English, from Stableford and foursomes to scrambles, skins and Wolf, with handicap allowances and pictures. Play a round together now points to it when you choose the format." },
   { on: "2026-10-17", text: "Societies: the committee can upload the member list from a spreadsheet on the website (Members → Import from spreadsheet). Everyone is emailed, and joins the society as soon as they sign in to PinPals with that address. Set up a society and Join a society are updated." },
   { on: "2026-10-17", text: "Hole map: new step, Playing a competition — in a society event or competition round Plays like and the suggested club are off (Rule 4.3); tick Competition round under Hazards and more for any other competition. Yards or metres is now remembered." },
   { on: "2026-10-17", text: "Tee times: you can take back a request the host hasn't answered yet — Withdraw request under ••• in My rounds, or Withdraw my request on the round. Find a game is updated." },
