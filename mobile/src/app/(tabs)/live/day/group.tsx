@@ -832,7 +832,7 @@ export default function DrawFromGroup() {
         size="screen"
         icon="people-outline"
         title="Start with a group"
-        body="Make a crew for your regular game or a society for your outings, bring your golfers in, then draw them into groups here."
+        body="Make a Golf Buddies group for your regular game or a society for your outings, bring your golfers in, then draw them into groups here."
         action={{ label: "Groups & societies", onPress: () => router.push("/groups") }}
       />
     );

@@ -142,8 +142,8 @@ export default function LiveScoringHub() {
             icon="people"
             kicker="Societies & outings"
             title="Groups & Societies"
-            subtitle="Draw your crew or society into groups and teams"
-            a11y="Groups and societies. Pick your crew or society, tick who's playing, and draw them into tee groups or scramble teams at random or balanced by handicap."
+            subtitle="Draw your buddies or society into groups and teams"
+            a11y="Groups and societies. Pick your buddies or society, tick who's playing, and draw them into tee groups or scramble teams at random or balanced by handicap."
             onPress={() => router.push("/live/day/group")}
           />
         ) : null}

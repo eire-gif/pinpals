@@ -101,7 +101,7 @@ export default function InviteToGroupScreen() {
   }, [people, query, finding, found]);
 
   const groupName = page?.group.name ?? "our group";
-  const kindWord = page ? GROUP_KIND_INFO[page.group.kind].label.toLowerCase() : "group";
+  const kindWord = page && page.group.kind !== "crew" ? GROUP_KIND_INFO[page.group.kind].label.toLowerCase() : "group";
   const message = code
     ? `Join ${groupName} on PinPals — our ${kindWord}, with live scoring for our rounds. Tap to join: ${groupInviteUrl(code)}`
     : "";

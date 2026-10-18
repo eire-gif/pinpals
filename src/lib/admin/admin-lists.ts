@@ -119,7 +119,7 @@ export async function getCommunitySnapshot(): Promise<CommunitySnapshot> {
 // ============ Groups & societies (0120) ============
 
 export const GROUP_KIND_LABELS: Record<string, string> = {
-  crew: "Crew",
+  crew: "Golf Buddies",
   trip: "Golf trip",
   society: "Society",
   area: "Area",

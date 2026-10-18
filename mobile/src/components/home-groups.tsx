@@ -40,7 +40,7 @@ export function HomeGroups({ invitesOnly = false }: { invitesOnly?: boolean } = 
   return (
     <View style={styles.wrap}>
       {invites > 0 ? (
-        <Pressable style={styles.invite} onPress={() => router.push("/groups")} accessibilityRole="button">
+        <Pressable style={styles.invite} onPress={() => router.push("/groups/mine")} accessibilityRole="button">
           <Ionicons name="mail-unread-outline" size={20} color={colors.navy900} />
           <Text style={styles.inviteText}>
             {invites === 1 ? `You're invited to ${data.invitations[0].name}` : `You're invited to ${invites} groups`}

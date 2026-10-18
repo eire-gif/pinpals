@@ -72,9 +72,10 @@ export type GroupKindInfo = {
 
 export const GROUP_KIND_INFO: Record<GroupKind, GroupKindInfo> = {
   crew: {
-    label: "Crew",
-    example: "Saturday Golf Crew",
-    description: "Your regular fourball and the friends who fill in.",
+    // Shown as "Golf Buddies" since Oct 2026; the kind stays "crew" in the data.
+    label: "Golf Buddies",
+    example: "Saturday Golf Buddies",
+    description: "Your golf buddies — your regular fourball and the friends who fill in.",
     icon: "people",
     privacy: "invite",
     features: ["posts", "events", "polls", "chat", "tee_times"],

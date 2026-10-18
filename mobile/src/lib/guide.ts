@@ -14,7 +14,7 @@ import type { Href } from "expo-router";
  *  no guide.
  *
  *  Screens each guide follows:
- *    start    → app/groups/index.tsx, app/groups/new.tsx, app/group/[id]/index.tsx,
+ *    start    → app/groups/index.tsx, app/groups/mine.tsx, app/groups/new.tsx, app/group/[id]/index.tsx,
  *               app/group/[id]/invite.tsx
  *    run      → app/group/[id]/index.tsx, app/group/[id]/settings.tsx,
  *               app/group/[id]/handicaps.tsx, app/group/[id]/contacts.tsx,
@@ -177,11 +177,12 @@ export type ResolvedGuide = Omit<Guide, "steps" | "as" | "audiences"> & { steps:
 
 const MENU: GuideCrumb = { icon: "menu", label: "Menu" };
 const GROUPS: GuideCrumb = { icon: "people-outline", label: "Groups & societies" };
+const MY_GROUPS: GuideCrumb = { icon: "grid-outline", label: "My Groups & Societies" };
 const YOUR_GROUP: GuideCrumb = { icon: "shield-outline", label: "Your group" };
 const EVENTS: GuideCrumb = { icon: "calendar-outline", label: "Events" };
 
 const KIND = {
-  crew: { icon: "people", label: "Crew", blurb: "Your regular fourball and friends. Up to 20, invite only, with a chat." },
+  crew: { icon: "people", label: "Golf Buddies", blurb: "Your regular fourball and friends. Up to 20, invite only, with a chat." },
   trip: { icon: "airplane", label: "Trip", blurb: "Everyone on a golf trip. Up to 20, invite only, with a chat." },
   society: { icon: "trophy", label: "Society", blurb: "Up to 500. Golfers can find it and ask to join; you approve them." },
 } satisfies Record<string, GuideChoice>;
@@ -205,7 +206,7 @@ export const GUIDES: Guide[] = [
     tone: "green",
     audience: "Anyone",
     as: {
-      friends: { title: "Start a crew", blurb: "A home for your fourball: one chat, your rounds, your days out." },
+      friends: { title: "Start Golf Buddies", blurb: "A home for your fourball: one chat, your rounds, your days out." },
       trip: { title: "Set up your golf trip", blurb: "Everyone going, one chat, and the trip's plan in one place." },
     },
     next: "event",
@@ -217,26 +218,33 @@ export const GUIDES: Guide[] = [
         go: { label: "Groups & societies", to: "/groups" },
       },
       {
-        title: "Tap Start a group",
-        body: "It's the green button at the top of Groups & societies.",
+        title: "Tap Run a Society",
+        body: "Under Start a new group, tap the green Run a Society button.",
         who: "Members 18 and over",
-        look: [
-          { style: "primary", label: "Start a group", icon: "add" },
-          { style: "outline", label: "Find a society", icon: "search" },
-        ],
-        go: { label: "Start a group", to: "/groups/new" },
+        look: [{ style: "raised", label: "Run a Society", icon: "trophy", tone: "green", kicker: "Societies & outings", subtitle: "Outings, entries, the draw and results" }],
+        go: { label: "Run a Society", to: "/groups/new" },
         as: {
-          friends: { look: [{ style: "primary", label: "Start a group", icon: "add" }] },
-          trip: { look: [{ style: "primary", label: "Start a group", icon: "add" }] },
+          friends: {
+            title: "Tap Golf Buddies",
+            body: "Under Start a new group, tap the navy Golf Buddies button.",
+            look: [{ style: "raised", label: "Golf Buddies", icon: "people", kicker: "Friends", subtitle: "Your regular group of friends — one chat, your rounds" }],
+            go: { label: "Golf Buddies", to: "/groups/new" },
+          },
+          trip: {
+            title: "Tap Plan a Golf Trip",
+            body: "Under Start a new group, tap Plan a Golf Trip.",
+            look: [{ style: "raised", label: "Plan a Golf Trip", icon: "airplane", tone: "claret", kicker: "Away", subtitle: "Courses, flights and the itinerary in one place" }],
+            go: { label: "Plan a Golf Trip", to: "/groups/new" },
+          },
         },
       },
       {
-        title: "Choose Society",
-        body: "Pick Society. Golfers can find it by name and ask to join, and you decide who gets in.",
+        title: "Society is ticked",
+        body: "Society is already picked — change it here if you need to. Golfers can find a society by name and ask to join, and you decide who gets in.",
         choices: [KIND.society, KIND.crew, KIND.trip],
         as: {
-          friends: { title: "Choose Crew", body: "Pick Crew. It's invite only — just the friends you bring in.", choices: [KIND.crew, KIND.trip, KIND.society] },
-          trip: { title: "Choose Trip", body: "Pick Trip. It's invite only — just the people going.", choices: [KIND.trip, KIND.crew, KIND.society] },
+          friends: { title: "Golf Buddies is ticked", body: "Golf Buddies is already picked. It's invite only — just the friends you bring in.", choices: [KIND.crew, KIND.trip, KIND.society] },
+          trip: { title: "Trip is ticked", body: "Trip is already picked. It's invite only — just the people going.", choices: [KIND.trip, KIND.crew, KIND.society] },
         },
       },
       {
@@ -250,12 +258,12 @@ export const GUIDES: Guide[] = [
         tip: "You can change the name, description and home club later in Settings.",
         as: {
           friends: {
-            title: "Name your crew",
+            title: "Name your group",
             tip: "You can change the name and description later in Settings.",
-            body: "Give it a name your friends will recognise, and a line about it if you like. Tap Create crew.",
+            body: "Give it a name your friends will recognise, and a line about it if you like. Tap Create group.",
             look: [
-              { style: "field", label: "Saturday Golf Crew", icon: "create-outline" },
-              { style: "primary", label: "Create crew" },
+              { style: "field", label: "Saturday Golf Buddies", icon: "create-outline" },
+              { style: "primary", label: "Create group" },
             ],
           },
           trip: {
@@ -320,7 +328,7 @@ export const GUIDES: Guide[] = [
       {
         title: "Appoint your committee",
         body: "On the society's page, tap a member's name under Members and choose Make captain, Make secretary, Make vice-captain, Make treasurer, Make handicap secretary or Make event organiser. There's one of each, except event organisers — have as many as you like.",
-        path: [MENU, GROUPS, YOUR_GROUP],
+        path: [MENU, GROUPS, MY_GROUPS, YOUR_GROUP],
         look: [
           { style: "link", label: "Make captain" },
           { style: "link", label: "Make treasurer" },
@@ -427,7 +435,7 @@ export const GUIDES: Guide[] = [
     tone: "gold",
     audience: "Members",
     as: {
-      friends: { title: "Join a friend's crew", blurb: "Accept the invitation or tap the link they sent." },
+      friends: { title: "Join a friend's group", blurb: "Accept the invitation or tap the link they sent." },
       trip: { title: "Join the trip", blurb: "Accept the invitation or tap the link the organiser sent." },
     },
     next: "round",
@@ -450,27 +458,27 @@ export const GUIDES: Guide[] = [
       },
       {
         title: "Or accept an invitation",
-        body: "Invitations appear at the top of Groups & societies, and as a notification. Tap Join — or tap the link you were sent. Got an email from your society? Sign up or log in with that email address and you're in — no need to tap Join.",
+        body: "Invitations appear in My Groups & Societies (the bronze button shows 1 new), and as a notification. Tap Join — or tap the link you were sent. Got an email from your society? Sign up or log in with that email address and you're in — no need to tap Join.",
         look: [
           { style: "primary", label: "Join" },
           { style: "outline", label: "Decline" },
         ],
-        go: { label: "Groups & societies", to: "/groups" },
+        go: { label: "My Groups & Societies", to: "/groups/mine" },
         as: {
-          friends: { title: "Accept the invitation", body: "When a friend adds you, it's at the top of Groups & societies and in your alerts. Tap Join. If they sent a link instead, just tap it — you're straight in." },
-          trip: { title: "Accept the invitation", body: "When the organiser adds you, it's at the top of Groups & societies and in your alerts. Tap Join. If they sent a link, tap it — you're straight in." },
+          friends: { title: "Accept the invitation", body: "When a friend adds you, it's in My Groups & Societies and in your alerts. Tap Join. If they sent a link instead, just tap it — you're straight in." },
+          trip: { title: "Accept the invitation", body: "When the organiser adds you, it's in My Groups & Societies and in your alerts. Tap Join. If they sent a link, tap it — you're straight in." },
         },
       },
       {
         title: "Find your way around",
-        body: "Open the group from Groups & societies. Chat opens the group chat once three of you are in, Events shows what's planned, and Start a round draws you into groups on the day.",
+        body: "Open the group from My Groups & Societies. Chat opens the group chat once three of you are in, Events shows what's planned, and Start a round draws you into groups on the day.",
         only: ["friends", "trip"],
         look: [
           { style: "outline", label: "Chat", icon: "chatbubbles-outline" },
           { style: "tile", label: "Events", icon: "calendar-outline" },
           { style: "banner", label: "Start a round", icon: "shuffle", subtitle: "Draw into groups or teams, scored live" },
         ],
-        as: { trip: { body: "Open the trip from Groups & societies. Chat opens the trip's chat, Events has the trip with its itinerary — your flights, room and tee times — and Start a round draws everyone on the day." } },
+        as: { trip: { body: "Open the trip from My Groups & Societies. Chat opens the trip's chat, Events has the trip with its itinerary — your flights, room and tee times — and Start a round draws everyone on the day." } },
       },
     ],
   },
@@ -484,7 +492,7 @@ export const GUIDES: Guide[] = [
     tone: "navy",
     audience: "Captain, secretary",
     as: {
-      friends: { title: "Plan a day out", blurb: "Pick a course and date, see who's in, collect the green fees.", audience: "Whoever started the crew" },
+      friends: { title: "Plan a day out", blurb: "Pick a course and date, see who's in, collect the green fees.", audience: "Whoever started the group" },
       trip: { title: "Plan the trip", blurb: "Dates, rounds, rooms, flights and who's paid — day by day.", audience: "The trip's organiser" },
     },
     next: "round",
@@ -492,13 +500,13 @@ export const GUIDES: Guide[] = [
       {
         title: "Open your group's Events",
         body: "On your group's page, tap the Events tile, then New event.",
-        path: [MENU, GROUPS, YOUR_GROUP, EVENTS],
+        path: [MENU, GROUPS, MY_GROUPS, YOUR_GROUP, EVENTS],
         look: [
           { style: "tile", label: "Events", icon: "calendar-outline" },
           { style: "primary", label: "New event", icon: "add" },
         ],
         who: "Captain or secretary",
-        as: { friends: { who: "Whoever started the crew" }, trip: { who: "The trip's organiser" } },
+        as: { friends: { who: "Whoever started the group" }, trip: { who: "The trip's organiser" } },
       },
       {
         title: "Choose what kind of outing",
@@ -631,7 +639,7 @@ export const GUIDES: Guide[] = [
       {
         title: "Find the fixtures",
         body: "On the society's page, tap Events for the season's fixtures. Each shows where you stand: Confirmed, Requested, Waiting list, or Payment due.",
-        path: [MENU, GROUPS, YOUR_GROUP, EVENTS],
+        path: [MENU, GROUPS, MY_GROUPS, YOUR_GROUP, EVENTS],
         look: [
           { style: "tile", label: "Events", icon: "calendar-outline" },
           { style: "outline", label: "Confirmed" },
@@ -682,10 +690,10 @@ export const GUIDES: Guide[] = [
       {
         title: "Start a round from your group",
         body: "On your group's page, tap the gold Start a round bar. It's also in Live scoring as Groups & Societies.",
-        path: [MENU, GROUPS, YOUR_GROUP],
+        path: [MENU, GROUPS, MY_GROUPS, YOUR_GROUP],
         look: [
           { style: "banner", label: "Start a round", icon: "shuffle", subtitle: "Draw into groups or teams, scored live" },
-          { style: "raised", label: "Groups & Societies", icon: "people", tone: "green", kicker: "Societies & outings", subtitle: "Draw your crew or society into groups and teams" },
+          { style: "raised", label: "Groups & Societies", icon: "people", tone: "green", kicker: "Societies & outings", subtitle: "Draw your buddies or society into groups and teams" },
         ],
         go: { label: "Live scoring", to: "/live" },
       },
@@ -698,7 +706,7 @@ export const GUIDES: Guide[] = [
           { style: "field", label: "Index", icon: "speedometer-outline" },
         ],
         as: {
-          friends: { body: "Everyone in the crew starts ticked — untick anyone not playing. Check each handicap index, and tap Add a guest for a friend who isn't on PinPals." },
+          friends: { body: "Everyone in the group starts ticked — untick anyone not playing. Check each handicap index, and tap Add a guest for a friend who isn't on PinPals." },
           trip: { body: "Everyone on the trip starts ticked — untick anyone sitting it out. Check each handicap index, and tap Add a guest for anyone not on PinPals." },
         },
       },
@@ -853,10 +861,10 @@ export const GUIDES: Guide[] = [
       },
       {
         title: "Show it on your group's page",
-        body: "Under Show on a group's page, pick the society, trip or crew. Its members can look back at the results under Past results on the group's page — tap it to open the list, or See all results for every one — even those who didn't play. A day from an event is set to that society already.",
+        body: "Under Show on a group's page, pick the society, trip or Golf Buddies group. Its members can look back at the results under Past results on the group's page — tap it to open the list, or See all results for every one — even those who didn't play. A day from an event is set to that society already.",
         look: [{ style: "outline", label: "North Dublin Golf Society" }],
         as: {
-          friends: { body: "Under Show on a group's page, pick your crew. Everyone in it can look back at the results under Past results on the crew's page." },
+          friends: { body: "Under Show on a group's page, pick your Golf Buddies group. Everyone in it can look back at the results under Past results on the group's page." },
           trip: { body: "Under Show on a group's page, pick the trip. Everyone on it can look back at every round's results under Past results on the trip's page." },
         },
       },
@@ -1052,7 +1060,7 @@ export const GUIDES: Guide[] = [
     steps: [
       {
         title: "Open Live scoring",
-        body: "On Home, tap the big Start a Round button. On the day of a tee time, crew round or society outing, the card at the top of Home has Start your round here too. It's in the menu as well.",
+        body: "On Home, tap the big Start a Round button. On the day of a tee time, buddies round or society outing, the card at the top of Home has Start your round here too. It's in the menu as well.",
         look: [{ style: "raised", label: "Start a Round", icon: "flag", kicker: "Live scoring", subtitle: "Score with your group, watch the leaderboard move" }],
         go: { label: "Live scoring", to: "/live" },
         tip: "Playing a tee time? Only one of you needs to start: open it and tap Start live scoring — everyone on it is added and gets an alert that opens the game. If someone already started it, the button says Open the live game. A player can only be in one game at a time.",
@@ -1060,17 +1068,17 @@ export const GUIDES: Guide[] = [
       {
         title: "Choose how you're playing",
         body: "Running the society's day? Tap Groups & Societies to draw your members into tee groups or teams. Match Day Fun runs several matches at once with a team score, Ryder Cup style. Just your own fourball? Tap Start a Round.",
-        look: [{ style: "raised", label: "Start a Round", icon: "flag", subtitle: "Stableford, stroke play, foursomes, a match or a scramble" }, { style: "raised", label: "Groups & Societies", icon: "people", tone: "green", kicker: "Societies & outings", subtitle: "Draw your crew or society into groups and teams" }, { style: "raised", label: "Match Day Fun", icon: "trophy", tone: "claret", kicker: "Team matches", subtitle: "Singles, fourballs and foursomes, Ryder Cup style" }],
+        look: [{ style: "raised", label: "Start a Round", icon: "flag", subtitle: "Stableford, stroke play, foursomes, a match or a scramble" }, { style: "raised", label: "Groups & Societies", icon: "people", tone: "green", kicker: "Societies & outings", subtitle: "Draw your buddies or society into groups and teams" }, { style: "raised", label: "Match Day Fun", icon: "trophy", tone: "claret", kicker: "Team matches", subtitle: "Singles, fourballs and foursomes, Ryder Cup style" }],
         tip: "Groups & Societies is covered step by step in Play a round together. The rest of this guide is Start a Round.",
         as: {
           friends: {
-            body: "Just your fourball? Tap Start a Round — that's the rest of this guide. Got a crew set up? Groups & Societies ticks everyone in it and draws you into groups.",
-            look: [{ style: "raised", label: "Start a Round", icon: "flag", subtitle: "Stableford, stroke play, foursomes, a match or a scramble" }, { style: "raised", label: "Groups & Societies", icon: "people", tone: "green", kicker: "Societies & outings", subtitle: "Draw your crew or society into groups and teams" }],
+            body: "Just your fourball? Tap Start a Round — that's the rest of this guide. Got Golf Buddies set up? Groups & Societies ticks everyone in it and draws you into groups.",
+            look: [{ style: "raised", label: "Start a Round", icon: "flag", subtitle: "Stableford, stroke play, foursomes, a match or a scramble" }, { style: "raised", label: "Groups & Societies", icon: "people", tone: "green", kicker: "Societies & outings", subtitle: "Draw your buddies or society into groups and teams" }],
             tip: "Groups & Societies is covered step by step in Play a round together.",
           },
           trip: {
             body: "On the trip, tap Groups & Societies to draw everyone into fourballs for the day, or Match Day Fun for a team competition. Start a Round is for a quick game in your own fourball.",
-            look: [{ style: "raised", label: "Start a Round", icon: "flag", subtitle: "Stableford, stroke play, foursomes, a match or a scramble" }, { style: "raised", label: "Groups & Societies", icon: "people", tone: "green", kicker: "Societies & outings", subtitle: "Draw your crew or society into groups and teams" }, { style: "raised", label: "Match Day Fun", icon: "trophy", tone: "claret", kicker: "Team matches", subtitle: "Singles, fourballs and foursomes, Ryder Cup style" }],
+            look: [{ style: "raised", label: "Start a Round", icon: "flag", subtitle: "Stableford, stroke play, foursomes, a match or a scramble" }, { style: "raised", label: "Groups & Societies", icon: "people", tone: "green", kicker: "Societies & outings", subtitle: "Draw your buddies or society into groups and teams" }, { style: "raised", label: "Match Day Fun", icon: "trophy", tone: "claret", kicker: "Team matches", subtitle: "Singles, fourballs and foursomes, Ryder Cup style" }],
           },
         },
       },
@@ -1492,7 +1500,7 @@ export const GUIDES: Guide[] = [
       {
         title: "See a group's numbers",
         body: "On a group's page, tap Phone numbers. Call, Text or WhatsApp anyone listed.",
-        path: [MENU, GROUPS, YOUR_GROUP],
+        path: [MENU, GROUPS, MY_GROUPS, YOUR_GROUP],
         look: [
           { style: "outline", label: "Phone numbers", icon: "call-outline" },
           { style: "outline", label: "Call", icon: "call" },
@@ -1866,7 +1874,7 @@ export const GUIDES: Guide[] = [
 /** The big picture on the guides page, for each kind of group. */
 export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label: string }[]> = {
   friends: [
-    { guide: "start", icon: "people", label: "Start a crew" },
+    { guide: "start", icon: "people", label: "Start Golf Buddies" },
     { guide: "event", icon: "calendar", label: "Plan a day out" },
     { guide: "round", icon: "golf", label: "Play the round" },
   ],
@@ -1887,6 +1895,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-18", text: "Groups & societies has four big buttons: My Groups & Societies (your groups, invitations and requests) and Golf Buddies, Plan a Golf Trip and Run a Society to start one. Crews are now called Golf Buddies. Set up a society, Join a group and the steps that open your group are updated." },
   { on: "2026-10-18", text: "Find Golfers on Home now opens Find PinPals. Find PinPals, Post a tee time and Find a game are updated." },
   { on: "2026-10-18", text: "Play a round together: when a round is finished, every member who played gets their card saved to My scorecards — not just whoever tapped Complete scorecard. After certifying someone's card, Open my card takes you to yours." },
   { on: "2026-10-18", text: "Home has four big buttons — Find Golfers, Start a Round, Groups & Societies and Marketplace — and, on the day of a round, a card at the top with Start your round here. Post a tee time, Find a game, Score a game live, Start a group, Bring your fourball and Sell your gear are updated." },

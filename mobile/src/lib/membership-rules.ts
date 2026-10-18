@@ -99,7 +99,7 @@ export const PLAN_COPY: Record<Tier, { name: string; blurb: string; tag: string;
     name: "Basic",
     blurb: "Scoring, societies, tee times, selling",
     tag: "Free",
-    features: ["Live scoring in every format", "Join societies, crews and trips", "Offer and book tee times", "Buy and sell golf gear"],
+    features: ["Live scoring in every format", "Join societies, golf buddies and trips", "Offer and book tee times", "Buy and sell golf gear"],
   },
   premium: {
     name: "Premium",

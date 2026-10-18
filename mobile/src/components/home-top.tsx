@@ -314,7 +314,7 @@ function TeeToday({ round, players, openGame }: { round: NextRound; players: Hom
   );
 }
 
-const KIND_LABEL: Partial<Record<HomeEvent["groupKind"], string>> = { crew: "Crew round", trip: "Golf trip", society: "Society outing", club: "Club outing" };
+const KIND_LABEL: Partial<Record<HomeEvent["groupKind"], string>> = { crew: "Buddies round", trip: "Golf trip", society: "Society outing", club: "Club outing" };
 
 function EventToday({ event, openGame }: { event: HomeEvent; openGame: MyOpenGame | null }) {
   const shotgun = event.start !== null;
@@ -443,7 +443,7 @@ export function HomeButtons({ connections }: { connections: boolean }) {
           icon="people"
           kicker="Societies & outings"
           title="Groups & Societies"
-          subtitle="Draw your crew or society into groups and teams"
+          subtitle="Draw your buddies or society into groups and teams"
           wrapTitle
           onPress={() => router.push("/groups")}
         />

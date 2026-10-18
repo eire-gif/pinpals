@@ -26,7 +26,8 @@ import { notifyUser } from "./notifications-server";
 type GroupRow = { id: number; name: string; kind: string };
 type InvitationRow = { id: number; member_id: string; invited_by: string | null; created_at: string };
 
-const kindWord = (kind: string) => (isGroupKind(kind) ? GROUP_KIND_INFO[kind].label.toLowerCase() : "group");
+// "Golf Buddies" reads oddly mid-sentence ("Join the golf buddies"), so that kind is just "group".
+const kindWord = (kind: string) => (isGroupKind(kind) && kind !== "crew" ? GROUP_KIND_INFO[kind].label.toLowerCase() : "group");
 
 async function firstName(admin: SupabaseClient, memberId: string | null): Promise<string> {
   if (!memberId) return "A PinPal";
