@@ -463,11 +463,11 @@ export function HomeButtons({ connections }: { connections: boolean }) {
   );
 }
 
-/** "New here?" — opens the how-to guides. */
+/** "New here?" — opens Explore, how PinPals works. */
 export function ExploreCard() {
   return (
     <Pressable
-      onPress={() => router.push("/guide")}
+      onPress={() => router.push("/explore")}
       style={({ pressed }) => [styles.explore, pressed && styles.pressed]}
       accessibilityRole="button"
       accessibilityLabel="Explore how PinPals works"
