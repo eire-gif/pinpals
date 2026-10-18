@@ -184,6 +184,22 @@ export default function ScorecardsScreen() {
                   <StatTile icon="trophy" tint={colors.gold500} label="Best points" value={s.bestPoints ? String(s.bestPoints.points) : "—"} />
                 </View>
 
+                {mine ? (
+                  <Pressable
+                    onPress={() => router.push("/my-game")}
+                    style={({ pressed }) => [styles.myGame, pressed && styles.pressed]}
+                    accessibilityRole="button"
+                    accessibilityLabel="My Game: where your shots go"
+                  >
+                    <Ionicons name="stats-chart" size={18} color={colors.green700} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.myGameTitle}>My Game</Text>
+                      <Text style={styles.sub}>Where your shots go, from these cards</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={18} color={colors.ink500} />
+                  </Pressable>
+                ) : null}
+
                 <Text style={styles.sectionTitle}>ALL CARDS</Text>
               </>
             ) : null}
@@ -364,6 +380,8 @@ const styles = StyleSheet.create({
   relText: { fontFamily: fonts.bodyBold, fontSize: 12.5, color: colors.red600 },
   relTextUnder: { color: colors.green700 },
   pressed: { opacity: 0.88 },
+  myGame: { flexDirection: "row", alignItems: "center", gap: spacing.sm + 2, padding: spacing.md, borderRadius: radii.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
+  myGameTitle: { fontFamily: fonts.bodyBold, fontSize: 15.5, color: colors.ink900 },
 
   waiting: { gap: spacing.sm, padding: spacing.md, borderRadius: radii.lg, backgroundColor: colors.green100, borderWidth: 1, borderColor: "#bfd6bd" },
   waitingTitle: { fontFamily: fonts.bodyBold, fontSize: 12, letterSpacing: 1.4, color: colors.green800 },
