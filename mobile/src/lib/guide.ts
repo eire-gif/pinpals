@@ -1895,6 +1895,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-18", text: "New here? Explore how PinPals works on Home now opens a short guide in four chapters — Find Golfers, Start a Round, Groups & Societies and Marketplace — each with a button that goes there. The how-to guides are linked at the end." },
   { on: "2026-10-18", text: "Groups & societies has four big buttons: My Groups & Societies (your groups, invitations and requests) and Golf Buddies, Plan a Golf Trip and Run a Society to start one. Crews are now called Golf Buddies. Set up a society, Join a group and the steps that open your group are updated." },
   { on: "2026-10-18", text: "Find Golfers on Home now opens Find PinPals. Find PinPals, Post a tee time and Find a game are updated." },
   { on: "2026-10-18", text: "Play a round together: when a round is finished, every member who played gets their card saved to My scorecards — not just whoever tapped Complete scorecard. After certifying someone's card, Open my card takes you to yours." },
