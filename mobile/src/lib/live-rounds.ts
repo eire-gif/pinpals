@@ -72,6 +72,10 @@ export type LiveRoundPlayer = LivePlayer & {
   courseHandicap: number;
   estimated: boolean;
   position: number;
+  /** Mixed tees (0176): their own tees, when not the round's; null otherwise. */
+  teeName: string | null;
+  /** Mixed tees (0176): shots for the difference in par, already in playingHandicap. */
+  teeExtra: number;
 };
 
 export type LiveRoundData = {
@@ -123,6 +127,8 @@ type PlayerRow = {
   handicap_estimated: boolean;
   position: number;
   side: number | null;
+  tee_name?: string | null;
+  tee_extra?: number | null;
 };
 
 export const ROUND_SELECT =
@@ -220,7 +226,7 @@ export async function loadMyLiveRounds(userId: string): Promise<LiveRoundSummary
 /** Everything a scoring screen draws, in four parallel reads. Null if the
  *  round doesn't exist or isn't mine to see — RLS makes those the same. */
 export const PLAYER_SELECT =
-  "id, round_id, member_id, display_name, handicap_index, course_handicap, playing_handicap, handicap_estimated, position, side";
+  "id, round_id, member_id, display_name, handicap_index, course_handicap, playing_handicap, handicap_estimated, position, side, tee_name, tee_extra";
 
 export const toPlayer = (p: PlayerRow): LiveRoundPlayer => ({
   id: p.id,
@@ -232,6 +238,8 @@ export const toPlayer = (p: PlayerRow): LiveRoundPlayer => ({
   estimated: p.handicap_estimated,
   position: p.position,
   side: p.side,
+  teeName: p.tee_name ?? null,
+  teeExtra: p.tee_extra ?? 0,
 });
 
 export type { PlayerRow };

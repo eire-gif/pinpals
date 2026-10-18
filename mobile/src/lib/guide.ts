@@ -724,6 +724,15 @@ export const GUIDES: Guide[] = [
         tip: "A shotgun takes two groups a hole: with more groups than holes, the extra B groups go on the par 5s and 4s first. Each group's card starts on its own hole. Only whoever runs the group can set a round up for a later date.",
       },
       {
+        title: "Ladies off the reds? Mixed tees",
+        body: "Under Mixed tees, tick Some players play off other tees, pick the other tees and tap who plays off them. Each player's handicap comes from their own tees. Leave Adjust for the different tees on and the World Handicap System's adjustment is added for the difference in par — the app tells you how many shots.",
+        look: [
+          { style: "outline", label: "Red", icon: "golf" },
+          { style: "outline", label: "Adjust for the different tees" },
+        ],
+        tip: "Everyone is scored on the day's one card, so the pars and stroke indexes are the same for all. Saved to My scorecards, a card off the reds goes in on the reds' rating and slope, so the handicap record is right. Only tees with a card on file can be picked.",
+      },
+      {
         title: "Make the draw",
         body: "Tap Make the draw. Random mixes everyone up; Balanced by handicap spreads the low and high handicaps evenly. Tap one player, then another, to swap them.",
         look: [
@@ -1806,6 +1815,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-18", text: "Play a round together: new step, Ladies off the reds? Mixed tees — put some players on other tees; each handicap comes from their own tees, with the World Handicap System adjustment for the difference in par as an option." },
   { on: "2026-10-18", text: "Score from your lock screen now works for foursomes and greensomes pairs and scramble teams too: either of you saves the pair's card without unlocking." },
   { on: "2026-10-18", text: "Play a round together: new step, Keep the leaderboard secret — players see only their own group until you publish the results, so the winners stay a surprise for the prize-giving. The TV stays live. Publish the results mentions it too." },
   { on: "2026-10-18", text: "New: Game formats, under Menu → Play — all 41 ways to play explained in plain English, from Stableford and foursomes to scrambles, skins and Wolf, with handicap allowances and pictures. Play a round together now points to it when you choose the format." },

@@ -6,7 +6,8 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { Avatar } from "@/components/avatar";
 import { DateSheet, dayLabel } from "@/components/date-sheet";
 import { TimeSheet } from "@/components/time-sheet";
-import { Section } from "@/components/form-bits";
+import { ChipGroup, Section } from "@/components/form-bits";
+import { TeeChip } from "@/components/tee-chip";
 import { GroupIcon } from "@/components/group-bits";
 import { CourseSection, useCourseSetup } from "@/components/live-course-section";
 import { StateMessage } from "@/components/state-message";
@@ -19,7 +20,6 @@ import { SIDE_COLORS, createFourballDay, createMatchDay, createScrambleDay, setD
 import {
   FOURSOMES_ALLOWANCE,
   GREENSOMES_ALLOWANCE,
-  courseHandicap,
   formatInfo,
   foursomesHandicap,
   greensomesHandicap,
@@ -39,6 +39,7 @@ import { addOutingGuest, linkOutingMatchDay, loadClub, loadDrawWishes, loadOutin
 import { loadItineraryItem, setItemPeople, type ItineraryItem } from "@/lib/itinerary";
 import type { PlayFormat } from "@/lib/itinerary-rules";
 import { clockLabel } from "@/lib/tee-time-post";
+import { extraLabel, playerTees, type TeeSet } from "@/lib/mixed-tees";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 import { explainStartError } from "@/lib/open-game-alert";
 
@@ -91,6 +92,13 @@ import { explainStartError } from "@/lib/open-game-alert";
  * gap, format and groups come from the itinerary; "Start the round" starts
  * it live (asking first if it isn't that round's day) and saves the final
  * groups back to the itinerary.
+ *
+ * MIXED TEES (0176): "Some players play off other tees" — pick the other
+ * tees from the course's cards and tick who plays off them (ladies off the
+ * reds, say). Their course handicap comes from their own tees; with "Adjust
+ * for the different tees" on, the par difference is added (WHS Rule 6.2b).
+ * Everyone is scored on the day's one card. Stored on each player as
+ * tee_name and tee_extra.
  *
  * A FUTURE DATE (Oct 2026): the date and first tee are picked on scroll
  * wheels. Today → "Start the day" as before. A later date → "Save for
@@ -213,6 +221,11 @@ export default function DrawFromGroup() {
   const [shotgun, setShotgun] = useState(false);
   /** Only the organiser sees who's winning until the results are out (0174). */
   const [secret, setSecret] = useState(false);
+  /** Mixed tees (0176): some players off another set of tees. */
+  const [mixedTees, setMixedTees] = useState(false);
+  const [otherCardId, setOtherCardId] = useState<number | null>(null);
+  const [onOther, setOnOther] = useState<Set<string>>(new Set());
+  const [adjustTees, setAdjustTees] = useState(true);
   const [drawn, setDrawn] = useState<Entrant[][] | null>(null);
   const [picked, setPicked] = useState<Seat | null>(null);
   const [saving, setSaving] = useState(false);
@@ -434,9 +447,16 @@ export default function DrawFromGroup() {
     if (!st) return "";
     return startLabel(st, !starts!.some((o) => o !== st && o.hole === st.hole));
   };
+  // Mixed tees (0176): the other tees, if picked, and who's on them.
+  const otherCard = mixedTees ? (course.cards?.find((c) => c.id === otherCardId && c.id !== course.cardId) ?? null) : null;
+  const dayTees: TeeSet = { name: course.teeName.trim() || "day's", courseRating: course.rating, slope: course.slope, par: course.par };
+  const otherTees: TeeSet | null = otherCard
+    ? { name: otherCard.teeName, courseRating: otherCard.courseRating, slope: otherCard.slope, par: otherCard.parTotal ?? otherCard.card.reduce((n, h) => n + h.par, 0) }
+    : null;
   const handicaps = (e: Entrant) => {
     if (e.index == null) return null;
-    return { index: e.index, ...courseHandicap(e.index, { slope: course.slope, courseRating: course.rating, par: course.par }) };
+    const t = playerTees(e.index, dayTees, otherTees && onOther.has(e.key) ? otherTees : null, adjustTees);
+    return { index: e.index, ...t };
   };
 
   const problems: string[] = [];
@@ -457,6 +477,14 @@ export default function DrawFromGroup() {
   if (shotgunOn && sizing.sizes.length > shotgunCapacity(holesHere)) problems.push(`A shotgun takes ${shotgunCapacity(holesHere)} groups at most — two to a hole`);
   if (shotgunOn && !/^\d{2}:\d{2}$/.test(firstTee)) problems.push("Set the shotgun's start time");
   problems.push(...course.problems);
+  if (mixedTees) {
+    if (!otherCard) problems.push("Pick the other tees, or untick Some players play off other tees");
+    else {
+      if (otherCard.courseRating == null || otherCard.slope == null) problems.push(`The ${otherCard.teeName} tees have no rating or slope on file`);
+      if (otherCard.holes !== course.holes) problems.push(`The ${otherCard.teeName} card is ${otherCard.holes} holes — the day is ${course.holes}`);
+      if (!entrants.some((e) => onOther.has(e.key))) problems.push(`Tick who plays off the ${otherCard.teeName} tees`);
+    }
+  }
   if (title.trim() === "") problems.push("Give the day a name");
   if (!drawnNow) problems.push("Make the draw");
   // A draw saved for tee groups (an event, a trip round) doesn't fit matches of another size.
@@ -503,9 +531,11 @@ export default function DrawFromGroup() {
                 name: p.name,
                 handicapIndex: w.index,
                 courseHandicap: w.courseHandicap,
-                playingHandicap: playingHandicap(w.courseHandicap, allowance),
+                playingHandicap: playingHandicap(w.courseHandicap, allowance) + w.extra,
                 estimated: w.estimated,
                 side: sideOf(pi, g.length),
+                teeName: w.teeName,
+                teeExtra: w.extra,
               };
             }),
           })),
@@ -521,7 +551,8 @@ export default function DrawFromGroup() {
               .map((i) => {
                 const pair = [g[i], g[i + 1]];
                 const ws = pair.map((p) => handicaps(p)!);
-                const chs = ws.map((w) => w.courseHandicap);
+                // Mixed tees: each side gets half its players' adjustments (WHS), through the pair's handicap.
+                const chs = ws.map((w) => w.courseHandicap + w.extra);
                 const low = Math.min(...chs);
                 return {
                   name: pair.map((p) => p.name.split(" ")[0]).join(" & "),
@@ -535,9 +566,11 @@ export default function DrawFromGroup() {
                     courseHandicap: ws[k].courseHandicap,
                     // Greensomes: the lower handicap's 60%, the higher's 40% (shown on the card; the pair plays off the total).
                     playingHandicap: greensomes
-                      ? playingHandicap(ws[k].courseHandicap, ws[k].courseHandicap === low && chs.indexOf(low) === k ? GREENSOMES_ALLOWANCE : 0.4)
-                      : playingHandicap(ws[k].courseHandicap, FOURSOMES_ALLOWANCE),
+                      ? playingHandicap(chs[k], chs[k] === low && chs.indexOf(low) === k ? GREENSOMES_ALLOWANCE : 0.4)
+                      : playingHandicap(chs[k], FOURSOMES_ALLOWANCE),
                     estimated: ws[k].estimated,
+                    teeName: ws[k].teeName,
+                    teeExtra: ws[k].extra,
                   })),
                 };
               })
@@ -549,7 +582,7 @@ export default function DrawFromGroup() {
           { ...day, size: teamSize, driveMinimum: null },
           drawnNow.map((team, ti) => {
             const ws = team.map((p) => handicaps(p)!);
-            const hcp = scrambleHandicap(ws.map((w) => w.courseHandicap));
+            const hcp = scrambleHandicap(ws.map((w) => w.courseHandicap + w.extra));
             return {
               name: null,
               teeTime: times[ti] || null,
@@ -562,6 +595,8 @@ export default function DrawFromGroup() {
                 courseHandicap: ws[i].courseHandicap,
                 playingHandicap: Math.round(hcp.shares[i]),
                 estimated: ws[i].estimated,
+                teeName: ws[i].teeName,
+                teeExtra: ws[i].extra,
               })),
             };
           }),
@@ -580,8 +615,10 @@ export default function DrawFromGroup() {
                 name: p.name,
                 handicapIndex: w.index,
                 courseHandicap: w.courseHandicap,
-                playingHandicap: playingHandicap(w.courseHandicap, ALLOWANCE),
+                playingHandicap: playingHandicap(w.courseHandicap, ALLOWANCE) + w.extra,
                 estimated: w.estimated,
+                teeName: w.teeName,
+                teeExtra: w.extra,
               };
             }),
           })),
@@ -900,6 +937,80 @@ export default function DrawFromGroup() {
 
         <CourseSection setup={course} />
 
+        {course.club && course.cards && course.cards.some((c) => c.id !== course.cardId) ? (
+          <Section title="Mixed tees">
+            <Pressable
+              onPress={() => setMixedTees((v) => !v)}
+              style={styles.timeRow}
+              accessibilityRole="switch"
+              accessibilityState={{ checked: mixedTees }}
+              accessibilityLabel="Some players play off other tees"
+            >
+              <Ionicons name={mixedTees ? "checkbox" : "square-outline"} size={22} color={colors.navy900} />
+              <Text style={[styles.meta, { flex: 1 }]}>Some players play off other tees — the ladies off the reds, say</Text>
+            </Pressable>
+            {mixedTees ? (
+              <>
+                <Text style={styles.subhead}>Which tees?</Text>
+                <ChipGroup>
+                  {course.cards
+                    .filter((c) => c.id !== course.cardId)
+                    .map((c) => (
+                      <TeeChip key={c.id} name={c.teeName} label={c.teeName} selected={otherCardId === c.id} onPress={() => setOtherCardId(c.id)} />
+                    ))}
+                </ChipGroup>
+                {otherCard ? (
+                  <>
+                    <Text style={styles.subhead}>Who plays off the {otherCard.teeName} tees?</Text>
+                    {entrants.length === 0 ? <Text style={styles.meta}>Tick who&apos;s playing first.</Text> : null}
+                    <View style={styles.row}>
+                      {entrants.map((e) => {
+                        const on = onOther.has(e.key);
+                        return (
+                          <Pressable
+                            key={e.key}
+                            onPress={() =>
+                              setOnOther((prev) => {
+                                const next = new Set(prev);
+                                if (next.has(e.key)) next.delete(e.key);
+                                else next.add(e.key);
+                                return next;
+                              })
+                            }
+                            style={[styles.pill, on && styles.pillOn]}
+                            accessibilityRole="checkbox"
+                            accessibilityState={{ checked: on }}
+                          >
+                            <Text style={[styles.pillText, on && styles.pillTextOn]}>{e.name || "Guest"}</Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                    <Pressable
+                      onPress={() => setAdjustTees((v) => !v)}
+                      style={styles.timeRow}
+                      accessibilityRole="switch"
+                      accessibilityState={{ checked: adjustTees }}
+                      accessibilityLabel="Adjust handicaps for the different tees"
+                    >
+                      <Ionicons name={adjustTees ? "checkbox" : "square-outline"} size={22} color={colors.navy900} />
+                      <Text style={[styles.meta, { flex: 1 }]}>
+                        Adjust for the different tees (World Handicap System)
+                        {otherTees && course.par != null && otherTees.par != null
+                          ? ` — ${extraLabel(otherTees.par - course.par, otherCard.teeName) ?? `same par, so no extra shots`}`
+                          : ""}
+                      </Text>
+                    </Pressable>
+                    <Text style={styles.meta}>
+                      Each player&apos;s handicap comes from their own tees. Everyone is scored on the {course.teeName.trim() || "day's"} card, so the pars and stroke indexes are the same for all.
+                    </Text>
+                  </>
+                ) : null}
+              </>
+            ) : null}
+          </Section>
+        ) : null}
+
         <Section title="Format">
           <View style={styles.grid}>
             {FORMATS.map((f) => {
@@ -1133,6 +1244,7 @@ export default function DrawFromGroup() {
                       {p.memberId === userId ? `${p.name} (you)` : p.name || "Guest"}
                       {matchFormat && teamsOn ? <Text style={styles.sideName}>{`  ${teamNames[sideOf(pi, g.length) - 1]}`}</Text> : null}
                     </Text>
+                    {otherCard && onOther.has(p.key) ? <Text style={[styles.meta, on && styles.drawnNameOn]}>{otherCard.teeName}</Text> : null}
                     <Text style={[styles.meta, on && styles.drawnNameOn]}>{p.index != null ? indexLabel(p.index) : "no index"}</Text>
                     {on ? <Ionicons name="swap-vertical" size={18} color={colors.cream50} /> : null}
                   </Pressable>
