@@ -20,7 +20,7 @@ import {
   ShareComposer,
 } from "@/components/home-social";
 import { HomeGroups } from "@/components/home-groups";
-import { LiveScoringCard } from "@/components/live-scoring-card";
+import { ExploreCard, HomeButtons, HomeGreeting, HomeToday, pickNext, showsTeeToday, WatchLiveStrip } from "@/components/home-top";
 import { InviteBanner, SuggestionCard } from "@/components/pinpals";
 import { RecapPrompt } from "@/components/recap-prompt";
 import { useAgeAccess } from "@/lib/age";
@@ -149,7 +149,12 @@ export default function HomeScreen() {
       {/* HERO — the site's own photograph, loaded from the site rather than
           bundled. It is a large image that changes when the homepage changes,
           and a copy in the binary would need an App Store release to keep in
-          step with one on Vercel. */}
+          step with one on Vercel.
+
+          Oct 2026 redesign (canvas "PinPals Home Page Ideas", boards ★): over
+          the photo, top to bottom — a live round shared with you, the date
+          and greeting with your QR code, today's round (or Up next), then
+          four big buttons in the live hub's raised style. */}
       <ImageBackground
         source={{ uri: `${SITE_URL}/images/homepage-hero.jpg` }}
         style={styles.hero}
@@ -159,91 +164,17 @@ export default function HomeScreen() {
             expo-linear-gradient, which is a native module and therefore a new
             build of the app for every member. Not worth it for a fade. */}
         <View style={styles.scrim} />
+        {/* The fade into the cream page below, built from stepped bands for
+            the same reason. */}
+        {FADE.map((f) => (
+          <View key={f.h} pointerEvents="none" style={[styles.fade, { height: f.h, backgroundColor: f.c }]} />
+        ))}
 
-        <View style={[styles.heroBody, styles.heroBodyUnderComposer, pageColumn(wide)]}>
-          <View style={styles.eyebrowRow}>
-            <View style={styles.rule} />
-            <Text style={styles.eyebrow}>Ireland · UK · Spain · Portugal</Text>
-          </View>
-
-          {/* Two lines by design, not by wrapping. Left to wrap, the line
-              break fell wherever the measured width said it would, and on
-              some phones the italic rendered wider than it measured — "ball"
-              ran off the edge of the screen. A fixed break leaves each line
-              well short of the edge whatever the font does. */}
-          <View style={styles.heroTitleRow}>
-            <Text style={[styles.heroTitle, { flex: 1 }]}>
-              Find your{"\n"}
-              <Text style={styles.heroTitleAccent}>next fourball.</Text>
-            </Text>
-            {/* Your invite QR code — same button as on Find PinPals, so a
-                golfer in the clubhouse can be signed up from Home. */}
-            {connections ? <Pressable
-              onPress={() => router.push("/invite-friends")}
-              style={({ pressed }) => [styles.heroQr, pressed && { opacity: 0.8 }]}
-              hitSlop={6}
-              accessibilityRole="button"
-              accessibilityLabel="Your PinPals QR code to invite someone"
-            >
-              <Ionicons name="qr-code-outline" size={20} color={colors.gold400} />
-            </Pressable> : null}
-          </View>
-
-          {courses ? (
-            <Text style={styles.heroSub}>
-              {courses.toLocaleString("en-IE")} clubs, from Ballybunion to the
-              Algarve.
-            </Text>
-          ) : null}
-
-          {/* Fixed-width buttons, label centred. They used to be sized to
-              their own label, which left no slack: where a phone drew the
-              text a touch wider than it measured it, the last letter was
-              cut off ("Post a tee tim"). Two equal halves and a full-width
-              third give every label room to spare. */}
-          {/* NO numberOfLines on these labels. With it, iOS measured the
-              label once and then, after a trip to another tab and back,
-              re-laid it out narrower than the text and drew "Find PinP…".
-              Each label now stretches to its button's full width and centres
-              itself, so there is nothing to truncate against — at worst a
-              very large text size wraps onto a second line. */}
-          {/* Oct 2026 (option A): one gold button, then four matching glass
-              tiles with gold icons — one colour family on the photo instead
-              of five, so the hero sits with the navy-and-gold cards below. */}
-          <View style={styles.heroButtons}>
-            {/* First, and the only gold one: finding people to play with is
-                what PinPals is for. A gold lip underneath makes it a raised
-                button, like Live Scoring. */}
-            {connections ? (
-            <Pressable onPress={() => router.push("/members")} accessibilityRole="button" style={styles.goldOuter}>
-              {({ pressed }) => (
-                <View style={[styles.goldLip, pressed && styles.goldLipPressed]}>
-                  <View style={styles.goldFace}>
-                    {/* The icon sits inside the label so the line measures as
-                        one string (see the note on truncation above). */}
-                    <Text style={[styles.ctaLabel, styles.ctaGoldLabel]}>
-                      <Ionicons name="people" size={19} color={colors.navy900} /> Find PinPals
-                    </Text>
-                  </View>
-                </View>
-              )}
-            </Pressable>
-            ) : null}
-
-            {teeTimes ? <HeroTile icon="flag" label="Post a tee time" onPress={() => router.push("/post-tee-time")} /> : null}
-            {teeTimes ? <HeroTile icon="search" label="Find a game" onPress={() => router.push("/tee-times")} /> : null}
-            {sell ? <HeroTile icon="pricetag-outline" label="Sell an item" onPress={() => router.push("/new-listing")} /> : null}
-            {social ? (
-              <HeroTile
-                icon="camera-outline"
-                label="Share a photo"
-                onPress={() => router.push({ pathname: "/new-post", params: { type: "photo" } })}
-              />
-            ) : null}
-            {/* Under 18: what's theirs instead of the tiles above. */}
-            {!teeTimes ? <HeroTile icon="podium-outline" label="Live scoring" onPress={() => router.push("/live")} /> : null}
-            {!teeTimes ? <HeroTile icon="flag-outline" label="Course directory" onPress={() => router.push("/courses")} /> : null}
-          </View>
+        <View style={[styles.heroBody, pageColumn(wide)]}>
+          <WatchLiveStrip />
+          <HomeGreeting firstName={me?.firstName || null} showQr={connections} />
+          {!loading ? <HomeToday summary={summary} teeTimes={teeTimes} /> : null}
+          <HomeButtons teeTimes={teeTimes} />
         </View>
       </ImageBackground>
 
@@ -254,17 +185,12 @@ export default function HomeScreen() {
         gap={0}
         leftFlex={1}
         left={
-      <>
-      {/* Overlaps the hero's bottom edge (the hero leaves room for it). */}
-      {social ? <ShareComposer me={me} /> : null}
-
-      {/* Right under the composer: both are "I'm playing / I've played". */}
-      <LiveScoringCard />
-
-      {/* Groups (0120): an invitation waiting, or the groups you're in.
-          Renders nothing for a member in no groups. */}
-      <HomeGroups />
-      </>
+      <View style={styles.leftCol}>
+      <ExploreCard />
+      {/* Groups (0120): only an invitation waiting on you — the Groups &
+          Societies button above leads to the groups themselves. */}
+      <HomeGroups invitesOnly />
+      </View>
         }
         right={
       loading ? (
@@ -275,7 +201,10 @@ export default function HomeScreen() {
               nothing when there's no round to offer. */}
           {social ? <RecapPrompt userId={userId} /> : null}
 
-          {teeTimes ? <NextRound summary={summary} onOpen={(id) => router.push(`/invite/${id}`)} /> : null}
+          {/* Skipped when the card at the top is already showing this round today. */}
+          {teeTimes && !showsTeeToday(pickNext(summary, teeTimes)) ? (
+            <NextRound summary={summary} onOpen={(id) => router.push(`/invite/${id}`)} />
+          ) : null}
 
           {/* Only rendered when there IS something waiting. A permanent row
               reading "0 requests" trains a member to stop looking at this part
@@ -333,6 +262,10 @@ export default function HomeScreen() {
               onPress={() => router.push("/edit-profile")}
             />
           ) : null}
+
+          {/* How was golf today? — further down since Oct 2026, the top of
+              Home being for playing. */}
+          {social ? <ShareComposer me={me} inline /> : null}
 
           {social ? (
             <>
@@ -644,24 +577,13 @@ function Band({
   );
 }
 
-/** A frosted tile on the hero photo: gold icon in a navy disc, white label. */
-function HeroTile({ icon, label, onPress }: { icon: keyof typeof Ionicons.glyphMap; label: string; onPress: () => void }) {
-  return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [styles.tile, pressed && styles.tilePressed]}
-      accessibilityRole="button"
-      accessibilityLabel={label}
-    >
-      <View style={styles.tileDisc}>
-        <Ionicons name={icon} size={17} color={colors.gold400} />
-      </View>
-      {/* No numberOfLines, for the same reason as the old buttons: a long
-          label wraps onto a second line rather than being cut. */}
-      <Text style={styles.tileLabel}>{label}</Text>
-    </Pressable>
-  );
-}
+/** The hero's last 72pt, stepping into the page's cream. */
+const FADE = [
+  { h: 72, c: "rgba(247,243,234,0.10)" },
+  { h: 52, c: "rgba(247,243,234,0.22)" },
+  { h: 34, c: "rgba(247,243,234,0.42)" },
+  { h: 18, c: "rgba(247,243,234,0.7)" },
+];
 
 const styles = StyleSheet.create({
   fill: { flex: 1, backgroundColor: colors.cream50 },
@@ -677,14 +599,16 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     left: 0,
-    backgroundColor: "rgba(6,16,30,0.62)",
+    backgroundColor: "rgba(6,16,30,0.55)",
   },
   heroBody: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.xl,
-    paddingBottom: spacing.lg,
-    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.xl + spacing.md,
+    gap: 20,
   },
+  fade: { position: "absolute", left: 0, right: 0, bottom: 0 },
+  leftCol: { paddingHorizontal: spacing.md, paddingTop: spacing.sm, gap: spacing.sm },
 
   eyebrowRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   rule: { width: 20, height: 2, backgroundColor: colors.gold400 },
@@ -695,92 +619,6 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     color: colors.gold400,
   },
-  heroTitle: {
-    fontFamily: fonts.display,
-    fontSize: 32,
-    lineHeight: 38,
-    color: "#ffffff",
-  },
-  // fontStyle: "italic" does nothing once fontFamily is set — the italic is
-  // a separate registered family, not a style on this one.
-  heroTitleRow: { flexDirection: "row", alignItems: "flex-start", gap: spacing.sm },
-  heroQr: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    marginTop: 6,
-    borderWidth: 1.5,
-    borderColor: colors.gold400,
-    backgroundColor: "rgba(11, 22, 40, 0.45)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  heroTitleAccent: { color: colors.gold400, fontFamily: fonts.displayItalic },
-  heroSub: {
-    fontFamily: fonts.body,
-    fontSize: type.body,
-    color: "rgba(255,255,255,0.92)",
-    // Room on the right for a line drawn wider than it was measured.
-    paddingRight: spacing.lg,
-  },
-  heroButtons: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: spacing.sm,
-    marginTop: spacing.sm,
-  },
-
-  ctaLabel: { alignSelf: "stretch", textAlign: "center" },
-  ctaGoldLabel: { color: colors.navy900, fontFamily: fonts.bodyBold, fontSize: 17 },
-  goldOuter: {
-    flexBasis: "100%",
-    borderRadius: radii.pill,
-    shadowColor: "#000",
-    shadowOpacity: 0.3,
-    shadowRadius: 7,
-    shadowOffset: { width: 0, height: 5 },
-    elevation: 5,
-  },
-  goldLip: { borderRadius: radii.pill, backgroundColor: "#9c7a2c", paddingBottom: 3 },
-  goldLipPressed: { paddingBottom: 0, marginTop: 3 },
-  goldFace: {
-    minHeight: 54,
-    borderRadius: radii.pill,
-    backgroundColor: colors.gold400,
-    borderWidth: 1,
-    borderColor: "#f6dc97",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: spacing.sm,
-  },
-  // Two tiles a row either side of an 8pt gap.
-  tile: {
-    flexBasis: "47%",
-    flexGrow: 1,
-    minHeight: 62,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: radii.lg,
-    backgroundColor: "rgba(247,243,234,0.14)",
-    borderWidth: 1,
-    borderColor: "rgba(247,243,234,0.38)",
-  },
-  tilePressed: { backgroundColor: "rgba(247,243,234,0.26)" },
-  tileDisc: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: "rgba(12,32,56,0.6)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  tileLabel: { flex: 1, fontFamily: fonts.bodyBold, fontSize: 15, lineHeight: 19, color: "#ffffff" },
-  // Room for the composer card, which overlaps the hero by 22pt.
-  heroBodyUnderComposer: { paddingBottom: spacing.lg + 22 },
-
   spinner: { marginTop: spacing.xl },
   body: { padding: spacing.md, gap: spacing.md },
 

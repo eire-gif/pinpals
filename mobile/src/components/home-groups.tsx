@@ -15,7 +15,7 @@ import { colors, fonts, radii, spacing, type } from "@/lib/theme";
  * "only what is waiting" rows (claude/app-home-tab.md). A member in no
  * groups sees nothing here; the menu is where they start one.
  */
-export function HomeGroups() {
+export function HomeGroups({ invitesOnly = false }: { invitesOnly?: boolean } = {}) {
   const { session } = useAuth();
   const userId = session?.user?.id ?? null;
   const [data, setData] = useState<MyGroups | null>(null);
@@ -32,7 +32,10 @@ export function HomeGroups() {
   if (!data || (data.invitations.length === 0 && data.groups.length === 0)) return null;
 
   const invites = data.invitations.length;
-  const shown = data.groups.slice(0, 4);
+  // invitesOnly (Oct 2026): Home's Groups & Societies button now leads to
+  // your groups, so Home keeps only the invitation waiting on you.
+  const shown = invitesOnly ? [] : data.groups.slice(0, 4);
+  if (invites === 0 && shown.length === 0) return null;
 
   return (
     <View style={styles.wrap}>

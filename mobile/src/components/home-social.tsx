@@ -43,10 +43,12 @@ const openReview = (club: { id: number; name: string }, rating?: number) =>
 // ---------------------------------------------------------------------------
 
 /** "How was golf today?" — sits over the bottom edge of the hero. */
-export function ShareComposer({ me }: { me: Me | null }) {
+export function ShareComposer({ me, inline = false }: { me: Me | null; inline?: boolean }) {
   const prompt = me?.firstName ? `How was golf today, ${me.firstName}?` : "How was golf today?";
   return (
-    <View style={styles.composer}>
+    // inline: sits in a padded column further down Home (Oct 2026) rather
+    // than overlapping the bottom of the hero photo.
+    <View style={[styles.composer, inline && styles.composerInline]}>
       <View style={styles.composerRow}>
         <Avatar url={me?.avatarUrl} color={me?.avatarColor} name={me?.name ?? null} size={40} />
         <Pressable
@@ -317,6 +319,7 @@ export function LatestReviews({ reviews }: { reviews: LatestReview[] | null }) {
 const styles = StyleSheet.create({
   pressed: { opacity: 0.85 },
 
+  composerInline: { marginTop: 0, marginHorizontal: 0 },
   composer: {
     marginTop: -22,
     marginHorizontal: spacing.md,
