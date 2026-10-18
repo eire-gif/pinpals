@@ -39,7 +39,7 @@ export type TvRound = {
   status: "live" | "finished";
   courseName: string;
   teeTime: string | null;
-  scramble: { teamName: string | null; teamNumber: number | null; teamHandicap: number; foursomes: "stableford" | "stroke" | null } | null;
+  scramble: { teamName: string | null; teamNumber: number | null; teamHandicap: number; foursomes: "stableford" | "stroke" | null; greensomes?: boolean } | null;
 };
 
 export type TvPlayer = {
@@ -286,7 +286,7 @@ export function buildTvPayload(input: { day: TvDay | null; games: TvGame[]; publ
     return {
       ...base,
       kind: "teams",
-      subtitle: [foursomes ? `Foursomes · ${onPoints ? "Stableford" : "Stroke play"}` : `${lead?.players.length ?? 4}-person scramble · Net`, `${games.length} ${foursomes ? "pairs" : "teams"}`, live && groupsOut ? `${groupsOut} out on the course` : null]
+      subtitle: [foursomes ? `${lead?.round.scramble?.greensomes ? "Greensomes" : "Foursomes"} · ${onPoints ? "Stableford" : "Stroke play"}` : `${lead?.players.length ?? 4}-person scramble · Net`, `${games.length} ${foursomes ? "pairs" : "teams"}`, live && groupsOut ? `${groupsOut} out on the course` : null]
         .filter(Boolean)
         .join(" · "),
       ninesHeading: onPoints ? "PTS" : "GROSS",

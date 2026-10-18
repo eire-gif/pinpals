@@ -1,5 +1,5 @@
 import type { Match } from "./live-match-days";
-import { buildBoard, type BoardRow } from "./live-scoring";
+import { buildBoard, startLabel, type BoardRow } from "./live-scoring";
 
 /**
  * The society day's leaderboard (0121): every player from every tee group on
@@ -19,6 +19,8 @@ export type DayRow = BoardRow & {
   group: number;
   roundId: number;
   teeTime: string | null;
+  /** Shotgun start (0173): "7B", else null. */
+  start: string | null;
 };
 
 export type DayBoard = {
@@ -42,7 +44,14 @@ export function dayBoard(matches: readonly Match[]): DayBoard {
     );
     if (board.cardIncomplete) cardIncomplete = true;
     for (const r of board.rows) {
-      rows.push({ ...r, position: "", group: m.round.matchNumber ?? 0, roundId: m.round.id, teeTime: m.round.teeTime });
+      rows.push({
+        ...r,
+        position: "",
+        group: m.round.matchNumber ?? 0,
+        roundId: m.round.id,
+        teeTime: m.round.teeTime,
+        start: m.round.start ? startLabel(m.round.start, !matches.some((o) => o !== m && o.round.start?.hole === m.round.start?.hole)) : null,
+      });
     }
   }
 

@@ -394,3 +394,65 @@ describe("foursomes as a competition (0136)", () => {
     expect(b.rows[0].points).toBe(5);
   });
 });
+
+describe("greensomes pairs (0173)", () => {
+  it("plays off 60% of the lower course handicap and 40% of the higher, rounded once", async () => {
+    const { greensomesHandicap, pairsLabel } = await import("./live-scoring");
+    expect(greensomesHandicap([18, 9])).toBe(13); // 5.4 + 7.2 = 12.6
+    expect(greensomesHandicap([10, 10])).toBe(10);
+    expect(greensomesHandicap([0, 3])).toBe(1); // 1.2
+    expect(() => greensomesHandicap([9])).toThrow();
+    expect(pairsLabel("stableford", true)).toBe("Greensomes Stableford");
+    expect(pairsLabel("stroke", false)).toBe("Foursomes stroke play");
+  });
+});
+
+describe("shotgun starts (0173)", () => {
+  const card = [4, 4, 3, 5, 4, 5, 4, 4, 3, 4, 3, 5, 4, 5, 3, 4, 3, 4].map((par, i) => ({ hole: i + 1, par }));
+
+  it("one group a hole from the 1st while there are holes enough", async () => {
+    const { shotgunStarts } = await import("./live-scoring");
+    expect(shotgunStarts(card, 3)).toEqual([
+      { hole: 1, letter: "A" },
+      { hole: 2, letter: "A" },
+      { hole: 3, letter: "A" },
+    ]);
+    expect(shotgunStarts(card, 0)).toEqual([]);
+  });
+
+  it("33 groups: every hole an A, B groups on the par 5s and 4s first, par 3s only after", async () => {
+    const { shotgunStarts } = await import("./live-scoring");
+    const s = shotgunStarts(card, 33);
+    expect(s).toHaveLength(33);
+    const bs = s.filter((x) => x.letter === "B").map((x) => x.hole);
+    expect(bs).toHaveLength(15);
+    // All 13 par 4s and 5s, then the first two par 3s.
+    for (const h of [1, 2, 4, 5, 6, 7, 8, 10, 12, 13, 14, 16, 18, 3, 9]) expect(bs).toContain(h);
+    for (const h of [11, 15, 17]) expect(bs).not.toContain(h);
+    expect(shotgunStarts(card, 22).filter((x) => x.letter === "B").map((x) => x.hole)).toEqual([4, 6, 12, 14]);
+    // In hole order, A before B.
+    expect(s.slice(0, 4)).toEqual([
+      { hole: 1, letter: "A" },
+      { hole: 1, letter: "B" },
+      { hole: 2, letter: "A" },
+      { hole: 2, letter: "B" },
+    ]);
+    expect(new Set(s.map((x) => `${x.hole}${x.letter}`)).size).toBe(33);
+  });
+
+  it("36 groups at most on 18 holes", async () => {
+    const { shotgunStarts } = await import("./live-scoring");
+    expect(shotgunStarts(card, 36).filter((x) => x.letter === "B")).toHaveLength(18);
+    expect(() => shotgunStarts(card, 37)).toThrow(/36 groups/);
+  });
+
+  it("plays from the start hole round to the one before", async () => {
+    const { playOrder, startLabel } = await import("./live-scoring");
+    expect(playOrder(card, 7).map((h) => h.hole)).toEqual([7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 1, 2, 3, 4, 5, 6]);
+    expect(playOrder(card, null).map((h) => h.hole)[0]).toBe(1);
+    expect(playOrder(card, 1).map((h) => h.hole)[17]).toBe(18);
+    expect(startLabel({ hole: 7, letter: "B" })).toBe("7B");
+    expect(startLabel({ hole: 7, letter: "A" }, true)).toBe("7");
+    expect(startLabel(null)).toBe("");
+  });
+});

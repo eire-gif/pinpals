@@ -19,6 +19,7 @@ import {
   type MatchFormat,
   type MatchPlayer,
   type ScoreSheet,
+  type StartLetter,
   type TeamMatchState,
 } from "./live-scoring";
 import { supabase } from "./supabase";
@@ -50,6 +51,8 @@ export type MatchDay = {
   /** A "scramble" day whose teams are foursomes pairs (0136), and how
    *  they're ranked. */
   foursomes: FoursomesScoring | null;
+  /** Greensomes pairs (0173), with `foursomes` saying how they're ranked. */
+  greensomes: boolean;
 };
 
 export type DayKind = "match" | "scramble" | "fourballs";
@@ -82,6 +85,7 @@ export type MatchDaySummary = {
   createdBy: string | null;
   kind: DayKind;
   foursomes: FoursomesScoring | null;
+  greensomes: boolean;
 };
 
 type DayRow = {
@@ -96,9 +100,10 @@ type DayRow = {
   team_names: string[] | null;
   kind: string | null;
   foursomes_scoring: FoursomesScoring | null;
+  greensomes: boolean | null;
 };
 
-const DAY_SELECT = "id, created_by, title, club_id, course_name, tee_name, holes, played_on, team_names, kind, foursomes_scoring";
+const DAY_SELECT = "id, created_by, title, club_id, course_name, tee_name, holes, played_on, team_names, kind, foursomes_scoring, greensomes";
 
 const toDay = (d: DayRow): MatchDay => ({
   id: d.id,
@@ -112,6 +117,7 @@ const toDay = (d: DayRow): MatchDay => ({
   teamNames: d.team_names && d.team_names.length === 2 ? [d.team_names[0], d.team_names[1]] : null,
   kind: asKind(d.kind),
   foursomes: d.foursomes_scoring ?? null,
+  greensomes: !!d.greensomes && d.foursomes_scoring != null,
 });
 
 export const asMatchPlayers = (players: LiveRoundPlayer[]): MatchPlayer[] =>
@@ -128,10 +134,10 @@ export const asMatchPlayers = (players: LiveRoundPlayer[]): MatchPlayer[] =>
 export async function loadMyMatchDays(): Promise<MatchDaySummary[]> {
   const { data, error } = await supabase
     .from("live_match_days")
-    .select("id, created_by, title, course_name, played_on, kind, foursomes_scoring, live_rounds (status)")
+    .select("id, created_by, title, course_name, played_on, kind, foursomes_scoring, greensomes, live_rounds (status)")
     .order("created_at", { ascending: false })
     .limit(20)
-    .overrideTypes<{ id: number; created_by: string | null; title: string; course_name: string; played_on: string; kind: string | null; foursomes_scoring: FoursomesScoring | null; live_rounds: { status: string }[] }[]>();
+    .overrideTypes<{ id: number; created_by: string | null; title: string; course_name: string; played_on: string; kind: string | null; foursomes_scoring: FoursomesScoring | null; greensomes: boolean | null; live_rounds: { status: string }[] }[]>();
   if (error) throw error;
   return (data ?? []).map((d) => ({
     id: d.id,
@@ -143,6 +149,7 @@ export async function loadMyMatchDays(): Promise<MatchDaySummary[]> {
     createdBy: d.created_by,
     kind: asKind(d.kind),
     foursomes: d.foursomes_scoring ?? null,
+    greensomes: !!d.greensomes && d.foursomes_scoring != null,
   }));
 }
 
@@ -283,9 +290,13 @@ export async function createMatchDay(day: NewMatchDay, matches: NewMatch[], card
 // Starting a scramble day (0113)
 // ---------------------------------------------------------------------------
 
+/** Shotgun start (0173): where a group or team starts. */
+export type NewStart = { hole: number; letter: StartLetter } | null;
+
 export type NewScrambleTeam = {
   name: string | null;
   teeTime: string | null;
+  start?: NewStart;
   teamHandicap: number;
   players: Omit<NewMatchPlayer, "side">[];
 };
@@ -296,6 +307,8 @@ export async function createScrambleDay(
     driveMinimum: number | null;
     /** A day of foursomes pairs (0136): size 2, no drives. */
     foursomes?: FoursomesScoring;
+    /** Greensomes pairs (0173), with `foursomes` for how they're ranked. */
+    greensomes?: boolean;
   },
   teams: NewScrambleTeam[],
   card: CardHole[]
@@ -313,10 +326,12 @@ export async function createScrambleDay(
       scramble_size: day.size,
       drive_minimum: day.foursomes ? null : day.driveMinimum,
       ...(day.foursomes ? { foursomes_scoring: day.foursomes } : {}),
+      ...(day.foursomes && day.greensomes ? { greensomes: true } : {}),
     },
     p_teams: teams.map((t) => ({
       name: t.name,
       tee_time: t.teeTime,
+      ...(t.start ? { start_hole: t.start.hole, start_letter: t.start.letter } : {}),
       team_handicap: t.teamHandicap,
       players: t.players.map((p) => ({
         member_id: p.memberId,
@@ -341,6 +356,7 @@ export async function createScrambleDay(
 
 export type NewTeeGroup = {
   teeTime: string | null;
+  start?: NewStart;
   players: Omit<NewMatchPlayer, "side">[];
 };
 
@@ -365,6 +381,7 @@ export async function createFourballDay(
     },
     p_groups: groups.map((g) => ({
       tee_time: g.teeTime,
+      ...(g.start ? { start_hole: g.start.hole, start_letter: g.start.letter } : {}),
       players: g.players.map((p) => ({
         member_id: p.memberId,
         name: p.name,

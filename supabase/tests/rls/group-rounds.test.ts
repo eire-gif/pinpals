@@ -182,6 +182,25 @@ describe("the society day", () => {
     });
   });
 
+  it("a shotgun society day keeps each group's start (0173)", async () => {
+    await withRole("authenticated", SECRETARY, async (c) => {
+      await setUp(c);
+      await as(c, SECRETARY);
+      const groups = JSON.stringify([
+        { tee_time: "09:00", start_hole: 1, start_letter: "A", players: [p(SECRETARY, "Eire")] },
+        { tee_time: "09:00", start_hole: 1, start_letter: "B", players: [p(COMMITTEE, "Dave")] },
+        { tee_time: "09:00", start_hole: 2, start_letter: "A", players: [p(MEMBER2, "Niall")] },
+      ]);
+      const id = (await c.query<{ id: string }>(createDay, [day(), groups, card])).rows[0].id;
+      const { rows } = await c.query("select match_number, start_hole, start_letter from public.live_rounds where match_day_id = $1 order by match_number", [id]);
+      expect(rows.map((r) => [r.match_number, r.start_hole, r.start_letter])).toEqual([
+        [1, 1, "A"],
+        [2, 1, "B"],
+        [3, 2, "A"],
+      ]);
+    });
+  });
+
   it("everyone in the day sees every card, but scores only their own", async () => {
     await withRole("authenticated", SECRETARY, async (c) => {
       await setUp(c);

@@ -228,6 +228,35 @@ describe("the draw", () => {
     });
   });
 
+  it("a shotgun draw keeps each group's starting hole and A/B (0173)", async () => {
+    await withRole("authenticated", OWNER, async (c) => {
+      const g = await society(c);
+      const o = await newOuting(c, g);
+      for (const m of [MEMBER, MEMBER2]) {
+        await as(c, m);
+        await c.query("select public.set_outing_entry($1, true)", [o]);
+      }
+      await as(c, SECRETARY);
+      await rejects(c, "select public.publish_outing_draw($1, $2::jsonb)", [o, JSON.stringify([{ tee_time: "09:00", start_hole: 19, start_letter: "A", members: [MEMBER] }])], /hole of the course/);
+      await rejects(c, "select public.publish_outing_draw($1, $2::jsonb)", [o, JSON.stringify([{ tee_time: "09:00", start_letter: "A", members: [MEMBER] }])], /starting hole/);
+      await c.query("select public.publish_outing_draw($1, $2::jsonb)", [
+        o,
+        JSON.stringify([
+          { tee_time: "09:00", start_hole: 7, start_letter: "A", members: [MEMBER] },
+          { tee_time: "09:00", start_hole: 7, start_letter: "B", members: [MEMBER2] },
+        ]),
+      ]);
+      await as(c, MEMBER);
+      const { rows } = await c.query("select member_id, start_hole, start_letter from public.society_outing_entries where outing_id = $1 order by start_letter", [o]);
+      expect(rows.map((r) => [r.start_hole, r.start_letter])).toEqual([[7, "A"], [7, "B"]]);
+      // Published again without a shotgun: the starts go.
+      await as(c, SECRETARY);
+      await c.query("select public.publish_outing_draw($1, $2::jsonb)", [o, JSON.stringify([{ tee_time: "09:00", members: [MEMBER, MEMBER2] }])]);
+      const after = await c.query("select count(*) filter (where start_hole is not null) as n from public.society_outing_entries where outing_id = $1", [o]);
+      expect(Number(after.rows[0].n)).toBe(0);
+    });
+  });
+
   it("only links a live day the officer started", async () => {
     await withRole("authenticated", OWNER, async (c) => {
       const g = await society(c);

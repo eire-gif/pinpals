@@ -77,7 +77,7 @@ export default function MatchDayBoard() {
   const fourballs = day.kind === "fourballs";
   // A day of foursomes pairs (0136) is a scramble day underneath.
   const pairs = scramble && day.foursomes != null;
-  const what = pairs ? "foursomes day" : scramble ? "scramble" : fourballs ? "society day" : "match day";
+  const what = pairs ? (day.greensomes ? "greensomes day" : "foursomes day") : scramble ? "scramble" : fourballs ? "society day" : "match day";
   const allDone = matches.length > 0 && totals.finishedCount === matches.length;
   const anyLive = matches.some((m) => m.round.status === "live" && !m.state?.finished);
   const sideName = (m: Match, n: 1 | 2) =>

@@ -71,7 +71,7 @@ export default function SocietyTeeTimesScreen() {
               >
                 <View style={styles.time}>
                   <Text style={styles.timeValue}>{clock(t.teeTime) ?? "—"}</Text>
-                  <Text style={styles.timeGroup}>{`GROUP ${t.teeGroup}`}</Text>
+                  <Text style={styles.timeGroup}>{t.start ? `SHOTGUN · TEE ${t.start.hole}${t.start.letter ?? ""}` : `GROUP ${t.teeGroup}`}</Text>
                 </View>
                 <View style={styles.cardBody}>
                   <Text style={styles.when}>{isOutingDay(t.playsOn) ? "TODAY" : outingDateLabel(t.playsOn).toUpperCase()}</Text>

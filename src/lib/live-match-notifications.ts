@@ -5,7 +5,7 @@ import { notifyUser } from "./notifications-server";
 import {
   buildBoard,
   formatInfo,
-  foursomesLabel,
+  pairsLabel,
   matchPoints,
   pointsLabel,
   teamMatchState,
@@ -70,9 +70,12 @@ type RoundRow = {
   team_handicap: number | null;
   /** Foursomes pair (0136): how the pairs are ranked. */
   foursomes_scoring: FoursomesScoring | null;
+  greensomes: boolean | null;
+  start_hole: number | null;
+  start_letter: string | null;
 };
 
-const ROUND_COLUMNS = "id, created_by, course_name, format, status, played_on, match_day_id, match_number, match_type, tee_time, scramble_size, team_name, team_number, team_handicap, foursomes_scoring";
+const ROUND_COLUMNS = "id, created_by, course_name, format, status, played_on, match_day_id, match_number, match_type, tee_time, scramble_size, team_name, team_number, team_handicap, foursomes_scoring, greensomes, start_hole, start_letter";
 
 const firstName = (name: string) => name.trim().split(/\s+/)[0] || name;
 
@@ -98,7 +101,7 @@ export async function notifyRoundPlayers(admin: SupabaseClient, roundId: number)
     .overrideTypes<{ id: number; member_id: string | null; display_name: string }[]>();
   const by = await organiserName(admin, round.created_by);
   const format = round.foursomes_scoring
-    ? foursomesLabel(round.foursomes_scoring)
+    ? pairsLabel(round.foursomes_scoring, !!round.greensomes)
     : round.scramble_size
       ? `${round.scramble_size}-person scramble`
       : formatInfo(round.format as LiveFormat).label;
@@ -151,7 +154,8 @@ export async function notifyMatchDayPlayers(admin: SupabaseClient, dayId: number
       if (day.kind === "fourballs") {
         // A society day (0121): you're in a tee group, on one leaderboard.
         const mates = inMatch.filter((o) => o.id !== p.id).map((o) => firstName(o.display_name));
-        const time = r.tee_time ? ` at ${r.tee_time.slice(0, 5)}` : "";
+        // A shotgun start (0173): everyone at one time, this group from its hole.
+        const time = r.start_hole ? `, shotgun${r.tee_time ? ` at ${r.tee_time.slice(0, 5)}` : ""} from the ${r.start_hole}${r.start_letter ?? ""} tee` : r.tee_time ? ` at ${r.tee_time.slice(0, 5)}` : "";
         const withWho = mates.length ? ` with ${mates.join(", ").replace(/, ([^,]*)$/, " & $1")}` : "";
         await notifyUser(admin, {
           userId: p.member_id,
@@ -168,13 +172,14 @@ export async function notifyMatchDayPlayers(admin: SupabaseClient, dayId: number
         // A scramble day: you're in a team, not a match.
         const mates = inMatch.filter((o) => o.id !== p.id).map((o) => firstName(o.display_name));
         const teamName = r.team_name ?? `${r.foursomes_scoring ? "Pair" : "Team"} ${r.team_number ?? ""}`.trim();
-        const time = r.tee_time ? ` at ${r.tee_time.slice(0, 5)}` : "";
+        const time = r.start_hole ? `, shotgun${r.tee_time ? ` at ${r.tee_time.slice(0, 5)}` : ""} from the ${r.start_hole}${r.start_letter ?? ""} tee` : r.tee_time ? ` at ${r.tee_time.slice(0, 5)}` : "";
+        const game = r.greensomes ? "greensomes" : "foursomes";
         await notifyUser(admin, {
           userId: p.member_id,
           type: "live_match_added",
-          title: r.foursomes_scoring ? `${day.title}: you're playing foursomes` : `${day.title}: you're in ${teamName}`,
+          title: r.foursomes_scoring ? `${day.title}: you're playing ${game}` : `${day.title}: you're in ${teamName}`,
           body: r.foursomes_scoring
-            ? `${by} paired you with ${mates.join(" & ")} for ${foursomesLabel(r.foursomes_scoring)} (Scotch foursomes), ${shortDate(day.played_on)}${time}. Tap to open your pair's card.`
+            ? `${by} paired you with ${mates.join(" & ")} for ${pairsLabel(r.foursomes_scoring, !!r.greensomes)}${r.greensomes ? " (both drive, play the better)" : " (Scotch foursomes)"}, ${shortDate(day.played_on)}${time}. Tap to open your pair's card.`
             : `${by} put you in a ${r.scramble_size}-person scramble with ${mates.join(" & ")}, ${shortDate(day.played_on)}${time}. Tap to open your team's card.`,
           href: `/live/rounds/${r.id}`,
           dedupeKey: `live_match_added:${r.id}:${p.member_id}`,

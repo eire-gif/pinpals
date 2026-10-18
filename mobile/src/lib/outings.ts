@@ -64,7 +64,14 @@ export type OutingEntry = {
   teeGroup: number | null;
   teeTime: string | null;
   teePosition: number | null;
+  /** Shotgun start (0173): the hole this group starts on, and A/B. */
+  start: OutingStart;
 };
+
+/** Where a group starts in a shotgun draw (0173), or null for a tee-time start. */
+export type OutingStart = { hole: number; letter: "A" | "B" | "C" | "D" | null } | null;
+const toStart = (hole: number | null | undefined, letter: string | null | undefined): OutingStart =>
+  hole == null ? null : { hole, letter: letter === "A" || letter === "B" || letter === "C" || letter === "D" ? letter : null };
 
 /**
  * A guest on an event (0131): someone not on PinPals, entered by the
@@ -77,6 +84,7 @@ export type OutingGuest = {
   teeGroup: number | null;
   teeTime: string | null;
   teePosition: number | null;
+  start: OutingStart;
 };
 
 type GuestRow = {
@@ -86,6 +94,8 @@ type GuestRow = {
   tee_group: number | null;
   tee_time: string | null;
   tee_position: number | null;
+  start_hole: number | null;
+  start_letter: string | null;
 };
 
 const toGuest = (g: GuestRow): OutingGuest => ({
@@ -95,9 +105,10 @@ const toGuest = (g: GuestRow): OutingGuest => ({
   teeGroup: g.tee_group,
   teeTime: g.tee_time,
   teePosition: g.tee_position,
+  start: toStart(g.start_hole, g.start_letter),
 });
 
-const GUEST = "id, name, handicap_index, tee_group, tee_time, tee_position";
+const GUEST = "id, name, handicap_index, tee_group, tee_time, tee_position, start_hole, start_letter";
 
 type OutingRow = {
   id: number;
@@ -189,6 +200,8 @@ export type OutingSummary = Outing & {
   /** Your tee time, once the draw is out. */
   myTeeGroup: number | null;
   myTeeTime: string | null;
+  /** Shotgun start (0173). */
+  myStart: OutingStart;
   /** 0142: in, asked, on the list (and where), or offered a place. */
   myPlace: PlaceStatus | null;
   myLinePosition: number | null;
@@ -201,13 +214,13 @@ export type OutingSummary = Outing & {
 export async function listOutings(groupId: number, userId: string, opts: { fromDate: string; past?: boolean }): Promise<OutingSummary[]> {
   const [counts, queue, paid] = await Promise.all([guestCounts(groupId), myOutingQueue(groupId), myPaidOutings(userId)]);
   const run = (cols: string) => {
-    let q = supabase.from("society_outings").select(`${cols}, entries:society_outing_entries(member_id, tee_group, tee_time)`).eq("group_id", groupId);
+    let q = supabase.from("society_outings").select(`${cols}, entries:society_outing_entries(member_id, tee_group, tee_time, start_hole, start_letter)`).eq("group_id", groupId);
     // A trip counts as upcoming until its last day is over (0126).
     const d = opts.fromDate;
     q = opts.past
       ? q.lt("plays_on", d).or(`ends_on.is.null,ends_on.lt.${d}`).order("plays_on", { ascending: false }).limit(30)
       : q.or(`plays_on.gte.${d},ends_on.gte.${d}`).order("plays_on");
-    return q.overrideTypes<(OutingRow & { entries: { member_id: string; tee_group: number | null; tee_time: string | null }[] })[]>();
+    return q.overrideTypes<(OutingRow & { entries: { member_id: string; tee_group: number | null; tee_time: string | null; start_hole: number | null; start_letter: string | null }[] })[]>();
   };
   let { data, error } = await run(OUTING);
   if (missingColumn(error)) ({ data, error } = await run(OUTING_BASE));
@@ -222,6 +235,7 @@ export async function listOutings(groupId: number, userId: string, opts: { fromD
       mine: !!me,
       myTeeGroup: me?.tee_group ?? null,
       myTeeTime: me?.tee_time ?? null,
+      myStart: toStart(me?.start_hole, me?.start_letter),
       myPlace: me ? "confirmed" : q?.status ?? null,
       myLinePosition: q?.linePosition ?? null,
       myOfferExpiresAt: q?.offerExpiresAt ?? null,
@@ -296,7 +310,7 @@ export async function loadOuting(outingId: number): Promise<OutingPage | null> {
   const [entries, payments, claims, guests, guestPayments, queue, choices, withdrawals] = await Promise.all([
     supabase
       .from("society_outing_entries")
-      .select("member_id, entered_at, tee_group, tee_time, tee_position, profile:profiles(first_name, last_name, home_club, avatar_url, avatar_color)")
+      .select("member_id, entered_at, tee_group, tee_time, tee_position, start_hole, start_letter, profile:profiles(first_name, last_name, home_club, avatar_url, avatar_color)")
       .eq("outing_id", outingId)
       .order("entered_at")
       .overrideTypes<
@@ -306,6 +320,8 @@ export async function loadOuting(outingId: number): Promise<OutingPage | null> {
           tee_group: number | null;
           tee_time: string | null;
           tee_position: number | null;
+          start_hole: number | null;
+          start_letter: string | null;
           profile: { first_name: string | null; last_name: string | null; home_club: string | null; avatar_url: string | null; avatar_color: string | null } | null;
         }[]
       >(),
@@ -359,6 +375,7 @@ export async function loadOuting(outingId: number): Promise<OutingPage | null> {
       teeGroup: e.tee_group,
       teeTime: e.tee_time,
       teePosition: e.tee_position,
+      start: toStart(e.start_hole, e.start_letter),
     })),
     payments: new Map((payments.data ?? []).map((p) => [p.member_id, p.status])),
     claims: new Map((claims.data ?? []).map((c) => [c.member_id, c.method])),
@@ -428,6 +445,8 @@ export type MyTeeTime = {
   playsOn: string;
   teeGroup: number;
   teeTime: string | null;
+  /** Shotgun start (0173). */
+  start: OutingStart;
   matchDayId: number | null;
   /** Everyone else in your group, in tee order. */
   partners: string[];
@@ -438,7 +457,7 @@ export async function loadMyTeeTimes(groupId: number, userId: string, fromDate: 
   const { data, error } = await supabase
     .from("society_outings")
     .select(
-      `id, title, course_name, plays_on, match_day_id, status, entries:society_outing_entries(member_id, tee_group, tee_time, tee_position, profile:profiles(first_name, last_name))`
+      `id, title, course_name, plays_on, match_day_id, status, entries:society_outing_entries(member_id, tee_group, tee_time, tee_position, start_hole, start_letter, profile:profiles(first_name, last_name))`
     )
     .eq("group_id", groupId)
     .eq("status", "open")
@@ -452,7 +471,7 @@ export async function loadMyTeeTimes(groupId: number, userId: string, fromDate: 
         course_name: string | null;
         plays_on: string;
         match_day_id: number | null;
-        entries: { member_id: string; tee_group: number | null; tee_time: string | null; tee_position: number | null; profile: { first_name: string | null; last_name: string | null } | null }[];
+        entries: { member_id: string; tee_group: number | null; tee_time: string | null; tee_position: number | null; start_hole: number | null; start_letter: string | null; profile: { first_name: string | null; last_name: string | null } | null }[];
       }[]
     >();
   if (error) fail(error, "Couldn't load your tee times.");
@@ -473,6 +492,7 @@ export async function loadMyTeeTimes(groupId: number, userId: string, fromDate: 
       playsOn: o.plays_on,
       teeGroup: me.tee_group,
       teeTime: me.tee_time,
+      start: toStart(me.start_hole, me.start_letter),
       matchDayId: o.match_day_id,
       partners: [
         ...o.entries
@@ -576,10 +596,10 @@ export async function setOutingEntry(outingId: number, inIt: boolean, memberId?:
 export type DrawSeat = string | { guest: number };
 
 /** Groups in tee order, each with its tee time and players in order. */
-export async function publishOutingDraw(outingId: number, groups: { teeTime: string | null; members: DrawSeat[] }[]): Promise<void> {
+export async function publishOutingDraw(outingId: number, groups: { teeTime: string | null; start?: OutingStart; members: DrawSeat[] }[]): Promise<void> {
   const { error } = await supabase.rpc("publish_outing_draw", {
     p_outing_id: outingId,
-    p_groups: groups.map((g) => ({ tee_time: g.teeTime, members: g.members })),
+    p_groups: groups.map((g) => ({ tee_time: g.teeTime, ...(g.start ? { start_hole: g.start.hole, start_letter: g.start.letter } : {}), members: g.members })),
   });
   if (error) fail(error, "Couldn't publish the tee times.");
   flushSocietyAlerts();

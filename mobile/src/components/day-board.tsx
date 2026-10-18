@@ -33,7 +33,9 @@ export function DayBoard({ matches, me }: { matches: Match[]; me: string | null 
         {board.rows.map((r) => {
           const mine = mineIds.has(r.playerId);
           const score = stableford ? String(r.points) : toParLabel(r.netToPar);
-          const sub = r.thru === 0 ? (r.teeTime ? `Group ${r.group} · tees off ${r.teeTime.slice(0, 5)}` : `Group ${r.group}`) : stableford ? `Group ${r.group} · ${r.pace >= 0 ? "+" : ""}${r.pace} on pace` : `Group ${r.group}`;
+          // A shotgun group (0173) is known by its start hole: "starts 7B".
+          const where = r.start ? `Group ${r.group} · starts ${r.start}` : `Group ${r.group}`;
+          const sub = r.thru === 0 ? (r.teeTime && !r.start ? `${where} · tees off ${r.teeTime.slice(0, 5)}` : where) : stableford ? `${where} · ${r.pace >= 0 ? "+" : ""}${r.pace} on pace` : where;
           return (
             <Pressable
               key={`${r.roundId}-${r.playerId}`}
@@ -57,7 +59,7 @@ export function DayBoard({ matches, me }: { matches: Match[]; me: string | null 
           );
         })}
       </View>
-      <Text style={styles.note}>Groups go out at different times: compare &ldquo;thru&rdquo; as well as the score. Tap anyone to see their group&apos;s card.</Text>
+      <Text style={styles.note}>Groups are at different points of the round: compare &ldquo;thru&rdquo; as well as the score. Tap anyone to see their group&apos;s card.</Text>
     </View>
   );
 }
