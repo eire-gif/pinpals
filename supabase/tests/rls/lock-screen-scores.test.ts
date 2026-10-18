@@ -8,8 +8,9 @@
 //   - neither a member nor anon can call it (the function-grants register
 //     covers the ACL; this proves it in practice)
 //   - it writes only the named member's OWN ball, in a round they play in
-//   - never in a format where a side shares a ball (scramble team, foursomes
-//     or greensomes match), never once the round has finished, never on a
+//   - a pair or scramble team (0175) has one card, on its first player:
+//     any of them saves to it; a foursomes or greensomes MATCH is refused;
+//     never once the round has finished, never on a
 //     hole that isn't on the card
 //   - picked up (null) and clear behave as in the app, and the write is
 //     marked as entered by that member
@@ -161,7 +162,15 @@ describe("lock screen scores: what it writes", () => {
           "update public.live_rounds set match_type = null, format = 'stroke', scramble_size = 2, team_handicap = 8 where id = $1",
           [roundId],
         );
-        await rejects(c, SET, [ME, roundId, 2, 4, false], /scored in the app/);
+        // A pair or team (0175): one card, on its first player — whichever
+        // of them saves it.
+        const { rows } = await c.query<{ player: string }>(SET, [PAL, roundId, 2, 4, false]);
+        const players = await c.query<{ id: string }>("select id from public.live_round_players where round_id = $1 order by position", [roundId]);
+        expect(rows[0].player).toBe(players.rows[0].id);
+        const written = await c.query("select player_id, strokes, entered_by from public.live_round_scores where round_id = $1 and hole = 2", [roundId]);
+        expect(written.rows).toEqual([{ player_id: players.rows[0].id, strokes: 4, entered_by: PAL }]);
+        // Still only for people in the team.
+        await rejects(c, SET, [STRANGER, roundId, 2, 4, false], /Not your round/);
       });
     });
   });

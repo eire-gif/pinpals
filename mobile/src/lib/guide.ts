@@ -1116,7 +1116,7 @@ export const GUIDES: Guide[] = [
           { style: "outline", label: "+" },
           { style: "primary", label: "Save", icon: "checkmark" },
         ],
-        tip: "It's your own score only, and not for scrambles or foursomes. No signal? It's kept and sent when there is. The yardage needs location: PinPals asks once, and it stops when the round ends (a flag means it's the hole's length from the tee). Tap the card after the last hole and the round opens on Complete scorecard; the card goes when you tap it. Not showing? Settings → PinPals → Live Activities.",
+        tip: "It's your own score — or, in a foursomes or greensomes pair or a scramble team, your pair's or team's card, which either of you can save. Not for a foursomes or greensomes match. No signal? It's kept and sent when there is. The yardage needs location: PinPals asks once, and it stops when the round ends (a flag means it's the hole's length from the tee). Tap the card after the last hole and the round opens on Complete scorecard; the card goes when you tap it. Not showing? Settings → PinPals → Live Activities.",
       },
       {
         title: "Score from your Apple Watch",
@@ -1806,6 +1806,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-18", text: "Score from your lock screen now works for foursomes and greensomes pairs and scramble teams too: either of you saves the pair's card without unlocking." },
   { on: "2026-10-18", text: "Play a round together: new step, Keep the leaderboard secret — players see only their own group until you publish the results, so the winners stay a surprise for the prize-giving. The TV stays live. Publish the results mentions it too." },
   { on: "2026-10-18", text: "New: Game formats, under Menu → Play — all 41 ways to play explained in plain English, from Stableford and foursomes to scrambles, skins and Wolf, with handicap allowances and pictures. Play a round together now points to it when you choose the format." },
   { on: "2026-10-18", text: "Play a round together: new Greensomes Stableford and Greensomes stroke play (pairs both drive, play the better, then alternate), and a Shotgun start — every group off at once from its own hole, an A and a B group where needed. Choose the format and Name the day and pick when are updated." },

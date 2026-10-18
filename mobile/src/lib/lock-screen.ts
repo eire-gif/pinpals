@@ -38,9 +38,9 @@ import { startLockScreenDistance, stopLockScreenDistance } from "./lock-screen-l
  * that opens the round on the card's hole already listening, and the
  * distance to the green (lock-screen-location.ts), which opens the hole map.
  *
- * Only the member's own ball, and only in formats where everyone plays their
- * own ball — not a scramble team, a foursomes pair or a foursomes/greensomes
- * match, which are scored in the app. iPhone with iOS 17+ only; everywhere
+ * The member's own ball, or their pair's or scramble team's one card (0175,
+ * kept on the team's first player) — not a foursomes/greensomes match, which
+ * is scored in the app. iPhone with iOS 17+ only; everywhere
  * else every call here does nothing.
  */
 
@@ -74,14 +74,14 @@ function supported(): boolean {
   }
 }
 
-/** Formats where each player scores their own ball. */
+/** Own ball, or a pair's / team's card; not a match where a side shares a ball. */
 export function lockScreenEligible(round: Pick<LiveRound, "scramble" | "matchFormat">): boolean {
-  if (round.scramble != null) return false;
   if (round.matchFormat != null && isOneBallPerSide(round.matchFormat)) return false;
   return true;
 }
 
-function formatFor(round: Pick<LiveRound, "format" | "matchFormat">): "points" | "stroke" | "match" {
+function formatFor(round: Pick<LiveRound, "format" | "matchFormat" | "scramble">): "points" | "stroke" | "match" {
+  if (round.scramble) return round.scramble.foursomes === "stableford" ? "points" : "stroke";
   if (round.matchFormat != null || round.format === "matchplay" || round.format === "fourball") return "match";
   return round.format === "stroke" ? "stroke" : "points";
 }
@@ -105,7 +105,7 @@ async function keyFor(roundId: number): Promise<{ token: string; expiresAt: numb
 export type LockScreenRound = {
   round: LiveRound;
   card: readonly CardHole[];
-  /** The member's own player row in the round. */
+  /** The ball the card scores: the member's own player row, or their pair's / team's first player (0175). */
   playerId: number;
   /** Their shots on a hole (null when the card's stroke index is missing). */
   shotsAt: (hole: number) => number | null;

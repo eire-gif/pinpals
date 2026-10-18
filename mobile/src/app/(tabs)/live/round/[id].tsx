@@ -206,10 +206,16 @@ export default function LiveRoundScreen() {
     const mine = data.players.find((p) => p.memberId === me);
     if (!mine) return;
     const mf = data.round.matchFormat;
+    const scr = data.round.scramble;
+    // A pair or scramble team (0175): one card, on its first player, off the team handicap.
+    const ball = scr ? ([...data.players].sort((a, b) => a.position - b.position)[0] ?? mine) : mine;
     const comp = mf ? matchCompetitors(mf, asMatchPlayers(data.players)).find((c) => c.playerIds.includes(mine.id)) : null;
-    const shots = shotsSoFar(comp ? comp.shots : mine.playingHandicap, data.card);
+    const shots = shotsSoFar(scr ? scr.teamHandicap : comp ? comp.shots : mine.playingHandicap, data.card);
     let status: string | null = null;
-    if (mf) {
+    if (scr) {
+      // Its place among the day's teams isn't on this screen (and may be secret).
+      status = null;
+    } else if (mf) {
       const m = teamMatchState(mf, data.card, asMatchPlayers(data.players), data.scores);
       if (m && m.holes.length > 0) {
         const side = (n: number) =>
@@ -223,9 +229,9 @@ export default function LiveRoundScreen() {
     void syncLockScreen({
       round: data.round,
       card: data.card,
-      playerId: mine.id,
+      playerId: ball.id,
       shotsAt: (hole) => shots?.get(hole) ?? null,
-      scores: data.scores.get(mine.id) ?? new Map<number, number | null>(),
+      scores: data.scores.get(ball.id) ?? new Map<number, number | null>(),
       status,
     });
   }, [data, board, me, dayHeader, roundId]);

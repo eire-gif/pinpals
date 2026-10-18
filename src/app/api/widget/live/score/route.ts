@@ -13,9 +13,9 @@ import { createAdminClient } from "@/lib/supabase/admin";
  * as in the app; clear removes the hole's score.
  *
  * The key (src/lib/live-score-token.ts) names one member and one round, and
- * live_round_set_own_score() (0155) writes only that member's own ball, only
- * while the round is live and only in formats where everyone plays their own
- * ball. The key travels in a header so it never lands in access logs.
+ * live_round_set_own_score() (0155, 0175) writes only that member's own ball
+ * (or their pair's or team's card), only while the round is live, and never
+ * in a foursomes or greensomes match. The key travels in a header so it never lands in access logs.
  *
  * Status codes the card acts on: 401 → "open PinPals" (key expired or
  * signed out); 409 → the round has finished, stop retrying; 400/403 → drop
