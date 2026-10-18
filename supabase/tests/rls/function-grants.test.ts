@@ -192,6 +192,8 @@ const EXPECTED: Record<string, Expectation> = {
   // A trigger: a guest's seat claimed by a member stops others' shares of it.
   "live_round_player_claimed_stops_follows()": { anon: false, authenticated: false },
   "live_round_status_broadcast()": { anon: false, authenticated: false },
+  // 0180: saves every member's card when a round finishes. Trigger-only.
+  "live_round_finish_cards()": { anon: false, authenticated: false },
   // 0104 match days. Same reasoning: each checks the caller itself.
   "can_score_live_round(p_round_id bigint)": { anon: false, authenticated: true },
   "can_view_match_day(p_day_id bigint)": { anon: false, authenticated: true },
@@ -340,6 +342,8 @@ const EXPECTED: Record<string, Expectation> = {
   "scorecard_visible_row(p_member uuid, p_visibility text)": { anon: false, authenticated: true },
   "scorecard_save(p_id bigint, p_card jsonb, p_holes jsonb)": { anon: false, authenticated: true },
   "scorecard_from_live_round(p_round_id bigint)": { anon: false, authenticated: true },
+  // 0180: the body of the above for a given member — server-only (trigger, backfill).
+  "scorecard_from_live_round_for(p_round_id bigint, p_member uuid)": { anon: false, authenticated: false },
   // 0177: the draw reads a group's men's/women's ratings answers; it checks
   // the caller can put the group on cards itself.
   "group_ratings_categories(p_group_id bigint)": { anon: false, authenticated: true },
