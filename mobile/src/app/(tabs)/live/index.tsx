@@ -1,6 +1,7 @@
 import { useCallback, useState } from "react";
-import { ActivityIndicator, Alert, ImageBackground, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
-import { router, useFocusEffect } from "expo-router";
+import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { router, useFocusEffect, useIsFocused } from "expo-router";
+import { StatusBar } from "expo-status-bar";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { GuideLink } from "@/components/guide-bits";
@@ -14,8 +15,6 @@ import { loadFollowing, type FollowingItem } from "@/lib/live-follow";
 import { formatInfo } from "@/lib/live-scoring";
 import { dateLabel } from "@/lib/tee-times";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
-
-const HERO = require("../../../../assets/images/scenes/links-dusk.jpg");
 
 /**
  * Live scoring hub: start a round, or go back to one in play.
@@ -31,6 +30,8 @@ export default function LiveScoringHub() {
   const [following, setFollowing] = useState<FollowingItem[]>([]);
   const [failed, setFailed] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  // Cream clock and battery over the navy bar, as on the Marketplace.
+  const focused = useIsFocused();
 
   const load = useCallback(async () => {
     if (!userId || !isOn("liveScoring")) return;
@@ -107,19 +108,10 @@ export default function LiveScoringHub() {
         />
       }
     >
-      {/* Oct 2026 (option A): a course photograph behind a short title,
-          the same look as Tee Times and Courses. */}
-      <ImageBackground source={HERO} style={styles.hero} imageStyle={styles.heroImage}>
-        <View style={styles.scrim} />
-        <View style={styles.eyebrowRow}>
-          <View style={styles.rule} />
-          <Text style={styles.eyebrow}>Live scoring</Text>
-        </View>
-        <Text style={styles.heroTitle} accessibilityRole="header">
-          Score it together.
-        </Text>
-        <Text style={styles.heroBody}>Handicaps in once — shots worked out, leaderboard live.</Text>
-      </ImageBackground>
+      {/* Oct 2026: the photo hero went — "Live Scoring" now sits in the
+          navy bar above (see _layout), as the Marketplace does, so the
+          three ways in start at the top of the screen. */}
+      {focused ? <StatusBar style="light" /> : null}
 
       {/* Oct 2026 (option A): three ways in, each its own colour so they
           can be told apart at a glance — a round (navy), groups and societies
@@ -402,25 +394,7 @@ function DeleteButton({ label, onPress }: { label: string; onPress: () => void }
 const styles = StyleSheet.create({
   trash: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: colors.cream50 },
   page: { padding: spacing.md, gap: spacing.lg, paddingBottom: spacing.xl },
-  hero: {
-    marginHorizontal: -spacing.md,
-    marginTop: -spacing.md,
-    marginBottom: -spacing.sm,
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.xl,
-    paddingBottom: spacing.lg,
-    gap: 6,
-    backgroundColor: colors.navy900,
-  },
-  heroImage: { resizeMode: "cover" },
-  // Navy over the photo so cream text reads on a bright sky.
-  scrim: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(12,32,56,0.5)" },
   starts: { gap: spacing.md + 2 },
-  eyebrowRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
-  rule: { width: 18, height: 2, backgroundColor: colors.gold400 },
-  eyebrow: { fontFamily: fonts.bodyBold, fontSize: 12, letterSpacing: 1.6, textTransform: "uppercase", color: colors.gold400 },
-  heroTitle: { fontFamily: fonts.display, fontSize: 32, lineHeight: 38, color: colors.cream50 },
-  heroBody: { fontFamily: fonts.body, fontSize: type.small, lineHeight: 20, color: colors.cream100 },
   pressed: { opacity: 0.85 },
   section: { gap: spacing.sm },
   sectionHead: { flexDirection: "row", alignItems: "center", gap: spacing.sm },

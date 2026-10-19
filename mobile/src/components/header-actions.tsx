@@ -71,17 +71,19 @@ export function HeaderPill({
  * sits in a stack inside the tabs, so the system draws no back button).
  * Goes back to wherever the member came from, else Home.
  */
-export function BackPill() {
+/** `onDark`: cream on a coloured header bar (Live scoring, Oct 2026). */
+export function BackPill({ onDark = false }: { onDark?: boolean } = {}) {
+  const ink = onDark ? colors.cream50 : colors.ink900;
   return (
     <Pressable
       onPress={() => (router.canGoBack() ? router.back() : router.navigate("/"))}
       hitSlop={8}
       accessibilityRole="button"
       accessibilityLabel="Back"
-      style={({ pressed }) => [styles.pill, styles.back, pressed && styles.pressed]}
+      style={({ pressed }) => [styles.pill, styles.back, onDark && styles.backOnDark, pressed && styles.pressed]}
     >
-      <Ionicons name="chevron-back" size={22} color={colors.ink900} style={{ marginLeft: -4 }} />
-      <Text style={styles.backLabel}>Back</Text>
+      <Ionicons name="chevron-back" size={22} color={ink} style={{ marginLeft: -4 }} />
+      <Text style={[styles.backLabel, { color: ink }]}>Back</Text>
     </Pressable>
   );
 }
@@ -117,6 +119,7 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.line,
   },
+  backOnDark: { backgroundColor: "rgba(247,243,234,0.10)", borderColor: "rgba(247,243,234,0.28)" },
   backLabel: { fontFamily: fonts.body, fontSize: 17, color: colors.ink900 },
   pill: {
     minHeight: 36,
