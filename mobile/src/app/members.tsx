@@ -34,6 +34,7 @@ import { loadMyProfile, type MyProfile } from "@/lib/profile";
 import { listInvites, type Invite } from "@/lib/tee-times";
 import { colors, fonts, radii, spacing } from "@/lib/theme";
 import { AgeGateLoading, NotForUnder18, useAgeGate } from "@/components/not-for-under-18";
+import { TONES } from "@/components/live-scoring-card";
 
 /**
  * Find PinPals (Oct 2026 redesign, approved mock-ups 1 and 2).
@@ -626,7 +627,8 @@ const styles = StyleSheet.create({
   mineEmpty: { fontFamily: fonts.body, fontSize: 14, color: colors.ink500 },
   fill: { flex: 1, backgroundColor: colors.cream50 },
 
-  band: { backgroundColor: colors.navy900, paddingHorizontal: spacing.md, paddingBottom: 14, gap: 12 },
+  // Claret, as the Find Golfers button on Home (Oct 2026).
+  band: { backgroundColor: TONES.claret.card, paddingHorizontal: spacing.md, paddingBottom: 14, gap: 12 },
   bandTop: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   rule: { width: 34, height: 3, borderRadius: 2, backgroundColor: colors.gold400 },
   title: { fontFamily: fonts.display, fontSize: 30, color: colors.cream50 },
@@ -675,7 +677,7 @@ const styles = StyleSheet.create({
   smallBtnQuiet: { backgroundColor: SAND, alignSelf: "stretch", marginTop: 4 },
   smallBtnQuietText: { fontFamily: fonts.bodyBold, fontSize: 13, color: "#7a6a3e" },
 
-  invite: { marginHorizontal: spacing.md, backgroundColor: colors.navy900, borderRadius: 18, padding: 14, flexDirection: "row", alignItems: "center", gap: 12 },
+  invite: { marginHorizontal: spacing.md, backgroundColor: TONES.claret.card, borderRadius: 18, padding: 14, flexDirection: "row", alignItems: "center", gap: 12 },
   inviteIcon: { width: 42, height: 42, borderRadius: 21, backgroundColor: colors.gold400, alignItems: "center", justifyContent: "center" },
   inviteTitle: { fontSize: 15, fontWeight: "800", color: colors.gold400 },
   inviteBody: { fontFamily: fonts.body, fontSize: 12.5, color: "#c9d2de" },

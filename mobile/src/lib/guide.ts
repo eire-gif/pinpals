@@ -689,7 +689,7 @@ export const GUIDES: Guide[] = [
     steps: [
       {
         title: "Start a round from your group",
-        body: "On your group's page, tap the gold Start a round bar. It's also in Live scoring as Groups & Societies.",
+        body: "On your group's page, tap the gold Start a round bar. It's also in Live scoring as Groups & Societies — then tap your group under Select your group.",
         path: [MENU, GROUPS, MY_GROUPS, YOUR_GROUP],
         look: [
           { style: "banner", label: "Start a round", icon: "shuffle", subtitle: "Draw into groups or teams, scored live" },
@@ -1895,6 +1895,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-19", text: "Groups & Societies in Live scoring opens Select your group: big cards, one per group — tap yours. The page each big Home button opens now wears its colour: green for Groups & Societies, claret for Find PinPals, bronze for Marketplace. Play a round together is updated." },
   { on: "2026-10-19", text: "My rounds now keeps the six tabs along the bottom. On Find PinPals, Bring your fourball is now Invite friends to join, with your own connections listed under it." },
   { on: "2026-10-18", text: "New here? Explore how PinPals works on Home now opens a short guide in four chapters — Find Golfers, Start a Round, Groups & Societies and Marketplace — each with a button that goes there. The how-to guides are linked at the end." },
   { on: "2026-10-18", text: "Groups & societies has four big buttons: My Groups & Societies (your groups, invitations and requests) and Golf Buddies, Plan a Golf Trip and Run a Society to start one. Crews are now called Golf Buddies. Set up a society, Join a group and the steps that open your group are updated." },

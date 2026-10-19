@@ -48,10 +48,12 @@ export function GroupsHero({
 }
 
 const styles = StyleSheet.create({
-  hero: { minHeight: 172, justifyContent: "flex-end", backgroundColor: colors.navy900 },
+  // Green, as the Groups & Societies button on Home (Oct 2026: each big
+  // button's colour carries through to the page it opens).
+  hero: { minHeight: 172, justifyContent: "flex-end", backgroundColor: "#0f3424" },
   image: { resizeMode: "cover" },
-  veil: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(10,18,34,0.42)" },
-  veilLow: { position: "absolute", left: 0, right: 0, bottom: 0, height: "60%", backgroundColor: "rgba(10,18,34,0.38)" },
+  veil: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(15,52,36,0.62)" },
+  veilLow: { position: "absolute", left: 0, right: 0, bottom: 0, height: "60%", backgroundColor: "rgba(15,52,36,0.45)" },
   body: { paddingHorizontal: spacing.lg, paddingBottom: 18, paddingTop: spacing.lg, gap: 6 },
   eyebrowRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   rule: { width: 22, height: 2, backgroundColor: colors.gold400 },

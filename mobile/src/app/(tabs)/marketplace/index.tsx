@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import { router, useFocusEffect, useIsFocused, useLocalSearchParams } from "expo-router";
 import { StatusBar } from "expo-status-bar";
+import { TONES } from "@/components/live-scoring-card";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { AdBanner } from "@/components/ad-banner";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
@@ -609,7 +610,7 @@ const styles = StyleSheet.create({
   list: { paddingBottom: spacing.lg, gap: spacing.md },
   column: { gap: 12, paddingHorizontal: spacing.md },
 
-  head: { backgroundColor: colors.navy900, paddingHorizontal: spacing.md, paddingBottom: spacing.sm + 4, gap: 10 },
+  head: { backgroundColor: TONES.bronze.card, paddingHorizontal: spacing.md, paddingBottom: spacing.sm + 4, gap: 10 },
   searchRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   searchPill: { flex: 1, flexDirection: "row", alignItems: "center", gap: 10, height: 50, paddingHorizontal: 14, borderRadius: 14, backgroundColor: colors.cream50 },
   searchPillText: { flex: 1, fontFamily: fonts.body, fontSize: 15, color: colors.ink500 },
