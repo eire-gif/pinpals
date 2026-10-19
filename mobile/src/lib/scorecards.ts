@@ -1,6 +1,7 @@
 import { postToSite } from "./api";
 import type { ScorecardHole, ScorecardMeta } from "./scorecard-math";
 import { supabase } from "./supabase";
+import { asRoundWeather, type RoundWeather } from "./weather-rules";
 
 /**
  * Scorecards — reads and writes (0110, claude/scorecards.md).
@@ -33,6 +34,8 @@ export type Scorecard = ScorecardMeta & {
   /** A pair's or team's card (0138): one ball, the side's handicap; never
    *  used for the handicap indicator. */
   teamCard: "foursomes" | "greensomes" | "scramble" | null;
+  /** What the round was played in (0182); null until looked up, or none. */
+  weather: RoundWeather | null;
 };
 
 type Row = {
@@ -52,11 +55,15 @@ type Row = {
   live_round_id: number | null;
   visibility: Visibility;
   team_card: "foursomes" | "greensomes" | "scramble" | null;
+  weather?: unknown;
   scorecard_holes: { hole: number; par: number; stroke_index: number | null; yards: number | null; strokes: number | null; putts: number | null }[];
 };
 
-const SELECT =
+const BASE_SELECT =
   "id, member_id, club_id, course_name, tee_name, holes, played_on, par_total, course_rating, slope, handicap_index, playing_handicap, source, live_round_id, visibility, team_card, scorecard_holes (hole, par, stroke_index, yards, strokes, putts)";
+// 0182's weather; a database without it still loads the cards.
+const SELECT = `${BASE_SELECT}, weather`;
+const missingWeather = (e: { message?: string } | null) => !!e?.message && /weather/.test(e.message);
 
 const toScorecard = (r: Row): Scorecard => ({
   id: r.id,
@@ -76,6 +83,7 @@ const toScorecard = (r: Row): Scorecard => ({
   liveRoundId: r.live_round_id,
   visibility: r.visibility,
   teamCard: r.team_card ?? null,
+  weather: asRoundWeather(r.weather),
   holeList: [...r.scorecard_holes]
     .sort((a, b) => a.hole - b.hole)
     .map((h) => ({ hole: h.hole, par: h.par, strokeIndex: h.stroke_index, yards: h.yards, strokes: h.strokes, putts: h.putts })),
@@ -83,20 +91,25 @@ const toScorecard = (r: Row): Scorecard => ({
 
 /** A member's cards that the viewer may see, newest round first. */
 export async function listScorecards(memberId: string, limit = 50): Promise<Scorecard[]> {
-  const { data, error } = await supabase
-    .from("scorecards")
-    .select(SELECT)
-    .eq("member_id", memberId)
-    .order("played_on", { ascending: false })
-    .order("id", { ascending: false })
-    .limit(limit)
-    .overrideTypes<Row[]>();
+  const query = (select: string) =>
+    supabase
+      .from("scorecards")
+      .select(select)
+      .eq("member_id", memberId)
+      .order("played_on", { ascending: false })
+      .order("id", { ascending: false })
+      .limit(limit)
+      .overrideTypes<Row[]>();
+  let { data, error } = await query(SELECT);
+  if (missingWeather(error)) ({ data, error } = await query(BASE_SELECT));
   if (error) throw error;
   return (data ?? []).map(toScorecard);
 }
 
 export async function loadScorecard(id: number): Promise<Scorecard | null> {
-  const { data, error } = await supabase.from("scorecards").select(SELECT).eq("id", id).maybeSingle<Row>();
+  const query = (select: string) => supabase.from("scorecards").select(select).eq("id", id).maybeSingle<Row>();
+  let { data, error } = await query(SELECT);
+  if (missingWeather(error)) ({ data, error } = await query(BASE_SELECT));
   if (error) throw error;
   return data ? toScorecard(data) : null;
 }

@@ -39,6 +39,7 @@ import {
 import { confirmPlace, respondToRequest, withdrawRequest } from "@/lib/tee-time-interest";
 import { guideHidden, hideGuide } from "@/lib/my-rounds-guide";
 import { teeTimesChanged } from "@/lib/tee-times-waiting";
+import { ForecastRow } from "@/components/weather-bits";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 
 /**
@@ -649,6 +650,11 @@ function RoundCard({
           </Text>
         </View>
       </Pressable>
+
+      {/* The forecast from the tee time (Oct 2026), within ten days; when it will show, beyond. */}
+      {!dead && round.clubRef ? (
+        <ForecastRow clubId={round.clubRef.id} playDate={round.playDate} tee={round.teeTime} />
+      ) : null}
 
       {round.slots.length > 0 ? (
         <View style={[styles.players, dead && styles.faded]}>
