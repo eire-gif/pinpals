@@ -68,6 +68,14 @@ import { subscribeToConversation, subscribeToTyping } from "@/lib/realtime";
 import { colors, fonts, headerTitleStyle, radii, spacing, type } from "@/lib/theme";
 import { PHOTO_PICKER_OPTIONS, preparePhotoForUpload } from "@/lib/photo-picking";
 import { AgeGateLoading, NotForUnder18, useAgeGate } from "@/components/not-for-under-18";
+import { ChatAddSheet, EventCard, NextUpStrip, type AddOption } from "@/components/group-chat-bits";
+import { groupEventCards, groupForConversation, myPlaceIn, nextUp, type ChatGroup, type GroupEventCard } from "@/lib/group-chat";
+import { groupLine, mergeTimeline } from "@/lib/group-chat-rules";
+import { officeAreas, isGroupOffice } from "@/lib/groups";
+import { irishToday } from "@/lib/outing-rules";
+
+/** A row in the chat: a message, or one of the group's events (0181). */
+type Row = { kind: "message"; item: Message } | { kind: "card"; item: GroupEventCard };
 
 /**
  * One conversation — redesigned Oct 2026 with what members expect from
@@ -91,6 +99,12 @@ function ConversationScreenInner() {
   const userId = session?.user?.id ?? null;
 
   const [header, setHeader] = useState<ConversationHeader | null>(null);
+  /** The Golf Buddies group or trip this chat belongs to (0181), its events,
+   *  and whether you run its events. Null for any other chat. */
+  const [chatGroup, setChatGroup] = useState<ChatGroup | null>(null);
+  const [events, setEvents] = useState<GroupEventCard[]>([]);
+  const [organiser, setOrganiser] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [cursor, setCursor] = useState<Cursor | null>(null);
   const [loading, setLoading] = useState(true);
@@ -115,7 +129,7 @@ function ConversationScreenInner() {
   const [typing, setTyping] = useState<Map<string, number>>(new Map());
   const [flash, setFlash] = useState<number | null>(null);
 
-  const listRef = useRef<FlatList<Message>>(null);
+  const listRef = useRef<FlatList<Row>>(null);
   const inputRef = useRef<TextInput>(null);
   const typingRef = useRef<{ ping: () => void; stop: () => void } | null>(null);
 
@@ -219,6 +233,22 @@ function ConversationScreenInner() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  /** The group behind this chat, its events and your part in it (0181). */
+  const loadGroup = useCallback(async () => {
+    if (!userId) return;
+    const g = await groupForConversation(conversationId).catch(() => null);
+    setChatGroup(g);
+    if (!g) return;
+    const [cards, place] = await Promise.all([groupEventCards(g.id, userId), myPlaceIn(g.id, userId).catch(() => null)]);
+    setEvents(cards);
+    setOrganiser(!!place && officeAreas(place.role, isGroupOffice(place.office) ? place.office : null).includes("events"));
+  }, [conversationId, userId]);
+
+  const groupChat = header?.kind === "group";
+  useEffect(() => {
+    if (groupChat) void loadGroup();
+  }, [groupChat, loadGroup]);
 
   // "Reply privately" lands here with the group message to quote.
   useEffect(() => {
@@ -525,7 +555,7 @@ function ConversationScreenInner() {
   };
 
   const jumpTo = (messageId: number) => {
-    const index = visible.findIndex((m) => m.id === messageId);
+    const index = rows.findIndex((r) => r.kind === "message" && r.item.id === messageId);
     if (index < 0) return;
     listRef.current?.scrollToIndex({ index, viewPosition: 0.5, animated: true });
     setFlash(messageId);
@@ -555,13 +585,44 @@ function ConversationScreenInner() {
   };
 
   const visible = useMemo(() => messages.filter((m) => !hidden.has(m.id)), [messages, hidden]);
+  // The group's events among the messages, newest first like the list (0181).
+  const rows = useMemo<Row[]>(() => mergeTimeline(visible, chatGroup ? events : [], !!cursor), [visible, chatGroup, events, cursor]);
+  const indexOf = useMemo(() => new Map(visible.map((m, i) => [m.id, i] as const)), [visible]);
+  const today = irishToday();
+  const pinned = chatGroup ? nextUp(events, today) : null;
   const typingNames = [...typing.keys()].map((id) => nameOf(id) ?? "Someone");
   const typingText = typingLine(typingNames);
   const over = draft.trim().length > MESSAGE_MAX_LENGTH;
   const canSend = !!draft.trim() && !sending && !over;
   const pickedReaction = picked && userId ? ((reactions.get(picked.id) ?? []).find((r) => r.memberId === userId)?.emoji ?? null) : null;
 
-  const subtitle = typingText ?? (isGroup ? `${header?.members.length ?? 0} members` : null);
+  const subtitle = typingText ?? (chatGroup ? groupLine(chatGroup, today) : isGroup ? `${header?.members.length ?? 0} members` : null);
+
+  const openGroup = () => {
+    if (chatGroup) router.push({ pathname: "/group/[id]", params: { id: String(chatGroup.id) } });
+  };
+
+  /** The + sheet: a photo for everyone; events for whoever runs them. */
+  const addOptions: AddOption[] = chatGroup
+    ? [
+        { key: "photo", label: "Photo", icon: "image-outline", onPress: pickPhoto },
+        { key: "events", label: chatGroup.kind === "trip" ? "Trip events" : "Rounds & events", icon: "calendar-outline", onPress: () => router.push({ pathname: "/group/[id]/events", params: { id: String(chatGroup.id) } }) },
+        ...(pinned
+          ? [{ key: "next", label: pinned.outingKind === "day" ? "Next round" : "Itinerary", icon: (pinned.outingKind === "day" ? "flag-outline" : "map-outline") as AddOption["icon"], onPress: () =>
+              pinned.outingKind === "day"
+                ? router.push({ pathname: "/group/[id]/outing/[outingId]", params: { id: String(chatGroup.id), outingId: String(pinned.id) } })
+                : router.push({ pathname: "/group/[id]/itinerary/[outingId]", params: { id: String(chatGroup.id), outingId: String(pinned.id) } }) }]
+          : []),
+        ...(organiser
+          ? [
+              { key: "new", label: chatGroup.kind === "trip" ? "Plan a trip day" : "Post a round", icon: "add-circle-outline" as const, organiser: true, onPress: () => router.push({ pathname: "/group/[id]/outing/new", params: { id: String(chatGroup.id) } }) },
+              ...(pinned
+                ? [{ key: "pay", label: "Ask for money", icon: "cash-outline" as const, organiser: true, onPress: () => router.push({ pathname: "/group/[id]/outing/[outingId]", params: { id: String(chatGroup.id), outingId: String(pinned.id) } }) }]
+                : []),
+            ]
+          : []),
+      ]
+    : [];
 
   return (
     <KeyboardAvoidingView
@@ -576,10 +637,20 @@ function ConversationScreenInner() {
           headerTintColor: colors.cream50,
           headerShadowVisible: false,
           headerTitle: () => (
-            <View style={styles.headTitle}>
+            <Pressable
+              style={styles.headTitle}
+              onPress={openGroup}
+              disabled={!chatGroup}
+              accessibilityRole={chatGroup ? "button" : undefined}
+              accessibilityLabel={chatGroup ? `${chatGroup.name}. Open the group's page` : undefined}
+            >
               {isGroup ? (
-                <View style={styles.headGroup}>
-                  <Ionicons name="people" size={17} color={colors.navy900} />
+                <View style={[styles.headGroup, chatGroup?.kind === "crew" && styles.headCrew, chatGroup?.kind === "trip" && styles.headTrip]}>
+                  <Ionicons
+                    name={chatGroup?.kind === "trip" ? "airplane" : "people"}
+                    size={17}
+                    color={chatGroup?.kind === "trip" ? colors.gold400 : chatGroup?.kind === "crew" ? colors.cream50 : colors.navy900}
+                  />
                 </View>
               ) : (
                 <Avatar url={header?.otherAvatarUrl} color={header?.otherAvatarColor} name={header?.otherName} size={34} />
@@ -589,17 +660,35 @@ function ConversationScreenInner() {
                   {header?.otherName ?? "Message"}
                 </Text>
                 {subtitle ? (
-                  <Text style={[styles.headSub, typingText ? styles.headTyping : null]} numberOfLines={1}>
-                    {subtitle}
+                  <Text style={[styles.headSub, typingText ? styles.headTyping : null, chatGroup && !typingText ? styles.headCaps : null]} numberOfLines={1}>
+                    {chatGroup && !typingText ? subtitle.toUpperCase() : subtitle}
                   </Text>
                 ) : null}
               </View>
-            </View>
+            </Pressable>
           ),
+          // Chat settings — alerts, who's in it, what's been shared (0181).
+          headerRight: isGroup
+            ? () => (
+                <Pressable
+                  onPress={() => router.push({ pathname: "/chat-settings/[id]", params: { id: String(conversationId) } })}
+                  hitSlop={8}
+                  style={styles.headMore}
+                  accessibilityRole="button"
+                  accessibilityLabel="Chat settings"
+                >
+                  <Ionicons name="ellipsis-horizontal" size={22} color={colors.cream50} />
+                </Pressable>
+              )
+            : undefined,
         }}
       />
 
-      {isGroup && header ? (
+      {/* A group's chat (0181): its next event pinned under the bar. Leaving
+          is the group's business, in chat settings. */}
+      {chatGroup && pinned ? <NextUpStrip event={pinned} onChanged={() => void loadGroup()} /> : null}
+
+      {isGroup && header && !chatGroup ? (
         <View style={styles.groupBar}>
           <Text style={styles.groupBarLabel} numberOfLines={1}>
             {header.members.map((m) => (m.id === userId ? "You" : m.name.split(" ")[0])).join(", ")}
@@ -662,8 +751,8 @@ function ConversationScreenInner() {
             ref={listRef}
             inverted
             contentContainerStyle={styles.list}
-            data={visible}
-            keyExtractor={(item) => String(item.id)}
+            data={rows}
+            keyExtractor={(row) => (row.kind === "card" ? row.item.key : String(row.item.id))}
             keyboardDismissMode="interactive"
             keyboardShouldPersistTaps="handled"
             onEndReached={() => void loadOlder()}
@@ -687,11 +776,22 @@ function ConversationScreenInner() {
                   <Ionicons name={error ? "cloud-offline-outline" : "chatbubbles-outline"} size={30} color={colors.green700} />
                 </View>
                 <Text style={styles.emptyTitle}>{error ?? "No messages yet"}</Text>
-                <Text style={styles.emptyBody}>{error ? "Go back and try again." : "Say hello — long-press any message later for reactions and replies."}</Text>
+                <Text style={styles.emptyBody}>
+                  {error
+                    ? "Go back and try again."
+                    : chatGroup
+                      ? `Everyone in ${chatGroup.name} is in this chat, and anyone who joins later sees it all. Say hello.`
+                      : "Say hello — long-press any message later for reactions and replies."}
+                </Text>
               </View>
             }
             ListFooterComponent={loadingOlder ? <ActivityIndicator color={colors.green700} style={styles.older} /> : null}
-            renderItem={({ item, index }) => {
+            renderItem={({ item: row }) => {
+              if (row.kind === "card") {
+                return <EventCard event={row.item} members={header?.members ?? []} nameOf={nameOf} meId={userId} today={today} onChanged={() => void loadGroup()} />;
+              }
+              const item = row.item;
+              const index = indexOf.get(item.id) ?? 0;
               // Inverted: index + 1 is the message before this one in time.
               const older = visible[index + 1];
               const newer = visible[index - 1];
@@ -749,6 +849,20 @@ function ConversationScreenInner() {
             ) : null}
 
             <View style={styles.composerRow}>
+              {chatGroup ? (
+                <Pressable
+                  onPress={() => {
+                    Keyboard.dismiss();
+                    setEmojiOpen(false);
+                    setAddOpen(true);
+                  }}
+                  style={styles.plus}
+                  accessibilityRole="button"
+                  accessibilityLabel="Add a photo, a round or an event"
+                >
+                  <Ionicons name="add" size={24} color={colors.navy900} />
+                </Pressable>
+              ) : null}
               <View style={styles.inputPill}>
                 <Pressable
                   onPress={toggleEmoji}
@@ -830,6 +944,7 @@ function ConversationScreenInner() {
         onClose={() => setPicked(null)}
       />
       <MessageInfoSheet message={infoFor} members={header?.members ?? []} onClose={() => setInfoFor(null)} />
+      <ChatAddSheet open={addOpen} options={addOptions} onClose={() => setAddOpen(false)} />
     </KeyboardAvoidingView>
   );
 }
@@ -1034,6 +1149,11 @@ const styles = StyleSheet.create({
   headName: { ...headerTitleStyle, color: colors.cream50 },
   headSub: { fontFamily: fonts.body, fontSize: 12.5, color: "rgba(247,243,234,0.7)" },
   headTyping: { color: colors.gold400, fontFamily: fonts.bodySemi },
+  // A group's chat (0181): its kind's colours, and the gold caps line under the name.
+  headCrew: { borderRadius: 10, backgroundColor: colors.green700, borderWidth: 1.5, borderColor: colors.gold400 },
+  headTrip: { borderRadius: 10, backgroundColor: colors.navy800, borderWidth: 1.5, borderColor: colors.gold400 },
+  headCaps: { fontFamily: fonts.bodyBold, fontSize: 10, letterSpacing: 1.3, color: colors.gold400 },
+  headMore: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
 
   groupBar: {
     flexDirection: "row",
@@ -1170,6 +1290,16 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
   },
   composerRow: { flexDirection: "row", alignItems: "flex-end", gap: 8 },
+  plus: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.surface,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   inputPill: {
     flex: 1,
     flexDirection: "row",

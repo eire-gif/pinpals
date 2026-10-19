@@ -45,6 +45,9 @@ import {
 } from "@/lib/inbox";
 import { ApiError } from "@/lib/api";
 import { hideConversation, inboxTime } from "@/lib/messages";
+import { groupsForConversations, myAlertsFor, nextEvents, type ChatGroup, type GroupEventCard } from "@/lib/group-chat";
+import { eventWhen, groupTag, tripCountdown, type ChatAlertLevel } from "@/lib/group-chat-rules";
+import { irishToday } from "@/lib/outing-rules";
 import { confirmPlace, respondToRequest } from "@/lib/tee-time-interest";
 import { subscribeToInbox } from "@/lib/realtime";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
@@ -86,6 +89,11 @@ export default function InboxScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [clearing, setClearing] = useState(false);
 
+  /** For group chats (0181): the Golf Buddies group or trip behind the chat,
+   *  its next event, and your alert setting. Loaded after the list itself so
+   *  the inbox never waits on it. */
+  const [groupInfo, setGroupInfo] = useState<Map<number, GroupRowInfo>>(new Map());
+
   const [query, setQuery] = useState("");
   const [hits, setHits] = useState<InboxMessageHit[]>([]);
   const [searching, setSearching] = useState(false);
@@ -103,6 +111,7 @@ export default function InboxScreen() {
       const loaded = await loadInbox(userId);
       setItems(loaded.items);
       setCounts(loaded.counts);
+      void loadGroupInfo(loaded.items, userId).then(setGroupInfo).catch(() => undefined);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -317,6 +326,12 @@ export default function InboxScreen() {
    */
   const sections = useMemo<InboxSection[]>(() => {
     if (searchingNow) return visible.length ? [{ key: "results", title: "", data: visible, fresh: 0 }] : [];
+
+    // Groups (0181): every group chat, busiest first, in one list.
+    if (filter === "groups") {
+      const convs = visible.filter((r): r is InboxConversation => r.kind === "conversation");
+      return convs.length ? [{ key: "groups", title: "", data: convs, fresh: convs.filter(isUnread).length }] : [];
+    }
 
     if (filter === "messages") {
       const convs = visible.filter((r): r is InboxConversation => r.kind === "conversation");
@@ -539,6 +554,7 @@ export default function InboxScreen() {
               {item.kind === "conversation" ? (
                 <ConversationRow
                   row={item}
+                  info={groupInfo.get(item.id) ?? null}
                   onPress={() => router.push(`/conversation/${item.id}`)}
                 />
               ) : (
@@ -550,6 +566,38 @@ export default function InboxScreen() {
       />
     </View>
   );
+}
+
+type GroupRowInfo = { group: ChatGroup | null; next: GroupEventCard | null; alerts: ChatAlertLevel };
+
+/** The group, next event and alert level behind each group chat in the list. */
+async function loadGroupInfo(items: InboxItem[], userId: string): Promise<Map<number, GroupRowInfo>> {
+  const ids = items
+    .filter((i): i is InboxConversation => i.kind === "conversation" && i.conversationKind === "group")
+    .map((i) => i.id);
+  const out = new Map<number, GroupRowInfo>();
+  if (ids.length === 0) return out;
+  const [groups, alerts] = await Promise.all([groupsForConversations(ids), myAlertsFor(ids, userId)]);
+  const groupIds = [...groups.values()].map((g) => g.id);
+  const next = await nextEvents(groupIds, irishToday(), userId).catch(() => new Map<number, GroupEventCard>());
+  for (const id of ids) {
+    const group = groups.get(id) ?? null;
+    out.set(id, { group, next: group ? (next.get(group.id) ?? null) : null, alerts: alerts.get(id) ?? "all" });
+  }
+  return out;
+}
+
+/** The line under a group chat's name: a trip's countdown, the next round, or how many are in it. */
+function groupContext(row: InboxConversation, info: GroupRowInfo | null): string {
+  const g = info?.group;
+  const next = info?.next;
+  const nextLine = next ? `Next: ${eventWhen(next.playsOn, next.firstTee)}${next.courseName ? ` · ${next.courseName}` : ""}` : null;
+  if (g?.kind === "trip") {
+    const countdown = tripCountdown(g.startsOn, g.endsOn, irishToday());
+    return [countdown, nextLine && !countdown ? nextLine : null].filter(Boolean).join(" · ") || `${g.memberCount} golfers`;
+  }
+  if (nextLine) return nextLine;
+  return `${g?.memberCount ?? row.memberCount ?? 0} ${g ? "members" : "people"}`;
 }
 
 type InboxSection = { key: string; title: string; data: InboxRowItem[]; fresh: number; more?: number };
@@ -623,13 +671,19 @@ function previewLine(row: InboxConversation): string {
 
 function ConversationRow({
   row,
+  info,
   onPress,
 }: {
   row: InboxConversation;
+  /** Group chats only (0181). */
+  info: GroupRowInfo | null;
   onPress: () => void;
 }) {
   const unread = row.unreadCount > 0;
   const group = row.conversationKind === "group";
+  const kind = info?.group?.kind ?? null;
+  const tag = kind ? groupTag(kind) : null;
+  const muted = info?.alerts === "none";
 
   return (
     <Pressable
@@ -642,8 +696,14 @@ function ConversationRow({
         {/* A group has no single face, so it gets a glyph rather than one
             member's avatar — which would look like a chat with that person. */}
         {group ? (
-          <View style={[styles.iconCircle, styles.groupCircle]}>
-            <Ionicons name="people" size={24} color={colors.green700} />
+          // A trip is navy with a gold plane; Golf Buddies green; a chat
+          // built by hand keeps the plain circle.
+          <View style={[styles.iconCircle, styles.groupCircle, kind === "trip" && styles.tripSquare, kind === "crew" && styles.crewSquare]}>
+            <Ionicons
+              name={kind === "trip" ? "airplane" : "people"}
+              size={kind === "trip" ? 22 : 24}
+              color={kind === "trip" ? colors.gold400 : kind === "crew" ? colors.cream50 : colors.green700}
+            />
           </View>
         ) : (
           <Avatar url={row.otherAvatarUrl} color={row.otherAvatarColor} name={row.otherName} size={50} />
@@ -653,12 +713,24 @@ function ConversationRow({
 
       <View style={styles.cardBody}>
         <View style={styles.cardTop}>
-          <Text style={[styles.title, unread && styles.titleUnread]} numberOfLines={1}>
-            {row.otherName}
-          </Text>
+          <View style={styles.titleRow}>
+            <Text style={[styles.title, styles.titleShrink, unread && styles.titleUnread]} numberOfLines={1}>
+              {row.otherName}
+            </Text>
+            {tag ? (
+              <View style={[styles.tag, kind === "trip" ? styles.tagTrip : styles.tagCrew]}>
+                <Text style={[styles.tagText, kind === "trip" ? styles.tagTextTrip : styles.tagTextCrew]}>{tag}</Text>
+              </View>
+            ) : null}
+            {muted ? <Ionicons name="notifications-off-outline" size={14} color={colors.ink500} accessibilityLabel="Muted" /> : null}
+          </View>
           <Text style={[styles.time, unread && styles.timeUnread]}>{inboxTime(row.lastMessageAt)}</Text>
         </View>
-        {group ? <Text style={styles.subtle}>{row.memberCount ?? 0} people</Text> : null}
+        {group ? (
+          <Text style={[styles.subtle, info?.next || (kind === "trip" && info?.group?.startsOn) ? styles.subtleNext : null]} numberOfLines={1}>
+            {groupContext(row, info)}
+          </Text>
+        ) : null}
         <View style={styles.previewRow}>
           {row.lastMessage?.mine && !row.lastMessage.deleted ? (
             <Ionicons
@@ -900,7 +972,13 @@ function Empty({
   }
 
   const copy =
-    filter === "messages"
+    filter === "groups"
+      ? {
+          icon: "people-outline" as const,
+          title: "No group chats yet",
+          body: "Start Golf Buddies or plan a golf trip from Groups & Societies — its chat comes with it, and everyone you invite is in.",
+        }
+      : filter === "messages"
       ? {
           icon: "chatbubbles-outline" as const,
           title: "No chats yet",
@@ -1047,6 +1125,17 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   groupCircle: { backgroundColor: colors.green100 },
+  tripSquare: { borderRadius: 14, backgroundColor: colors.navy900 },
+  crewSquare: { borderRadius: 14, backgroundColor: colors.green700 },
+  titleRow: { flex: 1, flexDirection: "row", alignItems: "center", gap: 6, minWidth: 0 },
+  titleShrink: { flex: 0, flexShrink: 1 },
+  tag: { borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
+  tagTrip: { backgroundColor: "#f5e6c2" },
+  tagCrew: { backgroundColor: colors.green100 },
+  tagText: { fontFamily: fonts.bodyBold, fontSize: 10, letterSpacing: 0.8 },
+  tagTextTrip: { color: "#7a5a12" },
+  tagTextCrew: { color: colors.green800 },
+  subtleNext: { color: colors.green700, fontFamily: fonts.bodySemi },
   cornerDot: {
     position: "absolute",
     top: 0,

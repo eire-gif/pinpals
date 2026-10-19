@@ -125,12 +125,14 @@ export function mergeInbox(
   });
 }
 
-export const INBOX_FILTERS = ["all", "messages", "marketplace", "alerts"] as const;
+export const INBOX_FILTERS = ["all", "groups", "messages", "marketplace", "alerts"] as const;
 
 export type InboxFilter = (typeof INBOX_FILTERS)[number];
 
 export const INBOX_FILTER_LABELS: Record<InboxFilter, string> = {
   all: "All",
+  // Golf Buddies and trip chats (0181), and any group chat built by hand.
+  groups: "Groups",
   // "Chat" for member-to-member conversations (Oct 2026): it says people
   // talking, where "Messages" read as anything the app sends you.
   messages: "Chat",
@@ -150,6 +152,7 @@ export const INBOX_FILTER_LABELS: Record<InboxFilter, string> = {
  */
 export function matchesInboxFilter(item: InboxItem, filter: InboxFilter): boolean {
   if (filter === "all") return true;
+  if (filter === "groups") return item.kind === "conversation" && item.conversationKind === "group";
   if (filter === "messages") return item.kind === "conversation";
   if (filter === "marketplace") return item.kind === "conversation" && item.listingTitle !== null;
   return item.kind === "alert";

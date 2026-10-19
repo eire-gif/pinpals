@@ -4,8 +4,11 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   MESSAGE_MAX_LENGTH,
+  asChatAlertLevel,
+  chatAlertWanted,
   containsSensitiveData,
   otherMemberIds,
+  type ChatAlertLevel,
 } from "@/lib/messaging";
 import {
   broadcast,
@@ -119,13 +122,7 @@ export async function sendMessageTo(params: {
   // group has as many recipients as it has members and the broadcast and the
   // notification both need all of them. RLS scopes this to conversations the
   // sender is in, so an empty list means they are not a participant.
-  const { data: memberRows } = await supabase
-    .from("conversation_members")
-    .select("member_id")
-    .eq("conversation_id", conversationId)
-    .returns<{ member_id: string }[]>();
-
-  const members = memberRows ?? [];
+  const members = await loadMembers(supabase, conversationId);
   if (!members.some((m) => m.member_id === userId)) {
     return { ok: false, reason: "not_found", message: "Conversation not found." };
   }
@@ -226,7 +223,13 @@ export async function sendMessageTo(params: {
       : "";
 
     const admin = createAdminClient();
-    for (const recipientId of recipientIds) {
+    const alerted = await recipientsToAlert(admin, {
+      members,
+      recipientIds,
+      body,
+      repliedToId: message.reply_snapshot?.sender_id ?? null,
+    });
+    for (const recipientId of alerted) {
       await notifyUser(admin, {
         userId: recipientId,
         type: "new_message",
@@ -248,4 +251,54 @@ export async function sendMessageTo(params: {
   }
 
   return { ok: true, value: message };
+}
+
+type MemberRow = { member_id: string; alerts?: ChatAlertLevel };
+
+/** Everyone in the conversation with their chat alert setting (0181). Falls
+ *  back to member ids alone if the alerts column isn't there yet, so the
+ *  website can deploy before the migration without breaking sending — every
+ *  member is then alerted, as before 0181. */
+async function loadMembers(supabase: SupabaseClient, conversationId: number): Promise<MemberRow[]> {
+  const withAlerts = await supabase
+    .from("conversation_members")
+    .select("member_id, alerts")
+    .eq("conversation_id", conversationId)
+    .returns<{ member_id: string; alerts: string | null }[]>();
+  if (!withAlerts.error) {
+    return (withAlerts.data ?? []).map((m) => ({ member_id: m.member_id, alerts: asChatAlertLevel(m.alerts) }));
+  }
+  const plain = await supabase
+    .from("conversation_members")
+    .select("member_id")
+    .eq("conversation_id", conversationId)
+    .returns<{ member_id: string }[]>();
+  return plain.data ?? [];
+}
+
+/** Who gets a push/email for this message: members on "Everything", and
+ *  members on "Rounds & @me" who were @mentioned or replied to. Muted members
+ *  get nothing. First names are only looked up when someone needs them. */
+async function recipientsToAlert(
+  admin: SupabaseClient,
+  params: { members: MemberRow[]; recipientIds: string[]; body: string; repliedToId: string | null },
+): Promise<string[]> {
+  const levelOf = new Map(params.members.map((m) => [m.member_id, m.alerts ?? "all"] as const));
+  const keyOnly = params.recipientIds.filter((id) => levelOf.get(id) === "key");
+  const names = new Map<string, string>();
+  if (keyOnly.length > 0 && params.body.includes("@")) {
+    const { data } = await admin
+      .from("profiles")
+      .select("id, first_name")
+      .in("id", keyOnly)
+      .returns<{ id: string; first_name: string | null }[]>();
+    for (const p of data ?? []) names.set(p.id, p.first_name ?? "");
+  }
+  return params.recipientIds.filter((id) =>
+    chatAlertWanted(
+      levelOf.get(id) ?? "all",
+      { body: params.body, repliedToId: params.repliedToId },
+      { id, firstName: names.get(id) },
+    ),
+  );
 }
