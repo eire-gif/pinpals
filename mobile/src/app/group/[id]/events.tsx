@@ -25,8 +25,7 @@ import { colors, fonts, radii, spacing, type } from "@/lib/theme";
  * into their itinerary.
  *
  * PAST (Oct 2026): a played day opens straight on its results, not the
- * entry page — the card shows the top three and where you finished once
- * they're published, or
+ * entry page — the card says "Full results" once they're published, or
  * "Results to come". "Event details" under it still opens the outing
  * (payments, who played). A day never scored on PinPals has no results,
  * so it opens the outing as before.
@@ -54,7 +53,7 @@ export default function SocietyEventsScreen() {
       const [page, list, published] = await Promise.all([
         loadGroupPage(groupId, userId),
         listOutings(groupId, userId, { fromDate: irishToday(), past }),
-        past ? loadGroupResults(groupId, userId).catch(() => [] as GroupResult[]) : Promise.resolve([] as GroupResult[]),
+        past ? loadGroupResults(groupId).catch(() => [] as GroupResult[]) : Promise.resolve([] as GroupResult[]),
       ]);
       setResults(new Map(published.map((r) => [r.dayId, r])));
       // Whoever runs events: owner, captain, secretary, and since 0144 the
@@ -284,30 +283,6 @@ export default function SocietyEventsScreen() {
                     </Pressable>
                   ) : toResults ? (
                     <View style={{ gap: 4, marginTop: 4 }}>
-                      {result && result.podium.length > 0 ? (
-                        <View style={styles.podium}>
-                          {result.podium.map((p, i) => (
-                            <View key={`${p.place}-${p.name}`} style={styles.winRow}>
-                              <Text style={[styles.place, i === 0 && styles.placeFirst]}>{p.place}</Text>
-                              <Text style={styles.winText} numberOfLines={1}>
-                                <Text style={{ fontFamily: i === 0 ? fonts.bodyBold : fonts.bodySemi }}>{p.name}</Text>
-                              </Text>
-                              <Text style={styles.winScore}>{p.score}</Text>
-                            </View>
-                          ))}
-                        </View>
-                      ) : null}
-                      {result?.mine ? (
-                        <View style={styles.mine}>
-                          <Text style={styles.mineLabel}>YOU</Text>
-                          <Text style={styles.mineText} numberOfLines={1}>
-                            <Text style={{ fontFamily: fonts.bodyBold }}>{result.mine.position}</Text>
-                            {result.mine.of ? ` of ${result.mine.of}` : ""}
-                            {result.mine.division ? ` · ${result.mine.division}` : ""}
-                          </Text>
-                          <Text style={styles.mineScore}>{result.mine.score}</Text>
-                        </View>
-                      ) : null}
                       <View style={styles.resultsRow}>
                         <Text style={[styles.resultsLink, !result && styles.resultsPending]}>
                           {result ? (result.amended ? "Full results · Amended" : "Full results") : "Results to come"}
@@ -377,16 +352,6 @@ const styles = StyleSheet.create({
   joinTextMine: { color: colors.green800 },
   inBadge: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 4 },
   inText: { fontFamily: fonts.bodySemi, fontSize: 13, color: colors.green700 },
-  winRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  podium: { gap: 3, paddingVertical: 6, paddingHorizontal: 8, borderRadius: radii.md, backgroundColor: colors.cream50 },
-  place: { width: 30, fontFamily: fonts.bodyBold, fontSize: 12.5, color: colors.ink500 },
-  placeFirst: { color: colors.gold500 },
-  winScore: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.ink900 },
-  mine: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 6, paddingHorizontal: 8, borderRadius: radii.md, backgroundColor: colors.green100 },
-  mineLabel: { width: 30, fontFamily: fonts.bodyBold, fontSize: 11, letterSpacing: 1, color: colors.green800 },
-  mineText: { flex: 1, fontFamily: fonts.body, fontSize: 13.5, color: colors.green800 },
-  mineScore: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.green800 },
-  winText: { flex: 1, fontFamily: fonts.body, fontSize: 13.5, color: colors.ink900 },
   resultsRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 },
   resultsLink: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.green700 },
   resultsPending: { fontFamily: fonts.bodySemi, color: colors.ink500 },
