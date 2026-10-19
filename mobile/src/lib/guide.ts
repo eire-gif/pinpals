@@ -638,7 +638,7 @@ export const GUIDES: Guide[] = [
     steps: [
       {
         title: "Find the fixtures",
-        body: "On the society's page, tap Events for the season's fixtures. Each shows where you stand: Confirmed, Requested, Waiting list, or Payment due. Tap Past for the days already played — each shows the top three and where you finished, and opens straight on the full results table; Event details under it still opens the day itself.",
+        body: "On the society's page, tap Events for the season's fixtures. Each shows where you stand: Confirmed, Requested, Waiting list, or Payment due. Tap Past for the days already played — each opens straight on its full results — the podium, the table and your place; Event details under it still opens the day itself.",
         path: [MENU, GROUPS, MY_GROUPS, YOUR_GROUP, EVENTS],
         look: [
           { style: "tile", label: "Events", icon: "calendar-outline" },
@@ -1895,8 +1895,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
-  { on: "2026-10-19", text: "Get a place on an event: Past cards now show the top three and where you finished." },
-  { on: "2026-10-19", text: "Get a place on an event: in Events, Past now shows each played day's winner and opens straight on its results (Event details is still there). A played day's page leads with See the results." },
+  { on: "2026-10-19", text: "Get a place on an event: in Events, Past now opens each played day straight on its full results (Event details is still there). A played day's page leads with See the results." },
   { on: "2026-10-19", text: "Groups & Societies in Live scoring opens Select your group: big cards, one per group — tap yours. The page each big Home button opens now wears its colour: green for Groups & Societies, claret for Find PinPals, bronze for Marketplace. Play a round together is updated." },
   { on: "2026-10-19", text: "My rounds now keeps the six tabs along the bottom. On Find PinPals, Bring your fourball is now Invite friends to join, with your own connections listed under it." },
   { on: "2026-10-18", text: "New here? Explore how PinPals works on Home now opens a short guide in four chapters — Find Golfers, Start a Round, Groups & Societies and Marketplace — each with a button that goes there. The how-to guides are linked at the end." },

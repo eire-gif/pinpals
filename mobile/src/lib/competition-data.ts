@@ -178,17 +178,11 @@ export type GroupResult = {
   updated: boolean;
   /** "John Byrne (38 pts)" per division. */
   winners: { label: string; name: string; score: string }[];
-  /** The top three of the first division (or the only one), for a podium. */
-  podium: { place: string; name: string; score: string }[];
-  /** Where the viewer finished, when they played: "12th of 130 · 34 pts". */
-  mine: { position: string; of: number; score: string; division: string | null } | null;
 };
-
-const ord = (n: number) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? "th" : (["th", "st", "nd", "rd"][n % 10] ?? "th")}`;
 
 /** A group's past results, newest first (0138: members of the group read
  *  them, whether or not they played). */
-export async function loadGroupResults(groupId: number, userId?: string | null): Promise<GroupResult[]> {
+export async function loadGroupResults(groupId: number): Promise<GroupResult[]> {
   const { data, error } = await supabase
     .from("competition_results")
     .select("match_day_id, version, published_at, results")
@@ -201,30 +195,7 @@ export async function loadGroupResults(groupId: number, userId?: string | null):
   return (data ?? []).map((r) => {
     const res = r.results;
     const divisionLabels = new Set(res.divisions.map((d) => d.label));
-    const nameOf = (name: string, detail: string | null) => (/^(Team|Pair) \d+$/.test(name) && detail ? `${name} (${detail.split(" · ").join(" & ")})` : name);
-    const first = res.divisions[0]?.ranking.rows ?? [];
-    const podium = first
-      .filter((row) => row.position != null && row.position <= 3)
-      .slice(0, 3)
-      .map((row) => ({ place: row.positionLabel.startsWith("=") ? row.positionLabel : ord(row.position!), name: nameOf(row.name, row.detail), score: row.score }));
-    let mine: GroupResult["mine"] = null;
-    if (userId) {
-      for (const d of res.divisions) {
-        const row = d.ranking.rows.find((x) => x.memberIds.includes(userId));
-        if (!row) continue;
-        const ranked = d.ranking.rows.filter((x) => x.position != null).length;
-        mine = {
-          position: row.position != null ? (row.positionLabel.startsWith("=") ? `T${ord(row.position)}` : ord(row.position)) : row.positionLabel,
-          of: ranked,
-          score: row.score,
-          division: res.divisions.length > 1 ? d.label : null,
-        };
-        break;
-      }
-    }
     return {
-      podium,
-      mine,
       dayId: r.match_day_id,
       title: res.event?.title ?? "Competition",
       courseName: res.event?.courseName ?? "",
