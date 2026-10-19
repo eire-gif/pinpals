@@ -215,9 +215,23 @@ export default function TabsLayout() {
         options={{
           title: "Social",
           href: social ? undefined : null,
-          // Names the tab, not the bar: the screen's own photo header
-          // carries the title, as on Marketplace beside it.
-          headerTitle: "",
+          // Oct 2026: the name sits up in the bar on the navy the photo
+          // band used to be, with its line in gold, as on Marketplace —
+          // the band is gone so the feed starts at the top.
+          headerStyle: { backgroundColor: colors.navy900 },
+          headerTintColor: colors.cream50,
+          headerShadowVisible: false,
+          headerLeft: () => <MenuButton onPress={() => setMenuOpen(true)} color={colors.cream50} />,
+          headerTitle: () => (
+            <View style={{ alignItems: "center" }} accessibilityRole="header">
+              <Text style={{ fontFamily: fonts.display, fontSize: 22, lineHeight: 26, color: colors.cream50 }} numberOfLines={1}>
+                Social
+              </Text>
+              <Text style={{ fontFamily: fonts.bodyBold, fontSize: 9.5, letterSpacing: 1.6, textTransform: "uppercase", color: colors.gold400 }} numberOfLines={1}>
+                Rounds & photos
+              </Text>
+            </View>
+          ),
           // Sharing a round is what this tab is for, so the button to do it
           // is in the header from the moment it opens — the same reasoning
           // as Post a tee time on the Tee Times tab.
@@ -225,14 +239,14 @@ export default function TabsLayout() {
           // aren't following yet.
           headerRight: () => !social ? null : (
             <View style={{ flexDirection: "row", alignItems: "center" }}>
-              <ConnectionsButton />
+              <ConnectionsButton tint={colors.cream50} />
               <Pressable
                 onPress={() => router.push("/compose")}
                 hitSlop={12}
                 style={{ paddingLeft: spacing.sm, paddingRight: spacing.md }}
                 accessibilityLabel="Share a post"
               >
-                <Ionicons name="add-circle" size={27} color={colors.green700} />
+                <Ionicons name="add-circle" size={27} color={colors.gold400} />
               </Pressable>
             </View>
           ),

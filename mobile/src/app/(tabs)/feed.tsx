@@ -11,7 +11,8 @@ import {
   View,
 } from "react-native";
 import { useContentWidth } from "@/lib/content-width";
-import { router, useFocusEffect } from "expo-router";
+import { router, useFocusEffect, useIsFocused } from "expo-router";
+import { StatusBar } from "expo-status-bar";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { Avatar } from "@/components/avatar";
@@ -22,7 +23,6 @@ import { RecapPrompt } from "@/components/recap-prompt";
 import { SponsoredCard } from "@/components/sponsored-card";
 import { adsOf, feedAdFor, feedAdSlot } from "@/lib/ads-rules";
 import { useAds, useHiddenAds } from "@/lib/ads";
-import { ScreenHeader, useCollapsingHeader } from "@/components/screen-header";
 import { useAuth } from "@/lib/auth";
 import { loadFeed, type FeedEntry, type FeedPost } from "@/lib/feed";
 import { openPostType } from "@/lib/post-compose";
@@ -47,9 +47,9 @@ import { AgeGateLoading, NotForUnder18, useAgeGate } from "@/components/not-for-
  * mobile/src/lib/feed.ts. Every write goes through the website.
  */
 function FeedScreenInner() {
-  // The photograph band shrinks to a strip as the list scrolls (see
-  // screen-header.tsx), and opens again whenever the list is rebuilt.
-  const { scrollY, resetY, scrollProps } = useCollapsingHeader();
+  // Oct 2026: "Social" is up in the navy bar (app/(tabs)/_layout.tsx);
+  // the photograph band under it is gone, so the feed starts at the top.
+  const focused = useIsFocused();
   const { session } = useAuth();
   const userId = session?.user?.id ?? null;
   const { width } = useContentWidth();
@@ -60,12 +60,6 @@ function FeedScreenInner() {
   const [cursor, setCursor] = useState<string | null>(null);
   const [noConnections, setNoConnections] = useState(false);
   const [loading, setLoading] = useState(true);
-  // The list unmounts while loading, so its scroll position goes back to
-  // the top — the band has to follow, or it stays collapsed over a list
-  // that is no longer scrolled.
-  useEffect(() => {
-    if (loading) resetY.setValue(0);
-  }, [loading, resetY]);
   const [refreshing, setRefreshing] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -259,7 +253,7 @@ function FeedScreenInner() {
 
   return (
     <View style={styles.fill}>
-      <ScreenHeader scene="oldHead" title="Social" subtitle="Rounds and photos from PinPals members" scrollY={scrollY} />
+      {focused ? <StatusBar style="light" /> : null}
 
       {loading ? (
         <View style={styles.list}>
@@ -270,7 +264,6 @@ function FeedScreenInner() {
         </View>
       ) : (
         <FlatList
-          {...scrollProps}
           data={entries}
           keyExtractor={(e) => `${e.kind}-${e.item.id}`}
           ListHeaderComponent={header}
