@@ -861,7 +861,7 @@ export const GUIDES: Guide[] = [
       },
       {
         title: "Show it on your group's page",
-        body: "Under Show on a group's page, pick the society, trip or Golf Buddies group. Its members can look back at the results under Past results on the group's page — tap it to open the list, or See all results for every one — even those who didn't play. A day from an event is set to that society already.",
+        body: "Under Show on a group's page, pick the society, trip or Golf Buddies group. Its members can look back at the results under Past results on the group's page — tap it to open the list, or See all results for every one: the latest two shown in full, with the podium and where each member finished — even those who didn't play. A day from an event is set to that society already.",
         look: [{ style: "outline", label: "North Dublin Golf Society" }],
         as: {
           friends: { body: "Under Show on a group's page, pick your Golf Buddies group. Everyone in it can look back at the results under Past results on the group's page." },
@@ -1895,6 +1895,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-19", text: "Publish the results: a group's Results page now shows the latest two in full — podium, top three and where you finished — with earlier ones listed below." },
   { on: "2026-10-19", text: "Get a place on an event: in Events, Past now opens each played day straight on its full results (Event details is still there). A played day's page leads with See the results." },
   { on: "2026-10-19", text: "Groups & Societies in Live scoring opens Select your group: big cards, one per group — tap yours. The page each big Home button opens now wears its colour: green for Groups & Societies, claret for Find PinPals, bronze for Marketplace. Play a round together is updated." },
   { on: "2026-10-19", text: "My rounds now keeps the six tabs along the bottom. On Find PinPals, Bring your fourball is now Invite friends to join, with your own connections listed under it." },

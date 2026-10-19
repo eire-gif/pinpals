@@ -2,7 +2,8 @@ import { useCallback, useState } from "react";
 import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Stack, useFocusEffect, useLocalSearchParams } from "expo-router";
 
-import { ResultCard } from "@/components/group-past-results";
+import { LatestResult, ResultCard } from "@/components/group-past-results";
+import { useAuth } from "@/lib/auth";
 import { LoadError, StateMessage } from "@/components/state-message";
 import { isOn } from "@/lib/features";
 import { loadGroupResults, type GroupResult } from "@/lib/competition-data";
@@ -10,23 +11,26 @@ import { colors, fonts, spacing } from "@/lib/theme";
 
 /**
  * A group's results (Oct 2026): every competition published to it, newest
- * first and grouped by year — the full history behind the folded "Past
+ * first — the latest two shown in full (header, your place, podium, top
+ * three) like the results page, the rest grouped by year — the full history behind the folded "Past
  * results" row on the group's page. Any member can open it; the rows are
  * the same published copies the group page reads (0138 RLS).
  */
 export default function GroupResultsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const groupId = Number(id);
+  const { session } = useAuth();
+  const userId = session?.user?.id ?? null;
   const [list, setList] = useState<GroupResult[] | null | undefined>(undefined);
   const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
     try {
-      setList(await loadGroupResults(groupId));
+      setList(await loadGroupResults(groupId, userId));
     } catch {
       setList(null);
     }
-  }, [groupId]);
+  }, [groupId, userId]);
 
   useFocusEffect(
     useCallback(() => {
@@ -61,8 +65,11 @@ export default function GroupResultsScreen() {
     );
   }
 
+  // The latest two in full, as on the results page; the rest as rows.
+  const latestTwo = list.slice(0, 2);
+  const earlier = list.slice(2);
   const years = new Map<string, GroupResult[]>();
-  for (const r of list) {
+  for (const r of earlier) {
     const y = r.playedOn?.slice(0, 4) || "Earlier";
     years.set(y, [...(years.get(y) ?? []), r]);
   }
@@ -84,7 +91,13 @@ export default function GroupResultsScreen() {
       }
     >
       {header}
-      <Text style={styles.intro}>{`${list.length} ${list.length === 1 ? "competition" : "competitions"}, newest first. Tap one for the full table and any countbacks.`}</Text>
+      <Text style={styles.year}>LATEST</Text>
+      {latestTwo.map((r, i) => (
+        <View key={r.dayId} style={i > 0 ? styles.divider : undefined}>
+          <LatestResult result={r} />
+        </View>
+      ))}
+      {earlier.length > 0 ? <Text style={[styles.intro, { marginTop: spacing.md }]}>Earlier results — tap one for the full table and any countbacks.</Text> : null}
       {[...years.entries()].map(([year, rows]) => (
         <View key={year} style={{ gap: spacing.sm }}>
           <Text style={styles.year}>{year}</Text>
@@ -100,5 +113,6 @@ export default function GroupResultsScreen() {
 const styles = StyleSheet.create({
   page: { padding: spacing.md, gap: spacing.md, paddingBottom: spacing.xl * 2 },
   intro: { fontFamily: fonts.body, fontSize: 14, lineHeight: 21, color: colors.ink500 },
+  divider: { borderTopWidth: 1, borderTopColor: colors.line, paddingTop: spacing.lg, marginTop: spacing.sm },
   year: { fontFamily: fonts.bodyBold, fontSize: 11, letterSpacing: 1.2, color: colors.green700, marginTop: spacing.xs },
 });
