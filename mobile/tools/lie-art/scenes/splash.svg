@@ -1,0 +1,44 @@
+<g>
+<defs>
+<linearGradient id="s-green" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8cbb62"/><stop offset="1" stop-color="#6a9849"/></linearGradient>
+<linearGradient id="s-face" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#c9b083"/><stop offset="1" stop-color="#e8d6ae"/></linearGradient>
+<linearGradient id="s-floor" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e2cd9f"/><stop offset="1" stop-color="#d2b884"/></linearGradient>
+<linearGradient id="s-lipsh" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3b2a12" stop-opacity="0.55"/><stop offset="1" stop-color="#3b2a12" stop-opacity="0"/></linearGradient>
+<pattern id="s-bl" width="14" height="12" patternUnits="userSpaceOnUse" patternTransform="translate(0 88)">
+<path d="M0.5 12 Q1 7 0.2 2 Q2 7 2.2 12Z" fill="#3c6a2a"/><path d="M3 12 Q3.8 6 5.5 3 Q4.6 7 4.6 12Z" fill="#4f803a"/><path d="M5.6 12 Q6 8 6.8 4.5 Q7.4 8 7.4 12Z" fill="#2f5622"/><path d="M8 12 Q8.2 6.5 7.6 1.5 Q9.6 6 9.8 12Z" fill="#5b8c3f"/><path d="M10.2 12 Q11 8 12.6 5.5 Q11.8 9 11.8 12Z" fill="#365f26"/><path d="M12.4 12 Q12.6 7 13.4 3.5 Q14 8 14 12Z" fill="#4a7a33"/>
+</pattern>
+</defs>
+<rect width="320" height="220" fill="url(#pp-sky)"/>
+<rect width="320" height="80" fill="#000000" opacity="0.75" filter="url(#pp-clouds)"/>
+<g filter="url(#pp-haze)"><path d="M-10 74 L330 70 L330 220 L-10 220Z" fill="#4f6b52" filter="url(#pp-trees)"/></g>
+<path d="M-5 90 Q160 84 325 90 L325 106 L-5 106Z" fill="url(#s-green)"/>
+<path d="M-5 90 Q160 84 325 90 L325 106 L-5 106Z" fill="#000000" opacity="0.6" filter="url(#pp-grain-l)"/>
+<line x1="214" y1="90" x2="214" y2="44" stroke="#efece3" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M214.8 44.5 C219.5 43.5 224 46.5 229.5 45.5 C227.5 48.8 228.5 52 230.5 54.5 C225 55.5 219.8 52.6 214.8 53.6Z" fill="#e3b33f"/>
+<path d="M214.8 49 C219.5 48.5 224 51 229.6 50 L230.5 54.5 C225 55.5 219.8 52.6 214.8 53.6Z" fill="#9c741a" opacity="0.45"/>
+<path d="M-5 114 Q160 106 325 114 L325 166 Q160 152 -5 168Z" fill="url(#s-face)"/>
+<path d="M-5 114 Q160 106 325 114 L325 166 Q160 152 -5 168Z" fill="#000000" filter="url(#pp-sand-d)"/>
+<path d="M-5 114 Q160 106 325 114 L325 166 Q160 152 -5 168Z" fill="#000000" filter="url(#pp-sand-l)"/>
+<path d="M-5 116 Q160 108 325 116 L325 134 Q160 126 -5 136Z" fill="url(#s-lipsh)"/>
+<path d="M-5 100 Q160 95 325 100 L325 118 Q160 110 -5 118Z" fill="#4b7834"/>
+<path d="M-5 100 Q160 95 325 100 L325 118 Q160 110 -5 118Z" fill="#000000" filter="url(#pp-grain-d)"/>
+<path d="M-5 100 Q160 95 325 100 L325 89 Q160 84 -5 89Z" fill="url(#s-bl)"/>
+<path d="M-5 118 Q160 110 325 118" fill="none" stroke="#2a4420" stroke-width="1.6"/>
+<path d="M-5 160 Q160 146 325 158 L325 225 L-5 225Z" fill="url(#s-floor)"/>
+<path d="M-5 160 Q160 146 325 158 L325 225 L-5 225Z" fill="#000000" filter="url(#pp-sand-d)"/>
+<path d="M-5 160 Q160 146 325 158 L325 225 L-5 225Z" fill="#000000" filter="url(#pp-sand-l)"/>
+<g fill="none" stroke-linecap="round">
+<path d="M-5 178 Q160 166 325 176" stroke="#a88d5c" stroke-width="0.9" opacity="0.4"/>
+<path d="M-5 179.2 Q160 167.2 325 177.2" stroke="#fff4d8" stroke-width="0.8" opacity="0.45"/>
+<path d="M-5 192 Q160 180 325 190" stroke="#a88d5c" stroke-width="1" opacity="0.4"/>
+<path d="M-5 193.3 Q160 181.3 325 191.3" stroke="#fff4d8" stroke-width="0.9" opacity="0.45"/>
+<path d="M-5 208 Q160 197 325 206" stroke="#a88d5c" stroke-width="1.1" opacity="0.4"/>
+<path d="M-5 209.5 Q160 198.5 325 207.5" stroke="#fff4d8" stroke-width="1" opacity="0.45"/>
+</g>
+<ellipse cx="153" cy="186" rx="22" ry="5" fill="#b89c68" opacity="0.55" filter="url(#pp-soft)"/>
+<ellipse cx="157" cy="186.5" rx="15" ry="3" fill="#5e4723" opacity="0.5" filter="url(#pp-shadow)"/>
+<use href="#pp-ball" x="132" y="152" width="40" height="40"/>
+<path d="M131 187 Q152 181.5 173 187 Q152 191.5 131 187Z" fill="#e3cfa3"/>
+<path d="M131 187 Q152 181.5 173 187 Q152 191.5 131 187Z" fill="#000000" filter="url(#pp-sand-d)"/>
+<rect width="320" height="220" fill="url(#pp-vig)"/>
+</g>

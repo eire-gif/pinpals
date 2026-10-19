@@ -24,6 +24,18 @@ plan, warm-up, first-putt distance).
 All content is in **`mobile/src/lib/training.ts`** — pure data, tested by
 `training.test.ts`. It works with no signal.
 
+### Lie pictures
+
+Each of the 14 lies has a realistic scene — real sky, textured turf and sand,
+and a dimpled ball sitting in that lie (`components/train-art.tsx`). The app
+has no SVG library, so the scenes are drawn as SVG in
+**`mobile/tools/lie-art/`** (`defs.svg` holds the shared ball, sky and
+textures; one file per lie in `scenes/`) and rendered to 960 × 660 JPEGs in
+`mobile/assets/images/lies/` by `render.mjs` — edit the SVG and re-render
+(instructions at the top of that script), never the JPEGs. Plain images ship
+in OTA updates. The Training home shows the six featured lies as two-column
+tiles with a short kicker (Slopes / Sand / Rough / Wind).
+
 ### Left-handers
 
 Anything that depends on which way you stand is written for a right-hander
