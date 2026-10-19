@@ -10,13 +10,12 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { Stack, router, useFocusEffect } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Avatar } from "@/components/avatar";
-import { HeaderPill, headerButtons } from "@/components/header-actions";
-import { goHome } from "@/lib/go-home";
+import { TintedHeader } from "@/components/tinted-header";
 import { KEYBOARD_DISMISS_MODE } from "@/components/keyboard";
 import { useAuth } from "@/lib/auth";
 import {
@@ -284,21 +283,22 @@ function MembersScreenInner() {
 
   return (
     <>
-      <Stack.Screen options={{ headerTitle: "", headerBackTitle: "Back", ...headerButtons({ right: <HeaderPill label="Home" variant="secondary" onPress={goHome} accessibilityLabel="Back to Home" /> }) }} />
+      {/* Oct 2026: the name is up in the bar, on the band's claret, as on
+          Marketplace — the band below now only holds search and the chips.
+          The QR code takes Home's place top right: Home is in the tab bar
+          under every screen now. */}
+      <TintedHeader
+        color={TONES.claret.card}
+        title="Find PinPals"
+        subtitle="Golfers you know — and like you"
+        right={() => (
+          <Pressable onPress={() => router.push("/invite-friends")} style={styles.qr} hitSlop={6} accessibilityRole="button" accessibilityLabel="Your PinPals code">
+            <Ionicons name="qr-code-outline" size={18} color={colors.gold400} />
+          </Pressable>
+        )}
+      />
       <View style={styles.fill}>
-        <View style={[styles.band, { paddingTop: spacing.md }]}>
-          {!searching ? (
-            <View style={styles.bandTop}>
-              <View style={{ flex: 1, gap: 4 }}>
-                <View style={styles.rule} />
-                <Text style={styles.title}>Find PinPals</Text>
-                <Text style={styles.subtitle}>Golfers you know — and golfers like you</Text>
-              </View>
-              <Pressable onPress={() => router.push("/invite-friends")} style={styles.qr} accessibilityRole="button" accessibilityLabel="Your PinPals code">
-                <Ionicons name="qr-code-outline" size={20} color={colors.gold400} />
-              </Pressable>
-            </View>
-          ) : null}
+        <View style={[styles.band, { paddingTop: 4 }]}>
           <View style={styles.searchRow}>
             <View style={[styles.search, searching && styles.searchOn]}>
               <Ionicons name="search" size={18} color={colors.ink500} />
@@ -629,11 +629,7 @@ const styles = StyleSheet.create({
 
   // Claret, as the Find Golfers button on Home (Oct 2026).
   band: { backgroundColor: TONES.claret.card, paddingHorizontal: spacing.md, paddingBottom: 14, gap: 12 },
-  bandTop: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
-  rule: { width: 34, height: 3, borderRadius: 2, backgroundColor: colors.gold400 },
-  title: { fontFamily: fonts.display, fontSize: 30, color: colors.cream50 },
-  subtitle: { fontFamily: fonts.body, fontSize: 14, color: "#c9d2de" },
-  qr: { width: 44, height: 44, borderRadius: 22, borderWidth: 1.5, borderColor: colors.gold400, alignItems: "center", justifyContent: "center" },
+  qr: { width: 36, height: 36, borderRadius: 18, marginRight: 4, borderWidth: 1.5, borderColor: colors.gold400, alignItems: "center", justifyContent: "center" },
 
   searchRow: { flexDirection: "row", alignItems: "center", gap: 12 },
   search: { flex: 1, flexDirection: "row", alignItems: "center", gap: 10, height: 48, borderRadius: 24, paddingHorizontal: 16, backgroundColor: colors.cream50, borderWidth: 2, borderColor: "transparent" },

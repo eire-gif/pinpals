@@ -1,11 +1,11 @@
 import { useCallback, useState } from "react";
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
-import { Stack, router, useFocusEffect } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
-import { GroupsHero } from "@/components/groups-hero";
+import { TintedHeader } from "@/components/tinted-header";
 import { GuideLink } from "@/components/guide-bits";
-import { RaisedCard } from "@/components/live-scoring-card";
+import { RaisedCard, TONES } from "@/components/live-scoring-card";
 import { LoadError, StateMessage } from "@/components/state-message";
 import { useAgeAccess } from "@/lib/age";
 import { useAuth } from "@/lib/auth";
@@ -69,16 +69,18 @@ export default function GroupsScreen() {
   const hasAny = groups + invites + waiting > 0;
   const members = data?.groups.reduce((n, g) => n + g.memberCount, 0) ?? 0;
 
-  const line = !data
-    ? "Your buddies, trips and societies"
-    : groups === 0
-      ? "One chat, your rounds and your days out — together."
-      : [`${groups} ${groups === 1 ? "group" : "groups"}`, `${members} members`, nextOut ? `next out ${shortDate(nextOut)}` : null].filter(Boolean).join(" · ");
+  // Short enough for the bar's gold line (Oct 2026: the title moved up
+  // into the bar) — so two facts, not three: when you're next out beats
+  // the member count when there is a date.
+  const line = !data || groups === 0
+    ? "Buddies, trips & societies"
+    : [`${groups} ${groups === 1 ? "group" : "groups"}`, nextOut ? `next out ${shortDate(nextOut)}` : `${members} members`].join(" · ");
 
   const header = (
     <>
-      <Stack.Screen options={{ headerTitle: "", headerBackTitle: "Back" }} />
-      <GroupsHero eyebrow="Societies & outings" title="Groups &" accent="societies." line={line} />
+      {/* Oct 2026: the name up in the bar, on Home's Groups green, instead
+          of a photograph below it — the four buttons start higher. */}
+      <TintedHeader color={TONES.green.card} title="Groups &" accent="Societies" subtitle={line} />
     </>
   );
 
