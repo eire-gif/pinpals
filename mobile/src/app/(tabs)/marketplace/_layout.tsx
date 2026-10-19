@@ -8,6 +8,7 @@ import { useAgeAccess } from "@/lib/age";
 import { useAuth } from "@/lib/auth";
 import { colors, contentColumn, fonts, headerTitleStyle } from "@/lib/theme";
 import { useMarketplaceUnread } from "@/lib/marketplace-chats";
+import { TONES } from "@/components/live-scoring-card";
 
 /**
  * The marketplace has its own bottom menu (Oct 2026, approved mock-up 8),
@@ -75,7 +76,8 @@ export default function MarketplaceLayout() {
             // navy as the search band beneath it, so the band below only
             // holds search and the Used / New switch and the adverts start
             // higher up the screen.
-            headerStyle: { backgroundColor: colors.navy900 },
+            // Bronze, as the Marketplace button on Home (Oct 2026).
+            headerStyle: { backgroundColor: TONES.bronze.card },
             headerTintColor: colors.cream50,
             headerLeft: () => <MenuButton onPress={() => setMenuOpen(true)} color={colors.cream50} />,
             headerTitle: () => (

@@ -851,30 +851,58 @@ export default function DrawFromGroup() {
           </View>
         ) : null}
         {outing ? null : (
-        <Section title="Group">
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
-            {groups.map((g) => {
-              const on = g.id === groupId;
-              return (
-                <Pressable
-                  key={g.id}
-                  onPress={() => {
-                    setTitle("");
-                    setGroupId(g.id);
-                  }}
-                  style={[styles.groupChip, on && styles.groupChipOn]}
-                  accessibilityRole="radio"
-                  accessibilityState={{ checked: on }}
-                >
-                  <GroupIcon kind={g.kind} size={28} logoUrl={g.logoUrl} />
-                  <Text style={[styles.groupChipText, on && styles.groupChipTextOn]} numberOfLines={1}>
-                    {g.name}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
-        </Section>
+          <>
+            {/* Select your group (Oct 2026, mock-up A). The heading sits on
+                the same green as the Groups & Societies button that opens
+                this screen, and each group is a full-width card — big enough
+                to hit first time with a thumb, and wide enough for a long
+                society name. */}
+            <View style={styles.pickBand}>
+              <View style={styles.pickEyebrowRow}>
+                <View style={styles.pickRule} />
+                <Text style={styles.pickEyebrow}>{"Groups & Societies"}</Text>
+              </View>
+              <Text style={styles.pickTitle} accessibilityRole="header">Select your group</Text>
+              <Text style={styles.pickSub}>Tap the group you&apos;re playing with today</Text>
+            </View>
+            <View style={styles.pickList} accessibilityRole="radiogroup" accessibilityLabel="Your groups">
+              {groups.map((g) => {
+                const on = g.id === groupId;
+                return (
+                  <Pressable
+                    key={g.id}
+                    onPress={() => {
+                      setTitle("");
+                      setGroupId(g.id);
+                    }}
+                    style={({ pressed }) => [styles.pickCard, on && styles.pickCardOn, pressed && { opacity: 0.85 }]}
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked: on }}
+                    accessibilityLabel={`${g.name}, ${pickMeta(g.kind, g.role)}`}
+                  >
+                    <View style={styles.pickLogo}>
+                      <GroupIcon kind={g.kind} size={52} logoUrl={g.logoUrl} />
+                    </View>
+                    <View style={{ flex: 1, minWidth: 0, gap: 3 }}>
+                      <Text style={styles.pickName} numberOfLines={2}>
+                        {g.name}
+                      </Text>
+                      <Text style={styles.pickMeta} numberOfLines={1}>
+                        {pickMeta(g.kind, g.role)}
+                      </Text>
+                    </View>
+                    <View style={[styles.pickRadio, on && styles.pickRadioOn]}>
+                      {on ? <Ionicons name="checkmark" size={18} color={colors.cream50} /> : null}
+                    </View>
+                  </Pressable>
+                );
+              })}
+              <Pressable onPress={() => router.push("/groups/new")} style={styles.pickNew} accessibilityRole="button">
+                <Ionicons name="add" size={20} color={colors.green700} />
+                <Text style={styles.pickNewText}>Start a new group</Text>
+              </Pressable>
+            </View>
+          </>
         )}
 
         {group ? (
@@ -1354,9 +1382,32 @@ export default function DrawFromGroup() {
   );
 }
 
+const KIND_WORD: Record<string, string> = { society: "Society", crew: "Golf Buddies", trip: "Golf trip", club: "Club" };
+/** "Society · you run it" — under each group on Select your group. */
+function pickMeta(kind: string, role: GroupRole): string {
+  const k = KIND_WORD[kind] ?? "Group";
+  return role === "owner" ? `${k} · you run it` : role === "admin" ? `${k} · you're an officer` : `${k} · member`;
+}
+
 const styles = StyleSheet.create({
   page: { padding: spacing.md, gap: spacing.md, paddingBottom: spacing.xl * 2 },
   chips: { gap: spacing.sm, paddingVertical: 2 },
+  pickBand: { marginHorizontal: -spacing.md, marginTop: -spacing.md, backgroundColor: "#0f3424", paddingHorizontal: spacing.md, paddingTop: spacing.lg, paddingBottom: spacing.lg, gap: 4, borderBottomWidth: 3, borderBottomColor: colors.gold500 },
+  pickEyebrowRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  pickRule: { width: 20, height: 2, backgroundColor: colors.gold400 },
+  pickEyebrow: { fontFamily: fonts.bodyBold, fontSize: 11, letterSpacing: 1.4, textTransform: "uppercase", color: colors.gold400 },
+  pickTitle: { fontFamily: fonts.display, fontSize: 32, lineHeight: 38, color: colors.cream50 },
+  pickSub: { fontFamily: fonts.body, fontSize: 15, color: "rgba(247,243,234,0.85)" },
+  pickList: { gap: 10 },
+  pickCard: { flexDirection: "row", alignItems: "center", gap: 14, minHeight: 84, paddingVertical: 14, paddingLeft: 14, paddingRight: 16, borderRadius: 20, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface, shadowColor: colors.navy900, shadowOpacity: 0.05, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 1 },
+  pickCardOn: { borderWidth: 2.5, borderColor: colors.green700, backgroundColor: colors.green100, shadowColor: colors.green700, shadowOpacity: 0.16, shadowRadius: 12, shadowOffset: { width: 0, height: 6 }, elevation: 3 },
+  pickLogo: { borderRadius: 16, overflow: "hidden" },
+  pickName: { fontFamily: fonts.bodyBold, fontSize: 18, lineHeight: 23, color: colors.ink900 },
+  pickMeta: { fontFamily: fonts.body, fontSize: 13, color: colors.ink500 },
+  pickRadio: { width: 30, height: 30, borderRadius: 15, borderWidth: 2, borderColor: colors.line, backgroundColor: colors.surface, alignItems: "center", justifyContent: "center" },
+  pickRadioOn: { borderWidth: 0, backgroundColor: colors.green700 },
+  pickNew: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, minHeight: 48, borderRadius: 16, borderWidth: 1.5, borderStyle: "dashed", borderColor: "#d9c79a" },
+  pickNewText: { fontFamily: fonts.bodyBold, fontSize: 15, color: colors.green700 },
   groupChip: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 6, paddingLeft: 6, paddingRight: 14, borderRadius: radii.pill, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface, maxWidth: 240 },
   groupChipOn: { borderColor: colors.green700, backgroundColor: colors.green100, borderWidth: 2 },
   groupChipText: { fontFamily: fonts.bodySemi, fontSize: type.body, color: colors.ink900, flexShrink: 1 },

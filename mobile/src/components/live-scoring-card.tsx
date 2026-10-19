@@ -29,7 +29,8 @@ const RAISED = "#18375f";
  * navy for a round, green for groups and societies, claret for match days.
  */
 export type RaisedTone = "navy" | "green" | "claret" | "bronze";
-const TONES: Record<RaisedTone, { card: string; disc: string; chevron: string; sheen: string }> = {
+/** Exported so the page each Home button opens can wear the same colour (Oct 2026). */
+export const TONES: Record<RaisedTone, { card: string; disc: string; chevron: string; sheen: string }> = {
   navy: { card: colors.navy900, disc: colors.navy800, chevron: RAISED, sheen: "rgba(24,58,104,0.55)" },
   green: { card: "#0f3424", disc: "#17482f", chevron: "#1f5a3b", sheen: "rgba(34,92,62,0.55)" },
   claret: { card: "#3a121c", disc: "#55202c", chevron: "#6a2836", sheen: "rgba(112,42,58,0.5)" },
