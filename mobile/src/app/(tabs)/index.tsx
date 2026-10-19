@@ -26,7 +26,6 @@ import { RecapPrompt } from "@/components/recap-prompt";
 import { useAgeAccess } from "@/lib/age";
 import { useAuth } from "@/lib/auth";
 import { suggestedPinPals, type Suggestion } from "@/lib/onboarding";
-import { SITE_URL } from "@/lib/config";
 import type { Club } from "@/lib/courses";
 import { loadClubhousePhotos, loadMostLikedThisWeek, type FeedPost } from "@/lib/feed";
 import { loadHome, type HomeSummary } from "@/lib/home";
@@ -164,37 +163,18 @@ export default function HomeScreen() {
         />
       }
     >
-      {/* HERO — the site's own photograph, loaded from the site rather than
-          bundled. It is a large image that changes when the homepage changes,
-          and a copy in the binary would need an App Store release to keep in
-          step with one on Vercel.
-
-          Oct 2026 redesign (canvas "PinPals Home Page Ideas", boards ★): over
-          the photo, top to bottom — a live round shared with you, the date
-          and greeting with your QR code, today's round (or Up next), then
-          four big buttons in the live hub's raised style. */}
-      <ImageBackground
-        source={{ uri: `${SITE_URL}/images/homepage-hero.jpg` }}
-        style={styles.hero}
-        imageStyle={styles.heroImage}
-      >
-        {/* A flat scrim rather than the site's gradient: a gradient would mean
-            expo-linear-gradient, which is a native module and therefore a new
-            build of the app for every member. Not worth it for a fade. */}
-        <View style={styles.scrim} />
-        {/* The fade into the cream page below, built from stepped bands for
-            the same reason. */}
-        {FADE.map((f) => (
-          <View key={f.h} pointerEvents="none" style={[styles.fade, { height: f.h, backgroundColor: f.c }]} />
-        ))}
-
+      {/* The top of Home — greeting, today's round and the four big
+          buttons on the plain cream page. Oct 2026: the hero photograph
+          that used to sit behind them was taken out at Eire's request, so
+          the buttons stand on their own. */}
+      <View style={styles.hero}>
         <View style={[styles.heroBody, pageColumn(wide)]}>
           <WatchLiveStrip />
           <HomeGreeting firstName={me?.firstName || null} showQr={connections} />
           {!loading ? <HomeToday summary={summary} teeTimes={teeTimes} /> : null}
           <HomeButtons connections={connections} />
         </View>
-      </ImageBackground>
+      </View>
 
       <View style={pageColumn(wide)}>
       <TwoPane
@@ -595,13 +575,6 @@ function Band({
   );
 }
 
-/** The hero's last 72pt, stepping into the page's cream. */
-const FADE = [
-  { h: 72, c: "rgba(247,243,234,0.10)" },
-  { h: 52, c: "rgba(247,243,234,0.22)" },
-  { h: 34, c: "rgba(247,243,234,0.42)" },
-  { h: 18, c: "rgba(247,243,234,0.7)" },
-];
 
 const styles = StyleSheet.create({
   fill: { flex: 1, backgroundColor: colors.cream50 },
@@ -609,23 +582,13 @@ const styles = StyleSheet.create({
 
   // Sized by what is in it, not a minimum: the old 380pt floor left a
   // band of empty sky above the text on every phone.
-  hero: { justifyContent: "flex-end" },
-  heroImage: { resizeMode: "cover" },
-  scrim: {
-    position: "absolute",
-    top: 0,
-    right: 0,
-    bottom: 0,
-    left: 0,
-    backgroundColor: "rgba(6,16,30,0.55)",
-  },
+  hero: { backgroundColor: colors.cream50 },
   heroBody: {
     paddingHorizontal: spacing.md,
     paddingTop: spacing.md,
-    paddingBottom: spacing.xl + spacing.md,
+    paddingBottom: spacing.md,
     gap: 20,
   },
-  fade: { position: "absolute", left: 0, right: 0, bottom: 0 },
   leftCol: { paddingHorizontal: spacing.md, paddingTop: spacing.sm, gap: spacing.sm },
 
   eyebrowRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },

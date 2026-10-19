@@ -40,7 +40,8 @@ import { AgeGateLoading, NotForUnder18, useAgeGate } from "@/components/not-for-
  *
  * FOR YOU (no search): who you've played with, people you may know (with
  * the reason — played together, mutual PinPals, your club, courses in
- * common: member_suggestions(), 0118), bring your fourball, and who has a
+ * common: member_suggestions(), 0118), Invite friends to join with your
+ * own connections listed beneath it (Oct 2026), and who has a
  * place in a game this week.
  *
  * EVERYONE / MY CLUB / NEARBY / CONNECTED: one list each. Everyone is every
@@ -90,6 +91,8 @@ function MembersScreenInner() {
   const [played, setPlayed] = useState<PlayedWith[]>([]);
   const [games, setGames] = useState<Invite[]>([]);
   const [rows, setRows] = useState<Row[]>([]);
+  // For you: your own connections, listed under Invite friends (Oct 2026).
+  const [mine, setMine] = useState<Row[]>([]);
   const [results, setResults] = useState<Member[]>([]);
   const [connections, setConnections] = useState<Map<string, ConnectionState>>(new Map());
   const [loading, setLoading] = useState(true);
@@ -125,6 +128,7 @@ function MembersScreenInner() {
         setPlayed(p.filter((x) => x.connection !== "accepted").slice(0, 8));
         setGames(open);
         setConnections(dir.connections);
+        setMine(dir.members.map((m) => ({ id: m.id, name: m.name, avatarUrl: m.avatarUrl, avatarColor: m.avatarColor, club: m.homeClub, handicap: m.handicap, reason: null })));
         return;
       }
       if (tab === "nearby") {
@@ -454,11 +458,33 @@ function MembersScreenInner() {
                   <Ionicons name="person-add" size={19} color={colors.navy900} />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.inviteTitle}>Bring your fourball</Text>
-                  <Text style={styles.inviteBody}>Your link and QR code — they join, you&apos;re connected</Text>
+                  <Text style={styles.inviteTitle}>Invite friends to join</Text>
+                  <Text style={styles.inviteBody}>Send your link or show your QR code — when they join, you&apos;re connected</Text>
                 </View>
                 <Ionicons name="chevron-forward" size={18} color={colors.gold400} />
               </Pressable>
+
+              {/* Your connections, straight under the invite (Oct 2026) —
+                  the golfers you already know, one tap from a message. */}
+              <View style={{ gap: 8, paddingHorizontal: spacing.md }}>
+                <View style={styles.mineHead}>
+                  <Text style={styles.section}>Your connections{mine.length ? ` · ${mine.length}` : ""}</Text>
+                  {mine.length > 6 ? (
+                    <Pressable onPress={() => setTab("connected")} hitSlop={8} accessibilityRole="button">
+                      <Text style={styles.seeAll}>See all</Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+                {mine.length === 0 ? (
+                  <Text style={styles.mineEmpty}>No connections yet. Invite your friends above, or tap Connect on golfers you know.</Text>
+                ) : (
+                  <View style={[styles.listCard, { marginHorizontal: 0 }]}>
+                    {mine.slice(0, 6).map((r, i, list) => (
+                      <MemberRow key={r.id} row={r} last={i === list.length - 1} action={rowAction(r)} />
+                    ))}
+                  </View>
+                )}
+              </View>
 
               {thisWeek.length > 0 ? (
                 <View style={{ gap: 8, paddingHorizontal: spacing.md }}>
@@ -595,6 +621,9 @@ const shadow = {
 } as const;
 
 const styles = StyleSheet.create({
+  mineHead: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between" },
+  seeAll: { fontFamily: fonts.bodyBold, fontSize: 14, color: colors.green700 },
+  mineEmpty: { fontFamily: fonts.body, fontSize: 14, color: colors.ink500 },
   fill: { flex: 1, backgroundColor: colors.cream50 },
 
   band: { backgroundColor: colors.navy900, paddingHorizontal: spacing.md, paddingBottom: 14, gap: 12 },

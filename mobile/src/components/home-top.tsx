@@ -14,7 +14,8 @@ import { clockTime, todayIso } from "@/lib/tee-times";
 import { colors, creamAlpha, fonts, navyAlpha, radii, spacing } from "@/lib/theme";
 
 /**
- * The top of Home (Oct 2026), over the hero photograph:
+ * The top of Home (Oct 2026), on the cream page (the hero photograph that
+ * sat behind it was removed on 19 Oct):
  *
  *   1. Watch live — only when a member or connection has shared their round.
  *   2. The date and "Morning, Geoff." with your invite QR code.
@@ -522,16 +523,16 @@ const styles = StyleSheet.create({
 
   greetRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   eyebrowRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
-  rule: { width: 20, height: 2, backgroundColor: colors.gold400 },
-  eyebrow: { fontFamily: fonts.bodyBold, fontSize: 11, letterSpacing: 1.2, textTransform: "uppercase", color: colors.gold400 },
-  greet: { fontFamily: fonts.display, fontSize: 34, lineHeight: 40, color: colors.cream50 },
+  rule: { width: 20, height: 2, backgroundColor: colors.gold500 },
+  eyebrow: { fontFamily: fonts.bodyBold, fontSize: 11, letterSpacing: 1.2, textTransform: "uppercase", color: "#8a6a1f" },
+  greet: { fontFamily: fonts.display, fontSize: 34, lineHeight: 40, color: colors.ink900 },
   qr: {
     width: 54,
     height: 54,
     borderRadius: 27,
     borderWidth: 2,
     borderColor: colors.gold400,
-    backgroundColor: navyAlpha(0.5),
+    backgroundColor: colors.navy900,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -560,7 +561,7 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     borderWidth: 1.5,
     borderColor: "rgba(232,196,107,0.85)",
-    backgroundColor: "rgba(8,18,34,0.66)",
+    backgroundColor: colors.navy900,
     padding: spacing.md,
     gap: 14,
   },

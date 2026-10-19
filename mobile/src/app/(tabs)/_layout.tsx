@@ -277,6 +277,10 @@ export default function TabsLayout() {
           the most that fit. Reached from the Home card and the menu. */}
       {/* Full width: the live stack centres its own screens (and the day board goes two columns on an iPad on its side). */}
       <Tabs.Screen name="live" options={{ href: null, headerShown: false, sceneStyle: { backgroundColor: colors.cream50 } }} />
+      {/* My rounds (Oct 2026): inside the tab group so all six tabs show
+          beneath it, but not a tab itself — it's reached from Tee Times,
+          Home and every tee-time alert. Its Back button is its own. */}
+      <Tabs.Screen name="my-rounds" options={{ href: null }} />
       <Tabs.Screen
         name="profile"
         options={{
