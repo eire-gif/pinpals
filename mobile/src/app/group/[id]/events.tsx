@@ -128,7 +128,11 @@ export default function SocietyEventsScreen() {
 
         <View style={styles.tabs} accessibilityRole="tablist">
           {[false, true].map((p) => (
-            <Pressable key={String(p)} style={[styles.tab, past === p && styles.tabOn]} onPress={() => setPast(p)} accessibilityRole="tab" accessibilityState={{ selected: past === p }}>
+            <Pressable key={String(p)} style={[styles.tab, past === p && styles.tabOn]} onPress={() => {
+                if (p === past) return;
+                setOutings(null);
+                setPast(p);
+              }} accessibilityRole="tab" accessibilityState={{ selected: past === p }}>
               <Text style={[styles.tabText, past === p && styles.tabTextOn]}>{p ? "Past" : "Upcoming"}</Text>
             </Pressable>
           ))}

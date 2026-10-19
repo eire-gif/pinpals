@@ -120,6 +120,110 @@ export function ResultCard({ result: r }: { result: GroupResult }) {
   );
 }
 
+/**
+ * One of a group's latest results, shown in full on its Results page (Oct
+ * 2026) — the same look as the results page itself: the navy header, where
+ * you finished, the podium and the top three. Tap for the whole table.
+ */
+export function LatestResult({ result: r }: { result: GroupResult }) {
+  const open = () => router.push({ pathname: "/live/day/results/[id]", params: { id: String(r.dayId) } });
+  const byPlace = [r.podium.find((p) => p.position === 2), r.podium.find((p) => p.position === 1), r.podium.find((p) => p.position === 3)];
+  return (
+    <Pressable onPress={open} style={({ pressed }) => [latest.wrap, pressed && { opacity: 0.92 }]} accessibilityRole="button" accessibilityLabel={`${r.title} results. Tap for the full table`}>
+      <View style={latest.hero}>
+        <View style={[latest.pill, r.amended && { backgroundColor: colors.red600 }]}>
+          <Text style={latest.pillText}>{r.amended ? "Final · Amended" : r.updated ? "Updated" : "Final"}</Text>
+        </View>
+        <Text style={latest.title}>{r.title}</Text>
+        <Text style={latest.meta}>{[r.courseName, dateLabel(r.playedOn), r.basisLabel, `${r.entrants} ${r.team ? "pairs" : "players"}`].filter(Boolean).join(" · ")}</Text>
+      </View>
+
+      {r.mine ? (
+        <View style={latest.mine}>
+          <Text style={latest.minePlace}>{r.mine.position}</Text>
+          <Text style={latest.mineText} numberOfLines={2}>
+            {r.team ? `You${r.mine.name.includes("&") ? ` · ${r.mine.name}` : ""}` : "You"}
+            {`\nof ${r.mine.of} ${r.team ? "pairs" : "players"}${r.mine.division ? ` · ${r.mine.division}` : ""}`}
+          </Text>
+          <Text style={latest.mineScore}>{r.mine.score}</Text>
+        </View>
+      ) : null}
+
+      {r.podium.length > 0 ? (
+        <View style={latest.podium}>
+          {byPlace.map((p, i) =>
+            p ? (
+              <View key={p.place} style={{ flex: 1, alignItems: "center", gap: 4 }}>
+                <Text style={latest.podName} numberOfLines={2}>{p.name}</Text>
+                <View style={[latest.step, { height: p.position === 1 ? 64 : p.position === 2 ? 48 : 36, backgroundColor: p.position === 1 ? colors.gold400 : p.position === 2 ? "#d9d3c6" : "#d8b38f" }]}>
+                  <Text style={latest.stepText}>{`${p.place} · ${p.score}`}</Text>
+                </View>
+              </View>
+            ) : (
+              <View key={`gap-${i}`} style={{ flex: 1 }} />
+            )
+          )}
+        </View>
+      ) : null}
+
+      {r.podium.length > 0 ? (
+        <View style={latest.table}>
+          <View style={[latest.tr, latest.th]}>
+            <Text style={[latest.thText, { width: 34 }]}>Pos</Text>
+            <Text style={[latest.thText, { flex: 1 }]}>{r.team ? "Pair" : "Player"}</Text>
+            <Text style={[latest.thText, { width: 34, textAlign: "right" }]}>B9</Text>
+            <Text style={[latest.thText, { width: 44, textAlign: "right" }]}>{r.basisLabel === "Stableford" ? "Pts" : "Net"}</Text>
+          </View>
+          {r.podium.map((p) => (
+            <View key={p.place} style={[latest.tr, latest.trPlaced]}>
+              <Text style={[latest.pos, { width: 34 }]}>{p.position}</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={latest.name} numberOfLines={1}>{p.name}</Text>
+                {p.note ? <Text style={latest.note} numberOfLines={1}>{p.note}</Text> : null}
+              </View>
+              <Text style={[latest.cell, { width: 34, textAlign: "right" }]}>{p.back ?? "–"}</Text>
+              <Text style={[latest.big, { width: 44, textAlign: "right" }]}>{p.score}</Text>
+            </View>
+          ))}
+          <View style={latest.more}>
+            <Text style={latest.moreText}>See the full table</Text>
+            <Ionicons name="arrow-forward" size={16} color={colors.green700} />
+          </View>
+        </View>
+      ) : null}
+    </Pressable>
+  );
+}
+
+const latest = StyleSheet.create({
+  wrap: { gap: spacing.sm + 2 },
+  hero: { backgroundColor: colors.navy900, borderRadius: radii.lg, padding: spacing.md, gap: 4 },
+  pill: { alignSelf: "flex-start", backgroundColor: colors.green700, borderRadius: radii.pill, paddingHorizontal: 10, paddingVertical: 3 },
+  pillText: { fontFamily: fonts.bodySemi, fontSize: 12, color: colors.cream50 },
+  title: { fontFamily: fonts.display, fontSize: 26, color: colors.cream50, marginTop: 4 },
+  meta: { fontFamily: fonts.body, fontSize: 13, color: colors.cream100 },
+  mine: { flexDirection: "row", alignItems: "center", gap: spacing.sm + 4, backgroundColor: colors.green100, borderWidth: 1, borderColor: colors.green600, borderRadius: radii.lg, padding: spacing.md },
+  minePlace: { fontFamily: fonts.display, fontSize: 30, color: colors.green800 },
+  mineText: { flex: 1, fontFamily: fonts.body, fontSize: 13.5, color: colors.green800 },
+  mineScore: { fontFamily: fonts.bodyBold, fontSize: 22, color: colors.green800 },
+  podium: { flexDirection: "row", alignItems: "flex-end", gap: spacing.sm, marginTop: spacing.xs },
+  podName: { fontFamily: fonts.body, fontSize: 12.5, color: colors.ink900, textAlign: "center" },
+  step: { alignSelf: "stretch", borderTopLeftRadius: radii.sm, borderTopRightRadius: radii.sm, alignItems: "center", paddingTop: 8 },
+  stepText: { fontFamily: fonts.bodySemi, fontSize: 13.5, color: colors.navy900 },
+  table: { borderRadius: radii.lg, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface, overflow: "hidden" },
+  tr: { flexDirection: "row", alignItems: "center", paddingHorizontal: spacing.md, paddingVertical: 10, borderTopWidth: 1, borderTopColor: colors.line },
+  th: { borderTopWidth: 0, paddingVertical: 8 },
+  thText: { fontFamily: fonts.body, fontSize: 12.5, color: colors.ink500 },
+  trPlaced: { backgroundColor: "#fbf6e9" },
+  pos: { fontFamily: fonts.bodyBold, fontSize: 14, color: colors.ink900 },
+  name: { fontFamily: fonts.body, fontSize: 14.5, color: colors.ink900 },
+  note: { fontFamily: fonts.body, fontSize: 12, color: colors.green700 },
+  cell: { fontFamily: fonts.body, fontSize: 14, color: colors.ink900 },
+  big: { fontFamily: fonts.bodyBold, fontSize: 15, color: colors.ink900 },
+  more: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 12, borderTopWidth: 1, borderTopColor: colors.line },
+  moreText: { fontFamily: fonts.bodyBold, fontSize: 13.5, color: colors.green700 },
+});
+
 function parts(iso: string): Date | null {
   const d = new Date(`${iso}T12:00:00`);
   return Number.isNaN(d.getTime()) ? null : d;

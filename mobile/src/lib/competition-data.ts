@@ -178,11 +178,22 @@ export type GroupResult = {
   updated: boolean;
   /** "John Byrne (38 pts)" per division. */
   winners: { label: string; name: string; score: string }[];
+  /** "Stableford", "Net stroke play"… and pairs/teams or players. */
+  basisLabel: string;
+  team: boolean;
+  entrants: number;
+  /** The top three of the first (or only) division. */
+  podium: { place: string; position: number; name: string; score: string; back: string | null; note: string | null }[];
+  /** Where the viewer finished, when they played. */
+  mine: { position: string; of: number; score: string; name: string; division: string | null } | null;
 };
+
+const ord = (n: number) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? "th" : (["th", "st", "nd", "rd"][n % 10] ?? "th")}`;
+const teamName = (name: string, detail: string | null) => (/^(Team|Pair) \d+$/.test(name) && detail ? detail.split(" · ").join(" & ") : name);
 
 /** A group's past results, newest first (0138: members of the group read
  *  them, whether or not they played). */
-export async function loadGroupResults(groupId: number): Promise<GroupResult[]> {
+export async function loadGroupResults(groupId: number, userId?: string | null): Promise<GroupResult[]> {
   const { data, error } = await supabase
     .from("competition_results")
     .select("match_day_id, version, published_at, results")
@@ -195,7 +206,39 @@ export async function loadGroupResults(groupId: number): Promise<GroupResult[]> 
   return (data ?? []).map((r) => {
     const res = r.results;
     const divisionLabels = new Set(res.divisions.map((d) => d.label));
+    const first = res.divisions[0]?.ranking.rows ?? [];
+    const podium = first
+      .filter((row) => row.position != null && row.position <= 3)
+      .slice(0, 3)
+      .map((row) => ({
+        place: ord(row.position!),
+        position: row.position!,
+        name: teamName(row.name, row.detail),
+        score: row.score,
+        back: row.back,
+        note: row.note?.startsWith("Won on countback") ? row.note : null,
+      }));
+    let mine: GroupResult["mine"] = null;
+    if (userId) {
+      for (const d of res.divisions) {
+        const row = d.ranking.rows.find((x) => x.memberIds.includes(userId));
+        if (!row) continue;
+        mine = {
+          position: row.position != null ? ord(row.position) : row.positionLabel,
+          of: d.ranking.rows.length,
+          score: row.score,
+          name: teamName(row.name, row.detail),
+          division: res.divisions.length > 1 ? d.label : null,
+        };
+        break;
+      }
+    }
     return {
+      basisLabel: res.basis === "stableford" ? "Stableford" : "Net stroke play",
+      team: res.team,
+      entrants: res.counts.entrants,
+      podium,
+      mine,
       dayId: r.match_day_id,
       title: res.event?.title ?? "Competition",
       courseName: res.event?.courseName ?? "",
