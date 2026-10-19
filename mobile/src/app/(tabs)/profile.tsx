@@ -29,6 +29,9 @@ import { bestOfLabel, comparedWithOwn, indicatorLabel } from "@/lib/handicap-ind
 import { loadMyPrivate } from "@/lib/profile";
 import { loadMyHandicapIndicator, type HandicapIndicator } from "@/lib/scorecards";
 import { listMyTrips, type MyTrip } from "@/lib/itinerary";
+import { loadMyGroups, type MyGroups } from "@/lib/groups-data";
+import { GROUP_KIND_INFO, roleLabel, type GroupOffice, type GroupRole } from "@/lib/groups";
+import { GroupIcon, membersLabel } from "@/components/group-bits";
 import { countdownLabel, tripBadge, tripRangeLabel } from "@/lib/itinerary-rules";
 import { irishToday } from "@/lib/outing-rules";
 import {
@@ -65,6 +68,7 @@ export default function ProfileScreen() {
   const [coverBusy, setCoverBusy] = useState(false);
   const [indicator, setIndicator] = useState<HandicapIndicator | null>(null);
   const [trips, setTrips] = useState<MyTrip[]>([]);
+  const [groups, setGroups] = useState<MyGroups["groups"]>([]);
 
   const load = useCallback(async () => {
     if (!session?.user.id) return;
@@ -95,6 +99,10 @@ export default function ProfileScreen() {
 
     // Trips you're on (0126): the next few, straight into their itinerary.
     setTrips(await listMyTrips(session.user.id, irishToday()).catch(() => []));
+
+    // Your groups and societies (Oct 2026): societies first, with your
+    // role in each. A failure just leaves the section out.
+    setGroups(await loadMyGroups(session.user.id).then((r) => r.groups).catch(() => []));
 
     setLoading(false);
   }, [session?.user.id]);
@@ -338,6 +346,42 @@ export default function ProfileScreen() {
           </>
         ) : null}
 
+        {groups.length > 0 ? (
+          <>
+            <View style={styles.titleRow}>
+              <GroupTitle text="My groups & societies" />
+              {groups.length > PROFILE_GROUPS ? (
+                <Pressable onPress={() => router.push("/groups/mine")} hitSlop={10} accessibilityRole="button" accessibilityLabel={`See all ${groups.length} groups`}>
+                  <Text style={styles.seeAll}>See all</Text>
+                </Pressable>
+              ) : null}
+            </View>
+            <View style={styles.group}>
+              {profileGroups(groups).map((g, i, shown) => (
+                <Pressable
+                  key={g.id}
+                  style={({ pressed }) => [styles.link, i === shown.length - 1 && styles.linkLast, pressed && { backgroundColor: colors.surfaceTint }]}
+                  onPress={() => router.push({ pathname: "/group/[id]", params: { id: String(g.id) } })}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${g.name}, ${GROUP_KIND_INFO[g.kind].label}, ${roleLabel(g.role, g.office ?? null) ?? "Member"}`}
+                >
+                  <GroupIcon kind={g.kind} size={40} logoUrl={g.logoUrl} />
+                  <View style={{ flex: 1, gap: 2 }}>
+                    <Text style={styles.groupName} numberOfLines={1}>
+                      {g.name}
+                    </Text>
+                    <Text style={styles.groupMeta} numberOfLines={1}>
+                      {`${GROUP_KIND_INFO[g.kind].label} · ${membersLabel(g.memberCount)}`}
+                    </Text>
+                  </View>
+                  <ProfileRoleBadge role={g.role} office={g.office ?? null} />
+                  <Ionicons name="chevron-forward" size={18} color={colors.ink500} />
+                </Pressable>
+              ))}
+            </View>
+          </>
+        ) : null}
+
         <GroupTitle text="Golf" />
         <View style={styles.group}>
           <NativeLink icon="airplane-outline" label="My trips" to="/my-trips" />
@@ -444,6 +488,35 @@ export default function ProfileScreen() {
   );
 }
 
+/** How many groups the profile lists before "See all". */
+const PROFILE_GROUPS = 4;
+
+/** Societies first, then golf buddies and trips; newest joined first within each. */
+const KIND_ORDER = { society: 0, crew: 1, trip: 2, club: 3, area: 4 } as const;
+function profileGroups(groups: MyGroups["groups"]): MyGroups["groups"] {
+  return [...groups].sort((a, b) => KIND_ORDER[a.kind] - KIND_ORDER[b.kind]).slice(0, PROFILE_GROUPS);
+}
+
+/** Your part in a group: Captain gold, Secretary blue, other offices and Owner cream, plain Member grey. */
+function ProfileRoleBadge({ role, office }: { role: GroupRole; office: GroupOffice | null }) {
+  const label = (roleLabel(role, office) ?? "Member").toUpperCase();
+  const tone =
+    office === "captain"
+      ? { bg: colors.gold500, fg: colors.navy900 }
+      : office === "secretary"
+        ? { bg: "#c9d8f2", fg: colors.navy900 }
+        : role === "owner" || office || role === "admin"
+          ? { bg: "#f6ead0", fg: "#6b4d0c" }
+          : { bg: colors.cream100, fg: colors.ink500 };
+  return (
+    <View style={[styles.roleBadge, { backgroundColor: tone.bg }]}>
+      <Text style={[styles.roleBadgeText, { color: tone.fg }]} numberOfLines={1}>
+        {label}
+      </Text>
+    </View>
+  );
+}
+
 /** A row that opens a screen in the app rather than a page on the site. */
 function GroupTitle({ text }: { text: string }) {
   return <Text style={styles.groupTitle}>{text.toUpperCase()}</Text>;
@@ -522,6 +595,12 @@ const styles = StyleSheet.create({
   cardButtonPrimary: { backgroundColor: colors.green700, borderColor: colors.green700 },
   cardButtonText: { fontFamily: fonts.bodyBold, fontSize: 13.5, color: colors.ink900 },
   cardButtonTextPrimary: { color: colors.cream50 },
+  titleRow: { flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", paddingRight: 4 },
+  seeAll: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.green700 },
+  groupName: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.ink900 },
+  groupMeta: { fontFamily: fonts.body, fontSize: type.small, color: colors.ink500 },
+  roleBadge: { maxWidth: 130, paddingHorizontal: 7, paddingVertical: 4, borderRadius: 7 },
+  roleBadgeText: { fontFamily: fonts.bodyBold, fontSize: 10, letterSpacing: 0.8 },
   groupTitle: { fontFamily: fonts.bodyBold, fontSize: 11.5, letterSpacing: 1.6, color: colors.ink500, marginTop: spacing.sm, marginLeft: 4 },
   centre: {
     flex: 1,
