@@ -10,7 +10,7 @@ import {
   View,
   type LayoutChangeEvent,
 } from "react-native";
-import { Stack, router, useFocusEffect, useLocalSearchParams } from "expo-router";
+import { Tabs, router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { Avatar } from "@/components/avatar";
@@ -287,10 +287,25 @@ function MyRoundsScreenInner() {
 
   return (
     <View style={styles.fill}>
-      <Stack.Screen
+      {/* Oct 2026: My rounds lives inside the tab group (href: null in
+          (tabs)/_layout.tsx) so the six bottom tabs — Home, Tee Times and
+          the rest — stay on screen here. A tab has no back arrow of its
+          own, so Back is drawn here. */}
+      <Tabs.Screen
         options={{
           headerTitle: "",
-          headerBackTitle: "Back",
+          headerLeft: () => (
+            <Pressable
+              onPress={() => (router.canGoBack() ? router.back() : router.replace("/"))}
+              hitSlop={8}
+              style={styles.back}
+              accessibilityRole="button"
+              accessibilityLabel="Back"
+            >
+              <Ionicons name="chevron-back" size={20} color={colors.ink900} />
+              <Text style={styles.backLabel}>Back</Text>
+            </Pressable>
+          ),
           headerRight: () => (
             <Pressable
               onPress={() => router.push("/post-tee-time")}
@@ -842,6 +857,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.gold400,
   },
   postLabel: { fontFamily: fonts.bodyBold, fontSize: type.small, color: colors.ink900 },
+  back: { flexDirection: "row", alignItems: "center", gap: 2, paddingHorizontal: spacing.sm, height: 34 },
+  backLabel: { fontFamily: fonts.bodySemi, fontSize: 17, color: colors.ink900 },
 
   tabsWrap: { paddingHorizontal: spacing.md, paddingTop: spacing.sm, paddingBottom: 2 },
   tabs: {

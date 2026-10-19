@@ -125,7 +125,7 @@ function ConnectButton({
  * where their golf group already lives.
  */
 export function InviteBanner({
-  title = "Bring your fourball",
+  title = "Invite friends to join",
   body = "Invite the friends you already play with.",
 }: {
   title?: string;

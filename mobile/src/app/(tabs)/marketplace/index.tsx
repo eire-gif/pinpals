@@ -11,8 +11,8 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { router, useFocusEffect, useIsFocused, useLocalSearchParams } from "expo-router";
+import { StatusBar } from "expo-status-bar";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { AdBanner } from "@/components/ad-banner";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
@@ -92,7 +92,8 @@ export default function MarketplaceScreen() {
   const params = useLocalSearchParams<{ search?: string; at?: string }>();
   const [understood, setUnderstood] = useState<SmartSearch | null>(null);
   const [searchWords, setSearchWords] = useState("");
-  const insets = useSafeAreaInsets();
+  // The bar above is navy now, so the clock and battery go light while Browse is in front.
+  const focused = useIsFocused();
 
   useEffect(() => {
     const words = (params.search ?? "").trim();
@@ -304,11 +305,10 @@ export default function MarketplaceScreen() {
 
   const header = (
     <View>
-      <View style={[styles.head, { paddingTop: insets.top > 0 ? 6 : spacing.md }]}>
-        <View style={styles.headTitleRow}>
-          <Text style={styles.headTitle}>Marketplace</Text>
-          <Text style={styles.headEyebrow}>Golfer to golfer</Text>
-        </View>
+      {focused ? <StatusBar style="light" /> : null}
+      {/* The "Marketplace" title lives in the navy bar above (_layout.tsx),
+          so the band starts straight at search (Oct 2026). */}
+      <View style={[styles.head, { paddingTop: 4 }]}>
 
         {mode === "used" ? (
           <View style={styles.searchRow}>
@@ -609,10 +609,7 @@ const styles = StyleSheet.create({
   list: { paddingBottom: spacing.lg, gap: spacing.md },
   column: { gap: 12, paddingHorizontal: spacing.md },
 
-  head: { backgroundColor: colors.navy900, paddingHorizontal: spacing.md, paddingBottom: spacing.md, gap: 12 },
-  headTitleRow: { alignItems: "center", gap: 2 },
-  headTitle: { fontFamily: fonts.display, fontSize: 24, color: colors.cream50 },
-  headEyebrow: { fontFamily: fonts.bodyBold, fontSize: 10.5, letterSpacing: 1.6, textTransform: "uppercase", color: colors.gold400 },
+  head: { backgroundColor: colors.navy900, paddingHorizontal: spacing.md, paddingBottom: spacing.sm + 4, gap: 10 },
   searchRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   searchPill: { flex: 1, flexDirection: "row", alignItems: "center", gap: 10, height: 50, paddingHorizontal: 14, borderRadius: 14, backgroundColor: colors.cream50 },
   searchPillText: { flex: 1, fontFamily: fonts.body, fontSize: 15, color: colors.ink500 },

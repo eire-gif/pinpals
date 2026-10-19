@@ -36,7 +36,7 @@ function InviteFriendsScreenInner() {
       <ScrollView style={styles.fill} contentContainerStyle={{ paddingBottom: insets.bottom + spacing.xl }}>
         <View style={styles.band}>
           <View style={styles.rule} />
-          <Text style={styles.title}>Bring your fourball</Text>
+          <Text style={styles.title}>Invite friends to join</Text>
           <Text style={styles.subtitle}>
             PinPals is better with the people you already play with. Send your link — when they join, you&apos;re connected.
           </Text>

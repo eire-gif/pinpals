@@ -71,7 +71,23 @@ export default function MarketplaceLayout() {
           name="index"
           options={{
             title: "Browse",
-            headerTitle: "",
+            // Oct 2026: "Marketplace" sits up in the bar itself, on the same
+            // navy as the search band beneath it, so the band below only
+            // holds search and the Used / New switch and the adverts start
+            // higher up the screen.
+            headerStyle: { backgroundColor: colors.navy900 },
+            headerTintColor: colors.cream50,
+            headerLeft: () => <MenuButton onPress={() => setMenuOpen(true)} color={colors.cream50} />,
+            headerTitle: () => (
+              <View style={{ alignItems: "center" }} accessibilityRole="header">
+                <Text style={{ fontFamily: fonts.display, fontSize: 22, lineHeight: 26, color: colors.cream50 }} numberOfLines={1}>
+                  Marketplace
+                </Text>
+                <Text style={{ fontFamily: fonts.bodyBold, fontSize: 9.5, letterSpacing: 1.6, textTransform: "uppercase", color: colors.gold400 }}>
+                  Golfer to golfer
+                </Text>
+              </View>
+            ),
             tabBarIcon: ({ color, size, focused }) => <Ionicons name={focused ? "search" : "search-outline"} size={size} color={color} />,
           }}
         />
