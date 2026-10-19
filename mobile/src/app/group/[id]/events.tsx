@@ -11,6 +11,7 @@ import { groupNoun, organisers, type GroupKind, officeAreas } from "@/lib/groups
 import { countdownLabel, tripBadge, tripRangeLabel } from "@/lib/itinerary-rules";
 import { clock, closesLabel, entriesOpen, feeLabel, irishToday, outingDateLabel } from "@/lib/outing-rules";
 import { listOutings, setOutingEntry, type OutingSummary } from "@/lib/outings";
+import { loadGroupResults, type GroupResult } from "@/lib/competition-data";
 import { Chip, PlaceChip } from "@/components/society-bits";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 
@@ -22,6 +23,12 @@ import { colors, fonts, radii, spacing, type } from "@/lib/theme";
  *
  * Overnight and abroad trips (0126) get the bigger navy card, with the way
  * into their itinerary.
+ *
+ * PAST (Oct 2026): a played day opens straight on its results, not the
+ * entry page — the card shows the winner once they're published, or
+ * "Results to come". "Event details" under it still opens the outing
+ * (payments, who played). A day never scored on PinPals has no results,
+ * so it opens the outing as before.
  */
 export default function SocietyEventsScreen() {
   const { id: rawId } = useLocalSearchParams<{ id: string }>();
@@ -30,6 +37,8 @@ export default function SocietyEventsScreen() {
   const userId = session?.user?.id ?? null;
 
   const [outings, setOutings] = useState<OutingSummary[] | null>(null);
+  /** Published results by match day, for the Past tab's winner lines. */
+  const [results, setResults] = useState<Map<number, GroupResult>>(new Map());
   const [past, setPast] = useState(false);
   const [officer, setOfficer] = useState(false);
   const [groupName, setGroupName] = useState("");
@@ -41,7 +50,12 @@ export default function SocietyEventsScreen() {
   const load = useCallback(async () => {
     if (!userId) return;
     try {
-      const [page, list] = await Promise.all([loadGroupPage(groupId, userId), listOutings(groupId, userId, { fromDate: irishToday(), past })]);
+      const [page, list, published] = await Promise.all([
+        loadGroupPage(groupId, userId),
+        listOutings(groupId, userId, { fromDate: irishToday(), past }),
+        past ? loadGroupResults(groupId).catch(() => [] as GroupResult[]) : Promise.resolve([] as GroupResult[]),
+      ]);
+      setResults(new Map(published.map((r) => [r.dayId, r])));
       // Whoever runs events: owner, captain, secretary, and since 0144 the
       // vice-captain and event organisers.
       setOfficer(officeAreas(page?.myRole ?? null, page?.myOffice ?? null).includes("events"));
@@ -192,13 +206,19 @@ export default function SocietyEventsScreen() {
             const full = o.maxEntries != null && o.entered >= o.maxEntries;
             const cancelled = o.status === "cancelled";
             const facts = [o.courseName, o.firstTee ? `First tee ${clock(o.firstTee)}` : null, feeLabel(o.entryFeeCents)].filter(Boolean).join(" · ");
+            // Played and scored on PinPals: the card is the way into the results.
+            const toResults = past && !cancelled && o.matchDayId != null;
+            const result = toResults ? results.get(o.matchDayId!) : undefined;
+            const openOuting = () => router.push({ pathname: "/group/[id]/outing/[outingId]", params: { id: String(groupId), outingId: String(o.id) } });
             return (
               <Pressable
                 key={o.id}
                 style={[styles.card, o.mine && styles.cardMine]}
-                onPress={() => router.push({ pathname: "/group/[id]/outing/[outingId]", params: { id: String(groupId), outingId: String(o.id) } })}
+                onPress={() =>
+                  toResults ? router.push({ pathname: "/live/day/results/[id]", params: { id: String(o.matchDayId) } }) : openOuting()
+                }
                 accessibilityRole="button"
-                accessibilityLabel={`${o.title}, ${outingDateLabel(o.playsOn)}${o.mine ? ", you're in" : ""}`}
+                accessibilityLabel={`${o.title}, ${outingDateLabel(o.playsOn)}${toResults ? (result ? ", see the results" : ", results to come") : o.mine ? ", you're in" : ""}`}
               >
                 <View style={styles.date}>
                   <Text style={styles.dateDay}>{outingDateLabel(o.playsOn).split(" ")[1]}</Text>
@@ -261,10 +281,33 @@ export default function SocietyEventsScreen() {
                         </>
                       )}
                     </Pressable>
+                  ) : toResults ? (
+                    <View style={{ gap: 4, marginTop: 4 }}>
+                      {result?.winners.slice(0, 2).map((w) => (
+                        <View key={w.label} style={styles.winRow}>
+                          <Ionicons name="trophy" size={14} color={colors.gold500} />
+                          <Text style={styles.winText} numberOfLines={1}>
+                            {result.winners.length > 1 ? `${w.label}: ` : ""}
+                            <Text style={{ fontFamily: fonts.bodyBold }}>{w.name}</Text>
+                            {w.score ? ` · ${w.score}` : ""}
+                          </Text>
+                        </View>
+                      ))}
+                      <View style={styles.resultsRow}>
+                        <Text style={[styles.resultsLink, !result && styles.resultsPending]}>
+                          {result ? (result.amended ? "Full results · Amended" : "Full results") : "Results to come"}
+                        </Text>
+                        {result ? <Ionicons name="arrow-forward" size={15} color={colors.green700} /> : null}
+                        <View style={{ flex: 1 }} />
+                        <Pressable onPress={openOuting} hitSlop={10} accessibilityRole="button" accessibilityLabel={`Event details for ${o.title}`}>
+                          <Text style={styles.detailsLink}>Event details</Text>
+                        </Pressable>
+                      </View>
+                    </View>
                   ) : o.mine && !cancelled ? (
                     <View style={styles.inBadge}>
                       <Ionicons name="checkmark-circle" size={16} color={colors.green700} />
-                      <Text style={styles.inText}>You&apos;re in</Text>
+                      <Text style={styles.inText}>{past ? "You played · no results on PinPals" : "You\u2019re in"}</Text>
                     </View>
                   ) : null}
                 </View>
@@ -319,4 +362,10 @@ const styles = StyleSheet.create({
   joinTextMine: { color: colors.green800 },
   inBadge: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 4 },
   inText: { fontFamily: fonts.bodySemi, fontSize: 13, color: colors.green700 },
+  winRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  winText: { flex: 1, fontFamily: fonts.body, fontSize: 13.5, color: colors.ink900 },
+  resultsRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 },
+  resultsLink: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.green700 },
+  resultsPending: { fontFamily: fonts.bodySemi, color: colors.ink500 },
+  detailsLink: { fontFamily: fonts.bodySemi, fontSize: 12.5, color: colors.ink500, textDecorationLine: "underline" },
 });

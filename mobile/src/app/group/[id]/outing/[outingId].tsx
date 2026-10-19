@@ -480,10 +480,10 @@ export default function OutingScreen() {
           <Text style={styles.heroCloses}>
             {cancelled
               ? "This outing was cancelled"
-              : started
-                ? "The round is under way"
-                : past
-                  ? "Played"
+              : past
+                ? "Played"
+                : started
+                  ? "The round is under way"
                   : closesAt
                     ? open
                       ? `Entries close ${closesAt.toLocaleString("en-IE", { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit", timeZone: "Europe/Dublin" })}`
@@ -497,6 +497,33 @@ export default function OutingScreen() {
             </View>
           ) : null}
         </View>
+
+        {/* Played (Oct 2026): the results lead, not the entry details. */}
+        {past && !cancelled && !trip ? (
+          started ? (
+            <Pressable
+              style={styles.resultsCta}
+              onPress={() => router.push({ pathname: "/live/day/results/[id]", params: { id: String(outing.matchDayId) } })}
+              accessibilityRole="button"
+            >
+              <Ionicons name="trophy" size={20} color={colors.navy900} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.resultsCtaTitle}>See the results</Text>
+                <Text style={styles.resultsCtaBody}>Winners, the full table and every card</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={colors.navy900} />
+            </Pressable>
+          ) : (
+            <View style={styles.noResults}>
+              <Ionicons name="trophy-outline" size={18} color={colors.ink500} />
+              <Text style={styles.noResultsText}>
+                {officer
+                  ? "No results for this one — the round wasn't scored on PinPals. Next time, start the round from the event and the results land here."
+                  : "No results for this one — the round wasn't scored on PinPals."}
+              </Text>
+            </View>
+          )
+        ) : null}
 
         {/* The day itself (0142): arrival, format, dress, meals, where. */}
         {!trip && (outing.arriveBy || outing.formatLabel || outing.dressCode || outing.mealOptions.length || outing.guestFeeCents != null || outing.courseName) ? (
@@ -542,7 +569,7 @@ export default function OutingScreen() {
         {/* You */}
         {myGroup ? (
           <View style={styles.teeCard}>
-            <Text style={styles.teeKicker}>{myGroup.start ? "SHOTGUN START" : "YOUR TEE TIME"}</Text>
+            <Text style={styles.teeKicker}>{past ? "YOU PLAYED" : myGroup.start ? "SHOTGUN START" : "YOUR TEE TIME"}</Text>
             <Text style={styles.teeTime}>{clock(myGroup.time) ?? `Group ${myGroup.n}`}</Text>
             {myGroup.start ? <Text style={styles.teeWith}>{`You start on the ${ordinal(myGroup.start.hole)} tee${myGroup.start.letter && groups.ordered.some((o) => o !== myGroup && o.start?.hole === myGroup.start?.hole) ? ` — group ${myGroup.start.hole}${myGroup.start.letter}` : ""}`}</Text> : null}
             <Text style={styles.teeWith}>
@@ -558,7 +585,7 @@ export default function OutingScreen() {
           <Text style={styles.note}>{`You're in. ${cap(organisers(kind))} hasn't put you in a group yet.`}</Text>
         ) : null}
 
-        {started ? (
+        {past && !trip ? null : started ? (
           <Pressable style={styles.cta} onPress={() => router.push({ pathname: "/live/day/[id]", params: { id: String(outing.matchDayId) } })} accessibilityRole="button">
             <Ionicons name="podium-outline" size={18} color={colors.cream50} />
             <Text style={styles.ctaText}>Leaderboard and cards</Text>
@@ -921,6 +948,11 @@ const styles = StyleSheet.create({
   paidClaimText: { color: "#7a5a12" },
   paidText: { fontFamily: fonts.bodySemi, fontSize: 12 },
   heroChips: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 6 },
+  resultsCta: { flexDirection: "row", alignItems: "center", gap: spacing.sm + 4, padding: spacing.md, borderRadius: radii.lg, backgroundColor: colors.gold400 },
+  resultsCtaTitle: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.navy900 },
+  resultsCtaBody: { fontFamily: fonts.body, fontSize: 13, color: colors.navy900 },
+  noResults: { flexDirection: "row", alignItems: "flex-start", gap: spacing.sm, padding: spacing.md, borderRadius: radii.lg, borderWidth: 1, borderStyle: "dashed", borderColor: colors.line, backgroundColor: colors.surface },
+  noResultsText: { flex: 1, fontFamily: fonts.body, fontSize: 13.5, color: colors.ink500 },
   facts: { gap: spacing.sm, padding: spacing.md, borderRadius: radii.lg, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
   factGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   fact: { gap: 2, paddingHorizontal: 12, paddingVertical: 8, borderRadius: radii.md, backgroundColor: colors.cream100, minWidth: 120, flexGrow: 1 },
