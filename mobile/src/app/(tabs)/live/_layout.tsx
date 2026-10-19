@@ -1,6 +1,8 @@
+import { Text, View } from "react-native";
 import { Stack } from "expo-router";
 
 import { BackPill, headerButtons } from "@/components/header-actions";
+import { TONES } from "@/components/live-scoring-card";
 import { colors, contentColumn, fonts, headerTitleStyle } from "@/lib/theme";
 
 /**
@@ -23,7 +25,30 @@ export default function LiveLayout() {
       }}
     >
       {/* First in its own stack, so iOS draws no back button: add one. */}
-      <Stack.Screen name="index" options={{ title: "Live scoring", ...headerButtons({ left: <BackPill /> }) }} />
+      {/* Oct 2026: as the Marketplace — the name sits up in a coloured bar
+          (navy, as Home's Start a Round button) with a gold line under it,
+          in place of the photo, so the three buttons start near the top. */}
+      <Stack.Screen
+        name="index"
+        options={{
+          title: "Live scoring",
+          headerStyle: { backgroundColor: TONES.navy.card },
+          headerTintColor: colors.cream50,
+          headerShadowVisible: false,
+          headerTitleAlign: "center",
+          headerTitle: () => (
+            <View style={{ alignItems: "center" }} accessibilityRole="header">
+              <Text style={{ fontFamily: fonts.display, fontSize: 22, lineHeight: 26, color: colors.cream50 }} numberOfLines={1}>
+                Live Scoring
+              </Text>
+              <Text style={{ fontFamily: fonts.bodyBold, fontSize: 9.5, letterSpacing: 1.6, textTransform: "uppercase", color: colors.gold400 }}>
+                Score it together
+              </Text>
+            </View>
+          ),
+          ...headerButtons({ left: <BackPill onDark /> }),
+        }}
+      />
       <Stack.Screen name="new" options={{ title: "Set up a round" }} />
       <Stack.Screen name="round/[id]" options={{ title: "Scoring" }} />
       <Stack.Screen name="day/new" options={{ title: "Set up a match day" }} />
