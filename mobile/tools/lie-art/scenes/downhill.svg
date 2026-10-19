@@ -1,0 +1,30 @@
+<g>
+<defs>
+<linearGradient id="d-turf" x1="0.7" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7aa552"/><stop offset="0.5" stop-color="#5b8a3c"/><stop offset="1" stop-color="#335a23"/></linearGradient>
+<pattern id="d-bl" width="14" height="12" patternUnits="userSpaceOnUse" patternTransform="translate(0 80) skewY(13.4)">
+<path d="M0.5 12 Q1 7 0.2 2 Q2 7 2.2 12Z" fill="#3c6a2a"/><path d="M3 12 Q3.8 6 5.5 3 Q4.6 7 4.6 12Z" fill="#4f803a"/><path d="M5.6 12 Q6 8 6.8 4.5 Q7.4 8 7.4 12Z" fill="#2f5622"/><path d="M8 12 Q8.2 6.5 7.6 1.5 Q9.6 6 9.8 12Z" fill="#5b8c3f"/><path d="M10.2 12 Q11 8 12.6 5.5 Q11.8 9 11.8 12Z" fill="#365f26"/><path d="M12.4 12 Q12.6 7 13.4 3.5 Q14 8 14 12Z" fill="#4a7a33"/>
+</pattern>
+<pattern id="d-bl2" width="11" height="12" patternUnits="userSpaceOnUse" patternTransform="translate(3 80) skewY(13.4)">
+<path d="M0.4 12 Q1.2 8 2.6 5 Q2 8.5 1.9 12Z" fill="#7fae57"/><path d="M3 12 Q3.2 7 2.6 3.5 Q4.4 7.5 4.5 12Z" fill="#6a9a48"/><path d="M5.4 12 Q6.2 7.5 8 6 Q7 9 6.9 12Z" fill="#8cba62"/><path d="M7.8 12 Q8 8 7.6 4 Q9.4 8 9.3 12Z" fill="#5f8f40"/><path d="M9.6 12 Q10.2 9 11 7 Q11 10 10.9 12Z" fill="#78a852"/>
+</pattern>
+</defs>
+<rect width="320" height="220" fill="url(#pp-sky)"/>
+<rect width="320" height="120" fill="#000000" opacity="0.75" filter="url(#pp-clouds)"/>
+<path d="M0 112 C60 104 120 110 180 116 C230 121 280 118 320 122 L320 220 L0 220Z" fill="#a3b4aa"/>
+<g filter="url(#pp-haze)"><path d="M-10 126 L330 134 L330 220 L-10 220Z" fill="#56735a" filter="url(#pp-trees)"/></g>
+<g filter="url(#pp-haze)">
+<path d="M150 150 C200 139 270 136 330 142 L330 220 L150 220Z" fill="#6f9550"/>
+<ellipse cx="262" cy="142" rx="24" ry="3.6" fill="#8dbb63"/>
+</g>
+<line x1="262" y1="142" x2="262" y2="118" stroke="#efece3" stroke-width="1.1" stroke-linecap="round"/>
+<path d="M262.6 118.5 C265.5 117.8 268 119.5 271 119 C270 121 270.6 123 271.6 124.5 C268.6 125 265.5 123.6 262.6 124.2Z" fill="#e3b33f"/>
+<path d="M0 92 L320 168 L320 220 L0 220Z" fill="url(#d-turf)"/>
+<path d="M0 92 L320 168 L320 220 L0 220Z" fill="#000000" filter="url(#pp-grain-d)"/>
+<path d="M0 92 L320 168 L320 220 L0 220Z" fill="#000000" opacity="0.8" filter="url(#pp-grain-l)"/>
+<path d="M0 112 L320 188 L320 208 L0 132Z" fill="#ffffff" opacity="0.06"/>
+<path d="M0 92 L320 168 L320 156 L0 80Z" fill="url(#d-bl)"/>
+<ellipse cx="154" cy="128.4" rx="16" ry="3.6" fill="#16290f" opacity="0.6" filter="url(#pp-shadow)" transform="rotate(13.4 154 128.4)"/>
+<use href="#pp-ball" x="130" y="94" width="40" height="40"/>
+<path d="M126 121.9 L174 133.3 L174 127.3 L126 115.9Z" fill="url(#d-bl2)"/>
+<rect width="320" height="220" fill="url(#pp-vig)"/>
+</g>

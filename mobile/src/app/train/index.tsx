@@ -6,7 +6,7 @@ import { GoldFrame } from "@/components/format-art";
 import { ScreenHeader } from "@/components/screen-header";
 import { LieArtTile } from "@/components/train-art";
 import { DrillRow, GoldButton, SectionHead, bits } from "@/components/train-bits";
-import { DRILLS, LIES, PLANS, drillById, lieById, nextSession, planById, planSessions, scoreLabel, sessionMinutes } from "@/lib/training";
+import { type LieCategory, DRILLS, LIES, PLANS, drillById, lieById, nextSession, planById, planSessions, scoreLabel, sessionMinutes } from "@/lib/training";
 import { useTraining } from "@/lib/training-store";
 import { colors, fonts, radii } from "@/lib/theme";
 
@@ -18,6 +18,8 @@ import { colors, fonts, radii } from "@/lib/theme";
  */
 
 const FEATURED_LIES = ["uphill", "downhill", "above-feet", "greenside-bunker", "thick-rough", "into-wind"];
+// The short kicker over each lie tile (the full category names are too long for a half-width tile).
+const TILE_KICKER: Record<LieCategory, string> = { slopes: "SLOPES", sand: "SAND", rough: "ROUGH", weather: "WIND" };
 const FEATURED_DRILLS = ["clock", "gate", "ladder-lag"];
 
 export default function TrainScreen() {
@@ -86,10 +88,13 @@ export default function TrainScreen() {
               accessibilityRole="button"
               accessibilityLabel={l.name}
             >
-              <LieArtTile art={l.art} size={84} />
-              <Text style={styles.tileText} numberOfLines={1}>
-                {l.name.replace(" lie", "")}
-              </Text>
+              <LieArtTile art={l.art} fill />
+              <View style={styles.tileLabel}>
+                <Text style={styles.tileKicker}>{TILE_KICKER[l.category]}</Text>
+                <Text style={styles.tileText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
+                  {l.name.replace(" lie", "")}
+                </Text>
+              </View>
             </Pressable>
           ))}
         </View>
@@ -163,9 +168,11 @@ const styles = StyleSheet.create({
   heroBtn: { backgroundColor: colors.gold400, borderRadius: radii.pill, paddingHorizontal: 18, minHeight: 44, justifyContent: "center" },
   heroBtnText: { fontFamily: fonts.bodyBold, fontSize: 14.5, color: colors.navy900 },
 
-  grid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
-  tile: { width: "31.5%", flexGrow: 1, alignItems: "center", gap: 8, paddingVertical: 12, paddingHorizontal: 6, borderRadius: 16, backgroundColor: colors.navy900, borderWidth: 1, borderColor: "rgba(211,165,63,0.45)" },
-  tileText: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.cream50 },
+  grid: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
+  tile: { width: "47%", flexGrow: 1, overflow: "hidden", borderRadius: 18, backgroundColor: colors.navy900, borderWidth: 1, borderColor: "rgba(211,165,63,0.45)" },
+  tileLabel: { gap: 3, paddingHorizontal: 13, paddingTop: 10, paddingBottom: 12 },
+  tileKicker: { fontFamily: fonts.bodyBold, fontSize: 10.5, letterSpacing: 1.6, color: colors.gold400 },
+  tileText: { fontFamily: fonts.bodyBold, fontSize: 15, color: colors.cream50 },
 
   plan: { flexDirection: "row", alignItems: "center", gap: 12, padding: 16, borderRadius: 18, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
   planActive: { borderColor: colors.gold500, borderWidth: 1.5, backgroundColor: colors.surfaceTint },

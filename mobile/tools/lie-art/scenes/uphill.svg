@@ -1,0 +1,27 @@
+<g>
+<defs>
+<linearGradient id="u-turf" x1="0.3" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7aa552"/><stop offset="0.5" stop-color="#5b8a3c"/><stop offset="1" stop-color="#335a23"/></linearGradient>
+<pattern id="u-bl" width="14" height="12" patternUnits="userSpaceOnUse" patternTransform="translate(0 164) skewY(-13.4)">
+<path d="M0.5 12 Q1 7 0.2 2 Q2 7 2.2 12Z" fill="#3c6a2a"/><path d="M3 12 Q3.8 6 5.5 3 Q4.6 7 4.6 12Z" fill="#4f803a"/><path d="M5.6 12 Q6 8 6.8 4.5 Q7.4 8 7.4 12Z" fill="#2f5622"/><path d="M8 12 Q8.2 6.5 7.6 1.5 Q9.6 6 9.8 12Z" fill="#5b8c3f"/><path d="M10.2 12 Q11 8 12.6 5.5 Q11.8 9 11.8 12Z" fill="#365f26"/><path d="M12.4 12 Q12.6 7 13.4 3.5 Q14 8 14 12Z" fill="#4a7a33"/>
+</pattern>
+<pattern id="u-bl2" width="11" height="12" patternUnits="userSpaceOnUse" patternTransform="translate(3 164) skewY(-13.4)">
+<path d="M0.4 12 Q1.2 8 2.6 5 Q2 8.5 1.9 12Z" fill="#7fae57"/><path d="M3 12 Q3.2 7 2.6 3.5 Q4.4 7.5 4.5 12Z" fill="#6a9a48"/><path d="M5.4 12 Q6.2 7.5 8 6 Q7 9 6.9 12Z" fill="#8cba62"/><path d="M7.8 12 Q8 8 7.6 4 Q9.4 8 9.3 12Z" fill="#5f8f40"/><path d="M9.6 12 Q10.2 9 11 7 Q11 10 10.9 12Z" fill="#78a852"/>
+</pattern>
+</defs>
+<rect width="320" height="220" fill="url(#pp-sky)"/>
+<rect width="320" height="130" fill="#000000" opacity="0.75" filter="url(#pp-clouds)"/>
+<path d="M0 118 C50 106 90 112 140 103 C190 95 240 104 320 92 L320 220 L0 220Z" fill="#a3b4aa"/>
+<g filter="url(#pp-haze)"><path d="M-10 132 L330 112 L330 220 L-10 220Z" fill="#56735a" filter="url(#pp-trees)"/></g>
+<path d="M0 176 L320 100 L320 220 L0 220Z" fill="url(#u-turf)"/>
+<path d="M0 176 L320 100 L320 220 L0 220Z" fill="#000000" filter="url(#pp-grain-d)"/>
+<path d="M0 176 L320 100 L320 220 L0 220Z" fill="#000000" opacity="0.8" filter="url(#pp-grain-l)"/>
+<path d="M0 196 L320 120 L320 140 L0 216Z" fill="#ffffff" opacity="0.06"/>
+<line x1="292" y1="107" x2="292" y2="58" stroke="#efece3" stroke-width="1.6" stroke-linecap="round"/>
+<path d="M292.8 58.5 C297 57.5 301 60.5 306 59.5 C304 62.5 305 65.5 307 68 C302 69 297 66.5 292.8 67.5Z" fill="#e3b33f"/>
+<path d="M292.8 63 C297 62.5 301 65 306 64 L307 68 C302 69 297 66.5 292.8 67.5Z" fill="#9c741a" opacity="0.45"/>
+<path d="M0 176 L320 100 L320 88 L0 164Z" fill="url(#u-bl)"/>
+<ellipse cx="124" cy="147" rx="16" ry="3.6" fill="#16290f" opacity="0.6" filter="url(#pp-shadow)" transform="rotate(-13.4 124 147)"/>
+<use href="#pp-ball" x="98" y="114" width="40" height="40"/>
+<path d="M92 154.2 L146 141.3 L146 135.3 L92 148.2Z" fill="url(#u-bl2)"/>
+<rect width="320" height="220" fill="url(#pp-vig)"/>
+</g>

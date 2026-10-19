@@ -1,0 +1,27 @@
+<g>
+<defs>
+<linearGradient id="h-dirt" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#a88a5e"/><stop offset="1" stop-color="#7a5c3b"/></linearGradient>
+<linearGradient id="h-fair" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8dba63"/><stop offset="1" stop-color="#6a9b4a"/></linearGradient>
+<pattern id="h-bl" width="11" height="12" patternUnits="userSpaceOnUse" patternTransform="scale(1.2 1)">
+<path d="M0.4 12 Q1.2 8 2.6 5 Q2 8.5 1.9 12Z" fill="#7fae57"/><path d="M3 12 Q3.2 7 2.6 3.5 Q4.4 7.5 4.5 12Z" fill="#6a9a48"/><path d="M5.4 12 Q6.2 7.5 8 6 Q7 9 6.9 12Z" fill="#8cba62"/><path d="M7.8 12 Q8 8 7.6 4 Q9.4 8 9.3 12Z" fill="#5f8f40"/><path d="M9.6 12 Q10.2 9 11 7 Q11 10 10.9 12Z" fill="#78a852"/>
+</pattern>
+</defs>
+<rect width="320" height="220" fill="url(#pp-sky)"/>
+<rect width="320" height="100" fill="#000000" opacity="0.75" filter="url(#pp-clouds)"/>
+<path d="M0 94 C60 88 120 93 180 90 C230 88 280 92 320 89 L320 220 L0 220Z" fill="#9fb1a6"/>
+<g filter="url(#pp-haze)"><path d="M-10 102 L330 98 L330 220 L-10 220Z" fill="#56735a" filter="url(#pp-trees)"/></g>
+<rect x="0" y="100" width="320" height="30" fill="url(#h-fair)"/>
+<rect x="0" y="100" width="320" height="30" fill="#000000" filter="url(#pp-grain-d)"/>
+<path d="M-10 126 Q80 120 160 124 Q240 128 330 122 L330 225 L-10 225Z" fill="url(#h-dirt)"/>
+<path d="M-10 126 Q80 120 160 124 Q240 128 330 122 L330 225 L-10 225Z" fill="#000000" filter="url(#pp-sand-d)"/>
+<path d="M-10 126 Q80 120 160 124 Q240 128 330 122 L330 225 L-10 225Z" fill="#000000" opacity="0.7" filter="url(#pp-sand-l)"/>
+<g fill="none" stroke="#4a3520" stroke-linecap="round" stroke-linejoin="round" opacity="0.3">
+<path d="M20 170 L46 164 L58 172 L84 166" stroke-width="0.9"/>
+<path d="M210 196 L232 188 L250 194 L262 186 L290 190" stroke-width="1.1"/>
+<path d="M40 206 L70 200 L78 210" stroke-width="1.1"/>
+<path d="M226 150 L246 146 L258 152" stroke-width="0.8"/>
+</g>
+<ellipse cx="163" cy="195" rx="18" ry="2.8" fill="#2b1d0f" opacity="0.65" filter="url(#pp-shadow)"/>
+<use href="#pp-ball" x="134" y="146" width="52" height="52"/>
+<rect width="320" height="220" fill="url(#pp-vig)"/>
+</g>

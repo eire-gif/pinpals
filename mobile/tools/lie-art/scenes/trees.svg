@@ -1,0 +1,32 @@
+<g>
+<defs>
+<linearGradient id="t-ground" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3f6a2c"/><stop offset="1" stop-color="#22401a"/></linearGradient>
+<linearGradient id="t-fair" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#a3cf74"/><stop offset="1" stop-color="#7cb055"/></linearGradient>
+<linearGradient id="t-trunk" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#2a2016"/><stop offset="0.45" stop-color="#4b3a28"/><stop offset="1" stop-color="#1c150e"/></linearGradient>
+<filter id="t-dapple" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency="0.035 0.09" numOctaves="2" seed="15"/><feColorMatrix type="matrix" values="0 0 0 0 0.72  0 0 0 0 0.86  0 0 0 0 0.45  3.2 0 0 0 -1.9"/><feComposite in2="SourceGraphic" operator="in"/></filter>
+<filter id="t-leaves" x="-5%" y="-30%" width="110%" height="160%"><feTurbulence type="fractalNoise" baseFrequency="0.06 0.08" numOctaves="3" seed="5" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="16" xChannelSelector="R" yChannelSelector="G"/></filter>
+</defs>
+<rect width="320" height="220" fill="url(#pp-sky)"/>
+<g filter="url(#pp-dof)">
+<path d="M-10 108 L330 104 L330 220 L-10 220Z" fill="#56735a" filter="url(#pp-trees)"/>
+<path d="M60 118 L260 118 L330 150 L-10 150Z" fill="url(#t-fair)"/>
+</g>
+<path d="M-10 132 Q160 124 330 132 L330 225 L-10 225Z" fill="url(#t-ground)"/>
+<path d="M-10 132 Q160 124 330 132 L330 225 L-10 225Z" fill="#000000" filter="url(#pp-grain-d)"/>
+<path d="M-10 132 Q160 124 330 132 L330 225 L-10 225Z" fill="#000000" opacity="0.8" filter="url(#t-dapple)"/>
+<path d="M18 0 L46 0 L44 150 Q32 158 16 152Z" fill="url(#t-trunk)"/>
+<path d="M266 0 L300 0 L304 148 Q284 156 264 150Z" fill="url(#t-trunk)"/>
+<path d="M300 60 C250 70 200 78 120 92 C100 96 80 98 60 96" fill="none" stroke="#3a2c1d" stroke-width="5" stroke-linecap="round"/>
+<path d="M190 80 C170 88 150 98 136 112" fill="none" stroke="#3a2c1d" stroke-width="2.4" stroke-linecap="round"/>
+<g filter="url(#t-leaves)">
+<path d="M-20 -10 L340 -10 L340 60 C300 76 260 66 220 80 C180 92 150 84 110 96 C80 104 50 92 20 100 L-20 96Z" fill="#1f3a1a"/>
+<path d="M60 70 C90 80 120 76 140 92 C126 104 104 100 84 104 C70 98 60 88 60 70Z" fill="#284a20"/>
+<path d="M200 74 C230 70 260 62 290 66 C280 82 250 86 226 90 C212 88 204 82 200 74Z" fill="#2c5224"/>
+</g>
+<path d="M-20 -10 L340 -10 L340 40 C280 52 200 46 120 56 C60 62 20 56 -20 60Z" fill="#14280f" opacity="0.6"/>
+<path d="M124 186 C150 170 190 150 250 138" fill="none" stroke="#E0C27A" stroke-width="1.6" stroke-dasharray="4 4" stroke-linecap="round"/>
+<path d="M243 134 L251 138 L245 144" fill="none" stroke="#E0C27A" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+<ellipse cx="112" cy="200" rx="18" ry="3.6" fill="#0f1d0b" opacity="0.6" filter="url(#pp-shadow)"/>
+<use href="#pp-ball" x="86" y="174" width="48" height="48"/>
+<rect width="320" height="220" fill="url(#pp-vig)"/>
+</g>
