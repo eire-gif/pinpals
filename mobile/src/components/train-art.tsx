@@ -38,12 +38,14 @@ export function LieArtTile({ art, size, flip = false, fill = false }: { art: Art
     : [styles.framed, { width: w, height: Math.round(w * LIE_ART_RATIO), borderRadius: Math.max(8, w * 0.12) }];
   return (
     <View style={[styles.box, frame]} accessible={false} importantForAccessibility="no-hide-descendants">
-      <Image source={PICTURES[art]} resizeMode="cover" style={[StyleSheet.absoluteFill, flip && { transform: [{ scaleX: -1 }] }]} />
+      {/* Explicit width/height: without them the picture keeps its own pixel size and only its top-left corner shows. */}
+      <Image source={PICTURES[art]} resizeMode="cover" style={[styles.picture, flip && { transform: [{ scaleX: -1 }] }]} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   box: { overflow: "hidden", backgroundColor: "#173a68" },
+  picture: { position: "absolute", top: 0, left: 0, width: "100%", height: "100%" },
   framed: { borderWidth: 1, borderColor: "rgba(211,165,63,0.55)" },
 });
