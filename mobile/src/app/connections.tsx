@@ -10,14 +10,15 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { Stack, router, useFocusEffect } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { Avatar } from "@/components/avatar";
 import { WithInvite } from "@/components/pinpals";
 import { inviteFriends } from "@/lib/invite-friends";
 import { INVITE_EVERY, inviteAfter } from "@/lib/invite-slots";
-import { ScreenHeader } from "@/components/screen-header";
+import { TintedHeader } from "@/components/tinted-header";
+import { TONES } from "@/components/live-scoring-card";
 import { useAuth } from "@/lib/auth";
 import {
   conversationWith,
@@ -156,11 +157,10 @@ function ConnectionsScreenInner() {
 
   return (
     <>
-      {/* The band carries the screen's name, so the bar above it
-          does not need to carry it too. */}
-      <Stack.Screen options={{ headerTitle: "", headerBackTitle: "Back" }} />
-
-      <ScreenHeader scene="dunesGold" title="My connections" subtitle={subtitle} />
+      {/* Oct 2026: the name and the count are up in the bar, in Find
+          PinPals' claret (connections are part of finding golfers), rather
+          than on a photograph below it — the list starts a band higher. */}
+      <TintedHeader color={TONES.claret.card} title="My connections" subtitle={subtitle} />
 
       {/* Hidden below a handful of people: a search box over four names is
           furniture, not a feature. The threshold counts everyone on the

@@ -1,5 +1,5 @@
-import { useEffect, useRef } from "react";
-import { AppState, Platform } from "react-native";
+import { useEffect, useMemo, useRef } from "react";
+import { AppState, Platform, View } from "react-native";
 import { consumePendingInvite } from "@/lib/find-pinpals";
 import { consumePendingGroupInvite } from "@/lib/groups-data";
 import { consumePendingTeeLink } from "@/lib/tee-time-sharing";
@@ -18,9 +18,10 @@ import { StatusBar } from "expo-status-bar";
 import * as Notifications from "expo-notifications";
 import * as SplashScreen from "expo-splash-screen";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { SafeAreaProvider } from "react-native-safe-area-context";
+import { SafeAreaInsetsContext, SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AdTakeoverHost } from "@/components/ad-takeover";
+import { GlobalTabBar, wantsGlobalTabBar } from "@/components/global-tab-bar";
 import { reportScreen } from "@/lib/activity";
 import { loadAgeAccess, useAgeAccess } from "@/lib/age";
 import { gateFor, openWhileWaiting } from "@/lib/age-rules";
@@ -239,8 +240,19 @@ function RootNavigator() {
     };
   }, [loading, session, router]);
 
+  // The six tabs under every screen pushed over them (global-tab-bar.tsx).
+  // The stack sits above the bar rather than under it, so no screen needs
+  // to leave room; and with the bar taking the home indicator's strip, the
+  // screens above are told the bottom inset is nothing, or every one that
+  // pads for it would leave a gap over the bar.
+  const insets = useSafeAreaInsets();
+  const tabBar = !!session && wantsGlobalTabBar(segments as string[]);
+  const stackInsets = useMemo(() => (tabBar ? { ...insets, bottom: 0 } : insets), [tabBar, insets]);
+
   return (
     <>
+    <View style={{ flex: 1 }}>
+    <SafeAreaInsetsContext.Provider value={stackInsets}>
     <Stack
       screenOptions={{
         headerStyle: { backgroundColor: colors.cream50 },
@@ -297,6 +309,9 @@ function RootNavigator() {
         options={{ title: "Tee time", headerBackTitle: "Back" }}
       />
     </Stack>
+    </SafeAreaInsetsContext.Provider>
+    </View>
+    {tabBar ? <GlobalTabBar /> : null}
     {/* In-app advertising (0139): renders nothing unless the `ads` flag
         and the server's master switch are both on. */}
     <AdTakeoverHost />

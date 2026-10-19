@@ -1,10 +1,11 @@
 import { useCallback, useMemo, useState } from "react";
 import { ActivityIndicator, Alert, Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
-import { Stack, router, useFocusEffect, type Href } from "expo-router";
+import { router, useFocusEffect, type Href } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { GroupIcon, membersLabel } from "@/components/group-bits";
-import { GroupsHero } from "@/components/groups-hero";
+import { TintedHeader } from "@/components/tinted-header";
+import { TONES } from "@/components/live-scoring-card";
 import { LoadError, StateMessage } from "@/components/state-message";
 import { useAuth } from "@/lib/auth";
 import { isOn } from "@/lib/features";
@@ -131,12 +132,13 @@ export default function MyGroupsScreen() {
 
   const header = (
     <>
-      <Stack.Screen options={{ headerTitle: "", headerBackTitle: "Back" }} />
-      <GroupsHero
-        eyebrow="Your groups"
+      {/* Oct 2026: the name and count up in the bar, on Home's Groups
+          green, instead of a photograph below it — the cards start higher. */}
+      <TintedHeader
+        color={TONES.green.card}
         title="My Groups &"
-        accent="Societies."
-        line={data ? `${groups.length} ${groups.length === 1 ? "group" : "groups"} · ${members} members` : null}
+        accent="Societies"
+        subtitle={data ? `${groups.length} ${groups.length === 1 ? "group" : "groups"} · ${members} members` : null}
       />
     </>
   );

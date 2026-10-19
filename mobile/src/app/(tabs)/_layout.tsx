@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { Tabs, router } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -9,6 +9,7 @@ import { useAuth } from "@/lib/auth";
 import { colors, contentColumn, fonts, spacing, headerTitleStyle } from "@/lib/theme";
 import { useInboxUnread } from "@/lib/unread";
 import { useTeeTimesWaiting } from "@/lib/tee-times-waiting";
+import { publishTabBadges } from "@/lib/tab-badges";
 
 /**
  * Six tabs. Feed joined beside Marketplace in October 2026 — the one place
@@ -61,6 +62,11 @@ export default function TabsLayout() {
   // lands there first.
   const teeTimesWaiting = useTeeTimesWaiting(session?.user?.id ?? null, unread.total);
   const [menuOpen, setMenuOpen] = useState(false);
+  // The same two numbers on the bar drawn under every other screen
+  // (components/global-tab-bar.tsx), counted once, here.
+  useEffect(() => {
+    publishTabBadges({ inbox: unread.total, teeTimes: teeTimesWaiting });
+  }, [unread.total, teeTimesWaiting]);
   // Junior members (0159): under-18s have no Tee Times or Social, so those
   // tabs go (href: null) and the header buttons that start a chat, a listing
   // or a post go with them. The database refuses all of it anyway; this is

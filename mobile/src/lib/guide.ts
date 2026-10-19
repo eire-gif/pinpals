@@ -1896,6 +1896,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-19", text: "The six tabs (Home, Tee Times, Marketplace, Social, Inbox, Profile) are now under every screen except the marketplace's own. Find PinPals, My connections and the Groups pages show their name in the coloured bar at the top; Find PinPals' QR code is top right." },
   { on: "2026-10-19", text: "Play a round together: in a group of more than 12, Who's playing folds into one card (Tick everyone, Clear, See full list of players with search) so Course, Format and the draw are right below." },
   { on: "2026-10-19", text: "Publish the results: a group's Results page now shows the latest two in full — podium, top three and where you finished — with earlier ones listed below." },
   { on: "2026-10-19", text: "Get a place on an event: in Events, Past now opens each played day straight on its full results (Event details is still there). A played day's page leads with See the results." },
