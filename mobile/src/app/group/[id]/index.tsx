@@ -8,6 +8,10 @@ import { Avatar } from "@/components/avatar";
 import { GroupIcon, RoleBadge, SectionTitle, membersLabel } from "@/components/group-bits";
 import { useAgeAccess } from "@/lib/age";
 import { GroupPastResults } from "@/components/group-past-results";
+import { GroupChatCard } from "@/components/group-chat-card";
+import { TONES } from "@/components/live-scoring-card";
+import { TintedHeader } from "@/components/tinted-header";
+import { groupLine } from "@/lib/group-chat-rules";
 import { LoadError, StateMessage } from "@/components/state-message";
 import { TwoPane } from "@/components/two-pane";
 import { FULL_WIDTH_CONTENT, pageColumn, useWideLayout } from "@/lib/content-width";
@@ -50,8 +54,9 @@ const COMING = [
 /**
  * A group's page (0120).
  *
- * For a member: who's in it, the invite and chat buttons, and — for whoever
- * runs it — the join requests and each member's role. For anyone else: the
+ * For a member: the group's chat (crews and trips, 0181), who's in it, the
+ * invite button, and — for whoever runs it — the join requests and each
+ * member's role. For anyone else: the
  * front page only (name, kind, size, about) and the one button that fits,
  * which joinState() in lib/groups.ts decides.
  *
@@ -315,7 +320,10 @@ export default function GroupScreen() {
 
   return (
     <View style={styles.fill}>
-      <Stack.Screen options={{ title: group.name, headerBackTitle: "Back", contentStyle: FULL_WIDTH_CONTENT }} />
+      {/* The name in a green bar, as on Groups & Societies (Oct 2026), so the
+          page starts a hero's height higher. */}
+      <TintedHeader color={TONES.green.card} title={group.name} subtitle={groupLine(group, irishToday())} />
+      <Stack.Screen options={{ contentStyle: FULL_WIDTH_CONTENT }} />
       <ScrollView
         contentContainerStyle={[styles.body, pageColumn(wide)]}
         refreshControl={
@@ -365,13 +373,30 @@ export default function GroupScreen() {
               </View>
             ) : null}
           </Pressable>
-          <Text style={styles.name} accessibilityRole="header">
-            {group.name}
-          </Text>
+          {/* The name is in the bar above; the kind, size and club stay here. */}
           <Text style={styles.detail}>{detail}</Text>
           {group.about ? <Text style={styles.about}>{group.about}</Text> : null}
         </View>
 
+        {/* What joining a crew or trip brings (0181): its chat, from the start. */}
+        {(door === "invited" || door === "join") && !society && chatAllowed && group.features.includes("chat") ? (
+          <View style={styles.gives}>
+            <Text style={styles.givesTitle}>JOINING GIVES YOU</Text>
+            <View style={styles.givesRow}>
+              <Ionicons name="chatbubbles-outline" size={18} color={colors.green700} />
+              <Text style={styles.givesText}>
+                <Text style={styles.givesStrong}>{group.kind === "trip" ? "The trip chat" : "The group chat"}</Text>, from the start — catch up on everything said so far
+              </Text>
+            </View>
+            <View style={styles.givesRow}>
+              <Ionicons name="calendar-outline" size={18} color={colors.green700} />
+              <Text style={styles.givesText}>
+                <Text style={styles.givesStrong}>{group.kind === "trip" ? "The itinerary" : "Rounds and events"}</Text>
+                {group.kind === "trip" ? ", with courses, tee times and payments" : ", with who's in and how to pay"}
+              </Text>
+            </View>
+          </View>
+        ) : null}
         {/* The one button for someone outside the group. */}
         {door === "invited" ? (
           <View style={styles.row}>
@@ -415,11 +440,19 @@ export default function GroupScreen() {
           <>
             {fresh === "1" && group.memberCount === 1 ? (
               <View style={styles.tip}>
-                <Text style={styles.tipTitle}>Now bring your golfers in</Text>
+                <Text style={styles.tipTitle}>{society ? "Now bring your golfers in" : group.kind === "trip" ? "Your trip chat is ready" : "Your group chat is ready"}</Text>
                 <Text style={styles.tipBody}>
-                  Invite PinPals you&apos;re connected with, or share the group&apos;s link{group.kind === "society" ? " in your society's WhatsApp group" : ""} — anyone with it joins straight in.
+                  {society
+                    ? "Invite PinPals you're connected with, or share the society's link in your society's WhatsApp group — anyone with it joins straight in."
+                    : "Invite PinPals you're connected with, or share the link — everyone who joins is in the chat straight away, and sees everything said so far."}
                 </Text>
               </View>
+            ) : null}
+
+            {/* The group's chat (0181), first thing on the page: it opens with
+                the group and everyone who joins is in it. Not for under 18s. */}
+            {group.conversationId && chatAllowed && !society ? (
+              <GroupChatCard conversationId={group.conversationId} trip={group.kind === "trip"} memberCount={group.memberCount} />
             ) : null}
 
             {can("invite") ? (
@@ -511,12 +544,6 @@ export default function GroupScreen() {
             ) : null}
 
             <View style={styles.tools}>
-              {group.conversationId && chatAllowed ? (
-                <Pressable style={styles.tool} onPress={() => router.push(`/conversation/${group.conversationId}`)} accessibilityRole="button">
-                  <Ionicons name="chatbubbles-outline" size={18} color={colors.navy900} />
-                  <Text style={styles.buttonText} numberOfLines={1}>Chat</Text>
-                </Pressable>
-              ) : null}
               {can("edit_group") ? (
                 <Pressable style={styles.tool} onPress={() => router.push({ pathname: "/group/[id]/settings", params: { id: String(groupId) } })} accessibilityRole="button">
                   <Ionicons name="settings-outline" size={18} color={colors.navy900} />
@@ -555,9 +582,6 @@ export default function GroupScreen() {
                 </View>
                 <Ionicons name="chevron-forward" size={18} color={colors.navy900} />
               </Pressable>
-            ) : null}
-            {group.features.includes("chat") && !group.conversationId ? (
-              <Text style={styles.hint}>The group chat starts once three of you are in.</Text>
             ) : null}
 
             <View style={styles.soon}>
@@ -800,7 +824,6 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: colors.cream50,
   },
-  name: { fontFamily: fonts.display, fontSize: 26, color: colors.ink900, textAlign: "center", marginTop: spacing.xs },
   detail: { fontFamily: fonts.bodySemi, fontSize: type.small, color: colors.ink500, textAlign: "center" },
   about: { fontFamily: fonts.body, fontSize: type.body, color: colors.ink900, textAlign: "center", marginTop: spacing.xs, lineHeight: 22 },
   row: { flexDirection: "row", gap: spacing.sm },
@@ -816,7 +839,7 @@ const styles = StyleSheet.create({
     borderColor: colors.navy900,
     backgroundColor: colors.surface,
   },
-  // Chat, Settings, Handicaps, Phone numbers: up to four, so two to a row
+  // Settings, Handicaps, Phone numbers (Chat moved to its own card, 0181)
   // (one row of four squeezed "Phone numbers" out of its pill).
   tools: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   tool: {
@@ -911,6 +934,11 @@ const styles = StyleSheet.create({
   settingBody: { flex: 1, gap: 2 },
   settingTitle: { fontFamily: fonts.bodySemi, fontSize: type.body, color: colors.ink900 },
   settingHint: { fontFamily: fonts.body, fontSize: type.small, color: colors.ink500 },
+  gives: { gap: 10, padding: spacing.md, borderRadius: radii.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
+  givesTitle: { fontFamily: fonts.bodyBold, fontSize: 11.5, letterSpacing: 1.2, color: colors.ink500 },
+  givesRow: { flexDirection: "row", gap: 10, alignItems: "flex-start" },
+  givesText: { flex: 1, fontFamily: fonts.body, fontSize: type.small, lineHeight: 20, color: colors.ink900 },
+  givesStrong: { fontFamily: fonts.bodyBold },
   leave: { alignItems: "center", paddingVertical: spacing.md },
   leaveText: { fontFamily: fonts.bodySemi, fontSize: type.body, color: colors.red600 },
 });

@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  asChatAlertLevel,
+  chatAlertWanted,
+  mentionsFirstName,
   buildMessagesCursorFilter,
   nextMessagesCursor,
   otherParticipantId,
@@ -197,5 +200,37 @@ describe("containsSensitiveData", () => {
   it("flags a verification-sounding word near a number", () => {
     expect(containsSensitiveData("my passport number is 123456").blocked).toBe(true);
     expect(containsSensitiveData("here's my sort code 12-34-56").blocked).toBe(true);
+  });
+});
+
+describe("chat alerts (0181)", () => {
+  it("reads an unknown stored level as everything", () => {
+    expect(asChatAlertLevel("key")).toBe("key");
+    expect(asChatAlertLevel(undefined)).toBe("all");
+    expect(asChatAlertLevel("loud")).toBe("all");
+  });
+
+  it("finds an @first name, case-blind, accents and all, but not inside a longer name", () => {
+    expect(mentionsFirstName("@Seán you in?", "Seán")).toBe(true);
+    expect(mentionsFirstName("Are you in @seán", "Seán")).toBe(true);
+    expect(mentionsFirstName("@Seán Murphy bring the balls", "Seán")).toBe(true);
+    expect(mentionsFirstName("@Seánie bring the balls", "Seán")).toBe(false);
+    expect(mentionsFirstName("Seán you in?", "Seán")).toBe(false);
+    expect(mentionsFirstName("email me at sean@x.ie", "x")).toBe(false);
+    expect(mentionsFirstName("@Mary-Kate tee time", "Mary-Kate")).toBe(true);
+    expect(mentionsFirstName("@ anyone", "")).toBe(false);
+    expect(mentionsFirstName("@a.b", "a.b")).toBe(true);
+    expect(mentionsFirstName("@axb", "a.b")).toBe(false);
+  });
+
+  it("everything alerts, muted never, Rounds & @me only for a mention or a reply", () => {
+    const niamh = { id: "n", firstName: "Niamh" };
+    const plain = { body: "Anyone for Saturday?" };
+    expect(chatAlertWanted("all", plain, niamh)).toBe(true);
+    expect(chatAlertWanted("none", { body: "@Niamh you in?" }, niamh)).toBe(false);
+    expect(chatAlertWanted("key", plain, niamh)).toBe(false);
+    expect(chatAlertWanted("key", { body: "@Niamh you in?" }, niamh)).toBe(true);
+    expect(chatAlertWanted("key", { body: "Yes", repliedToId: "n" }, niamh)).toBe(true);
+    expect(chatAlertWanted("key", { body: "Yes", repliedToId: "someone else" }, niamh)).toBe(false);
   });
 });

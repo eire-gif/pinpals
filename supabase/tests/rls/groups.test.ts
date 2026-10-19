@@ -355,13 +355,13 @@ describe("roles, leaving and succession", () => {
 });
 
 describe("the group chat", () => {
-  it("a crew's chat starts at three members and follows the membership", async () => {
+  it("a crew's chat opens with the group and follows the membership (0181)", async () => {
     await withRole("authenticated", owner, async (c) => {
       const g = await createGroup(c, owner, "crew", "Saturday Golf Crew");
-      await addDirect(c, g, friend);
-      const none = await asService(c, () => c.query<{ conversation_id: string | null }>("select conversation_id from public.groups where id = $1", [g]));
-      expect(none.rows[0].conversation_id).toBeNull();
+      const first = await asService(c, () => c.query<{ conversation_id: string | null }>("select conversation_id from public.groups where id = $1", [g]));
+      expect(first.rows[0].conversation_id).not.toBeNull();
 
+      await addDirect(c, g, friend);
       await addDirect(c, g, golfer);
       const chat = (await asService(c, () => c.query<{ conversation_id: string }>("select conversation_id from public.groups where id = $1", [g])))
         .rows[0].conversation_id;

@@ -15,7 +15,7 @@ import type { Href } from "expo-router";
  *
  *  Screens each guide follows:
  *    start    → app/groups/index.tsx, app/groups/mine.tsx, app/groups/new.tsx, app/group/[id]/index.tsx,
- *               app/group/[id]/invite.tsx
+ *               app/group/[id]/invite.tsx, components/group-chat-card.tsx
  *    run      → app/group/[id]/index.tsx, app/group/[id]/settings.tsx,
  *               app/group/[id]/handicaps.tsx, app/group/[id]/contacts.tsx,
  *               app/group/[id]/committee.tsx, app/group/[id]/money.tsx,
@@ -51,7 +51,8 @@ import type { Href } from "expo-router";
  *    holeMap  → app/hole-map.tsx, components/hole-map-page.ts, components/hole-map-extras.tsx,
  *               app/my-bag.tsx, app/course/[id].tsx
  *    messages → app/(tabs)/inbox.tsx, app/new-chat.tsx, app/new-group.tsx,
- *               app/conversation/[id].tsx
+ *               app/conversation/[id].tsx, components/group-chat-bits.tsx,
+ *               app/chat-settings/[id].tsx
  *    connect  → app/members.tsx, app/connections.tsx, app/invite-friends.tsx
  *    mobile   → app/privacy.tsx, app/group/[id]/contacts.tsx
  *    sell     → app/new-listing.tsx, app/listing/[id].tsx, app/mark-sold/[id].tsx,
@@ -291,9 +292,9 @@ export const GUIDES: Guide[] = [
           { style: "primary", label: "Invite", icon: "person-add" },
           { style: "outline", label: "Find PinPals", icon: "search" },
         ],
-        tip: "The group chat starts as soon as three of you are in.",
         as: {
           friends: {
+            tip: "Your group chat opens the moment you start the group. Everyone who joins is in it and sees everything said so far.",
             title: "Bring your friends in",
             body: "Tap Invite and send the link to your fourball's WhatsApp — anyone who taps it joins straight in. Friends already on PinPals can be ticked instead.",
             look: [
@@ -302,6 +303,7 @@ export const GUIDES: Guide[] = [
             ],
           },
           trip: {
+            tip: "The trip chat opens the moment you set up the trip. Everyone who joins is in it and sees everything said so far.",
             title: "Bring everyone going",
             body: "Tap Invite and drop the link in the trip's WhatsApp — everyone who taps it is in. Anyone already on PinPals can be ticked instead.",
             look: [
@@ -471,14 +473,14 @@ export const GUIDES: Guide[] = [
       },
       {
         title: "Find your way around",
-        body: "Open the group from My Groups & Societies. Chat opens the group chat once three of you are in, Events shows what's planned, and Start a round draws you into groups on the day.",
+        body: "Open the group from My Groups & Societies. The group chat is at the top: read the latest, reply right there, or tap it for the full chat. Events shows what's planned, and Start a round draws you into groups on the day.",
         only: ["friends", "trip"],
         look: [
-          { style: "outline", label: "Chat", icon: "chatbubbles-outline" },
+          { style: "field", label: "Message the group…", icon: "chatbubbles-outline" },
           { style: "tile", label: "Events", icon: "calendar-outline" },
           { style: "banner", label: "Start a round", icon: "shuffle", subtitle: "Draw into groups or teams, scored live" },
         ],
-        as: { trip: { body: "Open the trip from My Groups & Societies. Chat opens the trip's chat, Events has the trip with its itinerary — your flights, room and tee times — and Start a round draws everyone on the day." } },
+        as: { trip: { body: "Open the trip from My Groups & Societies. The trip chat is at the top, with the days to go in the green bar. Events has the trip with its itinerary — your flights, room and tee times — and Start a round draws everyone on the day." } },
       },
     ],
   },
@@ -1529,10 +1531,11 @@ export const GUIDES: Guide[] = [
     steps: [
       {
         title: "Open your Inbox",
-        body: "Tap the Inbox tab. Chats and Alerts sit at the top — tap either to see just that.",
+        body: "Tap the Inbox tab. Chats and Alerts sit at the top — tap either to see just that. Under them, Groups shows just your group and trip chats.",
         look: [
           { style: "tile", label: "Chats", icon: "chatbubbles-outline" },
           { style: "tile", label: "Alerts", icon: "notifications-outline" },
+          { style: "outline", label: "Groups" },
         ],
         go: { label: "Inbox", to: "/inbox" },
         tip: "Under 18? Your Inbox shows your alerts only — chats open at 18.",
@@ -1550,6 +1553,26 @@ export const GUIDES: Guide[] = [
           { style: "outline", label: "New group", icon: "people-outline" },
           { style: "primary", label: "Start group" },
         ],
+        tip: "For your regular fourball or a golf trip, start Golf Buddies or Plan a Golf Trip in Groups & Societies instead — the chat comes with it, along with rounds, events and the itinerary.",
+      },
+      {
+        title: "Your group and trip chats",
+        body: "Every Golf Buddies group and golf trip has its own chat, made with the group. Everyone who joins is in it and sees everything said so far. The next round is pinned at the top with I'm in, the group's rounds and events appear in the chat as cards, and + adds a photo — or, for whoever runs events, a new round. Tap the name at the top for the group's page.",
+        look: [
+          { style: "primary", label: "I'm in" },
+          { style: "outline", label: "Add to the chat", icon: "add" },
+        ],
+        go: { label: "My Groups & Societies", to: "/groups/mine" },
+      },
+      {
+        title: "Choose your alerts",
+        body: "In a group chat, tap ••• at the top for Chat settings. Everything alerts you for every message. Rounds & @me only when someone @mentions you (type @ and their first name) or replies to you — new rounds, events and payments still come through. Muted, none at all.",
+        look: [
+          { style: "outline", label: "Everything" },
+          { style: "outline", label: "Rounds & @me" },
+          { style: "outline", label: "Muted" },
+        ],
+        tip: "Trips of eight or more start new golfers on Rounds & @me, so a busy trip chat doesn't buzz all day. Change it any time.",
       },
       {
         title: "React and reply",
@@ -1896,6 +1919,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-19", text: "Group chats: every Golf Buddies group and golf trip has its chat from the moment it's made, and new members see everything said so far. The chat sits at the top of the group's page with a reply box; in Inbox, Groups shows just group chats. In the chat, the next round is pinned with I'm in, the group's events show as cards, + adds a photo or a round, and ••• opens Chat settings (Everything, Rounds & @me, Muted). Invite your golfers, Find your way around and Chat with your PinPals are updated." },
   { on: "2026-10-19", text: "The six tabs (Home, Tee Times, Marketplace, Social, Inbox, Profile) are now under every screen except the marketplace's own. Find PinPals, My connections and the Groups pages show their name in the coloured bar at the top; Find PinPals' QR code is top right." },
   { on: "2026-10-19", text: "Play a round together: in a group of more than 12, Who's playing folds into one card (Tick everyone, Clear, See full list of players with search) so Course, Format and the draw are right below." },
   { on: "2026-10-19", text: "Publish the results: a group's Results page now shows the latest two in full — podium, top three and where you finished — with earlier ones listed below." },

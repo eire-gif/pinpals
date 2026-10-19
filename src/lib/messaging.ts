@@ -144,6 +144,42 @@ export function otherMemberIds(members: MemberState[], userId: string): string[]
   return members.filter((m) => m.member_id !== userId).map((m) => m.member_id);
 }
 
+// ============ Chat alerts (0181) ============
+
+/** How loudly a chat alerts one member: every message, only messages that
+ *  @mention them or reply to them, or never. Stored on
+ *  conversation_members.alerts. */
+export const CHAT_ALERT_LEVELS = ["all", "key", "none"] as const;
+export type ChatAlertLevel = (typeof CHAT_ALERT_LEVELS)[number];
+
+export function asChatAlertLevel(value: unknown): ChatAlertLevel {
+  return CHAT_ALERT_LEVELS.includes(value as ChatAlertLevel) ? (value as ChatAlertLevel) : "all";
+}
+
+/** "@Seán", "@seán", "@Seán Murphy" — the first name after an @, not inside
+ *  a longer word ("@Seánie" is not Seán, and "sean@x.ie" is an email, not a
+ *  mention of X). Accents count as letters. */
+export function mentionsFirstName(body: string, firstName: string | null | undefined): boolean {
+  const name = (firstName ?? "").trim();
+  if (!name || !body.includes("@")) return false;
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(?<![\\p{L}\\p{N}])@${escaped}(?![\\p{L}\\p{N}])`, "iu").test(body);
+}
+
+/** Whether a chat message should push/email this recipient. The in-app
+ *  inbox still updates for everyone either way; this only decides the
+ *  alert. */
+export function chatAlertWanted(
+  level: ChatAlertLevel,
+  message: { body: string; repliedToId?: string | null },
+  recipient: { id: string; firstName?: string | null },
+): boolean {
+  if (level === "all") return true;
+  if (level === "none") return false;
+  if (message.repliedToId && message.repliedToId === recipient.id) return true;
+  return mentionsFirstName(message.body, recipient.firstName);
+}
+
 // ============ Inbox filters: Buying / Selling / Archived ============
 
 export const INBOX_FILTERS = ["all", "buying", "selling", "archived"] as const;
