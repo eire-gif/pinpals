@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Stack, router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
@@ -208,6 +209,11 @@ export default function DrawFromGroup() {
   const [groupId, setGroupId] = useState<number | null>(groupParam ? Number(groupParam) : null);
   const [roster, setRoster] = useState<RosterPlayer[] | null>(null);
   const [ticked, setTicked] = useState<Map<string, string>>(new Map());
+  /** A big group's full list of players, on its own screen (Oct 2026). */
+  const [listOpen, setListOpen] = useState(false);
+  const [listQuery, setListQuery] = useState("");
+  const [listFilter, setListFilter] = useState<"all" | "on" | "off">("all");
+  const insets = useSafeAreaInsets();
   const [guests, setGuests] = useState<Guest[]>([]);
   const [format, setFormat] = useState<Format>("stableford");
   const [perGroup, setPerGroup] = useState<3 | 4>(4);
@@ -410,6 +416,43 @@ export default function DrawFromGroup() {
       return next;
     });
   };
+
+  function tickAll() {
+    if (!roster) return;
+    invalidate();
+    setTicked(new Map(roster.map((p) => [p.id, ticked.get(p.id) ?? (p.index != null ? indexLabel(p.index) : "")])));
+  }
+  function clearAll() {
+    invalidate();
+    setTicked(new Map());
+  }
+  /** One member: tick, name, and their index once ticked. */
+  function personRow(p: RosterPlayer) {
+    const on = ticked.has(p.id);
+    return (
+      <View key={p.id} style={[styles.person, on && styles.personOn]}>
+        <Pressable onPress={() => toggle(p.id, p.index)} style={styles.personMain} accessibilityRole="checkbox" accessibilityState={{ checked: on }} accessibilityLabel={p.name}>
+          <Ionicons name={on ? "checkbox" : "square-outline"} size={24} color={on ? colors.green700 : colors.ink500} />
+          <Avatar url={p.avatarUrl} color={p.avatarColor} name={p.name} size={32} />
+          <Text style={styles.personName} numberOfLines={1}>
+            {p.id === userId ? `${p.name} (you)` : p.name}
+          </Text>
+        </Pressable>
+        {on ? (
+          <TextInput
+            value={ticked.get(p.id) ?? ""}
+            onChangeText={(v) => setTicked((prev) => new Map(prev).set(p.id, v))}
+            placeholder="Index"
+            placeholderTextColor={colors.ink500}
+            keyboardType="numbers-and-punctuation"
+            style={[styles.indexInput, parseIndex(ticked.get(p.id) ?? "") == null && styles.indexMissing]}
+            maxLength={5}
+            accessibilityLabel={`${p.name}'s handicap index`}
+          />
+        ) : null}
+      </View>
+    );
+  }
 
   const makeDraw = () => {
     setPicked(null);
@@ -915,52 +958,32 @@ export default function DrawFromGroup() {
               <ActivityIndicator color={colors.green700} />
             ) : (
               <>
-                <View style={styles.bulk}>
-                  <Pressable
-                    onPress={() => {
-                      invalidate();
-                      setTicked(new Map(roster.map((p) => [p.id, ticked.get(p.id) ?? (p.index != null ? indexLabel(p.index) : "")])));
+                {roster.length > BIG_GROUP ? (
+                  <PlayersSummary
+                    total={roster.length}
+                    ticked={roster.filter((p) => ticked.has(p.id))}
+                    missing={roster.filter((p) => ticked.has(p.id) && parseIndex(ticked.get(p.id) ?? "") == null).length}
+                    onAll={tickAll}
+                    onClear={clearAll}
+                    onOpen={() => {
+                      setListQuery("");
+                      setListFilter("all");
+                      setListOpen(true);
                     }}
-                    accessibilityRole="button"
-                  >
-                    <Text style={styles.link}>Tick everyone</Text>
-                  </Pressable>
-                  <Pressable
-                    onPress={() => {
-                      invalidate();
-                      setTicked(new Map());
-                    }}
-                    accessibilityRole="button"
-                  >
-                    <Text style={styles.link}>Clear</Text>
-                  </Pressable>
-                </View>
-                {roster.map((p) => {
-                  const on = ticked.has(p.id);
-                  return (
-                    <View key={p.id} style={[styles.person, on && styles.personOn]}>
-                      <Pressable onPress={() => toggle(p.id, p.index)} style={styles.personMain} accessibilityRole="checkbox" accessibilityState={{ checked: on }} accessibilityLabel={p.name}>
-                        <Ionicons name={on ? "checkbox" : "square-outline"} size={24} color={on ? colors.green700 : colors.ink500} />
-                        <Avatar url={p.avatarUrl} color={p.avatarColor} name={p.name} size={32} />
-                        <Text style={styles.personName} numberOfLines={1}>
-                          {p.id === userId ? `${p.name} (you)` : p.name}
-                        </Text>
+                  />
+                ) : (
+                  <>
+                    <View style={styles.bulk}>
+                      <Pressable onPress={tickAll} accessibilityRole="button">
+                        <Text style={styles.link}>Tick everyone</Text>
                       </Pressable>
-                      {on ? (
-                        <TextInput
-                          value={ticked.get(p.id) ?? ""}
-                          onChangeText={(v) => setTicked((prev) => new Map(prev).set(p.id, v))}
-                          placeholder="Index"
-                          placeholderTextColor={colors.ink500}
-                          keyboardType="numbers-and-punctuation"
-                          style={[styles.indexInput, parseIndex(ticked.get(p.id) ?? "") == null && styles.indexMissing]}
-                          maxLength={5}
-                          accessibilityLabel={`${p.name}'s handicap index`}
-                        />
-                      ) : null}
+                      <Pressable onPress={clearAll} accessibilityRole="button">
+                        <Text style={styles.link}>Clear</Text>
+                      </Pressable>
                     </View>
-                  );
-                })}
+                    {roster.map(personRow)}
+                  </>
+                )}
                 {guests.map((g) => (
                   <View key={g.key} style={[styles.person, styles.personOn]}>
                     <Pressable
@@ -1009,6 +1032,72 @@ export default function DrawFromGroup() {
               </>
             )}
           </Section>
+        ) : null}
+
+        {roster && listOpen ? (
+          <Modal visible animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setListOpen(false)}>
+            <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.cream50 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+              <View style={[styles.listHead, { paddingTop: Platform.OS === "android" ? insets.top + spacing.sm : spacing.md }]}>
+                <View style={{ width: 60 }} />
+                <Text style={styles.listTitle}>Who&apos;s playing</Text>
+                <Pressable onPress={() => setListOpen(false)} hitSlop={10} style={{ width: 60, alignItems: "flex-end" }} accessibilityRole="button">
+                  <Text style={styles.link}>Done</Text>
+                </Pressable>
+              </View>
+              <View style={styles.listTools}>
+                <View style={styles.searchBox}>
+                  <Ionicons name="search" size={18} color={colors.ink500} />
+                  <TextInput
+                    value={listQuery}
+                    onChangeText={setListQuery}
+                    placeholder={`Search ${roster.length} members`}
+                    placeholderTextColor={colors.ink500}
+                    style={styles.searchInput}
+                    autoCorrect={false}
+                    clearButtonMode="while-editing"
+                    accessibilityLabel="Search members"
+                  />
+                </View>
+                <View style={styles.filterRow}>
+                  {(
+                    [
+                      ["all", `All ${roster.length}`],
+                      ["on", `Ticked ${roster.filter((p) => ticked.has(p.id)).length}`],
+                      ["off", `Not ticked ${roster.filter((p) => !ticked.has(p.id)).length}`],
+                    ] as const
+                  ).map(([k, label]) => (
+                    <Pressable key={k} onPress={() => setListFilter(k)} style={[styles.filterPill, listFilter === k && styles.filterPillOn]} accessibilityRole="tab" accessibilityState={{ selected: listFilter === k }}>
+                      <Text style={[styles.filterText, listFilter === k && styles.filterTextOn]}>{label}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+                <View style={styles.bulk}>
+                  <Pressable onPress={tickAll} accessibilityRole="button">
+                    <Text style={styles.link}>Tick everyone</Text>
+                  </Pressable>
+                  <Pressable onPress={clearAll} accessibilityRole="button">
+                    <Text style={[styles.link, { color: colors.ink500 }]}>Clear</Text>
+                  </Pressable>
+                </View>
+              </View>
+              <FlatList
+                data={listRows(roster, listQuery, listFilter, ticked)}
+                keyExtractor={(r) => (r.kind === "letter" ? `L${r.letter}` : r.p.id)}
+                renderItem={({ item }) =>
+                  item.kind === "letter" ? <Text style={styles.letter}>{item.letter}</Text> : <View style={{ marginBottom: 6 }}>{personRow(item.p)}</View>
+                }
+                contentContainerStyle={{ paddingHorizontal: spacing.md, paddingBottom: spacing.xl }}
+                keyboardShouldPersistTaps="handled"
+                initialNumToRender={20}
+                ListEmptyComponent={<Text style={styles.listEmpty}>{listQuery ? `No one called "${listQuery}"` : "No one here"}</Text>}
+              />
+              <View style={[styles.listFoot, { paddingBottom: Math.max(insets.bottom, spacing.md) }]}>
+                <Pressable onPress={() => setListOpen(false)} style={styles.listDone} accessibilityRole="button">
+                  <Text style={styles.listDoneText}>{`Done · ${roster.filter((p) => ticked.has(p.id)).length + guests.length} playing`}</Text>
+                </Pressable>
+              </View>
+            </KeyboardAvoidingView>
+          </Modal>
         ) : null}
 
         <CourseSection setup={course} />
@@ -1384,6 +1473,69 @@ export default function DrawFromGroup() {
 
 const KIND_WORD: Record<string, string> = { society: "Society", crew: "Golf Buddies", trip: "Golf trip", club: "Club" };
 /** "Society · you run it" — under each group on Select your group. */
+/** More members than this and the list folds into a summary card, with the
+ *  full list on its own screen (Oct 2026) — so Course, Format and the draw
+ *  aren't 130 rows down. A fourball or a small crew keeps the list inline. */
+const BIG_GROUP = 12;
+
+type ListRow = { kind: "letter"; letter: string } | { kind: "person"; p: RosterPlayer };
+
+/** The full list: searched, filtered, A–Z with a letter over each run. */
+function listRows(roster: RosterPlayer[], query: string, filter: "all" | "on" | "off", ticked: Map<string, string>): ListRow[] {
+  const q = query.trim().toLowerCase();
+  const people = roster
+    .filter((p) => (filter === "on" ? ticked.has(p.id) : filter === "off" ? !ticked.has(p.id) : true))
+    .filter((p) => !q || p.name.toLowerCase().includes(q))
+    .sort((a, b) => a.name.localeCompare(b.name, "en-IE"));
+  const out: ListRow[] = [];
+  let last = "";
+  for (const p of people) {
+    const l = (p.name.normalize("NFD").replace(/[\u0300-\u036f]/g, "")[0] ?? "#").toUpperCase();
+    if (!q && l !== last) out.push({ kind: "letter", letter: l });
+    last = l;
+    out.push({ kind: "person", p });
+  }
+  return out;
+}
+
+/** A big group's players, folded: how many, a few faces, the bulk buttons. */
+function PlayersSummary({ total, ticked, missing, onAll, onClear, onOpen }: { total: number; ticked: RosterPlayer[]; missing: number; onAll: () => void; onClear: () => void; onOpen: () => void }) {
+  const faces = ticked.slice(0, 4);
+  return (
+    <View style={styles.sumCard}>
+      <View style={{ flexDirection: "row", alignItems: "baseline", gap: 8 }}>
+        <Text style={styles.sumCount}>{ticked.length}</Text>
+        <Text style={styles.sumOf}>{`of ${total} members ticked`}</Text>
+      </View>
+      {faces.length > 0 ? (
+        <View style={{ flexDirection: "row", alignItems: "center" }}>
+          {faces.map((p, i) => (
+            <View key={p.id} style={[styles.sumFace, i > 0 && { marginLeft: -8 }]}>
+              <Avatar url={p.avatarUrl} color={p.avatarColor} name={p.name} size={28} />
+            </View>
+          ))}
+          {ticked.length > faces.length ? <Text style={styles.sumMore}>{`+${ticked.length - faces.length} more`}</Text> : null}
+        </View>
+      ) : null}
+      {missing > 0 ? (
+        <Text style={styles.sumMissing}>{`${missing} ${missing === 1 ? "handicap index is" : "handicap indexes are"} missing — type ${missing === 1 ? "it" : "them"} in the full list`}</Text>
+      ) : null}
+      <View style={{ flexDirection: "row", gap: spacing.sm }}>
+        <Pressable onPress={onAll} style={[styles.sumBtn, styles.sumBtnOn]} accessibilityRole="button">
+          <Text style={[styles.sumBtnText, { color: colors.cream50 }]}>Tick everyone</Text>
+        </Pressable>
+        <Pressable onPress={onClear} style={styles.sumBtn} accessibilityRole="button">
+          <Text style={styles.sumBtnText}>Clear</Text>
+        </Pressable>
+      </View>
+      <Pressable onPress={onOpen} style={styles.sumOpen} accessibilityRole="button" accessibilityLabel={`See the full list of ${total} members`}>
+        <Text style={styles.link}>See full list of players</Text>
+        <Ionicons name="chevron-forward" size={18} color={colors.green700} />
+      </Pressable>
+    </View>
+  );
+}
+
 function pickMeta(kind: string, role: GroupRole): string {
   const k = KIND_WORD[kind] ?? "Group";
   return role === "owner" ? `${k} · you run it` : role === "admin" ? `${k} · you're an officer` : `${k} · member`;
@@ -1413,6 +1565,31 @@ const styles = StyleSheet.create({
   groupChipText: { fontFamily: fonts.bodySemi, fontSize: type.body, color: colors.ink900, flexShrink: 1 },
   groupChipTextOn: { fontFamily: fonts.bodyBold, color: colors.green800 },
   bulk: { flexDirection: "row", justifyContent: "space-between" },
+  sumCard: { gap: spacing.sm, padding: spacing.md, borderRadius: radii.lg, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
+  sumCount: { fontFamily: fonts.display, fontSize: 34, lineHeight: 38, color: colors.navy900 },
+  sumOf: { fontFamily: fonts.body, fontSize: type.small, color: colors.ink500 },
+  sumFace: { borderRadius: 16, borderWidth: 2, borderColor: colors.surface },
+  sumMore: { marginLeft: spacing.sm, fontFamily: fonts.body, fontSize: 13, color: colors.ink500 },
+  sumMissing: { fontFamily: fonts.bodySemi, fontSize: 13, color: colors.red600 },
+  sumBtn: { paddingHorizontal: 14, height: 36, borderRadius: radii.pill, justifyContent: "center", borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
+  sumBtnOn: { backgroundColor: colors.navy900, borderColor: colors.navy900 },
+  sumBtnText: { fontFamily: fonts.bodySemi, fontSize: type.small, color: colors.ink900 },
+  sumOpen: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: 44, marginTop: 2, borderTopWidth: 1, borderTopColor: colors.line, paddingTop: spacing.xs },
+  listHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: spacing.md, paddingBottom: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.line },
+  listTitle: { fontFamily: fonts.bodyBold, fontSize: type.body + 1, color: colors.ink900 },
+  listTools: { padding: spacing.md, gap: spacing.sm },
+  searchBox: { flexDirection: "row", alignItems: "center", gap: spacing.sm, minHeight: 44, paddingHorizontal: spacing.sm + 2, borderRadius: radii.md, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
+  searchInput: { flex: 1, fontFamily: fonts.body, fontSize: type.body, color: colors.ink900, paddingVertical: 8 },
+  filterRow: { flexDirection: "row", gap: 6, flexWrap: "wrap" },
+  filterPill: { paddingHorizontal: 12, height: 32, borderRadius: radii.pill, justifyContent: "center", borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
+  filterPillOn: { backgroundColor: colors.navy900, borderColor: colors.navy900 },
+  filterText: { fontFamily: fonts.bodySemi, fontSize: 13, color: colors.ink900 },
+  filterTextOn: { color: colors.cream50 },
+  letter: { fontFamily: fonts.bodyBold, fontSize: 11, letterSpacing: 1.2, color: colors.ink500, marginTop: spacing.sm, marginBottom: 4 },
+  listEmpty: { fontFamily: fonts.body, fontSize: type.body, color: colors.ink500, textAlign: "center", marginTop: spacing.lg },
+  listFoot: { paddingHorizontal: spacing.md, paddingTop: spacing.sm, borderTopWidth: 1, borderTopColor: colors.line, backgroundColor: colors.cream50 },
+  listDone: { height: 50, borderRadius: radii.pill, alignItems: "center", justifyContent: "center", backgroundColor: colors.green700 },
+  listDoneText: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.cream50 },
   link: { fontFamily: fonts.bodyBold, fontSize: type.small, color: colors.green700 },
   person: { flexDirection: "row", alignItems: "center", gap: spacing.sm, minHeight: 52, paddingHorizontal: spacing.sm, borderRadius: radii.md, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
   personOn: { borderColor: colors.green600 },

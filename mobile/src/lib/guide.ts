@@ -699,9 +699,10 @@ export const GUIDES: Guide[] = [
       },
       {
         title: "Tick who's playing",
-        body: "Tick each player, or Tick everyone. Check every handicap index — a society handicap is used where the captain or secretary set one. Tap Add a guest for anyone not on PinPals — guests can go on published tee times too.",
+        body: "Tick each player, or Tick everyone. In a big group the list folds into one card — tap See full list of players to search, see who's not ticked, and fix any missing index; Done brings you back. Check every handicap index — a society handicap is used where the captain or secretary set one. Tap Add a guest for anyone not on PinPals — guests can go on published tee times too.",
         look: [
           { style: "link", label: "Tick everyone" },
+          { style: "link", label: "See full list of players" },
           { style: "link", label: "Add a guest" },
           { style: "field", label: "Index", icon: "speedometer-outline" },
         ],
@@ -1895,6 +1896,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-19", text: "Play a round together: in a group of more than 12, Who's playing folds into one card (Tick everyone, Clear, See full list of players with search) so Course, Format and the draw are right below." },
   { on: "2026-10-19", text: "Publish the results: a group's Results page now shows the latest two in full — podium, top three and where you finished — with earlier ones listed below." },
   { on: "2026-10-19", text: "Get a place on an event: in Events, Past now opens each played day straight on its full results (Event details is still there). A played day's page leads with See the results." },
   { on: "2026-10-19", text: "Groups & Societies in Live scoring opens Select your group: big cards, one per group — tap yours. The page each big Home button opens now wears its colour: green for Groups & Societies, claret for Find PinPals, bronze for Marketplace. Play a round together is updated." },
