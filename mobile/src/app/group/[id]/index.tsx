@@ -768,8 +768,8 @@ function CommitteeTool({ icon, label, onPress }: { icon: keyof typeof Ionicons.g
   return (
     <View style={styles.committeeTool}>
       <Pressable style={({ pressed }) => [styles.committeeIcon, pressed && styles.committeePressed]} onPress={onPress} accessibilityRole="button" accessibilityLabel={label}>
-        <Ionicons name={icon} size={28} color={colors.cream50} />
-        <Text style={styles.committeeLabel} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.85}>
+        <Ionicons name={icon} size={28} color={colors.gold400} />
+        <Text style={styles.committeeLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
           {label}
         </Text>
       </Pressable>
@@ -793,17 +793,18 @@ const styles = StyleSheet.create({
   noticeTitle: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.ink900 },
   noticeBody: { fontFamily: fonts.body, fontSize: type.small, color: colors.ink500 },
   committee: { gap: spacing.md, padding: spacing.md, borderRadius: radii.lg, backgroundColor: colors.navy900 },
-  committeeKicker: { fontFamily: fonts.bodyBold, fontSize: 11.5, letterSpacing: 1.2, color: colors.gold400 },
-  committeeHint: { fontFamily: fonts.body, fontSize: 12, color: colors.cream100 },
+  committeeKicker: { fontFamily: fonts.bodyBold, fontSize: 14, letterSpacing: 1.2, color: colors.gold400 },
+  committeeHint: { fontFamily: fonts.body, fontSize: 15, color: colors.cream100 },
   // Four equal columns; a short last row is centred, so it always reads even.
-  // Four equal square tiles a row; a short last row is centred, so it always reads even.
-  committeeGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "center", marginHorizontal: -4 },
-  committeeTool: { width: "25%", padding: 4 },
-  committeeIcon: { aspectRatio: 1, minHeight: 84, borderRadius: 16, alignItems: "center", justifyContent: "center", gap: 6, paddingHorizontal: 4, backgroundColor: colors.navy800 },
+  // Two equal columns of wide tiles, big type for reading outdoors; a lone
+  // last tile is centred so the panel always reads even.
+  committeeGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "center", marginHorizontal: -5 },
+  committeeTool: { width: "50%", padding: 5 },
+  committeeIcon: { alignItems: "center", justifyContent: "center", gap: 6, minHeight: 88, paddingHorizontal: 8, paddingVertical: 10, borderRadius: 16, backgroundColor: colors.navy800 },
   committeePressed: { opacity: 0.75 },
-  committeeLabel: { fontFamily: fonts.bodySemi, fontSize: 13, lineHeight: 16, color: colors.cream50, textAlign: "center" },
-  deskButton: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, minHeight: 56, borderRadius: radii.pill, borderWidth: 1 },
-  deskText: { fontFamily: fonts.bodyBold, fontSize: 17, color: colors.cream50 },
+  committeeLabel: { alignSelf: "stretch", fontFamily: fonts.bodyBold, fontSize: 18, color: colors.cream50, textAlign: "center" },
+  deskButton: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, minHeight: 60, borderRadius: radii.pill, borderWidth: 1 },
+  deskText: { fontFamily: fonts.bodyBold, fontSize: 19, color: colors.cream50 },
   deskOutline: { borderColor: colors.cream100, backgroundColor: "transparent" },
   fill: { flex: 1, backgroundColor: colors.cream50 },
   spinner: { marginTop: spacing.xl },
