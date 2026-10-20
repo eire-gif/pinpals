@@ -3,7 +3,7 @@ import { router } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { isOn } from "@/lib/features";
-import { colors, spacing } from "@/lib/theme";
+import { colors, fonts, spacing } from "@/lib/theme";
 
 /**
  * Home's way into live scoring, just below "How was golf today?".
@@ -68,6 +68,7 @@ export function RaisedCard({
   kicker,
   wrapTitle = false,
   badge,
+  action,
 }: {
   title: string;
   subtitle: string;
@@ -89,6 +90,11 @@ export function RaisedCard({
   wrapTitle?: boolean;
   /** A small red count over the top-right corner ("2 new"). */
   badge?: string;
+  /**
+   * A gold pill in place of the chevron ("+ Create") — Oct 2026, the
+   * Groups & Societies start buttons, so it's plain they make something new.
+   */
+  action?: string;
 }) {
   const t = TONES[tone];
   return (
@@ -145,9 +151,16 @@ export function RaisedCard({
               </Text>
             </View>
 
-            <View style={[styles.chevron, { backgroundColor: t.chevron }]}>
-              <Ionicons name="chevron-forward" size={20} color={colors.gold400} />
-            </View>
+            {action ? (
+              <View style={styles.action}>
+                <Ionicons name="add" size={16} color={colors.ink900} />
+                <Text style={styles.actionText}>{action}</Text>
+              </View>
+            ) : (
+              <View style={[styles.chevron, { backgroundColor: t.chevron }]}>
+                <Ionicons name="chevron-forward" size={20} color={colors.gold400} />
+              </View>
+            )}
           </View>
           {badge ? (
             <View style={styles.badge} pointerEvents="none">
@@ -265,6 +278,20 @@ const styles = StyleSheet.create({
   barSide: { position: "absolute", right: 0, top: 0, bottom: 0, width: "40%", backgroundColor: GOLD_SHADE },
   barTop: { position: "absolute", left: 0, right: 0, top: 0, height: 3, backgroundColor: GOLD_LIGHT },
 
+  action: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+    paddingLeft: 10,
+    paddingRight: 13,
+    paddingVertical: 9,
+    borderRadius: 16,
+    backgroundColor: colors.gold400,
+    borderBottomWidth: 2,
+    borderBottomColor: "#b8913c",
+  },
+  // ink900 on gold400 — dark text on the gold, never white.
+  actionText: { fontFamily: fonts.bodyBold, fontSize: 14, color: colors.ink900 },
   badge: {
     position: "absolute",
     top: -9,
