@@ -82,6 +82,8 @@ const FULL_SCREEN = [
   "reactions",
   "share-to-feed",
   "course/review",
+  // Hole maps: the satellite view runs edge to edge, yardage panel at the foot
+  "hole-map",
   // Writing
   "conversation",
   "new-chat",
