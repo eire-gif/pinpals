@@ -1111,7 +1111,7 @@ export const GUIDES: Guide[] = [
       },
       {
         title: "Score each hole",
-        body: "Each player's score starts at par plus their shots. Use − and + to set it, tap the number to confirm, and tap Next hole. Picked up? Tap “NR · picked up” under the score — the card shows “Picked up · No return”, scored as no return (0 points in Stableford). Hold a number to clear it.",
+        body: "Each player's score starts at par plus their shots. Use − and + to set it, tap the number to confirm, and tap Next hole. Picked up? Tap NR beside the player's name — the card shows “Picked up · No return”, scored as no return (0 points in Stableford). Hold a number to clear it.",
         look: [
           { style: "outline", label: "−" },
           { style: "primary", label: "5" },
@@ -1921,6 +1921,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-20", text: "Score a game live: bigger names, − and + buttons and scores, easier to read on the course; NR is now beside each player's name." },
   { on: "2026-10-20", text: "Big society days: a match day now takes up to 60 matches (was 12), and a scramble or foursomes day up to 100 teams — enough for 130+ players in Blues v Golds." },
   { on: "2026-10-20", text: "Groups & Societies: Start a new group is now a white panel with a big gold + — Golf Buddies, Plan a Golf Trip and Run a Society sit inside it, each with a gold + Create button. Start a group is updated." },
   { on: "2026-10-20", text: "Run your society: Invite, Find PinPals, Phone numbers, Handicaps and Settings are now in the Run the society panel with the other committee tools, on an even grid." },
