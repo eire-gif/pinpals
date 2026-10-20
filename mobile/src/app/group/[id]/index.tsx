@@ -468,12 +468,12 @@ export default function GroupScreen() {
                 {can("invite") ? (
                   <View style={styles.row}>
                     <Pressable style={[styles.deskButton, styles.buttonMain]} onPress={() => go("/group/[id]/invite")} accessibilityRole="button">
-                      <Ionicons name="person-add-outline" size={18} color={colors.cream50} />
-                      <Text style={styles.buttonMainText}>Invite</Text>
+                      <Ionicons name="person-add-outline" size={22} color={colors.cream50} />
+                      <Text style={styles.deskText}>Invite</Text>
                     </Pressable>
                     <Pressable style={[styles.deskButton, styles.deskOutline]} onPress={() => go("/group/[id]/invite", { find: "1" })} accessibilityRole="button" accessibilityLabel="Find PinPals to add to the society">
-                      <Ionicons name="search" size={18} color={colors.cream50} />
-                      <Text style={styles.buttonMainText}>Find PinPals</Text>
+                      <Ionicons name="search" size={22} color={colors.cream50} />
+                      <Text style={styles.deskText}>Find PinPals</Text>
                     </Pressable>
                   </View>
                 ) : null}
@@ -766,14 +766,14 @@ export default function GroupScreen() {
 
 function CommitteeTool({ icon, label, onPress }: { icon: keyof typeof Ionicons.glyphMap; label: string; onPress: () => void }) {
   return (
-    <Pressable style={styles.committeeTool} onPress={onPress} accessibilityRole="button" accessibilityLabel={label}>
-      <View style={styles.committeeIcon}>
-        <Ionicons name={icon} size={20} color={colors.cream50} />
-      </View>
-      <Text style={styles.committeeLabel} numberOfLines={2}>
-        {label}
-      </Text>
-    </Pressable>
+    <View style={styles.committeeTool}>
+      <Pressable style={({ pressed }) => [styles.committeeIcon, pressed && styles.committeePressed]} onPress={onPress} accessibilityRole="button" accessibilityLabel={label}>
+        <Ionicons name={icon} size={28} color={colors.cream50} />
+        <Text style={styles.committeeLabel} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.85}>
+          {label}
+        </Text>
+      </Pressable>
+    </View>
   );
 }
 
@@ -796,11 +796,14 @@ const styles = StyleSheet.create({
   committeeKicker: { fontFamily: fonts.bodyBold, fontSize: 11.5, letterSpacing: 1.2, color: colors.gold400 },
   committeeHint: { fontFamily: fonts.body, fontSize: 12, color: colors.cream100 },
   // Four equal columns; a short last row is centred, so it always reads even.
-  committeeGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "center", rowGap: spacing.md, paddingTop: spacing.xs },
-  committeeTool: { alignItems: "center", gap: 6, width: "25%", paddingHorizontal: 2 },
-  committeeIcon: { width: 52, height: 52, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: colors.navy800 },
-  committeeLabel: { fontFamily: fonts.bodySemi, fontSize: 12, lineHeight: 15, color: colors.cream50, textAlign: "center", minHeight: 30 },
-  deskButton: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, minHeight: 48, borderRadius: radii.pill, borderWidth: 1 },
+  // Four equal square tiles a row; a short last row is centred, so it always reads even.
+  committeeGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "center", marginHorizontal: -4 },
+  committeeTool: { width: "25%", padding: 4 },
+  committeeIcon: { aspectRatio: 1, minHeight: 84, borderRadius: 16, alignItems: "center", justifyContent: "center", gap: 6, paddingHorizontal: 4, backgroundColor: colors.navy800 },
+  committeePressed: { opacity: 0.75 },
+  committeeLabel: { fontFamily: fonts.bodySemi, fontSize: 13, lineHeight: 16, color: colors.cream50, textAlign: "center" },
+  deskButton: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, minHeight: 56, borderRadius: radii.pill, borderWidth: 1 },
+  deskText: { fontFamily: fonts.bodyBold, fontSize: 17, color: colors.cream50 },
   deskOutline: { borderColor: colors.cream100, backgroundColor: "transparent" },
   fill: { flex: 1, backgroundColor: colors.cream50 },
   spinner: { marginTop: spacing.xl },
