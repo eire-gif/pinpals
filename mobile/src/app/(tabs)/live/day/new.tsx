@@ -459,7 +459,7 @@ export default function NewMatchDay() {
             </View>
           ))}
 
-          {matches.length < 12 ? (
+          {matches.length < 60 ? (
             <Pressable onPress={addMatch} style={styles.addMatch} accessibilityRole="button">
               <Ionicons name="add" size={20} color={colors.green700} />
               <Text style={styles.link}>Add a match</Text>

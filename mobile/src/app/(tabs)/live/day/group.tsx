@@ -556,7 +556,7 @@ export default function DrawFromGroup() {
   }
   if (scramble && sizing.leftOver > 0) problems.push(`${sizing.leftOver} left over for teams of ${teamSize} — add ${teamSize - sizing.leftOver === 1 ? "a guest" : "guests"} or untick someone`);
   if (matchFormat && sizing.leftOver > 0) problems.push(`${sizing.leftOver} left over — ${matchFormat === "matchplay" ? "singles need an even number" : "pairs matches need groups of four"}: add ${teamSize - sizing.leftOver === 1 ? "a guest" : "guests"} or untick someone`);
-  if (matchFormat && sizing.sizes.length > 40) problems.push("40 matches at most");
+  if (matchFormat && sizing.sizes.length > 60) problems.push("60 matches at most");
   if (matchFormat && teamsOn && (teamNames[0].trim() === "" || teamNames[1].trim() === "")) problems.push("Name both teams");
   if (foursomesComp && sizing.leftOver > 0) problems.push(`${greensomes ? "Greensomes" : "Foursomes"} is played in pairs — one left over: add a guest or untick someone`);
   if (foursomesComp && sizing.sizes.length > 50) problems.push("100 pairs at most");

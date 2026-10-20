@@ -325,7 +325,7 @@ export default function NewScrambleDay() {
             );
           })}
 
-          {teams.length < 60 ? (
+          {teams.length < 100 ? (
             <Pressable onPress={addTeam} style={styles.addTeam} accessibilityRole="button">
               <Ionicons name="add" size={20} color={colors.green700} />
               <Text style={styles.link}>Add a team</Text>

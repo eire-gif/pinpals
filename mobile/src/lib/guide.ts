@@ -1921,6 +1921,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-20", text: "Big society days: a match day now takes up to 60 matches (was 12), and a scramble or foursomes day up to 100 teams — enough for 130+ players in Blues v Golds." },
   { on: "2026-10-20", text: "Groups & Societies: Start a new group is now a white panel with a big gold + — Golf Buddies, Plan a Golf Trip and Run a Society sit inside it, each with a gold + Create button. Start a group is updated." },
   { on: "2026-10-20", text: "Add members on a group's page: under Members, open Add members, tick your PinPals and tap Send — each gets an alert to join, and anyone already invited shows Invited. Invite your golfers is updated." },
   { on: "2026-10-19", text: "Group chats: every Golf Buddies group and golf trip has its chat from the moment it's made, and new members see everything said so far. The chat sits at the top of the group's page with a reply box; in Inbox, Groups shows just group chats. In the chat, the next round is pinned with I'm in, the group's events show as cards, + adds a photo or a round, and ••• opens Chat settings (Everything, Rounds & @me, Muted). Invite your golfers, Find your way around and Chat with your PinPals are updated." },
