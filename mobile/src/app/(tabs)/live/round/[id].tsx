@@ -47,6 +47,7 @@ import {
   type MatchFormat,
   type ScoreSheet,
 } from "@/lib/live-scoring";
+import { LiveWeatherRow } from "@/components/weather-bits";
 import { colors, creamAlpha, fonts, radii, spacing, type } from "@/lib/theme";
 import { createScorecardShareLink, loadScorecard, scorecardFromLiveRound } from "@/lib/scorecards";
 import { shareText } from "@/lib/scorecard-math";
@@ -860,6 +861,8 @@ export default function LiveRoundScreen() {
               </Text>
             </View>
           ) : null}
+          {/* The weather at the course (Oct 2026): one slim row, only while the round is live. */}
+          {live && round.clubId != null ? <LiveWeatherRow clubId={round.clubId} /> : null}
           <View style={styles.holeCard}>
             <View style={styles.holeTop}>
               <Text style={styles.holeMeta}>

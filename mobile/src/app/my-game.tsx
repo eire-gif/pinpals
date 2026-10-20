@@ -25,6 +25,7 @@ import {
   type ScoringPatterns,
 } from "@/lib/scoring-patterns";
 import { colors, creamAlpha, fonts, radii, spacing, type } from "@/lib/theme";
+import { weatherBands, type WeatherBands } from "@/lib/weather-rules";
 
 /**
  * My Game, stage 1 (claude/my-game-stats.md, Oct 2026): what a member's own
@@ -51,6 +52,7 @@ export default function MyGameScreen() {
   const me = session?.user?.id ?? null;
   const { gate } = useMembership();
   const [patterns, setPatterns] = useState<ScoringPatterns | null>(null);
+  const [weather, setWeather] = useState<WeatherBands | null>(null);
   const [stats, setStats] = useState<StatsSummary | null>(null);
   const [lastCard, setLastCard] = useState<number | null>(null);
   const [statsCards, setStatsCards] = useState<StatsCard[]>([]);
@@ -70,6 +72,8 @@ export default function MyGameScreen() {
         supabase.from("member_private").select("handicap").eq("member_id", me).maybeSingle<{ handicap: number | string | null }>(),
       ]);
       setPatterns(scoringPatterns(cards));
+      // How you score in the weather saved on your cards (0182).
+      setWeather(weatherBands(cards));
       const withStats: StatsCard[] = mine ? cards.map((c) => ({ ...c, stats: statsForCard(c, mine) })) : [];
       setStatsCards(withStats);
       setStats(mine ? statsSummary(withStats) : null);
@@ -228,6 +232,19 @@ export default function MyGameScreen() {
           <Row label="Doubles or worse" figure={p.doublesPerRound} show={(v) => `${v} a round`} unit="holes" />
           <Row label="Par or better after a double" figure={p.bounceBack} show={(v) => `${v}%`} unit="doubles" />
         </Section>
+
+        {weather && weather.rounds > 0 ? (
+          <Section title="In the weather">
+            <Row label="Calm · under 10 mph" figure={weather.calm} show={(v) => `${fmtOver(v)} a hole`} unit="holes" />
+            <Row label="Breezy · 10–20 mph" figure={weather.breezy} show={(v) => `${fmtOver(v)} a hole`} unit="holes" />
+            <Row label="Windy · over 20 mph" figure={weather.windy} show={(v) => `${fmtOver(v)} a hole`} unit="holes" />
+            <Row label="Dry" figure={weather.dry} show={(v) => `${fmtOver(v)} a hole`} unit="holes" />
+            <Row label="Rain" figure={weather.wet} show={(v) => `${fmtOver(v)} a hole`} unit="holes" />
+            <Text style={styles.note}>
+              From the weather saved on {weather.rounds} of your cards. Average strokes over par on each hole; wind is the average over the round.
+            </Text>
+          </Section>
+        ) : null}
 
         {p.course ? (
           <Section title={"holes" in p.course ? `${p.course.courseName}, hole by hole` : "Your course, hole by hole"}>

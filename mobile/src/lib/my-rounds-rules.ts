@@ -129,6 +129,8 @@ export type MyRound = {
   leaveLabel: string | null;
   /** Cancelled card's red line: "Cancelled by Mark · Wed 21 Oct, 9:30am". */
   cancelNote: string | null;
+  /** The tee time, or the start of the window ("08:40:00"); null when there's none. For the forecast. */
+  teeTime: string | null;
 };
 
 export type Need =
@@ -328,6 +330,7 @@ export function buildMyRounds(input: MyRoundsInput): MyRoundsView {
       pendingCount: pending.length,
       leaveLabel: null,
       sortTime: sortTimeOf(round),
+      teeTime: round.exactTeeTime ?? round.timeFrom ?? null,
     };
 
     if (round.status === "cancelled") {
@@ -463,6 +466,7 @@ export function buildMyRounds(input: MyRoundsInput): MyRoundsView {
       canDelete: false,
       canCancel: false,
       sortTime: sortTimeOf(round),
+      teeTime: round.exactTeeTime ?? round.timeFrom ?? null,
     };
     const hostSlot: Slot = { key: "host", state: "in", initials: initialsOf(round.host.name), name: round.host.name };
     const playerSlots: Slot[] = rows.map((r) => ({ key: `i${r.id}`, state: "in", initials: initialsOf(nameOf(r)), name: nameOf(r) }));

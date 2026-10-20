@@ -28,6 +28,7 @@ import {
   type Scorecard,
   type Visibility,
 } from "@/lib/scorecards";
+import { ConditionsRow } from "@/components/weather-bits";
 import { colors, creamAlpha, fonts, radii, spacing, type } from "@/lib/theme";
 
 /**
@@ -231,6 +232,9 @@ export default function ScorecardScreen() {
             {t.total.putts != null ? <Tile label="Putts" value={String(t.total.putts)} /> : null}
           </View>
         </View>
+
+        {/* What the round was played in (0182), once it's been looked up. */}
+        <ConditionsRow weather={card.weather} />
 
         {isOn("scorecardCertification") ? (
           <CertifyPanel scorecardId={card.id} mine={mine} autoAsk={autoAsk} onAutoAsked={autoAsked} version={version} onQueryHole={setQueried} />
