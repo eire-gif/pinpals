@@ -318,6 +318,23 @@ export async function inviteToGroup(groupId: number, memberIds: string[]): Promi
   return sent;
 }
 
+/**
+ * Who has an invitation to this group waiting (not yet answered) — the ones
+ * you sent, or all of them if you run the group (0120's policy). For the
+ * "Invited" mark in Add members on the group page.
+ */
+export async function listPendingInvites(groupId: number): Promise<Set<string>> {
+  const { data, error } = await supabase
+    .from("group_invitations")
+    .select("member_id")
+    .eq("group_id", groupId)
+    .eq("direction", "invite")
+    .eq("status", "pending")
+    .overrideTypes<{ member_id: string }[]>();
+  if (error) return new Set();
+  return new Set((data ?? []).map((r) => r.member_id));
+}
+
 export async function respondToInvitation(groupId: number, accept: boolean): Promise<void> {
   const { error } = await supabase.rpc("respond_group_invitation", { p_group_id: groupId, p_accept: accept });
   if (error) fail(error, "Couldn't answer the invitation.");

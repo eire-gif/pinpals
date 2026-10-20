@@ -287,7 +287,7 @@ export const GUIDES: Guide[] = [
       },
       {
         title: "Invite your golfers",
-        body: "Tap Invite. Share the link on WhatsApp or by text — anyone who taps it joins. Or tick people you're connected with, or search every member under Find PinPals, then send the invitations. Have the society's member list in a spreadsheet? Upload it on the website — pinpals.ie/society, Members, Import from spreadsheet — and everyone is emailed, joining as soon as they sign in to PinPals.",
+        body: "Tap Invite. Share the link on WhatsApp or by text — anyone who taps it joins. Or open Add members under Members on the group's page, tick people you're connected with and send — they each get an alert to join. To search every member, use Find PinPals. Have the society's member list in a spreadsheet? Upload it on the website — pinpals.ie/society, Members, Import from spreadsheet — and everyone is emailed, joining as soon as they sign in to PinPals.",
         look: [
           { style: "primary", label: "Invite", icon: "person-add" },
           { style: "outline", label: "Find PinPals", icon: "search" },
@@ -296,7 +296,7 @@ export const GUIDES: Guide[] = [
           friends: {
             tip: "Your group chat opens the moment you start the group. Everyone who joins is in it and sees everything said so far.",
             title: "Bring your friends in",
-            body: "Tap Invite and send the link to your fourball's WhatsApp — anyone who taps it joins straight in. Friends already on PinPals can be ticked instead.",
+            body: "Tap Invite and send the link to your fourball's WhatsApp — anyone who taps it joins straight in. Friends already on PinPals: open Add members under Members, tick them and send — they get an alert to join.",
             look: [
               { style: "primary", label: "Invite", icon: "person-add" },
               { style: "primary", label: "WhatsApp", icon: "logo-whatsapp" },
@@ -305,7 +305,7 @@ export const GUIDES: Guide[] = [
           trip: {
             tip: "The trip chat opens the moment you set up the trip. Everyone who joins is in it and sees everything said so far.",
             title: "Bring everyone going",
-            body: "Tap Invite and drop the link in the trip's WhatsApp — everyone who taps it is in. Anyone already on PinPals can be ticked instead.",
+            body: "Tap Invite and drop the link in the trip's WhatsApp — everyone who taps it is in. Anyone already on PinPals: open Add members under Members, tick them and send — they get an alert to join.",
             look: [
               { style: "primary", label: "Invite", icon: "person-add" },
               { style: "primary", label: "WhatsApp", icon: "logo-whatsapp" },
@@ -1919,6 +1919,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-20", text: "Add members on a group's page: under Members, open Add members, tick your PinPals and tap Send — each gets an alert to join, and anyone already invited shows Invited. Invite your golfers is updated." },
   { on: "2026-10-19", text: "Group chats: every Golf Buddies group and golf trip has its chat from the moment it's made, and new members see everything said so far. The chat sits at the top of the group's page with a reply box; in Inbox, Groups shows just group chats. In the chat, the next round is pinned with I'm in, the group's events show as cards, + adds a photo or a round, and ••• opens Chat settings (Everything, Rounds & @me, Muted). Invite your golfers, Find your way around and Chat with your PinPals are updated." },
   { on: "2026-10-19", text: "The six tabs (Home, Tee Times, Marketplace, Social, Inbox, Profile) are now under every screen except the marketplace's own. Find PinPals, My connections and the Groups pages show their name in the coloured bar at the top; Find PinPals' QR code is top right." },
   { on: "2026-10-19", text: "Play a round together: in a group of more than 12, Who's playing folds into one card (Tick everyone, Clear, See full list of players with search) so Course, Format and the draw are right below." },
