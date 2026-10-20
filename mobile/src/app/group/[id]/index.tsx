@@ -9,6 +9,7 @@ import { GroupIcon, RoleBadge, SectionTitle, membersLabel } from "@/components/g
 import { useAgeAccess } from "@/lib/age";
 import { GroupPastResults } from "@/components/group-past-results";
 import { GroupChatCard } from "@/components/group-chat-card";
+import { AddMembersDropdown } from "@/components/group-add-members";
 import { TONES } from "@/components/live-scoring-card";
 import { TintedHeader } from "@/components/tinted-header";
 import { groupLine } from "@/lib/group-chat-rules";
@@ -697,6 +698,10 @@ export default function GroupScreen() {
             ) : null}
 
             <SectionTitle>{`Members (${members.length})`}</SectionTitle>
+            {/* Add members right here (Oct 2026): tick your PinPals, they get an alert to join. */}
+            {can("invite") && userId ? (
+              <AddMembersDropdown groupId={groupId} userId={userId} memberIds={members.map((m) => m.id)} onSent={() => void load()} />
+            ) : null}
             {members.map((m) => (
               <Pressable key={m.id} style={styles.person} onPress={() => memberMenu(m)} accessibilityRole="button" accessibilityLabel={`${m.name}${roleLabel(m.role, m.office) ? `, ${roleLabel(m.role, m.office)}` : ""}`}>
                 <Avatar url={m.avatarUrl} color={m.avatarColor} name={m.name} size={40} />
