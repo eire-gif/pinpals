@@ -19,7 +19,8 @@ import { colors, fonts, radii, spacing, type } from "@/lib/theme";
  * Groups & societies (Oct 2026 redesign, canvas board G5).
  *
  * Four big buttons in the live hub's raised style: My Groups & Societies
- * (your groups, on their own page — app/groups/mine.tsx), then one to start
+ * (your groups, on their own page — app/groups/mine.tsx), then a white
+ * "Start a new group" panel (Oct 2026) holding one "+ Create" button for
  * each kind of group — Golf Buddies, a golf trip, a society — and Find a
  * society underneath. A member in no groups yet sees just the three start
  * buttons (board G3).
@@ -140,39 +141,58 @@ export default function GroupsScreen() {
 
             {canStart ? (
               <>
-                <Text style={styles.eyebrow}>{hasAny ? "Start a new group" : "Start your first group"}</Text>
-                <RaisedCard
-                  inset={false}
-                  marginTop={0}
-                  icon="people"
-                  kicker="Friends"
-                  title="Golf Buddies"
-                  subtitle="Your regular group of friends — one chat, your rounds"
-                  wrapTitle
-                  onPress={() => router.push({ pathname: "/groups/new", params: { kind: "crew" } })}
-                />
-                <RaisedCard
-                  inset={false}
-                  marginTop={0}
-                  tone="claret"
-                  icon="airplane"
-                  kicker="Away"
-                  title="Plan a Golf Trip"
-                  subtitle="Courses, flights and the itinerary in one place"
-                  wrapTitle
-                  onPress={() => router.push({ pathname: "/groups/new", params: { kind: "trip" } })}
-                />
-                <RaisedCard
-                  inset={false}
-                  marginTop={0}
-                  tone="green"
-                  icon="trophy"
-                  kicker="Societies & outings"
-                  title="Run a Society"
-                  subtitle="Outings, entries, the draw and results"
-                  wrapTitle
-                  onPress={() => router.push({ pathname: "/groups/new", params: { kind: "society" } })}
-                />
+                {/* Oct 2026: "Start a new group" was a small gold caption the
+                    eye skipped. Now a white panel with a big gold + and a
+                    Playfair heading holds the three start buttons, each with
+                    a gold "+ Create" pill — so it's plain where to go. */}
+                <View style={styles.startPanel} accessibilityRole="none">
+                  <View style={styles.startHead}>
+                    <View style={styles.plusDisc}>
+                      <Ionicons name="add" size={32} color={colors.ink900} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.startTitle} accessibilityRole="header">
+                        {hasAny ? "Start a new group" : "Start your first group"}
+                      </Text>
+                      <Text style={styles.startSub}>Choose the type you want to create</Text>
+                    </View>
+                  </View>
+                  <RaisedCard
+                    inset={false}
+                    marginTop={0}
+                    icon="people"
+                    title="Golf Buddies"
+                    subtitle="Your regular friends — one chat, your rounds"
+                    a11y="Create a Golf Buddies group. Your regular friends, one chat, your rounds."
+                    action="Create"
+                    wrapTitle
+                    onPress={() => router.push({ pathname: "/groups/new", params: { kind: "crew" } })}
+                  />
+                  <RaisedCard
+                    inset={false}
+                    marginTop={0}
+                    tone="claret"
+                    icon="airplane"
+                    title="Plan a Golf Trip"
+                    subtitle="Courses, flights and itinerary in one place"
+                    a11y="Create a golf trip. Courses, flights and the itinerary in one place."
+                    action="Create"
+                    wrapTitle
+                    onPress={() => router.push({ pathname: "/groups/new", params: { kind: "trip" } })}
+                  />
+                  <RaisedCard
+                    inset={false}
+                    marginTop={0}
+                    tone="green"
+                    icon="trophy"
+                    title="Run a Society"
+                    subtitle="Outings, entries, the draw and results"
+                    a11y="Create a society. Outings, entries, the draw and results."
+                    action="Create"
+                    wrapTitle
+                    onPress={() => router.push({ pathname: "/groups/new", params: { kind: "society" } })}
+                  />
+                </View>
               </>
             ) : (
               <Text style={styles.ageNote}>Your parent can add you to their groups and societies from their Parent dashboard.</Text>
@@ -218,7 +238,33 @@ const styles = StyleSheet.create({
   spinner: { marginTop: spacing.xl },
   scroll: { paddingBottom: spacing.xl },
   body: { padding: spacing.md, paddingTop: spacing.lg, gap: 18 },
-  eyebrow: { fontFamily: fonts.bodyBold, fontSize: 11, letterSpacing: 1.6, textTransform: "uppercase", color: "#8a6a1f", marginBottom: -4, marginLeft: 4 },
+  startPanel: {
+    gap: 14,
+    padding: 14,
+    paddingTop: 18,
+    borderRadius: 26,
+    backgroundColor: colors.surface,
+    borderWidth: 2,
+    borderColor: colors.gold500,
+    shadowColor: colors.navy900,
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 4,
+  },
+  startHead: { flexDirection: "row", alignItems: "center", gap: 14, paddingHorizontal: 2, paddingBottom: 2 },
+  plusDisc: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: colors.gold400,
+    borderBottomWidth: 3,
+    borderBottomColor: "#b8913c",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  startTitle: { fontFamily: fonts.display, fontSize: 28, lineHeight: 32, color: colors.ink900 },
+  startSub: { fontFamily: fonts.body, fontSize: 14, color: colors.ink500, marginTop: 2 },
   ageNote: { fontFamily: fonts.body, fontSize: type.small, lineHeight: 19, color: colors.ink500 },
   or: { flexDirection: "row", alignItems: "center", gap: 12, marginHorizontal: 6 },
   orLine: { flex: 1, height: 1, backgroundColor: colors.line },

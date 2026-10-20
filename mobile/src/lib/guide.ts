@@ -114,6 +114,8 @@ export type GuideControl = {
   tone?: "navy" | "green" | "claret";
   /** A raised card's small gold label above the title. */
   kicker?: string;
+  /** A raised card's gold pill in place of the chevron ("Create"). */
+  action?: string;
 };
 
 /** Options laid out as cards; the first is drawn as picked. */
@@ -220,21 +222,21 @@ export const GUIDES: Guide[] = [
       },
       {
         title: "Tap Run a Society",
-        body: "Under Start a new group, tap the green Run a Society button.",
+        body: "In the white Start a new group panel, tap + Create on the green Run a Society button.",
         who: "Members 18 and over",
-        look: [{ style: "raised", label: "Run a Society", icon: "trophy", tone: "green", kicker: "Societies & outings", subtitle: "Outings, entries, the draw and results" }],
+        look: [{ style: "raised", label: "Run a Society", icon: "trophy", tone: "green", subtitle: "Outings, entries, the draw and results", action: "Create" }],
         go: { label: "Run a Society", to: "/groups/new" },
         as: {
           friends: {
             title: "Tap Golf Buddies",
-            body: "Under Start a new group, tap the navy Golf Buddies button.",
-            look: [{ style: "raised", label: "Golf Buddies", icon: "people", kicker: "Friends", subtitle: "Your regular group of friends — one chat, your rounds" }],
+            body: "In the white Start a new group panel, tap + Create on the navy Golf Buddies button.",
+            look: [{ style: "raised", label: "Golf Buddies", icon: "people", subtitle: "Your regular friends — one chat, your rounds", action: "Create" }],
             go: { label: "Golf Buddies", to: "/groups/new" },
           },
           trip: {
             title: "Tap Plan a Golf Trip",
-            body: "Under Start a new group, tap Plan a Golf Trip.",
-            look: [{ style: "raised", label: "Plan a Golf Trip", icon: "airplane", tone: "claret", kicker: "Away", subtitle: "Courses, flights and the itinerary in one place" }],
+            body: "In the white Start a new group panel, tap + Create on Plan a Golf Trip.",
+            look: [{ style: "raised", label: "Plan a Golf Trip", icon: "airplane", tone: "claret", subtitle: "Courses, flights and itinerary in one place", action: "Create" }],
             go: { label: "Plan a Golf Trip", to: "/groups/new" },
           },
         },
@@ -1919,6 +1921,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-20", text: "Groups & Societies: Start a new group is now a white panel with a big gold + — Golf Buddies, Plan a Golf Trip and Run a Society sit inside it, each with a gold + Create button. Start a group is updated." },
   { on: "2026-10-20", text: "Add members on a group's page: under Members, open Add members, tick your PinPals and tap Send — each gets an alert to join, and anyone already invited shows Invited. Invite your golfers is updated." },
   { on: "2026-10-19", text: "Group chats: every Golf Buddies group and golf trip has its chat from the moment it's made, and new members see everything said so far. The chat sits at the top of the group's page with a reply box; in Inbox, Groups shows just group chats. In the chat, the next round is pinned with I'm in, the group's events show as cards, + adds a photo or a round, and ••• opens Chat settings (Everything, Rounds & @me, Muted). Invite your golfers, Find your way around and Chat with your PinPals are updated." },
   { on: "2026-10-19", text: "The six tabs (Home, Tee Times, Marketplace, Social, Inbox, Profile) are now under every screen except the marketplace's own. Find PinPals, My connections and the Groups pages show their name in the coloured bar at the top; Find PinPals' QR code is top right." },
