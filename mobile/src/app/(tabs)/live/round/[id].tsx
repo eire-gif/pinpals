@@ -1013,7 +1013,7 @@ export default function LiveRoundScreen() {
               <View style={styles.player}>
                 <View style={{ flex: 1, gap: 6 }}>
                   <View style={styles.nameRow}>
-                    <Text style={styles.playerName} numberOfLines={1}>
+                    <Text style={styles.cardName} numberOfLines={2}>
                       {p.name}
                     </Text>
                     {shots != null && shots !== 0 ? (
@@ -1038,15 +1038,28 @@ export default function LiveRoundScreen() {
                       <Ionicons name="golf-outline" size={12} color={colors.ink500} /> Both drive — play the better; the other partner hits the next shot
                     </Text>
                   ) : null}
-                  <View style={styles.nameRow}>
+                  <View style={styles.metaRow}>
                     {round.format === "stableford" && pts != null ? (
                       <Text style={[styles.badge, pts >= 3 ? styles.badgeGood : pts === 0 ? styles.badgeNil : null]}>{pts} pts</Text>
                     ) : null}
-                    <Text style={styles.playerMeta}>{name ?? (entered ? "" : shots != null ? `${shots} ${Math.abs(shots) === 1 ? "shot" : "shots"} here` : "")}</Text>
+                    <Text style={styles.cardMeta}>{name ?? (entered ? "" : shots != null ? `${shots} ${Math.abs(shots) === 1 ? "shot" : "shots"} here` : "")}</Text>
+                    {/* NR (no return) sits with the player's details, small, so it
+                        can't be hit by mistake next to the score. Tap again to undo. */}
+                    {canScore ? (
+                      <Pressable
+                        onPress={() => void (entered && strokes == null ? score(p.id, null, true) : score(p.id, null))}
+                        style={[styles.nr, entered && strokes == null && styles.nrOn]}
+                        accessibilityRole="button"
+                        accessibilityLabel={entered && strokes == null ? `${p.name}: picked up, no return. Tap to undo.` : `Picked up, no return for ${p.name}`}
+                        accessibilityState={{ selected: entered && strokes == null }}
+                        hitSlop={8}
+                      >
+                        <Text style={[styles.nrText, entered && strokes == null && styles.nrTextOn]}>{entered && strokes == null ? "Undo NR" : "NR"}</Text>
+                      </Pressable>
+                    ) : null}
                   </View>
                 </View>
                 {canScore ? (
-                  <View style={styles.scoreCol}>
                   <View style={styles.stepper}>
                     <StepButton label="−" a11y={`One fewer for ${p.name}`} onPress={() => void score(p.id, Math.max(1, (shown ?? h.par) - 1))} />
                     <Pressable
@@ -1058,25 +1071,12 @@ export default function LiveRoundScreen() {
                     >
                       {/* Marked against par (gross), like the card: circle for a
                           birdie, square for a bogey. */}
-                      <ScoreMark strokes={entered ? strokes : shown} par={h.par} size={48} ghost={!entered} textStyle={[styles.strokesMark, !entered && styles.strokesGhost]} />
+                      <ScoreMark strokes={entered ? strokes : shown} par={h.par} size={64} ghost={!entered} textStyle={[styles.strokesMark, !entered && styles.strokesGhost]} />
                     </Pressable>
                     <StepButton label="+" dark a11y={`One more for ${p.name}`} onPress={() => void score(p.id, Math.min(20, (shown ?? h.par) + 1))} />
                   </View>
-                  {/* NR (no return) right under the score, the way a club card
-                      marks a hole the player picked up on. Tap again to undo. */}
-                  <Pressable
-                    onPress={() => void (entered && strokes == null ? score(p.id, null, true) : score(p.id, null))}
-                    style={[styles.nr, entered && strokes == null && styles.nrOn]}
-                    accessibilityRole="button"
-                    accessibilityLabel={entered && strokes == null ? `${p.name}: picked up, no return. Tap to undo.` : `Picked up, no return for ${p.name}`}
-                    accessibilityState={{ selected: entered && strokes == null }}
-                    hitSlop={6}
-                  >
-                    <Text style={[styles.nrText, entered && strokes == null && styles.nrTextOn]}>{entered && strokes == null ? "Undo NR" : "NR · picked up"}</Text>
-                  </Pressable>
-                  </View>
                 ) : (
-                  entered ? <ScoreMark strokes={strokes} par={h.par} size={48} textStyle={styles.strokesMark} /> : <Text style={styles.strokes}>–</Text>
+                  entered ? <ScoreMark strokes={strokes} par={h.par} size={56} textStyle={styles.strokesMark} /> : <Text style={styles.strokes}>–</Text>
                 )}
               </View>
               </View>
@@ -1767,7 +1767,11 @@ const styles = StyleSheet.create({
   chipTextUsed: { color: colors.ink500 },
   link: { fontFamily: fonts.bodyBold, fontSize: type.small, color: colors.green700 },
 
-  player: { flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: radii.lg, padding: spacing.md },
+  player: { flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: radii.lg, paddingVertical: 12, paddingLeft: spacing.md, paddingRight: 12 },
+  // Oct 2026: names and scores sized to read on the course, in sunlight.
+  cardName: { fontFamily: fonts.bodyBold, fontSize: 22, lineHeight: 27, color: colors.ink900, flexShrink: 1 },
+  cardMeta: { fontFamily: fonts.body, fontSize: 14, color: colors.ink500 },
+  metaRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", columnGap: spacing.sm, rowGap: 4 },
   nameRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   playerName: { fontFamily: fonts.bodySemi, fontSize: type.body, color: colors.ink900, flexShrink: 1 },
   playerMeta: { fontFamily: fonts.body, fontSize: 13, color: colors.ink500 },
@@ -1778,21 +1782,21 @@ const styles = StyleSheet.create({
   badgeGood: { backgroundColor: colors.green700, color: colors.cream50 },
   badgeNil: { backgroundColor: colors.red100, color: colors.red600 },
   stepper: { flexDirection: "row", alignItems: "center", gap: 4 },
-  step: { width: 44, height: 44, borderRadius: 22, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.cream50, alignItems: "center", justifyContent: "center" },
+  step: { width: 56, height: 56, borderRadius: 28, borderWidth: 2, borderColor: colors.navy900, backgroundColor: colors.surface, alignItems: "center", justifyContent: "center" },
   stepDark: { backgroundColor: colors.navy900, borderColor: colors.navy900 },
-  stepLabel: { fontFamily: fonts.bodySemi, fontSize: 22, color: colors.ink900, lineHeight: 26 },
-  strokesBox: { width: 52, height: 52, alignItems: "center", justifyContent: "center" },
+  stepLabel: { fontFamily: fonts.bodyBold, fontSize: 30, color: colors.navy900, lineHeight: 34 },
+  strokesBox: { width: 64, height: 64, alignItems: "center", justifyContent: "center" },
   strokes: { fontFamily: fonts.display, fontSize: 28, color: colors.navy900 },
-  strokesMark: { fontFamily: fonts.display, color: colors.navy900 },
-  strokesGhost: { color: colors.line },
+  strokesMark: { fontFamily: fonts.bodyBold, color: colors.navy900 },
+  // Not yet confirmed: lighter than a confirmed score but still readable (4.9:1).
+  strokesGhost: { color: colors.ink500 },
 
   footerRow: { gap: spacing.sm },
   footNote: { fontFamily: fonts.body, fontSize: 12, color: colors.ink500, textAlign: "center" },
-  scoreCol: { alignItems: "center", gap: 6 },
-  nr: { minHeight: 32, paddingHorizontal: 14, borderRadius: radii.pill, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface, alignItems: "center", justifyContent: "center" },
-  nrOn: { backgroundColor: colors.red600, borderColor: colors.red600 },
-  nrText: { fontFamily: fonts.bodyBold, fontSize: 12, letterSpacing: 0.5, color: colors.ink500 },
-  nrTextOn: { color: colors.cream50 },
+  nr: { minHeight: 32, paddingHorizontal: 6, borderRadius: radii.pill, alignItems: "center", justifyContent: "center" },
+  nrOn: { backgroundColor: colors.red600, paddingHorizontal: 12 },
+  nrText: { fontFamily: fonts.bodySemi, fontSize: 14, color: colors.ink500, textDecorationLine: "underline" },
+  nrTextOn: { color: colors.cream50, textDecorationLine: "none" },
   next: { minHeight: 54, borderRadius: radii.pill, backgroundColor: colors.green700, alignItems: "center", justifyContent: "center" },
   backLive: { flexDirection: "row", gap: 8, minHeight: 54, borderRadius: radii.pill, backgroundColor: colors.navy900, borderWidth: 1, borderColor: colors.gold500, alignItems: "center", justifyContent: "center" },
   backLiveLabel: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.cream50 },
