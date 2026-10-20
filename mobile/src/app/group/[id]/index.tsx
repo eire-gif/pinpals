@@ -222,6 +222,9 @@ export default function GroupScreen() {
   const canStyle = canStyleGroup(group.kind, myRole, page.myOffice);
   /** Your committee areas (0144): the same rule as the database's society_can. */
   const areas: SocietyArea[] = society ? officeAreas(myRole, page.myOffice) : [];
+  /** A society officer: Invite, Find PinPals and every tool they hold sit
+   *  together in one Run the society panel, laid out on an even grid. */
+  const desk = society && areas.length > 0;
   const owed = (extras?.dues ?? []).reduce((a, d) => a + d.amountCents, 0);
   const go = (pathname: string, params: Record<string, string> = {}) => router.push({ pathname, params: { id: String(groupId), ...params } } as never);
 
@@ -456,7 +459,36 @@ export default function GroupScreen() {
               <GroupChatCard conversationId={group.conversationId} trip={group.kind === "trip"} memberCount={group.memberCount} />
             ) : null}
 
-            {can("invite") ? (
+            {desk ? (
+              <View style={styles.committee}>
+                <View style={styles.oweTop}>
+                  <Text style={styles.committeeKicker}>RUN THE SOCIETY</Text>
+                  <Text style={styles.committeeHint}>Committee only</Text>
+                </View>
+                {can("invite") ? (
+                  <View style={styles.row}>
+                    <Pressable style={[styles.deskButton, styles.buttonMain]} onPress={() => go("/group/[id]/invite")} accessibilityRole="button">
+                      <Ionicons name="person-add-outline" size={18} color={colors.cream50} />
+                      <Text style={styles.buttonMainText}>Invite</Text>
+                    </Pressable>
+                    <Pressable style={[styles.deskButton, styles.deskOutline]} onPress={() => go("/group/[id]/invite", { find: "1" })} accessibilityRole="button" accessibilityLabel="Find PinPals to add to the society">
+                      <Ionicons name="search" size={18} color={colors.cream50} />
+                      <Text style={styles.buttonMainText}>Find PinPals</Text>
+                    </Pressable>
+                  </View>
+                ) : null}
+                <View style={styles.committeeGrid}>
+                  {areas.includes("people") || areas.includes("money") ? <CommitteeTool icon="people-outline" label="Members" onPress={() => go("/group/[id]/committee")} /> : null}
+                  <CommitteeTool icon="call-outline" label="Phone numbers" onPress={() => go("/group/[id]/contacts")} />
+                  {areas.includes("money") ? <CommitteeTool icon="cash-outline" label="Money" onPress={() => go("/group/[id]/money")} /> : null}
+                  {runsIt ? <CommitteeTool icon="card-outline" label="Membership" onPress={() => go("/group/[id]/membership-settings")} /> : null}
+                  {areas.includes("messages") ? <CommitteeTool icon="paper-plane-outline" label="Message" onPress={() => go("/group/[id]/message")} /> : null}
+                  {areas.includes("handicaps") ? <CommitteeTool icon="stats-chart-outline" label="Handicaps" onPress={() => go("/group/[id]/handicaps")} /> : null}
+                  <CommitteeTool icon="download-outline" label="Export" onPress={() => go("/group/[id]/exports")} />
+                  {can("edit_group") ? <CommitteeTool icon="settings-outline" label="Settings" onPress={() => go("/group/[id]/settings")} /> : null}
+                </View>
+              </View>
+            ) : can("invite") ? (
               <View style={styles.row}>
                 <Pressable style={[styles.button, styles.buttonMain]} onPress={() => router.push({ pathname: "/group/[id]/invite", params: { id: String(groupId) } })} accessibilityRole="button">
                   <Ionicons name="person-add-outline" size={18} color={colors.cream50} />
@@ -526,24 +558,10 @@ export default function GroupScreen() {
                   <Text style={styles.hint}>{`The society plays you off ${indexLabel(extras.handicap)}.`}</Text>
                 ) : null}
 
-                {areas.length > 0 ? (
-                  <View style={styles.committee}>
-                    <View style={styles.oweTop}>
-                      <Text style={styles.committeeKicker}>RUN THE SOCIETY</Text>
-                      <Text style={styles.committeeHint}>Committee only</Text>
-                    </View>
-                    <View style={styles.committeeRow}>
-                      {areas.includes("people") || areas.includes("money") ? <CommitteeTool icon="people-outline" label="Members" onPress={() => go("/group/[id]/committee")} /> : null}
-                      {areas.includes("money") ? <CommitteeTool icon="cash-outline" label="Money" onPress={() => go("/group/[id]/money")} /> : null}
-                      {areas.includes("messages") ? <CommitteeTool icon="paper-plane-outline" label="Message" onPress={() => go("/group/[id]/message")} /> : null}
-                      <CommitteeTool icon="download-outline" label="Export" onPress={() => go("/group/[id]/exports")} />
-                      {runsIt ? <CommitteeTool icon="card-outline" label="Membership" onPress={() => go("/group/[id]/membership-settings")} /> : null}
-                    </View>
-                  </View>
-                ) : null}
               </>
             ) : null}
 
+            {desk ? null : (
             <View style={styles.tools}>
               {can("edit_group") ? (
                 <Pressable style={styles.tool} onPress={() => router.push({ pathname: "/group/[id]/settings", params: { id: String(groupId) } })} accessibilityRole="button">
@@ -569,6 +587,7 @@ export default function GroupScreen() {
                 </Pressable>
               ) : null}
             </View>
+            )}
             {myRole && canDrawFrom({ kind: group.kind, role: myRole, office: page.myOffice }) && isOn("liveScoring") ? (
               <Pressable
                 style={styles.play}
@@ -751,7 +770,7 @@ function CommitteeTool({ icon, label, onPress }: { icon: keyof typeof Ionicons.g
       <View style={styles.committeeIcon}>
         <Ionicons name={icon} size={20} color={colors.cream50} />
       </View>
-      <Text style={styles.committeeLabel} numberOfLines={1}>
+      <Text style={styles.committeeLabel} numberOfLines={2}>
         {label}
       </Text>
     </Pressable>
@@ -773,13 +792,16 @@ const styles = StyleSheet.create({
   noticeKicker: { fontFamily: fonts.bodyBold, fontSize: 11.5, letterSpacing: 1.2, color: "#7e5f14" },
   noticeTitle: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.ink900 },
   noticeBody: { fontFamily: fonts.body, fontSize: type.small, color: colors.ink500 },
-  committee: { gap: spacing.sm, padding: spacing.md, borderRadius: radii.lg, backgroundColor: colors.navy900 },
+  committee: { gap: spacing.md, padding: spacing.md, borderRadius: radii.lg, backgroundColor: colors.navy900 },
   committeeKicker: { fontFamily: fonts.bodyBold, fontSize: 11.5, letterSpacing: 1.2, color: colors.gold400 },
   committeeHint: { fontFamily: fonts.body, fontSize: 12, color: colors.cream100 },
-  committeeRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
-  committeeTool: { alignItems: "center", gap: 4, width: 62, minHeight: 60 },
-  committeeIcon: { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: colors.navy800 },
-  committeeLabel: { fontFamily: fonts.bodySemi, fontSize: 11.5, color: colors.cream50 },
+  // Four equal columns; a short last row is centred, so it always reads even.
+  committeeGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "center", rowGap: spacing.md, paddingTop: spacing.xs },
+  committeeTool: { alignItems: "center", gap: 6, width: "25%", paddingHorizontal: 2 },
+  committeeIcon: { width: 52, height: 52, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: colors.navy800 },
+  committeeLabel: { fontFamily: fonts.bodySemi, fontSize: 12, lineHeight: 15, color: colors.cream50, textAlign: "center", minHeight: 30 },
+  deskButton: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, minHeight: 48, borderRadius: radii.pill, borderWidth: 1 },
+  deskOutline: { borderColor: colors.cream100, backgroundColor: "transparent" },
   fill: { flex: 1, backgroundColor: colors.cream50 },
   spinner: { marginTop: spacing.xl },
   body: { padding: spacing.md, paddingBottom: spacing.xl * 2, gap: spacing.sm },
