@@ -2,7 +2,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { buttonClass } from "@/components/society-console/styles";
+import { LiveSteps } from "@/components/society-console/live-ui";
 import { Card, PageHeader } from "@/components/society-console/ui";
+import { liveSteps } from "@/lib/society-console/live-steps";
 import { requireConsole } from "@/lib/society-console/access";
 import { loadDrawHistory, loadEvent } from "@/lib/society-console/data";
 import { loadRoster } from "@/lib/society-console/events-data";
@@ -28,6 +30,8 @@ export default async function DrawPage({ params }: { params: Promise<{ id: strin
   if (!page) notFound();
   const o = page.outing;
   const back = { href: consoleHref(g, `events/${o.id}`), label: o.title };
+  // A day out: the Live day's steps, so the draw sits between set-up and start.
+  const steps = o.kind === "day" && o.status === "open" ? <LiveSteps steps={liveSteps(g, o, { current: 2, inDraw: page.entries.length + page.guests.length, published: false })} /> : null;
 
   const blocked =
     o.kind !== "day"
@@ -41,8 +45,9 @@ export default async function DrawPage({ params }: { params: Promise<{ id: strin
             : null;
   if (blocked) {
     return (
-      <div className="max-w-3xl">
+      <div>
         <PageHeader title="The draw" back={back} />
+        {steps}
         <Card>
           <p className="text-sm text-ink-500 mb-4">{blocked}</p>
           {o.kind !== "day" && o.status === "open" && (
@@ -77,6 +82,7 @@ export default async function DrawPage({ params }: { params: Promise<{ id: strin
         description={`${o.title} · ${outingDateLabel(o.playsOn)}${o.courseName ? ` · ${o.courseName}` : ""}. Members see their tee times as soon as you publish. On the day, start the round from the Live day here, or in the app.`}
         back={back}
       />
+      {steps}
       <DrawEditor
         groupId={g}
         outingId={o.id}

@@ -11,8 +11,8 @@ import type { HoleMark } from "@/lib/society-console/live-day";
  * Server Components.
  */
 
-export type StepState = "done" | "now" | "next";
-export type Step = { label: string; sub: string; state: StepState; href?: string };
+import type { Step } from "@/lib/society-console/live-steps";
+export type { Step, StepState } from "@/lib/society-console/live-steps";
 
 export function LiveSteps({ steps }: { steps: Step[] }) {
   return (

@@ -165,7 +165,7 @@ export default function StartForm({
       <div className="flex flex-wrap gap-5 items-start">
         <div className="flex-[999_1_520px] min-w-0 grid gap-5">
           {/* Course and tees */}
-          <section className="bg-surface rounded-2xl border border-line shadow-sm p-5 grid gap-4">
+          <section id="setup" className="scroll-mt-6 bg-surface rounded-2xl border border-line shadow-sm p-5 grid gap-4">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <h2 className="font-display font-bold text-lg text-ink-900">Where you&apos;re playing</h2>
               <span className="text-sm text-ink-500">{courseName}</span>
@@ -328,7 +328,7 @@ export default function StartForm({
           </section>
 
           {/* Start */}
-          <section className="bg-surface rounded-2xl border border-line shadow-sm p-5 grid gap-4">
+          <section id="start" className="scroll-mt-6 bg-surface rounded-2xl border border-line shadow-sm p-5 grid gap-4">
             <h2 className="font-display font-bold text-lg text-ink-900">How the field starts</h2>
             <div className="flex flex-wrap gap-2">
               <button

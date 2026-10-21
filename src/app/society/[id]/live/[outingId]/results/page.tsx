@@ -2,7 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { ActionButton } from "@/components/society-console/forms";
-import { Checks, LiveSteps, Podium, ResultsTable, type Step } from "@/components/society-console/live-ui";
+import { Checks, LiveSteps, Podium, ResultsTable } from "@/components/society-console/live-ui";
+import { liveSteps } from "@/lib/society-console/live-steps";
 import { buttonClass } from "@/components/society-console/styles";
 import { Card, PageHeader, Pill } from "@/components/society-console/ui";
 import { DEFAULT_SETTINGS, applyAmendments, type Results } from "@/lib/competition-results";
@@ -36,10 +37,12 @@ export default async function LiveResultsPage({ params }: { params: Promise<{ id
   if (!page) notFound();
   const o = page.outing;
   const back = { href: consoleHref(g, `live/${o.id}`), label: "Control room" };
+  const stepsFor = (published: boolean) => <LiveSteps steps={liveSteps(g, o, { current: 5, inDraw: page.entries.length + page.guests.length, published })} />;
   if (!o.matchDayId) {
     return (
-      <div className="max-w-3xl">
+      <div>
         <PageHeader title="Results" back={back} />
+        {stepsFor(false)}
         <Card>
           <p className="text-sm text-ink-500">The round hasn&apos;t started yet. Results are worked out from the live cards once it&apos;s played.</p>
         </Card>
@@ -50,8 +53,9 @@ export default async function LiveResultsPage({ params }: { params: Promise<{ id
   if (!day) notFound();
   if (!hasResults(day.kind)) {
     return (
-      <div className="max-w-3xl">
+      <div>
         <PageHeader title="Results" back={back} />
+        {stepsFor(false)}
         <Card>
           <p className="text-sm text-ink-500">A match day&apos;s result is its team score — it&apos;s on the control room&apos;s board.</p>
         </Card>
@@ -71,13 +75,6 @@ export default async function LiveResultsPage({ params }: { params: Promise<{ id
   const unit = results.basis === "stableford" ? "pts" : "net";
   const cardHref = (roundId: number) => consoleHref(g, `live/${o.id}/card/${roundId}`);
 
-  const steps: Step[] = [
-    { label: "Set up", sub: "Done", state: "done" },
-    { label: "Players & groups", sub: `${page.entries.length + page.guests.length} played`, state: "done" },
-    { label: "Start", sub: "Started", state: "done" },
-    { label: "Live", sub: isPublished ? "Scoring closed" : "Scoreboard", state: isPublished ? "done" : "next", href: consoleHref(g, `live/${o.id}`) },
-    { label: "Results", sub: isPublished ? "Published" : "Podium & publish", state: "now" },
-  ];
 
   const chip = (key: string) => {
     const r = statusOf.get(key);
@@ -126,7 +123,7 @@ export default async function LiveResultsPage({ params }: { params: Promise<{ id
           </>
         }
       />
-      <LiveSteps steps={steps} />
+      {stepsFor(isPublished)}
 
       <Card
         className="mb-5"

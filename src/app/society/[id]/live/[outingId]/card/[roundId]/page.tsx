@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 
-import { HoleStrip } from "@/components/society-console/live-ui";
+import { HoleStrip, LiveSteps } from "@/components/society-console/live-ui";
+import { liveSteps } from "@/lib/society-console/live-steps";
 import { Card, PageHeader, Pill } from "@/components/society-console/ui";
 import { buildBoard, shotsSoFar, stablefordPoints } from "@/lib/live-scoring";
 import { requireConsole } from "@/lib/society-console/access";
@@ -46,7 +47,7 @@ export default async function GroupCardPage({ params }: { params: Promise<{ id: 
   const nameOf = (p: (typeof ordered)[number]) => (scramble ? ordered.map((x) => x.name.split(" ")[0]).join(" & ") : p.name);
 
   return (
-    <div className="grid gap-5">
+    <div>
       <PageHeader
         back={{ href: consoleHref(g, `live/${outingId}`), label: "Control room" }}
         title={`${label}${status.teeTime ? ` · ${status.teeTime}` : ""}`}
@@ -58,7 +59,9 @@ export default async function GroupCardPage({ params }: { params: Promise<{ id: 
           </>
         }
       />
+      <LiveSteps steps={liveSteps(g, page.outing, { current: 4, inDraw: page.entries.length + page.guests.length, published: day.results?.status === "published" })} />
 
+      <div className="grid gap-5">
       <Card title="The card" subtitle={onPoints ? "Strokes, with Stableford points underneath (net of shots)" : "Strokes, net to par in the total"}>
         <div className="-mx-5 overflow-x-auto">
           <table className="text-sm tabular-nums mx-5 border-collapse">
@@ -152,6 +155,7 @@ export default async function GroupCardPage({ params }: { params: Promise<{ id: 
             : `Only ${day.creatorName ?? "whoever started the round"} can correct scores — the players can change their own on their phones.`}
         </p>
       )}
+      </div>
     </div>
   );
 }
