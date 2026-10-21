@@ -1,14 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState, type ReactNode } from "react";
+import { useActionState, useMemo, useState, type ReactNode } from "react";
 import { useFormStatus } from "react-dom";
 
 import { ConsoleForm, buttonClass, inputClass } from "@/components/society-console/forms";
+import { IDLE } from "@/lib/society-console/action-state";
 import { blankCard, indexLabel, type CardHole } from "@/lib/live-scoring";
-import { DAY_FORMATS, cardProblems, planDay, type DayFormat, type DrawnGroup, type PairScoring, type StartMode } from "@/lib/society-console/live-day";
+import { DAY_FORMATS, cardProblems, planDay, type DayFormat, type DrawnGroup, type PairScoring, type SavedSetup, type StartMode } from "@/lib/society-console/live-day";
 import type { CourseCard } from "@/lib/society-console/live-day-data";
-import { startRound } from "./actions";
+import { saveSetup, startRound } from "./actions";
 
 /**
  * Set up and start the round (Oct 2026): the tees and their card, the
@@ -31,10 +32,21 @@ function bestCard(cards: CourseCard[]): CourseCard | null {
 }
 
 function StartButton({ disabled }: { disabled: boolean }) {
-  const { pending } = useFormStatus();
+  const { pending, data } = useFormStatus();
+  const starting = pending && data?.get("intent") !== "save";
   return (
     <button type="submit" disabled={disabled || pending} className={`${buttonClass("gold")} w-full !py-4 !text-lg`}>
-      {pending ? "Starting the round…" : "Start the round"}
+      {starting ? "Starting the round…" : "Start the round"}
+    </button>
+  );
+}
+
+/** Posts the same form to saveSetup instead of starting. */
+function SaveButton({ action, label }: { action: (form: FormData) => void; label: string }) {
+  const { pending } = useFormStatus();
+  return (
+    <button type="submit" name="intent" value="save" formAction={action} disabled={pending} className="w-full rounded-full border border-cream-50/40 px-5 py-2.5 text-sm font-semibold text-cream-50 hover:bg-white/10 disabled:opacity-50">
+      {label}
     </button>
   );
 }
@@ -50,6 +62,8 @@ export default function StartForm({
   cards,
   draw,
   notDrawn,
+  saved,
+  savedAt,
   links,
 }: {
   groupId: number;
@@ -62,20 +76,24 @@ export default function StartForm({
   cards: CourseCard[];
   draw: DrawnGroup[];
   notDrawn: string[];
+  saved: SavedSetup | null;
+  savedAt: string | null;
   links: { draw: string; handicaps: string | null; event: string };
 }) {
-  const initial = bestCard(cards);
-  const [cardId, setCardId] = useState<number | "own">(initial?.id ?? "own");
-  const [teeName, setTeeName] = useState(initial?.teeName ?? "");
-  const [rating, setRating] = useState(initial?.courseRating != null ? String(initial.courseRating) : "");
-  const [slope, setSlope] = useState(initial?.slope != null ? String(initial.slope) : "");
-  const [card, setCard] = useState<CardHole[]>(initial?.card.length ? initial.card : blankCard(18));
-  const [format, setFormat] = useState<DayFormat>("stableford");
-  const [pairScoring, setPairScoring] = useState<PairScoring>("stableford");
-  const [start, setStart] = useState<StartMode>("tees");
-  const [shotgunTime, setShotgunTime] = useState(firstTee ?? "09:00");
-  const [hidden, setHidden] = useState(false);
-  const [showCard, setShowCard] = useState(!initial || initial.card.some((h) => h.strokeIndex == null));
+  // A saved set-up (0184) comes back as it was left; otherwise the best card on file.
+  const initial = saved ? (cards.find((c) => c.id === saved.cardId) ?? null) : bestCard(cards);
+  const [cardId, setCardId] = useState<number | "own">(saved ? (initial?.id ?? "own") : (initial?.id ?? "own"));
+  const [teeName, setTeeName] = useState(saved ? saved.teeName : (initial?.teeName ?? ""));
+  const [rating, setRating] = useState(saved ? saved.rating : initial?.courseRating != null ? String(initial.courseRating) : "");
+  const [slope, setSlope] = useState(saved ? saved.slope : initial?.slope != null ? String(initial.slope) : "");
+  const [card, setCard] = useState<CardHole[]>(saved?.card ?? (initial?.card.length ? initial.card : blankCard(18)));
+  const [format, setFormat] = useState<DayFormat>(saved?.format ?? "stableford");
+  const [pairScoring, setPairScoring] = useState<PairScoring>(saved?.pairScoring ?? "stableford");
+  const [start, setStart] = useState<StartMode>(saved?.start ?? "tees");
+  const [shotgunTime, setShotgunTime] = useState(saved?.shotgunTime ?? firstTee ?? "09:00");
+  const [hidden, setHidden] = useState(saved?.hidden ?? false);
+  const [showCard, setShowCard] = useState(card.some((h) => h.strokeIndex == null));
+  const [saveState, saveAction] = useActionState(saveSetup, IDLE);
 
   const pick = (id: number | "own") => {
     setCardId(id);
@@ -142,6 +160,7 @@ export default function StartForm({
       <input type="hidden" name="format" value={format} />
       <input type="hidden" name="pairScoring" value={pairScoring} />
       <input type="hidden" name="start" value={start} />
+      <input type="hidden" name="cardId" value={cardId === "own" ? "" : cardId} />
 
       <div className="flex flex-wrap gap-5 items-start">
         <div className="flex-[999_1_520px] min-w-0 grid gap-5">
@@ -351,7 +370,7 @@ export default function StartForm({
         <aside className="flex-[1_1_300px] min-w-0 grid gap-4 content-start md:sticky md:top-6">
           <section className="rounded-3xl border-[1.5px] border-gold-500/50 bg-gradient-to-b from-[#17375a] via-navy-900 to-[#12291f] p-5 text-cream-50 grid gap-4">
             <div>
-              <div className="text-xs font-bold uppercase tracking-[0.14em] text-gold-400">Ready to start</div>
+              <div className="text-xs font-bold uppercase tracking-[0.14em] text-gold-400">{today ? "Ready to start" : "Set up for the day"}</div>
               <div className="font-display font-bold text-2xl mt-1">{DAY_FORMATS.find((f) => f.id === format)?.label}</div>
               <div className="text-sm text-[#c9d3e0]">
                 {courseName}
@@ -373,6 +392,18 @@ export default function StartForm({
               </ul>
             )}
             <StartButton disabled={!canStart} />
+            <SaveButton action={saveAction} label={today ? "Save the set-up" : "Save the set-up for the day"} />
+            {saveState.error ? (
+              <p role="alert" className="rounded-lg bg-red-600/25 px-3 py-2 text-xs text-cream-50">
+                {saveState.error}
+              </p>
+            ) : saveState.ok ? (
+              <p aria-live="polite" className="rounded-lg bg-[#4fc274]/20 px-3 py-2 text-xs text-cream-50">
+                {saveState.message}
+              </p>
+            ) : savedAt ? (
+              <p className="text-xs text-[#c9d3e0]">Set-up saved {savedAt}. Change anything and save again.</p>
+            ) : null}
             <p className="text-xs text-[#c9d3e0]">
               Opens one live game per group on every player&apos;s phone and tells each of them their group. If someone already opened a game, they&apos;re asked to use this one.
             </p>

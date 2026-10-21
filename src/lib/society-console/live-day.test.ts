@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { CardHole } from "@/lib/live-scoring";
 import type { TvGame } from "@/lib/tv-board";
-import { cardProblems, controlRoom, parseCard, planDay, QUIET_MINUTES, type DaySetup, type DrawnGroup } from "./live-day";
+import { cardProblems, controlRoom, parseCard, parseSavedSetup, planDay, QUIET_MINUTES, type DaySetup, type DrawnGroup } from "./live-day";
 
 const SI = [7, 15, 3, 11, 1, 17, 9, 13, 5, 8, 16, 2, 12, 4, 18, 10, 14, 6];
 const card: CardHole[] = SI.map((si, i) => ({ hole: i + 1, par: [4, 3, 5][i % 3], strokeIndex: si }));
@@ -126,6 +126,19 @@ describe("parseCard", () => {
   it("refuses junk", () => {
     expect(parseCard("nope")).toBeNull();
     expect(parseCard(JSON.stringify([{ hole: 1, par: "4" }]))).toBeNull();
+  });
+});
+
+describe("parseSavedSetup", () => {
+  it("reads a saved set-up back for the form", () => {
+    const s = parseSavedSetup({ v: 1, cardId: 4, teeName: "White", rating: "72.4", slope: 131, card, format: "greensomes", pairScoring: "stroke", start: "shotgun", shotgunTime: "08:30", hidden: true });
+    expect(s).toMatchObject({ cardId: 4, teeName: "White", rating: "72.4", slope: "131", format: "greensomes", pairScoring: "stroke", start: "shotgun", shotgunTime: "08:30", hidden: true });
+    expect(s?.card).toHaveLength(18);
+  });
+  it("falls back safely on anything odd", () => {
+    expect(parseSavedSetup(null)).toBeNull();
+    expect(parseSavedSetup([1])).toBeNull();
+    expect(parseSavedSetup({ format: "bingo", start: "x", shotgunTime: "25:00", card: "nope", cardId: -3 })).toMatchObject({ format: "stableford", start: "tees", shotgunTime: null, card: null, cardId: null, hidden: false });
   });
 });
 

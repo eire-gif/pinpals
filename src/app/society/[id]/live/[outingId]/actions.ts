@@ -9,7 +9,7 @@ import type { ConsoleContext } from "@/lib/society-console/access";
 import { loadEvent } from "@/lib/society-console/data";
 import { isDayFormat, parseCard, planDay, type PairScoring, type StartMode } from "@/lib/society-console/live-day";
 import { loadDrawnGroups, notDrawn } from "@/lib/society-console/live-day-data";
-import { isOutingDay } from "@/lib/society-console/outing-rules";
+import { isOutingDay, outingPast } from "@/lib/society-console/outing-rules";
 import { parseClock, positiveInt, text } from "@/lib/society-console/rules";
 import { check, consoleAction } from "@/lib/society-console/server-action";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -143,6 +143,40 @@ export async function startRound(_prev: ActionState, form: FormData): Promise<Ac
     return problems.length
       ? `The round has started, but ${problems.join("; ")}.`
       : "The round has started. Every player has been told their group, and their scorecard is open in the app.";
+  });
+}
+
+/**
+ * Saves the set-up on the event (0184) so it's ready on the day — any
+ * officer, any device. Only the choices are kept; starting checks them all
+ * again. A half-typed card is fine to save.
+ */
+export async function saveSetup(_prev: ActionState, form: FormData): Promise<ActionState> {
+  return consoleAction(form.get("g"), { area: "events", alerts: false }, async (ctx) => {
+    const page = await eventOf(ctx, form.get("outing"));
+    const o = page.outing;
+    if (o.kind !== "day") throw new Error("A trip's rounds are set up on its itinerary.");
+    if (o.status === "cancelled") throw new Error("This event was cancelled.");
+    if (o.matchDayId) throw new Error("The round has already started.");
+    if (outingPast(o.playsOn)) throw new Error("This event has been played.");
+    const format = form.get("format");
+    const cardId = positiveInt(form.get("cardId"));
+    const setup = {
+      v: 1,
+      cardId,
+      teeName: text(form, "teeName", 40) ?? "",
+      rating: text(form, "rating", 8) ?? "",
+      slope: text(form, "slope", 4) ?? "",
+      card: parseCard(form.get("card")),
+      format: isDayFormat(format) ? format : "stableford",
+      pairScoring: form.get("pairScoring") === "stroke" ? "stroke" : "stableford",
+      start: form.get("start") === "shotgun" ? "shotgun" : "tees",
+      shotgunTime: parseClock(text(form, "shotgunTime", 5)) ?? null,
+      hidden: form.get("hidden") === "on",
+    };
+    const { error } = await ctx.supabase.rpc("save_outing_live_setup", { p_outing_id: o.id, p_setup: setup });
+    check(error, "Couldn't save the set-up.");
+    return isOutingDay(o.playsOn) ? "Set-up saved." : "Set-up saved. On the day, open this Live day and press Start the round — everything will be as you left it.";
   });
 }
 

@@ -9,10 +9,10 @@ import { buildTvPayload, type TvDay } from "@/lib/tv-board";
 import { signTvToken } from "@/lib/tv-token";
 import { requireConsole } from "@/lib/society-console/access";
 import { loadEvent } from "@/lib/society-console/data";
-import { controlRoom, ordinal } from "@/lib/society-console/live-day";
+import { controlRoom, ordinal, parseSavedSetup } from "@/lib/society-console/live-day";
 import { loadCourseCards, loadDrawnGroups, loadLiveDay, notDrawn, type LiveDay } from "@/lib/society-console/live-day-data";
 import { clock, isOutingDay, outingDateLabel, outingPast } from "@/lib/society-console/outing-rules";
-import { consoleHref, positiveInt } from "@/lib/society-console/rules";
+import { consoleHref, positiveInt, whenLabel } from "@/lib/society-console/rules";
 import { connectTv, setHidden } from "./actions";
 import AutoRefresh from "./auto-refresh";
 import StartForm from "./start-form";
@@ -97,6 +97,8 @@ export default async function LiveDayPage({ params }: { params: Promise<{ id: st
             cards={cards}
             draw={draw}
             notDrawn={notDrawn(page)}
+            saved={parseSavedSetup(o.liveSetup)}
+            savedAt={o.liveSetupAt ? whenLabel(o.liveSetupAt) : null}
             links={{ draw: consoleHref(g, `events/${o.id}/draw`), handicaps: ctx.areas.includes("handicaps") ? consoleHref(g, "handicaps") : null, event: eventHref }}
           />
         )}
