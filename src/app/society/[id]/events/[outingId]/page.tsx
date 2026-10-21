@@ -120,6 +120,11 @@ export default async function EventPage({ params }: { params: Promise<{ id: stri
           officer && live ? (
             <>
               {!trip && !past && (
+                <Link href={consoleHref(g, `live/${o.id}`)} className={buttonClass(isOutingDay(o.playsOn) ? "gold" : "quiet")}>
+                  {isOutingDay(o.playsOn) ? "Live day · start the round" : "Live day"}
+                </Link>
+              )}
+              {!trip && !past && (
                 <Link href={consoleHref(g, `events/${o.id}/draw`)} className={buttonClass("navy")}>
                   {o.drawPublishedAt ? "Change the draw" : "Make the draw"}
                 </Link>
@@ -139,6 +144,10 @@ export default async function EventPage({ params }: { params: Promise<{ id: stri
           ) : trip ? (
             <Link href={consoleHref(g, `events/${o.id}/itinerary`)} className={buttonClass("quiet")}>
               Itinerary
+            </Link>
+          ) : officer && started ? (
+            <Link href={consoleHref(g, `live/${o.id}`)} className={buttonClass("gold")}>
+              Live control room
             </Link>
           ) : undefined
         }
@@ -181,7 +190,14 @@ export default async function EventPage({ params }: { params: Promise<{ id: stri
                 {o.payNote && <div className="text-ink-500">{o.payNote}</div>}
               </div>
             )}
-            {officer && started && <p className="text-sm text-ink-500">The round has started — scores, entries and the draw are now in the round.</p>}
+            {officer && started && (
+              <p className="text-sm text-ink-500">
+                The round has started — scores, entries and the draw are now in the round.{" "}
+                <Link href={consoleHref(g, `live/${o.id}`)} className="font-semibold text-green-700">
+                  Open the control room
+                </Link>
+              </p>
+            )}
           </div>
         </div>
       </Card>
@@ -476,7 +492,13 @@ export default async function EventPage({ params }: { params: Promise<{ id: stri
             </div>
           )}
           {!trip && !cancelled && isOutingDay(o.playsOn) && officer && !started && (
-            <p className="text-sm text-ink-500 mt-4">It&apos;s the day: check the draw here, then start the round from the app (From a group) to choose the tees and score live.</p>
+            <p className="text-sm text-ink-500 mt-4">
+              It&apos;s the day: check the draw, then{" "}
+              <Link href={consoleHref(g, `live/${o.id}`)} className="font-semibold text-green-700">
+                start the round from the Live day
+              </Link>{" "}
+              (or from the app, From a group) to choose the tees and score live.
+            </p>
           )}
         </Section>
       </div>

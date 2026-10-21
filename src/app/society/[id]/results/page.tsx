@@ -18,7 +18,7 @@ export default async function ResultsPage({ params }: { params: Promise<{ id: st
 
   return (
     <div className="grid gap-6">
-      <PageHeader title="Results" description="Results are worked out and published from the app on the day, from the players' certified cards. Every one published to the society is kept here." />
+      <PageHeader title="Results" description="Results are worked out from the players' certified cards and published on the day — from Live day here, or from the app. Every one published to the society is kept here." />
 
       <Card title={`Published${results.length ? ` · ${results.length}` : ""}`}>
         {results.length === 0 ? (

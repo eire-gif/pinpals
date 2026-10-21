@@ -28,6 +28,8 @@ type RoundRow = {
   team_handicap: number | null;
   foursomes_scoring: "stableford" | "stroke" | null;
   greensomes: boolean | null;
+  start_hole: number | null;
+  start_letter: string | null;
 };
 type PlayerRow = {
   id: number;
@@ -41,7 +43,7 @@ type PlayerRow = {
 };
 
 const ROUND_COLS =
-  "id, course_name, format, status, match_day_id, match_number, match_type, tee_time, scramble_size, team_name, team_number, team_handicap, foursomes_scoring, greensomes";
+  "id, course_name, format, status, match_day_id, match_number, match_type, tee_time, scramble_size, team_name, team_number, team_handicap, foursomes_scoring, greensomes, start_hole, start_letter";
 
 const toRound = (r: RoundRow): TvRound => ({
   id: r.id,
@@ -59,6 +61,22 @@ const toRound = (r: RoundRow): TvRound => ({
 
 /** The TV's board, or null when the game no longer exists (deleted). */
 export async function tvPayloadFor(db: SupabaseClient, target: TvTarget, now = new Date()): Promise<TvPayload | null> {
+  const loaded = await loadTvGames(db, target);
+  if (!loaded) return null;
+  return buildTvPayload({ day: loaded.day, games: loaded.games, published: loaded.published, now });
+}
+
+/**
+ * The game as tv-board.ts reads it: the day (if any), each round with its
+ * players, card, scores and when each score went in. Also the society
+ * console's control room (src/app/society/[id]/live), which calls it with
+ * the organiser's OWN client, so RLS decides what it sees there.
+ * `starts`: each round's shotgun start ("7B"), where it has one.
+ */
+export async function loadTvGames(
+  db: SupabaseClient,
+  target: TvTarget
+): Promise<{ day: TvDay | null; games: TvGame[]; published: boolean; starts: Record<number, string> } | null> {
   let day: TvDay | null = null;
   let rounds: RoundRow[] = [];
   let published = false;
@@ -90,14 +108,16 @@ export async function tvPayloadFor(db: SupabaseClient, target: TvTarget, now = n
   if (!rounds.length) return null;
 
   const ids = rounds.map((r) => r.id);
+  // Paged: a big society day has thousands of scores, more than one request
+  // returns (PostgREST caps a response at 1,000 rows), and a short read would
+  // drop the last holes of some cards.
   const [players, holes, scores] = await Promise.all([
-    db.from("live_round_players").select("id, round_id, member_id, display_name, course_handicap, playing_handicap, position, side").in("round_id", ids).order("position"),
-    db.from("live_round_holes").select("round_id, hole, par, stroke_index").in("round_id", ids).order("hole"),
-    db.from("live_round_scores").select("round_id, player_id, hole, strokes, updated_at").in("round_id", ids),
+    allRows((from, to) => db.from("live_round_players").select("id, round_id, member_id, display_name, course_handicap, playing_handicap, position, side").in("round_id", ids).order("round_id").order("position").order("id").range(from, to)),
+    allRows((from, to) => db.from("live_round_holes").select("round_id, hole, par, stroke_index").in("round_id", ids).order("round_id").order("hole").range(from, to)),
+    allRows((from, to) => db.from("live_round_scores").select("round_id, player_id, hole, strokes, updated_at").in("round_id", ids).order("round_id").order("player_id").order("hole").range(from, to)),
   ]);
-  for (const r of [players, holes, scores]) if (r.error) throw r.error;
 
-  const playerRows = (players.data ?? []) as PlayerRow[];
+  const playerRows = players as unknown as PlayerRow[];
   const memberIds = [...new Set(playerRows.map((p) => p.member_id).filter((m): m is string => !!m))];
   const clubs = new Map<string, string>();
   if (memberIds.length) {
@@ -106,8 +126,8 @@ export async function tvPayloadFor(db: SupabaseClient, target: TvTarget, now = n
     for (const p of (data ?? []) as { id: string; home_club: string | null }[]) if (p.home_club?.trim()) clubs.set(p.id, p.home_club.trim());
   }
 
-  const scoreRows = (scores.data ?? []) as { round_id: number; player_id: number; hole: number; strokes: number | null; updated_at: string }[];
-  const holeRows = (holes.data ?? []) as { round_id: number; hole: number; par: number; stroke_index: number | null }[];
+  const scoreRows = scores as unknown as { round_id: number; player_id: number; hole: number; strokes: number | null; updated_at: string }[];
+  const holeRows = holes as unknown as { round_id: number; hole: number; par: number; stroke_index: number | null }[];
 
   const games: TvGame[] = rounds.map((row) => {
     const sheet = new Map<number, Map<number, number | null>>();
@@ -138,5 +158,25 @@ export async function tvPayloadFor(db: SupabaseClient, target: TvTarget, now = n
     };
   });
 
-  return buildTvPayload({ day, games, published, now });
+  const starts: Record<number, string> = {};
+  const byHole = new Map<number, number>();
+  for (const r of rounds) if (r.start_hole != null) byHole.set(r.start_hole, (byHole.get(r.start_hole) ?? 0) + 1);
+  for (const r of rounds) if (r.start_hole != null) starts[r.id] = (byHole.get(r.start_hole) ?? 0) > 1 && r.start_letter ? `${r.start_hole}${r.start_letter}` : String(r.start_hole);
+
+  return { day, games, published, starts };
+}
+
+const PAGE = 1000;
+
+/** Every row of a query, a page at a time (PostgREST returns 1,000 at most). */
+async function allRows(page: (from: number, to: number) => PromiseLike<{ data: unknown[] | null; error: unknown }>): Promise<unknown[]> {
+  const out: unknown[] = [];
+  for (let from = 0; from < 200 * PAGE; from += PAGE) {
+    const { data, error } = await page(from, from + PAGE - 1);
+    if (error) throw error;
+    const rows = data ?? [];
+    out.push(...rows);
+    if (rows.length < PAGE) break;
+  }
+  return out;
 }
