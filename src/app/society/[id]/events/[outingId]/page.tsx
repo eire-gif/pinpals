@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 
 import { ActionButton, ConsoleForm, Field, SubmitButton } from "@/components/society-console/forms";
 import { buttonClass, inputClass } from "@/components/society-console/styles";
+import ListSearch from "@/components/society-console/list-search";
 import { Avatar, Card, Empty, PageHeader, Pill, Stat, Table, Td } from "@/components/society-console/ui";
 import { requireConsole } from "@/lib/society-console/access";
 import { loadEvent, type Guest, type QueueEntry } from "@/lib/society-console/data";
@@ -285,14 +286,25 @@ export default async function EventPage({ params }: { params: Promise<{ id: stri
           {entries.length === 0 ? (
             <Empty>Nobody yet.</Empty>
           ) : (
-            <Table head={["Member", "Entered", trip ? null : "Tee", officer ? "Asked for" : null, money && fee ? "Payment" : null, ""].filter((h) => h !== null)}>
+            <div id="entrants-list">
+              {entries.length > 8 && <ListSearch target="entrants-list" placeholder={money && fee ? "Search by name, club, group or unpaid" : "Search by name, club or group"} />}
+              <Table head={["Member", "Entered", trip ? null : "Tee", officer ? "Asked for" : null, money && fee ? "Payment" : null, ""].filter((h) => h !== null)}>
               {entries.map((e) => {
                 const paid = payments.get(e.memberId);
                 const claim = paid ? undefined : claims.get(e.memberId);
                 const lines = asked(e.memberId);
                 const note = choices.get(e.memberId)?.note;
+                const search = [
+                  e.name,
+                  e.homeClub,
+                  e.teeGroup ? `group ${e.teeGroup}` : "no group",
+                  clock(e.teeTime),
+                  money && fee ? (paid ? `paid ${PAID_LABELS[paid]}` : claim ? "says paid" : "unpaid") : null,
+                ]
+                  .filter(Boolean)
+                  .join(" ");
                 return (
-                  <tr key={e.memberId}>
+                  <tr key={e.memberId} data-search={search}>
                     <Td>
                       <div className="flex items-center gap-2.5">
                         <Avatar name={e.name} url={e.avatarUrl} />
@@ -376,7 +388,8 @@ export default async function EventPage({ params }: { params: Promise<{ id: stri
                   </tr>
                 );
               })}
-            </Table>
+              </Table>
+            </div>
           )}
           {officer && live && (
             <div className="mt-5 pt-5 border-t border-line">
