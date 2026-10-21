@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { AdvertVideo } from "@/components/home/advert-video";
 import Link from "next/link";
 import { countCoursesByCountry } from "@/lib/courses";
 import { createClient } from "@/lib/supabase/server";
@@ -131,6 +132,9 @@ export default async function HomePage() {
 <div style={{ display: "flex", gap: "12px", alignItems: "center" }}><span className="font-display" style={{ color: "#D9AE4A", fontSize: "22px" }}>◆</span>Buy &amp; sell gear, money held until it arrives</div>
 </div>
 </section>
+
+
+      <AdvertVideo />
 
 
 {/* FEATURES — eight tiles, each with a small, real-looking piece of the app.

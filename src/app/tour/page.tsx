@@ -7,7 +7,7 @@ import { TourPlayer } from "./tour-player";
 
 const title = "The PinPals tour | Golf is better on PinPals";
 const description =
-  "A three-minute tour of PinPals: find golfers and tee times, live scoring with friends, hole maps, society days, trips away, results and the golf marketplace.";
+  "A 60-second tour of PinPals: find golfers and tee times, live scoring with friends, hole maps, society days, trips away, results and the golf marketplace.";
 
 export const metadata: Metadata = {
   title,
@@ -36,7 +36,7 @@ export default function TourPage() {
         <div className="absolute inset-0 bg-gradient-to-b from-[rgba(9,22,40,0.55)] to-[rgba(9,22,40,0.95)] -z-10" />
         <div className="max-w-6xl mx-auto px-6">
           <span className="inline-flex items-center gap-2 text-xs font-bold tracking-widest uppercase text-gold-500">
-            <span className="w-5 h-0.5 bg-gold-500 inline-block" /> The PinPals tour · 3 minutes
+            <span className="w-5 h-0.5 bg-gold-500 inline-block" /> The PinPals tour · 60 seconds
           </span>
           <h1 className="font-display font-bold text-4xl md:text-6xl mt-2.5">Golf is better on PinPals</h1>
           <p className="text-white/80 mt-3 max-w-[60ch]">
