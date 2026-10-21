@@ -408,19 +408,24 @@ export default function StartForm({
               Opens one live game per group on every player&apos;s phone and tells each of them their group. If someone already opened a game, they&apos;re asked to use this one.
             </p>
           </section>
-          <div className="flex flex-wrap gap-2">
-            <Link href={links.draw} className={buttonClass("quiet", "sm")}>
-              Change the draw
+          <section className="bg-surface rounded-2xl border border-line shadow-sm p-4 grid gap-2">
+            <h2 className="font-display font-bold text-base text-ink-900">Players</h2>
+            <Link href={`${links.event}#entrants`} className={`${buttonClass("navy")} w-full`}>
+              Add / remove players
+            </Link>
+            <Link href={`${links.event}#guests`} className={`${buttonClass("quiet")} w-full`}>
+              Add / remove guests
+            </Link>
+            <Link href={links.draw} className={`${buttonClass("quiet")} w-full`}>
+              Change the groups
             </Link>
             {links.handicaps && (
-              <Link href={links.handicaps} className={buttonClass("quiet", "sm")}>
-                Society handicaps
+              <Link href={links.handicaps} className={`${buttonClass("quiet")} w-full`}>
+                Change a handicap
               </Link>
             )}
-            <Link href={`${links.event}#guests`} className={buttonClass("quiet", "sm")}>
-              Guests
-            </Link>
-          </div>
+            <p className="text-xs text-ink-500">After adding or removing someone, put them in a group (or even the groups up) and publish the draw.</p>
+          </section>
         </aside>
       </div>
 
@@ -428,7 +433,15 @@ export default function StartForm({
       <section className="bg-surface rounded-2xl border border-line shadow-sm p-5">
         <div className="flex flex-wrap items-baseline justify-between gap-2 mb-4">
           <h2 className="font-display font-bold text-lg text-ink-900">Groups and handicaps</h2>
-          <span className="text-xs text-ink-500">
+          <span className="flex flex-wrap items-baseline gap-3">
+            <Link href={`${links.event}#entrants`} className="text-sm font-semibold text-green-700 hover:text-green-600">
+              Add / remove players
+            </Link>
+            <Link href={links.draw} className="text-sm font-semibold text-green-700 hover:text-green-600">
+              Change the groups
+            </Link>
+          </span>
+          <span className="w-full text-xs text-ink-500">
             {format === "stableford" || format === "stroke" ? "Plays off 95% of course handicap" : pairs ? "Each group: seats 1 & 2, seats 3 & 4" : "Each group is one team"}
           </span>
         </div>
