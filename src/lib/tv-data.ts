@@ -28,6 +28,8 @@ type RoundRow = {
   team_handicap: number | null;
   foursomes_scoring: "stableford" | "stroke" | null;
   greensomes: boolean | null;
+  start_hole: number | null;
+  start_letter: string | null;
 };
 type PlayerRow = {
   id: number;
@@ -41,7 +43,7 @@ type PlayerRow = {
 };
 
 const ROUND_COLS =
-  "id, course_name, format, status, match_day_id, match_number, match_type, tee_time, scramble_size, team_name, team_number, team_handicap, foursomes_scoring, greensomes";
+  "id, course_name, format, status, match_day_id, match_number, match_type, tee_time, scramble_size, team_name, team_number, team_handicap, foursomes_scoring, greensomes, start_hole, start_letter";
 
 const toRound = (r: RoundRow): TvRound => ({
   id: r.id,
@@ -59,6 +61,22 @@ const toRound = (r: RoundRow): TvRound => ({
 
 /** The TV's board, or null when the game no longer exists (deleted). */
 export async function tvPayloadFor(db: SupabaseClient, target: TvTarget, now = new Date()): Promise<TvPayload | null> {
+  const loaded = await loadTvGames(db, target);
+  if (!loaded) return null;
+  return buildTvPayload({ day: loaded.day, games: loaded.games, published: loaded.published, now });
+}
+
+/**
+ * The game as tv-board.ts reads it: the day (if any), each round with its
+ * players, card, scores and when each score went in. Also the society
+ * console's control room (src/app/society/[id]/live), which calls it with
+ * the organiser's OWN client, so RLS decides what it sees there.
+ * `starts`: each round's shotgun start ("7B"), where it has one.
+ */
+export async function loadTvGames(
+  db: SupabaseClient,
+  target: TvTarget
+): Promise<{ day: TvDay | null; games: TvGame[]; published: boolean; starts: Record<number, string> } | null> {
   let day: TvDay | null = null;
   let rounds: RoundRow[] = [];
   let published = false;
@@ -138,5 +156,10 @@ export async function tvPayloadFor(db: SupabaseClient, target: TvTarget, now = n
     };
   });
 
-  return buildTvPayload({ day, games, published, now });
+  const starts: Record<number, string> = {};
+  const byHole = new Map<number, number>();
+  for (const r of rounds) if (r.start_hole != null) byHole.set(r.start_hole, (byHole.get(r.start_hole) ?? 0) + 1);
+  for (const r of rounds) if (r.start_hole != null) starts[r.id] = (byHole.get(r.start_hole) ?? 0) > 1 && r.start_letter ? `${r.start_hole}${r.start_letter}` : String(r.start_hole);
+
+  return { day, games, published, starts };
 }

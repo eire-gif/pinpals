@@ -74,7 +74,7 @@ export default async function DrawPage({ params }: { params: Promise<{ id: strin
     <div>
       <PageHeader
         title="The draw"
-        description={`${o.title} · ${outingDateLabel(o.playsOn)}${o.courseName ? ` · ${o.courseName}` : ""}. Members see their tee times as soon as you publish. You start the round on the day, in the app.`}
+        description={`${o.title} · ${outingDateLabel(o.playsOn)}${o.courseName ? ` · ${o.courseName}` : ""}. Members see their tee times as soon as you publish. On the day, start the round from the Live day here, or in the app.`}
         back={back}
       />
       <DrawEditor

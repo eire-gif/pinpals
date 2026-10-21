@@ -91,6 +91,7 @@ export const CONSOLE_NAV: ConsoleNavSection[] = [
     title: "Events",
     items: [
       { slug: "events", label: "Events & entries", area: "events" },
+      { slug: "live", label: "Live day", area: "events" },
       { slug: "results", label: "Results" },
       { slug: "merit", label: "Order of merit" },
     ],

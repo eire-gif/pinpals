@@ -49,9 +49,13 @@ rules + tests, data, pure copies of the app's outing/draw/merit rules + tests),
 "Society admin", `/groups/<id>` for committee members, a new step in the app's
 "Run your society" guide.
 
+## Live day (21 Oct 2026)
+Starting the round, the live control room and publishing results are now on
+the website too — see `claude/society-live-day.md`.
+
 ## Stays in the app
-Starting the round and live scoring on the day; compiling results from the
-cards and Face ID certification; the native share sheet.
+Scoring on the course and Face ID certification; mixed tees and match days
+(Blues v Golds) at the start; the native share sheet.
 
 ## Not yet
 Card payments for societies (Stripe Connect per society, with PinPals' small

@@ -415,7 +415,7 @@ export const GUIDES: Guide[] = [
       },
       {
         title: "Run it from a computer",
-        body: "Everything here is also on the website: go to pinpals.ie/society, sign in with your PinPals email and password, and pick your society. Events and entries, the waiting list, the draw, payments, membership, handicaps, the noticeboard and the committee — on a big screen.",
+        body: "Everything here is also on the website: go to pinpals.ie/society, sign in with your PinPals email and password, and pick your society. Events and entries, the waiting list, the draw, payments, membership, handicaps, the noticeboard and the committee — on a big screen. On the day, Live day starts the round on every player's phone, shows the live scoreboard and which hole each group is on, and works out and publishes the results.",
         look: [{ style: "outline", label: "Society admin", icon: "desktop-outline" }],
         who: "The committee — each sees only their own areas",
         tip: "It's the same society and the same rules as the app: a change on one shows on the other straight away.",
@@ -1921,6 +1921,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-21", text: "Run your society: Run it from a computer now includes Live day on the website — choose the tees and format, start the round on every player's phone, watch the live scoreboard and publish the results from a big screen." },
   { on: "2026-10-20", text: "Score a game live: bigger names, − and + buttons and scores, easier to read on the course; NR is now beside each player's name." },
   { on: "2026-10-20", text: "Big society days: a match day now takes up to 60 matches (was 12), and a scramble or foursomes day up to 100 teams — enough for 130+ players in Blues v Golds." },
   { on: "2026-10-20", text: "Groups & Societies: Start a new group is now a white panel with a big gold + — Golf Buddies, Plan a Golf Trip and Run a Society sit inside it, each with a gold + Create button. Start a group is updated." },
