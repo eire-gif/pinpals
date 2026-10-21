@@ -11,6 +11,7 @@ import { isOn } from "@/lib/features";
 import { PROVINCES, type Province } from "@/lib/matchplay";
 import { amCompetitionStaff, loadOpens, removeOpen, setOpenSource, setPartnerRequest, type Open } from "@/lib/matchplay-data";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
+import { myRoundRight } from "@/components/my-round-pill";
 
 const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
 
@@ -66,12 +67,12 @@ export default function OpensScreen() {
       options={{
         title: "Open competitions",
         headerBackTitle: "Back",
-        headerRight: () => (
+        ...myRoundRight(() => (
           <Pressable style={styles.headerBtn} onPress={() => router.push("/compete/share-open")} accessibilityRole="button" accessibilityLabel="Share an open">
             <Ionicons name="add-circle-outline" size={20} color={colors.navy900} />
             <Text style={styles.headerBtnText}>Share</Text>
           </Pressable>
-        ),
+        )),
       }}
     />
   );

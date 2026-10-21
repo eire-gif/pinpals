@@ -46,6 +46,7 @@ import {
 } from "@/lib/outings";
 import { mySocietyAreas } from "@/lib/society";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
+import { myRoundRight } from "@/components/my-round-pill";
 
 /**
  * One society outing (0125).
@@ -431,13 +432,13 @@ export default function OutingScreen() {
           title: outing.title,
           headerBackTitle: "Back",
           contentStyle: FULL_WIDTH_CONTENT,
-          headerRight: cancelled
+          ...myRoundRight(cancelled
             ? undefined
             : () => (
                 <Pressable onPress={() => void share()} hitSlop={10} accessibilityRole="button" accessibilityLabel="Share to Instagram, Facebook, WhatsApp…">
                   <Ionicons name="share-outline" size={22} color={colors.navy900} />
                 </Pressable>
-              ),
+              )),
         }}
       />
       <ScrollView

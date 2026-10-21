@@ -9,6 +9,7 @@ import { useAuth } from "@/lib/auth";
 import { colors, contentColumn, fonts, headerTitleStyle } from "@/lib/theme";
 import { useMarketplaceUnread } from "@/lib/marketplace-chats";
 import { TONES } from "@/components/live-scoring-card";
+import { MyRoundRow } from "@/components/my-round-pill";
 
 /**
  * The marketplace has its own bottom menu (Oct 2026, approved mock-up 8),
@@ -53,6 +54,8 @@ export default function MarketplaceLayout() {
           tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.line, height: 88, paddingTop: 6 },
           sceneStyle: { backgroundColor: colors.cream50, ...contentColumn },
           headerLeft: () => <MenuButton onPress={() => setMenuOpen(true)} />,
+          // MY ROUND (Oct 2026): the green pill while your round is live.
+          headerRight: () => <MyRoundRow />,
         }}
       >
         <Tabs.Screen
@@ -80,6 +83,7 @@ export default function MarketplaceLayout() {
             headerStyle: { backgroundColor: TONES.bronze.card },
             headerTintColor: colors.cream50,
             headerLeft: () => <MenuButton onPress={() => setMenuOpen(true)} color={colors.cream50} />,
+            headerRight: () => <MyRoundRow onDark />,
             headerTitle: () => (
               <View style={{ alignItems: "center" }} accessibilityRole="header">
                 <Text style={{ fontFamily: fonts.display, fontSize: 22, lineHeight: 26, color: colors.cream50 }} numberOfLines={1}>

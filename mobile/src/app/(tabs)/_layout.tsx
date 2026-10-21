@@ -4,6 +4,7 @@ import { Tabs, router } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { AppMenu, MenuButton } from "@/components/app-menu";
+import { MyRoundRow } from "@/components/my-round-pill";
 import { useAgeAccess } from "@/lib/age";
 import { useAuth } from "@/lib/auth";
 import { colors, contentColumn, fonts, spacing, headerTitleStyle } from "@/lib/theme";
@@ -97,6 +98,9 @@ export default function TabsLayout() {
         // a menu people have to navigate to in order to navigate, which is
         // the problem it exists to solve.
         headerLeft: () => <MenuButton onPress={() => setMenuOpen(true)} />,
+        // MY ROUND (Oct 2026): the green pill while a round you're playing
+        // in is live; tabs with buttons of their own wrap them in the row.
+        headerRight: () => <MyRoundRow />,
       }}
     >
       <Tabs.Screen
@@ -120,7 +124,7 @@ export default function TabsLayout() {
           // reached two ways, and they now carry the same number. Someone
           // who opens the app to "has anything happened" gets the answer on
           // the first screen, without learning where the tab is.
-          headerRight: () => (
+          headerRight: () => <MyRoundRow onDark={false} right={(
             <Pressable
               onPress={() => router.push("/inbox")}
               hitSlop={12}
@@ -144,7 +148,7 @@ export default function TabsLayout() {
                 </View>
               ) : null}
             </Pressable>
-          ),
+          )} />,
         }}
       />
       <Tabs.Screen
@@ -172,7 +176,7 @@ export default function TabsLayout() {
           // Offering a round is the thing the app most wants members to do,
           // and burying it two taps down in the Profile tab would say the
           // opposite. In the header it is visible from launch.
-          headerRight: () => !teeTimes ? null : (
+          headerRight: () => <MyRoundRow onDark={true} right={!teeTimes ? null : (
             <Pressable
               onPress={() => router.push("/post-tee-time")}
               hitSlop={12}
@@ -192,7 +196,7 @@ export default function TabsLayout() {
                 <Ionicons name="add" size={26} color={colors.cream50} />
               </View>
             </Pressable>
-          ),
+          )} />,
         }}
       />
       <Tabs.Screen
@@ -237,7 +241,7 @@ export default function TabsLayout() {
           // as Post a tee time on the Tee Times tab.
           // My connections beside it: Social is where you notice who you
           // aren't following yet.
-          headerRight: () => !social ? null : (
+          headerRight: () => <MyRoundRow onDark={true} right={!social ? null : (
             <View style={{ flexDirection: "row", alignItems: "center" }}>
               <ConnectionsButton tint={colors.cream50} />
               <Pressable
@@ -249,7 +253,7 @@ export default function TabsLayout() {
                 <Ionicons name="add-circle" size={27} color={colors.gold400} />
               </Pressable>
             </View>
-          ),
+          )} />,
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="images-outline" size={size} color={color} />
           ),
@@ -270,7 +274,7 @@ export default function TabsLayout() {
           // anyone has used puts a compose button here, top right, and the
           // absence of one reads as "you cannot start one from the inbox".
           // Under 18: no chats, so no compose button; under 16: no PinPals.
-          headerRight: () => (
+          headerRight: () => <MyRoundRow onDark={true} right={(
             <View style={{ flexDirection: "row", alignItems: "center" }}>
               {connections ? <ConnectionsButton tint={colors.cream50} /> : null}
               {chat ? <Pressable
@@ -283,7 +287,7 @@ export default function TabsLayout() {
                 <Ionicons name="create-outline" size={24} color={colors.gold400} />
               </Pressable> : null}
             </View>
-          ),
+          )} />,
           tabBarBadge:
             unread.total > 0 ? (unread.total > 99 ? "99+" : unread.total) : undefined,
           tabBarBadgeStyle: { backgroundColor: colors.red600 },
@@ -312,6 +316,7 @@ export default function TabsLayout() {
           headerStyle: { backgroundColor: "transparent" },
           headerShadowVisible: false,
           headerLeft: () => <MenuButton onPress={() => setMenuOpen(true)} color={colors.cream50} />,
+          headerRight: () => <MyRoundRow onDark />,
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="person-outline" size={size} color={color} />
           ),

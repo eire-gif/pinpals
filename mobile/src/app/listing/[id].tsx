@@ -46,6 +46,7 @@ import { ThreadPreviewCard } from "@/components/listing-thread-view";
 import { EMPTY_THREAD, loadThread } from "@/lib/listing-posts";
 import type { ThreadSummary } from "@/lib/listing-thread";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
+import { myRoundRight } from "@/components/my-round-pill";
 
 /**
  * One listing.
@@ -222,7 +223,7 @@ export default function ListingScreen() {
         options={{
           title: shop ? shop.name : "Used gear",
           headerBackTitle: "Back",
-          headerRight: () =>
+          ...myRoundRight(() =>
             userId ? (
               <Pressable
                 onPress={() => void favourite()}
@@ -238,7 +239,7 @@ export default function ListingScreen() {
                   color={listing.isFavourited ? colors.red600 : colors.navy900}
                 />
               </Pressable>
-            ) : null,
+            ) : null),
         }}
       />
 

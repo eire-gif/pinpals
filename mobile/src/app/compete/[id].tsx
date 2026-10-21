@@ -34,6 +34,7 @@ import {
 } from "@/lib/matchplay-data";
 import { outingDateLabel } from "@/lib/outing-rules";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
+import { myRoundRight } from "@/components/my-round-pill";
 
 const KNOCKOUT_ORDER: MatchStage[] = ["r32", "r16", "qf", "sf", "final"];
 const PAID: Record<NonNullable<LeagueEntry["paid"]>, string> = { cash: "Paid cash", transfer: "Paid by transfer", waived: "Fee waived" };
@@ -115,7 +116,7 @@ export default function LeagueScreen() {
       options={{
         title: page?.league.kind === "ladder" ? "Ladder" : "League",
         headerBackTitle: "Back",
-        headerRight: () =>
+        ...myRoundRight(() =>
           page?.organiser && page.league.status !== "finished" && page.league.status !== "cancelled" ? (
             <Pressable
               style={styles.headerBtn}
@@ -139,7 +140,7 @@ export default function LeagueScreen() {
             >
               <Ionicons name="ellipsis-horizontal-circle-outline" size={24} color={colors.navy900} />
             </Pressable>
-          ) : null,
+          ) : null),
       }}
     />
   );

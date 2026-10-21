@@ -12,6 +12,7 @@ import { useContentWidth } from "@/lib/content-width";
 import { createPost, loadPost, type FeedPost } from "@/lib/feed";
 import { POST_VISIBILITIES, POST_VISIBILITY_LABELS, type PostVisibility } from "@/lib/feed-rules";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
+import { noMyRound } from "@/components/my-round-pill";
 
 const MAX_BODY = 2000;
 
@@ -82,7 +83,7 @@ function ShareToFeedInner() {
       <Stack.Screen
         options={{
           title: "Share to your feed",
-          headerRight: () => (
+          ...noMyRound(() => (
             <Pressable
               onPress={() => void share()}
               disabled={!ready || posting}
@@ -93,7 +94,7 @@ function ShareToFeedInner() {
             >
               {posting ? <ActivityIndicator color={colors.green700} /> : <Text style={styles.headerAction}>Share</Text>}
             </Pressable>
-          ),
+          )),
         }}
       />
       <ScrollView

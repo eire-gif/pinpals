@@ -27,6 +27,7 @@ import {
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 import { TONES } from "@/components/live-scoring-card";
 import { AgeGateLoading, NotForUnder18, useAgeGate } from "@/components/not-for-under-18";
+import { myRoundRight } from "@/components/my-round-pill";
 
 /** The Marketplace bar's colour, so My listings reads as part of it. */
 const BAR = TONES.bronze.card;
@@ -117,7 +118,7 @@ function MyListingsScreenInner() {
               </Text>
             </View>
           ),
-          headerRight: () => (
+          ...myRoundRight(() => (
             <Pressable
               onPress={() => router.push("/new-listing")}
               hitSlop={8}
@@ -128,7 +129,7 @@ function MyListingsScreenInner() {
               <Ionicons name="add" size={18} color={colors.navy900} />
               <Text style={styles.sellLabel}>Sell</Text>
             </Pressable>
-          ),
+          ), { onDark: true }),
         }}
       />
       {focused ? <StatusBar style="light" /> : null}

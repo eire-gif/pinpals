@@ -30,6 +30,7 @@ import {
 } from "@/lib/onboarding";
 import { confirmedPlayersFor, listInvitesAtClub, type CardPlayer, type Invite } from "@/lib/tee-times";
 import { colors, fonts, radii, spacing } from "@/lib/theme";
+import { myRoundRight } from "@/components/my-round-pill";
 
 const TAG_LABEL = Object.fromEntries(REVIEW_TAGS.map((t) => [t.code, t.label])) as Record<string, string>;
 
@@ -202,7 +203,7 @@ export default function CourseScreen() {
         options={{
           title: course.name,
           headerBackTitle: "Back",
-          headerRight: () => (
+          ...myRoundRight(() => (
             <Pressable
               onPress={() => void toggleFavourite()}
               hitSlop={10}
@@ -212,7 +213,7 @@ export default function CourseScreen() {
             >
               <Ionicons name={favourite ? "star" : "star-outline"} size={24} color={favourite ? colors.gold500 : colors.ink900} />
             </Pressable>
-          ),
+          )),
         }}
       />
       <ScrollView

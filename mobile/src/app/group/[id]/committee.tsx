@@ -24,6 +24,7 @@ import {
   type SocietyMember,
 } from "@/lib/society";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
+import { myRoundRight } from "@/components/my-round-pill";
 
 type Filter = "all" | MembershipStatus;
 
@@ -184,13 +185,13 @@ export default function SocietyCommitteeScreen() {
       options={{
         title: "Members",
         headerBackTitle: "Back",
-        headerRight: () =>
+        ...myRoundRight(() =>
           areas && (canPeople || canMoney) ? (
             <Pressable onPress={() => router.push({ pathname: "/group/[id]/exports", params: { id: String(groupId) } } as never)} style={styles.headerBtn} accessibilityRole="button" accessibilityLabel="Export members as CSV">
               <Ionicons name="download-outline" size={18} color={colors.navy900} />
               <Text style={styles.headerBtnText}>CSV</Text>
             </Pressable>
-          ) : null,
+          ) : null),
       }}
     />
   );

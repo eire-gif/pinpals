@@ -3,6 +3,7 @@ import type { RealtimeChannel } from "@supabase/supabase-js";
 import { postToSite } from "./api";
 import type { CardHole, FoursomesScoring, LiveFormat, LivePlayer, MatchFormat, ScoreSheet, ScrambleSize, StartLetter } from "./live-scoring";
 import type { ClubCardRow } from "./scorecards";
+import { signalMyRound } from "./my-round-signal";
 import { supabase } from "./supabase";
 
 /**
@@ -360,6 +361,7 @@ export async function createLiveRound(round: NewRound, players: NewPlayer[], car
   });
   if (error) throw error;
   const id = data as number;
+  signalMyRound(); // the MY ROUND pill appears
   // Tell the PinPals in it. Best effort: the round exists either way.
   void postToSite(`/api/app/live/rounds/${id}/notify`, {}).catch(() => undefined);
   return id;
@@ -375,6 +377,8 @@ export async function setLiveScore(roundId: number, playerId: number, hole: numb
     p_clear: clear,
   });
   if (error) throw error;
+  // The MY ROUND pill shows the hole in play; a new score can move it on.
+  signalMyRound(15_000);
 }
 
 /**
@@ -434,6 +438,7 @@ export async function setLiveHole(roundId: number, hole: number, par: number, st
 export async function finishLiveRound(roundId: number): Promise<void> {
   const { error } = await supabase.rpc("live_round_finish", { p_round_id: roundId });
   if (error) throw error;
+  signalMyRound(); // the MY ROUND pill goes
   // A match in a match day: everyone in the day hears the result. The site
   // sends nothing for an ordinary round. Best effort.
   void postToSite(`/api/app/live/rounds/${roundId}/finished`, {}).catch(() => undefined);
@@ -444,6 +449,7 @@ export async function finishLiveRound(roundId: number): Promise<void> {
 export async function deleteLiveRound(roundId: number): Promise<void> {
   const { error } = await supabase.rpc("live_round_delete", { p_round_id: roundId });
   if (error) throw error;
+  signalMyRound();
 }
 
 // ---------------------------------------------------------------------------

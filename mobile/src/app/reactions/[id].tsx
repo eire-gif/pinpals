@@ -13,6 +13,7 @@ import { ago, handicapLabel } from "@/lib/feed-rules";
 import { connectionStates, conversationWith, requestConnection, type ConnectionState } from "@/lib/members";
 import { REACTIONS, REACTION_INFO, topReactions, type ReactionKey } from "@/lib/reactions";
 import { colors, fonts, radii, spacing } from "@/lib/theme";
+import { noMyRound } from "@/components/my-round-pill";
 
 /**
  * Who reacted to a post (Oct 2026, the "Reactions & Share" mock-ups) —
@@ -274,11 +275,11 @@ function ReactionsScreenInner() {
       <Stack.Screen
         options={{
           title: tab === "shares" ? "Shares" : "Reactions",
-          headerRight: () => (
+          ...noMyRound(() => (
             <Pressable onPress={() => router.back()} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close">
               <Ionicons name="close" size={24} color={colors.ink900} />
             </Pressable>
-          ),
+          )),
         }}
       />
       <View style={styles.fill}>

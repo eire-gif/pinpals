@@ -37,6 +37,7 @@ import {
 import { respondToOffer, type OfferAction } from "@/lib/purchase";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 import { AgeGateLoading, NotForUnder18, useAgeGate } from "@/components/not-for-under-18";
+import { myRoundRight } from "@/components/my-round-pill";
 
 /**
  * My selling — everything you have on sale, are negotiating, or are owed for.
@@ -124,7 +125,7 @@ function SellingScreenInner() {
         options={{
           headerTitle: "",
           headerBackTitle: "Back",
-          headerRight: () => (
+          ...myRoundRight(() => (
             <Pressable
               onPress={() => router.push("/payouts")}
               hitSlop={12}
@@ -133,7 +134,7 @@ function SellingScreenInner() {
             >
               <Ionicons name="wallet-outline" size={23} color={colors.green700} />
             </Pressable>
-          ),
+          )),
         }}
       />
 

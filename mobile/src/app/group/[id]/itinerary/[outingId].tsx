@@ -31,6 +31,7 @@ import { clock, irishToday } from "@/lib/outing-rules";
 import { loadOuting, type OutingPage } from "@/lib/outings";
 import { officeAreas } from "@/lib/groups";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
+import { myRoundRight } from "@/components/my-round-pill";
 
 /**
  * A trip's itinerary (0126) — one screen for everyone in the society.
@@ -111,14 +112,13 @@ export default function ItineraryScreen() {
       options={{
         title: outing?.title ?? "Itinerary",
         headerBackTitle: "Back",
-        headerRight:
-          outing && outing.status === "open"
+        ...myRoundRight(outing && outing.status === "open"
             ? () => (
                 <Pressable onPress={() => void share()} hitSlop={10} accessibilityRole="button" accessibilityLabel="Share to Instagram, Facebook, WhatsApp…">
                   <Ionicons name="share-outline" size={22} color={colors.navy900} />
                 </Pressable>
               )
-            : undefined,
+            : undefined),
       }}
     />
   );
