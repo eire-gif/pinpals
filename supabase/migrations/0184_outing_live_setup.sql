@@ -19,6 +19,8 @@
 --
 -- No drop statements.
 --
+-- Applied to production 21 Oct 2026.
+--
 -- Rollback:
 --   drop function if exists public.save_outing_live_setup(bigint, jsonb);
 --   alter table public.society_outings drop column if exists live_setup, drop column if exists live_setup_at;
