@@ -81,6 +81,11 @@ export default async function DrawPage({ params }: { params: Promise<{ id: strin
         title="The draw"
         description={`${o.title} · ${outingDateLabel(o.playsOn)}${o.courseName ? ` · ${o.courseName}` : ""}. Members see their tee times as soon as you publish. On the day, start the round from the Live day here, or in the app.`}
         back={back}
+        actions={
+          <Link href={`${consoleHref(g, `events/${o.id}`)}#entrants`} className={buttonClass("navy")}>
+            Add / remove players
+          </Link>
+        }
       />
       {steps}
       <DrawEditor

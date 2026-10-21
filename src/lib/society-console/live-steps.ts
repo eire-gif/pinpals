@@ -20,7 +20,7 @@ export function liveSteps(
     { label: "Set up", sub: started ? "Done" : "Tees, card, format", state: state(1, started), href: started ? base : `${base}#setup` },
     {
       label: "Players & groups",
-      sub: o.drawPublishedAt ? `${opts.inDraw} in the draw` : "Make the draw",
+      sub: started ? `${opts.inDraw} in the draw` : o.drawPublishedAt ? `${opts.inDraw} in · add / remove` : "Add players, make the draw",
       state: state(2, o.drawPublishedAt != null),
       href: `/society/${groupId}/events/${o.id}/draw`,
     },
