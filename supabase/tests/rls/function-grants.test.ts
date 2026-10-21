@@ -395,6 +395,8 @@ const EXPECTED: Record<string, Expectation> = {
   "set_outing_entry(p_outing_id bigint, p_in boolean, p_member uuid)": { anon: false, authenticated: true },
   "publish_outing_draw(p_outing_id bigint, p_groups jsonb)": { anon: false, authenticated: true },
   "link_outing_match_day(p_outing_id bigint, p_match_day_id bigint)": { anon: false, authenticated: true },
+  // 0184 a society day's saved live set-up
+  "save_outing_live_setup(p_outing_id bigint, p_setup jsonb)": { anon: false, authenticated: true },
   "mark_outing_paid(p_outing_id bigint, p_member uuid, p_status text)": { anon: false, authenticated: true },
   // 0128 scorecard certification
   "scorecard_certify_candidates(p_scorecard_id bigint)": { anon: false, authenticated: true },

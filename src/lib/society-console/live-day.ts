@@ -516,3 +516,41 @@ export function ordinal(n: number): string {
   const s = n % 100 >= 11 && n % 100 <= 13 ? "th" : (["th", "st", "nd", "rd"][n % 10] ?? "th");
   return `${n}${s}`;
 }
+
+// ---------------------------------------------------------------------------
+// A set-up saved ahead of the day (0184)
+// ---------------------------------------------------------------------------
+
+/** What the organiser saved on the event, read back into the form. Never trusted to start a round. */
+export type SavedSetup = {
+  cardId: number | null;
+  teeName: string;
+  rating: string;
+  slope: string;
+  card: CardHole[] | null;
+  format: DayFormat;
+  pairScoring: PairScoring;
+  start: StartMode;
+  shotgunTime: string | null;
+  hidden: boolean;
+};
+
+const str = (v: unknown, max: number) => (typeof v === "string" ? v.slice(0, max) : typeof v === "number" && Number.isFinite(v) ? String(v) : "");
+
+/** live_setup as stored, made safe for the form; null when there's nothing usable. */
+export function parseSavedSetup(raw: unknown): SavedSetup | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const r = raw as Record<string, unknown>;
+  return {
+    cardId: Number.isInteger(r.cardId) && (r.cardId as number) > 0 ? (r.cardId as number) : null,
+    teeName: str(r.teeName, 40),
+    rating: str(r.rating, 8),
+    slope: str(r.slope, 4),
+    card: r.card == null ? null : parseCard(r.card),
+    format: isDayFormat(r.format) ? r.format : "stableford",
+    pairScoring: r.pairScoring === "stroke" ? "stroke" : "stableford",
+    start: r.start === "shotgun" ? "shotgun" : "tees",
+    shotgunTime: typeof r.shotgunTime === "string" && CLOCK.test(r.shotgunTime) ? r.shotgunTime : null,
+    hidden: r.hidden === true,
+  };
+}

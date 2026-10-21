@@ -11,7 +11,10 @@ control room, cards in & results).
 
 1. **Society admin → Live day** (new menu item, events area), or **Live day**
    on an event. Today's and upcoming days out, and recently played ones.
-2. **Set up & start** (`/live/<event>`), on the day of the event:
+2. **Set up & start** (`/live/<event>`). The set-up can be done and **saved
+   ahead** (0184 `save_outing_live_setup` → `society_outings.live_setup`,
+   any events officer, any device, read back into the form); the round
+   itself starts on the day of the event:
    - Tees from the club's cards on file (`course_cards_for_club`), or type a
      card; rating and slope; the card's par and stroke index per hole
      (editable for this round; every index needed).
@@ -49,7 +52,8 @@ control room, cards in & results).
 
 ## How it's safe
 
-- No migration and no new privileges. Pages use `requireConsole(area:
+- One migration (0184: a column and its save function, officers only);
+  no new privileges otherwise. Pages use `requireConsole(area:
   "events")`; every action runs through `consoleAction` and then the app's
   own database functions with the member's OWN client.
 - Nothing posted becomes a player, a handicap or a group: `startRound`
