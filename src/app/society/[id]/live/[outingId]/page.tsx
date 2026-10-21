@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { ActionButton, ConsoleForm, SubmitButton } from "@/components/society-console/forms";
 import { HoleStrip, LiveStat, LiveSteps, StripLegend, type Step } from "@/components/society-console/live-ui";
+import { liveSteps } from "@/lib/society-console/live-steps";
 import { buttonClass, inputClass } from "@/components/society-console/styles";
 import { Card, Empty, PageHeader, Pill } from "@/components/society-console/ui";
 import { buildTvPayload, type TvDay } from "@/lib/tv-board";
@@ -57,13 +58,7 @@ export default async function LiveDayPage({ params }: { params: Promise<{ id: st
 
   const day = o.matchDayId ? await loadLiveDay(ctx.supabase, o.matchDayId, ctx.user.id) : null;
   const published = day?.results?.status === "published";
-  const steps: Step[] = [
-    { label: "Set up", sub: day ? "Done" : "Tees, card, format", state: day ? "done" : "now" },
-    { label: "Players & groups", sub: o.drawPublishedAt ? `${page.entries.length + page.guests.length} in the draw` : "Make the draw", state: o.drawPublishedAt ? "done" : "next", href: day ? undefined : consoleHref(g, `events/${o.id}/draw`) },
-    { label: "Start", sub: day ? "Started" : "Open scoring", state: day ? "done" : "next" },
-    { label: "Live", sub: published ? "Scoring closed" : "Scoreboard", state: published ? "done" : day ? "now" : "next" },
-    { label: "Results", sub: published ? "Published" : "Podium & publish", state: published ? "done" : "next", href: day ? consoleHref(g, `live/${o.id}/results`) : undefined },
-  ];
+  const steps = liveSteps(g, o, { current: day ? 4 : 1, inDraw: page.entries.length + page.guests.length, published });
 
   if (!o.matchDayId) {
     const past = outingPast(o.playsOn);
