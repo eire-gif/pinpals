@@ -328,48 +328,6 @@ function ControlRoomView({
               </ul>
             )}
           </Card>
-        </aside>
-      </div>
-
-      <div className="flex flex-wrap gap-5 items-start mt-5">
-        <Card className="flex-[1.6_1_560px] min-w-0" title={day.kind === "scramble" ? "Teams" : "Groups"} subtitle="Open one to see its card hole by hole">
-          {room.groups.length === 0 ? (
-            <Empty>No groups in this round.</Empty>
-          ) : (
-            <div className="grid gap-2.5 [grid-template-columns:repeat(auto-fill,minmax(210px,1fr))]">
-              {room.groups.map((x) => (
-                <Link key={x.roundId} href={cardHref(x.roundId)} className="rounded-2xl border border-line bg-surface-tint p-3.5 grid gap-2 hover:shadow-md transition">
-                  <span className="flex items-center justify-between gap-2">
-                    <span className="inline-flex h-6 min-w-8 items-center justify-center rounded-lg px-1.5 text-xs font-extrabold text-white" style={{ background: colourOf(x.number) }}>
-                      {day.kind === "scramble" ? x.label : `G${x.number}`}
-                    </span>
-                    {x.state === "done" ? (
-                      <Pill tone="green">In</Pill>
-                    ) : x.state === "waiting" ? (
-                      <Pill tone="gold">{x.teeTime ? `Tee ${x.teeTime}` : "Not started"}</Pill>
-                    ) : x.quietFor != null && x.quietFor >= 25 ? (
-                      <Pill tone="red">Quiet {x.quietFor} min</Pill>
-                    ) : (
-                      <Pill tone="navy">On the {/^\d+$/.test(x.on) ? ordinal(Number(x.on)) : x.on}</Pill>
-                    )}
-                  </span>
-                  <span className="flex items-center gap-2">
-                    <span className="flex-1 h-2 rounded-full bg-cream-100 overflow-hidden">
-                      <span className="block h-2" style={{ width: `${Math.round((x.thru / Math.max(1, x.holes)) * 100)}%`, background: colourOf(x.number) }} />
-                    </span>
-                    <strong className="text-xs text-ink-900">{x.thru >= x.holes ? "In" : `Thru ${x.thru}`}</strong>
-                  </span>
-                  <span className="text-xs text-ink-500">
-                    {x.names}
-                    {x.start ? ` · starts on ${x.start}` : ""}
-                  </span>
-                </Link>
-              ))}
-            </div>
-          )}
-        </Card>
-
-        <div className="flex-[1_1_320px] min-w-0 grid gap-5">
           <Card title="Live feed" subtitle="Birdies or better — the TV flashes them too">
             {board.highlights.length === 0 ? (
               <Empty>No birdies yet.</Empty>
@@ -434,7 +392,46 @@ function ControlRoomView({
               </Link>
             </div>
           </Card>
-        </div>
+        </aside>
+      </div>
+
+      <div className="mt-5">
+        <Card title={day.kind === "scramble" ? "Teams" : "Groups"} subtitle="Open one to see its card hole by hole">
+          {room.groups.length === 0 ? (
+            <Empty>No groups in this round.</Empty>
+          ) : (
+            <div className="grid gap-2.5 [grid-template-columns:repeat(auto-fill,minmax(210px,1fr))]">
+              {room.groups.map((x) => (
+                <Link key={x.roundId} href={cardHref(x.roundId)} className="rounded-2xl border border-line bg-surface-tint p-3.5 grid gap-2 hover:shadow-md transition">
+                  <span className="flex items-center justify-between gap-2">
+                    <span className="inline-flex h-6 min-w-8 items-center justify-center rounded-lg px-1.5 text-xs font-extrabold text-white" style={{ background: colourOf(x.number) }}>
+                      {day.kind === "scramble" ? x.label : `G${x.number}`}
+                    </span>
+                    {x.state === "done" ? (
+                      <Pill tone="green">In</Pill>
+                    ) : x.state === "waiting" ? (
+                      <Pill tone="gold">{x.teeTime ? `Tee ${x.teeTime}` : "Not started"}</Pill>
+                    ) : x.quietFor != null && x.quietFor >= 25 ? (
+                      <Pill tone="red">Quiet {x.quietFor} min</Pill>
+                    ) : (
+                      <Pill tone="navy">On the {/^\d+$/.test(x.on) ? ordinal(Number(x.on)) : x.on}</Pill>
+                    )}
+                  </span>
+                  <span className="flex items-center gap-2">
+                    <span className="flex-1 h-2 rounded-full bg-cream-100 overflow-hidden">
+                      <span className="block h-2" style={{ width: `${Math.round((x.thru / Math.max(1, x.holes)) * 100)}%`, background: colourOf(x.number) }} />
+                    </span>
+                    <strong className="text-xs text-ink-900">{x.thru >= x.holes ? "In" : `Thru ${x.thru}`}</strong>
+                  </span>
+                  <span className="text-xs text-ink-500">
+                    {x.names}
+                    {x.start ? ` · starts on ${x.start}` : ""}
+                  </span>
+                </Link>
+              ))}
+            </div>
+          )}
+        </Card>
       </div>
     </div>
   );
