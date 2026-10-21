@@ -10,7 +10,7 @@ import { signTvToken } from "@/lib/tv-token";
 import { requireConsole } from "@/lib/society-console/access";
 import { loadEvent } from "@/lib/society-console/data";
 import { controlRoom, ordinal } from "@/lib/society-console/live-day";
-import { loadCourseCards, loadDrawnGroups, loadLiveDay, type LiveDay } from "@/lib/society-console/live-day-data";
+import { loadCourseCards, loadDrawnGroups, loadLiveDay, notDrawn, type LiveDay } from "@/lib/society-console/live-day-data";
 import { clock, isOutingDay, outingDateLabel, outingPast } from "@/lib/society-console/outing-rules";
 import { consoleHref, positiveInt } from "@/lib/society-console/rules";
 import { connectTv, setHidden } from "./actions";
@@ -96,6 +96,7 @@ export default async function LiveDayPage({ params }: { params: Promise<{ id: st
             dateLabel={outingDateLabel(o.playsOn)}
             cards={cards}
             draw={draw}
+            notDrawn={notDrawn(page)}
             links={{ draw: consoleHref(g, `events/${o.id}/draw`), handicaps: ctx.areas.includes("handicaps") ? consoleHref(g, "handicaps") : null, event: eventHref }}
           />
         )}

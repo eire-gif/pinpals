@@ -59,7 +59,7 @@ export default async function LiveResultsPage({ params }: { params: Promise<{ id
     );
   }
 
-  const certified = await loadCertified(ctx.supabase, day.id);
+  const certified = (await loadCertified(ctx.supabase, day.id)) ?? new Map<string, boolean>();
   const isPublished = day.results?.status === "published";
   const settings = day.mine ? settingsFrom(day.results?.settings ?? DEFAULT_SETTINGS) : DEFAULT_SETTINGS;
   const provisional = workOut(day.id, day.kind, day.games, certified, settings);

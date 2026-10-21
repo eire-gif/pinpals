@@ -76,8 +76,10 @@ export type DaySetup = {
   /** How pairs (foursomes, greensomes) are ranked. */
   pairScoring: PairScoring;
   start: StartMode;
-  /** A shotgun's one start time; null keeps each group's own tee time. */
+  /** A shotgun's one start time (needed for a shotgun). */
   shotgunTime: string | null;
+  /** Entered for the event but in no tee group: they'd be left out. */
+  notDrawn?: string[];
 };
 
 /** What the preview table shows for each card in a group. */
@@ -177,13 +179,15 @@ export function planDay(setup: DaySetup, draw: readonly DrawnGroup[]): DayPlan {
   const groups = draw.filter((g) => g.players.length > 0);
   if (groups.length === 0) problems.push("Publish the draw first — the round is played in its tee groups.");
   if (groups.length > 60) problems.push("A day has 60 tee groups at most.");
+  const left = setup.notDrawn ?? [];
+  if (left.length) problems.push(`${left.length === 1 ? `${left[0]} is` : `${left.length} people are`} entered but not in the draw${left.length > 1 ? ` (${left.slice(0, 4).join(", ")}${left.length > 4 ? "…" : ""})` : ""} — change the draw so everyone has a group.`);
 
   const noIndex = groups.flatMap((g) => g.players.filter((p) => p.index == null));
   for (const p of noIndex) problems.push(`${p.name} has no handicap index${p.guest ? " — add it on the event's guest list" : " — set a society handicap for them"}.`);
 
   let starts: (ShotgunStart | null)[] | null = null;
   if (setup.start === "shotgun") {
-    if (setup.shotgunTime != null && !CLOCK.test(setup.shotgunTime)) problems.push("The shotgun time doesn't look right.");
+    if (setup.shotgunTime == null || !CLOCK.test(setup.shotgunTime)) problems.push("Give the shotgun's start time, like 09:00.");
     if (card.length === 9 || card.length === 18) {
       if (groups.length > shotgunCapacity(card.length)) problems.push(`A shotgun takes ${shotgunCapacity(card.length)} groups at most on ${card.length} holes.`);
       else starts = shotgunStarts(card, groups.length);
@@ -193,6 +197,8 @@ export function planDay(setup: DaySetup, draw: readonly DrawnGroup[]): DayPlan {
   const pairs = format === "foursomes" || format === "greensomes";
   if (pairs) {
     for (const g of groups) if (g.players.length !== 2 && g.players.length !== 4) problems.push(`Group ${g.number} has ${g.players.length} — ${format} needs groups of 2 or 4 (pairs are seats 1 & 2 and 3 & 4).`);
+    const pairCount = groups.reduce((n, g) => n + Math.floor(g.players.length / 2), 0);
+    if (pairCount > 100) problems.push(`That's ${pairCount} pairs — a pairs day has 100 at most.`);
   }
   let teamSize: 2 | 4 | null = null;
   if (format === "scramble") {
@@ -264,14 +270,14 @@ export function planDay(setup: DaySetup, draw: readonly DrawnGroup[]): DayPlan {
     } else {
       const chs = hc.map((x) => x.courseHandicap);
       const sh = g.players.length === 2 || g.players.length === 4 ? scrambleHandicap(chs) : { team: 0, shares: chs.map(() => 0) };
-      const name = `Team ${g.number}`;
       lines.push({
         name: g.players.map((p) => first(p.name)).join(", "),
         players: g.players.map((p, k) => ({ name: p.name, index: p.index ?? 0, courseHandicap: chs[k], playingHandicap: Math.round(sh.shares[k]), guest: p.guest })),
         handicap: sh.team,
         estimated: hc.some((x) => x.estimated),
       });
-      teams.push({ name, tee_time: timeOf(g), ...startOf(gi), team_handicap: sh.team, players: g.players.map((p, k) => rpcPlayer(p, chs[k], Math.round(sh.shares[k]), hc[k].estimated)) });
+      // No name, as the app: the results then name the team by its players.
+      teams.push({ name: null, tee_time: timeOf(g), ...startOf(gi), team_handicap: sh.team, players: g.players.map((p, k) => rpcPlayer(p, chs[k], Math.round(sh.shares[k]), hc[k].estimated)) });
     }
     planned.push({ number: g.number, teeTime: timeOf(g), start: startText(gi), lines });
   });

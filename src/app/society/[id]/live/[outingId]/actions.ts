@@ -8,7 +8,7 @@ import type { ActionState } from "@/lib/society-console/action-state";
 import type { ConsoleContext } from "@/lib/society-console/access";
 import { loadEvent } from "@/lib/society-console/data";
 import { isDayFormat, parseCard, planDay, type PairScoring, type StartMode } from "@/lib/society-console/live-day";
-import { loadDrawnGroups } from "@/lib/society-console/live-day-data";
+import { loadDrawnGroups, notDrawn } from "@/lib/society-console/live-day-data";
 import { isOutingDay } from "@/lib/society-console/outing-rules";
 import { parseClock, positiveInt, text } from "@/lib/society-console/rules";
 import { check, consoleAction } from "@/lib/society-console/server-action";
@@ -37,7 +37,12 @@ import { normaliseTvCode } from "@/lib/tv-token";
 async function eventOf(ctx: ConsoleContext, raw: FormDataEntryValue | null) {
   const outing = positiveInt(raw);
   if (!outing) throw new Error("That event wasn't found.");
-  const page = await loadEvent(ctx.supabase, ctx.society.id, outing);
+  let page: Awaited<ReturnType<typeof loadEvent>>;
+  try {
+    page = await loadEvent(ctx.supabase, ctx.society.id, outing);
+  } catch {
+    throw new Error("Couldn't load the event. Please try again.");
+  }
   if (!page) throw new Error("That event wasn't found.");
   return page;
 }
@@ -70,7 +75,7 @@ export async function startRound(_prev: ActionState, form: FormData): Promise<Ac
     const pairScoring: PairScoring = form.get("pairScoring") === "stroke" ? "stroke" : "stableford";
     const start: StartMode = form.get("start") === "shotgun" ? "shotgun" : "tees";
     const shotgunTime = start === "shotgun" ? parseClock(text(form, "shotgunTime", 5)) : null;
-    if (shotgunTime === undefined) throw new Error("The shotgun time should look like 09:00.");
+    if (shotgunTime === undefined || (start === "shotgun" && !shotgunTime)) throw new Error("Give the shotgun's start time, like 09:00.");
 
     const card = parseCard(form.get("card"));
     if (!card) throw new Error("The card doesn't look right — check every hole has a par.");
@@ -80,7 +85,12 @@ export async function startRound(_prev: ActionState, form: FormData): Promise<Ac
     if (slope === undefined || (slope != null && (!Number.isInteger(slope) || slope < 55 || slope > 155))) throw new Error("The slope is a whole number from 55 to 155.");
     const teeName = text(form, "teeName", 40) ?? "Standard";
 
-    const draw = await loadDrawnGroups(ctx.supabase, ctx.society.id, page);
+    let draw: Awaited<ReturnType<typeof loadDrawnGroups>>;
+    try {
+      draw = await loadDrawnGroups(ctx.supabase, ctx.society.id, page);
+    } catch {
+      throw new Error("Couldn't load the draw and handicaps. Please try again.");
+    }
     const plan = planDay(
       {
         title: o.title,
@@ -91,6 +101,7 @@ export async function startRound(_prev: ActionState, form: FormData): Promise<Ac
         pairScoring,
         start,
         shotgunTime,
+        notDrawn: notDrawn(page),
       },
       draw
     );
@@ -102,13 +113,14 @@ export async function startRound(_prev: ActionState, form: FormData): Promise<Ac
     if (!Number.isInteger(id) || id <= 0) throw new Error("Couldn't start the round. Please try again.");
 
     // As the app: the day is started; these follow and never undo it.
+    // Hidden first, before anyone opens the board (as the app), then linked.
     const problems: string[] = [];
-    const link = await ctx.supabase.rpc("link_outing_match_day", { p_outing_id: o.id, p_match_day_id: id });
-    if (link.error) problems.push("the event couldn't be linked to the round — open the round from the app's Live scoring");
     if (form.get("hidden") === "on") {
       const hide = await ctx.supabase.rpc("set_day_leaderboard_hidden", { p_day_id: id, p_hidden: true });
       if (hide.error) problems.push("the leaderboard isn't hidden yet — use Keep it secret in the control room");
     }
+    const link = await ctx.supabase.rpc("link_outing_match_day", { p_outing_id: o.id, p_match_day_id: id });
+    if (link.error) problems.push("the event couldn't be linked to the round — open the round from the app's Live scoring");
     if (plan.starts && draw.length === plan.starts.length) {
       // Members see their starting hole on the event, as the app publishes it.
       const groups = draw.map((g, i) => ({
@@ -116,7 +128,8 @@ export async function startRound(_prev: ActionState, form: FormData): Promise<Ac
         ...(plan.starts![i] ? { start_hole: plan.starts![i]!.hole, start_letter: plan.starts![i]!.letter } : {}),
         members: g.players.map((p) => (p.memberId ? p.memberId : { guest: Number(p.key.slice(2)) })),
       }));
-      await ctx.supabase.rpc("publish_outing_draw", { p_outing_id: o.id, p_groups: groups });
+      const redraw = await ctx.supabase.rpc("publish_outing_draw", { p_outing_id: o.id, p_groups: groups });
+      if (redraw.error) problems.push("the starting holes didn't go on the event — the groups have them in the round");
     }
 
     after(async () => {
@@ -153,7 +166,13 @@ export async function connectTv(_prev: ActionState, form: FormData): Promise<Act
     if (organiser !== true) throw new Error("Only the people running the day can put it on a TV.");
     const limit = await checkRateLimit({ action: "tv_link_code", identifier: ctx.user.id, maxHits: 20, windowSeconds: 600 });
     if (!limit.allowed) throw new Error("Too many tries. Wait a few minutes.");
-    const paired = await linkTvCode(createAdminClient(), code, { kind: "day", id: day }, ctx.user.id);
+    let paired = false;
+    try {
+      paired = await linkTvCode(createAdminClient(), code, { kind: "day", id: day }, ctx.user.id);
+    } catch (err) {
+      console.error("[society-live] tv link failed", err);
+      throw new Error("Couldn't connect the TV. Try again.");
+    }
     if (!paired) throw new Error("That code isn't showing on a TV any more. Check the code on the screen and try again.");
     return "The TV is connected — the leaderboard will appear on it in a few seconds.";
   });
@@ -195,10 +214,15 @@ export async function fixScores(_prev: ActionState, form: FormData): Promise<Act
     const fixes = parseFixes(form.get("fixes"));
     if (!fixes) throw new Error("Those scores don't look right.");
     if (fixes.length === 0) return "Nothing to change.";
+    let saved = 0;
     for (const f of fixes) {
       const { error } = await ctx.supabase.rpc("live_round_set_score", { p_round_id: round, p_player_id: f.player, p_hole: f.hole, p_strokes: f.strokes, p_clear: f.clear });
-      check(error, "Couldn't save that score.");
+      if (error) {
+        const why = error.code === "P0001" || error.code === "42501" ? error.message : "it couldn't be saved";
+        throw new Error(saved ? `Saved ${saved} of ${fixes.length}; hole ${f.hole} failed: ${why}.` : `Hole ${f.hole}: ${why}.`);
+      }
+      saved += 1;
     }
-    return `${fixes.length} ${fixes.length === 1 ? "score" : "scores"} saved. The players see the change on their phones.`;
+    return `${saved} ${saved === 1 ? "score" : "scores"} saved. The players see the change on their phones.`;
   });
 }

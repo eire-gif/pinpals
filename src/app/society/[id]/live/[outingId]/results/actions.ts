@@ -29,7 +29,9 @@ import { createAdminClient } from "@/lib/supabase/admin";
 async function dayOf(ctx: ConsoleContext, raw: FormDataEntryValue | null) {
   const outing = positiveInt(raw);
   if (!outing) throw new Error("That event wasn't found.");
-  const page = await loadEvent(ctx.supabase, ctx.society.id, outing);
+  const page = await loadEvent(ctx.supabase, ctx.society.id, outing).catch(() => {
+    throw new Error("Couldn't load the event. Please try again.");
+  });
   if (!page?.outing.matchDayId) throw new Error("This event's round hasn't started.");
   const day = await loadLiveDay(ctx.supabase, page.outing.matchDayId, ctx.user.id);
   if (!day) throw new Error("The round for this event has been removed.");
@@ -77,12 +79,15 @@ export async function publishResults(_prev: ActionState, form: FormData): Promis
     check(save.error, "Couldn't save the results settings.");
 
     const certified = await loadCertified(ctx.supabase, day.id);
+    if (!certified) throw new Error("Couldn't check which cards are certified. Please try again.");
+    // Never publish from a short read: every card must have the day's holes.
+    if (day.games.length === 0 || day.games.some((x) => x.card.length !== day.holes)) throw new Error("Couldn't load every card in full. Please try again.");
     const results = workOut(day.id, day.kind, day.games, certified, settings);
     if (results.counts.entrants === 0) throw new Error("There are no cards in this round.");
     const update = day.results?.status === "published";
 
-    // On the society's page, as the app suggests for an event's day. Best effort.
-    await ctx.supabase.rpc("competition_results_set_group", { p_day_id: day.id, p_group_id: ctx.society.id });
+    // On the society's page, as the app suggests for an event's day — unless a page was already chosen. Best effort.
+    if (day.results?.groupId == null) await ctx.supabase.rpc("competition_results_set_group", { p_day_id: day.id, p_group_id: ctx.society.id });
     const { error } = await ctx.supabase.rpc("competition_results_publish", {
       p_day_id: day.id,
       p_results: { ...results, event: { title: day.title, courseName: day.courseName, playedOn: day.playedOn } },

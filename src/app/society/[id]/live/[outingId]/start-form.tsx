@@ -49,6 +49,7 @@ export default function StartForm({
   dateLabel,
   cards,
   draw,
+  notDrawn,
   links,
 }: {
   groupId: number;
@@ -60,6 +61,7 @@ export default function StartForm({
   dateLabel: string;
   cards: CourseCard[];
   draw: DrawnGroup[];
+  notDrawn: string[];
   links: { draw: string; handicaps: string | null; event: string };
 }) {
   const initial = bestCard(cards);
@@ -119,10 +121,11 @@ export default function StartForm({
           pairScoring,
           start,
           shotgunTime: start === "shotgun" ? shotgunTime : null,
+          notDrawn,
         },
         draw
       ),
-    [title, courseName, teeName, ratingNum, slopeNum, card, format, pairScoring, start, shotgunTime, draw]
+    [title, courseName, teeName, ratingNum, slopeNum, card, format, pairScoring, start, shotgunTime, draw, notDrawn]
   );
   const players = draw.reduce((n, g) => n + g.players.length, 0);
   const estimated = plan.groups.some((g) => g.lines.some((l) => l.estimated));

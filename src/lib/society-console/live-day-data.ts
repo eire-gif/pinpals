@@ -63,6 +63,11 @@ export async function loadCourseCards(db: Db, clubId: number | null): Promise<Co
 
 /** The published draw as tee groups, with the index each player plays off:
  *  the society's figure, else their own where they share it (as the app). */
+/** Entrants and guests with no tee group in the published draw. */
+export function notDrawn(page: EventPage): string[] {
+  return [...page.entries.filter((e) => !e.teeGroup).map((e) => e.name), ...page.guests.filter((x) => !x.teeGroup).map((x) => x.name)];
+}
+
 export async function loadDrawnGroups(db: Db, groupId: number, page: EventPage): Promise<DrawnGroup[]> {
   const roster = await loadRoster(db, groupId);
   const indexOf = new Map(roster.map((r) => [r.id, r.index]));
@@ -84,6 +89,8 @@ export type LiveDay = {
   id: number;
   title: string;
   kind: DayKind;
+  /** The day's card length; every round's card should have this many holes. */
+  holes: number;
   courseName: string;
   teeName: string | null;
   playedOn: string;
@@ -102,6 +109,7 @@ type DayRow = {
   id: number;
   title: string;
   kind: string | null;
+  holes: number;
   course_name: string;
   tee_name: string | null;
   played_on: string;
@@ -112,7 +120,7 @@ type DayRow = {
 /** The live day, or null if it's gone (deleted) or I can't see it. */
 export async function loadLiveDay(db: Db, dayId: number, me: string): Promise<LiveDay | null> {
   const [{ data: d }, loaded, { data: res }] = await Promise.all([
-    db.from("live_match_days").select("id, title, kind, course_name, tee_name, played_on, created_by, leaderboard_hidden").eq("id", dayId).maybeSingle<DayRow>(),
+    db.from("live_match_days").select("id, title, kind, holes, course_name, tee_name, played_on, created_by, leaderboard_hidden").eq("id", dayId).maybeSingle<DayRow>(),
     loadTvGames(db, { kind: "day", id: dayId }).catch(() => null),
     db
       .from("competition_results")
@@ -130,6 +138,7 @@ export async function loadLiveDay(db: Db, dayId: number, me: string): Promise<Li
     id: d.id,
     title: d.title,
     kind: d.kind === "scramble" ? "scramble" : d.kind === "fourballs" ? "fourballs" : "match",
+    holes: d.holes,
     courseName: d.course_name,
     teeName: d.tee_name,
     playedOn: d.played_on,
@@ -145,11 +154,11 @@ export async function loadLiveDay(db: Db, dayId: number, me: string): Promise<Li
   };
 }
 
-/** "<round id>:<member id>" → certified by a playing partner (0137). Empty if it can't be read. */
-export async function loadCertified(db: Db, dayId: number): Promise<Map<string, boolean>> {
+/** "<round id>:<member id>" → certified by a playing partner (0137). Null if it can't be read. */
+export async function loadCertified(db: Db, dayId: number): Promise<Map<string, boolean> | null> {
   const { data, error } = await db.rpc("competition_card_status", { p_day_id: dayId });
   const out = new Map<string, boolean>();
-  if (error) return out;
+  if (error) return null;
   for (const c of (data ?? []) as { round_id: number; member_id: string; certified: boolean }[]) out.set(`${c.round_id}:${c.member_id}`, c.certified);
   return out;
 }

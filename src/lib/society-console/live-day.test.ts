@@ -88,7 +88,7 @@ describe("planDay", () => {
     const plan = planDay(setup({ format: "scramble" }), draw);
     if (plan.rpc?.fn !== "live_scramble_day_create") throw new Error("expected a scramble");
     expect(plan.rpc.args.p_day.scramble_size).toBe(4);
-    expect(plan.rpc.args.p_teams.map((t) => t.name)).toEqual(["Team 1", "Team 2"]);
+    expect(plan.rpc.args.p_teams.map((t) => t.name)).toEqual([null, null]);
   });
 
   it("gives a shotgun its holes and one start time", () => {
@@ -99,6 +99,14 @@ describe("planDay", () => {
       ["09:00", 2, "A"],
     ]);
     expect(plan.groups.map((g) => g.start)).toEqual(["1", "2"]);
+  });
+
+  it("needs a shotgun time", () => {
+    expect(planDay(setup({ start: "shotgun", shotgunTime: null }), draw).problems[0]).toContain("start time");
+  });
+
+  it("won't leave out someone entered but not drawn", () => {
+    expect(planDay(setup({ notDrawn: ["Sean Doyle"] }), draw).problems[0]).toContain("Sean Doyle is entered but not in the draw");
   });
 
   it("says when the card isn't fit to play off", () => {
