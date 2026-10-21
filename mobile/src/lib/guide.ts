@@ -1130,6 +1130,12 @@ export const GUIDES: Guide[] = [
         tip: "Birdie, par, bogey, double, picked up or no return (NR), “the same” and “the rest of us par” all work. It listens on your phone, so it works with no signal on most iPhones. Nothing saves until you tap Save. Tracking your stats? Add them as you say your score — “I had a five, two putts, missed it short”.",
       },
       {
+        title: "Back to your card from anywhere",
+        body: "While your round is live, a green MY ROUND pill sits at the top of every screen, with the hole you're on (MY ROUND · H7). Checked a message or the marketplace mid-round? Tap it and you're straight back on your scoring.",
+        look: [{ style: "primary", label: "MY ROUND · H7" }],
+        tip: "It shows only for a round you're playing in — rounds you're following stay under Watch live. On a busy bar it shortens to the hole (H7), on your own card it goes still, and it's gone once the round is complete.",
+      },
+      {
         title: "Not sure how to play it?",
         body: "On a slope, in a bunker, in thick rough or into the wind, tap Lie help under the players. Pick the lie and you get the club, the aim and three things to do. Full guide opens the whole lesson in Training.",
         look: [{ style: "outline", label: "Lie help", icon: "help-buoy-outline" }],
@@ -1921,6 +1927,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-21", text: "Score a game live: new step, Back to your card from anywhere — while your round is live, the green MY ROUND pill at the top of every screen takes you straight back to your scoring." },
   { on: "2026-10-21", text: "Run your society: on the website's Live day you can now save the round's set-up (tees, card, format, start) ahead of the day, and just press Start the round on the morning." },
   { on: "2026-10-21", text: "Run your society: Run it from a computer now includes Live day on the website — choose the tees and format, start the round on every player's phone, watch the live scoreboard and publish the results from a big screen." },
   { on: "2026-10-20", text: "Score a game live: bigger names, − and + buttons and scores, easier to read on the course; NR is now beside each player's name." },

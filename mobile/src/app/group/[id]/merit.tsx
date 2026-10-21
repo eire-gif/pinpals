@@ -11,6 +11,7 @@ import { meritSeason, orderOfMerit, type MeritRow, type MeritRules } from "@/lib
 import { irishToday, outingDateLabel } from "@/lib/outing-rules";
 import { loadMeritRules, loadSeasonResults, saveMeritRules } from "@/lib/society";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
+import { myRoundRight } from "@/components/my-round-pill";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -103,13 +104,13 @@ export default function OrderOfMeritScreen() {
       options={{
         title: "Order of merit",
         headerBackTitle: "Back",
-        headerRight: () =>
+        ...myRoundRight(() =>
           canEdit && rules ? (
             <Pressable onPress={() => setDraft((d) => (d ? null : toDraft(rules)))} style={styles.headerBtn} accessibilityRole="button" accessibilityLabel={draft ? "Close rules" : "Edit the rules"}>
               <Ionicons name="options-outline" size={18} color={colors.navy900} />
               <Text style={styles.headerBtnText}>Rules</Text>
             </Pressable>
-          ) : null,
+          ) : null),
       }}
     />
   );

@@ -41,6 +41,7 @@ import { guideHidden, hideGuide } from "@/lib/my-rounds-guide";
 import { teeTimesChanged } from "@/lib/tee-times-waiting";
 import { ForecastRow } from "@/components/weather-bits";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
+import { MyRoundRow } from "@/components/my-round-pill";
 
 /**
  * My rounds (Oct 2026) — every tee time a member is part of, on one page.
@@ -307,7 +308,7 @@ function MyRoundsScreenInner() {
               <Text style={styles.backLabel}>Back</Text>
             </Pressable>
           ),
-          headerRight: () => (
+          headerRight: () => <MyRoundRow onDark={false} right={(
             <Pressable
               onPress={() => router.push("/post-tee-time")}
               hitSlop={8}
@@ -318,7 +319,7 @@ function MyRoundsScreenInner() {
               <Ionicons name="add" size={18} color={colors.ink900} />
               <Text style={styles.postLabel}>Post a round</Text>
             </Pressable>
-          ),
+          )} />,
         }}
       />
 

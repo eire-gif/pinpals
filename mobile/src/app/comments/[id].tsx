@@ -13,6 +13,7 @@ import { supabase } from "@/lib/supabase";
 import { colors, spacing } from "@/lib/theme";
 import { usePostActions } from "@/lib/use-post-actions";
 import { AgeGateLoading, NotForUnder18, useAgeGate } from "@/components/not-for-under-18";
+import { noMyRound } from "@/components/my-round-pill";
 
 /**
  * Comments, as a sheet over the feed (phase 5). The feed card stays
@@ -109,11 +110,11 @@ function CommentsScreenInner() {
       <Stack.Screen
         options={{
           title: post ? `Comments (${count})` : "Comments",
-          headerRight: () => (
+          ...noMyRound(() => (
             <Pressable onPress={() => router.back()} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close">
               <Ionicons name="close" size={24} color={colors.ink900} />
             </Pressable>
-          ),
+          )),
         }}
       />
       {loading ? (

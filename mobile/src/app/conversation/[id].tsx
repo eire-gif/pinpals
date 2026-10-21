@@ -73,6 +73,7 @@ import { groupEventCards, groupForConversation, myPlaceIn, nextUp, type ChatGrou
 import { groupLine, mergeTimeline } from "@/lib/group-chat-rules";
 import { officeAreas, isGroupOffice } from "@/lib/groups";
 import { irishToday } from "@/lib/outing-rules";
+import { myRoundRight } from "@/components/my-round-pill";
 
 /** A row in the chat: a message, or one of the group's events (0181). */
 type Row = { kind: "message"; item: Message } | { kind: "card"; item: GroupEventCard };
@@ -668,7 +669,7 @@ function ConversationScreenInner() {
             </Pressable>
           ),
           // Chat settings — alerts, who's in it, what's been shared (0181).
-          headerRight: isGroup
+          ...myRoundRight(isGroup
             ? () => (
                 <Pressable
                   onPress={() => router.push({ pathname: "/chat-settings/[id]", params: { id: String(conversationId) } })}
@@ -680,7 +681,7 @@ function ConversationScreenInner() {
                   <Ionicons name="ellipsis-horizontal" size={22} color={colors.cream50} />
                 </Pressable>
               )
-            : undefined,
+            : undefined, { onDark: true }),
         }}
       />
 

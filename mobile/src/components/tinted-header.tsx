@@ -3,6 +3,7 @@ import { StyleSheet, Text, View } from "react-native";
 import { Stack, useIsFocused } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 
+import { myRoundRight } from "@/components/my-round-pill";
 import { colors, fonts } from "@/lib/theme";
 
 /**
@@ -59,7 +60,7 @@ export function TintedHeader({
               ) : null}
             </View>
           ),
-          headerRight: right,
+          ...myRoundRight(right, { onDark: true }),
         }}
       />
       {focused ? <StatusBar style="light" /> : null}

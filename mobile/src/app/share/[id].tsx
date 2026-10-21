@@ -26,6 +26,7 @@ import { loadShareTargets, sendPostTo } from "@/lib/share-targets";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 import { KEYBOARD_DISMISS_MODE } from "@/components/keyboard";
 import { AgeGateLoading, NotForUnder18, useAgeGate } from "@/components/not-for-under-18";
+import { noMyRound } from "@/components/my-round-pill";
 
 /**
  * Share a post, as a sheet (phase 6; rebuilt Oct 2026 to the "Reactions &
@@ -213,11 +214,11 @@ function ShareScreenInner() {
       <Stack.Screen
         options={{
           title: "Share post",
-          headerRight: () => (
+          ...noMyRound(() => (
             <Pressable onPress={() => router.back()} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close">
               <Ionicons name="close" size={24} color={colors.ink900} />
             </Pressable>
-          ),
+          )),
         }}
       />
       <ScrollView

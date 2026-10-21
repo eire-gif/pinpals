@@ -9,6 +9,8 @@ import { loadInboxCounts } from "@/lib/inbox-server";
 import { inboxTotal } from "@/lib/inbox";
 import { getAgeAccess } from "@/lib/age-access";
 import { ageBlockFor, type AgeFeature } from "@/lib/junior";
+import MyRoundPill from "@/components/my-round-pill";
+import { loadMyRound } from "@/lib/my-round";
 
 export default async function SiteHeader() {
   const supabase = await createClient();
@@ -32,6 +34,9 @@ export default async function SiteHeader() {
     const counts = await loadInboxCounts(supabase);
     unreadCount = inboxTotal(counts);
   }
+
+  // MY ROUND (Oct 2026): a round you're playing in, live right now.
+  const myRound = user ? await loadMyRound(supabase, user.id) : null;
 
   // Junior members (0159): links to what a member's age keeps them from are
   // left out rather than leading to a "not for you" page. Signed out, or
@@ -222,6 +227,7 @@ export default async function SiteHeader() {
         <div className="hidden md:flex items-center gap-3">
           {user ? (
             <>
+              {myRound ? <MyRoundPill round={myRound} /> : null}
               <Link
                 href="/inbox"
                 aria-label={unreadCount > 0 ? `Inbox (${unreadCount} unread)` : "Inbox"}
@@ -274,6 +280,13 @@ export default async function SiteHeader() {
             </>
           )}
         </div>
+
+        {/* On a phone the pill sits beside the menu button, so it's on the bar itself. */}
+        {myRound ? (
+          <div className="md:hidden ml-auto">
+            <MyRoundPill round={myRound} compact />
+          </div>
+        ) : null}
 
         <MobileNav
           isLoggedIn={!!user}

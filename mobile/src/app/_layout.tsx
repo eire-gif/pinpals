@@ -22,6 +22,8 @@ import { SafeAreaInsetsContext, SafeAreaProvider, useSafeAreaInsets } from "reac
 
 import { AdTakeoverHost } from "@/components/ad-takeover";
 import { GlobalTabBar, wantsGlobalTabBar } from "@/components/global-tab-bar";
+import { myRoundRight } from "@/components/my-round-pill";
+import { MyRoundWatcher } from "@/lib/my-round";
 import { reportScreen } from "@/lib/activity";
 import { loadAgeAccess, useAgeAccess } from "@/lib/age";
 import { gateFor, openWhileWaiting } from "@/lib/age-rules";
@@ -264,6 +266,10 @@ function RootNavigator() {
         // iPad: every screen's content a centred column (theme.ts). A phone
         // is narrower than the column, so it changes nothing there.
         contentStyle: { backgroundColor: colors.cream50, ...contentColumn },
+        // MY ROUND (Oct 2026): the green pill on every header while a round
+        // you're playing in is live. A screen with its own right-hand
+        // buttons spreads myRoundRight(...) or noMyRound(...) instead.
+        ...myRoundRight(),
       }}
     >
       {/* Full width: the tab bar spans the screen; the tabs centre their own content. */}
@@ -312,6 +318,8 @@ function RootNavigator() {
     </SafeAreaInsetsContext.Provider>
     </View>
     {tabBar ? <GlobalTabBar /> : null}
+    {/* Loads the live round behind every MY ROUND pill, once. */}
+    <MyRoundWatcher memberId={session?.user?.id ?? null} />
     {/* In-app advertising (0139): renders nothing unless the `ads` flag
         and the server's master switch are both on. */}
     <AdTakeoverHost />

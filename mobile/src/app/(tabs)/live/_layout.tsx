@@ -2,6 +2,7 @@ import { Text, View } from "react-native";
 import { Stack } from "expo-router";
 
 import { BackPill, headerButtons } from "@/components/header-actions";
+import { myRoundRight } from "@/components/my-round-pill";
 import { TONES } from "@/components/live-scoring-card";
 import { colors, contentColumn, fonts, headerTitleStyle } from "@/lib/theme";
 
@@ -22,6 +23,8 @@ export default function LiveLayout() {
         headerTitleStyle,
         headerBackTitle: "Back",
         contentStyle: { backgroundColor: colors.cream50, ...contentColumn },
+        // MY ROUND on every live screen too; still and outlined on the round's own card.
+        ...myRoundRight(),
       }}
     >
       {/* First in its own stack, so iOS draws no back button: add one. */}
@@ -47,6 +50,7 @@ export default function LiveLayout() {
             </View>
           ),
           ...headerButtons({ left: <BackPill onDark /> }),
+          ...myRoundRight(null, { onDark: true }),
         }}
       />
       <Stack.Screen name="new" options={{ title: "Set up a round" }} />
