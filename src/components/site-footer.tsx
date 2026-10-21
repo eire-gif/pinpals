@@ -20,6 +20,7 @@ export default function SiteFooter() {
           <div>
             <h4 className="text-xs uppercase tracking-wider text-white mb-3">Explore</h4>
             <div className="flex flex-col gap-1.5 text-sm">
+              <Link href="/tour" className="hover:text-white">Take the tour</Link>
               <Link href="/community" className="hover:text-white">Find golfers</Link>
               <Link href="/courses" className="hover:text-white">Course directory</Link>
               <Link href="/rules" className="hover:text-white">Rules of Golf</Link>
