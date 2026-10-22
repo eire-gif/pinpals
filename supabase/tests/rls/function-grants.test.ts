@@ -498,6 +498,10 @@ const EXPECTED: Record<string, Expectation> = {
   "tee_time_participant(p_invite_id bigint)": { anon: false, authenticated: true },
   "invite_to_tee_time(p_invite_id bigint, p_members uuid[])": { anon: false, authenticated: true },
   "tee_time_link_claim(p_invite_id bigint, p_sharer uuid, p_member uuid)": { anon: false, authenticated: false },
+  // 0186: invite your group; take a place in one tap; can't make it.
+  "invite_group_to_tee_time(p_invite_id bigint, p_group_id bigint)": { anon: false, authenticated: true },
+  "take_tee_time_place(p_invite_id bigint)": { anon: false, authenticated: true },
+  "pass_tee_time_place(p_invite_id bigint)": { anon: false, authenticated: true },
 
   // --- Service role / internal only. Everything below is either a trigger
   // --- function, a sweep, or a privileged write path that must never be
