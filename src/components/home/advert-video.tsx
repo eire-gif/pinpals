@@ -1,17 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { TOUR_POSTER, TOUR_VIDEO } from "@/app/tour/chapters";
 
 /**
- * The 60-second PinPals advert on the home page (Oct 2026). Silent, so it
- * plays muted on its own once it scrolls into view and pauses when it
- * leaves — nothing downloads beyond the metadata until someone gets there.
+ * The 60-second PinPals advert on the home page (Oct 2026). Browsers only
+ * autoplay muted, so it starts silently once it scrolls into view and pauses
+ * when it leaves; "Tap for sound" turns the music on and plays from the top.
+ * Nothing downloads beyond the metadata until someone gets there.
  */
 export function AdvertVideo() {
   const ref = useRef<HTMLVideoElement>(null);
+  const [muted, setMuted] = useState(true);
 
   useEffect(() => {
     const v = ref.current;
@@ -25,8 +27,21 @@ export function AdvertVideo() {
       { threshold: 0.4 },
     );
     io.observe(v);
-    return () => io.disconnect();
+    const sync = () => setMuted(v.muted);
+    v.addEventListener("volumechange", sync);
+    return () => {
+      io.disconnect();
+      v.removeEventListener("volumechange", sync);
+    };
   }, []);
+
+  const soundOn = () => {
+    const v = ref.current;
+    if (!v) return;
+    v.muted = false;
+    v.currentTime = 0;
+    void v.play().catch(() => {});
+  };
 
   return (
     <section className="py-20 md:py-24 border-b border-white/5">
@@ -47,7 +62,7 @@ export function AdvertVideo() {
             Take the tour &rarr;
           </Link>
         </div>
-        <div className="rounded-2xl overflow-hidden ring-1 ring-white/10 shadow-[0_30px_70px_rgba(0,0,0,0.45)] bg-[#0A1628]">
+        <div className="relative rounded-2xl overflow-hidden ring-1 ring-white/10 shadow-[0_30px_70px_rgba(0,0,0,0.45)] bg-[#0A1628]">
           <video
             ref={ref}
             src={TOUR_VIDEO}
@@ -60,6 +75,19 @@ export function AdvertVideo() {
             aria-label="The PinPals advert: the whole app in 60 seconds"
             className="block w-full aspect-video"
           />
+          {muted && (
+            <button
+              type="button"
+              onClick={soundOn}
+              className="absolute top-4 right-4 min-h-11 inline-flex items-center gap-2 rounded-full bg-gold-400 text-navy-900 font-bold px-5 py-2.5 shadow-lg hover:bg-gold-500 transition"
+            >
+              <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M11 5 6 9H3v6h3l5 4V5z" />
+                <path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13" />
+              </svg>
+              Tap for sound
+            </button>
+          )}
         </div>
       </div>
     </section>
