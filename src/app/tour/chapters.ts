@@ -6,7 +6,7 @@
 export type TourScene = { title: string; start: number };
 export type TourChapter = { title: string; blurb: string; scenes: TourScene[] };
 
-export const TOUR_VIDEO = "/videos/pinpals-advert-60.mp4";
+export const TOUR_VIDEO = "/videos/pinpals-advert-60-music.mp4";
 export const TOUR_POSTER = "/videos/pinpals-advert-poster.jpg";
 
 export const TOUR_CHAPTERS: TourChapter[] = [
