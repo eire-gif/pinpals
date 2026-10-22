@@ -41,6 +41,15 @@ android {
     // and to go up each time: minutes since 1970 (about 29.6 million now)
     // stays far above the phone's and well under Play's 2.1 billion limit.
     versionCode((int) (System.currentTimeMillis() / 60000L))
+
+    // Watch v2: the satellite hole map (Maps SDK for Android). The key is
+    // restricted to this package and the PinPals signing certificates in
+    // Google Cloud; it comes from the EAS secret WEAR_MAPS_API_KEY (or a
+    // gradle property locally). Without one the watch says "Map coming soon"
+    // instead of showing a blank map.
+    def mapsKey = (System.getenv("WEAR_MAPS_API_KEY") ?: (project.findProperty("WEAR_MAPS_API_KEY") ?: "")).toString()
+    manifestPlaceholders = [mapsApiKey: mapsKey]
+    buildConfigField "boolean", "MAPS_READY", mapsKey.isEmpty() ? "false" : "true"
   }
 
   buildTypes {
@@ -56,6 +65,7 @@ android {
 
   buildFeatures {
     compose true
+    buildConfig true
   }
 }
 
@@ -85,4 +95,13 @@ dependencies {
   implementation "com.google.android.gms:play-services-location:21.3.0"
   implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0"
   implementation "org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.9.0"
+  // Watch v2 (claude/watch-v2.md)
+  implementation "com.google.android.gms:play-services-maps:19.0.0"
+  implementation "com.google.maps.android:maps-compose:6.2.1"
+  implementation "androidx.wear:wear-ongoing:1.0.0"
+  implementation "androidx.wear.tiles:tiles:1.4.1"
+  implementation "androidx.wear.protolayout:protolayout:1.2.1"
+  implementation "androidx.wear.protolayout:protolayout-expression:1.2.1"
+  implementation "androidx.wear.watchface:watchface-complications-data-source-ktx:1.2.1"
+  implementation "com.google.guava:guava:33.3.1-android"
 }

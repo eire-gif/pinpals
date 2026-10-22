@@ -28,10 +28,95 @@ data class Hole(
   val shots: Int,
 )
 
-/** A hole's green centre and tee; null where it isn't mapped. */
-data class Spot(val n: Int, val green: LatLng?, val tee: LatLng?)
+/** A hole's green centre and tee; null where it isn't mapped. Watch v2: the front and back of the green, and its hazards. */
+data class Spot(
+  val n: Int,
+  val green: LatLng?,
+  val tee: LatLng?,
+  val front: LatLng? = null,
+  val back: LatLng? = null,
+  val hazards: List<Hazard> = emptyList(),
+)
 
 data class LatLng(val lat: Double, val lng: Double)
+
+/** A hazard or marker: its kind ("water", "fairway_bunker"…), a name, and where. */
+data class Hazard(val kind: String, val label: String, val at: LatLng)
+
+// Watch v2 (claude/watch-v2.md): what else the phone sends (lock-screen-rules.ts WatchExtras).
+
+data class GroupPlayer(
+  val id: Int,
+  val name: String,
+  val me: Boolean,
+  /** Shots received on each hole, in the card's order. */
+  val shots: List<Int>,
+  /** Saved scores, hole number → strokes. 0 = picked up. */
+  val strokes: Map<Int, Int>,
+)
+
+data class Wind(val kmh: Double, val from: Double)
+
+data class Extras(
+  /** null = no group page (a shared card, or on your own). */
+  val group: List<GroupPlayer>?,
+  /** Competition mode: distances only (Rule 4.3). */
+  val competition: Boolean,
+  val premiumMap: Boolean,
+  val premiumPlaysLike: Boolean,
+  /** null when unknown, and always in a competition. */
+  val wind: Wind?,
+  /** GET /api/widget/live/board. */
+  val board: String?,
+) {
+  fun toJson(): JSONObject = JSONObject().apply {
+    group?.let { g ->
+      put("group", JSONArray().apply {
+        g.forEach { p ->
+          put(JSONObject().apply {
+            put("id", p.id); put("name", p.name); put("me", p.me)
+            put("shots", JSONArray().apply { p.shots.forEach { put(it) } })
+            put("strokes", JSONObject().apply { p.strokes.forEach { (k, v) -> put(k.toString(), v) } })
+          })
+        }
+      })
+    }
+    put("competition", competition)
+    put("premium", JSONObject().put("map", premiumMap).put("playsLike", premiumPlaysLike))
+    wind?.let { put("wind", JSONObject().put("kmh", it.kmh).put("from", it.from)) }
+    board?.let { put("board", it) }
+  }
+
+  companion object {
+    fun parse(o: JSONObject?): Extras? {
+      if (o == null) return null
+      val group = o.optJSONArray("group")?.let { a ->
+        (0 until a.length()).map { i ->
+          val p = a.getJSONObject(i)
+          val strokes = mutableMapOf<Int, Int>()
+          p.optJSONObject("strokes")?.let { s -> s.keys().forEach { k -> k.toIntOrNull()?.let { strokes[it] = s.getInt(k) } } }
+          GroupPlayer(
+            id = p.getInt("id"),
+            name = p.optString("name", "Player"),
+            me = p.optBoolean("me", false),
+            shots = p.optJSONArray("shots")?.let { sh -> (0 until sh.length()).map { sh.optInt(it, 0) } } ?: emptyList(),
+            strokes = strokes,
+          )
+        }
+      }
+      val premium = o.optJSONObject("premium")
+      val wind = o.optJSONObject("wind")?.let { Wind(it.optDouble("kmh", 0.0), it.optDouble("from", 0.0)) }
+      return Extras(
+        group = group,
+        competition = o.optBoolean("competition", false),
+        premiumMap = premium?.optBoolean("map", true) ?: true,
+        premiumPlaysLike = premium?.optBoolean("playsLike", true) ?: true,
+        wind = wind,
+        board = if (o.has("board") && !o.isNull("board")) o.optString("board") else null,
+      )
+    }
+  }
+}
 
 data class Round(
   val roundId: Int,
@@ -54,7 +139,32 @@ data class Round(
   val summary: String?,
   /** When the phone sent this (ms since 1970). */
   val sentAt: Long,
+  /** Watch v2; null from a phone app older than v2. */
+  val extras: Extras? = null,
 ) {
+  val competition: Boolean get() = extras?.competition ?: false
+  val mapAllowed: Boolean get() = extras?.premiumMap ?: true
+  val playsLikeAllowed: Boolean get() = (extras?.premiumPlaysLike ?: true) && !competition
+  val group: List<GroupPlayer>? get() = extras?.group?.takeIf { it.size > 1 }
+
+  fun spot(n: Int): Spot? = spots.firstOrNull { it.n == n }
+
+  /** A player's shots on hole [n] (from their position on the card). */
+  fun shots(p: GroupPlayer, n: Int): Int {
+    val i = holes.indexOfFirst { it.n == n }
+    return if (i >= 0 && i < p.shots.size) p.shots[i] else 0
+  }
+
+  /** Lays group scores over the round, as saved here before they've gone. */
+  fun withGroupScores(hole: Int, scores: List<GroupScore>): Round {
+    val g = extras?.group ?: return this
+    val next = g.map { p ->
+      val s = scores.firstOrNull { it.playerId == p.id } ?: return@map p
+      p.copy(strokes = p.strokes + (hole to (s.strokes ?: 0)))
+    }
+    return copy(extras = extras.copy(group = next))
+  }
+
   fun info(n: Int): Hole? = holes.firstOrNull { it.n == n }
 
   /** What a hole's number starts at: par plus the player's shots, as in the app. */
@@ -166,12 +276,20 @@ data class Round(
           put("n", s.n)
           s.green?.let { put("green", JSONArray().put(it.lat).put(it.lng)) }
           s.tee?.let { put("tee", JSONArray().put(it.lat).put(it.lng)) }
+          s.front?.let { put("front", JSONArray().put(it.lat).put(it.lng)) }
+          s.back?.let { put("back", JSONArray().put(it.lat).put(it.lng)) }
+          if (s.hazards.isNotEmpty()) {
+            put("hz", JSONArray().apply {
+              s.hazards.forEach { h -> put(JSONObject().put("k", h.kind).put("l", h.label).put("p", JSONArray().put(h.at.lat).put(h.at.lng))) }
+            })
+          }
         })
       }
     })
     o.put("finished", finished)
     summary?.let { o.put("summary", it) }
     o.put("sentAt", sentAt)
+    extras?.let { o.put("watch", it.toJson()) }
     return o.toString()
   }
 
@@ -196,7 +314,14 @@ data class Round(
       val spots = o.optJSONArray("spots")?.let { a ->
         (0 until a.length()).map { i ->
           val s = a.getJSONObject(i)
-          Spot(s.getInt("n"), pair(s.optJSONArray("green")), pair(s.optJSONArray("tee")))
+          val hz = s.optJSONArray("hz")?.let { h ->
+            (0 until h.length()).mapNotNull { j ->
+              val x = h.optJSONObject(j) ?: return@mapNotNull null
+              val at = pair(x.optJSONArray("p")) ?: return@mapNotNull null
+              Hazard(x.optString("k", "other"), x.optString("l", "Hazard"), at)
+            }
+          } ?: emptyList()
+          Spot(s.getInt("n"), pair(s.optJSONArray("green")), pair(s.optJSONArray("tee")), pair(s.optJSONArray("front")), pair(s.optJSONArray("back")), hz)
         }
       } ?: emptyList()
       val sentAt = o.optDouble("sentAt", 0.0)
@@ -216,6 +341,7 @@ data class Round(
         summary = o.stringOrNull("summary"),
         // The phone sends ms; older or iPhone-style seconds are scaled up.
         sentAt = if (sentAt in 1.0..1e11) (sentAt * 1000).toLong() else sentAt.toLong(),
+        extras = Extras.parse(o.optJSONObject("watch")),
       )
     } catch (e: Exception) {
       null
@@ -226,9 +352,59 @@ data class Round(
 // MARK: - The distance to the green
 
 object Distance {
+  fun bearing(a: LatLng, b: LatLng): Double {
+    val la1 = Math.toRadians(a.lat)
+    val la2 = Math.toRadians(b.lat)
+    val dLng = Math.toRadians(b.lng - a.lng)
+    val y = sin(dLng) * cos(la2)
+    val x = cos(la1) * sin(la2) - sin(la1) * cos(la2) * cos(dLng)
+    return (Math.toDegrees(kotlin.math.atan2(y, x)) + 360) % 360
+  }
+
+  fun yards(metres: Double): Int = (metres / METRES_PER_YARD).roundToInt()
+
+  /** Where distances are measured from on hole [n]: the member when on the hole, else the tee. */
+  fun origin(round: Round, n: Int, fix: LatLng?): Pair<LatLng, Boolean>? {
+    val spot = round.spot(n) ?: return null
+    val green = spot.green ?: return null
+    if (fix != null && metres(fix, green) <= ON_HOLE_METRES) return fix to false
+    val tee = spot.tee ?: return null
+    return tee to true
+  }
+
+  data class GreenYards(val front: Int?, val centre: Int, val back: Int?, val fromTee: Boolean)
+
+  fun greenYards(round: Round, n: Int, fix: LatLng?): GreenYards? {
+    val spot = round.spot(n) ?: return null
+    val green = spot.green ?: return null
+    val (o, fromTee) = origin(round, n, fix) ?: return null
+    return GreenYards(spot.front?.let { yards(metres(o, it)) }, yards(metres(o, green)), spot.back?.let { yards(metres(o, it)) }, fromTee)
+  }
+
+  /** Hazards still in play, nearest first (hole-geo.ts hazardsAheadM — markers and doglegs left out). */
+  fun hazardsAhead(round: Round, n: Int, fix: LatLng?): List<Pair<Hazard, Int>> {
+    val spot = round.spot(n) ?: return emptyList()
+    val green = spot.green ?: return emptyList()
+    val (o, _) = origin(round, n, fix) ?: return emptyList()
+    val toGreen = metres(o, green)
+    return spot.hazards
+      .filter { !it.kind.startsWith("marker_") && it.kind != "dogleg" }
+      .filter { metres(it.at, green) < toGreen }
+      .map { it to yards(metres(o, it.at)) }
+      .sortedBy { it.second }
+  }
+
+  /** Where the target starts: a drive (210 m) toward the green, or null within a drive (hole-geo.ts defaultAim). */
+  fun defaultAim(from: LatLng, green: LatLng): LatLng? {
+    val d = metres(from, green)
+    if (d <= 240) return null
+    val t = min(210.0, d - 80) / d
+    return LatLng(from.lat + (green.lat - from.lat) * t, from.lng + (green.lng - from.lng) * t)
+  }
+
   /** Further than this from the green, the member isn't on the hole: show its length from the tee (hole-geo.ts ON_HOLE_RADIUS_M). */
-  private const val ON_HOLE_METRES = 750.0
-  private const val METRES_PER_YARD = 0.9144
+  const val ON_HOLE_METRES = 750.0
+  const val METRES_PER_YARD = 0.9144
 
   fun metres(a: LatLng, b: LatLng): Double {
     val r = 6_371_000.0
@@ -250,5 +426,35 @@ object Distance {
     }
     val tee = spot.tee ?: return null to null
     return (metres(tee, green) / METRES_PER_YARD).roundToInt() to "tee"
+  }
+}
+
+// MARK: - Plays like (wind.ts — keep the copies in step)
+
+object WindMaths {
+  const val KMH_PER_MPH = 1.609344
+
+  private fun rel(w: Wind, shotBearing: Double): Double = ((((w.from - shotBearing + 180) % 360) + 360) % 360) - 180
+
+  /** Head (+) or tail (−) wind along the shot, mph. */
+  fun headMph(w: Wind, shotBearing: Double): Double {
+    val mph = w.kmh / KMH_PER_MPH
+    if (mph < 3) return 0.0
+    return mph * cos(Math.toRadians(rel(w, shotBearing)))
+  }
+
+  /** 1% per mph into, half that behind; capped −15% / +30% (wind.ts playsLikeM). */
+  fun playsLike(distance: Int, headMph: Double): Int {
+    val pct = if (headMph >= 0) 0.01 * headMph else 0.005 * headMph
+    return (distance * (1 + pct.coerceIn(-0.15, 0.3))).roundToInt()
+  }
+
+  fun along(w: Wind, shotBearing: Double): String {
+    val mph = w.kmh / KMH_PER_MPH
+    if (mph < 3) return "Calm"
+    val r = Math.toRadians(rel(w, shotBearing))
+    val head = mph * cos(r)
+    val cross = mph * sin(r)
+    return if (kotlin.math.abs(head) >= kotlin.math.abs(cross) * 0.58) (if (head > 0) "Into" else "Behind") else "Across"
   }
 }

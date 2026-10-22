@@ -60,6 +60,9 @@ class MainActivity : ComponentActivity() {
     val allowed = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
     if (allowed) {
       location.start()
+      // Watch v2: keep the GPS going with the wrist down for the rest of the
+      // round (RoundService). Only possible from here, with the app open.
+      if (!RoundService.running) RoundService.start(this)
     } else if (!asked) {
       asked = true
       askLocation.launch(Manifest.permission.ACCESS_FINE_LOCATION)

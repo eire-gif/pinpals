@@ -51,9 +51,12 @@ import androidx.wear.compose.material.Text
 import androidx.wear.compose.material.TimeText
 import kotlin.math.abs
 
-// PinPals for Wear OS (Oct 2026): the screens. Two pages, swiped left and right:
-//   - the hole: distance to the green, the score (− / +, or turn the crown or
-//     bezel), Save;
+// PinPals for Wear OS (Oct 2026): the screens. Pages, swiped left and right
+// (Pages in RoundModel.kt; watch v2, claude/watch-v2.md):
+//   - distances, the hole map, hazards (PagesV2.kt);
+//   - scoring: the group's scores, or on your own the hole page — the score
+//     (− / +, or turn the crown or bezel), Save;
+//   - the leaderboard (PagesV2.kt);
 //   - the card: the total and standing, Undo, Picked up, and every hole to go
 //     back and change one.
 
@@ -87,7 +90,10 @@ fun PinPalsWearApp() {
           body = "Open a live round on your phone and score it here, with your distance to the green.",
         )
         round.finished -> Message(title = round.course, body = round.summary ?: round.total)
-        else -> RoundPages(screen)
+        else -> {
+          RoundPages(screen)
+          screen.alert?.let { AlertOverlay(it) }
+        }
       }
     }
   }
@@ -95,7 +101,7 @@ fun PinPalsWearApp() {
 
 @Composable
 private fun RoundPages(screen: Screen) {
-  val pager = rememberPagerState(pageCount = { 2 })
+  val pager = rememberPagerState(initialPage = screen.page, pageCount = { Pages.COUNT })
   // The model moves the page (Save, a hole picked from the card)…
   LaunchedEffect(screen.page) {
     if (pager.currentPage != screen.page) pager.animateScrollToPage(screen.page)
@@ -105,7 +111,15 @@ private fun RoundPages(screen: Screen) {
     snapshotFlow { pager.settledPage }.collect { RoundModel.setPage(it) }
   }
   HorizontalPager(state = pager, modifier = Modifier.fillMaxSize()) { page ->
-    if (page == 0) HolePage(screen, visible = pager.currentPage == 0) else CardPage(screen)
+    val visible = pager.currentPage == page
+    when (page) {
+      Pages.DISTANCES -> DistancesPage(screen)
+      Pages.MAP -> MapPage(screen, visible)
+      Pages.HAZARDS -> HazardsPage(screen)
+      Pages.SCORE -> if (screen.round?.group != null) GroupPage(screen, visible) else HolePage(screen, visible)
+      Pages.BOARD -> BoardPage(screen, visible)
+      else -> CardPage(screen)
+    }
   }
 }
 
@@ -247,6 +261,17 @@ private fun CardPage(screen: Screen) {
         Chip(
           onClick = { RoundModel.save(pickedUp = true) },
           label = { Text("Picked up on ${screen.hole}") },
+          colors = ChipDefaults.secondaryChipColors(),
+          modifier = Modifier.fillMaxWidth(),
+        )
+      }
+    }
+    if (round.extras?.wind != null && round.playsLikeAllowed) {
+      item {
+        Chip(
+          onClick = { RoundModel.setPlaysLike(!screen.playsLikeOn) },
+          label = { Text("Plays like") },
+          secondaryLabel = { Text(if (screen.playsLikeOn) "On" else "Off") },
           colors = ChipDefaults.secondaryChipColors(),
           modifier = Modifier.fillMaxWidth(),
         )
