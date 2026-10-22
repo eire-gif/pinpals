@@ -45,6 +45,9 @@ export type InboxAlert = {
    *  Null while it is still waiting on you — or when its state couldn't be
    *  read, in which case the buttons stay and the server has the last word. */
   settled: string | null;
+  /** 0186: a "your group's invited" alert — the round, so the row can offer
+   *  Take a place in one tap. Null on every other alert. */
+  takeInviteId?: number | null;
 };
 
 /**
@@ -320,6 +323,49 @@ type AlertRow = {
 
 export type LoadedInbox = { items: InboxItem[]; counts: InboxCounts };
 
+/** 0186: invited with your group. Answered on the row with Take a place. */
+const GROUP_TAKE = "tee_time_group_invited";
+
+/**
+ * Whether each group-invite alert still wants an answer — one read of your
+ * invitations (with their rounds) and one of your requests. RLS shows a
+ * member only their own of both.
+ */
+async function groupInvitesNow(userId: string, inviteIds: number[], today: string): Promise<Map<number, string | null> | null> {
+  if (inviteIds.length === 0) return new Map();
+  const [inv, mine] = await Promise.all([
+    supabase
+      .from("tee_time_invitations")
+      .select("invite_id, ready, passed_at, tee_time_invites ( status, spaces_available, play_date )")
+      .eq("member_id", userId)
+      .in("invite_id", inviteIds)
+      .overrideTypes<{ invite_id: number; ready: boolean; passed_at: string | null; tee_time_invites: { status: string; spaces_available: number; play_date: string } | null }[]>(),
+    supabase
+      .from("tee_time_interests")
+      .select("invite_id, status, withdrawn_at")
+      .eq("member_id", userId)
+      .in("invite_id", inviteIds)
+      .overrideTypes<{ invite_id: number; status: string; withdrawn_at: string | null }[]>(),
+  ]);
+  if (inv.error || mine.error) return null;
+  const interests = new Map((mine.data ?? []).map((r) => [r.invite_id, r]));
+  const out = new Map<number, string | null>();
+  for (const id of inviteIds) {
+    const row = (inv.data ?? []).find((r) => r.invite_id === id);
+    const t = row?.tee_time_invites;
+    const me = interests.get(id);
+    if (!row || !t) out.set(id, "This round is no longer available");
+    else if (me?.status === "confirmed") out.set(id, "You're playing");
+    else if (me && !(me.status === "declined" && me.withdrawn_at)) out.set(id, "Already answered");
+    else if (row.passed_at) out.set(id, "You said you can't make it");
+    else if (t.status === "cancelled") out.set(id, "This round was cancelled");
+    else if (t.play_date < today) out.set(id, "This round has been played");
+    else if (t.status !== "open" || t.spaces_available < 1) out.set(id, "The places have gone");
+    else out.set(id, null);
+  }
+  return out;
+}
+
 /** The two alerts that carry an answer on the row. */
 const ANSWERABLE = new Set(["tee_time_place_offered", "tee_time_interest_received"]);
 
@@ -365,9 +411,17 @@ export async function loadInbox(userId: string): Promise<LoadedInbox> {
         .map((r) => r.data!.interestId!)
     ),
   ];
-  // Null when the read failed: keep the buttons rather than hide a real ask.
-  const now = await interestsNow(askIds).catch(() => null);
   const today = todayInDublin();
+  const takeIds = [
+    ...new Set(
+      alertRows.filter((r) => r.type === GROUP_TAKE && typeof r.data?.inviteId === "number").map((r) => r.data!.inviteId!)
+    ),
+  ];
+  // Null when the read failed: keep the buttons rather than hide a real ask.
+  const [now, takesNow] = await Promise.all([
+    interestsNow(askIds).catch(() => null),
+    groupInvitesNow(userId, takeIds, today).catch(() => null),
+  ]);
 
   return {
     items: mergeInbox(
@@ -378,6 +432,7 @@ export async function loadInbox(userId: string): Promise<LoadedInbox> {
       })),
       alertRows.map((row) => {
         const interestId = typeof row.data?.interestId === "number" ? row.data.interestId : null;
+        const takeId = row.type === GROUP_TAKE && typeof row.data?.inviteId === "number" ? row.data.inviteId : null;
         return {
           kind: "alert" as const,
           id: row.id,
@@ -391,7 +446,10 @@ export async function loadInbox(userId: string): Promise<LoadedInbox> {
           settled:
             interestId !== null && ANSWERABLE.has(row.type) && now
               ? settledReason(row.type, now.get(interestId), today)
-              : null,
+              : takeId !== null && takesNow
+                ? (takesNow.get(takeId) ?? null)
+                : null,
+          takeInviteId: takeId,
         };
       })
     ),

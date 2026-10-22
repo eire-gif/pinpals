@@ -12,7 +12,7 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { Stack, router } from "expo-router";
+import { Stack, router, useLocalSearchParams } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { Chip, ChipGroup, Section } from "@/components/form-bits";
@@ -29,6 +29,13 @@ import {
 import { colors, radii, spacing, type } from "@/lib/theme";
 import { KEYBOARD_DISMISS_MODE, KeyboardDoneButton } from "@/components/keyboard";
 import { AgeGateLoading, NotForUnder18, useAgeGate } from "@/components/not-for-under-18";
+import { useAuth } from "@/lib/auth";
+import { loadMyGroups, type Group } from "@/lib/groups-data";
+import { GROUP_KIND_INFO } from "@/lib/groups";
+
+/** Golf Buddies first — the group a spare place is usually for — then trips, then societies. */
+const KIND_ORDER: Record<string, number> = { crew: 0, trip: 1, society: 2 };
+const MAX_GROUPS = 5;
 
 /** Which picker is open, if any. One at a time, by construction: two open
  *  pickers is the wall of chips this replaced. */
@@ -48,6 +55,44 @@ type OpenPicker = "day" | "exact" | "from" | "to" | null;
  */
 function PostTeeTimeScreenInner() {
   const days = useMemo(() => nextDays(), []);
+  // ?group=<id>: opened from a group, so that group starts ticked.
+  const params = useLocalSearchParams<{ group?: string }>();
+  const { session } = useAuth();
+  const userId = session?.user.id ?? null;
+
+  // 0186: the member's groups, for "Invite your group". Only groups with
+  // someone else in them — a group of one has nobody to invite.
+  const [groups, setGroups] = useState<Group[] | null>(null);
+  const [groupIds, setGroupIds] = useState<number[]>(() => {
+    const preset = Number.parseInt(String(params.group ?? ""), 10);
+    return Number.isFinite(preset) && preset > 0 ? [preset] : [];
+  });
+  useEffect(() => {
+    if (!userId) return;
+    let live = true;
+    loadMyGroups(userId)
+      .then((mine) => {
+        if (!live) return;
+        const usable = mine.groups
+          .filter((g) => g.memberCount > 1 && g.kind in KIND_ORDER)
+          .sort((a, b) => KIND_ORDER[a.kind] - KIND_ORDER[b.kind] || a.name.localeCompare(b.name));
+        setGroups(usable);
+        // A preset group the member isn't in (stale link) is dropped quietly.
+        setGroupIds((ids) => ids.filter((id) => usable.some((g) => g.id === id)));
+      })
+      .catch(() => {
+        if (live) setGroups([]);
+      });
+    return () => {
+      live = false;
+    };
+  }, [userId]);
+
+  const toggleGroup = useCallback((id: number) => {
+    setGroupIds((ids) =>
+      ids.includes(id) ? ids.filter((g) => g !== id) : ids.length >= MAX_GROUPS ? ids : [...ids, id]
+    );
+  }, []);
 
   const [query, setQuery] = useState("");
   const [hits, setHits] = useState<ClubHit[]>([]);
@@ -134,7 +179,7 @@ function PostTeeTimeScreenInner() {
     setError(null);
 
     try {
-      const inviteId = await postTeeTime({
+      const { inviteId, groupInvited } = await postTeeTime({
         clubId: club.id,
         country: club.country,
         playDate,
@@ -147,11 +192,15 @@ function PostTeeTimeScreenInner() {
         notes: notes.trim() || null,
         visibility,
         ladiesOnly,
+        groupIds,
       });
 
       // Replaced rather than pushed: going "back" to a form that has already
       // been submitted is how you get two identical tee times.
-      router.replace({ pathname: "/invite/[id]", params: { id: String(inviteId), posted: "1" } });
+      router.replace({
+        pathname: "/invite/[id]",
+        params: { id: String(inviteId), posted: "1", ...(groupIds.length > 0 ? { groupInvited: String(groupInvited) } : {}) },
+      });
     } catch (err) {
       setError(
         err instanceof Error
@@ -174,6 +223,7 @@ function PostTeeTimeScreenInner() {
     notes,
     visibility,
     ladiesOnly,
+    groupIds,
   ]);
 
   return (
@@ -315,7 +365,73 @@ function PostTeeTimeScreenInner() {
             </ChipGroup>
           </Section>
 
-          <Section title="Who can see it?">
+          {/* 0186: the spare place usually has an owner in mind already —
+              the lads you play with. Ticked groups are told straight away,
+              and anyone in them can take a place in one tap: no request
+              for the host to answer. */}
+          {groups && groups.length > 0 ? (
+            <Section
+              title="Invite your group"
+              hint="They get an alert and can take a place in one tap — first come, first served."
+            >
+              {groups.map((g) => {
+                const on = groupIds.includes(g.id);
+                const info = GROUP_KIND_INFO[g.kind];
+                const others = g.memberCount - 1;
+                return (
+                  <Pressable
+                    key={g.id}
+                    onPress={() => toggleGroup(g.id)}
+                    style={({ pressed }) => [styles.groupRow, on && styles.groupRowOn, pressed && styles.pressed]}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: on }}
+                    accessibilityLabel={`Invite ${g.name}, ${others} ${others === 1 ? "golfer" : "golfers"}`}
+                  >
+                    <View style={[styles.groupBadge, on && styles.groupBadgeOn]}>
+                      <Ionicons
+                        name={(info?.icon ?? "people") as keyof typeof Ionicons.glyphMap}
+                        size={22}
+                        color={on ? colors.cream50 : colors.green700}
+                      />
+                    </View>
+                    <View style={styles.groupText}>
+                      <Text style={styles.groupName} numberOfLines={1}>
+                        {g.name}
+                      </Text>
+                      <Text style={styles.groupMeta}>
+                        {info?.label ?? "Group"} · {others} {others === 1 ? "golfer" : "golfers"}
+                      </Text>
+                    </View>
+                    <Ionicons
+                      name={on ? "checkmark-circle" : "ellipse-outline"}
+                      size={28}
+                      color={on ? colors.green700 : colors.line}
+                    />
+                  </Pressable>
+                );
+              })}
+              {groupIds.length > 0 ? (
+                <View style={styles.groupNote}>
+                  <Ionicons name="flash" size={16} color={colors.gold500} />
+                  <Text style={styles.groupNoteText}>
+                    {spaces === null
+                      ? "Pick how many spaces above."
+                      : `First ${spaces === 1 ? "one" : spaces} to tap Take a place ${spaces === 1 ? "gets it" : "get them"}. You'll be told who.`}
+                  </Text>
+                </View>
+              ) : null}
+            </Section>
+          ) : groups && groups.length === 0 ? (
+            <Pressable style={styles.groupEmpty} onPress={() => router.push("/new-group")} accessibilityRole="button">
+              <Ionicons name="people-outline" size={20} color={colors.green700} />
+              <Text style={styles.groupEmptyText}>
+                Start a Golf Buddies group and you can invite them all to a round in one tap.
+              </Text>
+              <Ionicons name="chevron-forward" size={18} color={colors.ink500} />
+            </Pressable>
+          ) : null}
+
+          <Section title={groupIds.length > 0 ? "Who else can see it?" : "Who can see it?"}>
             <ChipGroup>
               <Chip
                 label="All members"
@@ -478,6 +594,44 @@ const styles = StyleSheet.create({
     minHeight: 54,
   },
   disabled: { opacity: 0.5 },
+  pressed: { opacity: 0.85 },
+  groupRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    backgroundColor: colors.surface,
+    borderWidth: 1.5,
+    borderColor: colors.line,
+    borderRadius: radii.md,
+    padding: spacing.md,
+    minHeight: 64,
+  },
+  groupRowOn: { borderColor: colors.green700, backgroundColor: colors.green100 },
+  groupBadge: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.green100,
+  },
+  groupBadgeOn: { backgroundColor: colors.green700 },
+  groupText: { flex: 1, gap: 2 },
+  groupName: { fontSize: type.body, fontWeight: "700", color: colors.ink900 },
+  groupMeta: { fontSize: type.small, color: colors.ink500 },
+  groupNote: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingHorizontal: 4 },
+  groupNoteText: { flex: 1, fontSize: type.small, color: colors.ink900, fontWeight: "600" },
+  groupEmpty: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    borderWidth: 1,
+    borderStyle: "dashed",
+    borderColor: colors.line,
+    borderRadius: radii.md,
+    padding: spacing.md,
+  },
+  groupEmptyText: { flex: 1, fontSize: type.small, color: colors.ink900 },
   postLabel: {
     color: colors.cream50,
     fontWeight: "700",

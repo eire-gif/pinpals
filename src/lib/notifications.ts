@@ -118,6 +118,8 @@ export const NOTIFICATION_TYPES = [
   "tee_time_cancelled",
   // 0132: the host or a player invited you to fill an open place.
   "tee_time_invited",
+  // 0186: the host invited your group — one tap takes the place.
+  "tee_time_group_invited",
   // The feed (0088). A comment is one-to-one and somebody is waiting on a
   // reply, so it is delivered like a message. A like is recorded in-app
   // only — see likePost() in src/lib/feed-operations.ts for why it never
@@ -207,6 +209,7 @@ export const NOTIFICATION_TYPE_CATEGORY: Record<NotificationType, NotificationCa
   tee_time_place_withdrawn: "tee_times",
   tee_time_cancelled: "tee_times",
   tee_time_invited: "tee_times",
+  tee_time_group_invited: "tee_times",
   post_commented: "feed",
   post_comment_replied: "feed",
   post_liked: "feed",

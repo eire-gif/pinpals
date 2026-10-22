@@ -48,7 +48,7 @@ import { hideConversation, inboxTime } from "@/lib/messages";
 import { groupsForConversations, myAlertsFor, nextEvents, type ChatGroup, type GroupEventCard } from "@/lib/group-chat";
 import { eventWhen, groupTag, tripCountdown, type ChatAlertLevel } from "@/lib/group-chat-rules";
 import { irishToday } from "@/lib/outing-rules";
-import { confirmPlace, respondToRequest } from "@/lib/tee-time-interest";
+import { confirmPlace, passOnPlace, respondToRequest, takePlace } from "@/lib/tee-time-interest";
 import { subscribeToInbox } from "@/lib/realtime";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 import { KEYBOARD_DISMISS_MODE } from "@/components/keyboard";
@@ -786,6 +786,8 @@ function AlertRow({
 
   const canAnswerRequest = row.type === "tee_time_interest_received" && row.interestId !== null && !row.settled;
   const canAnswerOffer = row.type === "tee_time_place_offered" && row.interestId !== null && !row.settled;
+  // 0186: invited with your group — take the place right here.
+  const canTake = row.type === "tee_time_group_invited" && row.takeInviteId != null && !row.settled;
 
   const answer = async (fn: () => Promise<unknown>, label: string) => {
     setState("busy");
@@ -793,7 +795,13 @@ function AlertRow({
       await fn();
       setDoneText(label);
     } catch (e) {
-      setDoneText(e instanceof ApiError && e.status === 409 ? "Already answered" : "Couldn't do that — open it to try again");
+      setDoneText(
+        e instanceof ApiError && e.status === 409
+          ? row.type === "tee_time_group_invited"
+            ? "Sorry — the places have all been taken"
+            : "Already answered"
+          : "Couldn't do that — open it to try again"
+      );
     }
     setState("done");
     onAnswered();
@@ -894,14 +902,35 @@ function AlertRow({
         </View>
       ) : null}
 
+      {canTake && state !== "done" ? (
+        <View style={styles.inlineActions}>
+          <Pressable
+            style={[styles.inlineBtn, styles.inlinePrimary]}
+            onPress={() => void answer(() => takePlace(row.takeInviteId!), "You're in — place confirmed")}
+            disabled={state === "busy"}
+            accessibilityRole="button"
+          >
+            <Text style={styles.inlinePrimaryLabel}>{state === "busy" ? "…" : "Take a place"}</Text>
+          </Pressable>
+          <Pressable
+            style={[styles.inlineBtn, styles.inlineSecondary]}
+            onPress={() => void answer(() => passOnPlace(row.takeInviteId!), "Thanks — you've passed on this one")}
+            disabled={state === "busy"}
+            accessibilityRole="button"
+          >
+            <Text style={styles.inlineSecondaryLabel}>Can&apos;t make it</Text>
+          </Pressable>
+        </View>
+      ) : null}
+
       {state === "done" ? (
         <Text style={styles.doneText}>{doneText}</Text>
       ) : row.settled ? (
         <View style={styles.settledRow}>
           <Ionicons
-            name={row.settled.startsWith("You confirmed") || row.settled.startsWith("You accepted") ? "checkmark-circle" : "information-circle-outline"}
+            name={/^You (confirmed|accepted|'re playing)/.test(row.settled) ? "checkmark-circle" : "information-circle-outline"}
             size={16}
-            color={row.settled.startsWith("You confirmed") || row.settled.startsWith("You accepted") ? colors.green700 : colors.ink500}
+            color={/^You (confirmed|accepted|'re playing)/.test(row.settled) ? colors.green700 : colors.ink500}
           />
           <Text style={styles.settledText}>{row.settled}</Text>
         </View>

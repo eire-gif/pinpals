@@ -83,10 +83,13 @@ export type NewInvite = {
   notes: string | null;
   visibility: "everyone" | "connections";
   ladiesOnly: boolean;
+  /** 0186: groups to invite. Their members can take a place in one tap. */
+  groupIds?: number[];
 };
 
-export async function postTeeTime(invite: NewInvite): Promise<number> {
-  const { invite_id } = await postToSite<{ invite_id: number }>(
+/** The new round's id, and how many group members were invited to it. */
+export async function postTeeTime(invite: NewInvite): Promise<{ inviteId: number; groupInvited: number }> {
+  const { invite_id, group_invited } = await postToSite<{ invite_id: number; group_invited?: number }>(
     "/api/app/tee-times/invites",
     {
       club_id: invite.clubId,
@@ -101,9 +104,10 @@ export async function postTeeTime(invite: NewInvite): Promise<number> {
       notes: invite.notes,
       visibility: invite.visibility,
       ladies_only: invite.ladiesOnly,
+      group_ids: invite.groupIds ?? [],
     }
   );
-  return invite_id;
+  return { inviteId: invite_id, groupInvited: group_invited ?? 0 };
 }
 
 // ===========================================================================

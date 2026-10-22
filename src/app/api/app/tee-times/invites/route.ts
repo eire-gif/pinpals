@@ -37,6 +37,7 @@ export async function POST(request: Request) {
     notes: body.notes,
     visibility: body.visibility,
     ladiesOnly: body.ladies_only,
+    groupIds: body.group_ids,
   } satisfies InviteInput);
 
   if (!result.ok) {
@@ -53,5 +54,8 @@ export async function POST(request: Request) {
     );
   }
 
-  return Response.json({ invite_id: result.value.inviteId }, { status: 201 });
+  return Response.json(
+    { invite_id: result.value.inviteId, group_invited: result.value.groupInvited },
+    { status: 201 }
+  );
 }

@@ -17,7 +17,11 @@ import { postAvailability, type PostAvailabilityState } from "./actions";
 
 const initialState: PostAvailabilityState = {};
 
-export default function NewAvailabilityForm() {
+export type InvitableGroup = { id: number; name: string; kind: string; member_count: number };
+
+const GROUP_KIND_LABEL: Record<string, string> = { crew: "Golf Buddies", trip: "Trip", society: "Society" };
+
+export default function NewAvailabilityForm({ groups = [] }: { groups?: InvitableGroup[] }) {
   const [state, formAction, pending] = useActionState(postAvailability, initialState);
   const [hasTeeTime, setHasTeeTime] = useState(false);
   const [visibility, setVisibility] = useState<string>(DEFAULT_VISIBILITY);
@@ -122,6 +126,33 @@ export default function NewAvailabilityForm() {
           placeholder="e.g. Looking for another Pinpals member to join me — happy to play any pace."
           className={`${FIELD_CLASS} resize-y`} />
       </div>
+
+      {/* 0186: invite your group. Everyone in it is told straight away and
+          can take a place in one tap — no request for the host to answer. */}
+      {groups.length > 0 && (
+        <fieldset className="bg-surface-tint border border-line rounded-xl px-4 py-3.5">
+          <legend className="text-[13.5px] font-bold px-1">Invite your group</legend>
+          <p className="text-[13px] text-ink-500 px-1 mb-2">
+            They get an alert and can take a place in one tap — first come, first served.
+          </p>
+          <div className="grid gap-2">
+            {groups.map((g) => (
+              <label
+                key={g.id}
+                className="flex items-center gap-2.5 rounded-lg px-3 py-2.5 cursor-pointer border-[1.5px] border-transparent has-[:checked]:border-green-600 has-[:checked]:bg-surface transition"
+              >
+                <input type="checkbox" name="groupId" value={g.id} className="w-4 h-4 accent-green-700 shrink-0" />
+                <span className="flex-1">
+                  <span className="block text-sm font-semibold">{g.name}</span>
+                  <span className="block text-[13px] text-ink-500">
+                    {GROUP_KIND_LABEL[g.kind] ?? "Group"} · {g.member_count} members
+                  </span>
+                </span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+      )}
 
       {/* Last field before the button, deliberately: it is the one decision
           here that can't be undone by editing the post afterwards — once a

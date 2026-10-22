@@ -16,6 +16,17 @@ export default async function NewAvailabilityPage() {
   const ageBlocked = await ageGate("teeTimes", "Posting a tee time");
   if (ageBlocked) return ageBlocked;
 
+  // 0186: the groups the host can invite in one go.
+  const { data: memberships } = await supabase
+    .from("group_members")
+    .select("group:groups ( id, name, kind, member_count )")
+    .eq("member_id", user.id)
+    .order("joined_at", { ascending: false })
+    .overrideTypes<{ group: { id: number; name: string; kind: string; member_count: number } | null }[]>();
+  const groups = (memberships ?? [])
+    .map((m) => m.group)
+    .filter((g): g is NonNullable<typeof g> => g !== null && g.member_count > 1);
+
   return (
     <div className="max-w-xl mx-auto px-4 sm:px-6 py-10 sm:py-16">
       <div className="mb-8">
@@ -30,7 +41,7 @@ export default async function NewAvailabilityPage() {
         </p>
       </div>
       <div className="bg-surface rounded-2xl shadow-lg p-5 sm:p-8">
-        <NewAvailabilityForm />
+        <NewAvailabilityForm groups={groups} />
       </div>
     </div>
   );

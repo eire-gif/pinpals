@@ -12,6 +12,7 @@ import {
   notifyInviteCancelled,
   type InviteRef,
 } from "@/lib/tee-times-server";
+import { hasReadyInvitation, takeTeeTimePlace } from "@/lib/tee-time-groups";
 
 /**
  * The three tee-time writes, in one place, callable by anything.
@@ -98,6 +99,15 @@ export async function expressInterest(
   }
   if (invite.status !== "open") {
     return fail("conflict", "This invite is no longer open.");
+  }
+
+  // Invited with their group (0186): the host has already said yes, so
+  // asking *is* taking the place. Covers the website's "I'm interested"
+  // button and any older app build that doesn't know about Take a place.
+  if (await hasReadyInvitation(supabase, userId, inviteId)) {
+    const taken = await takeTeeTimePlace(supabase, userId, inviteId);
+    if (taken.ok) return { ok: true, value: { interestId: taken.value.interestId } };
+    return fail(taken.reason === "forbidden" ? "forbidden" : "conflict", taken.message);
   }
 
   const { data: interest, error } = await supabase
