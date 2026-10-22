@@ -1,15 +1,74 @@
-# Watch v2 — Apple Watch and Wear OS (spec, Oct 2026)
+# Watch v2 — Apple Watch and Wear OS (Oct 2026)
 
-**Status: decisions made 22 Oct; ready to build.** Mock-ups: the Design canvas
-"PinPals — watch v2" (three boards: Apple Watch round, Wear OS round, glances).
-Builds on v1 (`claude/apple-watch.md`, `claude/wear-os.md`), which already
-carries the live round to the watch, own-ball scoring, distance to the centre
-and the offline queue. Everything here is additive to those files.
+**Status: built on branch `claude/watch-v2` (PR #333), untested on a real
+watch. Needs migration 0185 applied, the PR merged (Vercel deploys the two new
+routes), then new store builds — `eas build -p ios` and `eas build -p android`
+plus the `wear-production` profile. None of it reaches members with `eas update`.**
 
-**Release:** watch code is native, so every phase needs `eas build` (iOS) and
-the `wear-production` profile (Android) — none of it reaches members with
-`eas update`. Suggested: phone apps ship for the ~19 Dec go-live; watch v2 is
-the January 1.1 headline.
+Mock-ups: the Design canvas "PinPals — watch v2" (three boards). Builds on v1
+(`claude/apple-watch.md`, `claude/wear-os.md`).
+
+**Wear OS v1 had never reached `main`.** PR #250 was merged into the
+`claude/apple-watch` branch after #249 had already merged, so the Wear OS app,
+its CI workflow (`.github/workflows/watch-apps.yml`) and the Android half of
+the phone module were stranded. This PR brings them across (cherry-picked
+with their history) along with v2.
+
+## As built — what's different from the plan below
+
+- **Plays like is wind only**, as on the phone's hole map (`wind.ts`). The
+  phone has no height data, so no elevation migration: the watch never shows
+  a guessed slope number. On by default; a Plays like switch on the card page
+  turns it off on that watch.
+- **Hazards show one distance each** (to the hazard's mapped point). The
+  course data has one point per hazard, not a near and far edge, so "reach /
+  carry" from the mock-up would have been invented. Ones behind you drop off;
+  markers and doglegs are left out, as on the phone.
+- **Start round from the wrist was left out.** A round needs its format, tees
+  and players chosen; that stays on the phone, which then puts it on the watch.
+- **Wear OS keeps the GPS going wrist-down with a foreground location service
+  shown as an Ongoing Activity** (PinPals icon on the face, one tap back), not
+  Health Services: no workout is saved to Health Connect on Android. Apple
+  Watch runs the round as a golf workout (saved to Health).
+- **Birdie taps are for your own group** (from the scores the phone already
+  has), not society-wide lead changes.
+- **Secret leaderboards:** the Home Screen widgets were showing every group's
+  scores on a secret-leaderboard day — the widget route reads with the service
+  client and never checked `leaderboard_hidden`. `widget-data.ts` now shows a
+  non-organiser only their own group (0174's `live_day_organiser` decides who
+  organises), which the watch's leaderboard reuses.
+
+## Setup before release
+
+- **Supabase:** apply `0185_watch_group_scores.sql`.
+- **Apple:** the first `eas build -p ios` registers two new things — the
+  complications extension `ie.pinpals.app.watchkitapp.complications`, and the
+  HealthKit and App Group capabilities on the watch app. Accept EAS's prompts.
+- **Google Cloud (Wear OS map):** in the project that holds the Map Tiles key,
+  enable **Maps SDK for Android**, create an API key restricted to Android
+  apps with package `ie.pinpals.app` and the SHA-1 of the upload key and of
+  Play's app signing key, and save it as the EAS secret `WEAR_MAPS_API_KEY`.
+  Without it the Wear OS map page says "Map coming soon" (everything else works).
+- **Google Play:** the watch build now declares a foreground location service;
+  Play asks for a short declaration (and a video) of why. Answer: live golf
+  round distances with the screen off, stops when the round ends.
+
+## What's where
+
+| Piece | Files |
+|---|---|
+| Group scores from a watch | `supabase/migrations/0185_watch_group_scores.sql` (`live_round_set_scores_as`, service role only, the app's `can_score_live_round` rule for a passed-in member), `src/app/api/widget/live/scores/route.ts`, `src/lib/watch-scores.ts` (+ test), `supabase/tests/rls/watch-group-scores.test.ts` |
+| Leaderboard | `src/app/api/widget/live/board/route.ts` (LiveScore key) → `widget-data.ts` |
+| Phone → watch | `mobile/src/lib/lock-screen-rules.ts` (`lockScreenSpots` adds front/back/hazards; `watchGroup`, `watchNames`; + tests), `mobile/src/lib/lock-screen.ts` (the `watch` key: group, competition, wind, Premium, board), the round screen passes the group and `gate("gps_yardages")`; `PinPalsWatchLink.swift` / the Android module keep `watch` |
+| Apple Watch | `targets/watch/WatchPagesV2.swift` (pages), `WatchRound.swift` (data, distances, plays like), `WatchRoundModel.swift` (group, leaderboard, birdie tap), `WatchSending.swift` (group queue), `WatchWorkout.swift`, `WatchGlance.swift`; `targets/watch-widget/` (complications + Smart Stack) |
+| Wear OS | `mobile/wear/.../PagesV2.kt`, `Round.kt`, `RoundModel.kt`, `Sending.kt`, `RoundService.kt`, `Glance.kt`, `PinPalsTileService.kt`, `PinPalsComplicationService.kt` |
+
+The golf maths (net par, points) and now plays like are copied in Swift and
+Kotlin from `live-scoring.ts` / `wind.ts`. Change them together.
+
+---
+
+## The plan (as specced, 22 Oct)
 
 ## Screens (pages swiped left→right, Crown/bezel steps between them)
 

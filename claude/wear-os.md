@@ -82,6 +82,8 @@ Watch); change all three together.
   later; distance shows on a mapped course; the crown changes the number;
   finishing on the phone shows the total on the watch.
 
+**Watch v2 (Oct 2026):** most of the list below is now built — see `claude/watch-v2.md`. This Wear OS app first reached `main` with that PR.
+
 ## Not in v1
 
 As for the Apple Watch: group formats, a watch-face tile/complication,

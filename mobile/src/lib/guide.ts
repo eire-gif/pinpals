@@ -1154,14 +1154,14 @@ export const GUIDES: Guide[] = [
       },
       {
         title: "Score from your watch",
-        body: "With PinPals on your Apple Watch or Wear OS watch, the round you open on your phone is on your wrist too. It shows the hole, par and your distance to the centre of the green. Turn the crown (or the bezel) or use − and +, then tap Save — it moves on to the next hole. Swipe left for your card: your total, Undo, NR (no return), and any hole to change.",
+        body: "With PinPals on your Apple Watch or Wear OS watch, the round you open on your phone is on your wrist too. Swipe across: the front, centre and back of the green; the satellite hole map (tap to move the target, turn the crown to zoom); the hazards still in play; scoring; the leaderboard; and your card. To score, turn the crown (or the bezel) or use − and +, then tap Save — it moves on to the next hole. Playing with others? Tap a name, set their score, and Save all does the whole group.",
         look: [
           { style: "outline", label: "−" },
           { style: "primary", label: "4" },
           { style: "outline", label: "+" },
-          { style: "primary", label: "Save", icon: "watch-outline" },
+          { style: "primary", label: "Save all", icon: "watch-outline" },
         ],
-        tip: "Your own score only, as on the lock screen. No signal? Scores are kept on the watch and sent when there is. Apple Watch: Watch app on your iPhone → PinPals → Install. Wear OS: Play Store on the watch → PinPals.",
+        tip: "Anyone in the group can score the group, as in the app. In a society or competition round the watch shows distance only, no plays like (Rule 4.3). Your card page has Undo, NR (no return) and any hole to change. No signal? Scores are kept on the watch and sent when there is. Add PinPals to your watch face to see the hole and yards at a glance. Apple Watch: Watch app on your iPhone → PinPals → Install. Wear OS: Play Store on the watch → PinPals.",
       },
       {
         title: "Leaderboard, finish and share",
@@ -1927,6 +1927,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-22", text: "Score a game live: Score from your watch now covers Wear OS watches as well as Apple Watch, and the watch has more pages — front, centre and back of the green, the satellite hole map, hazards, the whole group's scores (Save all) and the leaderboard — plus PinPals on your watch face." },
   { on: "2026-10-21", text: "Score a game live: new step, Back to your card from anywhere — while your round is live, the green MY ROUND pill at the top of every screen takes you straight back to your scoring." },
   { on: "2026-10-21", text: "Run your society: on the website's Live day you can now save the round's set-up (tees, card, format, start) ahead of the day, and just press Start the round on the morning." },
   { on: "2026-10-21", text: "Run your society: Run it from a computer now includes Live day on the website — choose the tees and format, start the round on every player's phone, watch the live scoreboard and publish the results from a big screen." },
