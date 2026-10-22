@@ -78,6 +78,50 @@ export async function confirmPlace(
   return { id: interestId, status };
 }
 
+// ===========================================================================
+// Invited with your group (0186)
+// ===========================================================================
+
+export type GroupInvitation = {
+  /** The group you were invited with, when it still exists. */
+  groupName: string | null;
+  /** The host said yes in advance: Take a place confirms it in one tap. */
+  ready: boolean;
+  /** You said you can't make it. */
+  passed: boolean;
+};
+
+/** Your invitation to this round, if you have one. RLS shows a member only
+ *  their own (and a host the ones on their rounds — hence the member filter). */
+export async function getMyInvitation(inviteId: number, memberId: string): Promise<GroupInvitation | null> {
+  const { data, error } = await supabase
+    .from("tee_time_invitations")
+    .select("ready, passed_at, group:groups ( name )")
+    .eq("invite_id", inviteId)
+    .eq("member_id", memberId)
+    .maybeSingle()
+    .overrideTypes<{ ready: boolean; passed_at: string | null; group: { name: string } | null }>();
+  if (error || !data) return null;
+  return { groupName: data.group?.name ?? null, ready: data.ready, passed: data.passed_at !== null };
+}
+
+/**
+ * Take the place in one tap — the host already said yes to your group.
+ * First come, first served: a 409 means the places have gone.
+ */
+export async function takePlace(inviteId: number): Promise<MyInterest> {
+  const { interest_id } = await postToSite<{ interest_id: number; status: "confirmed" }>(
+    `/api/app/tee-times/invites/${inviteId}/take`,
+    {}
+  );
+  return { id: interest_id, status: "confirmed" };
+}
+
+/** "Can't make it" on a group invitation. Nothing moves; nobody is told. */
+export async function passOnPlace(inviteId: number): Promise<void> {
+  await postToSite<{ passed: boolean }>(`/api/app/tee-times/invites/${inviteId}/pass`, {});
+}
+
 /**
  * Take back a request the host hasn't answered yet (0167). No space moves
  * and the host isn't told — it just leaves their "Needs your answer". You

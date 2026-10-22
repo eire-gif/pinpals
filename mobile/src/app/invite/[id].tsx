@@ -37,7 +37,11 @@ import {
   confirmPlace,
   expressInterest,
   getMyInterest,
+  getMyInvitation,
+  passOnPlace,
+  takePlace,
   withdrawRequest,
+  type GroupInvitation,
   type MyInterest,
 } from "@/lib/tee-time-interest";
 import { colors, creamAlpha, fonts, navyAlpha, radii, spacing, type } from "@/lib/theme";
@@ -45,12 +49,15 @@ import { AgeGateLoading, NotForUnder18, useAgeGate } from "@/components/not-for-
 
 function InviteScreenInner() {
   // posted=1: just posted (post-tee-time.tsx) — offer the calendar once.
-  const { id, posted } = useLocalSearchParams<{ id: string; posted?: string }>();
+  // groupInvited=N: the host invited their group(s) while posting (0186).
+  const { id, posted, groupInvited } = useLocalSearchParams<{ id: string; posted?: string; groupInvited?: string }>();
   const { session } = useAuth();
   const memberId = session?.user.id ?? null;
 
   const [invite, setInvite] = useState<Invite | null>(null);
   const [interest, setInterest] = useState<MyInterest | null>(null);
+  // Invited with your group (0186): the host already said yes, so one tap takes the place.
+  const [invitation, setInvitation] = useState<GroupInvitation | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
 
@@ -110,7 +117,12 @@ function InviteScreenInner() {
       // Only worth asking for somebody else's invite: a host has no interest
       // row of their own, and the query would match other members' rows.
       if (row && memberId && row.member_id !== memberId) {
-        setInterest(await getMyInterest(numeric, memberId));
+        const [mine, inv] = await Promise.all([
+          getMyInterest(numeric, memberId),
+          getMyInvitation(numeric, memberId).catch(() => null),
+        ]);
+        setInterest(mine);
+        setInvitation(inv);
       }
     } catch {
       setNotFound(true);
@@ -159,6 +171,19 @@ function InviteScreenInner() {
     }
   }, []);
 
+  const pass = useCallback(async (inviteId: number) => {
+    setBusy(true);
+    setActionError(null);
+    try {
+      await passOnPlace(inviteId);
+      setInvitation((inv) => (inv ? { ...inv, passed: true } : inv));
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : "Something went wrong. Please try again.");
+    } finally {
+      setBusy(false);
+    }
+  }, []);
+
   if (loading) {
     return (
       <View style={styles.centre}>
@@ -193,6 +218,12 @@ function InviteScreenInner() {
   const date = parseDate(invite.play_date);
   const countdown = daysUntil(invite.play_date);
   const playing = interest?.status === "confirmed";
+  const roundOpen = invite.status === "open" && invite.spaces_available > 0 && invite.play_date >= todayIso();
+  // A one-tap place is on offer: invited with a group, not in the round yet
+  // (or dropped out of it), and a space is still there.
+  const canRejoin = interest === null || (interest.status === "declined" && !!interest.withdrawn);
+  const quickTake = !!invitation?.ready && canRejoin && roundOpen;
+  const groupGone = !!invitation?.ready && interest === null && !roundOpen && !invitation.passed;
   const myBadge = isMine
     ? { icon: "flag" as const, label: "Your round" }
     : playing
@@ -421,6 +452,18 @@ function InviteScreenInner() {
             golfers is native. */}
         {isMine ? (
           <>
+            {groupInvited !== undefined ? (
+              <Status
+                tone="good"
+                icon="paper-plane"
+                title={Number(groupInvited) > 0 ? `Sent to ${groupInvited} ${groupInvited === "1" ? "golfer" : "golfers"} in your group` : "Your group's already in the loop"}
+                body={
+                  Number(groupInvited) > 0
+                    ? "They can take a place in one tap. You'll get an alert as each one does."
+                    : "Everyone in it was already invited or playing."
+                }
+              />
+            ) : null}
             <Action
               icon="people"
               label="Manage who's coming"
@@ -433,7 +476,40 @@ function InviteScreenInner() {
           </>
         ) : (
           <>
-            {interest === null && (
+            {/* 0186: invited with your group — the host said yes in advance. */}
+            {quickTake && !invitation!.passed && (
+              <>
+                <Status
+                  tone="offer"
+                  icon="flash"
+                  title={`${hostFirst} has a place for you`}
+                  body={`You're invited with ${invitation!.groupName ?? "your group"}. Take it and you're in — first come, first served.`}
+                />
+                <Action icon="checkmark-circle" label="Take a place" busy={busy} onPress={() => void run(() => takePlace(inviteId))} />
+                <Secondary icon="close-circle-outline" label="Can't make it" busy={busy} onPress={() => void pass(inviteId)} />
+              </>
+            )}
+            {quickTake && invitation!.passed && (
+              <>
+                <Status
+                  tone="neutral"
+                  icon="calendar-clear-outline"
+                  title="You said you can't make it"
+                  body={`Plans changed? The place is still yours to take while there's one left.`}
+                />
+                <Action icon="checkmark-circle" label="Take a place after all" busy={busy} onPress={() => void run(() => takePlace(inviteId))} />
+              </>
+            )}
+            {groupGone && (
+              <Status
+                tone="neutral"
+                icon="people-outline"
+                title="The places have gone"
+                body={`Others in ${invitation!.groupName ?? "your group"} got there first. There are more tee times on the way.`}
+              />
+            )}
+
+            {interest === null && !quickTake && !groupGone && (
               <Action
                 icon="hand-right"
                 label="I'm interested"
@@ -528,7 +604,7 @@ function InviteScreenInner() {
               </>
             )}
 
-            {interest?.status === "declined" &&
+            {interest?.status === "declined" && !quickTake &&
               (interest.withdrawn ? (
                 <>
                   <Status

@@ -14,6 +14,8 @@ export type AlertLook = { icon: string; fg: string; bg: string };
 
 export function alertLook(type: string): AlertLook {
   if (type === "tee_time_interest_received") return { icon: "person-add", fg: "#1f4f9c", bg: "#e3ecfa" };
+  // 0186: your group has a place waiting — the gold of an offer, because it is one.
+  if (type === "tee_time_group_invited") return { icon: "flash", fg: "#8a6512", bg: "#fff4dc" };
   if (type === "tee_time_interest_declined" || type === "tee_time_cancelled" || type === "tee_time_place_withdrawn") {
     return { icon: "golf", fg: "#8a3b2c", bg: "#f6e3de" };
   }

@@ -85,6 +85,10 @@ export type InviteAnnouncement = {
   timeTo: string | null;
   spaces: number;
   ladiesOnly: boolean;
+  /** Already told about this round another way — invited with their group
+   *  (0186) — so the general "posted a tee time" alert would be a second
+   *  buzz about the same round. */
+  skip?: ReadonlySet<string>;
 };
 
 /**
@@ -145,7 +149,9 @@ export async function notifyConnectionsOfInvite(
   admin: SupabaseClient,
   invite: InviteAnnouncement
 ): Promise<number> {
-  const recipients = (await connectionIdsFor(admin, invite.hostId)).slice(0, FANOUT_LIMIT);
+  const recipients = (await connectionIdsFor(admin, invite.hostId))
+    .filter((id) => !invite.skip?.has(id))
+    .slice(0, FANOUT_LIMIT);
   // Resolved only once there's actually someone to tell — a member with no
   // connections yet costs one query, not two.
   if (recipients.length === 0) return 0;
@@ -412,6 +418,29 @@ export async function notifyTeeTimeInvited(
       href: input.link,
       data: { inviteId: input.invite.inviteId },
       dedupeKey: buildDedupeKey(["tee_time", input.invite.inviteId, "invited", input.memberId]),
+    });
+  });
+}
+
+/**
+ * The host posted a round for your group (0186). Their yes is already given,
+ * so the alert's job is speed: first to tap Take a place gets it.
+ */
+export async function notifyTeeTimeGroupInvited(
+  admin: SupabaseClient,
+  input: { memberId: string; hostId: string; groupName: string; invite: InviteRef; spaces: number }
+): Promise<void> {
+  await safeNotify("tee-time-group-invited", async () => {
+    const hostName = await memberNameFor(admin, input.hostId);
+    const places = input.spaces === 1 ? "1 place" : `${input.spaces} places`;
+    await notifyUser(admin, {
+      userId: input.memberId,
+      type: "tee_time_group_invited",
+      title: `${hostName} has ${places} for ${input.groupName}`,
+      body: `${whenAt(input.invite)}. First to take it gets it — no need to wait for ${hostName.split(" ")[0]}.`,
+      href: `/tee-times/${input.invite.inviteId}`,
+      data: { inviteId: input.invite.inviteId },
+      dedupeKey: buildDedupeKey(["tee_time", input.invite.inviteId, "group_invited", input.memberId]),
     });
   });
 }

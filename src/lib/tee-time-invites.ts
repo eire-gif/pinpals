@@ -5,6 +5,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { checkRateLimit, rateLimitMessage } from "@/lib/rate-limit";
 import { notifyConnectionsOfInvite } from "@/lib/tee-times-server";
+import { inviteGroupsToTeeTime, notifyGroupInvitees, parseGroupIds } from "@/lib/tee-time-groups";
 import { getClubById } from "@/lib/courses";
 import { isCountryCode, isRegionInCountry, countryName } from "@/lib/regions";
 import {
@@ -53,6 +54,9 @@ export type InviteInput = {
   notes?: unknown;
   visibility?: unknown;
   ladiesOnly?: unknown;
+  /** 0186: groups to invite straight away. Their members can take a place in
+   *  one tap. Ids of groups the host isn't in are skipped by the database. */
+  groupIds?: unknown;
 };
 
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -112,7 +116,7 @@ export async function createInvite(
   supabase: SupabaseClient,
   userId: string,
   input: InviteInput
-): Promise<Result<{ inviteId: number }>> {
+): Promise<Result<{ inviteId: number; groupInvited: number }>> {
   const rateLimit = await checkRateLimit({
     action: "post-availability",
     identifier: userId,
@@ -258,6 +262,22 @@ export async function createInvite(
     return { ok: false, reason: "failed", message: error?.message ?? "Couldn't post that." };
   }
 
+  // Invite the host's chosen groups (0186) before the fan-out below, so a
+  // buddy who is also a connection gets the one alert that lets them take
+  // the place, not that one plus a general "posted a tee time".
+  const groupIds = parseGroupIds(input.groupIds);
+  const groups =
+    groupIds.length > 0
+      ? await inviteGroupsToTeeTime(
+          supabase,
+          userId,
+          { inviteId: invite.id, clubName: club.name, playDate, spaces },
+          groupIds,
+          { notify: false }
+        ).catch(() => ({ invitees: new Map<string, string>(), skipped: groupIds.length }))
+      : { invitees: new Map<string, string>(), skipped: 0 };
+  notifyGroupInvitees(userId, { inviteId: invite.id, clubName: club.name, playDate, spaces }, groups.invitees);
+
   // Tell the host's connections. Deliberately after the response: this can be
   // dozens of auth lookups and provider calls, and the member who just filled
   // in a form should not sit watching a spinner while other people's email is
@@ -274,6 +294,7 @@ export async function createInvite(
         timeTo: timeTo || null,
         spaces,
         ladiesOnly,
+        skip: new Set(groups.invitees.keys()),
       });
     } catch (err) {
       console.error(
@@ -283,5 +304,5 @@ export async function createInvite(
     }
   });
 
-  return { ok: true, value: { inviteId: invite.id } };
+  return { ok: true, value: { inviteId: invite.id, groupInvited: groups.invitees.size } };
 }

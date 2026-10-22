@@ -926,10 +926,18 @@ export const GUIDES: Guide[] = [
         ],
       },
       {
-        title: "Spaces, and who can see it",
-        body: "Pick 1, 2 or 3 spaces. Choose All members, or My connections only for just the golfers you know.",
+        title: "Invite your group",
+        body: "Pick 1, 2 or 3 spaces. Then, under Invite your group, tick your Golf Buddies (or a trip or society you're in). Everyone in it gets an alert and can tap Take a place — no request for you to answer. First come, first served.",
         look: [
           { style: "outline", label: "2 spaces" },
+          { style: "outline", label: "Saturday Golf Buddies", icon: "checkmark-circle" },
+        ],
+        tip: "You get an alert as each one takes a place. Not in a group yet? Tap Start a Golf Buddies group right there.",
+      },
+      {
+        title: "Who else can see it",
+        body: "Choose All members, or My connections only for just the golfers you know. Your group is invited either way.",
+        look: [
           { style: "outline", label: "All members" },
           { style: "outline", label: "My connections only" },
         ],
@@ -996,8 +1004,11 @@ export const GUIDES: Guide[] = [
       },
       {
         title: "Ask to play",
-        body: "Tap a round to see who's playing and the host's notes. Tap I'm interested — the host is told and you'll hear back here.",
-        look: [{ style: "primary", label: "I'm interested", icon: "hand-right" }],
+        body: "Tap a round to see who's playing and the host's notes. Tap I'm interested — the host is told and you'll hear back here. Invited with your group? Tap Take a place on the alert or the round and you're in straight away.",
+        look: [
+          { style: "primary", label: "I'm interested", icon: "hand-right" },
+          { style: "primary", label: "Take a place", icon: "checkmark-circle" },
+        ],
       },
       {
         title: "Confirm your place",
@@ -1927,6 +1938,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-22", text: "Post a tee time: new step, Invite your group — tick your Golf Buddies, trip or society and everyone in it can Take a place in one tap, first come, first served. Find a game shows Take a place too." },
   { on: "2026-10-22", text: "Score a game live: Score from your watch now covers Wear OS watches as well as Apple Watch, and the watch has more pages — front, centre and back of the green, the satellite hole map, hazards, the whole group's scores (Save all) and the leaderboard — plus PinPals on your watch face." },
   { on: "2026-10-21", text: "Score a game live: new step, Back to your card from anywhere — while your round is live, the green MY ROUND pill at the top of every screen takes you straight back to your scoring." },
   { on: "2026-10-21", text: "Run your society: on the website's Live day you can now save the round's set-up (tees, card, format, start) ahead of the day, and just press Start the round on the morning." },
