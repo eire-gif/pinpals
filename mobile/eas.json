@@ -10,7 +10,7 @@
       "distribution": "internal",
       "ios": {
         "resourceClass": "m-medium",
-        "image": "latest"
+        "image": "sdk-57"
       },
       "android": {
         "image": "latest"
@@ -21,7 +21,7 @@
       "distribution": "internal",
       "ios": {
         "resourceClass": "m-medium",
-        "image": "latest"
+        "image": "sdk-57"
       },
       "android": {
         "buildType": "apk",
@@ -33,7 +33,7 @@
       "autoIncrement": true,
       "ios": {
         "resourceClass": "m-medium",
-        "image": "latest"
+        "image": "sdk-57"
       },
       "android": {
         "image": "latest"
