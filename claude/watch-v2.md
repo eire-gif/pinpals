@@ -1,6 +1,6 @@
 # Watch v2 — Apple Watch and Wear OS (spec, Oct 2026)
 
-**Status: mock-ups approved-pending; ready to build.** Mock-ups: the Design canvas
+**Status: decisions made 22 Oct; ready to build.** Mock-ups: the Design canvas
 "PinPals — watch v2" (three boards: Apple Watch round, Wear OS round, glances).
 Builds on v1 (`claude/apple-watch.md`, `claude/wear-os.md`), which already
 carries the live round to the watch, own-ball scoring, distance to the centre
@@ -141,10 +141,17 @@ Per AGENTS.md: add watch steps to the live-scoring / hole-map guides in
 `guide.test.ts`. Update `claude/apple-watch.md` and `claude/wear-os.md`
 "Not in v1" lists as each phase lands.
 
-## Open questions
+## Decisions (22 Oct 2026)
 
-- Plays-like in casual rounds: on by default, or opt-in in Settings?
-- Should group scoring on the watch be limited to the round's designated
-  marker, or anyone the app already lets score the group?
-- Premium gating once paid tiers go live — e.g. hole map and plays-like in
-  Premium, distances and scoring free?
+- **Plays-like is on by default** in casual rounds (a Settings switch can
+  turn it off). Competition mode still hides it automatically.
+- **Group scoring: anyone the app already lets score the group** — not
+  limited to a designated marker. `live_round_set_scores` uses the app's
+  existing check, unchanged.
+- **Hole map and plays-like are Premium features, free for now.** Gate them
+  behind the existing paid-tiers switch (`claude/memberships.md`), which
+  stays off for everyone, so every member gets them until paid plans go
+  live. Distances, hazards, scoring and the leaderboard stay free. When the
+  switch is on and a member isn't Premium, the map page shows a one-line
+  "Premium" card (no price, no link — App Store rule 3.1.1) and the Plays
+  line is simply not shown.
