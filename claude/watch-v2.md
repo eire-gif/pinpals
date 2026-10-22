@@ -1,7 +1,7 @@
 # Watch v2 — Apple Watch and Wear OS (Oct 2026)
 
 **Status: built on branch `claude/watch-v2` (PR #333), untested on a real
-watch. Needs migration 0185 applied, the PR merged (Vercel deploys the two new
+watch. Migration 0185 is applied; needs the PR merged (Vercel deploys the two new
 routes), then new store builds — `eas build -p ios` and `eas build -p android`
 plus the `wear-production` profile. None of it reaches members with `eas update`.**
 
@@ -40,7 +40,7 @@ with their history) along with v2.
 
 ## Setup before release
 
-- **Supabase:** apply `0185_watch_group_scores.sql`.
+- **Supabase:** `0185_watch_group_scores.sql` — applied to production 22 Oct 2026.
 - **Apple:** the first `eas build -p ios` registers two new things — the
   complications extension `ie.pinpals.app.watchkitapp.complications`, and the
   HealthKit and App Group capabilities on the watch app. Accept EAS's prompts.

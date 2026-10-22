@@ -23,6 +23,8 @@
 --
 -- No drop statements.
 --
+-- Applied to production 22 Oct 2026.
+--
 -- Rollback:
 --   drop function if exists public.live_round_set_scores_as(uuid, bigint, smallint, jsonb);
 
