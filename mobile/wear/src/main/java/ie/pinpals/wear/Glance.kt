@@ -47,8 +47,10 @@ object Glance {
       var progress = 0f
       val spot = r.spot(s.hole)
       val y = s.distance
-      if (y != null && spot?.tee != null && spot.green != null) {
-        val length = Distance.metres(spot.tee, spot.green) / Distance.METRES_PER_YARD
+      val tee = spot?.tee
+      val green = spot?.green
+      if (y != null && tee != null && green != null) {
+        val length = Distance.metres(tee, green) / Distance.METRES_PER_YARD
         if (length > 0) progress = (1 - y / length).toFloat().coerceIn(0f, 1f)
       }
       GlanceData(true, info.n, info.par, y, r.status ?: r.total, progress)
