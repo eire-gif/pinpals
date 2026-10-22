@@ -6,7 +6,9 @@ import { SITE_URL } from "./config";
 import type { LiveRound } from "./live-rounds";
 import { isOneBallPerSide, playOrder, type CardHole } from "./live-scoring";
 import { sendScore } from "./score-queue";
-import { anySpots, lockScreenHole, lockScreenLinks, lockScreenSpots, lockScreenStrokes } from "./lock-screen-rules";
+import { anySpots, lockScreenHole, lockScreenLinks, lockScreenSpots, lockScreenStrokes, type WatchExtras, type WatchPlayer } from "./lock-screen-rules";
+import { loadRoundIsCompetition, manualCompetition } from "./competition-mode";
+import { loadWind } from "./hole-extras";
 import { isOn } from "./features";
 import { loadCourseLayouts } from "./hole-maps";
 import type { LayoutPoint } from "./hole-geo";
@@ -42,6 +44,15 @@ import { startLockScreenDistance, stopLockScreenDistance } from "./lock-screen-l
  * kept on the team's first player) — not a foursomes/greensomes match, which
  * is scored in the app. iPhone with iOS 17+ only; everywhere
  * else every call here does nothing.
+ *
+ * Watches (Oct 2026): the same calls also put the round on an Apple Watch
+ * (claude/apple-watch.md) or a Wear OS watch (claude/wear-os.md). With a
+ * watch, isSupported() is true even where the card isn't — on Android, or
+ * with Live Activities turned off.
+ *
+ * Watch v2 (claude/watch-v2.md): start and update also carry a `watch` key —
+ * the group page's players, competition mode, the wind, Premium and the
+ * leaderboard's address. The card ignores it; only the watch link keeps it.
  */
 
 type Native = {
@@ -54,7 +65,10 @@ type Native = {
   setLocation(json: string): string | null;
 };
 
-const native: Native | null = Platform.OS === "ios" ? requireOptionalNativeModule<Native>("PinPalsLiveActivity") : null;
+// Android has no lock screen card, but the same calls keep a Wear OS watch on
+// the round (modules/live-activity/android, claude/wear-os.md).
+const native: Native | null =
+  Platform.OS === "ios" || Platform.OS === "android" ? requireOptionalNativeModule<Native>("PinPalsLiveActivity") : null;
 
 /** A key is swapped for a fresh one when it has less than this left (they last 18 hours). */
 const RENEW_WITHIN_MS = 2 * 3600 * 1000;
@@ -113,7 +127,63 @@ export type LockScreenRound = {
   scores: ReadonlyMap<number, number | null>;
   /** "2nd of 4", "Blues 2 UP"… or null. */
   status: string | null;
+  /** Watch v2: the group page (null = none) and the member's Premium features. */
+  watch?: { group: WatchPlayer[] | null; premium: { map: boolean; playsLike: boolean } };
 };
+
+// ---- Watch v2: competition mode and the wind, looked up once a round ----
+
+type WatchContext = { competition: boolean; wind: WatchExtras["wind"]; windAt: number; loading: boolean };
+const watchContexts = new Map<number, WatchContext>();
+/** The wind is the website's, kept 10 minutes there too (hole-extras.ts). */
+const WIND_EVERY_MS = 10 * 60 * 1000;
+
+function watchExtras(input: LockScreenRound): WatchExtras | undefined {
+  if (!input.watch) return undefined;
+  const ctx = watchContexts.get(input.round.id);
+  const competition = (ctx?.competition ?? false) || manualCompetition(input.round.id);
+  return {
+    group: input.watch.group,
+    competition,
+    premium: input.watch.premium,
+    // Rule 4.3: in a competition the watch gets no wind to work a shot out from.
+    wind: competition ? null : (ctx?.wind ?? null),
+    board: `${SITE_URL.replace(/\/$/, "")}/api/widget/live/board`,
+  };
+}
+
+/**
+ * Looks up whether the round is a competition, and the wind at the course
+ * (again every 10 minutes); when either arrives, sends the watch the news.
+ */
+function refreshWatchContext(input: LockScreenRound): void {
+  if (!native || !input.watch) return;
+  const { round } = input;
+  const have = watchContexts.get(round.id);
+  if (have?.loading || (have && Date.now() - have.windAt < WIND_EVERY_MS)) return;
+  const ctx: WatchContext = have ? { ...have, loading: true } : { competition: false, wind: null, windAt: 0, loading: true };
+  watchContexts.set(round.id, ctx);
+  void (async () => {
+    try {
+      const [competition, wind] = await Promise.all([
+        have ? Promise.resolve(have.competition) : loadRoundIsCompetition(round.id),
+        (async () => {
+          if (round.clubId == null) return null;
+          const club = await loadCourse(round.clubId).catch(() => null);
+          if (club?.latitude == null || club.longitude == null) return null;
+          const w = await loadWind({ lat: club.latitude, lng: club.longitude }).catch(() => null);
+          return w ? { kmh: w.speedKmh, from: w.fromDeg, at: w.at } : null;
+        })(),
+      ]);
+      watchContexts.set(round.id, { competition, wind, windAt: Date.now(), loading: false });
+      const watch = watchExtras(input);
+      if (started.has(round.id) && watch) native.update(JSON.stringify({ roundId: round.id, watch }));
+    } catch {
+      // No wind, no competition flag: the watch shows plain distances.
+      watchContexts.set(round.id, { ...ctx, windAt: Date.now(), loading: false });
+    }
+  })();
+}
 
 /**
  * The round screen loaded or a score went in: show the round on the lock
@@ -135,6 +205,8 @@ export async function syncLockScreen(input: LockScreenRound): Promise<void> {
   const key = await keyFor(round.id);
   if (!key) return;
   const api = `${SITE_URL.replace(/\/$/, "")}/api/widget/live/score`;
+  const watch = watchExtras(input);
+  refreshWatchContext(input);
 
   try {
     if (!started.has(round.id)) {
@@ -154,6 +226,7 @@ export async function syncLockScreen(input: LockScreenRound): Promise<void> {
           status: input.status,
           voiceUrl: links.voiceUrl,
           mapUrl: links.mapUrl,
+          watch,
         })
       );
       if (failure == null) {
@@ -164,7 +237,7 @@ export async function syncLockScreen(input: LockScreenRound): Promise<void> {
       }
       return;
     }
-    const result = native.update(JSON.stringify({ roundId: round.id, hole, strokes, status: input.status, token: key.token, api, playerId: input.playerId }));
+    const result = native.update(JSON.stringify({ roundId: round.id, hole, strokes, status: input.status, token: key.token, api, playerId: input.playerId, watch }));
     // The member swiped the card away (or iOS ended it after 8 hours): leave
     // it gone for this round rather than putting it back on every score.
     if (result === "not running") {
@@ -213,6 +286,7 @@ async function showDistance(round: LiveRound, card: readonly CardHole[]): Promis
 /** The round finished (immediate = it was deleted): take its card down. */
 export function endLockScreen(roundId: number, summary?: string, immediate = false): void {
   started.delete(roundId);
+  watchContexts.delete(roundId);
   keys.delete(roundId);
   mapped.delete(roundId);
   void stopLockScreenDistance();
@@ -227,6 +301,7 @@ export function endLockScreen(roundId: number, summary?: string, immediate = fal
 /** Signed out: every card goes at once, and its keys with it. */
 export function endAllLockScreens(): void {
   started.clear();
+  watchContexts.clear();
   keys.clear();
   refused.clear();
   mapped.clear();

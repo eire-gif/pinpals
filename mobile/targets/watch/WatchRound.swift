@@ -24,6 +24,54 @@ struct WatchSpot: Codable, Hashable {
   let n: Int
   let green: [Double]?
   let tee: [Double]?
+  /** Watch v2: front and back of the green, and the hole's hazards (lock-screen-rules.ts). */
+  var front: [Double]?
+  var back: [Double]?
+  var hz: [WatchHazard]?
+}
+
+/** A hazard or marker: its kind ("water", "fairway_bunker"…), a name, and where. */
+struct WatchHazard: Codable, Hashable {
+  let k: String
+  let l: String
+  let p: [Double]
+}
+
+// MARK: - Watch v2: what else the iPhone sends (lock-screen-rules.ts WatchExtras)
+
+/** One player on the group page. */
+struct WatchPlayer: Codable, Hashable {
+  let id: Int
+  let name: String
+  let me: Bool
+  /** Shots received on each hole, in the card's order. */
+  let shots: [Int]
+  /** Saved scores, hole number → strokes. 0 = picked up. */
+  var strokes: [String: Int]
+}
+
+struct WatchWind: Codable, Hashable {
+  let kmh: Double
+  /** Where it blows FROM, degrees from north. */
+  let from: Double
+  let at: String
+}
+
+struct WatchPremium: Codable, Hashable {
+  let map: Bool
+  let playsLike: Bool
+}
+
+struct WatchExtras: Codable, Hashable {
+  /** nil = no group page (a shared card, or on your own). */
+  var group: [WatchPlayer]?
+  /** Competition mode: distances only (Rule 4.3). */
+  let competition: Bool
+  let premium: WatchPremium
+  /** nil when unknown, and always in a competition. */
+  let wind: WatchWind?
+  /** GET /api/widget/live/board. */
+  let board: String?
 }
 
 struct WatchRound: Codable, Hashable {
@@ -48,6 +96,8 @@ struct WatchRound: Codable, Hashable {
   var summary: String?
   /** When the iPhone sent this (seconds since 1970). */
   var sentAt: Double?
+  /** Watch v2. nil from an iPhone app older than v2. */
+  var watch: WatchExtras?
 }
 
 extension WatchRound {
@@ -134,6 +184,20 @@ extension WatchRound {
     return nextHole(after: hole) ?? hole
   }
 
+  var competition: Bool { watch?.competition ?? false }
+  var mapAllowed: Bool { watch?.premium.map ?? true }
+  var playsLikeAllowed: Bool { (watch?.premium.playsLike ?? true) && !competition }
+  var group: [WatchPlayer]? {
+    guard let g = watch?.group, g.count > 1 else { return nil }
+    return g
+  }
+  func spot(_ n: Int) -> WatchSpot? { spots?.first { $0.n == n } }
+  /** A player's shots on hole `n` (from their position on the card). */
+  func shots(_ p: WatchPlayer, _ n: Int) -> Int {
+    guard let i = holes.firstIndex(where: { $0.n == n }), p.shots.indices.contains(i) else { return 0 }
+    return p.shots[i]
+  }
+
   func neighbour(of n: Int, by step: Int) -> Int? {
     let order = holes.map(\.n)
     guard let i = order.firstIndex(of: n) else { return nil }
@@ -145,6 +209,99 @@ extension WatchRound {
 // MARK: - The distance to the green
 
 enum WatchDistance {
+  static func bearing(_ a: [Double], _ b: [Double]) -> Double {
+    let la1 = a[0] * .pi / 180, la2 = b[0] * .pi / 180, dLng = (b[1] - a[1]) * .pi / 180
+    let y = sin(dLng) * cos(la2)
+    let x = cos(la1) * sin(la2) - sin(la1) * cos(la2) * cos(dLng)
+    return (atan2(y, x) * 180 / .pi + 360).truncatingRemainder(dividingBy: 360)
+  }
+
+  static func yards(_ metres: Double) -> Int { Int((metres / metresPerYard).rounded()) }
+
+  /** Where distances are measured from on hole `n`: the member when on the hole, else the tee. */
+  static func origin(_ round: WatchRound, hole n: Int, fix: [Double]?) -> (point: [Double], fromTee: Bool)? {
+    guard let spot = round.spot(n), let green = spot.green, green.count == 2 else { return nil }
+    if let fix = fix, metres(fix, green) <= onHoleMetres { return (fix, false) }
+    if let tee = spot.tee, tee.count == 2 { return (tee, true) }
+    return nil
+  }
+
+  /** Front, centre and back in yards (front and back nil where unmapped). */
+  static func greenYards(_ round: WatchRound, hole n: Int, fix: [Double]?) -> (front: Int?, centre: Int, back: Int?, fromTee: Bool)? {
+    guard let spot = round.spot(n), let green = spot.green, let o = origin(round, hole: n, fix: fix) else { return nil }
+    let f = spot.front.flatMap { $0.count == 2 ? yards(metres(o.point, $0)) : nil }
+    let b = spot.back.flatMap { $0.count == 2 ? yards(metres(o.point, $0)) : nil }
+    return (f, yards(metres(o.point, green)), b, o.fromTee)
+  }
+
+  /**
+   * Hazards still in play, nearest first: those nearer the green than the
+   * member is (hole-geo.ts hazardsAheadM — markers and doglegs left out).
+   */
+  static func hazardsAhead(_ round: WatchRound, hole n: Int, fix: [Double]?) -> [(hazard: WatchHazard, yards: Int)] {
+    guard let spot = round.spot(n), let green = spot.green, let o = origin(round, hole: n, fix: fix) else { return [] }
+    let toGreen = metres(o.point, green)
+    return (spot.hz ?? [])
+      .filter { $0.p.count == 2 && !$0.k.hasPrefix("marker_") && $0.k != "dogleg" }
+      .filter { metres($0.p, green) < toGreen }
+      .map { ($0, yards(metres(o.point, $0.p))) }
+      .sorted { $0.1 < $1.1 }
+  }
+
+  /** A point `distance` metres from `from` on `bearing` (hole-geo.ts destination). */
+  static func destination(_ from: [Double], bearing: Double, metres distance: Double) -> [Double] {
+    let r = 6_371_000.0, d = distance / r, b = bearing * .pi / 180
+    let la = from[0] * .pi / 180, lo = from[1] * .pi / 180
+    let la2 = asin(sin(la) * cos(d) + cos(la) * sin(d) * cos(b))
+    let lo2 = lo + atan2(sin(b) * sin(d) * cos(la), cos(d) - sin(la) * sin(la2))
+    return [la2 * 180 / .pi, lo2 * 180 / .pi]
+  }
+
+  /** Where the target starts: a drive (210 m) toward the green, or nil when the green is within a drive (hole-geo.ts defaultAim). */
+  static func defaultAim(from: [Double], green: [Double]) -> [Double]? {
+    let d = metres(from, green)
+    guard d > 240 else { return nil }
+    let t = min(210, d - 80) / d
+    return [from[0] + (green[0] - from[0]) * t, from[1] + (green[1] - from[1]) * t]
+  }
+}
+
+// MARK: - Plays like (wind.ts — keep the two in step)
+
+enum WatchWindMaths {
+  static let kmhPerMph = 1.609344
+
+  /** Head (+) or tail (−) wind along a shot played on `shotBearing`, in mph. */
+  static func headMph(_ wind: WatchWind, shotBearing: Double) -> Double {
+    let mph = wind.kmh / kmhPerMph
+    guard mph >= 3 else { return 0 }
+    var rel = (wind.from - shotBearing + 180).truncatingRemainder(dividingBy: 360)
+    if rel < 0 { rel += 360 }
+    rel -= 180
+    return mph * cos(rel * .pi / 180)
+  }
+
+  /** 1% per mph into, half that behind; capped −15% / +30% (wind.ts playsLikeM). */
+  static func playsLike(_ distance: Int, headMph: Double) -> Int {
+    let pct = headMph >= 0 ? 0.01 * headMph : 0.005 * headMph
+    return Int((Double(distance) * (1 + max(-0.15, min(0.3, pct)))).rounded())
+  }
+
+  /** "Into you", "Behind you", "Across", "Calm" — never used in a competition. */
+  static func along(_ wind: WatchWind, shotBearing: Double) -> String {
+    let mph = wind.kmh / kmhPerMph
+    guard mph >= 3 else { return "Calm" }
+    let head = headMph(wind, shotBearing: shotBearing)
+    var rel = (wind.from - shotBearing + 180).truncatingRemainder(dividingBy: 360)
+    if rel < 0 { rel += 360 }
+    let cross = mph * sin((rel - 180) * .pi / 180)
+    if abs(head) >= abs(cross) * 0.58 { return head > 0 ? "Into" : "Behind" }
+    return "Across"
+  }
+}
+
+// v1: the centre of the green, for the score page and the lock screen.
+extension WatchDistance {
   /** Further than this from the green, the member isn't on the hole: show its length from the tee (hole-geo.ts ON_HOLE_RADIUS_M). */
   static let onHoleMetres = 750.0
   static let metresPerYard = 0.9144

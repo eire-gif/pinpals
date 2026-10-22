@@ -27,10 +27,38 @@ struct WatchPending: Codable, Hashable {
 
 enum WatchOutcome { case sent, retry, unauthorized, finished, rejected }
 
+// MARK: Watch v2 — the group's scores (POST /api/widget/live/scores)
+
+struct WatchGroupScore: Codable, Hashable {
+  let player_id: Int
+  /** nil = picked up. */
+  let strokes: Int?
+}
+
+/** One hole's scores for the rest of the group, waiting to go. */
+struct WatchGroupPending: Codable, Hashable {
+  let roundId: Int
+  let hole: Int
+  let scores: [WatchGroupScore]
+  let at: Double
+}
+
+extension WatchRound {
+  /** Lays group scores over the round, as saved here before they've gone. */
+  mutating func applyGroup(hole: Int, scores: [WatchGroupScore]) {
+    guard var group = watch?.group else { return }
+    for s in scores {
+      if let i = group.firstIndex(where: { $0.id == s.player_id }) { group[i].strokes[String(hole)] = s.strokes ?? 0 }
+    }
+    watch?.group = group
+  }
+}
+
 enum WatchStore {
   private static let lock = NSLock()
   private static let roundKey = "watchRound"
   private static let pendingKey = "watchPending"
+  private static let groupKey = "watchGroupPending"
   private static var defaults: UserDefaults { .standard }
 
   static func loadRound() -> WatchRound? {
@@ -82,12 +110,47 @@ enum WatchStore {
   static func drop(roundId: Int) {
     lock.lock(); defer { lock.unlock() }
     write(read().filter { $0.roundId != roundId })
+    writeGroup(readGroup().filter { $0.roundId != roundId })
   }
 
   static func clearEverything() {
     lock.lock(); defer { lock.unlock() }
     write([])
+    writeGroup([])
     defaults.removeObject(forKey: roundKey)
+  }
+
+  // The group's scores: a newer save for the same hole replaces a waiting one.
+
+  private static func readGroup() -> [WatchGroupPending] {
+    guard let data = defaults.data(forKey: groupKey) else { return [] }
+    return (try? JSONDecoder().decode([WatchGroupPending].self, from: data)) ?? []
+  }
+
+  private static func writeGroup(_ items: [WatchGroupPending]) {
+    if items.isEmpty {
+      defaults.removeObject(forKey: groupKey)
+    } else if let data = try? JSONEncoder().encode(Array(items.suffix(40))) {
+      defaults.set(data, forKey: groupKey)
+    }
+  }
+
+  static func enqueueGroup(_ p: WatchGroupPending) {
+    lock.lock(); defer { lock.unlock() }
+    var items = readGroup().filter { !($0.roundId == p.roundId && $0.hole == p.hole) }
+    items.append(p)
+    writeGroup(items)
+  }
+
+  static func groupPending(roundId: Int?) -> [WatchGroupPending] {
+    lock.lock(); defer { lock.unlock() }
+    guard let roundId = roundId else { return [] }
+    return readGroup().filter { $0.roundId == roundId }.sorted { $0.at < $1.at }
+  }
+
+  static func doneGroup(_ p: WatchGroupPending) {
+    lock.lock(); defer { lock.unlock() }
+    writeGroup(readGroup().filter { !($0.roundId == p.roundId && $0.hole == p.hole && $0.at == p.at) })
   }
 }
 
@@ -120,6 +183,45 @@ enum WatchSender {
     return rejected ? .rejected : .sent
   }
 
+  /**
+   * The rest of the group's scores, oldest hole first, straight to the
+   * website (the watch uses the iPhone's connection when it's near). They
+   * aren't the lock screen card's business, so they don't go via the iPhone.
+   */
+  static func flushGroup(_ round: WatchRound) async -> WatchOutcome {
+    let items = WatchStore.groupPending(roundId: round.roundId)
+    guard !items.isEmpty else { return .sent }
+    guard let api = round.api, api.hasSuffix("/score"), let token = round.token, let url = URL(string: api + "s") else { return .retry }
+    var rejected = false
+    for p in items {
+      var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 10)
+      request.httpMethod = "POST"
+      request.setValue("LiveScore \(token)", forHTTPHeaderField: "Authorization")
+      request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+      let scores: [[String: Any]] = p.scores.map { ["player_id": $0.player_id, "strokes": $0.strokes.map { $0 as Any } ?? NSNull()] }
+      request.httpBody = try? JSONSerialization.data(withJSONObject: ["hole": p.hole, "scores": scores])
+      let status: Int
+      do {
+        let (_, response) = try await URLSession.shared.data(for: request)
+        status = (response as? HTTPURLResponse)?.statusCode ?? 0
+      } catch {
+        return .retry
+      }
+      switch status {
+      case 200: WatchStore.doneGroup(p)
+      case 401: return .unauthorized
+      case 409:
+        WatchStore.drop(roundId: round.roundId)
+        return .finished
+      case 400, 403:
+        WatchStore.doneGroup(p)
+        rejected = true
+      default: return .retry
+      }
+    }
+    return rejected ? .rejected : .sent
+  }
+
   private static func post(_ p: WatchPending, token: String, url: URL) async -> WatchOutcome {
     var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 10)
     request.httpMethod = "POST"
@@ -138,6 +240,61 @@ enum WatchSender {
       }
     } catch {
       return .retry
+    }
+  }
+}
+
+// MARK: - Watch v2: the leaderboard (GET /api/widget/live/board, src/lib/widget-board.ts)
+
+struct WatchBoardRow: Codable, Hashable {
+  let pos: String
+  let name: String
+  let thru: String
+  let score: String
+  let mine: Bool
+}
+
+struct WatchBoardTable: Codable, Hashable {
+  let heading: String
+  let rows: [WatchBoardRow]
+}
+
+struct WatchBoardMine: Codable, Hashable {
+  let eyebrow: String
+  let title: String
+  let big: String
+  let line1: String
+  let line2: String
+}
+
+struct WatchBoardTeam: Codable, Hashable {
+  let name: String
+  let points: String
+}
+
+struct WatchBoard: Codable, Hashable {
+  let state: String
+  let eyebrow: String
+  let title: String
+  let teams: [WatchBoardTeam]?
+  let board: WatchBoardTable?
+  let mine: WatchBoardMine?
+}
+
+enum WatchBoardResult { case loaded(WatchBoard), unauthorized, failed }
+
+enum WatchBoardLoader {
+  static func load(url: URL, token: String) async -> WatchBoardResult {
+    var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 10)
+    request.setValue("LiveScore \(token)", forHTTPHeaderField: "Authorization")
+    do {
+      let (data, response) = try await URLSession.shared.data(for: request)
+      let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+      if status == 401 { return .unauthorized }
+      guard status == 200, let board = try? JSONDecoder().decode(WatchBoard.self, from: data) else { return .failed }
+      return .loaded(board)
+    } catch {
+      return .failed
     }
   }
 }

@@ -41,15 +41,112 @@ export function positionLine(position: string, of: number): string | null {
  * provider's points first (golfapi.io), OpenStreetMap's where it has none —
  * the same order as the hole map.
  */
-export type LockScreenSpot = { n: number; green: [number, number] | null; tee: [number, number] | null };
+export type LockScreenSpot = {
+  n: number;
+  green: [number, number] | null;
+  tee: [number, number] | null;
+  /** Watch v2 (claude/watch-v2.md): front and back of the green, where mapped. The card reads only green and tee. */
+  front?: [number, number];
+  back?: [number, number];
+  /** Hazards and markers on the hole: kind, a name for the watch, and where. */
+  hz?: { k: string; l: string; p: [number, number] }[];
+};
+
+/** What the watch calls a hazard when the course data gives it no name. */
+const HAZARD_NAMES: Record<string, string> = {
+  green_bunker: "Greenside bunker",
+  fairway_bunker: "Fairway bunker",
+  water: "Water",
+  trees: "Trees",
+  marker_100: "100 marker",
+  marker_150: "150 marker",
+  marker_200: "200 marker",
+  dogleg: "Dogleg",
+  other: "Hazard",
+};
 
 export function lockScreenSpots(card: readonly Hole[], provider: readonly LayoutPoint[], osm: readonly LayoutPoint[]): LockScreenSpot[] {
   const pair = (p: { lat: number; lng: number } | null): [number, number] | null => (p ? [p.lat, p.lng] : null);
   return card.map(({ hole }) => {
     const fromProvider = holeGeometry(provider, hole);
     const g = fromProvider.mapped ? fromProvider : holeGeometry(osm, hole);
-    return { n: hole, green: pair(g.greenCentre), tee: pair(g.tee) };
+    const spot: LockScreenSpot = { n: hole, green: pair(g.greenCentre), tee: pair(g.tee) };
+    if (g.greenFront) spot.front = [g.greenFront.lat, g.greenFront.lng];
+    if (g.greenBack) spot.back = [g.greenBack.lat, g.greenBack.lng];
+    // A watch screen holds about eight rows; a course rarely maps more on one hole.
+    const hz = g.hazards.slice(0, 12).map((h) => ({ k: h.kind, l: (h.label?.trim() || HAZARD_NAMES[h.kind]) ?? "Hazard", p: [h.lat, h.lng] as [number, number] }));
+    if (hz.length > 0) spot.hz = hz;
+    return spot;
   });
+}
+
+// ---- Watch v2 (claude/watch-v2.md): what else the watch needs ----
+
+/** One player on the watch's group page. */
+export type WatchPlayer = {
+  id: number;
+  /** "Tom", or "Tom B." when two share a first name. */
+  name: string;
+  me: boolean;
+  /** Shots received on each hole, in the card's order. */
+  shots: number[];
+  /** Saved scores, hole number → strokes; picked up = 0. */
+  strokes: Record<string, number>;
+};
+
+export type WatchExtras = {
+  /** The group page: everyone's own ball, and more than one of them. */
+  group: WatchPlayer[] | null;
+  /** Competition mode (competition-mode-rules.ts): distances only. */
+  competition: boolean;
+  /** Premium features the member has (all of them while paid plans are off). */
+  premium: { map: boolean; playsLike: boolean };
+  /** The wind at the course, for "plays like"; null when unknown or in a competition. */
+  wind: { kmh: number; from: number; at: string } | null;
+  /** GET /api/widget/live/board, for the leaderboard page. */
+  board: string;
+};
+
+/** Short names for the watch: first names, with an initial where two clash. */
+export function watchNames(names: readonly string[]): string[] {
+  const parts = names.map((n) => n.trim().split(/\s+/).filter(Boolean));
+  const first = parts.map((p) => p[0] ?? "Player");
+  return parts.map((p, i) => {
+    const clash = first.filter((f) => f.toLowerCase() === first[i].toLowerCase()).length > 1;
+    const initial = p.length > 1 ? ` ${p[p.length - 1][0].toUpperCase()}.` : "";
+    return (clash ? `${first[i]}${initial}` : first[i]).slice(0, 14);
+  });
+}
+
+/**
+ * The group page's players, or null when there isn't one: a pair or team
+ * shares one card, a foursomes or greensomes match is scored in the app,
+ * and on your own there's nobody else to score.
+ */
+export function watchGroup(
+  input: {
+    shared: boolean;
+    players: readonly { id: number; name: string; memberId: string | null; position: number }[];
+    me: string;
+    card: readonly Hole[];
+    shotsAt: (playerId: number, hole: number) => number | null;
+    scores: ReadonlyMap<number, ReadonlyMap<number, number | null>>;
+  }
+): WatchPlayer[] | null {
+  if (input.shared || input.players.length < 2 || input.players.length > 8) return null;
+  const ordered = [...input.players].sort((a, b) => a.position - b.position);
+  // You first: it's your card you're most likely changing.
+  const mine = ordered.findIndex((p) => p.memberId === input.me);
+  if (mine < 0) return null;
+  const list = [ordered[mine], ...ordered.filter((_, i) => i !== mine)];
+  const names = watchNames(list.map((p) => p.name));
+  return list.map((p, i) => ({
+    id: p.id,
+    name: names[i],
+    me: i === 0,
+    shots: input.card.map((h) => input.shotsAt(p.id, h.hole) ?? 0),
+    strokes: lockScreenStrokes(input.scores.get(p.id) ?? new Map()),
+  }));
 }
 
 /** Any hole with a green to measure to: worth sending to the card. */

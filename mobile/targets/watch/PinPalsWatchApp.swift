@@ -1,10 +1,15 @@
 import SwiftUI
 
-// PinPals for Apple Watch (Oct 2026). See claude/apple-watch.md.
+// PinPals for Apple Watch (Oct 2026). See claude/apple-watch.md and
+// claude/watch-v2.md.
 //
-// Two pages, swiped left and right:
-//   - the hole: distance to the green, the score (− / +, or turn the Digital
-//     Crown), Save;
+// Pages, swiped left and right (WatchPage):
+//   - distances: front, centre and back of the green, "plays like" with the wind;
+//   - the hole map: satellite, a target to tap, the Crown zooms;
+//   - hazards still in play;
+//   - scoring: the group's scores, or on your own the hole page — the score
+//     (− / +, or turn the Digital Crown), Save;
+//   - the leaderboard;
 //   - the card: the total and standing, Undo, Picked up, and every hole to
 //     go back and change one.
 // Nothing to set up on the watch: opening a live round on the iPhone puts it
@@ -45,10 +50,20 @@ struct RootView: View {
           FinishedView(round: round)
         } else {
           TabView(selection: $model.page) {
-            HoleView().tag(0)
-            CardView().tag(1)
+            DistancesPage().tag(WatchPage.distances)
+            HoleMapPage().tag(WatchPage.map)
+            HazardsPage().tag(WatchPage.hazards)
+            ScorePage().tag(WatchPage.score)
+            BoardPage().tag(WatchPage.board)
+            CardView().tag(WatchPage.card)
           }
           .tabViewStyle(.page)
+          .overlay {
+            if let alert = model.alert {
+              AlertBanner(alert: alert) { model.dismissAlert() }
+                .transition(.opacity)
+            }
+          }
         }
       } else {
         NoRoundView()
@@ -237,6 +252,9 @@ struct CardView: View {
             } label: {
               Label("NR on \(model.hole)", systemImage: "hand.raised")
             }
+          }
+          if round.watch?.wind != nil && round.playsLikeAllowed {
+            Toggle("Plays like", isOn: $model.playsLikeOn)
           }
         }
         Section("Card") {

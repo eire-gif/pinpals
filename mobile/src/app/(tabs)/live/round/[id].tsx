@@ -58,11 +58,11 @@ import { SITE_URL } from "@/lib/config";
 import { useLiveRefresh } from "@/lib/use-live-refresh";
 import { goHome } from "@/lib/go-home";
 import { refreshWidget } from "@/lib/widgets";
-import { drainLockScreenScores, endLockScreen, syncLockScreen } from "@/lib/lock-screen";
+import { drainLockScreenScores, endLockScreen, lockScreenEligible, syncLockScreen } from "@/lib/lock-screen";
 import { voiceScoringEnabled } from "@/lib/native-capabilities";
 import { voiceSupported } from "@/lib/voice-listening";
 import { VoiceScoresSheet, type VoiceRow } from "@/components/voice-scores-sheet";
-import { positionLine } from "@/lib/lock-screen-rules";
+import { positionLine, watchGroup } from "@/lib/lock-screen-rules";
 import { LiveStatsRow } from "@/components/live-stats-row";
 import { LieHelpSheet } from "@/components/lie-help-sheet";
 import { loadStatsFor, saveHoleStat, useTracking } from "@/lib/my-stats";
@@ -239,6 +239,24 @@ export default function LiveRoundScreen() {
       const row = board.rows.find((r) => r.playerId === mine.id);
       status = row ? positionLine(row.position, board.rows.length) : null;
     }
+    // Watch v2 (claude/watch-v2.md): the group page — everyone's own ball —
+    // with each player's shots worked out as on this screen (shotsAt below).
+    const competitors = mf ? matchCompetitors(mf, asMatchPlayers(data.players)) : null;
+    const group = watchGroup({
+      shared: scr != null || !lockScreenEligible(data.round),
+      players: data.players,
+      me,
+      card: data.card,
+      shotsAt: (playerId, hole) => {
+        const c = competitors?.find((x) => x.playerIds.includes(playerId));
+        const hcp = c ? c.shots : data.players.find((x) => x.id === playerId)?.playingHandicap;
+        return hcp == null ? null : (shotsSoFar(hcp, data.card).get(hole) ?? null);
+      },
+      scores: data.scores,
+    });
+    // The hole map and "plays like" are Premium (gps_yardages) once paid
+    // plans are switched on; until then gate() says "show" for everyone.
+    const yardages = gate("gps_yardages") === "show";
     void syncLockScreen({
       round: data.round,
       card: data.card,
@@ -246,8 +264,9 @@ export default function LiveRoundScreen() {
       shotsAt: (hole) => shots?.get(hole) ?? null,
       scores: data.scores.get(ball.id) ?? new Map<number, number | null>(),
       status,
+      watch: { group, premium: { map: yardages, playsLike: yardages } },
     });
-  }, [data, board, me, dayHeader, roundId]);
+  }, [data, board, me, dayHeader, roundId, gate]);
 
   // The lock screen card's mic opens the round on its hole, already listening.
   // Only for someone who can score it; anyone else just gets the round.

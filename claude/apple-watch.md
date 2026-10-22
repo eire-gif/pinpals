@@ -91,6 +91,8 @@ from `LiveScoreShared.swift`; change both together.
   distance appears on a course with mapped greens; Digital Crown changes the
   number; finishing on the iPhone shows the final total on the watch.
 
+**Watch v2 (Oct 2026):** most of the list below is now built — see `claude/watch-v2.md`.
+
 ## Not in v1 (candidates for later)
 
 - Group scores (scramble, foursomes) and other players' scores.

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { LayoutPoint } from "./hole-geo";
-import { anySpots, lockScreenHole, lockScreenLinks, lockScreenSpots, lockScreenStrokes, positionLine } from "./lock-screen-rules";
+import { anySpots, lockScreenHole, lockScreenLinks, lockScreenSpots, lockScreenStrokes, positionLine, watchGroup, watchNames } from "./lock-screen-rules";
 
 const card = Array.from({ length: 18 }, (_, i) => ({ hole: i + 1 }));
 
@@ -52,6 +52,9 @@ describe("lockScreenSpots", () => {
     // No centre: halfway between front and back.
     expect(spots[1].green?.[0]).toBeCloseTo(53.5);
     expect(spots[1].tee).toEqual([53.3, -6.3]);
+    // The watch also gets the front and back of the green.
+    expect(spots[1].front).toEqual([53.4, -6.4]);
+    expect(spots[1].back).toEqual([53.6, -6.6]);
     expect(spots[2]).toEqual({ n: 3, green: null, tee: null });
     expect(anySpots(spots)).toBe(true);
     expect(anySpots([spots[2]])).toBe(false);
@@ -65,5 +68,57 @@ describe("lockScreenLinks", () => {
       mapUrl: "pinpals://hole-map?clubId=12&roundId=34&hole=",
     });
     expect(lockScreenLinks(34, null, { voice: false, map: true })).toEqual({ voiceUrl: null, mapUrl: null });
+  });
+});
+
+describe("lockScreenSpots — hazards for the watch", () => {
+  it("names each hazard from the course data, or by its kind", () => {
+    const provider: LayoutPoint[] = [
+      { hole: 1, kind: "tee_back", lat: 53.1, lng: -6.1, label: null },
+      { hole: 1, kind: "green_centre", lat: 53.2, lng: -6.2, label: null },
+      { hole: 1, kind: "water", lat: 53.15, lng: -6.15, label: "Burn" },
+      { hole: 1, kind: "fairway_bunker", lat: 53.16, lng: -6.16, label: "  " },
+    ];
+    const [spot] = lockScreenSpots([{ hole: 1 }], provider, []);
+    expect(spot.hz).toEqual([
+      { k: "water", l: "Burn", p: [53.15, -6.15] },
+      { k: "fairway_bunker", l: "Fairway bunker", p: [53.16, -6.16] },
+    ]);
+    expect(lockScreenSpots([{ hole: 1 }], provider.slice(0, 2), [])[0].hz).toBeUndefined();
+  });
+});
+
+describe("watchNames", () => {
+  it("uses first names, with an initial where two clash", () => {
+    expect(watchNames(["Tom Byrne", "Tom Walsh", "Ruth Ryan", "Seán (guest)"])).toEqual(["Tom B.", "Tom W.", "Ruth", "Seán"]);
+    expect(watchNames(["Ciarán", "ciarán"])).toEqual(["Ciarán", "ciarán"]);
+  });
+});
+
+describe("watchGroup", () => {
+  const card = [{ hole: 1 }, { hole: 2 }];
+  const players = [
+    { id: 10, name: "Tom Byrne", memberId: "tom", position: 1 },
+    { id: 11, name: "Eire Duffy", memberId: "me", position: 2 },
+    { id: 12, name: "Seán (guest)", memberId: null, position: 3 },
+  ];
+  const scores = new Map([[10, new Map<number, number | null>([[1, 5], [2, null]])]]);
+  const shotsAt = (id: number, hole: number) => (id === 12 && hole === 1 ? 1 : 0);
+
+  it("puts you first, with everyone's shots and scores", () => {
+    const g = watchGroup({ shared: false, players, me: "me", card, shotsAt, scores });
+    expect(g?.map((p) => [p.id, p.name, p.me])).toEqual([
+      [11, "Eire", true],
+      [10, "Tom", false],
+      [12, "Seán", false],
+    ]);
+    expect(g?.[1].strokes).toEqual({ "1": 5, "2": 0 });
+    expect(g?.[2].shots).toEqual([1, 0]);
+  });
+
+  it("is off for a shared card, on your own, or when you're not playing", () => {
+    expect(watchGroup({ shared: true, players, me: "me", card, shotsAt, scores })).toBeNull();
+    expect(watchGroup({ shared: false, players: players.slice(1, 2), me: "me", card, shotsAt, scores })).toBeNull();
+    expect(watchGroup({ shared: false, players, me: "someone-else", card, shotsAt, scores })).toBeNull();
   });
 });

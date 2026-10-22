@@ -1,0 +1,107 @@
+// PinPals for Wear OS (Oct 2026). See claude/wear-os.md.
+//
+// A separate watch app, built inside the phone app's Android project:
+// plugins/with-wear-os.js adds `include ':wear'` pointing here at prebuild.
+// Built with the EAS profiles wear-preview (.apk) and wear-production (.aab).
+//
+// It must share the phone app's package name and signing key: Wear OS only
+// lets the two talk (the Data Layer) when both match.
+
+import groovy.json.JsonSlurper
+
+buildscript {
+  repositories {
+    google()
+    mavenCentral()
+  }
+  dependencies {
+    // Kotlin 2's Compose compiler, at the Kotlin version the phone app uses.
+    classpath("org.jetbrains.kotlin.plugin.compose:org.jetbrains.kotlin.plugin.compose.gradle.plugin:${kotlinVersion}")
+  }
+}
+
+apply plugin: "com.android.application"
+apply plugin: "org.jetbrains.kotlin.android"
+apply plugin: "org.jetbrains.kotlin.plugin.compose"
+
+def appJson = new JsonSlurper().parse(file("../app.json"))
+
+android {
+  namespace "ie.pinpals.wear"
+  compileSdk rootProject.ext.compileSdkVersion
+
+  defaultConfig {
+    // The same as the phone app's: Wear OS pairs them by package name.
+    applicationId appJson.expo.android.package
+    // Wear OS 3 and later.
+    minSdkVersion 30
+    targetSdkVersion rootProject.ext.targetSdkVersion
+    versionName appJson.expo.version
+    // Google Play needs the watch build's number to differ from the phone's
+    // and to go up each time: minutes since 1970 (about 29.6 million now)
+    // stays far above the phone's and well under Play's 2.1 billion limit.
+    versionCode((int) (System.currentTimeMillis() / 60000L))
+
+    // Watch v2: the satellite hole map (Maps SDK for Android). The key is
+    // restricted to this package and the PinPals signing certificates in
+    // Google Cloud; it comes from the EAS secret WEAR_MAPS_API_KEY (or a
+    // gradle property locally). Without one the watch says "Map coming soon"
+    // instead of showing a blank map.
+    def mapsKey = (System.getenv("WEAR_MAPS_API_KEY") ?: (project.findProperty("WEAR_MAPS_API_KEY") ?: "")).toString()
+    manifestPlaceholders = [mapsApiKey: mapsKey]
+    buildConfigField "boolean", "MAPS_READY", mapsKey.isEmpty() ? "false" : "true"
+  }
+
+  buildTypes {
+    release {
+      minifyEnabled false
+    }
+  }
+
+  compileOptions {
+    sourceCompatibility JavaVersion.VERSION_17
+    targetCompatibility JavaVersion.VERSION_17
+  }
+
+  buildFeatures {
+    compose true
+    buildConfig true
+  }
+}
+
+tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+  compilerOptions {
+    jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+  }
+}
+
+// On EAS, sign with the phone app's key (EAS writes this file into the
+// phone app's folder for each build). Locally, debug builds use the debug key.
+def easCredentials = new File(rootDir, "app/eas-build-inject-android-credentials.gradle")
+if (easCredentials.exists()) {
+  apply from: easCredentials
+}
+
+dependencies {
+  implementation "androidx.core:core-ktx:1.13.1"
+  implementation "androidx.activity:activity-compose:1.9.3"
+  implementation "androidx.lifecycle:lifecycle-runtime-compose:2.8.7"
+  implementation "androidx.compose.foundation:foundation:1.7.6"
+  implementation "androidx.compose.ui:ui:1.7.6"
+  implementation "androidx.wear.compose:compose-material:1.4.1"
+  implementation "androidx.wear.compose:compose-foundation:1.4.1"
+  implementation "androidx.work:work-runtime-ktx:2.10.0"
+  implementation "com.google.android.gms:play-services-wearable:19.0.0"
+  implementation "com.google.android.gms:play-services-location:21.3.0"
+  implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0"
+  implementation "org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.9.0"
+  // Watch v2 (claude/watch-v2.md)
+  implementation "com.google.android.gms:play-services-maps:19.0.0"
+  implementation "com.google.maps.android:maps-compose:6.2.1"
+  implementation "androidx.wear:wear-ongoing:1.0.0"
+  implementation "androidx.wear.tiles:tiles:1.4.1"
+  implementation "androidx.wear.protolayout:protolayout:1.2.1"
+  implementation "androidx.wear.protolayout:protolayout-expression:1.2.1"
+  implementation "androidx.wear.watchface:watchface-complications-data-source-ktx:1.2.1"
+  implementation "com.google.guava:guava:33.3.1-android"
+}

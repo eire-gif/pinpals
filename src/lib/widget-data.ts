@@ -20,6 +20,17 @@ export function irishToday(now: Date): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Dublin", year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
 }
 
+/** A day whose leaderboard is kept secret from this member (everyone but its organisers). Secret on any error. */
+export async function secretFor(
+  db: SupabaseClient,
+  day: { id: number; leaderboard_hidden: boolean | null; created_by: string | null },
+  memberId: string
+): Promise<boolean> {
+  if (day.leaderboard_hidden !== true || day.created_by === memberId) return false;
+  const { data, error } = await db.rpc("live_day_organiser", { p_day_id: day.id, p_user: memberId });
+  return error != null || data !== true;
+}
+
 /** The game the widget should show: live first (newest), else finished today. */
 export function pickFocus<T extends { status: string; played_on: string; created_at: string }>(rounds: T[], today: string): T | null {
   const byNewest = [...rounds].sort((a, b) => b.created_at.localeCompare(a.created_at));
@@ -43,12 +54,22 @@ export async function widgetPayloadFor(db: SupabaseClient, memberId: string, now
   let dayRows: RoundRow[] = [focusRow];
   if (focusRow.match_day_id != null) {
     const [d, rs] = await Promise.all([
-      db.from("live_match_days").select("id, title, team_names, kind").eq("id", focusRow.match_day_id).maybeSingle(),
+      db.from("live_match_days").select("id, title, team_names, kind, leaderboard_hidden, created_by").eq("id", focusRow.match_day_id).maybeSingle(),
       db.from("live_rounds").select(ROUND_COLS).eq("match_day_id", focusRow.match_day_id).order("match_number"),
     ]);
     if (d.error) throw d.error;
     if (rs.error) throw rs.error;
-    const dd = d.data as { id: number; title: string; team_names: string[] | null; kind: string | null } | null;
+    const dd = d.data as { id: number; title: string; team_names: string[] | null; kind: string | null; leaderboard_hidden: boolean | null; created_by: string | null } | null;
+    // A secret leaderboard (0174): until the results are published, a player
+    // sees only their own group — on the widget and the watch as in the app.
+    // The organiser (0174's live_day_organiser: whoever started the day, or
+    // the society event's officers) still sees everything. Read with the
+    // service client, so this check is all that keeps the other groups out.
+    if (dd && (await secretFor(db, dd, memberId))) {
+      const games = await loadGames(db, [focusRow]);
+      const focus = games.find((g) => g.round.id === focusRow.id);
+      return focus ? buildWidgetPayload({ me: memberId, focus, day: null, games, now }) : emptyPayload(now);
+    }
     if (dd) {
       day = {
         id: dd.id,

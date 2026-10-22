@@ -8,6 +8,26 @@ import WatchKit
 // targets/widget/_shared/LiveScoreShared.swift): the number starts at net
 // par, − / + (or the Digital Crown) changes it, Save keeps it and moves on to
 // the next hole with no score, Undo goes back to the hole just saved.
+//
+// Watch v2 (claude/watch-v2.md) adds the pages before and after scoring —
+// distances, the hole map, hazards, the group's scores, the leaderboard —
+// the round as a golf workout, and the face complications.
+
+/** The pages, left to right. */
+enum WatchPage {
+  static let distances = 0
+  static let map = 1
+  static let hazards = 2
+  static let score = 3
+  static let board = 4
+  static let card = 5
+}
+
+/** A birdie (or better) by someone in the group, shown for a few seconds. */
+struct WatchAlert: Equatable {
+  let title: String
+  let line: String
+}
 
 @MainActor
 final class WatchRoundModel: ObservableObject {
@@ -29,8 +49,21 @@ final class WatchRoundModel: ObservableObject {
   @Published private(set) var distance: Int?
   /** "you" or "tee": where `distance` is measured from. */
   @Published private(set) var distanceFrom: String?
-  /** The page on screen: 0 the hole, 1 the card. */
-  @Published var page = 0
+  /** The page on screen (WatchPage). */
+  @Published var page = WatchPage.distances
+  /** Where the member is, for the distance pages; nil without a recent fix. */
+  @Published private(set) var fixPoint: [Double]?
+  /** The group page: strokes chosen but not saved, by player id. */
+  @Published private(set) var groupDrafts: [Int: Int] = [:]
+  /** The group page: the row the Digital Crown changes. */
+  @Published var groupSelected: Int?
+  @Published private(set) var board: WatchBoard?
+  @Published private(set) var boardNote: String?
+  @Published private(set) var alert: WatchAlert?
+  /** "Plays like" can be switched off on the watch (on unless the member says otherwise). */
+  @Published var playsLikeOn: Bool = UserDefaults.standard.object(forKey: "playsLikeOn") as? Bool ?? true {
+    didSet { UserDefaults.standard.set(playsLikeOn, forKey: "playsLikeOn") }
+  }
 
   private var fix: (lat: Double, lng: Double, at: Date)?
   private var sending = false
@@ -73,6 +106,10 @@ final class WatchRoundModel: ObservableObject {
     for p in WatchStore.pending(roundId: incoming.roundId) {
       if p.clear { next.strokes.removeValue(forKey: String(p.hole)) } else { next.strokes[String(p.hole)] = p.strokes ?? 0 }
     }
+    for g in WatchStore.groupPending(roundId: incoming.roundId) {
+      next.applyGroup(hole: g.hole, scores: g.scores)
+    }
+    if same, let before = round { birdies(before: before, after: next) }
     round = next
     WatchStore.saveRound(next)
     if !same {
@@ -80,9 +117,12 @@ final class WatchRoundModel: ObservableObject {
       saved = nil
       undoHole = nil
       notice = nil
-      page = 0
+      groupDrafts = [:]
+      groupSelected = nil
+      board = nil
+      page = WatchPage.distances
       hole = next.startHole
-    } else if draft == nil {
+    } else if draft == nil && groupDrafts.isEmpty {
       // Scored on the iPhone: follow it, unless the member is mid-change here.
       hole = next.startHole
     }
@@ -90,9 +130,10 @@ final class WatchRoundModel: ObservableObject {
       notice = nil
       WatchStore.drop(roundId: next.roundId)
     }
-    waiting = WatchStore.pending(roundId: next.roundId).count
+    waiting = WatchStore.pending(roundId: next.roundId).count + WatchStore.groupPending(roundId: next.roundId).count
     updateLocation()
     measure()
+    WatchWorkout.shared.follow(round: next, active: active)
     if waiting > 0 { Task { await flush() } }
   }
 
@@ -105,8 +146,12 @@ final class WatchRoundModel: ObservableObject {
     notice = nil
     waiting = 0
     distance = nil
+    groupDrafts = [:]
+    board = nil
     WatchStore.clearEverything()
     WatchLocation.shared.stop()
+    WatchWorkout.shared.follow(round: nil, active: active)
+    WatchGlance.write(nil, hole: nil, yards: nil)
   }
 
   // MARK: The buttons
@@ -140,9 +185,10 @@ final class WatchRoundModel: ObservableObject {
     draft = nil
     notice = nil
     hole = r.nextHole(after: h) ?? h
-    page = 0
+    page = WatchPage.score
+    groupDrafts = [:]
     WatchStore.enqueue(WatchPending(roundId: r.roundId, playerId: r.playerId, hole: h, strokes: value, clear: false, at: Date().timeIntervalSince1970))
-    waiting = WatchStore.pending(roundId: r.roundId).count
+    waiting = WatchStore.pending(roundId: r.roundId).count + WatchStore.groupPending(roundId: r.roundId).count
     WKInterfaceDevice.current().play(.success)
     measure()
     Task { await flush() }
@@ -161,8 +207,9 @@ final class WatchRoundModel: ObservableObject {
     hole = n
     let had = r.score(n)
     draft = (had ?? 0) > 0 ? had : nil
+    groupDrafts = [:]
     saved = nil
-    page = 0
+    page = WatchPage.score
     measure()
   }
 
@@ -172,8 +219,12 @@ final class WatchRoundModel: ObservableObject {
     guard !sending, let r = round, !r.isFinished else { return }
     sending = true
     defer { sending = false }
-    let outcome = await WatchSender.flush(r)
-    waiting = WatchStore.pending(roundId: r.roundId).count
+    var outcome = await WatchSender.flush(r)
+    if outcome == .sent || outcome == .rejected {
+      let group = await WatchSender.flushGroup(r)
+      if group != .sent { outcome = group == .rejected && outcome == .rejected ? .rejected : group }
+    }
+    waiting = WatchStore.pending(roundId: r.roundId).count + WatchStore.groupPending(roundId: r.roundId).count
     switch outcome {
     case .unauthorized:
       notice = "Open PinPals on your iPhone to keep scoring here"
@@ -200,18 +251,22 @@ final class WatchRoundModel: ObservableObject {
     active = true
     WatchLink.shared.activate()
     updateLocation()
+    WatchWorkout.shared.follow(round: round, active: true)
     Task { await flush() }
+    if page == WatchPage.board { Task { await loadBoard() } }
   }
 
   func wentInactive() {
     active = false
-    WatchLocation.shared.stop()
+    // A round running as a golf workout keeps the app (and the GPS) going
+    // with the wrist down, so the distance is right at the next glance.
+    if !WatchWorkout.shared.running { WatchLocation.shared.stop() }
   }
 
-  /** GPS only while the app is open on a live round with mapped greens. */
+  /** GPS while the app is open (or running a round workout) on a live round with mapped greens. */
   private func updateLocation() {
     let mapped = round?.spots?.contains { $0.green != nil } ?? false
-    if active, let r = round, !r.isFinished, mapped {
+    if active || WatchWorkout.shared.running, let r = round, !r.isFinished, mapped {
       WatchLocation.shared.start()
     } else {
       WatchLocation.shared.stop()
@@ -231,13 +286,122 @@ final class WatchRoundModel: ObservableObject {
     guard let r = round else {
       distance = nil
       distanceFrom = nil
+      fixPoint = nil
       return
     }
     var at: [Double]? = nil
     if let f = fix, Date().timeIntervalSince(f.at) < fixLifetime { at = [f.lat, f.lng] }
+    if fixPoint != at { fixPoint = at }
     let (d, from) = WatchDistance.measure(r, hole: hole, from: at)
     distance = d
     distanceFrom = from
+    WatchGlance.write(r, hole: hole, yards: d)
+  }
+
+  // MARK: Watch v2 — the group's scores
+
+  /** The number shown for a player on the hole on screen. */
+  func groupShown(_ p: WatchPlayer) -> Int {
+    if let d = groupDrafts[p.id] { return d }
+    if p.me, let s = round?.score(hole), s > 0 { return s }
+    if !p.me, let s = p.strokes[String(hole)], s > 0 { return s }
+    guard let info = round?.info(hole) else { return 4 }
+    return info.par + (round?.shots(p, hole) ?? 0)
+  }
+
+  /** Dimmed: nobody has chosen or saved this one yet. */
+  func groupIsSuggestion(_ p: WatchPlayer) -> Bool {
+    if groupDrafts[p.id] != nil { return false }
+    let saved = p.me ? round?.score(hole) : p.strokes[String(hole)]
+    return (saved ?? 0) == 0
+  }
+
+  func setGroupDraft(_ playerId: Int, _ value: Int, click: Bool = true) {
+    guard let r = round, !r.isFinished, let p = r.group?.first(where: { $0.id == playerId }) else { return }
+    let v = min(15, max(1, value))
+    guard v != groupShown(p) else { return }
+    groupDrafts[playerId] = v
+    saved = nil
+    if click { WKInterfaceDevice.current().play(.click) }
+  }
+
+  /** Save all: every row as shown (net par for any not touched), then the next hole. */
+  func saveGroup() {
+    guard var r = round, !r.isFinished, let group = r.group else { return }
+    let h = hole
+    var others: [WatchGroupScore] = []
+    var mine: Int?
+    for p in group {
+      let v = groupShown(p)
+      if p.me { mine = v } else { others.append(WatchGroupScore(player_id: p.id, strokes: v)) }
+    }
+    if !others.isEmpty {
+      r.applyGroup(hole: h, scores: others)
+      WatchStore.enqueueGroup(WatchGroupPending(roundId: r.roundId, hole: h, scores: others, at: Date().timeIntervalSince1970))
+    }
+    round = r
+    WatchStore.saveRound(r)
+    groupDrafts = [:]
+    if let v = mine {
+      // Your own ball goes the way it always has: via the iPhone's lock screen queue.
+      draft = v
+      save()
+    } else {
+      hole = r.nextHole(after: h) ?? h
+      saved = "Hole \(h) saved"
+      WKInterfaceDevice.current().play(.success)
+      measure()
+      Task { await flush() }
+    }
+  }
+
+  /** A birdie or better by someone else in the group, since the last update: a tap on the wrist. */
+  private func birdies(before: WatchRound, after: WatchRound) {
+    guard let was = before.group, let now = after.group else { return }
+    for p in now where !p.me {
+      let old = was.first { $0.id == p.id }?.strokes ?? [:]
+      for (key, s) in p.strokes where s > 0 && old[key] != s {
+        guard let n = Int(key), let info = after.info(n), s <= info.par - 1 else { continue }
+        let word = s <= info.par - 3 ? "Albatross!" : s == info.par - 2 ? "Eagle!" : "Birdie!"
+        showAlert(WatchAlert(title: word, line: "\(p.name) · hole \(n)"))
+        return
+      }
+    }
+  }
+
+  private func showAlert(_ a: WatchAlert) {
+    alert = a
+    let device = WKInterfaceDevice.current()
+    device.play(.notification)
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { device.play(.notification) }
+    DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self] in
+      if self?.alert == a { self?.alert = nil }
+    }
+  }
+
+  func dismissAlert() { alert = nil }
+
+  // MARK: Watch v2 — the leaderboard
+
+  private var boardLoadedAt: Date?
+
+  /** The leaderboard, at most once a minute unless `force`. */
+  func loadBoard(force: Bool = false) async {
+    guard let r = round, let url = r.watch?.board.flatMap(URL.init(string:)), let token = r.token else {
+      boardNote = "Update PinPals on your iPhone to see the leaderboard here"
+      return
+    }
+    if !force, let at = boardLoadedAt, Date().timeIntervalSince(at) < 60 { return }
+    boardLoadedAt = Date()
+    switch await WatchBoardLoader.load(url: url, token: token) {
+    case .loaded(let b):
+      board = b
+      boardNote = nil
+    case .unauthorized:
+      boardNote = "Open PinPals on your iPhone to see the leaderboard"
+    case .failed:
+      if board == nil { boardNote = "No signal for the leaderboard just now" }
+    }
   }
 }
 
