@@ -179,16 +179,18 @@ struct HoleMapPage: View {
         Annotation("You", coordinate: coordinate(origin), anchor: .center) {
           Circle().fill(Color.blue).frame(width: 12, height: 12).overlay(Circle().stroke(.white, lineWidth: 2))
         }
+        .annotationTitles(.hidden)
         if aim != green {
           Annotation("Target", coordinate: coordinate(aim), anchor: .center) {
             Circle().stroke(.white, lineWidth: 2).frame(width: 22, height: 22)
           }
+          .annotationTitles(.hidden)
         }
         Annotation("Green", coordinate: coordinate(green), anchor: .bottom) {
           Image(systemName: "flag.fill").font(.system(size: 14)).foregroundStyle(gold)
         }
+        .annotationTitles(.hidden)
       }
-      .annotationTitles(.hidden)
       .mapStyle(.imagery)
       .onTapGesture { location in
         guard let c = proxy.convert(location, from: .local) else { return }
