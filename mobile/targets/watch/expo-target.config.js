@@ -13,6 +13,11 @@ const path = require("path");
  * watch app carries the iPhone app's version — App Store Connect rejects a
  * watch app whose version doesn't match its iPhone app — and the location
  * wording the watch shows when it first asks.
+ *
+ * Watch v2 (claude/watch-v2.md): the round runs as a golf workout (HealthKit,
+ * and the workout-processing background mode, so the GPS keeps going with
+ * the wrist down), and the App Group carries the round to the face
+ * complications (targets/watch-widget).
  */
 /** @type {import('@bacons/apple-targets/app.plugin').ConfigFunction} */
 module.exports = (config) => {
@@ -26,6 +31,14 @@ module.exports = (config) => {
   <true/>
   <key>NSLocationWhenInUseUsageDescription</key>
   <string>PinPals uses your location to show your distance to the green on your watch during a live round.</string>
+  <key>NSHealthShareUsageDescription</key>
+  <string>PinPals reads your heart rate and energy during a round so it can save the round as a golf workout.</string>
+  <key>NSHealthUpdateUsageDescription</key>
+  <string>PinPals saves your live round to Health as a golf workout, which also keeps your distance to the green up to date with your wrist down.</string>
+  <key>WKBackgroundModes</key>
+  <array>
+    <string>workout-processing</string>
+  </array>
 </dict>
 </plist>
 `;
@@ -44,7 +57,13 @@ module.exports = (config) => {
     // SwiftUI toolbars and onChange(of:) with two values are watchOS 10+.
     deploymentTarget: "10.0",
     icon: "../../assets/images/icon.png",
-    frameworks: ["SwiftUI", "WatchConnectivity", "CoreLocation"],
+    frameworks: ["SwiftUI", "WatchConnectivity", "CoreLocation", "MapKit", "HealthKit", "WidgetKit"],
+    entitlements: {
+      "com.apple.developer.healthkit": true,
+      // Shared with the face complications (targets/watch-widget); the same
+      // group as the iPhone app and its widgets, in app.json.
+      "com.apple.security.application-groups": config.ios.entitlements["com.apple.security.application-groups"],
+    },
     colors: {
       $accent: "#e8c46b",
       navy: "#0c2038",

@@ -41,7 +41,7 @@ final class PinPalsWatchLink: NSObject, WCSessionDelegate {
   // MARK: From JavaScript (alongside the card)
 
   /** These keys are the watch's business; links and the rest stay with the card. */
-  private static let keep: Set<String> = ["roundId", "course", "format", "holes", "api", "token", "playerId", "hole", "strokes", "status"]
+  private static let keep: Set<String> = ["roundId", "course", "format", "holes", "api", "token", "playerId", "hole", "strokes", "status", "watch"]
 
   private static func parse(_ json: String) -> [String: Any]? {
     guard let data = json.data(using: .utf8) else { return nil }

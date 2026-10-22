@@ -180,6 +180,8 @@ const EXPECTED: Record<string, Expectation> = {
   // after checking a signed key. It takes the member as a parameter, so it
   // must never be reachable by a member or with the publishable key.
   "live_round_set_own_score(p_member uuid, p_round_id bigint, p_hole smallint, p_strokes smallint, p_clear boolean)": { anon: false, authenticated: false },
+  // 0185 watch v2: the group's scores from a watch, same key and same boundary.
+  "live_round_set_scores_as(p_member uuid, p_round_id bigint, p_hole smallint, p_scores jsonb)": { anon: false, authenticated: false },
   "live_highlight_set_muted(p_round_id bigint, p_muted boolean)": { anon: false, authenticated: true },
   // 0161 live activity: the website records pings and reads the admin's live
   // numbers as the service role. record_activity takes the member as a

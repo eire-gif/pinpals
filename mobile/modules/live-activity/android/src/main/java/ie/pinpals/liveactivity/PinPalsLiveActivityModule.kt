@@ -69,7 +69,7 @@ object WearLink {
   private const val PATH = "/pinpals/round"
   private const val CAPABILITY = "pinpals_wear"
   /** These keys are the watch's business; the card's links stay behind. */
-  private val keep = setOf("roundId", "course", "format", "holes", "api", "token", "playerId", "hole", "strokes", "status")
+  private val keep = setOf("roundId", "course", "format", "holes", "api", "token", "playerId", "hole", "strokes", "status", "watch")
 
   @Volatile
   var hasWatch = false
