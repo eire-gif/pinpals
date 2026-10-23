@@ -22,6 +22,9 @@ import {
   pinZone,
   greenFromPin,
   DEFAULT_GREEN_HALF_DEPTH_M,
+  autoZoomFrame,
+  zoomBand,
+  ZOOM_BAND_SLACK_M,
   type LayoutPoint,
 } from "./hole-geo";
 
@@ -261,5 +264,55 @@ describe("saving a moved flag as the green (0152)", () => {
     const { front, back } = greenFromPin(noTee, north(400));
     expect(distanceM(north(400), front)).toBeCloseTo(14, 0);
     expect(distanceM(north(400), back)).toBeCloseTo(14, 0);
+  });
+});
+
+describe("auto-zoom", () => {
+  const g = holeGeometry(HOLE_1, 1);
+  const spanM = (pts: { lat: number; lng: number }[]) => {
+    const lats = pts.map((q) => q.lat);
+    return (Math.max(...lats) - Math.min(...lats)) * 111_195;
+  };
+
+  it("picks the band from the distance to the green", () => {
+    expect(zoomBand(null, null)).toBe("hole");
+    expect(zoomBand(300, null)).toBe("hole");
+    expect(zoomBand(180, null)).toBe("approach");
+    expect(zoomBand(60, null)).toBe("short");
+    expect(zoomBand(10, null)).toBe("green");
+  });
+
+  it("closes in straight away but waits before backing out", () => {
+    expect(zoomBand(85, "approach")).toBe("short");
+    // A few metres back over the 90 m line: stays close.
+    expect(zoomBand(95, "short")).toBe("short");
+    expect(zoomBand(90 + ZOOM_BAND_SLACK_M + 1, "short")).toBe("approach");
+    // Walked well back off the green: straight to the right band.
+    expect(zoomBand(300, "green")).toBe("hole");
+  });
+
+  it("frames less ground the nearer you are", () => {
+    const at = (toGreen: number) => north(366 - toGreen);
+    const hole = autoZoomFrame(g, at(300), "hole");
+    const approach = autoZoomFrame(g, at(180), "approach");
+    const short = autoZoomFrame(g, at(60), "short");
+    const green = autoZoomFrame(g, at(10), "green");
+    expect(spanM(hole)).toBeGreaterThan(spanM(approach));
+    expect(spanM(approach)).toBeGreaterThan(spanM(short));
+    expect(spanM(short)).toBeGreaterThan(spanM(green));
+    expect(spanM(green)).toBeLessThan(60);
+  });
+
+  it("keeps you and the hazards before the green in an approach view", () => {
+    const me = north(200);
+    const pts = autoZoomFrame(g, me, "approach");
+    expect(pts).toContainEqual(me);
+    expect(pts.some((q) => Math.abs(q.lat - north(230).lat) < 1e-9)).toBe(true);
+    // The tee, behind you, is left out.
+    expect(pts.some((q) => q.lat === TEE.lat)).toBe(false);
+  });
+
+  it("falls back to the whole hole without a position", () => {
+    expect(autoZoomFrame(g, null, "short")).toEqual(holeFrame(g, null).points);
   });
 });

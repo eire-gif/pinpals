@@ -271,3 +271,29 @@ The photo under the hole map is now **Google Map Tiles API — 2D satellite**, w
 - **Rules** — no pre-fetching or offline storage of Google tiles; the web view's normal HTTP cache honours Google's cache headers.
 - **Cost** — 100,000 tiles/month free, then $0.60 per 1,000; default quota 15,000 tiles/day per project. Set a daily quota cap and a budget alert in Google Cloud.
 - **App fallback** — if the website doesn't answer within 4 s, the map loads on Esri rather than waiting.
+
+## Auto-zoom (23 Oct 2026)
+
+With the member's location on and a usable fix on the hole being shown, the map
+frames closer as they near the green (`zoomBand` / `autoZoomFrame` in
+`mobile/src/lib/hole-geo.ts`):
+
+| Band | Distance to green centre | Framed |
+|---|---|---|
+| hole | more than 230 m (~250 yds), or no usable fix / not on the hole | the whole hole, as before |
+| approach | 90–230 m | you, the green (+18 m round it) and hazards between you and it |
+| short | 23–90 m | you, the green (+32 m) and hazards within 45 m of it |
+| green | under 23 m | the green (+20 m) |
+
+- Closing in happens at once; backing out needs 10 m past the line, so a ball
+  on the boundary doesn't flick the view.
+- Within a band the view re-frames after 18 m of walking, never per GPS tick.
+- Same hole → the page measures the target fit and flies there (`glide` in
+  `hole-map-page.ts`); a new hole is the instant fit. The turn never changes.
+- Pan, pinch or double-tap → paused 15 s (view frozen where the member left it).
+  "Show the whole hole" → whole hole for 30 s. Then it glides back.
+- On by default; the round navigate button under "Show the whole hole" turns it
+  off, saved on the phone (`auto-zoom-setting.ts`). Off = exactly the old
+  behaviour.
+- Ships as an over-the-air update (web view only, no native change). The watch
+  hole maps are not changed yet.

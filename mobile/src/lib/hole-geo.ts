@@ -416,3 +416,67 @@ export function holeFrame(g: HoleGeometry, me: LatLng | null): { points: LatLng[
   const rotation = g.tee && g.greenCentre ? bearingDeg(g.tee, g.greenCentre) : 0;
   return { points: pts, rotation };
 }
+
+// ---------------------------------------------------------------------------
+// Auto-zoom: the map closes in as you near the green (Oct 2026)
+// ---------------------------------------------------------------------------
+
+/**
+ * How close the map is framed, from your distance to the green:
+ *   hole      on the tee, or more than ~250 yds out: the whole hole;
+ *   approach  ~100–250 yds: you, the green and the hazards in between;
+ *   short     inside ~100 yds: the green and its surrounds;
+ *   green     on or beside it (~25 yds): the green itself.
+ */
+export type ZoomBand = "hole" | "approach" | "short" | "green";
+
+const BANDS: ZoomBand[] = ["hole", "approach", "short", "green"];
+/** A band applies once you're nearer than its limit (metres to the green centre). */
+export const ZOOM_BAND_LIMITS_M: Record<ZoomBand, number> = { hole: Infinity, approach: 230, short: 90, green: 23 };
+/** Walking back out has to go this far past the line, so a ball sitting on it doesn't flick the view in and out. */
+export const ZOOM_BAND_SLACK_M = 10;
+/** Within a band, how far you walk before the view re-frames round you. */
+export const ZOOM_REFRAME_M = 18;
+
+function rawBand(d: number): number {
+  let b = 0;
+  for (let i = 1; i < BANDS.length; i++) if (d < ZOOM_BAND_LIMITS_M[BANDS[i]]) b = i;
+  return b;
+}
+
+/**
+ * The band for a distance to the green (null: not on the hole, or no
+ * usable fix — the whole hole). Moving nearer changes band straight away;
+ * moving away only once clear of the line by ZOOM_BAND_SLACK_M.
+ */
+export function zoomBand(toGreenM: number | null, prev: ZoomBand | null): ZoomBand {
+  if (toGreenM == null || !Number.isFinite(toGreenM)) return "hole";
+  const r = rawBand(toGreenM);
+  if (prev == null) return BANDS[r];
+  const p = BANDS.indexOf(prev);
+  if (r >= p) return BANDS[r];
+  return toGreenM >= ZOOM_BAND_LIMITS_M[prev] + ZOOM_BAND_SLACK_M ? BANDS[rawBand(toGreenM - ZOOM_BAND_SLACK_M)] : prev;
+}
+
+/** Eight points round a spot: framing them shows that much ground round it. */
+function ring(c: LatLng, radiusM: number): LatLng[] {
+  return [0, 45, 90, 135, 180, 225, 270, 315].map((b) => destination(c, b, radiusM));
+}
+
+/**
+ * What the map frames for a band. The turn (tee → green up) is the
+ * hole's, from holeFrame, so the view never spins as it closes in.
+ */
+export function autoZoomFrame(g: HoleGeometry, me: LatLng | null, band: ZoomBand): LatLng[] {
+  const c = g.greenCentre;
+  if (band === "hole" || !c || !me) return holeFrame(g, me).points;
+  const green = [g.greenFront, c, g.greenBack].filter((p): p is LatLng => p != null);
+  const toGreen = distanceM(me, c);
+  if (band === "approach") {
+    const between = hazardsAheadM(g, me).filter((h) => h.distance <= toGreen + 15);
+    return [me, ...green, ...ring(c, 18), ...between];
+  }
+  const nearby = g.hazards.filter((h) => !h.kind.startsWith("marker_") && h.kind !== "dogleg" && distanceM(h, c) <= 45);
+  if (band === "short") return [me, ...green, ...ring(c, 32), ...nearby];
+  return [me, ...green, ...ring(c, 20)];
+}

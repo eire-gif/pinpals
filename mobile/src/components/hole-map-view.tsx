@@ -61,6 +61,9 @@ export type MapScene = {
   outlines: OsmFeature[];
   /** Change it to move the view; leave it to keep the member's pan and zoom. */
   frameKey: string;
+  /** Auto-zoom (Oct 2026): a new frame on the same hole flies there smoothly
+   *  instead of jumping. A new hole is always the instant fit. */
+  glide?: boolean;
 };
 
 export type HoleMapHandle = { recentre: () => void };
@@ -72,6 +75,8 @@ type Props = {
   onTee: (at: LatLng) => void;
   /** The flag was dragged here. */
   onPin: (at: LatLng) => void;
+  /** The member panned, pinched or double-tapped the map (auto-zoom waits). */
+  onManual?: () => void;
 };
 
 /**
@@ -85,7 +90,7 @@ type Props = {
  * With Google, the page tells us where it's looking and we fetch Google's
  * copyright line for that view here (no CORS to worry about in the app).
  */
-export const HoleMapView = forwardRef<HoleMapHandle, Props>(function HoleMapView({ scene, onTap, onTee, onPin }, ref) {
+export const HoleMapView = forwardRef<HoleMapHandle, Props>(function HoleMapView({ scene, onTap, onTee, onPin, onManual }, ref) {
   const web = useRef<WebViewHandle>(null);
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -155,6 +160,7 @@ export const HoleMapView = forwardRef<HoleMapHandle, Props>(function HoleMapView
     // Apple-map measurements for the logs (/api/app/map-diag, Oct 2026).
     else if (msg.type === "diag") void postToSite("/api/app/map-diag", (msg as { d?: unknown }).d ?? null).catch(() => {});
     else if (msg.type === "failed") setFailed(true);
+    else if (msg.type === "manual") onManual?.();
     else if (msg.type === "tap" && typeof msg.lat === "number" && typeof msg.lng === "number") onTap({ lat: msg.lat, lng: msg.lng });
     else if (msg.type === "tee" && typeof msg.lat === "number" && typeof msg.lng === "number") onTee({ lat: msg.lat, lng: msg.lng });
     else if (msg.type === "pin" && typeof msg.lat === "number" && typeof msg.lng === "number") onPin({ lat: msg.lat, lng: msg.lng });

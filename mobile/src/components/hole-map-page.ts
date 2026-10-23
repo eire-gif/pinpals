@@ -347,7 +347,7 @@ export function pageHtml(source: TileSource): string {
     water: { color: "#bfe3fb", weight: 0.8, fillColor: "#3b8fd0", fillOpacity: 0.15, opacity: 0.5 }
   };
   var shapesKey = null;
-  var last = null, lastKey = null;
+  var last = null, lastKey = null, lastHole = null;
 
   function icon(cls, text, size){ return L.divIcon({ className:"", html:'<div class="pin '+cls+'">'+(text||"")+'</div>', iconSize:[size,size], iconAnchor:[size/2,size/2] }); }
   // The movable tee: a golf tee on a white disc with four small arrows round
@@ -457,6 +457,31 @@ export function pageHtml(source: TileSource): string {
       map.setView([s.fallbackCentre.lat, s.fallbackCentre.lng], 16);
     }
   }
+
+  // Auto-zoom (Oct 2026): fit to the new frame invisibly to learn where it
+  // ends up, step back, and fly there, so closing in on the green glides
+  // rather than jumps. Only on the same hole with the same turn; anything
+  // else (or a finger on the map) is the instant fit.
+  function glide(){
+    if(!last) return;
+    if(fingers > 0){ return; }
+    var from = { c:map.getCenter(), z:map.getZoom(), b:canRotate ? map.getBearing() : 0 };
+    refit();
+    var to = { c:map.getCenter(), z:map.getZoom(), b:canRotate ? map.getBearing() : 0 };
+    if(Math.abs(to.b - from.b) > 0.5) return;
+    if(from.c.distanceTo(to.c) < 1 && Math.abs(from.z - to.z) < 0.05) return;
+    try{
+      map.setView(from.c, from.z, { animate:false });
+      map.flyTo(to.c, to.z, { duration:0.9, easeLinearity:0.35 });
+    }catch(e){
+      map.setView(to.c, to.z, { animate:false });
+    }
+  }
+
+  // The member moving the map themselves: the screen pauses auto-zoom.
+  map.on("dragstart", function(){ post({ type:"manual" }); });
+  map.on("zoomstart", function(){ if(fingers > 1) post({ type:"manual" }); });
+  map.on("dblclick", function(){ post({ type:"manual" }); });
 
   // fitBounds fits the hole before the map turns; once turned, a diagonal
   // hole can run under the title or the sheet (the green hid behind the
@@ -616,7 +641,12 @@ export function pageHtml(source: TileSource): string {
       L.circleMarker([s.me.lat,s.me.lng], { radius:7, color:"#ffffff", weight:2.5, fillColor:"#1d8cf8", fillOpacity:1, interactive:false }).addTo(layer);
     }
     // New hole: fit and turn first, then check Apple lines up with the turned view.
-    if(s.frameKey !== lastKey){ lastKey = s.frameKey; refit(); checked = false; settled(); }
+    if(s.frameKey !== lastKey){
+      var smooth = s.glide && lastKey != null && lastHole === s.hole;
+      lastKey = s.frameKey; lastHole = s.hole;
+      if(smooth) glide(); else refit();
+      checked = false; settled();
+    }
     placeFloating();
   }
 
