@@ -28,9 +28,9 @@
  * previous day, as on the PGA Tour, so the arrows mean the same thing all
  * day while a round is live.
  *
- * Level at the top once every day is final: the better place on the final
- * day decides, then the day before, and so on. Still level, the place is
- * shared.
+ * Level on the total once every day is final: the better place on the
+ * final day decides (its published place, so its countback, where there is
+ * one), then the day before, and so on. Still level, the place is shared.
  */
 
 export type DayKind = "points" | "net" | "gross";
@@ -52,6 +52,8 @@ export type DayRow = {
   finished: boolean;
   /** Published place, after countbacks (1-based); null when not ranked. */
   position?: number | null;
+  /** The card's par (stroke days), so published net scores can be put to par. */
+  par?: number;
 };
 
 export type ChampionshipDay = {
@@ -169,45 +171,69 @@ export function rowKeys(row: DayRow): string[] {
   return [...row.memberIds.map((m) => `m:${m}`), ...(row.guestNames ?? []).map((g) => `g:${g.trim().toLowerCase()}`)];
 }
 
+/** A side counts on a day once it has a score — on a final day only with a full card or a published place. */
+const counts = (day: ChampionshipDay, r: DayRow) => r.score != null && (day.status !== "final" || r.finished || r.position != null);
+
 /**
- * Places points for every side on a day: by the published place when there
- * is one, else by score, ties sharing. Sides with no score get nothing.
- * Returns points by row index.
+ * Each side's finishing order on a day, as a 0-based slot shared by sides
+ * that are level (null: not counted). Published places come first — so
+ * countbacks count — then anyone without one (a guest, a second division)
+ * by score, ties shared.
  */
-export function dayPlacesPoints(day: ChampionshipDay): (number | null)[] {
+export function dayOrder(day: ChampionshipDay): (number | null)[] {
   const better = higherIsBetter(day.kind);
-  const scored = day.rows
-    .map((r, i) => ({ r, i }))
-    .filter((x) => x.r.score != null && (day.status !== "final" || x.r.finished || x.r.position != null));
-  const published = scored.length > 0 && scored.every((x) => x.r.position != null);
-  const rank = (x: { r: DayRow }) => (published ? (x.r.position as number) : (better ? -(x.r.score as number) : (x.r.score as number)));
-  scored.sort((a, b) => rank(a) - rank(b));
+  const scored = day.rows.map((r, i) => ({ r, i })).filter((x) => counts(day, x.r));
+  const placed = scored.filter((x) => x.r.position != null).sort((a, b) => (a.r.position as number) - (b.r.position as number));
+  const rest = scored
+    .filter((x) => x.r.position == null)
+    .sort((a, b) => (better ? (b.r.score as number) - (a.r.score as number) : (a.r.score as number) - (b.r.score as number)));
+  const ordered = [...placed, ...rest];
+  const level = (a: { r: DayRow }, b: { r: DayRow }) =>
+    a.r.position != null || b.r.position != null ? a.r.position != null && a.r.position === b.r.position : a.r.score === b.r.score;
   const out: (number | null)[] = day.rows.map(() => null);
   let k = 0;
-  while (k < scored.length) {
+  while (k < ordered.length) {
     let j = k;
-    while (j + 1 < scored.length && rank(scored[j + 1]) === rank(scored[k])) j++;
-    let sum = 0;
-    for (let q = k; q <= j; q++) sum += placesPointsFor(q);
-    const share = Math.round((sum / (j - k + 1)) * 10) / 10;
-    for (let q = k; q <= j; q++) out[scored[q].i] = share;
+    while (j + 1 < ordered.length && level(ordered[j + 1], ordered[k])) j++;
+    for (let q = k; q <= j; q++) out[ordered[q].i] = k;
     k = j + 1;
   }
   return out;
 }
 
-type PerDay = { score: number | null; places: number | null; thru: number; finished: boolean; position: number | null };
+/**
+ * Places points for every side on a day, by its finishing order (dayOrder);
+ * level sides split the points for the places they cover. Returns points by
+ * row index; sides that don't count get nothing.
+ */
+export function dayPlacesPoints(day: ChampionshipDay): (number | null)[] {
+  const order = dayOrder(day);
+  const size = new Map<number, number>();
+  for (const o of order) if (o != null) size.set(o, (size.get(o) ?? 0) + 1);
+  return order.map((o) => {
+    if (o == null) return null;
+    const n = size.get(o) as number;
+    let sum = 0;
+    for (let q = o; q < o + n; q++) sum += placesPointsFor(q);
+    return Math.round((sum / n) * 10) / 10;
+  });
+}
+
+type PerDay = { score: number | null; places: number | null; slot: number | null; thru: number; finished: boolean; position: number | null };
 
 function collect(days: readonly ChampionshipDay[]): Map<string, PerDay[]> {
   const byKey = new Map<string, PerDay[]>();
   days.forEach((day, di) => {
     const pp = dayPlacesPoints(day);
+    const order = dayOrder(day);
     day.rows.forEach((row, ri) => {
       for (const key of rowKeys(row)) {
-        if (!byKey.has(key)) byKey.set(key, days.map(() => ({ score: null, places: null, thru: 0, finished: false, position: null })));
+        if (!byKey.has(key)) byKey.set(key, days.map(() => ({ score: null, places: null, slot: null, thru: 0, finished: false, position: null })));
         const slot = (byKey.get(key) as PerDay[])[di];
-        slot.score = row.score;
+        // An unfinished card on a final day (no return) counts under neither rule.
+        slot.score = counts(day, row) ? row.score : null;
         slot.places = pp[ri];
+        slot.slot = order[ri];
         slot.thru = row.thru;
         slot.finished = row.finished;
         slot.position = row.position ?? null;
@@ -219,14 +245,9 @@ function collect(days: readonly ChampionshipDay[]): Map<string, PerDay[]> {
 
 type Standing = { key: string; total: number; position: number; label: string };
 
-/** Day positions used to break a tie at the top once everything is final: the last day first. */
-function dayPlaceOf(days: readonly ChampionshipDay[], per: PerDay[], di: number, rule: ResolvedRule): number {
-  const p = per[di];
-  if (p.score == null) return Number.POSITIVE_INFINITY;
-  if (p.position != null) return p.position;
-  // Score-based: better score = lower number.
-  if (rule === "places" && p.places != null) return -p.places;
-  return higherIsBetter(days[di].kind) ? -p.score : p.score;
+/** A day's finishing slot, for breaking a tie at the end: lower is better; no score is last. */
+function dayPlaceOf(per: PerDay[], di: number): number {
+  return per[di].slot ?? Number.POSITIVE_INFINITY;
 }
 
 function standingsAfter(
@@ -261,8 +282,8 @@ function standingsAfter(
     const pa = byKey.get(a) as PerDay[];
     const pb = byKey.get(b) as PerDay[];
     for (let d = through - 1; d >= 0; d--) {
-      const x = dayPlaceOf(days, pa, d, rule);
-      const y = dayPlaceOf(days, pb, d, rule);
+      const x = dayPlaceOf(pa, d);
+      const y = dayPlaceOf(pb, d);
       if (x !== y) return x - y;
     }
     return 0;

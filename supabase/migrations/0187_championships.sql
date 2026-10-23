@@ -26,7 +26,7 @@
 --   set_trip_championship(trip, on, rule)   the trip toggle
 --   link_outing_item_match_day(item, day)   a trip round's live day
 --
--- No drop statements.
+-- No drop statements. Applied to production 23 Oct 2026.
 --
 -- Rollback:
 --   drop function if exists public.save_championship(bigint, bigint, jsonb);
@@ -58,7 +58,6 @@ create index if not exists group_championships_group_idx on public.group_champio
 
 alter table public.group_championships enable row level security;
 
-drop policy if exists "group members read championships" on public.group_championships;
 create policy "group members read championships" on public.group_championships
   for select to authenticated
   using (public.is_group_member(group_id, (select auth.uid())));
@@ -138,13 +137,22 @@ begin
   v_n := jsonb_array_length(v_days);
   if v_n < 2 or v_n > 4 then raise exception 'A championship is 2, 3 or 4 days.'; end if;
 
-  -- Dates in order, within three weeks.
+  -- Dates in order, within three weeks. A day already played or started
+  -- keeps its stored date, so that's the one checked.
   for v_i in 0 .. v_n - 1 loop
-    begin
-      v_date := (v_days -> v_i ->> 'plays_on')::date;
-    exception when others then
-      raise exception 'That date doesn''t look right.';
-    end;
+    v_date := null;
+    if p_id is not null then
+      select o.plays_on into v_date from public.society_outings o
+       where o.championship_id = p_id and o.championship_round = v_i + 1 and o.status = 'open'
+         and (o.match_day_id is not null or o.plays_on < v_today);
+    end if;
+    if v_date is null then
+      begin
+        v_date := (v_days -> v_i ->> 'plays_on')::date;
+      exception when others then
+        raise exception 'That date doesn''t look right.';
+      end;
+    end if;
     if v_date is null then raise exception 'Choose a date for day %.', v_i + 1; end if;
     if v_i = 0 then v_first := v_date; end if;
     if v_prev is not null and v_date <= v_prev then raise exception 'Each day comes after the one before.'; end if;

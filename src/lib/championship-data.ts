@@ -60,7 +60,8 @@ export async function championshipFor(member: SupabaseClient, admin: SupabaseCli
       const { data: cl } = await admin.from("clubs").select("id, name").in("id", clubIds);
       for (const r of (cl ?? []) as { id: number; name: string }[]) clubs.set(r.id, r.name);
     }
-    items.slice(0, 4).forEach((i, k) =>
+    // Matchplay rounds don't count; the first four rounds that do are the days.
+    items.filter((i) => i.play_format !== "matchplay").slice(0, 4).forEach((i, k) =>
       plans.push({
         round: k + 1,
         playsOn: i.on_date,
@@ -69,7 +70,7 @@ export async function championshipFor(member: SupabaseClient, admin: SupabaseCli
         outingId: null,
         itemId: i.id,
         matchDayId: i.match_day_id,
-        planned: i.play_format === "matchplay" ? "matchplay" : fromTripFormat(i.play_format),
+        planned: fromTripFormat(i.play_format),
       })
     );
   } else {
@@ -78,6 +79,7 @@ export async function championshipFor(member: SupabaseClient, admin: SupabaseCli
       .select("id, championship_round, plays_on, course_name, first_tee, championship_format, match_day_id")
       .eq("championship_id", c.id)
       .eq("status", "open")
+      .is("hidden_at", null)
       .order("championship_round");
     if (e) throw e;
     for (const o of (data ?? []) as OutingRow[])
@@ -131,12 +133,14 @@ export async function championshipFor(member: SupabaseClient, admin: SupabaseCli
         info.formatLabel = scored.label;
         info.short = scored.short;
         const allIn = loaded.games.length > 0 && loaded.games.every((g) => g.round.status === "finished");
-        info.status = loaded.published || allIn ? "final" : "live";
         const secret = !loaded.published && (await secretFor(admin, dd, viewer));
+        // A secret day stays "live" (no scores) until its results are out, so
+        // nobody looks as if they missed it.
+        info.status = loaded.published || (allIn && !secret) ? "final" : "live";
         info.hidden = secret;
         rows = secret ? [] : scored.rows;
         if (loaded.published && !secret) applyPublished(rows, await publishedResults(admin, plan.matchDayId));
-        for (const g of loaded.games)
+        if (!secret) for (const g of loaded.games)
           for (const p of g.players) {
             const key = p.memberId ? `m:${p.memberId}` : `g:${p.name.trim().toLowerCase()}`;
             if (!players.has(key)) players.set(key, { key, name: p.name, detail: p.club ?? (p.memberId ? null : "Guest"), memberId: p.memberId });
@@ -174,6 +178,7 @@ export function scoreDay(games: readonly TvGame[], day: Pick<DayRowDb, "kind" | 
     score: thru === 0 ? null : onPoints ? points : netToPar,
     thru,
     finished: g.round.status === "finished" || thru >= g.card.length,
+    ...(onPoints ? {} : { par: g.card.reduce((a, h) => a + h.par, 0) }),
   });
 
   if (day.kind === "scramble" || lead?.round.scramble) {
@@ -208,16 +213,24 @@ async function publishedResults(admin: SupabaseClient, matchDayId: number): Prom
 
 /**
  * Published results take over a finished day: their scores (amendments
- * included) and, when there's one division, their places (countbacks
- * included). Disqualified and no-return cards drop off the day.
+ * included — points, or net strokes put to the card's par) and, when there's
+ * one division, their places (countbacks included). Members are matched by
+ * id, guests by name. Disqualified and no-return cards drop off the day.
  */
 export function applyPublished(rows: DayRow[], results: Results | null): void {
   if (!results) return;
   const one = results.divisions.length === 1;
-  const byMember = new Map<string, (typeof results.divisions)[number]["ranking"]["rows"][number]>();
-  for (const d of results.divisions) for (const r of d.ranking.rows) for (const m of r.memberIds) byMember.set(m, r);
+  type R = (typeof results.divisions)[number]["ranking"]["rows"][number];
+  const byMember = new Map<string, R>();
+  const byGuest = new Map<string, R>();
+  const norm = (n: string) => n.trim().toLowerCase();
+  for (const d of results.divisions)
+    for (const r of d.ranking.rows) {
+      for (const m of r.memberIds) byMember.set(m, r);
+      if (r.guest || r.memberIds.length === 0) byGuest.set(norm(r.name), r);
+    }
   for (const row of rows) {
-    const r = row.memberIds.map((m) => byMember.get(m)).find(Boolean);
+    const r = row.memberIds.map((m) => byMember.get(m)).find(Boolean) ?? (row.guestNames ?? []).map((g) => byGuest.get(norm(g))).find(Boolean);
     if (!r) continue;
     row.finished = true;
     if (r.status === "dq" || r.status === "nr") {
@@ -226,6 +239,7 @@ export function applyPublished(rows: DayRow[], results: Results | null): void {
       continue;
     }
     if (results.basis === "stableford" && r.points != null) row.score = r.points;
+    else if (results.basis === "stroke" && r.net != null && row.par != null && Number.isFinite(Number(r.net))) row.score = Math.round((Number(r.net) - row.par) * 10) / 10;
     row.position = one ? r.position : null;
   }
 }
