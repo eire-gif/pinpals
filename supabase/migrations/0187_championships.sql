@@ -26,7 +26,7 @@
 --   set_trip_championship(trip, on, rule)   the trip toggle
 --   link_outing_item_match_day(item, day)   a trip round's live day
 --
--- No drop statements.
+-- No drop statements. Applied to production 23 Oct 2026.
 --
 -- Rollback:
 --   drop function if exists public.save_championship(bigint, bigint, jsonb);
@@ -58,7 +58,6 @@ create index if not exists group_championships_group_idx on public.group_champio
 
 alter table public.group_championships enable row level security;
 
-drop policy if exists "group members read championships" on public.group_championships;
 create policy "group members read championships" on public.group_championships
   for select to authenticated
   using (public.is_group_member(group_id, (select auth.uid())));
