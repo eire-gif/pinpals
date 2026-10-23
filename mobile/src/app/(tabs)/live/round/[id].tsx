@@ -1156,7 +1156,21 @@ export default function LiveRoundScreen() {
                     {round.format === "stableford" && pts != null ? (
                       <Text style={[styles.badge, pts >= 3 ? styles.badgeGood : pts === 0 ? styles.badgeNil : null]}>{pts} pts</Text>
                     ) : null}
-                    <Text style={styles.cardMeta}>{name ?? (entered ? "" : shots != null ? `${shots} ${Math.abs(shots) === 1 ? "shot" : "shots"} here` : "")}</Text>
+                    {/* Oct 2026, after a live test: the shots a player gets here
+                        were a small grey line — now a navy pill you can read
+                        at arm's length. */}
+                    {name != null || entered ? (
+                      <Text style={styles.cardMeta}>{name ?? ""}</Text>
+                    ) : shots != null && shots !== 0 ? (
+                      <View style={styles.shotsPill}>
+                        <View style={styles.shotsPillDot} />
+                        <Text style={styles.shotsPillText}>
+                          {shots > 0 ? `${shots} ${shots === 1 ? "shot" : "shots"} here` : `Gives ${-shots} ${shots === -1 ? "shot" : "shots"} here`}
+                        </Text>
+                      </View>
+                    ) : shots === 0 ? (
+                      <Text style={styles.noShots}>No shots here</Text>
+                    ) : null}
                     {/* NR (no return) sits with the player's details, small, so it
                         can't be hit by mistake next to the score. Tap again to undo. */}
                     {canScore ? (
@@ -1900,6 +1914,10 @@ const styles = StyleSheet.create({
   // Oct 2026: names and scores sized to read on the course, in sunlight.
   cardName: { fontFamily: fonts.bodyBold, fontSize: 22, lineHeight: 27, color: colors.ink900, flexShrink: 1 },
   cardMeta: { fontFamily: fonts.body, fontSize: 14, color: colors.ink500 },
+  shotsPill: { flexDirection: "row", alignItems: "center", gap: 6, paddingLeft: 10, paddingRight: 12, paddingVertical: 5, borderRadius: radii.pill, backgroundColor: colors.navy900 },
+  shotsPillDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: colors.gold400 },
+  shotsPillText: { fontFamily: fonts.bodyBold, fontSize: 15, color: colors.cream50 },
+  noShots: { fontFamily: fonts.bodySemi, fontSize: 15, color: "#4a5566" },
   metaRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", columnGap: spacing.sm, rowGap: 4 },
   nameRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   playerName: { fontFamily: fonts.bodySemi, fontSize: type.body, color: colors.ink900, flexShrink: 1 },
