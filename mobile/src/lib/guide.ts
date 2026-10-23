@@ -1129,7 +1129,7 @@ export const GUIDES: Guide[] = [
           { style: "outline", label: "+" },
           { style: "primary", label: "Next hole" },
         ],
-        tip: "Tap the gold Yardage & shot map button under the hole number for front, centre and back of the green, and to mark each shot.",
+        tip: "Tap the gold Yardage & shot map button under the hole number for front, centre and back of the green, and to mark each shot. Once a hole is scored and you walk onto the next tee, the round moves on to that hole by itself (if PinPals can use your location). On the strip of holes, a birdie shows red and an eagle or better gold.",
       },
       {
         title: "Or say the scores",
@@ -1309,7 +1309,7 @@ export const GUIDES: Guide[] = [
         title: "Read your numbers",
         body: "The panel at the bottom gives the distance to the Front, Centre and Back of the green. Within 750 m of the green they're measured from you, using your phone's GPS; further away, from the tee. Standing at your ball, the line under the numbers also says how far you are from the tee — your drive. Distances on the map stay on screen as you zoom in.",
         art: "holeNumbers",
-        tip: "Drag the panel down to see more of the map — the hole and the three numbers stay. Drag it up, or tap the handle, to bring the rest back. Tap yds to switch to metres.",
+        tip: "Par and Index are beside the hole number; the big arrows either side, or a swipe across the panel, change hole. In a round, once your score for the hole is in and you walk onto the next tee, the map moves on to that hole by itself. Drag the panel down to see more of the map — the hole and the three numbers stay. Tap yds to switch to metres.",
       },
       {
         title: "Set today's pin and your tee",
@@ -1938,6 +1938,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-23", text: "Score a game live and Hole map: once a hole is scored and you walk onto the next tee, the round and the hole map move on to that hole by themselves. Par and Index are bigger, the hole arrows are bigger, and on the strip of holes a birdie shows red and an eagle or better gold." },
   { on: "2026-10-22", text: "Post a tee time: new step, Invite your group — tick your Golf Buddies, trip or society and everyone in it can Take a place in one tap, first come, first served. Find a game shows Take a place too." },
   { on: "2026-10-22", text: "Score a game live: Score from your watch now covers Wear OS watches as well as Apple Watch, and the watch has more pages — front, centre and back of the green, the satellite hole map, hazards, the whole group's scores (Save all) and the leaderboard — plus PinPals on your watch face." },
   { on: "2026-10-21", text: "Score a game live: new step, Back to your card from anywhere — while your round is live, the green MY ROUND pill at the top of every screen takes you straight back to your scoring." },

@@ -52,6 +52,8 @@ import { loadCourse, type CourseDetail } from "@/lib/onboarding";
 import { colors, creamAlpha, fonts, radii, spacing, type } from "@/lib/theme";
 import { assistFor, competitionLine, loadRoundIsCompetition, manualCompetition, setManualCompetition } from "@/lib/competition-mode";
 import { loadDistanceUnit, saveDistanceUnit } from "@/lib/distance-unit";
+import { gpsNextHole, holeSpots, mergeSpots, ordinal } from "@/lib/gps-hole";
+import { playOrder } from "@/lib/live-scoring";
 
 /**
  * A hole on satellite imagery, with GPS yardages (claude/hole-maps.md).
@@ -309,8 +311,18 @@ export default function HoleMapScreen() {
     void loadCourseShapes(clubId, { lat: course.latitude, lng: course.longitude }).then(setShapes);
   }, [clubId, course?.latitude, course?.longitude, shapes]);
 
+  // A score or a shot from anyone in the group: fetch again — the scores
+  // decide when the map moves on to the next hole by itself.
   useEffect(
-    () => (roundId != null ? subscribeToLiveRound(roundId, () => void loadRoundShots(roundId).then(setShots).catch(() => {})) : undefined),
+    () =>
+      roundId != null
+        ? subscribeToLiveRound(roundId, () => {
+            void loadRoundShots(roundId).then(setShots).catch(() => {});
+            void loadLiveRound(roundId)
+              .then((r) => r && setRound(r))
+              .catch(() => {});
+          })
+        : undefined,
     [roundId]
   );
   useEffect(() => setTap(null), [hole, layoutId]);
@@ -396,6 +408,53 @@ export default function HoleMapScreen() {
   const aim = tap ?? (origin && geo.mapped ? defaultAim(geo, origin.point) : null);
   const tapped = aim && origin ? tapDistancesM(geo, origin.point, aim) : null;
   const length = holeLengthM(geo);
+
+  // ---- Moving on by GPS (Oct 2026, after a live test) ----
+  // In a round: once your score for this hole is in and you walk onto the
+  // next tee, the map moves on to that hole by itself (gps-hole.ts).
+  const movedOnFrom = useRef(new Set<number>());
+  const lastShown = useRef(hole);
+  const [movedOn, setMovedOn] = useState<number | null>(null);
+  const spots = useMemo(() => {
+    const holes = Array.from({ length: holeCount }, (_, i) => i + 1);
+    return mergeSpots(holeSpots(layout?.points ?? [], holes), holeSpots(osmPoints, holes));
+  }, [layout, osmPoints, holeCount]);
+  const player = round?.players.find((p) => p.id === playerId) ?? null;
+  const myBall = round?.players.find((p) => p.memberId === me) ?? null;
+  useEffect(() => {
+    if (!round) return;
+    const order = playOrder(round.card, round.round.start?.hole ?? null).map((c) => c.hole);
+    const prev = lastShown.current;
+    lastShown.current = hole;
+    if (order.indexOf(hole) < order.indexOf(prev)) movedOnFrom.current.add(hole);
+  }, [hole, round]);
+  useEffect(() => {
+    if (!round || round.round.status !== "live") return;
+    const ball = myBall ?? player;
+    if (!ball) return;
+    const order = playOrder(round.card, round.round.start?.hole ?? null).map((c) => c.hole);
+    // A pair or scramble team scores on its first player: theirs counts too.
+    const lead = [...round.players].sort((a, b) => a.position - b.position)[0];
+    const next = gpsNextHole({
+      showing: hole,
+      order,
+      scored: (n) => (round.scores.get(ball.id)?.has(n) ?? false) || (round.round.scramble != null && lead != null && (round.scores.get(lead.id)?.has(n) ?? false)),
+      spots,
+      fix,
+      movedOnFrom: movedOnFrom.current,
+    });
+    if (next == null) return;
+    movedOnFrom.current.add(hole);
+    lastShown.current = next;
+    setHole(next);
+    setMovedOn(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fix, spots, round, hole, myBall?.id, playerId]);
+  useEffect(() => {
+    if (movedOn == null) return;
+    const t = setTimeout(() => setMovedOn(null), 6000);
+    return () => clearTimeout(t);
+  }, [movedOn]);
 
   // ---- Wind, plays like, the club, arcs ----
   const mapRotation = useMemo(() => holeFrame(mappedGeo, fix).rotation, [mappedGeo, fix]);
@@ -484,7 +543,6 @@ export default function HoleMapScreen() {
   }, [geo, mappedGeo, zone, fix, course, ends, aim?.lat, aim?.lng, origin?.point, unit, layout?.id, hole, shapes, showOutlines, sheetH, insets.top, arcs, tucked, peekH]);
 
   // ---- Shots ----
-  const player = round?.players.find((p) => p.id === playerId) ?? null;
   const canMark = round?.round.status === "live" && player != null && card != null;
   const markShot = async () => {
     if (!round || !player || !fix) return;
@@ -745,16 +803,43 @@ export default function HoleMapScreen() {
             Tap anywhere to measure from where you are.
           </Text>
         ) : null}
+        {movedOn != null && movedOn === hole ? (
+          <View style={styles.movedOn} accessibilityLiveRegion="polite">
+            <Ionicons name="navigate" size={15} color={colors.gold400} />
+            <Text style={styles.movedOnText}>{`On the ${ordinal(movedOn)} tee — moved on`}</Text>
+          </View>
+        ) : null}
+        {/* Oct 2026, after a live test: par and index were too small to read
+            on the course, and the arrows too small to hit. */}
         <View style={styles.holeRow}>
-          <MapButton icon="chevron-back" label="Previous hole" disabled={hole <= 1} onPress={() => setHole(hole - 1)} flat />
+          <HoleArrow icon="chevron-back" label="Previous hole" disabled={hole <= 1} onPress={() => setHole(hole - 1)} />
           <View style={styles.holeMid} accessible accessibilityLabel={`Hole ${hole}. ${holeMeta.join(", ")}`}>
             <Text style={styles.holeNumber}>
               <Text style={styles.holeWord}>HOLE </Text>
               {hole}
             </Text>
-            {holeMeta.length ? <Text style={styles.holeMeta}>{holeMeta.join(" · ")}</Text> : null}
+            <View style={styles.holeFacts}>
+              {card ? (
+                <View style={styles.holeFact}>
+                  <Text style={styles.holeFactLabel}>PAR</Text>
+                  <Text style={styles.holeFactValue}>{card.par}</Text>
+                </View>
+              ) : null}
+              {card?.strokeIndex != null ? (
+                <View style={styles.holeFact}>
+                  <Text style={styles.holeFactLabel}>INDEX</Text>
+                  <Text style={styles.holeFactValue}>{card.strokeIndex}</Text>
+                </View>
+              ) : null}
+              {length != null ? (
+                <View style={styles.holeFact}>
+                  <Text style={styles.holeFactValue}>{fmt(length)}</Text>
+                  <Text style={styles.holeFactLabel}>{u.toUpperCase()}</Text>
+                </View>
+              ) : null}
+            </View>
           </View>
-          <MapButton icon="chevron-forward" label="Next hole" disabled={hole >= holeCount} onPress={() => setHole(hole + 1)} flat />
+          <HoleArrow icon="chevron-forward" label="Next hole" disabled={hole >= holeCount} onPress={() => setHole(hole + 1)} />
         </View>
 
         <View style={styles.greenRow} onLayout={(e) => setPeekH(Math.round(e.nativeEvent.layout.y + e.nativeEvent.layout.height + 12))}>
@@ -1025,6 +1110,22 @@ function ShotCard({
   );
 }
 
+/** The sheet's previous / next hole arrows: big, filled, easy to hit. */
+function HoleArrow({ icon, label, disabled, onPress }: { icon: "chevron-back" | "chevron-forward"; label: string; disabled: boolean; onPress: () => void }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      style={({ pressed }) => [styles.holeArrow, disabled && styles.disabled, pressed && styles.pressed]}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      hitSlop={8}
+    >
+      <Ionicons name={icon} size={32} color={colors.cream50} />
+    </Pressable>
+  );
+}
+
 function MapButton({
   icon,
   label,
@@ -1114,7 +1215,13 @@ const styles = StyleSheet.create({
   holeMid: { alignItems: "center", flex: 1 },
   holeWord: { fontFamily: fonts.bodyBold, fontSize: 12, letterSpacing: 1.4, color: colors.gold400 },
   holeNumber: { fontFamily: fonts.display, fontSize: 26, lineHeight: 30, color: colors.cream50 },
-  holeMeta: { fontFamily: fonts.bodySemi, fontSize: 13, color: creamAlpha(0.8) },
+  holeFacts: { flexDirection: "row", gap: 6, marginTop: 4 },
+  holeFact: { flexDirection: "row", alignItems: "baseline", gap: 5, paddingHorizontal: 10, paddingVertical: 3, borderRadius: radii.pill, backgroundColor: creamAlpha(0.12) },
+  holeFactLabel: { fontFamily: fonts.bodyBold, fontSize: 12, letterSpacing: 1.1, color: colors.gold400 },
+  holeFactValue: { fontFamily: fonts.display, fontSize: 22, lineHeight: 27, color: colors.cream50 },
+  holeArrow: { width: 58, height: 58, borderRadius: 29, borderWidth: 1.5, borderColor: colors.gold400, backgroundColor: creamAlpha(0.1), alignItems: "center", justifyContent: "center" },
+  movedOn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 4 },
+  movedOnText: { fontFamily: fonts.bodySemi, fontSize: 14, color: colors.gold400 },
 
   greenRow: { flexDirection: "row", alignItems: "flex-end", justifyContent: "space-around" },
   yardage: { alignItems: "center", minWidth: 80 },
