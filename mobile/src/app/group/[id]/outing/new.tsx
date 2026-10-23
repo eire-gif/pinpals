@@ -291,6 +291,21 @@ export default function NewOutingScreen() {
                 </Pressable>
               );
             })}
+            {!editId ? (
+              <Pressable
+                style={[styles.kind, styles.champ]}
+                onPress={() => router.replace({ pathname: "/group/[id]/championship/new", params: { id: String(groupId) } })}
+                accessibilityRole="button"
+                accessibilityLabel="Multi-day championship: 2 to 4 days, a course and format each day, one leaderboard"
+              >
+                <Ionicons name="trophy-outline" size={22} color={colors.gold400} />
+                <View style={{ flex: 1, gap: 2 }}>
+                  <Text style={[styles.kindTitle, { color: colors.cream50 }]}>Multi-day championship</Text>
+                  <Text style={[styles.kindBlurb, { color: colors.cream100 }]}>2–4 days, a course and format each day, one leaderboard with daily ▲▼.</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color={colors.gold400} />
+              </Pressable>
+            ) : null}
           </View>
         </Section>
 
@@ -635,6 +650,7 @@ const styles = StyleSheet.create({
   kinds: { gap: spacing.sm },
   kind: { flexDirection: "row", alignItems: "center", gap: spacing.sm, minHeight: 64, padding: 12, borderRadius: radii.md, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surfaceTint },
   kindOn: { borderWidth: 2, borderColor: colors.navy900, backgroundColor: colors.surface },
+  champ: { backgroundColor: colors.navy900, borderColor: colors.navy900 },
   kindTitle: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.ink900 },
   kindBlurb: { fontFamily: fonts.body, fontSize: 13, color: colors.ink500 },
   picker: { flexDirection: "row", alignItems: "center", gap: spacing.sm, minHeight: 52, paddingHorizontal: spacing.md, borderRadius: radii.md, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },

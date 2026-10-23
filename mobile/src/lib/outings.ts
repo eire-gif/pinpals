@@ -49,6 +49,10 @@ export type Outing = {
   formatLabel: string | null;
   dressCode: string | null;
   mealOptions: string[];
+  /** A multi-day championship's day (0187): which championship, which day, its planned format. */
+  championshipId: number | null;
+  championshipRound: number | null;
+  championshipFormat: string | null;
 };
 
 /** 'join': first come, first served. 'request': the officers give out places. */
@@ -142,11 +146,16 @@ type OutingRow = {
   format_label?: string | null;
   dress_code?: string | null;
   meal_options?: string[] | null;
+  championship_id?: number | null;
+  championship_round?: number | null;
+  championship_format?: string | null;
 };
 
 const OUTING_BASE = "id, group_id, kind, title, club_id, course_name, plays_on, ends_on, location, first_tee, details, entry_fee_cents, max_entries, status, draw_published_at, match_day_id, pay_revtag, pay_iban, pay_account_name, pay_cash, pay_note";
 /** With 0142's columns. A database without them falls back to OUTING_BASE. */
-const OUTING = `${OUTING_BASE}, entry_mode, entries_close_at, waiting_list, auto_offer, guests_allowed, guest_fee_cents, arrive_by, format_label, dress_code, meal_options`;
+const OUTING_0142 = `${OUTING_BASE}, entry_mode, entries_close_at, waiting_list, auto_offer, guests_allowed, guest_fee_cents, arrive_by, format_label, dress_code, meal_options`;
+/** With 0187's championship columns; falls back to OUTING_0142, then OUTING_BASE. */
+const OUTING = `${OUTING_0142}, championship_id, championship_round, championship_format`;
 
 /** "column … does not exist": the database hasn't had 0142 yet. */
 const missingColumn = (error: { message: string; code?: string } | null) => !!error && (error.code === "42703" || /does not exist/i.test(error.message));
@@ -183,6 +192,9 @@ const toOuting = (r: OutingRow): Outing => ({
   formatLabel: r.format_label ?? null,
   dressCode: r.dress_code ?? null,
   mealOptions: r.meal_options ?? [],
+  championshipId: r.championship_id ?? null,
+  championshipRound: r.championship_round ?? null,
+  championshipFormat: r.championship_format ?? null,
 });
 
 function fail(error: { message: string } | null, fallback: string): never {
@@ -223,6 +235,7 @@ export async function listOutings(groupId: number, userId: string, opts: { fromD
     return q.overrideTypes<(OutingRow & { entries: { member_id: string; tee_group: number | null; tee_time: string | null; start_hole: number | null; start_letter: string | null }[] })[]>();
   };
   let { data, error } = await run(OUTING);
+  if (missingColumn(error)) ({ data, error } = await run(OUTING_0142));
   if (missingColumn(error)) ({ data, error } = await run(OUTING_BASE));
   if (error) fail(error, "Couldn't load the outings.");
   return (data ?? []).map((r) => {
@@ -304,6 +317,7 @@ export type OutingPage = {
 
 export async function loadOuting(outingId: number): Promise<OutingPage | null> {
   let { data: row, error } = await supabase.from("society_outings").select(OUTING).eq("id", outingId).maybeSingle<OutingRow>();
+  if (missingColumn(error)) ({ data: row, error } = await supabase.from("society_outings").select(OUTING_0142).eq("id", outingId).maybeSingle<OutingRow>());
   if (missingColumn(error)) ({ data: row, error } = await supabase.from("society_outings").select(OUTING_BASE).eq("id", outingId).maybeSingle<OutingRow>());
   if (error) fail(error, "Couldn't load this outing.");
   if (!row) return null;

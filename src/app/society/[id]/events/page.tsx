@@ -24,7 +24,13 @@ export default async function EventsPage({ params, searchParams }: { params: Pro
   const today = irishToday();
   const money = ctx.areas.includes("money");
 
-  const [events, upcomingForCount] = await Promise.all([listEvents(ctx.supabase, g, { today, past }), past ? listEvents(ctx.supabase, g, { today }) : Promise.resolve(null)]);
+  const [events, upcomingForCount, champsRes] = await Promise.all([
+    listEvents(ctx.supabase, g, { today, past }),
+    past ? listEvents(ctx.supabase, g, { today }) : Promise.resolve(null),
+    ctx.supabase.from("group_championships").select("id, title, status, trip_outing_id").eq("group_id", g).eq("status", "open").order("created_at", { ascending: false }).limit(20),
+  ]);
+  const championships = (champsRes.data ?? []) as { id: number; title: string; status: string; trip_outing_id: number | null }[];
+  const champTitle = new Map(championships.map((c) => [c.id, c.title]));
   const upcoming = upcomingForCount ?? events;
   const needs = upcoming.filter((e) => e.status === "open").reduce((n, e) => n + e.requests + e.offered, 0);
 
@@ -35,9 +41,14 @@ export default async function EventsPage({ params, searchParams }: { params: Pro
         title="Events & entries"
         description="Day outs and trips: who's in, who's asking, the waiting list, payments and the draw."
         actions={
-          <Link href={consoleHref(g, "events/new")} className={buttonClass("primary")}>
-            + New event
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            <Link href={consoleHref(g, "events/championship/new")} className={buttonClass("gold")}>
+              + Multi-day championship
+            </Link>
+            <Link href={consoleHref(g, "events/new")} className={buttonClass("primary")}>
+              + New event
+            </Link>
+          </div>
         }
       />
 
@@ -48,6 +59,26 @@ export default async function EventsPage({ params, searchParams }: { params: Pro
           { href: `${base}?past=1`, label: "Past" },
         ]}
       />
+
+      {!past && championships.length > 0 && (
+        <ul className="grid gap-3 mb-4">
+          {championships.map((c) => {
+            const daysOf = events.filter((e) => e.championshipId === c.id && e.status === "open");
+            return (
+              <li key={c.id}>
+                <Link href={consoleHref(g, `events/championship/${c.id}`)} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl p-4 bg-navy-900 text-cream-50 hover:bg-navy-800 transition">
+                  <span>
+                    <span className="block text-[11px] font-bold tracking-[0.14em] text-gold-400">{c.trip_outing_id ? "TRIP LEADERBOARD" : `CHAMPIONSHIP · ${daysOf.length} DAYS`}</span>
+                    <span className="block font-display font-bold text-lg">{c.title}</span>
+                    {daysOf.length > 0 && <span className="block text-sm text-cream-50/75">{daysOf.map((d) => d.courseName).filter(Boolean).join(" → ")}</span>}
+                  </span>
+                  <span className="text-sm font-semibold text-gold-400">Days & leaderboard →</span>
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      )}
 
       {events.length === 0 ? (
         <Card>
@@ -72,6 +103,7 @@ export default async function EventsPage({ params, searchParams }: { params: Pro
                     <div className="flex flex-wrap items-center gap-2">
                       <KindBadge kind={e.kind} playsOn={e.playsOn} endsOn={e.endsOn} />
                       {cancelled && <Pill tone="red">Cancelled</Pill>}
+                      {e.championshipId && e.championshipRound && <Pill tone="navy">{`Day ${e.championshipRound}${champTitle.get(e.championshipId) ? ` · ${champTitle.get(e.championshipId)}` : ""}`}</Pill>}
                       {e.entryMode === "request" && !cancelled && <Pill tone="gold">Request a place</Pill>}
                     </div>
                     <h2 className={`font-display font-bold text-lg text-ink-900 mt-1 ${cancelled ? "line-through text-ink-500" : ""}`}>{e.title}</h2>

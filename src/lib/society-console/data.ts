@@ -180,6 +180,10 @@ export type Outing = {
   /** The Live day set-up saved ahead (0184), as stored — parse before use. */
   liveSetup: unknown;
   liveSetupAt: string | null;
+  /** A multi-day championship's day (0187), and which day it is. */
+  championshipId: number | null;
+  championshipRound: number | null;
+  championshipFormat: string | null;
 };
 
 type OutingRow = {
@@ -216,10 +220,13 @@ type OutingRow = {
   meal_options: string[] | null;
   live_setup: unknown;
   live_setup_at: string | null;
+  championship_id: number | null;
+  championship_round: number | null;
+  championship_format: string | null;
 };
 
 const OUTING =
-  "id, group_id, kind, title, club_id, course_name, plays_on, ends_on, location, first_tee, details, entry_fee_cents, max_entries, status, draw_published_at, match_day_id, pay_revtag, pay_iban, pay_account_name, pay_cash, pay_note, entry_mode, entries_close_at, waiting_list, auto_offer, guests_allowed, guest_fee_cents, arrive_by, format_label, dress_code, meal_options, live_setup, live_setup_at";
+  "id, group_id, kind, title, club_id, course_name, plays_on, ends_on, location, first_tee, details, entry_fee_cents, max_entries, status, draw_published_at, match_day_id, pay_revtag, pay_iban, pay_account_name, pay_cash, pay_note, entry_mode, entries_close_at, waiting_list, auto_offer, guests_allowed, guest_fee_cents, arrive_by, format_label, dress_code, meal_options, live_setup, live_setup_at, championship_id, championship_round, championship_format";
 
 const toOuting = (r: OutingRow): Outing => ({
   id: r.id,
@@ -255,6 +262,9 @@ const toOuting = (r: OutingRow): Outing => ({
   mealOptions: r.meal_options ?? [],
   liveSetup: r.live_setup ?? null,
   liveSetupAt: r.live_setup_at ?? null,
+  championshipId: r.championship_id ?? null,
+  championshipRound: r.championship_round ?? null,
+  championshipFormat: r.championship_format ?? null,
 });
 
 export type EventSummary = Outing & { entered: number; guests: number; requests: number; waiting: number; offered: number; unpaid: number; claims: number };

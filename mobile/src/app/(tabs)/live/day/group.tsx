@@ -38,6 +38,7 @@ import {
 import { irishToday, isOutingDay, outingDateLabel } from "@/lib/outing-rules";
 import { addOutingGuest, linkOutingMatchDay, loadClub, loadDrawWishes, loadOuting, publishOutingDraw, saveOuting, setOutingEntry, updateOutingGuest, type DrawSeat, type OutingPage } from "@/lib/outings";
 import { loadItineraryItem, setItemPeople, type ItineraryItem } from "@/lib/itinerary";
+import { linkItemMatchDay } from "@/lib/championships";
 import type { PlayFormat } from "@/lib/itinerary-rules";
 import { clockLabel } from "@/lib/tee-time-post";
 import { cardForRatings, extraLabel, ladiesTees, playerTees, type TeeSet } from "@/lib/mixed-tees";
@@ -325,6 +326,9 @@ export default function DrawFromGroup() {
           setTitle(page.outing.title);
           setPlaysOn(page.outing.playsOn);
           if (page.outing.firstTee) setFirstTee(page.outing.firstTee.slice(0, 5));
+          // A championship's day (0187) starts on the format planned for it.
+          const planned = page.outing.championshipFormat;
+          if (planned && FORMATS.some((f) => f.id === planned)) setFormat(planned as Format);
           const seated: { group: number; pos: number; who: Entrant }[] = [];
           for (const e of page.entries) {
             const p = people.find((x) => x.id === e.memberId);
@@ -736,6 +740,10 @@ export default function DrawFromGroup() {
           tripRound.id,
           drawnNow.flatMap((g, gi) => g.filter((p) => p.memberId).map((p) => ({ memberId: p.memberId as string, slot: gi + 1 })))
         ).catch(() => undefined);
+      }
+      if (tripRound) {
+        // The round remembers its live day (0187), so a trip's leaderboard counts it.
+        await linkItemMatchDay(tripRound.id, id).catch(() => undefined);
       }
       router.replace({ pathname: "/live/day/[id]", params: { id: String(id), created: "1" } });
     } catch (e) {

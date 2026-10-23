@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
-import { ActivityIndicator, Platform, Pressable, RefreshControl, ScrollView, Share, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Platform, Pressable, RefreshControl, ScrollView, Share, StyleSheet, Switch, Text, View } from "react-native";
 import { Stack, router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
@@ -32,6 +32,7 @@ import { loadOuting, type OutingPage } from "@/lib/outings";
 import { officeAreas } from "@/lib/groups";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 import { myRoundRight } from "@/components/my-round-pill";
+import { setTripChampionship, tripChampionship, type Championship } from "@/lib/championships";
 
 /**
  * A trip's itinerary (0126) — one screen for everyone in the society.
@@ -56,11 +57,15 @@ export default function ItineraryScreen() {
   const [failed, setFailed] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [day, setDay] = useState<string | null>(rawDay ?? null);
+  /** "Run a leaderboard across the trip" (0187). */
+  const [champ, setChamp] = useState<Championship | null>(null);
+  const [champBusy, setChampBusy] = useState(false);
 
   const load = useCallback(async () => {
     if (!userId) return;
     try {
-      const [o, list, g] = await Promise.all([loadOuting(outingId), loadItinerary(outingId), loadGroupPage(groupId, userId)]);
+      const [o, list, g, c] = await Promise.all([loadOuting(outingId), loadItinerary(outingId), loadGroupPage(groupId, userId), tripChampionship(outingId).catch(() => null)]);
+      setChamp(c);
       setPage(o);
       setItems(sortItems(list));
       // Whoever runs events: owner, captain, secretary, and since 0144 the
@@ -194,6 +199,55 @@ export default function ItineraryScreen() {
             ))}
           </View>
         </View>
+
+        {/* The trip's leaderboard (0187) */}
+        {!cancelled && (officer || champ?.status === "open") ? (
+          <View style={styles.board}>
+            {champ?.status === "open" ? (
+              <Pressable
+                style={styles.boardOpen}
+                onPress={() => router.push({ pathname: "/group/[id]/championship/[cid]", params: { id: String(groupId), cid: String(champ.id) } })}
+                accessibilityRole="button"
+                accessibilityLabel="Open the trip's leaderboard"
+              >
+                <Ionicons name="podium-outline" size={22} color={colors.gold400} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.boardTitle}>Trip leaderboard</Text>
+                  <Text style={styles.boardMeta}>Every round on one board, with ▲▼ on the day before</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color={colors.gold400} />
+              </Pressable>
+            ) : null}
+            {officer ? (
+              <View style={styles.boardToggle}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.boardToggleTitle}>Run a leaderboard across the trip</Text>
+                  <Text style={styles.boardMeta}>Each round on the itinerary becomes a day of it</Text>
+                </View>
+                {champBusy ? (
+                  <ActivityIndicator color={colors.gold400} />
+                ) : (
+                  <Switch
+                    value={champ?.status === "open"}
+                    trackColor={{ true: colors.green600 }}
+                    accessibilityLabel="Run a leaderboard across the trip"
+                    onValueChange={async (on) => {
+                      setChampBusy(true);
+                      try {
+                        await setTripChampionship(outingId, on);
+                        setChamp(await tripChampionship(outingId));
+                      } catch (err) {
+                        Alert.alert("Couldn't change that", err instanceof Error ? err.message : "Please try again.");
+                      } finally {
+                        setChampBusy(false);
+                      }
+                    }}
+                  />
+                )}
+              </View>
+            ) : null}
+          </View>
+        ) : null}
 
         {/* You */}
         {amIn && (mine.flights.length > 0 || mine.stay || mine.rounds.length > 0) ? (
@@ -373,6 +427,12 @@ function ItemCard({ item, userId, onPress, onStart }: { item: ItineraryItem; use
 }
 
 const styles = StyleSheet.create({
+  board: { gap: 10, padding: spacing.md, borderRadius: radii.lg, backgroundColor: colors.navy800 },
+  boardOpen: { flexDirection: "row", alignItems: "center", gap: 12, minHeight: 52 },
+  boardTitle: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.cream50 },
+  boardMeta: { fontFamily: fonts.body, fontSize: 13, color: colors.cream100 },
+  boardToggle: { flexDirection: "row", alignItems: "center", gap: 12, minHeight: 52 },
+  boardToggleTitle: { fontFamily: fonts.bodySemi, fontSize: 15, color: colors.cream50 },
   startRound: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, minHeight: 44, borderRadius: radii.pill, backgroundColor: colors.gold400 },
   startRoundText: { fontFamily: fonts.bodyBold, fontSize: 15, color: colors.navy900 },
   fill: { flex: 1, backgroundColor: colors.cream50 },
