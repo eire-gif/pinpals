@@ -196,7 +196,7 @@ function Panel({ front, centre, back, from, pin = false }: { front: string; cent
     <View style={s.panel}>
       <View style={s.panelHead}>
         <Text style={s.panelHole}>HOLE 4</Text>
-        <Text style={s.panelMeta}>Par 4 · SI 7 · 412 yds</Text>
+        <Text style={s.panelMeta}>PAR 4 · INDEX 7 · 412 YDS</Text>
       </View>
       <View style={s.panelNums}>
         <View style={s.num}>
@@ -419,7 +419,7 @@ const s = StyleSheet.create({
   panel: { position: "absolute", left: 0, right: 0, bottom: 0, height: PANEL, paddingHorizontal: 12, paddingTop: 7, backgroundColor: "rgba(12,32,56,0.92)" },
   panelHead: { flexDirection: "row", alignItems: "baseline", gap: 8 },
   panelHole: { fontFamily: fonts.bodyBold, fontSize: 11, letterSpacing: 1, color: colors.gold400 },
-  panelMeta: { fontFamily: fonts.body, fontSize: 11, color: colors.cream100 },
+  panelMeta: { fontFamily: fonts.bodyBold, fontSize: 12, letterSpacing: 0.6, color: colors.cream100 },
   panelNums: { flexDirection: "row", justifyContent: "space-around", alignItems: "flex-end", marginTop: 2 },
   num: { alignItems: "center" },
   numLabel: { fontFamily: fonts.bodySemi, fontSize: 10, color: colors.cream100 },

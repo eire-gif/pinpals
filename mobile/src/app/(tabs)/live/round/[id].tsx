@@ -68,6 +68,8 @@ import { LieHelpSheet } from "@/components/lie-help-sheet";
 import { loadStatsFor, saveHoleStat, useTracking } from "@/lib/my-stats";
 import type { VoiceStatPatch } from "@/lib/voice-stats";
 import { useMembership } from "@/lib/membership";
+import { gpsNextHole, ordinal, stripMark, type StripMark } from "@/lib/gps-hole";
+import { useHoleSpots, useRoundFix } from "@/lib/use-gps-hole";
 
 /**
  * Scoring a round, and its leaderboard.
@@ -347,6 +349,48 @@ export default function LiveRoundScreen() {
       }, 350);
     }
   }, [data, focusTick, voiceAt, scrollToFinish]);
+
+  // ---- Moving on by GPS (Oct 2026, after a live test) ----
+  // Once this hole's scores are in and you walk onto the next tee, the round
+  // moves on to it by itself (gps-hole.ts) — and so does everything that
+  // follows the hole shown here. Only if location is already allowed.
+  const gpsFix = useRoundFix(data?.round.status === "live");
+  const gpsHoles = useMemo(() => data?.card.map((c) => c.hole) ?? [], [data?.card]);
+  const spots = useHoleSpots(data?.round.clubId ?? null, gpsHoles);
+  const movedOnFrom = useRef(new Set<number>());
+  const lastShown = useRef<number | null>(null);
+  const [movedOn, setMovedOn] = useState<number | null>(null);
+  useEffect(() => {
+    if (!data) return;
+    const order = playOrder(data.card, data.round.start?.hole ?? null).map((c) => c.hole);
+    const prev = lastShown.current;
+    lastShown.current = hole;
+    // Went back to a hole on purpose: don't push them forward off it again.
+    if (prev != null && order.indexOf(hole) < order.indexOf(prev)) movedOnFrom.current.add(hole);
+  }, [hole, data]);
+  useEffect(() => {
+    if (!data || data.round.status !== "live" || voiceAt != null || spots.size === 0) return;
+    const order = playOrder(data.card, data.round.start?.hole ?? null).map((c) => c.hole);
+    const ids = scoringPlayerIds(data.players, { scramble: data.round.scramble != null, matchFormat: data.round.matchFormat });
+    const next = gpsNextHole({
+      showing: hole,
+      order,
+      scored: (n) => ids.length > 0 && ids.every((id) => data.scores.get(id)?.has(n)),
+      spots,
+      fix: gpsFix,
+      movedOnFrom: movedOnFrom.current,
+    });
+    if (next == null) return;
+    movedOnFrom.current.add(hole);
+    lastShown.current = next;
+    setHole(next);
+    setMovedOn(next);
+  }, [gpsFix, spots, data, hole, voiceAt]);
+  useEffect(() => {
+    if (movedOn == null) return;
+    const t = setTimeout(() => setMovedOn(null), 6000);
+    return () => clearTimeout(t);
+  }, [movedOn]);
 
   if (!isOn("liveScoring")) return <StateMessage size="screen" icon="podium-outline" title="Live scoring is on its way" />;
   if (failed) return <LoadError size="screen" what="this round" onRetry={() => void load()} />;
@@ -880,6 +924,12 @@ export default function LiveRoundScreen() {
               </Text>
             </View>
           ) : null}
+          {movedOn != null && movedOn === h.hole ? (
+            <View style={styles.movedOn} accessibilityLiveRegion="polite">
+              <Ionicons name="navigate" size={16} color={colors.gold400} />
+              <Text style={styles.movedOnText}>{`On the ${ordinal(movedOn)} tee — moved on to hole ${movedOn}`}</Text>
+            </View>
+          ) : null}
           {/* The weather at the course (Oct 2026): one slim row, only while the round is live. */}
           {live && round.clubId != null ? <LiveWeatherRow clubId={round.clubId} /> : null}
           <View style={styles.holeCard}>
@@ -903,11 +953,24 @@ export default function LiveRoundScreen() {
               <View style={{ alignItems: "center" }}>
                 <Text style={styles.holeEyebrow}>Hole</Text>
                 <Text style={styles.holeNumber}>{h.hole}</Text>
-                <Pressable onPress={() => live && setEditingCard((o) => !o)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Edit par and stroke index">
-                  <Text style={styles.holeInfo}>
-                    Par {h.par} · {h.strokeIndex != null ? `SI ${h.strokeIndex}` : "SI not set"}
-                    {live ? "  ✎" : ""}
-                  </Text>
+                {/* Oct 2026, after a live test: par and index big enough to read
+                    in the sun — two chips, not one small line. */}
+                <Pressable
+                  onPress={() => live && setEditingCard((o) => !o)}
+                  hitSlop={8}
+                  style={styles.holeFacts}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Par ${h.par}, ${h.strokeIndex != null ? `stroke index ${h.strokeIndex}` : "stroke index not set"}${live ? ". Edit" : ""}`}
+                >
+                  <View style={styles.holeFact}>
+                    <Text style={styles.holeFactLabel}>PAR</Text>
+                    <Text style={styles.holeFactValue}>{h.par}</Text>
+                  </View>
+                  <View style={styles.holeFact}>
+                    <Text style={styles.holeFactLabel}>INDEX</Text>
+                    <Text style={[styles.holeFactValue, h.strokeIndex == null && styles.holeFactMissing]}>{h.strokeIndex ?? "–"}</Text>
+                  </View>
+                  {live ? <Ionicons name="create-outline" size={18} color={creamAlpha(0.6)} /> : null}
                 </Pressable>
                 {isOn("shotMaps") && round.clubId != null ? (
                   <Pressable
@@ -933,20 +996,52 @@ export default function LiveRoundScreen() {
               </View>
               <RoundButton icon="chevron-forward" label="Next hole" disabled={nextHole == null} onPress={() => nextHole != null && setHole(nextHole)} />
             </View>
+            {/* The hole strip (Oct 2026): a birdie shows red and an eagle or
+                better gold — your own ball if you're playing, else the
+                group's best — so the good holes stand out at a glance. */}
             <View style={styles.strip}>
               {card.map((c) => {
                 const done = rows.every((p) => scores.get(p.id)?.has(c.hole));
+                const mineRow = rows.find((r) => mineIn(r));
+                const pick = mineRow ? [mineRow] : rows;
+                const strokes = pick
+                  .map((r) => scores.get(r.id)?.get(c.hole))
+                  .filter((x): x is number => x != null)
+                  .sort((a, b) => a - b)[0];
+                const mark: StripMark | null = done ? stripMark(strokes, c.par) : null;
+                const now = c.hole === h.hole;
                 return (
                   <Pressable
                     key={c.hole}
                     onPress={() => setHole(c.hole)}
-                    style={[styles.stripCell, done && styles.stripDone, c.hole === h.hole && styles.stripNow]}
-                    accessibilityLabel={`Hole ${c.hole}${done ? ", scored" : ""}`}
+                    style={[
+                      styles.stripCell,
+                      mark === "scored" && styles.stripDone,
+                      mark === "birdie" && styles.stripBirdie,
+                      mark === "eagle" && styles.stripEagle,
+                      now && styles.stripNow,
+                      now && mark === "birdie" && styles.stripNowBirdie,
+                      now && mark === "eagle" && styles.stripNowEagle,
+                    ]}
+                    accessibilityLabel={`Hole ${c.hole}${mark === "eagle" ? ", eagle or better" : mark === "birdie" ? ", birdie" : done ? ", scored" : ""}`}
                     hitSlop={{ top: 10, bottom: 10 }}
                   />
                 );
               })}
             </View>
+            {rows.some((r) =>
+              card.some((c) => {
+                const v = scores.get(r.id)?.get(c.hole);
+                return v != null && v < c.par;
+              })
+            ) ? (
+              <View style={styles.stripKey} accessible accessibilityLabel="Red is a birdie, gold an eagle or better">
+                <View style={[styles.stripKeyDot, styles.stripBirdie]} />
+                <Text style={styles.stripKeyText}>Birdie</Text>
+                <View style={[styles.stripKeyDot, styles.stripEagle]} />
+                <Text style={styles.stripKeyText}>Eagle+</Text>
+              </View>
+            ) : null}
             {matchNow ? (
               <Pressable onPress={() => setView("board")} style={styles.matchLine} accessibilityRole="button" accessibilityLabel="See the match">
                 <Text style={styles.matchLineText}>
@@ -1710,7 +1805,7 @@ function RoundButton({ icon, label, disabled, onPress }: { icon: "chevron-back" 
       accessibilityRole="button"
       accessibilityLabel={label}
     >
-      <Ionicons name={icon} size={20} color={colors.cream50} />
+      <Ionicons name={icon} size={32} color={colors.cream50} />
     </Pressable>
   );
 }
@@ -1767,11 +1862,26 @@ const styles = StyleSheet.create({
   mapPillIcon: { width: 30, height: 30, borderRadius: 15, backgroundColor: colors.navy900, alignItems: "center", justifyContent: "center" },
   mapPillText: { fontFamily: fonts.bodyBold, fontSize: 14, color: colors.navy900 },
   mapPillSub: { fontFamily: fonts.body, fontSize: 11, color: colors.navy900, opacity: 0.75 },
-  roundButton: { width: 44, height: 44, borderRadius: 22, borderWidth: 1, borderColor: creamAlpha(0.25), alignItems: "center", justifyContent: "center" },
-  strip: { flexDirection: "row", gap: 3 },
-  stripCell: { flex: 1, height: 6, borderRadius: 3, backgroundColor: creamAlpha(0.18) },
-  stripDone: { backgroundColor: colors.gold400 },
-  stripNow: { backgroundColor: colors.cream50 },
+  // Oct 2026, after a live test: bigger, filled arrows — easy to hit with a glove on.
+  roundButton: { width: 60, height: 60, borderRadius: 30, borderWidth: 1.5, borderColor: colors.gold400, backgroundColor: creamAlpha(0.1), alignItems: "center", justifyContent: "center" },
+  holeFacts: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingVertical: 4 },
+  holeFact: { flexDirection: "row", alignItems: "baseline", gap: 6, paddingHorizontal: 12, paddingVertical: 4, borderRadius: radii.pill, backgroundColor: creamAlpha(0.12) },
+  holeFactLabel: { fontFamily: fonts.bodyBold, fontSize: 12, letterSpacing: 1.2, color: colors.gold400 },
+  holeFactValue: { fontFamily: fonts.display, fontSize: 24, lineHeight: 30, color: colors.cream50 },
+  holeFactMissing: { color: creamAlpha(0.5) },
+  strip: { flexDirection: "row", gap: 3, alignItems: "center" },
+  stripCell: { flex: 1, height: 8, borderRadius: 4, backgroundColor: creamAlpha(0.18) },
+  stripDone: { backgroundColor: creamAlpha(0.55) },
+  stripBirdie: { backgroundColor: "#e5483a" },
+  stripEagle: { backgroundColor: colors.gold400 },
+  stripNow: { backgroundColor: colors.cream50, height: 14, borderRadius: 5 },
+  stripNowBirdie: { backgroundColor: "#e5483a", borderWidth: 2, borderColor: colors.cream50 },
+  stripNowEagle: { backgroundColor: colors.gold400, borderWidth: 2, borderColor: colors.cream50 },
+  stripKey: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginTop: -spacing.xs },
+  stripKeyDot: { width: 14, height: 8, borderRadius: 4, marginLeft: spacing.sm },
+  stripKeyText: { fontFamily: fonts.bodySemi, fontSize: 12, color: creamAlpha(0.75) },
+  movedOn: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 14, paddingVertical: 10, borderRadius: radii.pill, backgroundColor: colors.navy900 },
+  movedOnText: { flex: 1, fontFamily: fonts.bodySemi, fontSize: 14, color: colors.cream50 },
 
   cardEditor: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.gold500, borderRadius: radii.lg, padding: spacing.md, gap: spacing.sm },
   cardEditorNote: { fontFamily: fonts.body, fontSize: 13, lineHeight: 19, color: colors.ink900 },
