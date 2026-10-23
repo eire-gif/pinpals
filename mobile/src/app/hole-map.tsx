@@ -18,6 +18,10 @@ import {
   greenDistancesM,
   hazardsAheadM,
   holeFrame,
+  autoZoomFrame,
+  zoomBand,
+  ZOOM_REFRAME_M,
+  type ZoomBand,
   holeGeometry,
   holeLengthM,
   inUnit,
@@ -52,6 +56,7 @@ import { loadCourse, type CourseDetail } from "@/lib/onboarding";
 import { colors, creamAlpha, fonts, radii, spacing, type } from "@/lib/theme";
 import { assistFor, competitionLine, loadRoundIsCompetition, manualCompetition, setManualCompetition } from "@/lib/competition-mode";
 import { loadDistanceUnit, saveDistanceUnit } from "@/lib/distance-unit";
+import { loadAutoZoom, saveAutoZoom } from "@/lib/auto-zoom-setting";
 import { gpsNextHole, holeSpots, mergeSpots, ordinal } from "@/lib/gps-hole";
 import { playOrder } from "@/lib/live-scoring";
 
@@ -96,6 +101,11 @@ let rememberedWindShow = false;
 let rememberedTucked = false;
 type ArcsMode = "off" | "50" | "clubs";
 let rememberedArcs: ArcsMode = "off";
+let rememberedAutoZoom: boolean | null = null;
+/** After the member pans or pinches, auto-zoom waits this long. */
+const AUTO_PAUSE_MANUAL_MS = 15000;
+/** After "Show the whole hole", auto-zoom waits this long. */
+const AUTO_PAUSE_WHOLE_MS = 30000;
 
 export default function HoleMapScreen() {
   const params = useLocalSearchParams<{ clubId: string; hole?: string; roundId?: string; layoutId?: string }>();
@@ -491,13 +501,92 @@ export default function HoleMapScreen() {
     setArcsMode(next);
   };
 
+  // ---- Auto-zoom (Oct 2026): the nearer the flag, the closer the view ----
+  // On by default; the button on the map turns it off (kept on the phone).
+  const [autoZoom, setAutoZoom] = useState(rememberedAutoZoom ?? true);
+  useEffect(() => {
+    if (rememberedAutoZoom != null) return;
+    let on = true;
+    void loadAutoZoom().then((v) => {
+      if (!on || rememberedAutoZoom != null) return;
+      rememberedAutoZoom = v;
+      setAutoZoom(v);
+    });
+    return () => {
+      on = false;
+    };
+  }, []);
+  const autoOn = autoZoom && geo.mapped && geo.greenCentre != null;
+  // Your distance to the green, only when it means something: on this hole,
+  // measured from you, with a fix good enough to mark a shot.
+  const toGreenM =
+    autoOn && fix && fixIsUsable(fix.accuracyM) && origin?.from === "you" && geo.greenCentre ? distanceM(fix, geo.greenCentre) : null;
+  const [zoom, setZoom] = useState<{ hole: number; band: ZoomBand; at: LatLng | null; step: number }>({ hole, band: "hole", at: null, step: 0 });
+  useEffect(() => {
+    setZoom((z) => {
+      const sameHole = z.hole === hole;
+      const band = zoomBand(toGreenM, sameHole ? z.band : null);
+      if (!sameHole) return { hole, band, at: fix, step: 0 };
+      if (band !== z.band) return { ...z, band, at: fix, step: z.step + 1 };
+      // Walked on within the band: re-frame round you, not on every GPS tick.
+      if (band !== "hole" && fix && (!z.at || distanceM(fix, z.at) >= ZOOM_REFRAME_M)) return { ...z, at: fix, step: z.step + 1 };
+      return z;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hole, toGreenM]);
+  // Paused while the member has moved the map themselves, or asked for the whole hole.
+  const [pause, setPause] = useState<{ why: "manual" | "whole"; until: number } | null>(null);
+  const [resumed, setResumed] = useState(0);
+  const [wholeTaps, setWholeTaps] = useState(0);
+  useEffect(() => {
+    if (!pause) return;
+    const t = setTimeout(() => {
+      setPause(null);
+      setResumed((n) => n + 1);
+    }, Math.max(0, pause.until - Date.now()));
+    return () => clearTimeout(t);
+  }, [pause]);
+  useEffect(() => setPause(null), [hole]);
+  const onManual = useCallback(() => {
+    if (rememberedAutoZoom === false) return;
+    setPause({ why: "manual", until: Date.now() + AUTO_PAUSE_MANUAL_MS });
+  }, []);
+  const frozen = useRef<{ key: string; points: LatLng[] } | null>(null);
+  const showWholeHole = () => {
+    if (!autoOn) {
+      mapRef.current?.recentre();
+      return;
+    }
+    setWholeTaps((n) => n + 1);
+    setPause({ why: "whole", until: Date.now() + AUTO_PAUSE_WHOLE_MS });
+  };
+  const toggleAutoZoom = () => {
+    const next = !autoZoom;
+    rememberedAutoZoom = next;
+    setAutoZoom(next);
+    setPause(null);
+    void saveAutoZoom(next);
+  };
+
   const scene: MapScene = useMemo(() => {
     // Framed on the mapped hole, so dragging the T doesn't move the view.
     const frame = holeFrame(mappedGeo, fix);
+    // The view moves when the hole or course changes, or the first time
+    // the member's position arrives — never on every GPS tick. With
+    // auto-zoom, also when you cross into a closer band or walk on in one.
+    const baseKey = `${layout?.id ?? "none"}-${hole}-${fix ? "fix" : "nofix"}-${geo.mapped ? "m" : "u"}`;
+    let view = { key: baseKey, points: frame.points };
+    if (autoOn) {
+      const band: ZoomBand = zoom.hole === hole ? zoom.band : "hole";
+      if (pause?.why === "manual" && frozen.current) view = frozen.current;
+      else if (pause?.why === "whole") view = { key: `${baseKey}-whole-${wholeTaps}`, points: frame.points };
+      else view = { key: `${baseKey}-z-${band}-${zoom.step}-${resumed}`, points: autoZoomFrame(geo, fix, band) };
+      frozen.current = view;
+    }
     return {
       fallbackCentre: fix ?? (course?.latitude != null && course.longitude != null ? { lat: course.latitude, lng: course.longitude } : null),
       rotation: frame.rotation,
-      frame: frame.points,
+      frame: view.points,
       tee: geo.tee,
       teeFront: geo.teeBack && geo.teeFront ? geo.teeFront : null,
       green: { front: geo.greenFront, centre: geo.greenCentre, back: geo.greenBack, zone },
@@ -534,13 +623,12 @@ export default function HoleMapScreen() {
       hole,
       showOutlines,
       inset: { top: insets.top + 80, bottom: (tucked ? peekH : sheetH) + 30 },
-      // The view moves when the hole or course changes, or the first time
-      // the member's position arrives — never on every GPS tick.
       outlines: shapes ? outlinesNear(shapes, frame.points.length ? frame.points : clubAt ? [clubAt] : []) : [],
-      frameKey: `${layout?.id ?? "none"}-${hole}-${fix ? "fix" : "nofix"}-${geo.mapped ? "m" : "u"}`,
+      frameKey: view.key,
+      glide: autoOn,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [geo, mappedGeo, zone, fix, course, ends, aim?.lat, aim?.lng, origin?.point, unit, layout?.id, hole, shapes, showOutlines, sheetH, insets.top, arcs, tucked, peekH]);
+  }, [geo, mappedGeo, zone, fix, course, ends, aim?.lat, aim?.lng, origin?.point, unit, layout?.id, hole, shapes, showOutlines, sheetH, insets.top, arcs, tucked, peekH, autoOn, zoom, pause, resumed, wholeTaps]);
 
   // ---- Shots ----
   const canMark = round?.round.status === "live" && player != null && card != null;
@@ -688,7 +776,7 @@ export default function HoleMapScreen() {
       <StatusBar style="light" />
 
       <View style={StyleSheet.absoluteFill}>
-        <HoleMapView ref={mapRef} scene={scene} onTap={setTap} onTee={moveTee} onPin={movePin} />
+        <HoleMapView ref={mapRef} scene={scene} onTap={setTap} onTee={moveTee} onPin={movePin} onManual={onManual} />
       </View>
       {/* The wind across the map: over the photo, under every button. */}
       {windFx ? <WindStream deg={windFx.deg} level={windFx.level} /> : null}
@@ -706,7 +794,15 @@ export default function HoleMapScreen() {
         </Pressable>
       </View>
       <View style={[styles.sideButtons, { top: insets.top + 62 }]} pointerEvents="box-none">
-        <MapButton icon="scan-outline" label="Show the whole hole" onPress={() => mapRef.current?.recentre()} />
+        <MapButton icon="scan-outline" label="Show the whole hole" onPress={showWholeHole} />
+        {geo.mapped && geo.greenCentre ? (
+          <MapButton
+            icon={autoZoom ? "navigate-circle" : "navigate-circle-outline"}
+            label={autoZoom ? "Auto-zoom is on: the map closes in as you near the green. Turn it off" : "Turn on auto-zoom: the map closes in as you near the green"}
+            onPress={toggleAutoZoom}
+            on={autoZoom}
+          />
+        ) : null}
         {geo.mapped ? (
           <MapButton
             icon={arcsMode === "off" ? "radio-button-off" : "radio-button-on"}

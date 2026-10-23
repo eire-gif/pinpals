@@ -1395,6 +1395,12 @@ export const GUIDES: Guide[] = [
         tip: "Par and Index are beside the hole number; the big arrows either side, or a swipe across the panel, change hole. In a round, once your score for the hole is in and you walk onto the next tee, the map moves on to that hole by itself. Drag the panel down to see more of the map — the hole and the three numbers stay. Tap yds to switch to metres.",
       },
       {
+        title: "Let the map zoom in as you go",
+        body: "With your location on, the map closes in as you near the flag: the whole hole from the tee, then you, the green and the hazards in between from about 250 yards, the green and its surrounds inside 100, and the green itself once you're on it. It glides in as you walk — no need to pinch.",
+        look: [{ style: "outline", label: "Auto-zoom", icon: "navigate-circle" }],
+        tip: "Pinch or drag the map and auto-zoom waits 15 seconds before picking up again; Show the whole hole (the square button) pulls back for 30. The round button under it turns auto-zoom off or on — your phone remembers.",
+      },
+      {
         title: "Set today's pin and your tee",
         body: "Drag the flag to where the pin is today — it turns red, yellow or white for the front, middle or back of the green. Drag the T to the tee box you're playing. Every number re-measures.",
         art: "holeDrag",
@@ -2022,6 +2028,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
   { on: "2026-10-23", text: "New guide, Run a multi-day championship: 2 to 4 days, a course and format each day, one leaderboard with each player's place up or down on the day before. Trips can switch on Run a leaderboard across the trip on the itinerary." },
+  { on: "2026-10-23", text: "Hole map: auto-zoom — with your location on, the map closes in as you near the flag, from the whole hole on the tee to the green itself once you're on it, and glides as you walk. Pinch or drag and it waits; the round button under Show the whole hole turns it off." },
   { on: "2026-10-23", text: "Score a game live and Hole map: once a hole is scored and you walk onto the next tee, the round and the hole map move on to that hole by themselves. Par and Index are bigger, the hole arrows are bigger, and on the strip of holes a birdie shows red and an eagle or better gold." },
   { on: "2026-10-22", text: "Post a tee time: new step, Invite your group — tick your Golf Buddies, trip or society and everyone in it can Take a place in one tap, first come, first served. Find a game shows Take a place too." },
   { on: "2026-10-22", text: "Score a game live: Score from your watch now covers Wear OS watches as well as Apple Watch, and the watch has more pages — front, centre and back of the green, the satellite hole map, hazards, the whole group's scores (Save all) and the leaderboard — plus PinPals on your watch face." },
