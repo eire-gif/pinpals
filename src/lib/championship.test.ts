@@ -182,6 +182,48 @@ describe("level at the end", () => {
   });
 });
 
+describe("review fixes", () => {
+  it("a guest without a published place doesn't throw the countback away", () => {
+    const day: ChampionshipDay = {
+      round: 1,
+      kind: "points",
+      team: false,
+      status: "final",
+      rows: [
+        solo("a", 38, 18, { position: 2 }),
+        solo("b", 38, 18, { position: 1 }),
+        { memberIds: [], guestNames: ["Guest"], score: 40, thru: 18, finished: true },
+      ],
+    };
+    // Placed sides first by place, then the guest by score.
+    expect(dayPlacesPoints(day)).toEqual([20, 25, 16]);
+  });
+
+  it("the tie-break at the end uses the countback winner, not the raw score", () => {
+    const days: ChampionshipDay[] = [
+      { round: 1, kind: "points", team: false, status: "final", rows: [solo("a", 36), solo("b", 36)] },
+      { round: 2, kind: "points", team: false, status: "final", rows: [solo("a", 38, 18, { position: 2 }), solo("b", 38, 18, { position: 1 })] },
+    ];
+    const b = buildBoard({ days, rule: "auto", players });
+    expect(b.rows.map((r) => [r.name, r.positionLabel])).toEqual([
+      ["B", "1"],
+      ["A", "2"],
+    ]);
+  });
+
+  it("an unfinished card on a final day counts under neither rule", () => {
+    const days: ChampionshipDay[] = [
+      { round: 1, kind: "points", team: false, status: "final", rows: [solo("a", 36), solo("b", 20, 9)] },
+      { round: 2, kind: "points", team: false, status: "live", rows: [solo("a", 10, 5), solo("b", 12, 5)] },
+    ];
+    const b = buildBoard({ days, rule: "auto", players });
+    expect(b.rows.map((r) => [r.name, r.totalLabel])).toEqual([
+      ["A", "46"],
+      ["B", "12"],
+    ]);
+  });
+});
+
 describe("copies", () => {
   it("website and app copies are byte-identical", () => {
     const site = readFileSync(join(process.cwd(), "src/lib/championship.ts"), "utf8");
