@@ -108,7 +108,7 @@ const AUTO_PAUSE_MANUAL_MS = 15000;
 const AUTO_PAUSE_WHOLE_MS = 30000;
 
 export default function HoleMapScreen() {
-  const params = useLocalSearchParams<{ clubId: string; hole?: string; roundId?: string; layoutId?: string }>();
+  const params = useLocalSearchParams<{ clubId: string; hole?: string; roundId?: string; layoutId?: string; shot?: string; shotClub?: string }>();
   const clubId = Number(params.clubId);
   // "Yardages brought to you by …" (0139): in the sheet, under the numbers.
   const partner = useCoursePartner(clubId);
@@ -131,6 +131,21 @@ export default function HoleMapScreen() {
   const [shotCardHidden, setShotCardHidden] = useState(false);
   const [failed, setFailed] = useState(false);
   const [hole, setHole] = useState(Math.min(18, Math.max(1, Number(params.hole) || 1)));
+  // Opened from "Longest shots" (Oct 2026): show that one shot again — its
+  // hole, framed on it, drawn in gold. Looking back, not playing, so the
+  // screen doesn't ask for the member's position.
+  const focus = useMemo(() => {
+    const n = Number(params.shot);
+    return roundId != null && Number.isInteger(n) && n > 0 ? { hole: Math.min(18, Math.max(1, Number(params.hole) || 1)), n, club: params.shotClub ?? null } : null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  // The view stays on the shot until the member asks for the whole hole or
+  // goes to another hole; the gold line stays whenever they're on its hole.
+  const [focusFramed, setFocusFramed] = useState(focus != null);
+  const firstHole = useRef(hole);
+  useEffect(() => {
+    if (hole !== firstHole.current) setFocusFramed(false);
+  }, [hole]);
   useEffect(() => {
     setShotCardOpen(false);
     setShotCardHidden(false);
@@ -230,7 +245,7 @@ export default function HoleMapScreen() {
   const watch = useRef<Location.LocationSubscription | null>(null);
   // Once the member has said yes on this screen, keep watching when they
   // come back to it from another screen.
-  const wanted = useRef(roundId != null);
+  const wanted = useRef(roundId != null && focus == null);
 
   const startLocation = useCallback(async () => {
     wanted.current = true;
@@ -404,6 +419,9 @@ export default function HoleMapScreen() {
   // Each mark is where a ball finished; shot 1 starts on the tee (hole-geo).
   const ends = useMemo(() => shotEnds(myShots, geo.mapped ? geo : null), [myShots, geo]);
   const lastEnd = ends.length ? ends[ends.length - 1] : null;
+  // Only your own ball's shot is the one you opened.
+  const viewingMine = round?.players.find((p) => p.id === playerId)?.memberId === me;
+  const focusEnd = focus && hole === focus.hole && viewingMine ? (ends.find((e) => e.n === focus.n) ?? null) : null;
   const u = unitShort(unit);
   const fmt = (m: number | null) => (m == null ? "–" : String(inUnit(m, unit)));
 
@@ -553,6 +571,7 @@ export default function HoleMapScreen() {
   }, []);
   const frozen = useRef<{ key: string; points: LatLng[] } | null>(null);
   const showWholeHole = () => {
+    if (focusFramed) setFocusFramed(false);
     if (!autoOn) {
       mapRef.current?.recentre();
       return;
@@ -576,7 +595,12 @@ export default function HoleMapScreen() {
     // auto-zoom, also when you cross into a closer band or walk on in one.
     const baseKey = `${layout?.id ?? "none"}-${hole}-${fix ? "fix" : "nofix"}-${geo.mapped ? "m" : "u"}`;
     let view = { key: baseKey, points: frame.points };
-    if (autoOn) {
+    if (focusEnd && focusFramed) {
+      // Where it started, where it finished, and the green beyond it.
+      const pts = [focusEnd.from, focusEnd.at, geo.greenCentre].filter((p): p is LatLng => p != null);
+      view = { key: `${baseKey}-focus-${focusEnd.n}`, points: pts };
+      frozen.current = view;
+    } else if (autoOn) {
       const band: ZoomBand = zoom.hole === hole ? zoom.band : "hole";
       if (pause?.why === "manual" && frozen.current) view = frozen.current;
       else if (pause?.why === "whole") view = { key: `${baseKey}-whole-${wholeTaps}`, points: frame.points };
@@ -605,7 +629,7 @@ export default function HoleMapScreen() {
       teeMovable: geo.mapped && geo.tee != null,
       originIsTee: origin?.from === "tee",
       me: fix,
-      shots: ends.map((e) => ({ lat: e.at.lat, lng: e.at.lng, n: e.n, label: e.distance == null ? null : `${fmt(e.distance)} ${u}` })),
+      shots: ends.map((e) => ({ lat: e.at.lat, lng: e.at.lng, n: e.n, label: e.distance == null ? null : `${fmt(e.distance)} ${u}`, hi: focusEnd?.n === e.n })),
       shotStart: ends[0]?.from ?? null,
       tap:
         aim && origin && tapped
@@ -628,7 +652,7 @@ export default function HoleMapScreen() {
       glide: autoOn,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [geo, mappedGeo, zone, fix, course, ends, aim?.lat, aim?.lng, origin?.point, unit, layout?.id, hole, shapes, showOutlines, sheetH, insets.top, arcs, tucked, peekH, autoOn, zoom, pause, resumed, wholeTaps]);
+  }, [geo, mappedGeo, zone, fix, course, ends, aim?.lat, aim?.lng, origin?.point, unit, layout?.id, hole, shapes, showOutlines, sheetH, insets.top, arcs, tucked, peekH, autoOn, zoom, pause, resumed, wholeTaps, focusEnd, focusFramed]);
 
   // ---- Shots ----
   const canMark = round?.round.status === "live" && player != null && card != null;
@@ -898,6 +922,14 @@ export default function HoleMapScreen() {
             {shapes === null ? "Loading the course… " : layout || osmPoints.length ? "This hole isn't mapped yet. " : "This course isn't mapped yet. "}
             Tap anywhere to measure from where you are.
           </Text>
+        ) : null}
+        {focusEnd ? (
+          <View style={styles.movedOn} accessibilityLiveRegion="polite">
+            <Ionicons name="trophy" size={15} color={colors.gold400} />
+            <Text style={styles.movedOnText}>
+              {`Your longest ${focus?.club ? clubInfo(focus.club).name.toLowerCase() : "shot"} · ${fmt(focusEnd.distance)} ${u}`}
+            </Text>
+          </View>
         ) : null}
         {movedOn != null && movedOn === hole ? (
           <View style={styles.movedOn} accessibilityLiveRegion="polite">

@@ -1450,7 +1450,7 @@ export const GUIDES: Guide[] = [
       },
       {
         title: "Mark your shots",
-        body: "In a live round, walk to your ball and tap Mark shot. The map draws each shot and how far it went. Under Which club?, tap the club you hit — it's saved to your round, and My bag learns your real distances from these. Your longest shot with each club shows under the round's scorecard and in My bag. The undo arrow takes back the last shot.",
+        body: "In a live round, walk to your ball and tap Mark shot. The map draws each shot and how far it went. Under Which club?, tap the club you hit — it's saved to your round, and My bag learns your real distances from these. Your longest shot with each club shows under the round's scorecard and in My bag — tap one, your longest drive say, and the hole map opens on that hole with the shot drawn in gold. The undo arrow takes back the last shot.",
         art: "holeShots",
         look: [{ style: "primary", label: "Mark shot 2", icon: "locate" }],
         tip: "Distances are GPS estimates — check the course's own markers before an important shot.",
@@ -2027,6 +2027,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-23", text: "Longest shots: tap one under a scorecard or in My bag — your longest drive, say — and the hole map opens on that hole, zoomed on the shot, drawn in gold with its distance. Show the whole hole zooms back out." },
   { on: "2026-10-23", text: "New guide, Run a multi-day championship: 2 to 4 days, a course and format each day, one leaderboard with each player's place up or down on the day before. Trips can switch on Run a leaderboard across the trip on the itinerary." },
   { on: "2026-10-23", text: "Hole map: auto-zoom — with your location on, the map closes in as you near the flag, from the whole hole on the tee to the green itself once you're on it, and glides as you walk. Pinch or drag and it waits; the round button under Show the whole hole turns it off." },
   { on: "2026-10-23", text: "Score a game live and Hole map: once a hole is scored and you walk onto the next tee, the round and the hole map move on to that hole by themselves. Par and Index are bigger, the hole arrows are bigger, and on the strip of holes a birdie shows red and an eagle or better gold." },
