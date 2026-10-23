@@ -92,7 +92,7 @@ export default async function LiveDayPage({ params }: { params: Promise<{ id: st
             cards={cards}
             draw={draw}
             notDrawn={notDrawn(page)}
-            saved={parseSavedSetup(o.liveSetup)}
+            saved={parseSavedSetup(o.liveSetup) ?? championshipSetup(o.championshipFormat)}
             savedAt={o.liveSetupAt ? whenLabel(o.liveSetupAt) : null}
             links={{ draw: consoleHref(g, `events/${o.id}/draw`), handicaps: ctx.areas.includes("handicaps") ? consoleHref(g, "handicaps") : null, event: eventHref }}
           />
@@ -435,4 +435,12 @@ function ControlRoomView({
       </div>
     </div>
   );
+}
+
+/** A championship day (0187) with nothing saved yet starts on the day's planned format. */
+function championshipSetup(format: string | null) {
+  if (!format) return null;
+  const pts = format.endsWith("Pts");
+  const live = format.startsWith("scramble") ? "scramble" : format.startsWith("foursomes") ? "foursomes" : format.startsWith("greensomes") ? "greensomes" : format === "stroke" ? "stroke" : "stableford";
+  return parseSavedSetup({ format: live, pairScoring: pts ? "stableford" : "stroke" });
 }

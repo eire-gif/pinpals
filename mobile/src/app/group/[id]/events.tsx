@@ -12,6 +12,7 @@ import { countdownLabel, tripBadge, tripRangeLabel } from "@/lib/itinerary-rules
 import { clock, closesLabel, entriesOpen, feeLabel, irishToday, outingDateLabel } from "@/lib/outing-rules";
 import { listOutings, setOutingEntry, type OutingSummary } from "@/lib/outings";
 import { loadGroupResults, type GroupResult } from "@/lib/competition-data";
+import { listChampionships, type Championship } from "@/lib/championships";
 import { Chip, PlaceChip } from "@/components/society-bits";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 
@@ -37,6 +38,8 @@ export default function SocietyEventsScreen() {
   const userId = session?.user?.id ?? null;
 
   const [outings, setOutings] = useState<OutingSummary[] | null>(null);
+  /** Multi-day championships (0187): one card each, above the days. */
+  const [champs, setChamps] = useState<Championship[]>([]);
   /** Published results by match day, for the Past tab's winner lines. */
   const [results, setResults] = useState<Map<number, GroupResult>>(new Map());
   const [past, setPast] = useState(false);
@@ -50,11 +53,13 @@ export default function SocietyEventsScreen() {
   const load = useCallback(async () => {
     if (!userId) return;
     try {
-      const [page, list, published] = await Promise.all([
+      const [page, list, published, championships] = await Promise.all([
         loadGroupPage(groupId, userId),
         listOutings(groupId, userId, { fromDate: irishToday(), past }),
         past ? loadGroupResults(groupId).catch(() => [] as GroupResult[]) : Promise.resolve([] as GroupResult[]),
+        listChampionships(groupId).catch(() => [] as Championship[]),
       ]);
+      setChamps(championships);
       setResults(new Map(published.map((r) => [r.dayId, r])));
       // Whoever runs events: owner, captain, secretary, and since 0144 the
       // vice-captain and event organisers.
@@ -137,6 +142,37 @@ export default function SocietyEventsScreen() {
             </Pressable>
           ))}
         </View>
+
+        {!past && outings
+          ? champs.map((c) => {
+              const days = outings.filter((o) => o.championshipId === c.id && o.status === "open");
+              if (days.length === 0) return null;
+              const live = days.some((d) => d.matchDayId != null);
+              return (
+                <Pressable
+                  key={`c${c.id}`}
+                  style={styles.trip}
+                  onPress={() => router.push({ pathname: "/group/[id]/championship/[cid]", params: { id: String(groupId), cid: String(c.id) } })}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${c.title}, ${days.length}-day championship. Open the leaderboard`}
+                >
+                  <View style={styles.tripTop}>
+                    <Text style={styles.tripBadge}>{`CHAMPIONSHIP · ${days.length} DAYS`}</Text>
+                    {live ? <Text style={styles.tripGoing}>● Live</Text> : days.every((d) => d.mine) ? <Text style={styles.tripGoing}>You&apos;re in</Text> : null}
+                  </View>
+                  <Text style={styles.tripTitle}>{c.title}</Text>
+                  <Text style={styles.tripMeta}>{days.map((d) => d.courseName).filter(Boolean).join(" → ")}</Text>
+                  <Text style={styles.tripMeta}>{`${outingDateLabel(days[0].playsOn)} – ${outingDateLabel(days[days.length - 1].playsOn)}`}</Text>
+                  <View style={styles.tripActions}>
+                    <View style={styles.tripOpen}>
+                      <Ionicons name="podium-outline" size={17} color={colors.navy900} />
+                      <Text style={styles.tripOpenText}>Leaderboard & days</Text>
+                    </View>
+                  </View>
+                </Pressable>
+              );
+            })
+          : null}
 
         {failed && !outings ? (
           <LoadError onRetry={() => void load()} what="the outings" />
@@ -230,6 +266,7 @@ export default function SocietyEventsScreen() {
                   <Text style={styles.dateWeek}>{outingDateLabel(o.playsOn).split(" ")[0]}</Text>
                 </View>
                 <View style={styles.cardBody}>
+                  {o.championshipId && o.championshipRound ? <Text style={styles.champDay}>{`DAY ${o.championshipRound} · CHAMPIONSHIP`}</Text> : null}
                   <Text style={[styles.title, cancelled && styles.struck]} numberOfLines={2}>
                     {o.title}
                   </Text>
@@ -316,6 +353,7 @@ export default function SocietyEventsScreen() {
 
 const styles = StyleSheet.create({
   chips: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 2 },
+  champDay: { fontFamily: fonts.bodyBold, fontSize: 11, letterSpacing: 1.1, color: colors.green700 },
   fill: { flex: 1, backgroundColor: colors.cream50 },
   body: { padding: spacing.md, gap: spacing.sm, paddingBottom: spacing.xl * 2 },
   kicker: { fontFamily: fonts.bodyBold, fontSize: 12, letterSpacing: 1.2, color: colors.ink500 },

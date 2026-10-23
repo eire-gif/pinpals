@@ -499,6 +499,20 @@ export default function OutingScreen() {
           ) : null}
         </View>
 
+        {/* A championship's day (0187): the way to the overall leaderboard. */}
+        {outing.championshipId ? (
+          <Pressable
+            style={styles.champLink}
+            onPress={() => router.push({ pathname: "/group/[id]/championship/[cid]", params: { id: String(groupId), cid: String(outing.championshipId) } })}
+            accessibilityRole="button"
+            accessibilityLabel={`Day ${outing.championshipRound} of a championship. Open the overall leaderboard`}
+          >
+            <Ionicons name="podium-outline" size={20} color={colors.gold400} />
+            <Text style={styles.champLinkText}>{`Day ${outing.championshipRound} of the championship · Overall leaderboard`}</Text>
+            <Ionicons name="chevron-forward" size={18} color={colors.gold400} />
+          </Pressable>
+        ) : null}
+
         {/* Played (Oct 2026): the results lead, not the entry details. */}
         {past && !cancelled && !trip ? (
           started ? (
@@ -892,6 +906,8 @@ export default function OutingScreen() {
 }
 
 const styles = StyleSheet.create({
+  champLink: { flexDirection: "row", alignItems: "center", gap: 10, minHeight: 52, paddingHorizontal: spacing.md, borderRadius: radii.lg, backgroundColor: colors.navy900 },
+  champLinkText: { flex: 1, fontFamily: fonts.bodyBold, fontSize: 15, color: colors.cream50 },
   fill: { flex: 1, backgroundColor: colors.cream50 },
   body: { padding: spacing.md, gap: spacing.sm, paddingBottom: spacing.xl * 2 },
   hero: { gap: 4, padding: spacing.md, borderRadius: radii.lg, backgroundColor: colors.navy900 },

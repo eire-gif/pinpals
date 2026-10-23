@@ -37,7 +37,8 @@ export type WidgetPayload = {
   /** Match day team totals: none, or both sides. */
   teams: { name: string; points: string; side: 1 | 2 }[];
   matches: { label: string; names: string; status: string; side: 0 | 1 | 2; mine: boolean }[];
-  board: { heading: string; rows: { pos: string; name: string; thru: string; score: string; mine: boolean; good: boolean }[] } | null;
+  /** `move` (multi-day championships, 0187): places gained or lost since the previous day. */
+  board: { heading: string; rows: { pos: string; name: string; thru: string; score: string; mine: boolean; good: boolean; move?: number }[] } | null;
   mine: { eyebrow: string; title: string; big: string; line1: string; line2: string } | null;
 };
 

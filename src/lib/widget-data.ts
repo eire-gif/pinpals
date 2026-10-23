@@ -1,6 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { withChampionship } from "@/lib/championship-widget";
 import { widgetFollowFor } from "@/lib/follow-data";
 import { loadGames, ROUND_COLS, type RoundRow } from "@/lib/live-games";
 import { buildWidgetPayload, emptyPayload, type WidgetDay, type WidgetPayload } from "@/lib/widget-board";
@@ -84,5 +85,6 @@ export async function widgetPayloadFor(db: SupabaseClient, memberId: string, now
   const games = await loadGames(db, dayRows);
   const focus = games.find((g) => g.round.id === focusRow.id);
   if (!focus) return emptyPayload(now);
-  return buildWidgetPayload({ me: memberId, focus, day, games, now });
+  // A multi-day championship's day (0187): the overall board instead.
+  return withChampionship(db, buildWidgetPayload({ me: memberId, focus, day, games, now }), focusRow.match_day_id, memberId);
 }

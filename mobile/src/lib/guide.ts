@@ -21,6 +21,9 @@ import type { Href } from "expo-router";
  *               app/group/[id]/committee.tsx, app/group/[id]/money.tsx,
  *               app/group/[id]/membership-settings.tsx, app/group/[id]/noticeboard.tsx,
  *               app/group/[id]/message.tsx, app/group/[id]/exports.tsx, app/group/[id]/merit.tsx
+ *    championship → app/group/[id]/championship/new.tsx, app/group/[id]/championship/[cid].tsx,
+ *               app/group/[id]/events.tsx, app/group/[id]/outing/new.tsx,
+ *               app/group/[id]/itinerary/[outingId].tsx (Run a leaderboard across the trip)
  *    enter    → app/group/[id]/events.tsx, app/group/[id]/outing/[outingId].tsx,
  *               app/group/[id]/outing/request.tsx, app/group/[id]/membership.tsx,
  *               app/group/[id]/noticeboard.tsx
@@ -626,6 +629,86 @@ export const GUIDES: Guide[] = [
           { style: "primary", label: "Publish tee times" },
         ],
         tip: "The next guide, Play a round together, walks through the draw.",
+      },
+    ],
+  },
+
+  {
+    id: "championship",
+    section: "groups",
+    title: "Run a multi-day championship",
+    blurb: "2 to 4 days, a course and format each day, one leaderboard with ▲▼ on the day before.",
+    icon: "podium",
+    tone: "gold",
+    audience: "Captain, secretary",
+    as: {
+      friends: { blurb: "A weekend away or a summer series between you, on one leaderboard.", audience: "Whoever started the group" },
+      trip: { title: "Run a leaderboard across the trip", blurb: "Every round on the trip on one board, like the PGA.", audience: "The trip's organiser" },
+    },
+    next: "round",
+    steps: [
+      {
+        title: "Start a championship",
+        body: "In your group's Events, tap New event, then Multi-day championship.",
+        path: [MENU, GROUPS, MY_GROUPS, YOUR_GROUP, EVENTS],
+        look: [
+          { style: "primary", label: "New event", icon: "add" },
+          { style: "raised", label: "Multi-day championship", icon: "trophy-outline", subtitle: "2–4 days, a course and format each day" },
+        ],
+        who: "Captain or secretary",
+        as: {
+          friends: { who: "Whoever started the group" },
+          trip: {
+            title: "Turn on the trip's leaderboard",
+            body: "Open the trip's Itinerary and switch on Run a leaderboard across the trip. Each round on the itinerary becomes a day of it — the courses and tee times come from the itinerary, so there's nothing to enter twice.",
+            path: [MENU, GROUPS, MY_GROUPS, YOUR_GROUP, EVENTS],
+            look: [
+              { style: "outline", label: "Itinerary", icon: "map-outline" },
+              { style: "outline", label: "Run a leaderboard across the trip", icon: "toggle-outline" },
+            ],
+            who: "The trip's organiser",
+          },
+        },
+      },
+      {
+        title: "Days, courses and formats",
+        body: "Pick 2, 3 or 4 days. Give each day its date, course and first tee. Choose Same every day or Different each day, then the format — Stableford, stroke play, scramble, foursomes or greensomes.",
+        look: [
+          { style: "outline", label: "3 days" },
+          { style: "outline", label: "Different each day" },
+          { style: "field", label: "Choose the course", icon: "flag-outline" },
+        ],
+        as: {
+          trip: {
+            title: "Formats on the itinerary",
+            body: "Each round's format is set on its itinerary round. Matchplay rounds are played as usual but don't count on the leaderboard.",
+            look: [{ style: "outline", label: "Round", icon: "flag-outline" }],
+          },
+        },
+      },
+      {
+        title: "How the days add up",
+        body: "The green box says how: when every day is scored the same way the scores are added up; when days mix points and strokes, each day's places earn points — 25, 20, 16, 13 and down. Team players share their team's points.",
+        look: [{ style: "outline", label: "Overall: scores added up", icon: "trophy-outline" }],
+        tip: "Prefer an order of merit? Switch on Use places points instead.",
+      },
+      {
+        title: "Create it",
+        body: "Tap Create, and each day appears under Events. Members tap Join all days on the leaderboard — or join day by day. Each day has its own draw and live round, just like a day out.",
+        look: [
+          { style: "primary", label: "Create 3-day event" },
+          { style: "primary", label: "Join all 3 days" },
+        ],
+        as: { trip: { body: "Everyone going on the trip is on it. On each day, start the round from the itinerary as usual — its scores go straight onto the leaderboard.", look: [{ style: "outline", label: "Trip leaderboard", icon: "podium-outline" }] } },
+      },
+      {
+        title: "Follow the leaderboard",
+        body: "Open the championship from Events. Tap R1–R4 to see the board after any day; the arrows show places gained or lost since the night before. Share the TV link to put it on a screen, and add the PinPals widget to see your place from your Home Screen.",
+        look: [
+          { style: "outline", label: "Leaderboard & days", icon: "podium-outline" },
+          { style: "outline", label: "Share the TV link", icon: "tv-outline" },
+        ],
+        tip: "Each day's results are published as usual; once they are, their countbacks decide the day's places.",
       },
     ],
   },
@@ -1938,6 +2021,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-23", text: "New guide, Run a multi-day championship: 2 to 4 days, a course and format each day, one leaderboard with each player's place up or down on the day before. Trips can switch on Run a leaderboard across the trip on the itinerary." },
   { on: "2026-10-23", text: "Score a game live and Hole map: once a hole is scored and you walk onto the next tee, the round and the hole map move on to that hole by themselves. Par and Index are bigger, the hole arrows are bigger, and on the strip of holes a birdie shows red and an eagle or better gold." },
   { on: "2026-10-22", text: "Post a tee time: new step, Invite your group — tick your Golf Buddies, trip or society and everyone in it can Take a place in one tap, first come, first served. Find a game shows Take a place too." },
   { on: "2026-10-22", text: "Score a game live: Score from your watch now covers Wear OS watches as well as Apple Watch, and the watch has more pages — front, centre and back of the green, the satellite hole map, hazards, the whole group's scores (Save all) and the leaderboard — plus PinPals on your watch face." },
