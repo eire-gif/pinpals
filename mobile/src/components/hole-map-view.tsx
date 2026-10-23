@@ -39,7 +39,8 @@ export type MapScene = {
   originIsTee: boolean;
   me: (LatLng & { accuracyM: number | null }) | null;
   /** Where each ball finished (Oct 2026); label = how far that shot went. */
-  shots: Array<LatLng & { n: number; label: string | null }>;
+  /** `hi`: the shot opened from "Longest shots", drawn in gold. */
+  shots: Array<LatLng & { n: number; label: string | null; hi?: boolean }>;
   /** Where shot 1 started: the tee, or a mark made on it. */
   shotStart: LatLng | null;
   /** The aim circle (Oct 2026): where the member tapped or dragged it, or

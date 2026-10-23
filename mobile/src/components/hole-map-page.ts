@@ -48,6 +48,7 @@ export function pageHtml(source: TileSource): string {
   .flag{width:26px;height:26px;background:${colors.gold400};color:${colors.navy900};font-size:14px;border:2px solid ${colors.cream50};}
   .edge{width:8px;height:8px;background:${colors.cream50};border:1.5px solid ${colors.navy900};}
   .shot{width:20px;height:20px;background:${colors.navy900};color:${colors.cream50};font-size:11px;border:2px solid ${colors.cream50};}
+  .shot.hi{width:28px;height:28px;background:${colors.gold400};color:${colors.navy900};font-size:14px;border:3px solid ${colors.cream50};}
   .tap{width:18px;height:18px;border:2px solid ${colors.cream50};background:rgba(255,255,255,.18);}
   .aim{width:34px;height:34px;border:3px solid #ffffff;background:rgba(255,255,255,.12);box-shadow:0 0 0 1px rgba(0,0,0,.25),0 2px 6px rgba(0,0,0,.35);}
   .aim:after{content:"";width:4px;height:4px;border-radius:2px;background:#fff;}
@@ -594,8 +595,11 @@ export function pageHtml(source: TileSource): string {
       L.polyline(path.map(function(p){ return [p.lat,p.lng]; }), { color:"${colors.navy900}", weight:3, opacity:.85, interactive:false }).addTo(layer);
       s.shots.forEach(function(p,i){
         var prev = i > 0 ? s.shots[i-1] : s.shotStart;
-        if(prev && p.label) lineLabel(prev, p, esc(p.label)).addTo(layer);
-        L.marker([p.lat,p.lng], { interactive:false, icon:icon("shot", p.n, 20) }).addTo(layer);
+        // A shot opened from "Longest shots" (Oct 2026): its line in gold,
+        // a bigger gold dot and its distance in large.
+        if(p.hi && prev) L.polyline([[prev.lat,prev.lng],[p.lat,p.lng]], { color:"${colors.gold400}", weight:5, opacity:1, interactive:false }).addTo(layer);
+        if(prev && p.label) lineLabel(prev, p, esc(p.label), !!p.hi, !!p.hi).addTo(layer);
+        L.marker([p.lat,p.lng], { interactive:false, zIndexOffset: p.hi ? 500 : 0, icon:icon(p.hi ? "shot hi" : "shot", p.n, p.hi ? 28 : 20) }).addTo(layer);
       });
     }
     if(s.teeFront) L.marker([s.teeFront.lat,s.teeFront.lng], { interactive:false, icon:icon("tee","F",22) }).addTo(layer);

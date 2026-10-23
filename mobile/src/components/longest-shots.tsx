@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
-import { useFocusEffect } from "expo-router";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import { router, useFocusEffect } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { CLUBS, clubInfo } from "@/lib/bag";
@@ -20,6 +20,9 @@ const shortDate = (d: string | null) => (d ? new Date(`${d}T12:00:00`).toLocaleD
  * from the shots they marked on the hole map and tagged with a club. For one
  * round (under its scorecard) or ever (My bag). Shows nothing when there are
  * none for a round; for "ever" it says how to get some.
+ *
+ * Tap a row (Oct 2026) to see that shot again: the hole map opens on its
+ * hole, framed on the shot, with it drawn in gold.
  */
 export function LongestShots({ roundId = null }: { roundId?: number | null }) {
   const [rows, setRows] = useState<LongestShot[] | null>(null);
@@ -46,21 +49,41 @@ export function LongestShots({ roundId = null }: { roundId?: number | null }) {
         <Text style={styles.head}>{ever ? "My longest shots" : "Longest shots this round"}</Text>
       </View>
       {rows.length === 0 ? (
-        <Text style={styles.hint}>On the hole map, mark where your ball finishes and tap the club you hit. Your longest with each club shows here.</Text>
+        <Text style={styles.hint}>On the hole map, mark where your ball finishes and tap the club you hit. Your longest with each club shows here — tap one to see it on the map again.</Text>
       ) : (
         rows.map((r) => {
           const where = ever ? [r.courseName, shortDate(r.playedOn)].filter(Boolean).join(" · ") : `Hole ${r.hole}`;
+          const yds = Math.round(r.distanceM / METRES_PER_YARD);
+          const canOpen = r.clubId != null;
+          const open = () =>
+            router.push({
+              pathname: "/hole-map",
+              params: { clubId: String(r.clubId), roundId: String(r.roundId), hole: String(r.hole), shot: String(r.shotNo), shotClub: r.club },
+            });
           return (
-            <View key={r.club} style={styles.row}>
+            <Pressable
+              key={r.club}
+              style={({ pressed }) => [styles.row, pressed && canOpen ? styles.pressed : null]}
+              disabled={!canOpen}
+              onPress={open}
+              accessibilityRole={canOpen ? "button" : undefined}
+              accessibilityLabel={`${clubInfo(r.club).name}, ${yds} yards${where ? `, ${where}` : ""}`}
+              accessibilityHint={canOpen ? "Shows this shot on the hole map" : undefined}
+            >
               <Text style={styles.club}>{clubInfo(r.club).name}</Text>
               <View style={styles.right}>
                 <Text style={styles.dist}>
-                  {Math.round(r.distanceM / METRES_PER_YARD)}
+                  {yds}
                   <Text style={styles.unit}> yds</Text>
                 </Text>
                 {where ? <Text style={styles.where}>{where}</Text> : null}
               </View>
-            </View>
+              {canOpen ? (
+                <View style={styles.mapBtn}>
+                  <Ionicons name="map" size={15} color={colors.green700} />
+                </View>
+              ) : null}
+            </Pressable>
           );
         })
       )}
@@ -79,4 +102,6 @@ const styles = StyleSheet.create({
   dist: { fontFamily: fonts.display, fontSize: 22, color: colors.navy900 },
   unit: { fontFamily: fonts.bodySemi, fontSize: 13, color: colors.ink500 },
   where: { fontFamily: fonts.body, fontSize: 12, color: colors.ink500 },
+  pressed: { opacity: 0.6 },
+  mapBtn: { marginLeft: spacing.sm, width: 32, height: 32, borderRadius: 16, backgroundColor: colors.cream100, alignItems: "center", justifyContent: "center" },
 });

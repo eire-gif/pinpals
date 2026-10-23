@@ -74,12 +74,32 @@ export const TAG_MAX_M = 450;
 export const taggable = (distanceM: number | null | undefined): distanceM is number => distanceM != null && distanceM >= 1 && distanceM <= TAG_MAX_M;
 
 /** The member's longest tagged shot with each club: in one round, or ever (0154). */
-export type LongestShot = { club: string; distanceM: number; roundId: number; hole: number; shotNo: number; playedOn: string | null; courseName: string | null };
+export type LongestShot = {
+  club: string;
+  distanceM: number;
+  roundId: number;
+  hole: number;
+  shotNo: number;
+  playedOn: string | null;
+  courseName: string | null;
+  /** The round's club, so the shot can be opened on its hole map (Oct 2026). */
+  clubId: number | null;
+};
 
 export async function loadLongestShots(roundId: number | null = null): Promise<LongestShot[]> {
   const { data, error } = await supabase.rpc("my_longest_shots", roundId == null ? {} : { p_round_id: roundId });
   if (error) throw error;
-  return ((data ?? []) as Array<{ club: string; distance_m: number | string; round_id: number; hole: number; shot_no: number; played_on: string | null; course_name: string | null }>).map((r) => ({
+  const rows = (data ?? []) as Array<{ club: string; distance_m: number | string; round_id: number; hole: number; shot_no: number; played_on: string | null; course_name: string | null }>;
+  // Which club each round was at — read with the round (the player can see
+  // their own rounds), so 0154 needn't change. Without it the row still
+  // shows, it just doesn't open the map.
+  const roundIds = [...new Set(rows.map((r) => r.round_id))];
+  const clubOf = new Map<number, number | null>();
+  if (roundIds.length) {
+    const { data: rounds } = await supabase.from("live_rounds").select("id, club_id").in("id", roundIds);
+    for (const r of (rounds ?? []) as { id: number; club_id: number | null }[]) clubOf.set(r.id, r.club_id);
+  }
+  return rows.map((r) => ({
     club: r.club,
     distanceM: Number(r.distance_m),
     roundId: r.round_id,
@@ -87,6 +107,7 @@ export async function loadLongestShots(roundId: number | null = null): Promise<L
     shotNo: r.shot_no,
     playedOn: r.played_on,
     courseName: r.course_name,
+    clubId: clubOf.get(r.round_id) ?? null,
   }));
 }
 
