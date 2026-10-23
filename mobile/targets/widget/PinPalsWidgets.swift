@@ -15,7 +15,11 @@ let appGroup = "group.ie.pinpals.app"
 
 struct WTeam: Codable, Hashable { let name: String; let points: String; let side: Int }
 struct WMatch: Codable, Hashable { let label: String; let names: String; let status: String; let side: Int; let mine: Bool }
-struct WRow: Codable, Hashable { let pos: String; let name: String; let thru: String; let score: String; let mine: Bool; let good: Bool }
+struct WRow: Codable, Hashable {
+  let pos: String; let name: String; let thru: String; let score: String; let mine: Bool; let good: Bool
+  /// Multi-day championships (0187): places gained (+) or lost (−) since the previous day. Absent on a one-day board.
+  let move: Int?
+}
 struct WBoard: Codable, Hashable { let heading: String; let rows: [WRow] }
 struct WMine: Codable, Hashable { let eyebrow: String; let title: String; let big: String; let line1: String; let line2: String }
 
@@ -270,6 +274,28 @@ struct MatchesView: View {
   }
 }
 
+/// ▲2 / ▼1 / – against the end of the previous day, as on the PGA board.
+struct MoveMark: View {
+  let move: Int
+  var body: some View {
+    HStack(spacing: 2) {
+      if move > 0 {
+        Image(systemName: "arrowtriangle.up.fill").font(.system(size: 7))
+        Text("\(move)")
+      } else if move < 0 {
+        Image(systemName: "arrowtriangle.down.fill").font(.system(size: 7))
+        Text("\(-move)")
+      } else {
+        Text("–")
+      }
+    }
+    .font(.system(size: 11, weight: .heavy))
+    .foregroundStyle(move > 0 ? PP.good : move < 0 ? Color(red: 0.97, green: 0.60, blue: 0.55) : PP.cream.opacity(0.5))
+    .frame(width: 24, alignment: .leading)
+    .accessibilityLabel(move > 0 ? "up \(move)" : move < 0 ? "down \(-move)" : "no change")
+  }
+}
+
 struct BoardView: View {
   let payload: WPayload
   let maxRows: Int
@@ -300,6 +326,7 @@ struct BoardView: View {
           ForEach(Array(board.rows.prefix(maxRows).enumerated()), id: \.offset) { _, r in
             HStack(spacing: 8) {
               Text(r.pos).font(.system(size: 13, weight: .bold)).foregroundStyle(PP.gold).frame(width: 26, alignment: .leading)
+              if let m = r.move { MoveMark(move: m) }
               Text(r.name).font(.system(size: 13, weight: .semibold)).foregroundStyle(PP.cream).lineLimit(1)
               Spacer(minLength: 4)
               Text(r.thru).font(.system(size: 12.5)).monospacedDigit().foregroundStyle(PP.cream.opacity(0.75)).frame(width: 34, alignment: .trailing)
