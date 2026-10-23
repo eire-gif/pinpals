@@ -950,7 +950,7 @@ export default function LiveRoundScreen() {
             </View>
             <View style={styles.holeNav}>
               <RoundButton icon="chevron-back" label="Previous hole" disabled={prevHole == null} onPress={() => prevHole != null && setHole(prevHole)} />
-              <View style={{ alignItems: "center" }}>
+              <View style={styles.holeCentre}>
                 <Text style={styles.holeEyebrow}>Hole</Text>
                 <Text style={styles.holeNumber}>{h.hole}</Text>
                 {/* Oct 2026, after a live test: par and index big enough to read
@@ -972,30 +972,30 @@ export default function LiveRoundScreen() {
                   </View>
                   {live ? <Ionicons name="create-outline" size={18} color={creamAlpha(0.6)} /> : null}
                 </Pressable>
-                {isOn("shotMaps") && round.clubId != null ? (
-                  <Pressable
-                    onPress={() =>
-                      router.push({ pathname: "/hole-map", params: { clubId: String(round.clubId), hole: String(h.hole), roundId: String(round.id) } })
-                    }
-                    style={({ pressed }) => [styles.mapPill, pressed && { opacity: 0.9 }]}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Hole ${h.hole} map: GPS yardages to the green and your shots`}
-                  >
-                    {/* Oct 2026: was a small "Hole map" pill that read as a
-                        label. Now says what it does — yardage and shots. */}
-                    <View style={styles.mapPillIcon}>
-                      <Ionicons name="navigate" size={15} color={colors.gold400} />
-                    </View>
-                    <View>
-                      <Text style={styles.mapPillText}>Yardage & shot map</Text>
-                      <Text style={styles.mapPillSub}>Front · centre · back · track your shot</Text>
-                    </View>
-                    <Ionicons name="chevron-forward" size={15} color={colors.navy900} />
-                  </Pressable>
-                ) : null}
               </View>
               <RoundButton icon="chevron-forward" label="Next hole" disabled={nextHole == null} onPress={() => nextHole != null && setHole(nextHole)} />
             </View>
+            {isOn("shotMaps") && round.clubId != null ? (
+              <Pressable
+                onPress={() =>
+                  router.push({ pathname: "/hole-map", params: { clubId: String(round.clubId), hole: String(h.hole), roundId: String(round.id) } })
+                }
+                style={({ pressed }) => [styles.mapPill, pressed && { opacity: 0.9 }]}
+                accessibilityRole="button"
+                accessibilityLabel={`Hole ${h.hole} map: GPS yardages to the green and your shots`}
+              >
+                {/* Oct 2026: was a small "Hole map" pill that read as a
+                    label. Now says what it does — yardage and shots. */}
+                <View style={styles.mapPillIcon}>
+                  <Ionicons name="navigate" size={15} color={colors.gold400} />
+                </View>
+                <View>
+                  <Text style={styles.mapPillText}>Yardage & shot map</Text>
+                  <Text style={styles.mapPillSub}>Front · centre · back · track your shot</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={15} color={colors.navy900} />
+              </Pressable>
+            ) : null}
             {/* The hole strip (Oct 2026): a birdie shows red and an eagle or
                 better gold — your own ball if you're playing, else the
                 group's best — so the good holes stand out at a glance. */}
@@ -1851,7 +1851,10 @@ const styles = StyleSheet.create({
   liveTag: { flexDirection: "row", alignItems: "center", gap: 6 },
   liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.green600 },
   liveText: { fontFamily: fonts.bodyBold, fontSize: 11, letterSpacing: 1.2, textTransform: "uppercase", color: colors.green100 },
-  holeNav: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  holeNav: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.sm },
+  // Oct 2026: the centre takes what's left between the two arrows, so they
+  // never get pushed off the card (the map pill now has its own row below).
+  holeCentre: { flex: 1, minWidth: 0, alignItems: "center" },
   holeEyebrow: { fontFamily: fonts.bodyBold, fontSize: 11, letterSpacing: 1.6, textTransform: "uppercase", color: colors.gold400 },
   holeNumber: { fontFamily: fonts.display, fontSize: 48, lineHeight: 56, color: colors.cream50 },
   holeInfo: { fontFamily: fonts.body, fontSize: 13, color: creamAlpha(0.85), paddingVertical: 4 },
@@ -1872,7 +1875,7 @@ const styles = StyleSheet.create({
   lieHelp: { flexDirection: "row", alignItems: "center", gap: 12, minHeight: 56, paddingHorizontal: 14, borderRadius: radii.lg, borderWidth: 1.5, borderColor: colors.gold500, backgroundColor: colors.surface },
   lieHelpLabel: { fontFamily: fonts.bodyBold, fontSize: 15.5, color: colors.navy900 },
   lieHelpSub: { fontFamily: fonts.body, fontSize: 12.5, color: colors.ink500 },
-  mapPill: { flexDirection: "row", alignItems: "center", gap: 9, marginTop: 8, paddingLeft: 6, paddingRight: 12, paddingVertical: 6, borderRadius: radii.pill, backgroundColor: colors.gold400 },
+  mapPill: { alignSelf: "center", flexDirection: "row", alignItems: "center", gap: 9, marginTop: -4, paddingLeft: 6, paddingRight: 12, paddingVertical: 6, borderRadius: radii.pill, backgroundColor: colors.gold400 },
   mapPillIcon: { width: 30, height: 30, borderRadius: 15, backgroundColor: colors.navy900, alignItems: "center", justifyContent: "center" },
   mapPillText: { fontFamily: fonts.bodyBold, fontSize: 14, color: colors.navy900 },
   mapPillSub: { fontFamily: fonts.body, fontSize: 11, color: colors.navy900, opacity: 0.75 },
