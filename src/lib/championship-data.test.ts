@@ -77,4 +77,33 @@ describe("applyPublished", () => {
       [null, null],
     ]);
   });
+
+  it("matches guests by name and puts amended net scores to par", () => {
+    const rows: DayRow[] = [
+      { memberIds: ["a"], score: -1, thru: 18, finished: true, par: 72 },
+      { memberIds: [], guestNames: ["Guest Bob"], score: 2, thru: 18, finished: true, par: 72 },
+    ];
+    const results = {
+      basis: "stroke",
+      divisions: [
+        {
+          label: "Overall",
+          range: null,
+          ranking: {
+            basis: "stroke",
+            ties: [],
+            rows: [
+              { memberIds: ["a"], name: "Ann", guest: false, net: "70.5", points: null, position: 1, status: "ok" },
+              { memberIds: [], name: "Guest Bob", guest: true, net: "73", points: null, position: null, status: "ok" },
+            ],
+          },
+        },
+      ],
+    } as unknown as Results;
+    applyPublished(rows, results);
+    expect(rows.map((r) => [r.score, r.position])).toEqual([
+      [-1.5, 1],
+      [1, null],
+    ]);
+  });
 });

@@ -123,6 +123,21 @@ describe("multi-day championships", () => {
     });
   });
 
+  it("a played day keeps its own date when the others are checked", async () => {
+    await withRole("authenticated", OWNER, async (c) => {
+      const g = await society(c);
+      const id = (await c.query<{ id: string }>(save, [g, null, champ(2)])).rows[0].id;
+      const [d1] = await days(c, id);
+      await c.query("set local role service_role");
+      const md = (await c.query<{ id: string }>("insert into public.live_match_days (title, course_name, created_by) values ('Day 1', 'A', $1) returning id", [OWNER])).rows[0].id;
+      await c.query("update public.society_outings set match_day_id = $1 where id = $2", [md, d1.id]);
+      await c.query("set local role authenticated");
+      // Day 1 (started, on day(5)) can't be "moved" after day 2 by a tampered form.
+      const tampered = JSON.stringify({ title: "Autumn Classic", days: [{ plays_on: day(3), course_name: "A", format: "stableford" }, { plays_on: day(4), course_name: "B", format: "stableford" }] });
+      await rejects(c, save, [g, id, tampered], /comes after/);
+    });
+  });
+
   it("members join every open day at once", async () => {
     await withRole("authenticated", OWNER, async (c) => {
       const g = await society(c);

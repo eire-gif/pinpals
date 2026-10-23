@@ -16,15 +16,20 @@ multi-round leaderboard* (5 boards).
   points. Ties split them (three level for 2nd share 2nd–4th).
 - The organiser can choose places points instead when the days all match.
 - A day's order comes from its **published results** when there's one
-  division (so countbacks count); otherwise from the scores, ties shared.
+  division (so countbacks count): placed sides first by place, then anyone
+  without one (a guest, a second division) by score, ties shared.
 - **Movement** = place now against the end of the previous day (as the PGA
   shows it all day while a round is live).
-- **Level at the end** (every day final): the better final day wins, then the
-  day before; still level, shared.
+- **Level on the total at the end** (every day final, any position): the
+  better place on the final day wins (its countback where published), then
+  the day before; still level, shared.
+- An unfinished card on a finished day (no return) counts under neither rule.
+- A secret-leaderboard day (0174) stays "live" with no scores until its
+  results are published; its players aren't listed meanwhile.
 - Strokes to par: a player with no score on a finished day isn't ranked
   ("missed R2"). In points, a missed day simply adds nothing.
 - Matchplay days (a match day, or a trip round on matchplay) are played as
-  usual but don't count.
+  usual but don't count. A trip uses its first four rounds that count.
 
 The rules: `src/lib/championship.ts`, byte-identical in
 `mobile/src/lib/championship.ts` (drift test in `championship.test.ts`).
@@ -40,7 +45,8 @@ The rules: `src/lib/championship.ts`, byte-identical in
   now remember their live day: `society_outing_items.match_day_id`, set by
   `link_outing_item_match_day` when the round is started from the itinerary
   (closes the gap in `outing-itineraries.md` "Next 1").
-- Functions: `save_championship` (2–4 days in date order within 3 weeks;
+- Functions: `save_championship` (2–4 days in date order within 3 weeks,
+  played or started days checked on their stored dates;
   each day through `save_outing`; days played/started left alone; fewer days
   cancels the dropped ones), `cancel_championship`, `set_championship_entry`
   (join/leave every open day via `set_outing_entry`; days that can't change
@@ -64,7 +70,8 @@ secret leaderboard (0174) shows no scores to non-organisers until published.
   manage, edit) in society admin. Day outs for a championship start the
   website Live day on the day's planned format.
 - Widgets: `src/lib/championship-widget.ts` swaps a championship day's widget
-  payload for the overall board (rows carry `move`) and your overall place.
+  payload for the overall board (rows carry `move`) and your overall place —
+  only for members of the championship's group (`is_group_member`).
 
 ## App
 

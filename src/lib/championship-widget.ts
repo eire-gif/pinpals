@@ -9,13 +9,20 @@ import type { WidgetPayload } from "@/lib/widget-board";
  * The widgets on a multi-day championship's day (0187): instead of the
  * day's own board, the overall leaderboard — place, ▲/▼ against the day
  * before, total — and, on the small widget, your overall place. Read with
- * the service client: the member is playing in the day, so they're in the
- * group whose championship it is.
+ * the service client, so withChampionship checks the member is in the
+ * championship's group first.
  */
 
 /** The championship a live day belongs to, if any (a championship's day out, or a trip round). */
 export async function championshipOfDay(admin: SupabaseClient, matchDayId: number): Promise<number | null> {
-  const { data: o } = await admin.from("society_outings").select("championship_id").eq("match_day_id", matchDayId).not("championship_id", "is", null).limit(1).maybeSingle<{ championship_id: number }>();
+  const { data: o } = await admin
+    .from("society_outings")
+    .select("championship_id")
+    .eq("match_day_id", matchDayId)
+    .eq("status", "open")
+    .not("championship_id", "is", null)
+    .limit(1)
+    .maybeSingle<{ championship_id: number }>();
   if (o?.championship_id) return o.championship_id;
   const { data: i } = await admin.from("society_outing_items").select("outing_id").eq("match_day_id", matchDayId).limit(1).maybeSingle<{ outing_id: number }>();
   if (!i) return null;
@@ -77,5 +84,10 @@ export async function withChampionship(admin: SupabaseClient, base: WidgetPayloa
   if (!id) return base;
   const p = await championshipFor(admin, admin, id, me);
   if (!p || p.status !== "open" || p.days.find((d) => d.matchDayId === matchDayId)?.hidden) return base;
+  // Only the group's members see the whole championship — not a visitor or
+  // guest who happens to be in one day's draw (read with the service client,
+  // so this check is what keeps it to the group).
+  const { data: member } = await admin.rpc("is_group_member", { p_group_id: p.groupId, p_user_id: me });
+  if (member !== true) return base;
   return championshipWidget(base, p, me);
 }
