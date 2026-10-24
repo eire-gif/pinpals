@@ -15,6 +15,8 @@ import { formatJoinedDate } from "@/lib/format";
 import { enrichListings } from "@/lib/marketplace-discovery";
 import { countryName } from "@/lib/regions";
 import { createClient } from "@/lib/supabase/server";
+import { loadOneTrust } from "@/lib/trust-server";
+import TrustBadges from "@/components/trust-badges";
 import { getAgeAccess } from "@/lib/age-access";
 import { ageBlockFor } from "@/lib/junior";
 import type { Connection, Listing, Profile } from "@/lib/types";
@@ -107,6 +109,9 @@ export default async function MemberPage({
   const handicap = member.handicap != null && member.handicap_visible ? String(member.handicap) : AGE_BAND_NOT_SHARED;
   const place = [member.county, member.country ? countryName(member.country) : null].filter(Boolean).join(", ");
 
+  // Trust (0188): Verified golfer and tee-time reliability.
+  const trust = await loadOneTrust(supabase, member.id);
+
   const tabHref = (key: string) => (key === "posts" ? `/members/${member.id}` : `/members/${member.id}?tab=${key}`);
 
   return (
@@ -129,6 +134,7 @@ export default async function MemberPage({
               {place && <span> · {place}</span>}
             </p>
             <p className="text-white/60 text-sm mt-1">{formatJoinedDate(member.created_at)}</p>
+            <TrustBadges className="mt-3" onDark reliability={trust.reliability} verified={trust.verified} verifiedClub={trust.verifiedClub} />
           </div>
           {isMe && (
             <Link

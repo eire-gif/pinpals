@@ -39,6 +39,9 @@ export type Message = {
   reply_snapshot?: MessageQuote | null;
   /** 0130 "Delete for everyone". `body` is then "This message was deleted". */
   deleted_at?: string | null;
+  /** 0188, marketplace chats only: link, pay_first, courier, odd_payment,
+   *  off_app. Shown to the other person as a warning (message-safety.ts). */
+  safety_flags?: string[] | null;
 };
 
 /** The quote inside a reply. `group` is set on a private reply — the name of
@@ -360,7 +363,7 @@ export async function conversationHeader(
 export type Cursor = { createdAt: string; id: number };
 
 const MESSAGE_COLUMNS =
-  "id, conversation_id, sender_id, body, created_at, image_path, hidden_at, reply_to_id, reply_snapshot, deleted_at";
+  "id, conversation_id, sender_id, body, created_at, image_path, hidden_at, reply_to_id, reply_snapshot, deleted_at, safety_flags";
 
 /**
  * One page of a thread, newest first.

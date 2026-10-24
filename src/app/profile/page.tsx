@@ -8,6 +8,10 @@ import { countryName } from "@/lib/regions";
 import { getAgeAccess } from "@/lib/age-access";
 import { ageGate } from "@/components/age/age-gate";
 import DateOfBirthCard from "@/components/age/date-of-birth-card";
+import { loadOneTrust } from "@/lib/trust-server";
+import { reliabilityDetail } from "@/lib/reliability";
+import { myVerification } from "@/lib/verification/server";
+import TrustBadges from "@/components/trust-badges";
 
 export default async function ProfilePage({
   searchParams,
@@ -35,6 +39,8 @@ export default async function ProfilePage({
   const profile = await withPrivateDetails(supabase, user.id, shared);
 
   const name = profile ? `${profile.first_name} ${profile.last_name}` : "Golfer";
+  // Trust (0188): the two badges, and where their verification stands.
+  const [trust, verification] = await Promise.all([loadOneTrust(supabase, user.id), myVerification(supabase, user.id)]);
 
   return (
     <div className="max-w-xl mx-auto px-6 py-16">
@@ -99,6 +105,34 @@ export default async function ProfilePage({
         >
           Edit profile
         </Link>
+      </div>
+
+      <div className="bg-surface rounded-2xl shadow-lg p-6 mt-6">
+        <h2 className="font-display font-bold text-lg">Trust</h2>
+        <TrustBadges className="mt-3" reliability={trust.reliability} verified={trust.verified} verifiedClub={trust.verifiedClub} />
+        <p className="text-sm text-ink-500 mt-3">Tee times: {reliabilityDetail(trust.reliability)}</p>
+        {!trust.verified && (
+          <div className="mt-4 rounded-xl bg-cream-100 p-4">
+            <p className="text-sm text-ink-900 font-semibold">
+              {verification.status === "needs_review"
+                ? "Your card is with a person to check. You'll get an alert when it's done."
+                : "Get the Verified badge"}
+            </p>
+            {verification.status !== "needs_review" && (
+              <p className="text-sm text-ink-500 mt-1">
+                Snap your Golf Ireland card and we&apos;ll check it in seconds. Hosts and sellers trust verified golfers more.
+              </p>
+            )}
+            {verification.status !== "needs_review" && (
+              <Link
+                href="/profile/verify"
+                className="inline-block mt-3 px-5 py-2.5 rounded-full font-bold text-sm bg-navy-900 text-cream-50 hover:bg-navy-800 transition"
+              >
+                Get verified
+              </Link>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Outside the card and quiet, but present and reachable in two taps.

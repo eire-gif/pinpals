@@ -27,6 +27,8 @@ export type Invite = {
   notes: string | null;
   county: string | null;
   ladies_only: boolean;
+  /** 0188: golfers who've missed rounds can't ask. Absent before 0188. */
+  reliable_only?: boolean;
   host: {
     first_name: string | null;
     last_name: string | null;
@@ -55,7 +57,7 @@ export type Invite = {
 const SELECT = `
   id, member_id, status, club_name, club_id, play_date, time_from, time_to,
   exact_tee_time, spaces_available, has_tee_time_booked, handicap_limit,
-  notes, county, ladies_only,
+  notes, county, ladies_only, reliable_only,
   host:profiles!tee_time_invites_member_id_fkey (
     first_name, last_name, home_club, handicap, handicap_visible,
     avatar_url, avatar_color

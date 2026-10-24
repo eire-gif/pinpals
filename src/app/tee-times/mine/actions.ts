@@ -96,3 +96,27 @@ export async function calendarLink(inviteId: number): Promise<ActionResult> {
   const result = await teeTimeCalendarUrl(supabase, userId, inviteId);
   return result.ok ? { url: result.url } : { error: result.error };
 }
+
+/**
+ * Host, after the round: say a confirmed golfer didn't turn up, or undo it
+ * (mark_tee_time_no_show, 0188). The database checks it's their round, the
+ * round has started, it's within a week, and that the golfer has no live
+ * scorecard from that day — and tells the golfer.
+ */
+export async function markNoShow(inviteId: number, memberId: string, noShow: boolean): Promise<ActionResult> {
+  const { supabase } = await member();
+  const { error } = await supabase.rpc("mark_tee_time_no_show", { p_invite_id: inviteId, p_member: memberId, p_no_show: noShow });
+  if (error) return { error: error.message || "That didn't go through. Please try again." };
+  refresh();
+  return {};
+}
+
+/** Golfer: "I was there." Stops the no-show counting while it's checked (0188). */
+export async function disputeNoShow(inviteId: number, note: string): Promise<ActionResult> {
+  const { supabase } = await member();
+  const { error } = await supabase.rpc("dispute_tee_time_attendance", { p_invite_id: inviteId, p_note: note.slice(0, 500) });
+  if (error) return { error: error.message || "That didn't go through. Please try again." };
+  refresh();
+  return {};
+}
+

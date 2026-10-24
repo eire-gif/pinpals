@@ -74,6 +74,8 @@ import { groupLine, mergeTimeline } from "@/lib/group-chat-rules";
 import { officeAreas, isGroupOffice } from "@/lib/groups";
 import { irishToday } from "@/lib/outing-rules";
 import { myRoundRight } from "@/components/my-round-pill";
+import { SAFETY_TIPS, SAFETY_TIPS_TITLE, meetAtClubMessage, meetAtClubMessageForSeller, safetyWarning } from "@/lib/message-safety";
+import { supabase } from "@/lib/supabase";
 
 /** A row in the chat: a message, or one of the group's events (0181). */
 type Row = { kind: "message"; item: Message } | { kind: "card"; item: GroupEventCard };
@@ -116,6 +118,24 @@ function ConversationScreenInner() {
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const [emojiOpen, setEmojiOpen] = useState(false);
+  /** Marketplace chats (0188): the safety tips, open until there's a proper
+   *  conversation going, and my home club for "meet at the club". */
+  const [tipsOpen, setTipsOpen] = useState<boolean | null>(null);
+  const [myClub, setMyClub] = useState<string | null>(null);
+  const listingChat = !!header?.listingId;
+  useEffect(() => {
+    if (!listingChat || !userId || myClub !== null) return;
+    void supabase
+      .from("profiles")
+      .select("home_club")
+      .eq("id", userId)
+      .maybeSingle<{ home_club: string | null }>()
+      .then(({ data }) => setMyClub(data?.home_club ?? ""));
+  }, [listingChat, userId, myClub]);
+  useEffect(() => {
+    if (loading || tipsOpen !== null || !listingChat) return;
+    setTipsOpen(messages.length < 4);
+  }, [loading, tipsOpen, listingChat, messages.length]);
 
   /** Reactions per message id, and the messages I've deleted for myself. */
   const [reactions, setReactions] = useState<Map<number, Reaction[]>>(new Map());
@@ -748,6 +768,44 @@ function ConversationScreenInner() {
             </Pressable>
           ) : null}
 
+          {listingChat ? (
+            // Staying safe (0188): open on a new conversation, one tap to
+            // reopen after. "Meet at the club" drops a suggestion in the box.
+            tipsOpen ? (
+              <View style={styles.safety}>
+                <View style={styles.safetyHead}>
+                  <Ionicons name="shield-checkmark" size={16} color={colors.green700} />
+                  <Text style={styles.safetyTitle}>{SAFETY_TIPS_TITLE}</Text>
+                  <Pressable onPress={() => setTipsOpen(false)} hitSlop={10} accessibilityRole="button" accessibilityLabel="Hide safety tips">
+                    <Ionicons name="close" size={18} color={colors.ink500} />
+                  </Pressable>
+                </View>
+                {SAFETY_TIPS.map((tip) => (
+                  <Text key={tip} style={styles.safetyTip}>
+                    • {tip}
+                  </Text>
+                ))}
+                <Pressable
+                  style={styles.safetyMeet}
+                  onPress={() => {
+                    setDraft(header?.listingIsMine ? meetAtClubMessageForSeller(myClub) : meetAtClubMessage(myClub));
+                    setTipsOpen(false);
+                    inputRef.current?.focus();
+                  }}
+                  accessibilityRole="button"
+                >
+                  <Ionicons name="flag" size={15} color={colors.surface} />
+                  <Text style={styles.safetyMeetLabel}>Suggest meeting at the club</Text>
+                </Pressable>
+              </View>
+            ) : (
+              <Pressable style={styles.safetyClosed} onPress={() => setTipsOpen(true)} accessibilityRole="button">
+                <Ionicons name="shield-checkmark-outline" size={14} color={colors.green700} />
+                <Text style={styles.safetyClosedLabel}>{SAFETY_TIPS_TITLE} · meet at the club</Text>
+              </Pressable>
+            )
+          ) : null}
+
           <FlatList
             ref={listRef}
             inverted
@@ -830,6 +888,12 @@ function ConversationScreenInner() {
                       onQuotePress={item.reply_to_id ? () => jumpTo(item.reply_to_id!) : undefined}
                     />
                   </SwipeToReply>
+                  {!mine && listingChat && !item.hidden_at && !item.deleted_at && safetyWarning(item.safety_flags) ? (
+                    <View style={styles.flagged} accessibilityRole="alert">
+                      <Ionicons name="warning" size={14} color="#6b5212" />
+                      <Text style={styles.flaggedText}>{safetyWarning(item.safety_flags)}</Text>
+                    </View>
+                  ) : null}
                 </>
               );
             }}
@@ -1142,6 +1206,44 @@ function Bubble({
 }
 
 const styles = StyleSheet.create({
+  safety: {
+    marginHorizontal: spacing.md,
+    marginTop: spacing.sm,
+    padding: 12,
+    borderRadius: radii.md,
+    backgroundColor: colors.green100,
+    gap: 4,
+  },
+  safetyHead: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 2 },
+  safetyTitle: { flex: 1, fontFamily: fonts.bodyBold, fontSize: 14, color: colors.green800 },
+  safetyTip: { fontFamily: fonts.body, fontSize: 13.5, color: colors.ink900, lineHeight: 19 },
+  safetyMeet: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    marginTop: 8,
+    minHeight: 40,
+    borderRadius: radii.pill,
+    backgroundColor: colors.green700,
+  },
+  safetyMeetLabel: { fontFamily: fonts.bodyBold, fontSize: 14, color: colors.surface },
+  safetyClosed: { flexDirection: "row", alignItems: "center", gap: 5, alignSelf: "center", paddingVertical: 6, paddingHorizontal: 12 },
+  safetyClosedLabel: { fontFamily: fonts.bodySemi, fontSize: 12.5, color: colors.green700 },
+  flagged: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 6,
+    marginLeft: spacing.md,
+    marginRight: spacing.xl * 2,
+    marginTop: 2,
+    marginBottom: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: radii.md,
+    backgroundColor: "#f7edcf",
+  },
+  flaggedText: { flex: 1, fontFamily: fonts.bodySemi, fontSize: 12.5, color: "#6b5212", lineHeight: 17 },
   fill: { flex: 1, backgroundColor: "#f3eee2" },
   centre: { flex: 1, alignItems: "center", justifyContent: "center" },
 

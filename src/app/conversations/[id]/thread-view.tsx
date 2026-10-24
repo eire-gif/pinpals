@@ -8,6 +8,7 @@ import { conversationChannelTopic, useBroadcastChannel } from "@/lib/realtime-cl
 import { useMessageImageUrls } from "@/lib/message-images-client";
 import { loadOlderMessages, sendMessage } from "../actions";
 import MessageForm from "./message-form";
+import { SAFETY_TIPS, SAFETY_TIPS_TITLE, meetAtClubMessage, meetAtClubMessageForSeller, safetyWarning } from "@/lib/message-safety";
 import ReportForm from "./report-form";
 
 type Participant = { id: string; name: string; avatar_color: string | null };
@@ -41,7 +42,11 @@ export default function ThreadView({
   currentUserId,
   participants,
   blocked,
+  marketplace = null,
 }: {
+  /** 0188: set in a marketplace chat — the safety tips, "meet at the club",
+   *  and warnings under risky messages from the other person. */
+  marketplace?: { viewerIsSeller: boolean; myClub: string | null } | null;
   conversationId: number;
   initialMessages: Message[];
   initialCursor: MessagesCursor | null;
@@ -53,6 +58,8 @@ export default function ThreadView({
   blocked: boolean;
 }) {
   const [older, setOlder] = useState<Message[]>([]);
+  const [tipsOpen, setTipsOpen] = useState<boolean | null>(null);
+  const [suggestion, setSuggestion] = useState<{ text: string; at: number } | null>(null);
   // Messages that arrived via Realtime broadcast from the OTHER participant
   // — our own sends are already reflected via the optimistic/pending state
   // below plus the server revalidation sendMessage() triggers, so this only
@@ -232,6 +239,12 @@ export default function ThreadView({
                       </>
                     )}
                   </div>
+                  {!mine && marketplace && !m.hidden_at && !m.deleted_at && safetyWarning(m.safety_flags) && (
+                    <p role="alert" className="flex gap-1.5 rounded-xl bg-[#f7edcf] px-3 py-2 text-xs font-semibold text-[#6b5212]">
+                      <span aria-hidden="true">⚠</span>
+                      <span>{safetyWarning(m.safety_flags)}</span>
+                    </p>
+                  )}
                   {!mine && !m.hidden_at && (
                     <div className={reportingId === m.id ? "" : "self-end"}>
                       {reportingId === m.id ? (
@@ -283,9 +296,55 @@ export default function ThreadView({
       )}
 
       <div className="mt-2">
-        <MessageForm onSend={handleSend} disabled={blocked} />
+        {marketplace && (
+          <SafetyPanel
+            open={tipsOpen ?? initialMessages.length < 4}
+            onToggle={(o) => setTipsOpen(o)}
+            onMeet={() => {
+              setSuggestion({
+                text: marketplace.viewerIsSeller ? meetAtClubMessageForSeller(marketplace.myClub) : meetAtClubMessage(marketplace.myClub),
+                at: Date.now(),
+              });
+              setTipsOpen(false);
+            }}
+          />
+        )}
+        <MessageForm onSend={handleSend} disabled={blocked} suggestion={suggestion} />
         {blocked && <p className="text-xs text-ink-500 mt-2">You can&rsquo;t send messages in this conversation right now.</p>}
       </div>
+    </div>
+  );
+}
+
+/** Staying safe in a marketplace chat (0188): open on a new conversation. */
+function SafetyPanel({ open, onToggle, onMeet }: { open: boolean; onToggle: (open: boolean) => void; onMeet: () => void }) {
+  if (!open) {
+    return (
+      <button type="button" onClick={() => onToggle(true)} className="mb-2 text-xs font-bold text-green-700 hover:text-green-600">
+        🛡 {SAFETY_TIPS_TITLE} · meet at the club
+      </button>
+    );
+  }
+  return (
+    <div className="mb-3 rounded-2xl bg-green-100 p-4">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm font-bold text-green-800">🛡 {SAFETY_TIPS_TITLE}</p>
+        <button type="button" onClick={() => onToggle(false)} className="text-xs text-ink-500 hover:text-ink-900" aria-label="Hide safety tips">
+          Hide
+        </button>
+      </div>
+      <ul className="mt-2 space-y-1 text-sm text-ink-900">
+        {SAFETY_TIPS.map((tip) => (
+          <li key={tip}>• {tip}</li>
+        ))}
+      </ul>
+      <button
+        type="button"
+        onClick={onMeet}
+        className="mt-3 rounded-full bg-green-700 px-4 py-2 text-sm font-bold text-cream-50 hover:bg-green-600 transition"
+      >
+        Suggest meeting at the club
+      </button>
     </div>
   );
 }

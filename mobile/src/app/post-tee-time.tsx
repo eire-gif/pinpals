@@ -111,6 +111,8 @@ function PostTeeTimeScreenInner() {
     "everyone"
   );
   const [ladiesOnly, setLadiesOnly] = useState(false);
+  // 0188: only golfers with a good record of turning up can ask.
+  const [reliableOnly, setReliableOnly] = useState(false);
   const [handicapLimit, setHandicapLimit] = useState("");
   const [notes, setNotes] = useState("");
 
@@ -192,6 +194,7 @@ function PostTeeTimeScreenInner() {
         notes: notes.trim() || null,
         visibility,
         ladiesOnly,
+        reliableOnly,
         groupIds,
       });
 
@@ -223,6 +226,7 @@ function PostTeeTimeScreenInner() {
     notes,
     visibility,
     ladiesOnly,
+    reliableOnly,
     groupIds,
   ]);
 
@@ -457,6 +461,20 @@ function PostTeeTimeScreenInner() {
               <Switch
                 value={ladiesOnly}
                 onValueChange={setLadiesOnly}
+                trackColor={{ true: colors.green600, false: colors.line }}
+              />
+            </View>
+
+            <View style={styles.switchRow}>
+              <View style={styles.switchText}>
+                <Text style={styles.switchLabel}>Golfers with a good record only</Text>
+                <Text style={styles.switchHint}>
+                  Golfers who've missed rounds or cancelled late can't ask. New members still can.
+                </Text>
+              </View>
+              <Switch
+                value={reliableOnly}
+                onValueChange={setReliableOnly}
                 trackColor={{ true: colors.green600, false: colors.line }}
               />
             </View>

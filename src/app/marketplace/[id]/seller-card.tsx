@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { VerifiedChip } from "@/components/trust-badges";
 import { initials, formatJoinedDate } from "@/lib/format";
 import { positiveShare, type MemberRecord } from "@/lib/marketplace-cash";
 import MessageSellerButton from "./message-seller-button";
@@ -24,6 +25,7 @@ export default function SellerCard({
   avatarColor,
   joinedAtIso,
   verified,
+  golferVerified = false,
   rating,
   record = null,
   viewerIsSignedIn,
@@ -37,6 +39,8 @@ export default function SellerCard({
   avatarColor: string | null;
   joinedAtIso: string;
   verified: boolean;
+  /** 0188: the seller is a Verified golfer (membership card checked). */
+  golferVerified?: boolean;
   rating: { average: number; count: number } | null;
   /** Cash marketplace (0160): marketplace feedback in place of star reviews,
    *  and the name links to the seller's marketplace page. */
@@ -69,6 +73,7 @@ export default function SellerCard({
       </div>
 
       <div className="flex flex-wrap gap-1.5 mt-3">
+        {golferVerified && <VerifiedChip />}
         {verified && (
           <span className="inline-flex items-center gap-1 bg-green-100 text-green-800 text-xs font-bold px-2.5 py-1 rounded-full">
             <CheckIcon /> Verified seller

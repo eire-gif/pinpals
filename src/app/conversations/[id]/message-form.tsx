@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { MESSAGE_MAX_LENGTH, containsSensitiveData } from "@/lib/messaging";
 
 /**
@@ -12,8 +12,28 @@ import { MESSAGE_MAX_LENGTH, containsSensitiveData } from "@/lib/messaging";
  * bidder never even sees an optimistic "Sending…" bubble for a message the
  * server was always going to reject.
  */
-export default function MessageForm({ onSend, disabled }: { onSend: (body: string) => void; disabled?: boolean }) {
+export default function MessageForm({
+  onSend,
+  disabled,
+  suggestion,
+}: {
+  onSend: (body: string) => void;
+  disabled?: boolean;
+  /** 0188: text put in the box by "Suggest meeting at the club". */
+  suggestion?: { text: string; at: number } | null;
+}) {
   const [value, setValue] = useState("");
+  const textRef = useRef<HTMLTextAreaElement>(null);
+  // A new suggestion replaces the draft (set during render, React's pattern
+  // for state that follows a prop); focusing the box is the only effect.
+  const [seenSuggestion, setSeenSuggestion] = useState<number | null>(null);
+  if (suggestion && suggestion.at !== seenSuggestion) {
+    setSeenSuggestion(suggestion.at);
+    setValue(suggestion.text);
+  }
+  useEffect(() => {
+    if (suggestion) textRef.current?.focus();
+  }, [suggestion]);
   const [warning, setWarning] = useState<string | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
 
@@ -36,6 +56,7 @@ export default function MessageForm({ onSend, disabled }: { onSend: (body: strin
     <form ref={formRef} onSubmit={handleSubmit} className="flex flex-col gap-2">
       <div className="flex items-end gap-2.5">
         <textarea
+          ref={textRef}
           name="body"
           required
           rows={2}

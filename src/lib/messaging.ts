@@ -237,7 +237,7 @@ export type SensitiveDataCheck = { blocked: false } | { blocked: true; reason: s
 
 export function containsSensitiveData(body: string): SensitiveDataCheck {
   if (CARD_LIKE_NUMBER.test(body)) {
-    return { blocked: true, reason: "That looks like a card number — payment happens through Pinpals checkout, never in chat." };
+    return { blocked: true, reason: "That looks like a card number. Never share card details in chat — pay in person, by cash or Revolut, when you see the item." };
   }
   const compact = body.replace(/[ -]/g, "");
   if (IBAN_LIKE.test(compact)) {

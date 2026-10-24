@@ -54,6 +54,8 @@ export type InviteInput = {
   notes?: unknown;
   visibility?: unknown;
   ladiesOnly?: unknown;
+  /** 0188: only golfers with a good record of turning up can ask. */
+  reliableOnly?: unknown;
   /** 0186: groups to invite straight away. Their members can take a place in
    *  one tap. Ids of groups the host isn't in are skipped by the database. */
   groupIds?: unknown;
@@ -229,6 +231,7 @@ export async function createInvite(
   // wrongly marked.
   const hasTeeTime = input.hasTeeTime === true || input.hasTeeTime === "on";
   const ladiesOnly = input.ladiesOnly === true || input.ladiesOnly === "on";
+  const reliableOnly = input.reliableOnly === true || input.reliableOnly === "on";
   const notes = text(input.notes);
 
   const { data: invite, error } = await supabase
@@ -249,6 +252,8 @@ export async function createInvite(
       notes: notes || null,
       visibility,
       ladies_only: ladiesOnly,
+      // Only sent when ticked, so a database without 0188 still takes a post.
+      ...(reliableOnly ? { reliable_only: true } : {}),
       expires_at: computeExpiry(playDate),
     })
     // The id is needed for the notification dedupe key. Reading it back is the

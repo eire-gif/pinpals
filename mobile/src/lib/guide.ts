@@ -1027,7 +1027,7 @@ export const GUIDES: Guide[] = [
       },
       {
         title: "Add the extras and post",
-        body: "Optional: Ladies only, a Handicap limit, and Notes — buggies booked, a few euro on it. Then tap Post tee time.",
+        body: "Optional: Ladies only, Golfers with a good record only, a Handicap limit, and Notes — buggies booked, a few euro on it. Then tap Post tee time.",
         look: [
           { style: "field", label: "Notes", icon: "create-outline" },
           { style: "primary", label: "Post tee time" },
@@ -1042,7 +1042,18 @@ export const GUIDES: Guide[] = [
           { style: "primary", label: "Offer a place" },
           { style: "outline", label: "Decline" },
         ],
-        tip: "Nothing's final until they tap Confirm my place — their circle on the round stays dashed gold until then, and turns green when they do. You always choose who plays.",
+        tip: "Each request shows the golfer's record — Reliable · 18 of 18 rounds, say, or New to tee times — and a Verified badge if their club membership is checked. The best records come first. Nothing's final until they tap Confirm my place; you always choose who plays.",
+        go: { label: "My rounds", to: "/my-rounds" },
+      },
+      {
+        title: "After the round: who turned up",
+        body: "For a week after the round, it sits under Played in My rounds with Who turned up? Everyone counts as there unless you tap their name to mark Didn't turn up. They're told and can dispute it. Anyone with a live scorecard from the day can't be marked.",
+        path: [{ icon: "golf-outline", label: "Tee Times" }, { icon: "calendar-outline", label: "My rounds" }],
+        look: [
+          { style: "outline", label: "Who turned up?" },
+          { style: "tile", label: "Turned up", icon: "checkmark-circle" },
+        ],
+        tip: "Calling a round off with players in it inside 24 hours goes on your own record as a late cancellation.",
         go: { label: "My rounds", to: "/my-rounds" },
       },
       {
@@ -1087,7 +1098,7 @@ export const GUIDES: Guide[] = [
       },
       {
         title: "Ask to play",
-        body: "Tap a round to see who's playing and the host's notes. Tap I'm interested — the host is told and you'll hear back here. Invited with your group? Tap Take a place on the alert or the round and you're in straight away.",
+        body: "Tap a round to see who's playing, the host's record and notes. Tap I'm interested — the host is told and you'll hear back here. Invited with your group? Tap Take a place on the alert or the round and you're in straight away.",
         look: [
           { style: "primary", label: "I'm interested", icon: "hand-right" },
           { style: "primary", label: "Take a place", icon: "checkmark-circle" },
@@ -1101,13 +1112,14 @@ export const GUIDES: Guide[] = [
           { style: "primary", label: "Confirm my place" },
           { style: "outline", label: "Can't make it" },
         ],
-        tip: "Once you're in, the round shows You're playing — tap Add to calendar so the day's kept free.",
+        tip: "Once you're in, the round shows You're playing — tap Add to calendar so the day's kept free. Turning up builds your record; hosts see it on every request, and some rounds are for golfers with a good record only.",
         go: { label: "My rounds", to: "/my-rounds" },
       },
       {
         title: "If plans change",
         body: "Changed your mind before the host answers? Tap ••• on the round in My rounds, then Withdraw request — nothing changes for them, and you can ask again later. Once you have a place, the same ••• has Cancel my place: the host is told and the space reopens. If the host cancels, the round stays on your My rounds marked Cancelled, with Find another round.",
         look: [{ style: "outline", label: "Cancel my place", icon: "exit-outline" }],
+        tip: "Cancelling less than 24 hours before the tee time counts as a late cancellation on your record. Marked as a no-show by mistake? Tap I was there under the round in Played.",
         go: { label: "My rounds", to: "/my-rounds" },
       },
     ],
@@ -1787,7 +1799,7 @@ export const GUIDES: Guide[] = [
       },
       {
         title: "Meet up and get paid",
-        body: "Agree a time — at your club is best — and let them check it over. They pay you in cash or by Revolut. PinPals doesn't handle the money.",
+        body: "Agree a time — at your club is best; Suggest meeting at the club in the chat writes the message for you — and let them check it over. They pay you in cash or by Revolut. PinPals doesn't handle the money.",
         look: [{ style: "tile", label: "Meet at the club", icon: "golf-outline" }],
         tip: "Meet in daylight, somewhere people are about. Never post an item before you've been paid.",
       },
@@ -1843,7 +1855,7 @@ export const GUIDES: Guide[] = [
       },
       {
         title: "Check the seller",
-        body: "On the listing, the seller's card shows their feedback from other buyers and how many sales they've made. Tap it to read what people said.",
+        body: "On the listing, the seller's card shows their feedback from other buyers, how many sales they've made and a Verified badge if their club membership is checked. Tap it to read what people said.",
         look: [{ style: "tile", label: "100% positive · 12 sales", icon: "thumbs-up-outline" }],
       },
       {
@@ -1857,9 +1869,9 @@ export const GUIDES: Guide[] = [
       },
       {
         title: "Meet, check it, pay",
-        body: "Meet at a golf club if you can, look it over or hit a few balls with it, then pay the seller in cash or by Revolut.",
-        look: [{ style: "tile", label: "Meet at the club", icon: "golf-outline" }],
-        tip: "PinPals doesn't handle payment. Never pay a deposit to someone you haven't met.",
+        body: "Meet at a golf club if you can, look it over or hit a few balls with it, then pay the seller in cash or by Revolut. In the chat, Suggest meeting at the club writes the message for you.",
+        look: [{ style: "tile", label: "Suggest meeting at the club", icon: "flag" }],
+        tip: "PinPals doesn't handle payment. Never pay a deposit, a courier or with a gift card — a message asking for any of those, or with a link in it, gets a yellow warning under it.",
       },
       {
         title: "Leave feedback",
@@ -2033,6 +2045,8 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-24", text: "Post a tee time: requests show each golfer's record (Reliable · 18 of 18 rounds, or New to tee times) and Verified golfer badge, best records first; new option Golfers with a good record only; new step, After the round: who turned up. Find a game: dropping out inside 24 hours is a late cancellation, and I was there disputes a no-show." },
+  { on: "2026-10-24", text: "Buy and Sell: marketplace chats open with tips for buying and selling safely and Suggest meeting at the club; a message asking for a deposit, a courier, a gift card or with a link in it gets a yellow warning. Sellers can be Verified golfers (Profile → Get the Verified badge)." },
   { on: "2026-10-24", text: "Score from your lock screen: in a round with others, a second card under the scoring card shows the leaderboard (or the matches and the team score), with your row lit up. It refreshes as you go and after every score; ⟳ refreshes it, and a tap opens the round on its Leaderboard." },
   { on: "2026-10-24", text: "Score a game live: a round you're playing in now sits at the top of Live scoring with Continue round, Finish round and Delete round. The three start buttons are locked until it's finished or deleted. New step: Already in a live round?" },
   { on: "2026-10-23", text: "Longest shots: tap one under a scorecard or in My bag — your longest drive, say — and the hole map opens on that hole, zoomed on the shot, drawn in gold with its distance. Show the whole hole zooms back out." },
