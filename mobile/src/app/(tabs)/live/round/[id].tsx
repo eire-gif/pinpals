@@ -92,7 +92,7 @@ import { useHoleSpots, useRoundFix } from "@/lib/use-gps-hole";
  */
 export default function LiveRoundScreen() {
   // voice=1&hole=N: opened from the lock screen card's mic (voice scoring).
-  const { id, voice, hole: holeParam, finish: finishParam } = useLocalSearchParams<{ id: string; voice?: string; hole?: string; finish?: string }>();
+  const { id, voice, hole: holeParam, finish: finishParam, view: viewParam } = useLocalSearchParams<{ id: string; voice?: string; hole?: string; finish?: string; view?: string }>();
   const roundId = Number(id);
   const [data, setData] = useState<LiveRoundData | null | undefined>(undefined);
   /** Scores saved on the phone with no signal, still to send. */
@@ -100,6 +100,13 @@ export default function LiveRoundScreen() {
   useEffect(() => onPendingChange(setWaitingScores), []);
   const [failed, setFailed] = useState(false);
   const [view, setView] = useState<"score" | "board">("score");
+  // The lock screen's leaderboard card opens the round on its Leaderboard
+  // (…?view=board, claude/lock-screen-leaderboard.md).
+  useEffect(() => {
+    if (viewParam !== "board") return;
+    setView("board");
+    router.setParams({ view: undefined } as never);
+  }, [viewParam]);
   const [hole, setHole] = useState(1);
   const [editingCard, setEditingCard] = useState(false);
   // Is this round's card already saved for the course? "same" hides the
@@ -267,6 +274,8 @@ export default function LiveRoundScreen() {
       scores: data.scores.get(ball.id) ?? new Map<number, number | null>(),
       status,
       watch: { group, premium: { map: yardages, playsLike: yardages } },
+      // The leaderboard card under it: not for a round on your own.
+      others: data.players.length > 1 || data.round.matchDayId != null,
     });
   }, [data, board, me, dayHeader, roundId, gate]);
 

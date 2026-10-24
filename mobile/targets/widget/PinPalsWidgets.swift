@@ -11,37 +11,11 @@ import WidgetKit
 
 let appGroup = "group.ie.pinpals.app"
 
-// MARK: - The payload (mirrors WidgetPayload in widget-board.ts)
-
-struct WTeam: Codable, Hashable { let name: String; let points: String; let side: Int }
-struct WMatch: Codable, Hashable { let label: String; let names: String; let status: String; let side: Int; let mine: Bool }
-struct WRow: Codable, Hashable {
-  let pos: String; let name: String; let thru: String; let score: String; let mine: Bool; let good: Bool
-  /// Multi-day championships (0187): places gained (+) or lost (−) since the previous day. Absent on a one-day board.
-  let move: Int?
-}
-struct WBoard: Codable, Hashable { let heading: String; let rows: [WRow] }
-struct WMine: Codable, Hashable { let eyebrow: String; let title: String; let big: String; let line1: String; let line2: String }
-
-struct WPayload: Codable {
-  let v: Int
-  let state: String
-  let updatedAt: String
-  let url: String
-  let eyebrow: String
-  let title: String
-  let teams: [WTeam]
-  let matches: [WMatch]
-  let board: WBoard?
-  let mine: WMine?
-
-  var isLive: Bool { state == "live" }
-  var updated: Date? {
-    let f = ISO8601DateFormatter()
-    f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-    return f.date(from: updatedAt) ?? ISO8601DateFormatter().date(from: updatedAt)
-  }
-}
+// MARK: - The payload
+//
+// WPayload and its parts (mirroring WidgetPayload in widget-board.ts) are in
+// _shared/LiveBoardShared.swift, because the lock screen leaderboard card
+// (Oct 2026) reads the same payload from the app's process.
 
 // MARK: - Timeline
 
@@ -431,6 +405,8 @@ struct PinPalsWidgetBundle: WidgetBundle {
     PinPalsLiveWidget()
     // Scoring from the lock screen (LiveScoreLiveActivity.swift).
     LiveScoreLiveActivity()
+    // The leaderboard under it while the round's live (LiveBoardLiveActivity.swift).
+    LiveBoardLiveActivity()
   }
 }
 
