@@ -1,12 +1,13 @@
 import { useCallback, useState } from "react";
 import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
-import { Stack, router, useFocusEffect, useLocalSearchParams } from "expo-router";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { Avatar } from "@/components/avatar";
-import { ScreenHeader, useCollapsingHeader } from "@/components/screen-header";
+import { TONES } from "@/components/live-scoring-card";
 import { LoadError, StateMessage } from "@/components/state-message";
 import { TeeDot } from "@/components/tee-chip";
+import { TintedHeader } from "@/components/tinted-header";
 import { useAuth } from "@/lib/auth";
 import { isOn } from "@/lib/features";
 import { headline, playedLabel, scorecardTotals, vsParText } from "@/lib/scorecard-math";
@@ -26,6 +27,10 @@ import { colors, creamAlpha, fonts, radii, spacing, type } from "@/lib/theme";
  * name on it, then the best round in a navy card and the season in tiles
  * (eagles, birdies, pars, par-or-better, putts, best points; scorecard-stats.ts),
  * then the cards themselves.
+ *
+ * 24 Oct 2026: the name moved up into a navy top bar (TintedHeader), as on
+ * Marketplace and Groups — the photograph band is gone, so the page starts
+ * a band's height higher. Everything under it is unchanged.
  */
 export default function ScorecardsScreen() {
   const params = useLocalSearchParams<{ member?: string; name?: string }>();
@@ -33,7 +38,6 @@ export default function ScorecardsScreen() {
   const me = session?.user?.id ?? null;
   const memberId = params.member || me;
   const mine = memberId != null && memberId === me;
-  const { scrollY, scrollProps } = useCollapsingHeader();
 
   const [cards, setCards] = useState<Scorecard[] | undefined>(undefined);
   const [failed, setFailed] = useState(false);
@@ -68,9 +72,28 @@ export default function ScorecardsScreen() {
   );
 
   const title = mine ? "My scorecards" : `${params.name ?? "Their"} scorecards`;
-  if (!isOn("scorecards")) return <StateMessage size="screen" icon="document-text-outline" title="Scorecards are on their way" />;
-  if (failed) return <LoadError size="screen" what="scorecards" onRetry={() => void load()} />;
-  if (cards === undefined) return <ActivityIndicator color={colors.green700} style={{ marginTop: spacing.xl }} />;
+  const bar = (subtitle?: string) => <TintedHeader color={TONES.navy.card} title={title} subtitle={subtitle} />;
+  if (!isOn("scorecards"))
+    return (
+      <>
+        {bar()}
+        <StateMessage size="screen" icon="document-text-outline" title="Scorecards are on their way" />
+      </>
+    );
+  if (failed)
+    return (
+      <>
+        {bar()}
+        <LoadError size="screen" what="scorecards" onRetry={() => void load()} />
+      </>
+    );
+  if (cards === undefined)
+    return (
+      <View style={styles.screen}>
+        {bar()}
+        <ActivityIndicator color={colors.green700} style={{ marginTop: spacing.xl }} />
+      </View>
+    );
 
   const s = scorecardStats(cards);
   const subtitle =
@@ -80,10 +103,8 @@ export default function ScorecardsScreen() {
 
   return (
     <View style={styles.screen}>
-      <Stack.Screen options={{ headerTitle: "" }} />
-      <ScreenHeader scene="linksSunset" title={title} subtitle={subtitle} scrollY={scrollY} />
+      {bar(subtitle)}
       <FlatList
-        {...scrollProps}
         data={cards}
         keyExtractor={(c) => String(c.id)}
         contentContainerStyle={styles.list}
