@@ -69,6 +69,7 @@ export function RaisedCard({
   wrapTitle = false,
   badge,
   action,
+  locked = false,
 }: {
   title: string;
   subtitle: string;
@@ -95,14 +96,19 @@ export function RaisedCard({
    * Groups & Societies start buttons, so it's plain they make something new.
    */
   action?: string;
+  /**
+   * Faded, with a padlock for a chevron: Live Scoring while you're in a
+   * live round (Oct 2026). Still pressable — the screen says why it's locked.
+   */
+  locked?: boolean;
 }) {
   const t = TONES[tone];
   return (
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={a11y ?? `${title}. ${subtitle}`}
-      style={[styles.outer, { marginTop, marginHorizontal: inset ? spacing.md : 0 }]}
+      accessibilityLabel={`${a11y ?? `${title}. ${subtitle}`}${locked ? " Locked while your round is live." : ""}`}
+      style={[styles.outer, { marginTop, marginHorizontal: inset ? spacing.md : 0 }, locked && styles.locked]}
     >
       {({ pressed }) => (
         <View style={[styles.lip, pressed && styles.lipPressed]}>
@@ -151,7 +157,11 @@ export function RaisedCard({
               </Text>
             </View>
 
-            {action ? (
+            {locked ? (
+              <View style={[styles.chevron, { backgroundColor: t.chevron }]}>
+                <Ionicons name="lock-closed" size={18} color={colors.gold400} />
+              </View>
+            ) : action ? (
               <View style={styles.action}>
                 <Ionicons name="add" size={16} color={colors.ink900} />
                 <Text style={styles.actionText}>{action}</Text>
@@ -186,6 +196,7 @@ function Bar({ height }: { height: number }) {
 const R = 20;
 
 const styles = StyleSheet.create({
+  locked: { opacity: 0.5 },
   outer: {
     borderRadius: R,
     shadowColor: colors.navy900,

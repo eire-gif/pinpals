@@ -92,7 +92,7 @@ import { useHoleSpots, useRoundFix } from "@/lib/use-gps-hole";
  */
 export default function LiveRoundScreen() {
   // voice=1&hole=N: opened from the lock screen card's mic (voice scoring).
-  const { id, voice, hole: holeParam } = useLocalSearchParams<{ id: string; voice?: string; hole?: string }>();
+  const { id, voice, hole: holeParam, finish: finishParam } = useLocalSearchParams<{ id: string; voice?: string; hole?: string; finish?: string }>();
   const roundId = Number(id);
   const [data, setData] = useState<LiveRoundData | null | undefined>(undefined);
   /** Scores saved on the phone with no signal, still to send. */
@@ -293,6 +293,23 @@ export default function LiveRoundScreen() {
     const order = playOrder(data.card, data.round.start?.hole ?? null);
     setVoiceAt(at ?? order.find((c) => data.players.some((p) => !data.scores.get(p.id)?.has(c.hole)))?.hole ?? order[0]?.hole ?? 1);
   }, [data, me, voice, holeParam]);
+
+  // "Finish round" on the Live Scoring hub's pinned round (Oct 2026) opens
+  // the round with finish=1: once it's loaded, the same Finish as the button
+  // here — holes-missing warning, then the certification offer.
+  const finishRef = useRef<(() => void) | null>(null);
+  const finishAsked = useRef<string | null>(null);
+  useEffect(() => {
+    if (finishParam !== "1" || !data || data.round.status !== "live") return;
+    const key = String(data.round.id);
+    if (finishAsked.current === key) return;
+    finishAsked.current = key;
+    router.setParams({ finish: undefined } as never);
+    started.current = true;
+    setView("score");
+    // Not cleared on a reload: a score arriving in the meantime mustn't swallow it.
+    setTimeout(() => finishRef.current?.(), 300);
+  }, [data, finishParam]);
 
   // ---- Finishing (Oct 2026) ----
   // Once every hole is in, the Score tab shows "Complete scorecard" right
@@ -607,6 +624,8 @@ export default function LiveRoundScreen() {
         },
       },
     ]);
+
+  finishRef.current = live ? finish : null;
 
   // Certification (0128): once the round is final, offer to have a playing
   // partner certify your card — when you played, and someone else in the

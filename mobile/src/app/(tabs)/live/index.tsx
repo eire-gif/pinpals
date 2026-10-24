@@ -5,12 +5,15 @@ import { StatusBar } from "expo-status-bar";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { GuideLink } from "@/components/guide-bits";
+import { LiveRoundHero, LockedStartSheet, OneRoundNotice, type HeroRound } from "@/components/live-round-hero";
 import { RaisedCard } from "@/components/live-scoring-card";
 import { LoadError, StateMessage } from "@/components/state-message";
 import { useAuth } from "@/lib/auth";
 import { isOn } from "@/lib/features";
 import { deleteMatchDay, loadMyMatchDays, type MatchDaySummary } from "@/lib/live-match-days";
-import { deleteLiveRound, loadMyLiveRounds, type LiveRoundSummary } from "@/lib/live-rounds";
+import { heroSummary } from "@/lib/live-hero";
+import { deleteLiveRound, loadLiveRound, loadMyLiveRounds, type LiveRoundData, type LiveRoundSummary } from "@/lib/live-rounds";
+import { useMyRound } from "@/lib/my-round";
 import { loadFollowing, type FollowingItem } from "@/lib/live-follow";
 import { formatInfo } from "@/lib/live-scoring";
 import { dateLabel } from "@/lib/tee-times";
@@ -21,6 +24,10 @@ import { colors, fonts, radii, spacing, type } from "@/lib/theme";
  *
  * Rounds in play come first and look different — a round you're halfway
  * through is the only thing on this screen anyone is in a hurry to reach.
+ *
+ * Oct 2026: the round you're PLAYING in now (the MY ROUND pill's) is pinned
+ * above "Start a Round" as its own card, and the three ways to start a game
+ * are locked until it's finished or deleted — one live round at a time.
  */
 export default function LiveScoringHub() {
   const { session } = useAuth();
@@ -30,6 +37,11 @@ export default function LiveScoringHub() {
   const [following, setFollowing] = useState<FollowingItem[]>([]);
   const [failed, setFailed] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  // The round in play, pinned to the top (live-round-hero.tsx).
+  const myRound = useMyRound();
+  const myRoundId = myRound?.id ?? null;
+  const [hero, setHero] = useState<LiveRoundData | null>(null);
+  const [lockSheet, setLockSheet] = useState(false);
   // Cream clock and battery over the navy bar, as on the Marketplace.
   const focused = useIsFocused();
 
@@ -37,16 +49,21 @@ export default function LiveScoringHub() {
     if (!userId || !isOn("liveScoring")) return;
     try {
       setFailed(false);
-      const [r, d] = await Promise.all([loadMyLiveRounds(userId), loadMyMatchDays()]);
+      const [r, d, h] = await Promise.all([
+        loadMyLiveRounds(userId),
+        loadMyMatchDays(),
+        myRoundId != null ? loadLiveRound(myRoundId).catch(() => null) : Promise.resolve(null),
+      ]);
       setRounds(r);
       setDays(d);
+      setHero(h && h.round.status === "live" ? h : null);
       // Follow my round (0158): cards PinPals have shared with you. Never
       // holds up the rest of the screen.
       if (isOn("liveFollow")) loadFollowing().then(setFollowing).catch(() => setFollowing([]));
     } catch {
       setFailed(true);
     }
-  }, [userId]);
+  }, [userId, myRoundId]);
 
   useFocusEffect(
     useCallback(() => {
@@ -78,6 +95,7 @@ export default function LiveScoringHub() {
           onPress: async () => {
             if (kind === "day") setDays((d) => (d ?? []).filter((x) => x.id !== id));
             else setRounds((r) => (r ?? []).filter((x) => x.id !== id));
+            if (kind === "round") setHero((h) => (h?.round.id === id ? null : h));
             try {
               if (kind === "day") await deleteMatchDay(id);
               else await deleteLiveRound(id);
@@ -90,7 +108,51 @@ export default function LiveScoringHub() {
       ]
     );
 
-  const live = (rounds ?? []).filter((r) => r.status === "live");
+  // The pinned round isn't listed again under "In play".
+  const live = (rounds ?? []).filter((r) => r.status === "live" && r.id !== hero?.round.id);
+  const locked = hero != null;
+  const start = (path: "/live/new" | "/live/day/group" | "/live/day/new") => () => (locked ? setLockSheet(true) : router.push(path));
+
+  const heroRound: HeroRound | null = hero
+    ? {
+        courseName: hero.round.courseName,
+        detail: [
+          formatInfo(hero.round.format).label,
+          hero.round.teeName ? `${hero.round.teeName} tees` : null,
+          `${hero.players.length} ${hero.players.length === 1 ? "player" : "players"}`,
+        ]
+          .filter(Boolean)
+          .join(" · "),
+      }
+    : null;
+  const summary = hero
+    ? heroSummary(
+        {
+          format: hero.round.format,
+          matchFormat: hero.round.matchFormat,
+          scramble: hero.round.scramble != null,
+          startHole: hero.round.start?.hole ?? null,
+          card: hero.card,
+          players: hero.players,
+          scores: hero.scores,
+        },
+        userId
+      )
+    : null;
+  const heroActions = hero
+    ? {
+        // The round opens on the first hole still to score, as from the pill.
+        onContinue: () => router.push({ pathname: "/live/round/[id]", params: { id: String(hero.round.id) } }),
+        // The round screen's own Finish: the holes-missing warning, then the
+        // offer to have your card certified — the same as finishing there.
+        onFinish: () => router.push({ pathname: "/live/round/[id]", params: { id: String(hero.round.id), finish: "1" } }),
+        // Whoever started it (0105); a match in a society day is the organiser's.
+        onDelete:
+          userId != null && hero.round.createdBy === userId && hero.round.matchDayId == null
+            ? () => confirmDelete("round", hero.round.id, hero.round.courseName, true)
+            : null,
+      }
+    : null;
   const finished = (rounds ?? []).filter((r) => r.status === "finished");
 
   return (
@@ -116,14 +178,29 @@ export default function LiveScoringHub() {
       {/* Oct 2026 (option A): three ways in, each its own colour so they
           can be told apart at a glance — a round (navy), groups and societies
           (green), match days (claret). */}
+      {hero && heroRound && heroActions ? (
+        <View style={styles.starts}>
+          <LiveRoundHero round={heroRound} summary={summary} {...heroActions} />
+          <OneRoundNotice />
+        </View>
+      ) : null}
+
       <View style={styles.starts}>
+        {locked ? (
+          <View style={styles.sectionHead}>
+            <View style={styles.sectionRule} />
+            <Text style={styles.sectionTitle}>Start your round</Text>
+            <Text style={styles.sectionCount}>Locked while you play</Text>
+          </View>
+        ) : null}
         <RaisedCard
           inset={false}
           marginTop={0}
           icon="flag"
           title="Start a Round"
           subtitle="Stableford, stroke play, foursomes, a match or a scramble"
-          onPress={() => router.push("/live/new")}
+          locked={locked}
+          onPress={start("/live/new")}
         />
         {/* Groups (0121): draw a crew or society into tee groups or teams. */}
         {isOn("groups") ? (
@@ -136,7 +213,8 @@ export default function LiveScoringHub() {
             title="Groups & Societies"
             subtitle="Draw your buddies or society into groups and teams"
             a11y="Groups and societies. Pick your buddies or society, tick who's playing, and draw them into tee groups or scramble teams at random or balanced by handicap."
-            onPress={() => router.push("/live/day/group")}
+            locked={locked}
+            onPress={start("/live/day/group")}
           />
         ) : null}
         <RaisedCard
@@ -148,7 +226,8 @@ export default function LiveScoringHub() {
           title="Match Day Fun"
           subtitle="Singles, fourballs and foursomes, Ryder Cup style"
           a11y="Match day fun. Several matches at once, singles, fourballs or foursomes, with a team score, Ryder Cup style."
-          onPress={() => router.push("/live/day/new")}
+          locked={locked}
+          onPress={start("/live/day/new")}
         />
         {isOn("groups") ? <GuideLink id="live" lead="First time?" /> : null}
       </View>
@@ -177,6 +256,10 @@ export default function LiveScoringHub() {
           ) : null}
         </>
       )}
+
+      {hero && heroRound && heroActions ? (
+        <LockedStartSheet visible={lockSheet} round={heroRound} summary={summary} onClose={() => setLockSheet(false)} {...heroActions} />
+      ) : null}
     </ScrollView>
   );
 }

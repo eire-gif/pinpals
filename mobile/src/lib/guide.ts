@@ -1165,6 +1165,12 @@ export const GUIDES: Guide[] = [
         tip: "Playing a tee time? Only one of you needs to start: open it and tap Start live scoring — everyone on it is added and gets an alert that opens the game. If someone already started it, the button says Open the live game. A player can only be in one game at a time.",
       },
       {
+        title: "Already in a live round?",
+        body: "Your round sits at the top of Live scoring, above Start your round, marked You're in a live round. Tap Continue round to carry on, Finish round to end it, or Delete round if you started it by mistake. Start a Round, Groups & Societies and Match Day Fun are locked until it's finished or deleted — one live round at a time.",
+        look: [{ style: "primary", label: "Continue round", icon: "chevron-forward" }],
+        tip: "Delete round is only there for whoever started the round — it removes the card and every score for everyone. A match in a society day is the organiser's to delete.",
+      },
+      {
         title: "Choose how you're playing",
         body: "Running the society's day? Tap Groups & Societies to draw your members into tee groups or teams. Match Day Fun runs several matches at once with a team score, Ryder Cup style. Just your own fourball? Tap Start a Round.",
         look: [{ style: "raised", label: "Start a Round", icon: "flag", subtitle: "Stableford, stroke play, foursomes, a match or a scramble" }, { style: "raised", label: "Groups & Societies", icon: "people", tone: "green", kicker: "Societies & outings", subtitle: "Draw your buddies or society into groups and teams" }, { style: "raised", label: "Match Day Fun", icon: "trophy", tone: "claret", kicker: "Team matches", subtitle: "Singles, fourballs and foursomes, Ryder Cup style" }],
@@ -2027,6 +2033,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-24", text: "Score a game live: a round you're playing in now sits at the top of Live scoring with Continue round, Finish round and Delete round. The three start buttons are locked until it's finished or deleted. New step: Already in a live round?" },
   { on: "2026-10-23", text: "Longest shots: tap one under a scorecard or in My bag — your longest drive, say — and the hole map opens on that hole, zoomed on the shot, drawn in gold with its distance. Show the whole hole zooms back out." },
   { on: "2026-10-23", text: "New guide, Run a multi-day championship: 2 to 4 days, a course and format each day, one leaderboard with each player's place up or down on the day before. Trips can switch on Run a leaderboard across the trip on the itinerary." },
   { on: "2026-10-23", text: "Hole map: auto-zoom — with your location on, the map closes in as you near the flag, from the whole hole on the tee to the green itself once you're on it, and glides as you walk. Pinch or drag and it waits; the round button under Show the whole hole turns it off." },
