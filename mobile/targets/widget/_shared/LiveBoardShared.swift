@@ -119,6 +119,11 @@ enum LiveBoardPick {
     return (["LEADERBOARD"] + parts).joined(separator: " · ")
   }
 
+  /** Names come from members; keep the card well inside ActivityKit's 4 KB. */
+  static func clip(_ text: String, _ max: Int = 40) -> String {
+    text.count > max ? String(text.prefix(max - 1)) + "…" : text
+  }
+
   static func state(_ p: WPayload, now: Date) -> LiveBoardAttributes.ContentState {
     var s = LiveBoardAttributes.ContentState(
       heading: heading(p.eyebrow), live: p.isLive, rows: [], teams: Array(p.teams.prefix(2)), matches: [],
@@ -131,6 +136,7 @@ enum LiveBoardPick {
     if !p.matches.isEmpty {
       // Team totals take a row's room.
       s.matches = pick(p.matches, max: s.teams.isEmpty ? maxMatches : maxMatches - 1, mine: { $0.mine })
+        .map { WMatch(label: $0.label, names: clip($0.names), status: $0.status, side: $0.side, mine: $0.mine) }
       return s
     }
     let rows = p.board?.rows ?? []
@@ -140,6 +146,7 @@ enum LiveBoardPick {
       s.rows = Array(rows.prefix(maxRows - 1))
       s.you = m.line1.isEmpty ? m.big : "\(m.big) · \(m.line1)"
     }
+    s.rows = s.rows.map { WRow(pos: $0.pos, name: clip($0.name), thru: $0.thru, score: $0.score, mine: $0.mine, good: $0.good, move: $0.move) }
     return s
   }
 
@@ -250,13 +257,17 @@ enum LiveBoardEngine {
     LiveBoardStore.shown(a.attributes.roundId) ?? a.content.state
   }
 
-  static func content(_ s: LiveBoardAttributes.ContentState) -> ActivityContent<LiveBoardAttributes.ContentState> {
-    ActivityContent(state: s, staleDate: Date().addingTimeInterval(staleAfter), relevanceScore: relevance)
+  /** `fresh` = a new board from the website: good for `staleAfter`. A notice on an old board leaves it as stale as it was. */
+  static func content(_ s: LiveBoardAttributes.ContentState, fresh: Bool = true) -> ActivityContent<LiveBoardAttributes.ContentState> {
+    let base = fresh ? Date() : (s.updated ?? Date())
+    return ActivityContent(state: s, staleDate: base.addingTimeInterval(staleAfter), relevanceScore: relevance)
   }
 
-  static func push(_ a: Activity<LiveBoardAttributes>, _ s: LiveBoardAttributes.ContentState) async {
+  static func push(_ a: Activity<LiveBoardAttributes>, _ s: LiveBoardAttributes.ContentState, fresh: Bool = true) async {
+    // Ended meanwhile (the round finished mid-fetch): nothing to show, nothing to keep.
+    guard a.activityState == .active || a.activityState == .stale else { return }
     LiveBoardStore.setShown(s, roundId: a.attributes.roundId)
-    await a.update(content(s))
+    await a.update(content(s, fresh: fresh))
   }
 
   /**
@@ -273,30 +284,46 @@ enum LiveBoardEngine {
     request.setValue("application/json", forHTTPHeaderField: "Accept")
 
     var next: LiveBoardAttributes.ContentState?
+    var fresh = false
+    var body: Data?
     do {
       let (data, response) = try await URLSession.shared.data(for: request)
       let status = (response as? HTTPURLResponse)?.statusCode ?? 0
       if status == 200, let payload = try? JSONDecoder().decode(WPayload.self, from: data) {
-        LiveBoardStore.setLast(data, roundId: roundId)
+        body = data
         next = LiveBoardPick.state(payload, now: Date())
-      } else if status == 401 {
-        // The key's run out (18 hours): opening the round in the app renews it.
-        guard let a = activity(roundId) else { return }
+        fresh = true
+      } else if let a = activity(roundId) {
         var s = current(a)
-        s.notice = "Open PinPals to refresh the leaderboard"
-        next = s
+        if status == 401 {
+          // The key's run out (18 hours): opening the round in the app renews it.
+          s.notice = "Open PinPals to refresh the leaderboard"
+          next = s
+        } else if s.updated == nil {
+          // Something went wrong on the way: don't leave it saying "Getting…".
+          s.notice = "Couldn't load the leaderboard. Tap ⟳"
+          next = s
+        }
       }
     } catch {
       // No signal: keep what's there; only a card still loading says so.
-      guard let a = activity(roundId) else { return }
-      var s = current(a)
-      if s.updated == nil {
-        s.notice = "Waiting for signal"
-        next = s
+      if let a = activity(roundId) {
+        var s = current(a)
+        if s.updated == nil {
+          s.notice = "Waiting for signal"
+          next = s
+        }
       }
     }
+    // The round may have finished while this was on its way.
     guard let s = next, let a = activity(roundId) else { return }
-    await push(a, s)
+    if let body = body { LiveBoardStore.setLast(body, roundId: roundId) }
+    await push(a, s, fresh: fresh)
+  }
+
+  /** Any leaderboard card still up (active or stale). */
+  static var running: [Activity<LiveBoardAttributes>] {
+    Activity<LiveBoardAttributes>.activities.filter { $0.activityState == .active || $0.activityState == .stale }
   }
 }
 
@@ -355,8 +382,8 @@ extension LiveBoardEngine {
       s.notice = nil
       // Finished: the final board stays on the lock screen with the final score for a while.
       let policy: ActivityUIDismissalPolicy = immediate ? .immediate : .after(Date().addingTimeInterval(15 * 60))
-      let final = ActivityContent(state: s, staleDate: nil, relevanceScore: relevance)
-      Task { await a.end(final, dismissalPolicy: policy) }
+      let ending = ActivityContent(state: s, staleDate: nil, relevanceScore: relevance)
+      Task { await a.end(ending, dismissalPolicy: policy) }
       LiveBoardStore.forget(roundId: a.attributes.roundId)
     }
     if roundId == nil { LiveBoardStore.clearEverything() }

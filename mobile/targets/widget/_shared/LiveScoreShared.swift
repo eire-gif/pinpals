@@ -722,7 +722,13 @@ public class PinPalsLiveActivityBridge: NSObject {
     if let token = input.token, let api = input.api {
       LiveScoreStore.setConfig(.init(api: api, token: token, playerId: input.playerId), roundId: input.roundId)
     }
-    guard let a = LiveScoreEngine.activity(input.roundId) else { return "not running" }
+    guard let a = LiveScoreEngine.activity(input.roundId) else {
+      // The scoring card was swiped away but the leaderboard's still up: keep
+      // that one going (and the location updates that refresh it).
+      guard LiveBoardEngine.activity(input.roundId) != nil else { return "not running" }
+      Task { await LiveBoardEngine.refresh(roundId: input.roundId, every: 15) }
+      return nil
+    }
     // The app scored or reloaded: the leaderboard too, if it's been a little while.
     startBoard(input.roundId, wanted: input.board, api: input.boardApi, url: input.boardUrl ?? a.attributes.url)
     var s = LiveScoreEngine.current(a)
@@ -755,7 +761,7 @@ public class PinPalsLiveActivityBridge: NSObject {
       s.status = input.summary ?? a.attributes.total(s.strokes)
       s.notice = nil
       s.saved = nil
-      let content = ActivityContent(state: s, staleDate: nil)
+      let content = ActivityContent(state: s, staleDate: nil, relevanceScore: LiveScoreEngine.relevance)
       // Finished: the final total stays on the lock screen for a little while.
       let policy: ActivityUIDismissalPolicy = immediate ? .immediate : .after(Date().addingTimeInterval(15 * 60))
       Task { await a.end(content, dismissalPolicy: policy) }
@@ -792,7 +798,14 @@ public class PinPalsLiveActivityBridge: NSObject {
     let running = Activity<LiveScoreAttributes>.activities.filter {
       ($0.activityState == .active || $0.activityState == .stale) && !LiveScoreEngine.current($0).finished
     }
-    guard !running.isEmpty else { return "not running" }
+    let boards = LiveBoardEngine.running
+    guard !running.isEmpty || !boards.isEmpty else { return "not running" }
+    // These fixes keep the app awake with the phone locked: the leaderboard
+    // cards refresh on them, about once a minute (claude/lock-screen-leaderboard.md).
+    for b in boards {
+      let roundId = b.attributes.roundId
+      Task { await LiveBoardEngine.refresh(roundId: roundId, every: 60) }
+    }
     for a in running {
       var s = LiveScoreEngine.current(a)
       let before = s.distance
@@ -804,10 +817,6 @@ public class PinPalsLiveActivityBridge: NSObject {
         LiveScoreStore.setShown(s, roundId: a.attributes.roundId)
         Task { [s] in await LiveScoreEngine.push(a, s) }
       }
-      // These fixes keep the app awake with the phone locked: the leaderboard
-      // card refreshes on them, about once a minute (claude/lock-screen-leaderboard.md).
-      let roundId = a.attributes.roundId
-      Task { await LiveBoardEngine.refresh(roundId: roundId, every: 60) }
     }
     return nil
   }

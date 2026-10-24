@@ -133,12 +133,14 @@ struct LiveBoardBody: View {
     VStack(alignment: .leading, spacing: 2) {
       if !s.matches.isEmpty {
         if s.teams.count == 2 { LiveBoardTeams(teams: s.teams) }
-        ForEach(Array(LiveBoardPick.pick(s.matches, max: maxMatches, mine: { $0.mine }).enumerated()), id: \.offset) { _, m in
+        let fit = (s.teams.count == 2 ? maxMatches - 1 : maxMatches) - (s.notice != nil ? 1 : 0)
+        ForEach(Array(LiveBoardPick.pick(s.matches, max: max(1, fit), mine: { $0.mine }).enumerated()), id: \.offset) { _, m in
           LiveBoardMatchRow(m: m)
         }
       } else {
-        // The member's row stays in when fewer rows fit (the Dynamic Island).
-        ForEach(Array(LiveBoardPick.pick(s.rows, max: maxRows, mine: { $0.mine }).enumerated()), id: \.offset) { _, r in
+        // The member's row stays in when fewer rows fit (the Dynamic Island, or a notice taking a row's room).
+        let fit = s.notice != nil && !s.rows.isEmpty ? maxRows - 1 : maxRows
+        ForEach(Array(LiveBoardPick.pick(s.rows, max: fit, mine: { $0.mine }).enumerated()), id: \.offset) { _, r in
           LiveBoardRowView(r: r)
         }
       }

@@ -37,6 +37,11 @@ T3    Tom Walsh               11    E
 - Ends with the scoring card — finished rounds keep the final board for 15
   minutes; deleted rounds and sign-out take it straight away. Swiped away,
   it stays away for that round.
+- Swipe the *scoring* card away and the leaderboard carries on by itself
+  (and keeps the location updates that refresh it).
+- When it can't load (no signal, an error, an expired key) it says so in a
+  line, with a row given up for it so the card never runs past Apple's
+  height.
 
 ## Keeping it fresh (no server push yet)
 
