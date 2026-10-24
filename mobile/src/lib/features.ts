@@ -90,6 +90,12 @@ export const FEATURES = {
    *  Protection or payouts anywhere. Off: the marketplace behaves as before
    *  0160, with checkout. */
   cashMarketplace: true,
+  /** The leaderboard card on the lock screen (claude/lock-screen-leaderboard.md):
+   *  a second Live Activity under the scoring card while a round with others
+   *  on it is live. No migration — it reads the watch's board route. Also needs
+   *  a binary with the card (LiveBoardLiveActivity.swift); an older binary
+   *  ignores it. Off: just the scoring card, as before. */
+  lockScreenBoard: true,
 
   // ---- Gates (unfinished, off) ----
   /** Shared rounds (phase 9): model only — see claude/shared-round-model.md. */

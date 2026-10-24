@@ -434,8 +434,11 @@ enum LiveScoreEngine {
   /** Every change to the card goes through here, so `current` is always the latest. */
   static func push(_ a: Activity<LiveScoreAttributes>, _ s: LiveScoreAttributes.ContentState) async {
     LiveScoreStore.setShown(s, roundId: a.attributes.roundId)
-    await a.update(ActivityContent(state: s, staleDate: nil))
+    await a.update(ActivityContent(state: s, staleDate: nil, relevanceScore: relevance))
   }
+
+  /** Above the leaderboard card (LiveBoardEngine uses 50): this one keeps the Dynamic Island and the top of the lock screen. */
+  static let relevance: Double = 100
 
   /** − / +: change the number shown, 1 to 15. */
   static func step(roundId: Int, delta: Int) async {
@@ -485,6 +488,8 @@ enum LiveScoreEngine {
     default: latest.notice = nil
     }
     await push(a, latest)
+    // Where that leaves them (claude/lock-screen-leaderboard.md).
+    await LiveBoardEngine.refresh(roundId: roundId, every: 10)
   }
 
   /** Back to the hole just saved, showing what was saved, to change it. */
@@ -607,6 +612,24 @@ public class PinPalsLiveActivityBridge: NSObject {
     let status: String?
     let voiceUrl: String?
     let mapUrl: String?
+    /** The leaderboard card (claude/lock-screen-leaderboard.md): wanted when the round has others on it. */
+    let board: Bool?
+    /** GET /api/widget/live/board. */
+    let boardApi: String?
+    /** Where a tap on the leaderboard card goes; else the round. */
+    let boardUrl: String?
+  }
+
+  /** Puts the leaderboard card up beside the scoring card (or refreshes it), when the app says it's wanted. */
+  private static func startBoard(_ roundId: Int, wanted: Bool?, api: String?, url: String) {
+    guard #available(iOS 17.0, *) else { return }
+    if let api = api { LiveBoardStore.setApi(api, roundId: roundId) }
+    if let wanted = wanted { LiveBoardStore.setWanted(wanted, roundId: roundId) }
+    if wanted == false {
+      LiveBoardEngine.end(roundId: roundId, immediate: true)
+      return
+    }
+    LiveBoardEngine.begin(roundId: roundId, url: url, every: 15)
   }
 
   struct GeometryInput: Decodable {
@@ -628,6 +651,9 @@ public class PinPalsLiveActivityBridge: NSObject {
     let token: String?
     let api: String?
     let playerId: Int?
+    let board: Bool?
+    let boardApi: String?
+    let boardUrl: String?
   }
 
   struct EndInput: Decodable {
@@ -666,9 +692,11 @@ public class PinPalsLiveActivityBridge: NSObject {
     for other in Activity<LiveScoreAttributes>.activities where other.attributes.roundId != input.roundId {
       Task { await other.end(nil, dismissalPolicy: .immediate) }
     }
+    LiveBoardEngine.endOthers(keeping: input.roundId)
     if let existing = LiveScoreEngine.activity(input.roundId) {
       LiveScoreStore.setShown(state, roundId: input.roundId)
       Task { [state] in await LiveScoreEngine.push(existing, state) }
+      startBoard(input.roundId, wanted: input.board, api: input.boardApi, url: input.boardUrl ?? input.url)
       return nil
     }
     let attributes = LiveScoreAttributes(
@@ -676,8 +704,11 @@ public class PinPalsLiveActivityBridge: NSObject {
       voiceUrl: input.voiceUrl, mapUrl: input.mapUrl
     )
     do {
-      _ = try Activity<LiveScoreAttributes>.request(attributes: attributes, content: ActivityContent(state: state, staleDate: nil), pushType: nil)
+      _ = try Activity<LiveScoreAttributes>.request(
+        attributes: attributes, content: ActivityContent(state: state, staleDate: nil, relevanceScore: LiveScoreEngine.relevance), pushType: nil
+      )
       LiveScoreStore.setShown(state, roundId: input.roundId)
+      startBoard(input.roundId, wanted: input.board, api: input.boardApi, url: input.boardUrl ?? input.url)
       return nil
     } catch {
       return error.localizedDescription as NSString
@@ -691,7 +722,15 @@ public class PinPalsLiveActivityBridge: NSObject {
     if let token = input.token, let api = input.api {
       LiveScoreStore.setConfig(.init(api: api, token: token, playerId: input.playerId), roundId: input.roundId)
     }
-    guard let a = LiveScoreEngine.activity(input.roundId) else { return "not running" }
+    guard let a = LiveScoreEngine.activity(input.roundId) else {
+      // The scoring card was swiped away but the leaderboard's still up: keep
+      // that one going (and the location updates that refresh it).
+      guard LiveBoardEngine.activity(input.roundId) != nil else { return "not running" }
+      Task { await LiveBoardEngine.refresh(roundId: input.roundId, every: 15) }
+      return nil
+    }
+    // The app scored or reloaded: the leaderboard too, if it's been a little while.
+    startBoard(input.roundId, wanted: input.board, api: input.boardApi, url: input.boardUrl ?? a.attributes.url)
     var s = LiveScoreEngine.current(a)
     s.hole = input.hole
     LiveScoreDistance.apply(&s, roundId: input.roundId)
@@ -722,12 +761,14 @@ public class PinPalsLiveActivityBridge: NSObject {
       s.status = input.summary ?? a.attributes.total(s.strokes)
       s.notice = nil
       s.saved = nil
-      let content = ActivityContent(state: s, staleDate: nil)
+      let content = ActivityContent(state: s, staleDate: nil, relevanceScore: LiveScoreEngine.relevance)
       // Finished: the final total stays on the lock screen for a little while.
       let policy: ActivityUIDismissalPolicy = immediate ? .immediate : .after(Date().addingTimeInterval(15 * 60))
       Task { await a.end(content, dismissalPolicy: policy) }
       LiveScoreStore.forget(roundId: a.attributes.roundId)
     }
+    // The leaderboard card goes with it (the final board stays as long as the final score).
+    LiveBoardEngine.end(roundId: input.roundId, immediate: immediate)
     if input.roundId == nil { LiveScoreStore.clearEverything() }
     return nil
   }
@@ -757,7 +798,14 @@ public class PinPalsLiveActivityBridge: NSObject {
     let running = Activity<LiveScoreAttributes>.activities.filter {
       ($0.activityState == .active || $0.activityState == .stale) && !LiveScoreEngine.current($0).finished
     }
-    guard !running.isEmpty else { return "not running" }
+    let boards = LiveBoardEngine.running
+    guard !running.isEmpty || !boards.isEmpty else { return "not running" }
+    // These fixes keep the app awake with the phone locked: the leaderboard
+    // cards refresh on them, about once a minute (claude/lock-screen-leaderboard.md).
+    for b in boards {
+      let roundId = b.attributes.roundId
+      Task { await LiveBoardEngine.refresh(roundId: roundId, every: 60) }
+    }
     for a in running {
       var s = LiveScoreEngine.current(a)
       let before = s.distance
@@ -821,6 +869,7 @@ public class PinPalsLiveActivityBridge: NSObject {
         s.waiting = LiveScoreStore.waiting(roundId: input.roundId)
         await LiveScoreEngine.push(a, s)
         await LiveScoreEngine.retry(roundId: input.roundId)
+        await LiveBoardEngine.refresh(roundId: input.roundId, every: 10)
       }
     } else {
       Task { _ = await LiveScoreStore.flush(roundId: input.roundId) }

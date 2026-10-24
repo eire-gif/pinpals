@@ -1243,14 +1243,14 @@ export const GUIDES: Guide[] = [
       },
       {
         title: "Score from your lock screen",
-        body: "On an iPhone, your round appears on the lock screen once you open it. Lift the phone, use − and + if you need to, and tap Save — no need to unlock. It moves on to the next hole by itself. NR (no return, if you picked up) is underneath, and Undo takes you back to the hole you just saved. The gold mic opens the round listening, to say the group's scores, and the yardage is your distance to the centre of the green — tap it for the hole map.",
+        body: "On an iPhone, your round appears on the lock screen once you open it. Lift the phone, use − and + if you need to, and tap Save — no need to unlock. It moves on to the next hole by itself. NR (no return, if you picked up) is underneath, and Undo takes you back to the hole you just saved. The gold mic opens the round listening, to say the group's scores, and the yardage is your distance to the centre of the green — tap it for the hole map. Playing with others? A second card underneath keeps the leaderboard — the top four with your row lit up, or the matches and the team score. ⟳ refreshes it; tap it to open the Leaderboard.",
         look: [
           { style: "outline", label: "−" },
           { style: "primary", label: "5" },
           { style: "outline", label: "+" },
           { style: "primary", label: "Save", icon: "checkmark" },
         ],
-        tip: "It's your own score — or, in a foursomes or greensomes pair or a scramble team, your pair's or team's card, which either of you can save. Not for a foursomes or greensomes match. No signal? It's kept and sent when there is. The yardage needs location: PinPals asks once, and it stops when the round ends (a flag means it's the hole's length from the tee). Tap the card after the last hole and the round opens on Complete scorecard; the card goes when you tap it. Not showing? Settings → PinPals → Live Activities.",
+        tip: "It's your own score — or, in a foursomes or greensomes pair or a scramble team, your pair's or team's card, which either of you can save. Not for a foursomes or greensomes match. No signal? It's kept and sent when there is. The yardage needs location: PinPals asks once, and it stops when the round ends (a flag means it's the hole's length from the tee). Tap the card after the last hole and the round opens on Complete scorecard; the card goes when you tap it. The leaderboard card keeps itself up to date while the yardage is on, and after every score you save; the time on it says how fresh it is. Swipe it away and it stays away for that round. Not showing? Settings → PinPals → Live Activities.",
       },
       {
         title: "Score from your watch",
@@ -2033,6 +2033,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-24", text: "Score from your lock screen: in a round with others, a second card under the scoring card shows the leaderboard (or the matches and the team score), with your row lit up. It refreshes as you go and after every score; ⟳ refreshes it, and a tap opens the round on its Leaderboard." },
   { on: "2026-10-24", text: "Score a game live: a round you're playing in now sits at the top of Live scoring with Continue round, Finish round and Delete round. The three start buttons are locked until it's finished or deleted. New step: Already in a live round?" },
   { on: "2026-10-23", text: "Longest shots: tap one under a scorecard or in My bag — your longest drive, say — and the hole map opens on that hole, zoomed on the shot, drawn in gold with its distance. Show the whole hole zooms back out." },
   { on: "2026-10-23", text: "New guide, Run a multi-day championship: 2 to 4 days, a course and format each day, one leaderboard with each player's place up or down on the day before. Trips can switch on Run a leaderboard across the trip on the itinerary." },

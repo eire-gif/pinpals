@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { LayoutPoint } from "./hole-geo";
-import { anySpots, lockScreenHole, lockScreenLinks, lockScreenSpots, lockScreenStrokes, positionLine, watchGroup, watchNames } from "./lock-screen-rules";
+import { anySpots, lockScreenBoard, lockScreenHole, lockScreenLinks, lockScreenSpots, lockScreenStrokes, positionLine, watchGroup, watchNames } from "./lock-screen-rules";
 
 const card = Array.from({ length: 18 }, (_, i) => ({ hole: i + 1 }));
 
@@ -120,5 +120,21 @@ describe("watchGroup", () => {
     expect(watchGroup({ shared: true, players, me: "me", card, shotsAt, scores })).toBeNull();
     expect(watchGroup({ shared: false, players: players.slice(1, 2), me: "me", card, shotsAt, scores })).toBeNull();
     expect(watchGroup({ shared: false, players, me: "someone-else", card, shotsAt, scores })).toBeNull();
+  });
+});
+
+describe("lockScreenBoard", () => {
+  it("wants the leaderboard card only when someone else is in the game", () => {
+    expect(lockScreenBoard({ id: 7 }, true, "https://pinpals.ie").board).toBe(true);
+    expect(lockScreenBoard({ id: 7 }, false, "https://pinpals.ie").board).toBe(false);
+    expect(lockScreenBoard({ id: 7 }, undefined, "https://pinpals.ie").board).toBe(false);
+  });
+
+  it("reads the watch's board route and opens the round on its Leaderboard", () => {
+    expect(lockScreenBoard({ id: 42 }, true, "https://pinpals.ie/")).toEqual({
+      board: true,
+      boardApi: "https://pinpals.ie/api/widget/live/board",
+      boardUrl: "pinpals://live/round/42?view=board",
+    });
   });
 });

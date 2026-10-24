@@ -163,3 +163,16 @@ export function lockScreenLinks(
     mapUrl: on.map && clubId != null ? `pinpals://hole-map?clubId=${clubId}&roundId=${roundId}&hole=` : null,
   };
 }
+
+/**
+ * The leaderboard card (claude/lock-screen-leaderboard.md): whether it's
+ * wanted (someone else is in the game), where the board is fetched from, and
+ * where a tap goes — the round on its Leaderboard tab.
+ */
+export function lockScreenBoard(round: { id: number }, others: boolean | undefined, site: string) {
+  return {
+    board: others === true,
+    boardApi: `${site.replace(/\/$/, "")}/api/widget/live/board`,
+    boardUrl: `pinpals://live/round/${round.id}?view=board`,
+  };
+}

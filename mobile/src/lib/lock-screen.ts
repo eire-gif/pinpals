@@ -6,7 +6,7 @@ import { SITE_URL } from "./config";
 import type { LiveRound } from "./live-rounds";
 import { isOneBallPerSide, playOrder, type CardHole } from "./live-scoring";
 import { sendScore } from "./score-queue";
-import { anySpots, lockScreenHole, lockScreenLinks, lockScreenSpots, lockScreenStrokes, type WatchExtras, type WatchPlayer } from "./lock-screen-rules";
+import { anySpots, lockScreenBoard, lockScreenHole, lockScreenLinks, lockScreenSpots, lockScreenStrokes, type WatchExtras, type WatchPlayer } from "./lock-screen-rules";
 import { loadRoundIsCompetition, manualCompetition } from "./competition-mode";
 import { loadWind } from "./hole-extras";
 import { isOn } from "./features";
@@ -53,6 +53,13 @@ import { startLockScreenDistance, stopLockScreenDistance } from "./lock-screen-l
  * Watch v2 (claude/watch-v2.md): start and update also carry a `watch` key —
  * the group page's players, competition mode, the wind, Premium and the
  * leaderboard's address. The card ignores it; only the watch link keeps it.
+ *
+ * The leaderboard card (claude/lock-screen-leaderboard.md): with `others`
+ * set (the round has other players, or is part of a day), a second card
+ * shows the game's leaderboard under the scoring card. The Swift side
+ * fetches and refreshes it itself (_shared/LiveBoardShared.swift) from the
+ * same board the watch reads; here we only say whether it's wanted and
+ * where it lives. It goes when the scoring card goes.
  */
 
 type Native = {
@@ -129,6 +136,8 @@ export type LockScreenRound = {
   status: string | null;
   /** Watch v2: the group page (null = none) and the member's Premium features. */
   watch?: { group: WatchPlayer[] | null; premium: { map: boolean; playsLike: boolean } };
+  /** Someone else is in the game (other players, or a day of matches/teams): show the leaderboard card too. */
+  others?: boolean;
 };
 
 // ---- Watch v2: competition mode and the wind, looked up once a round ----
@@ -207,6 +216,7 @@ export async function syncLockScreen(input: LockScreenRound): Promise<void> {
   const api = `${SITE_URL.replace(/\/$/, "")}/api/widget/live/score`;
   const watch = watchExtras(input);
   refreshWatchContext(input);
+  const board = lockScreenBoard(round, input.others && isOn("lockScreenBoard"), SITE_URL);
 
   try {
     if (!started.has(round.id)) {
@@ -227,6 +237,7 @@ export async function syncLockScreen(input: LockScreenRound): Promise<void> {
           voiceUrl: links.voiceUrl,
           mapUrl: links.mapUrl,
           watch,
+          ...board,
         })
       );
       if (failure == null) {
@@ -237,7 +248,7 @@ export async function syncLockScreen(input: LockScreenRound): Promise<void> {
       }
       return;
     }
-    const result = native.update(JSON.stringify({ roundId: round.id, hole, strokes, status: input.status, token: key.token, api, playerId: input.playerId, watch }));
+    const result = native.update(JSON.stringify({ roundId: round.id, hole, strokes, status: input.status, token: key.token, api, playerId: input.playerId, watch, ...board }));
     // The member swiped the card away (or iOS ended it after 8 hours): leave
     // it gone for this round rather than putting it back on every score.
     if (result === "not running") {
