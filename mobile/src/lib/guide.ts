@@ -1233,6 +1233,12 @@ export const GUIDES: Guide[] = [
         tip: "Tap the gold Yardage & shot map button under the hole number for front, centre and back of the green, and to mark each shot. Once a hole is scored and you walk onto the next tee, the round moves on to that hole by itself (if PinPals can use your location). On the strip of holes, a birdie shows red and an eagle or better gold.",
       },
       {
+        title: "No signal? Keep scoring",
+        body: "Score as normal. With no signal the card says how many scores are saved on your phone, and they send by themselves as soon as you're back in range — even if you close the app in between. Reopen PinPals in a dip and MY ROUND still opens the card saved on your phone.",
+        look: [{ style: "tile", label: "No signal — 3 scores saved on your phone", icon: "cloud-offline-outline" }],
+        tip: "Complete scorecard waits until every saved score has sent, so the round never finishes a hole short. The hole map opens with no signal too, with GPS distances; the satellite picture needs signal.",
+      },
+      {
         title: "Or say the scores",
         body: "Tap Say scores under the players and say everyone's, the way you'd tell the group: “Niamh bogey, I had par, Dec a five”. Then check each one — fix any with − and +, and tap Yes on any it wasn't sure of — and tap Save & go to the next hole.",
         look: [
@@ -2045,6 +2051,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-24", text: "Score a game live: new step, No signal? Keep scoring — scores are saved on your phone and send by themselves when you're back in range; the round and the hole map open with no signal; Complete scorecard waits until every saved score has sent." },
   { on: "2026-10-24", text: "Post a tee time: requests show each golfer's record (Reliable · 18 of 18 rounds, or New to tee times) and Verified golfer badge, best records first; new option Golfers with a good record only; new step, After the round: who turned up. Find a game: dropping out inside 24 hours is a late cancellation, and I was there disputes a no-show." },
   { on: "2026-10-24", text: "Buy and Sell: marketplace chats open with tips for buying and selling safely and Suggest meeting at the club; a message asking for a deposit, a courier, a gift card or with a link in it gets a yellow warning. Sellers can be Verified golfers (Profile → Get the Verified badge)." },
   { on: "2026-10-24", text: "Score from your lock screen: in a round with others, a second card under the scoring card shows the leaderboard (or the matches and the team score), with your row lit up. It refreshes as you go and after every score; ⟳ refreshes it, and a tap opens the round on its Leaderboard." },

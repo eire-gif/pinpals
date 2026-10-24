@@ -48,6 +48,8 @@ import { clubDistanceM, clubInfo, likelyClubs, suggestClub, type BagClub } from 
 import { loadLongestShots, loadMyBag, loadShotClubs, loadWind, tagShotClub, taggable, type LongestShot } from "@/lib/hole-extras";
 import { ClubTagRow, ClubTagTooFar, PlaysLikeRow, TipsBlock, WindChip, WindCredit, WindStream, clubOrder } from "@/components/hole-map-extras";
 import { addShot, loadCourseLayouts, loadRoundShots, saveHoleFix, shotKey, undoShot, type CourseLayout } from "@/lib/hole-maps";
+import { courseCopy, loadRoundAnyway, saveCourseCopy } from "@/lib/round-cache";
+import { isNetworkError } from "@/lib/score-queue-rules";
 import { isSuperAdmin } from "@/lib/admin";
 import { osmLayoutPoints, outlinesNear, type OsmFeature } from "@/lib/osm-course";
 import { loadCourseShapes } from "@/lib/osm-fetch";
@@ -285,11 +287,28 @@ export default function HoleMapScreen() {
   const load = useCallback(async () => {
     try {
       setFailed(false);
-      const [c, l, r, s] = await Promise.all([
-        loadCourse(clubId),
-        loadCourseLayouts(clubId),
-        roundId != null ? loadLiveRound(roundId) : Promise.resolve(null),
-        roundId != null ? loadRoundShots(roundId) : Promise.resolve(new Map<number, Shot[]>()),
+      // Offline scoring (claude/offline-scoring.md): the course and its hole
+      // maps are saved on the phone each time they load, and the round comes
+      // from loadRoundAnyway — so with no signal the map still opens, with
+      // GPS distances from the phone's own location. (The satellite picture
+      // under it needs signal; tiles already seen may still show.)
+      const courseAndMaps = async (): Promise<[Awaited<ReturnType<typeof loadCourse>>, Awaited<ReturnType<typeof loadCourseLayouts>>]> => {
+        try {
+          const got = await Promise.all([loadCourse(clubId), loadCourseLayouts(clubId)]);
+          void saveCourseCopy(clubId, { course: got[0], layouts: got[1] });
+          return got;
+        } catch (e) {
+          const copy = isNetworkError(e)
+            ? await courseCopy<Awaited<ReturnType<typeof loadCourse>>, Awaited<ReturnType<typeof loadCourseLayouts>>>(clubId)
+            : null;
+          if (!copy) throw e;
+          return [copy.course, copy.layouts];
+        }
+      };
+      const [[c, l], r, s] = await Promise.all([
+        courseAndMaps(),
+        roundId != null ? loadRoundAnyway(roundId).then((x) => x.data) : Promise.resolve(null),
+        roundId != null ? loadRoundShots(roundId).catch(() => new Map<number, Shot[]>()) : Promise.resolve(new Map<number, Shot[]>()),
       ]);
       setCourse(c);
       setLayouts(l);

@@ -15,16 +15,16 @@ import {
   finishLiveRound,
   loadCourseCards,
   loadHighlightAlertsOn,
-  loadLiveRound,
   saveCourseCard,
-  setLiveDrive,
   setLiveHole,
   queueHighlight,
   setHighlightAlertsOn,
   subscribeToLiveRound,
   type LiveRoundData,
 } from "@/lib/live-rounds";
-import { onPendingChange, pendingCount, pendingFor, sendScore } from "@/lib/score-queue";
+import { flushScores, onPendingChange, pendingCount, pendingFor, sendDrive, sendScore } from "@/lib/score-queue";
+import { forgetRound, loadRoundAnyway } from "@/lib/round-cache";
+import { isNetworkError } from "@/lib/score-queue-rules";
 import {
   buildBoard,
   driveCounts,
@@ -98,6 +98,11 @@ export default function LiveRoundScreen() {
   /** Scores saved on the phone with no signal, still to send. */
   const [waitingScores, setWaitingScores] = useState(pendingCount());
   useEffect(() => onPendingChange(setWaitingScores), []);
+  /** Offline scoring (claude/offline-scoring.md): no signal, so this is the copy saved on the phone. */
+  const [fromPhone, setFromPhone] = useState(false);
+  // Back in range and everything sent: fetch the round again, so the card
+  // shows the rest of the group's scores too.
+  const hadWaiting = useRef(waitingScores > 0);
   const [failed, setFailed] = useState(false);
   const [view, setView] = useState<"score" | "board">("score");
   // The lock screen's leaderboard card opens the round on its Leaderboard
@@ -142,25 +147,16 @@ export default function LiveRoundScreen() {
       // Scores saved on the lock screen with no signal join the app's queue
       // first, so they're on the card below (lib/lock-screen.ts).
       await drainLockScreenScores();
-      const raw = await loadLiveRound(roundId);
-      // Scores entered with no signal and not sent yet stay on the card.
-      const waiting = raw ? await pendingFor(roundId) : [];
-      let d = raw;
-      if (d && waiting.length) {
-        const scores = new Map(d.scores);
-        for (const w of waiting) {
-          const mine = new Map(scores.get(w.playerId) ?? []);
-          if (w.clear) mine.delete(w.hole);
-          else mine.set(w.hole, w.strokes);
-          scores.set(w.playerId, mine);
-        }
-        d = { ...d, scores };
-      }
+      // From the server, or with no signal the copy saved on this phone —
+      // either way with the scores still waiting to send laid over it.
+      const got = await loadRoundAnyway(roundId);
+      const d = got.data;
+      setFromPhone(got.fromPhone);
       setData(d);
       // Scores change here (ours, or the group's via the live ping): the
       // Home Screen widget fetches again (throttled, lib/widgets.ts).
       refreshWidget();
-      if (d && d.round.clubId != null && d.card.every((c) => c.strokeIndex != null)) {
+      if (d && !got.fromPhone && d.round.clubId != null && d.card.every((c) => c.strokeIndex != null)) {
         const tee = (d.round.teeName ?? "Standard").trim().toLowerCase();
         const saved = (await loadCourseCards(d.round.clubId).catch(() => [])).find(
           (c) => c.teeName.trim().toLowerCase() === tee && c.holes === d.round.holes
@@ -174,8 +170,8 @@ export default function LiveRoundScreen() {
               : "different"
         );
       }
-      if (d?.round.matchDayId != null) setDayHeader(await loadMatchDayHeader(d.round.matchDayId));
-      if (d && alertsLoaded.current !== d.round.id) {
+      if (d?.round.matchDayId != null && !got.fromPhone) setDayHeader(await loadMatchDayHeader(d.round.matchDayId).catch(() => null));
+      if (d && !got.fromPhone && alertsLoaded.current !== d.round.id) {
         alertsLoaded.current = d.round.id;
         void loadHighlightAlertsOn(d.round.id, d.round.matchDayId)
           .then(setAlertsOn)
@@ -200,6 +196,10 @@ export default function LiveRoundScreen() {
     }, [load])
   );
   useEffect(() => subscribeToLiveRound(roundId, () => void load()), [roundId, load]);
+  useEffect(() => {
+    if (hadWaiting.current && waitingScores === 0) void load();
+    hadWaiting.current = waitingScores > 0;
+  }, [waitingScores, load]);
   useLiveRefresh(load, data?.round.status === "live");
 
   const board = useMemo(
@@ -553,9 +553,10 @@ export default function LiveRoundScreen() {
       return { ...d, drives: m };
     });
     try {
-      await setLiveDrive(round.id, h.hole, next);
+      // With no signal it waits on the phone with the scores (score-queue.ts).
+      await sendDrive(round.id, h.hole, next);
     } catch (e) {
-      Alert.alert("That drive didn't save", e instanceof Error ? e.message : "Check your signal and try again.");
+      Alert.alert("That drive didn't save", e instanceof Error ? e.message : (e as { message?: string })?.message ?? "Please try again.");
       void load();
     }
   };
@@ -618,8 +619,20 @@ export default function LiveRoundScreen() {
       {
         text: "Finish",
         onPress: async () => {
+          // Offline scoring: every score on this phone goes first, so the
+          // round never finishes without a hole that's waiting for signal.
+          await flushScores();
+          const still = (await pendingFor(round.id)).length;
+          if (still > 0) {
+            Alert.alert(
+              "No signal yet",
+              `${still} score${still === 1 ? " is" : "s are"} still saved on your phone. Finish once ${still === 1 ? "it's" : "they've"} sent — they go by themselves as soon as you're back in range. Nothing's lost.`
+            );
+            return;
+          }
           try {
             await finishLiveRound(round.id);
+            void forgetRound(round.id);
             // Oct 2026: finishing used to leave you at the bottom of the page
             // with nothing seeming to happen. Now it takes you to this game's
             // card, from the top, with the final scores on it.
@@ -628,7 +641,14 @@ export default function LiveRoundScreen() {
             boardScroll.current?.scrollTo({ y: 0, animated: true });
             offerCertification();
           } catch (e) {
-            Alert.alert("Couldn't finish the round", e instanceof Error ? e.message : "Please try again.");
+            Alert.alert(
+              "Couldn't finish the round",
+              isNetworkError(e)
+                ? "No signal. Every score is safe — try Finish again when you're back in range."
+                : e instanceof Error
+                  ? e.message
+                  : (e as { message?: string })?.message ?? "Please try again."
+            );
           }
         },
       },
@@ -894,6 +914,7 @@ export default function LiveRoundScreen() {
           onPress: async () => {
             try {
               await deleteLiveRound(round.id);
+              void forgetRound(round.id);
               endLockScreen(round.id, undefined, true);
               // Home, not the match day or the hub: the game is gone, and
               // Back shouldn't lead to its empty screen either.
@@ -944,6 +965,14 @@ export default function LiveRoundScreen() {
 
       {view === "score" ? (
         <ScrollView ref={scoreScroll} contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
+          {fromPhone && waitingScores === 0 ? (
+            <View style={styles.offline} accessibilityLiveRegion="polite">
+              <Ionicons name="cloud-offline-outline" size={18} color="#6b4403" />
+              <Text style={styles.offlineText}>
+                No signal — this is the card saved on your phone. Keep scoring; everything sends when you're back in range.
+              </Text>
+            </View>
+          ) : null}
           {waitingScores > 0 ? (
             <View style={styles.offline} accessibilityLiveRegion="polite">
               <Ionicons name="cloud-offline-outline" size={18} color="#6b4403" />

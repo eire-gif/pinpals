@@ -5,6 +5,7 @@ import * as SecureStore from "expo-secure-store";
 import { isFirstPutt, type GreenMiss, type HoleStat, type TeeShot } from "@/lib/hole-stats";
 import { isNetworkError } from "@/lib/score-queue-rules";
 import { supabase } from "@/lib/supabase";
+import { getStored, removeStored, setStored } from "@/lib/phone-store";
 
 /**
  * My Game stats (0178): the member's own taps per hole, saved through
@@ -144,7 +145,10 @@ export function statsForCard(
 
 type Pending = { target: StatsTarget; stat: HoleStat; at: number };
 
-const QUEUE_KEY = "pinpals.pendingStats.v1";
+// Oct 2026: kept with phone-store.ts (a file) — the old single SecureStore
+// value refused anything over ~2 KB, only a few holes of stats.
+const QUEUE_KEY = "pending-stats-v2";
+const OLD_QUEUE_KEY = "pinpals.pendingStats.v1";
 const RETRY_MS = 30_000;
 let queue: Pending[] | null = null;
 let timer: ReturnType<typeof setInterval> | null = null;
@@ -154,23 +158,23 @@ const pendingKey = (p: Pending) => `${targetKey(p.target)}:${p.stat.hole}`;
 
 async function pendingStats(): Promise<Pending[]> {
   if (queue) return queue;
+  queue = (await getStored<Pending[]>(QUEUE_KEY)) ?? [];
   try {
-    const raw = await SecureStore.getItemAsync(QUEUE_KEY);
-    queue = raw ? (JSON.parse(raw) as Pending[]) : [];
+    const old = await SecureStore.getItemAsync(OLD_QUEUE_KEY);
+    if (old) {
+      queue = [...(JSON.parse(old) as Pending[]), ...queue];
+      await SecureStore.deleteItemAsync(OLD_QUEUE_KEY);
+    }
   } catch {
-    queue = [];
+    // Nothing in the old place.
   }
   if (queue.length) startRetry();
   return queue;
 }
 
 async function persist(): Promise<void> {
-  try {
-    if (!queue || queue.length === 0) await SecureStore.deleteItemAsync(QUEUE_KEY);
-    else await SecureStore.setItemAsync(QUEUE_KEY, JSON.stringify(queue.slice(-60)));
-  } catch {
-    // The copy in memory still sends while the app is open.
-  }
+  if (!queue || queue.length === 0) await removeStored(QUEUE_KEY);
+  else await setStored(QUEUE_KEY, queue.slice(-400));
 }
 
 async function send(target: StatsTarget, s: HoleStat): Promise<void> {
