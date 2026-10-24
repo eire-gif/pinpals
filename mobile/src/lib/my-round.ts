@@ -5,6 +5,8 @@ import { usePathname } from "expo-router";
 import { supabase } from "@/lib/supabase";
 import { onMyRoundSignal } from "@/lib/my-round-signal";
 import { holeInPlay, isoDay, pickMyRound, type MyRound, type MyRoundCandidate } from "@/lib/my-round-rules";
+import { lastLiveRoundOnPhone, roundCopy } from "@/lib/round-cache";
+import { isNetworkError } from "@/lib/score-queue-rules";
 
 /**
  * The live round you're playing in, for the MY ROUND pill in every header
@@ -77,6 +79,24 @@ async function load(): Promise<MyRound | null> {
   return { id: round.id, hole: holeInPlay(round.holes, round.startHole, (scores ?? []).map((s) => s.hole)) };
 }
 
+/**
+ * No signal (claude/offline-scoring.md): the live round this phone last had
+ * open today, from the copy saved on it — so after reopening the app in a
+ * dip the pill still leads straight back to the card.
+ */
+async function fromPhone(): Promise<MyRound | null> {
+  const now = new Date();
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const id = await lastLiveRoundOnPhone(isoDay(now), isoDay(yesterday));
+  if (id == null) return null;
+  const copy = await roundCopy(id);
+  if (!copy) return null;
+  const scored: number[] = [];
+  for (const holes of copy.scores.values()) for (const [hole, strokes] of holes) if (strokes != null) scored.push(hole);
+  return { id, hole: holeInPlay(copy.round.holes, copy.round.start?.hole ?? null, scored) };
+}
+
 /** Load now (or within `minGapMs` of the last load, skip). Never throws. */
 export function refreshMyRound(minGapMs = 0): Promise<void> {
   if (loading) return loading;
@@ -84,8 +104,11 @@ export function refreshMyRound(minGapMs = 0): Promise<void> {
   lastLoad = Date.now();
   loading = load()
     .then(publish)
-    // A failed check leaves the pill as it was rather than hiding it mid-round.
-    .catch(() => undefined)
+    // A failed check leaves the pill as it was rather than hiding it mid-round;
+    // with no signal and no pill yet, the round saved on the phone shows it.
+    .catch(async (e) => {
+      if (current == null && isNetworkError(e)) publish(await fromPhone().catch(() => null));
+    })
     .finally(() => {
       loading = null;
     });
