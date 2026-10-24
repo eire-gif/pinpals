@@ -42,6 +42,9 @@ const EXACT: Record<string, string> = {
   "/inbox": "/inbox",
   "/conversations": "/inbox",
 
+  // Trust & safety (0188): a Verified golfer decision opens the check.
+  "/profile/verify": "/verify",
+
   "/tee-times": "/tee-times",
   // MY ROUNDS (Oct 2026): every tee time you're part of, either side, is on
   // one page now. The tab it opens on is the side the alert is about.

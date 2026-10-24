@@ -91,6 +91,8 @@ export interface CallOptions {
   maxTokens: number;
   /** Zero by default: this is extraction and summarisation, not invention. */
   temperature?: number;
+  /** Photos sent ahead of the text (0188: the Verified golfer card check). */
+  images?: { mediaType: "image/jpeg" | "image/png" | "image/webp"; base64: string }[];
 }
 
 /**
@@ -103,7 +105,7 @@ export interface CallOptions {
 export async function callClaude<T>(options: CallOptions): Promise<ClaudeResult<T>> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
-    throw new Error("ANTHROPIC_API_KEY is not set; the news pipeline cannot run.");
+    throw new Error("ANTHROPIC_API_KEY is not set; Claude can't be called.");
   }
 
   const body = JSON.stringify({
@@ -111,7 +113,21 @@ export async function callClaude<T>(options: CallOptions): Promise<ClaudeResult<
     max_tokens: options.maxTokens,
     temperature: options.temperature ?? 0,
     system: options.system,
-    messages: [{ role: "user", content: options.user }],
+    messages: [
+      {
+        role: "user",
+        content:
+          options.images && options.images.length > 0
+            ? [
+                ...options.images.map((image) => ({
+                  type: "image",
+                  source: { type: "base64", media_type: image.mediaType, data: image.base64 },
+                })),
+                { type: "text", text: options.user },
+              ]
+            : options.user,
+      },
+    ],
   });
 
   let lastError = "";

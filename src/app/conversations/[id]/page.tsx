@@ -69,7 +69,7 @@ export default async function ConversationThreadPage({ params }: { params: Promi
     };
   }
 
-  const [messagesResult, blockedResult, myBlockResult, myMuteResult] = await Promise.all([
+  const [messagesResult, blockedResult, myBlockResult, myMuteResult, myClubResult] = await Promise.all([
     listLatestMessages(conversationId),
     // Either direction — this is what actually disables the composer, since
     // messages' own insert policy (0049) rejects the send regardless of
@@ -85,6 +85,10 @@ export default async function ConversationThreadPage({ params }: { params: Promi
     otherId
       ? supabase.from("muted_users").select("muter_id").eq("muter_id", user.id).eq("muted_id", otherId).maybeSingle()
       : Promise.resolve({ data: null }),
+    // 0188: my home club, for "Suggest meeting at the club" in a marketplace chat.
+    conversation.listing
+      ? supabase.from("profiles").select("home_club").eq("id", user.id).maybeSingle<{ home_club: string | null }>()
+      : Promise.resolve({ data: null as { home_club: string | null } | null }),
   ]);
 
   // Best-effort — mark-as-read failing must never stop the thread from
@@ -145,6 +149,11 @@ export default async function ConversationThreadPage({ params }: { params: Promi
           currentUserId={user.id}
           participants={participants}
           blocked={!!blockedResult.data}
+          marketplace={
+            conversation.listing
+              ? { viewerIsSeller: conversation.listing.seller_id === user.id, myClub: myClubResult.data?.home_club ?? null }
+              : null
+          }
         />
       </div>
 

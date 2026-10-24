@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -27,6 +28,7 @@ import {
   firstName,
   forFilter,
   listNames,
+  localIso,
   shortDate,
   type Filter,
   type MyRound,
@@ -37,6 +39,16 @@ import {
   type Tone,
 } from "@/lib/my-rounds-rules";
 import { confirmPlace, respondToRequest, withdrawRequest } from "@/lib/tee-time-interest";
+import { TrustBadges } from "@/components/trust-badges";
+import { disputeNoShow, loadMarks, loadTrust, markNoShow, type Trust } from "@/lib/trust";
+import {
+  LATE_CANCEL_WARNING,
+  byReliability,
+  canStillMark,
+  isLateNotice,
+  noShowLine,
+  type AttendanceMark,
+} from "@/lib/reliability";
 import { guideHidden, hideGuide } from "@/lib/my-rounds-guide";
 import { teeTimesChanged } from "@/lib/tee-times-waiting";
 import { ForecastRow } from "@/components/weather-bits";
@@ -84,6 +96,9 @@ function MyRoundsScreenInner() {
   const [busy, setBusy] = useState<string | null>(null);
   const [menuFor, setMenuFor] = useState<number | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  // Trust (0188): badges on golfers asking to join, no-shows on played rounds.
+  const [trust, setTrust] = useState<Map<string, Trust>>(new Map());
+  const [marks, setMarks] = useState<AttendanceMark[]>([]);
   // Hidden once means hidden for good, on this phone (lib/my-rounds-guide.ts).
   // Starts hidden and appears once the phone says it wasn't, so a member who
   // dismissed it never sees it flash back for a frame.
@@ -111,8 +126,16 @@ function MyRoundsScreenInner() {
       return;
     }
     try {
-      setView(await loadMyRounds(userId));
+      const next = await loadMyRounds(userId);
+      setView(next);
       setError(null);
+      const askers = next.needs.flatMap((n) => (n.kind === "request" ? [n.person.id] : []));
+      const [t, m] = await Promise.all([
+        loadTrust(askers).catch(() => new Map<string, Trust>()),
+        loadMarks(next.played.map((p) => p.inviteId)),
+      ]);
+      setTrust(t);
+      setMarks(m);
     } catch {
       setError("Couldn't load your rounds just now. Pull down to try again.");
     } finally {
@@ -198,10 +221,12 @@ function MyRoundsScreenInner() {
   const confirmOffer = (interestId: number, hostName: string, date: string) =>
     void run(`need-${interestId}`, () => confirmPlace(interestId, true), `You're in for ${shortDate(date)}. ${firstName(hostName)}'s been told.`);
 
-  const giveBack = (interestId: number, hostName: string, club: string, date: string, confirmed: boolean) =>
+  const giveBack = (interestId: number, hostName: string, club: string, date: string, confirmed: boolean, teeTime: string | null = null) =>
     Alert.alert(
       confirmed ? "Cancel your place?" : "Can't make it?",
-      `${club}, ${shortDate(date)}. ${firstName(hostName)} will be told so the place can go to someone else.`,
+      `${club}, ${shortDate(date)}. ${firstName(hostName)} will be told so the place can go to someone else.${
+        confirmed && isLateNotice(date, teeTime) ? `\n\n${LATE_CANCEL_WARNING}` : ""
+      }`,
       [
         { text: "Keep my place", style: "cancel" },
         {
@@ -277,9 +302,56 @@ function MyRoundsScreenInner() {
     }
   };
 
+  // ---- after the round (0188) -------------------------------------------
+
+  const markPlayer = (inviteId: number, memberId: string, name: string, noShow: boolean) => {
+    if (!noShow) {
+      void run(`played-${inviteId}`, () => markNoShow(inviteId, memberId, false), `Done. ${firstName(name)} turned up.`);
+      return;
+    }
+    Alert.alert(`Did ${firstName(name)} not turn up?`, "They'll be told and can dispute it. It goes on their tee-time record.", [
+      { text: "They turned up", style: "cancel" },
+      {
+        text: "Didn't turn up",
+        style: "destructive",
+        onPress: () => void run(`played-${inviteId}`, () => markNoShow(inviteId, memberId, true), `${firstName(name)} marked as a no-show.`),
+      },
+    ]);
+  };
+
+  const dispute = (inviteId: number) => {
+    const send = (note: string) =>
+      void run(`played-${inviteId}`, () => disputeNoShow(inviteId, note), "Disputed. It won't count while it's checked.");
+    if (Platform.OS === "ios") {
+      Alert.prompt(
+        "I was there",
+        "Tell us what happened (optional). The no-show stops counting while it's checked.",
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Dispute", onPress: (note?: string) => send(note ?? "") },
+        ],
+        "plain-text"
+      );
+    } else {
+      // Android has no Alert.prompt: dispute without a note.
+      Alert.alert("I was there", "The no-show stops counting while the PinPals team checks it.", [
+        { text: "Cancel", style: "cancel" },
+        { text: "Dispute", onPress: () => send("") },
+      ]);
+    }
+  };
+
   // ---- render ----------------------------------------------------------
 
-  const shown = useMemo(() => (view ? forFilter(view, filter) : { needs: [], upcoming: [], played: [] }), [view, filter]);
+  const shown = useMemo(() => {
+    const base = view ? forFilter(view, filter) : { needs: [], upcoming: [], played: [] };
+    // Requests from golfers with the best record first (0188); offers to me stay on top.
+    const needs = byReliability(base.needs, (n) =>
+      n.kind === "request" ? trust.get(n.person.id)?.reliability : { memberId: "", played: 1, noShows: 0, lateCancels: 0, level: "reliable" as const }
+    );
+    return { ...base, needs };
+  }, [view, filter, trust]);
+  const today = localIso(new Date());
   const needTotal = view?.needs.length ?? 0;
   const comingUp = view?.counts.all ?? 0;
 
@@ -403,6 +475,7 @@ function MyRoundsScreenInner() {
                 <NeedCard
                   key={`${need.kind}-${need.interestId}`}
                   need={need}
+                  trust={need.kind === "request" ? trust.get(need.person.id) : undefined}
                   busy={busy === `need-${need.interestId}`}
                   onYes={() =>
                     need.kind === "request" ? offerPlace(need) : confirmOffer(need.interestId, need.host.name, need.playDate)
@@ -441,7 +514,7 @@ function MyRoundsScreenInner() {
                     onLeave={() => {
                       if (round.myInterestId === null) return;
                       if (round.role === "asked") withdraw(round.myInterestId, round.host.name, round.club, round.playDate);
-                      else giveBack(round.myInterestId, round.host.name, round.club, round.playDate, round.role === "playing");
+                      else giveBack(round.myInterestId, round.host.name, round.club, round.playDate, round.role === "playing", round.teeTime);
                     }}
                   />
                 </View>
@@ -454,7 +527,17 @@ function MyRoundsScreenInner() {
               <Text style={styles.sectionTitle}>Played</Text>
               <View style={styles.playedBox}>
                 {shown.played.map((p, i) => (
-                  <PlayedRow key={p.inviteId} round={p} first={i === 0} />
+                  <PlayedRow
+                    key={p.inviteId}
+                    round={p}
+                    first={i === 0}
+                    marks={marks.filter((m) => m.inviteId === p.inviteId)}
+                    me={userId ?? ""}
+                    today={today}
+                    busy={busy === `played-${p.inviteId}`}
+                    onMark={(memberId, name, noShow) => markPlayer(p.inviteId, memberId, name, noShow)}
+                    onDispute={() => dispute(p.inviteId)}
+                  />
                 ))}
               </View>
             </View>
@@ -503,7 +586,9 @@ function NeedCard({
   onNo,
   onMessage,
   onOpen,
+  trust,
 }: {
+  trust?: Trust;
   need: Need;
   busy: boolean;
   onYes: () => void;
@@ -530,6 +615,14 @@ function NeedCard({
             {need.kind === "request" ? `${who.name} asked to join` : `${who.name} has a place for you`}
           </Text>
           {sub ? <Text style={styles.muted}>{sub}</Text> : null}
+          {need.kind === "request" ? (
+            <TrustBadges
+              style={styles.trust}
+              reliability={trust?.reliability}
+              verified={trust?.verified ?? false}
+              verifiedClub={trust?.verifiedClub}
+            />
+          ) : null}
         </View>
       </View>
       <Pressable style={styles.needRound} onPress={onOpen} accessibilityRole="button" accessibilityLabel={`Open the round at ${need.club}`}>
@@ -787,31 +880,105 @@ function StatusDot({ tone }: { tone: Tone }) {
   return <View style={[styles.dot, s]} />;
 }
 
-function PlayedRow({ round, first }: { round: PlayedRound; first: boolean }) {
+function PlayedRow({
+  round,
+  first,
+  marks,
+  me,
+  today,
+  busy,
+  onMark,
+  onDispute,
+}: {
+  round: PlayedRound;
+  first: boolean;
+  marks: AttendanceMark[];
+  me: string;
+  today: string;
+  busy: boolean;
+  onMark: (memberId: string, name: string, noShow: boolean) => void;
+  onDispute: () => void;
+}) {
   const recap = isOn("recapPrompts");
+  const [open, setOpen] = useState(false);
+  const noShow = (id: string) => marks.some((m) => m.memberId === id && m.outcome === "no_show" && m.resolution !== "overturned");
+  const mine = marks.find((m) => m.memberId === me && m.outcome === "no_show");
+  const canMark = round.role === "hosting" && round.players.length > 0 && canStillMark(round.playDate, today);
+  const missing = round.players.filter((p) => noShow(p.id)).length;
+
   return (
-    <View style={[styles.played, !first && styles.playedDivider]}>
-      <View style={styles.trophy}>
-        <Ionicons name="trophy-outline" size={18} color={colors.gold400} />
-      </View>
-      <Pressable style={styles.flex1} onPress={() => router.push(`/invite/${round.inviteId}`)} accessibilityRole="button">
-        <Text style={styles.playedClub} numberOfLines={1}>
-          {round.club}
-        </Text>
-        <Text style={styles.muted} numberOfLines={1}>
-          {shortDate(round.playDate)}
-          {round.withNames.length > 0 ? ` · with ${listNames(round.withNames.map(firstName))}` : ""}
-        </Text>
-      </Pressable>
-      {recap ? (
-        <Pressable
-          style={styles.share}
-          onPress={() => router.push({ pathname: "/new-post", params: { type: "round", recap: String(round.inviteId) } })}
-          accessibilityRole="button"
-          accessibilityLabel={`Share your round at ${round.club}`}
-        >
-          <Text style={styles.shareLabel}>Share</Text>
+    <View style={[styles.playedWrap, !first && styles.playedDivider]}>
+      <View style={styles.played}>
+        <View style={styles.trophy}>
+          <Ionicons name="trophy-outline" size={18} color={colors.gold400} />
+        </View>
+        <Pressable style={styles.flex1} onPress={() => router.push(`/invite/${round.inviteId}`)} accessibilityRole="button">
+          <Text style={styles.playedClub} numberOfLines={1}>
+            {round.club}
+          </Text>
+          <Text style={styles.muted} numberOfLines={1}>
+            {shortDate(round.playDate)}
+            {round.withNames.length > 0 ? ` · with ${listNames(round.withNames.map(firstName))}` : ""}
+          </Text>
         </Pressable>
+        {canMark ? (
+          <Pressable
+            style={styles.share}
+            onPress={() => setOpen((o) => !o)}
+            accessibilityRole="button"
+            accessibilityState={{ expanded: open }}
+          >
+            <Text style={styles.shareLabel}>{missing > 0 ? `${missing} no-show${missing === 1 ? "" : "s"}` : "Who turned up?"}</Text>
+          </Pressable>
+        ) : recap ? (
+          <Pressable
+            style={styles.share}
+            onPress={() => router.push({ pathname: "/new-post", params: { type: "round", recap: String(round.inviteId) } })}
+            accessibilityRole="button"
+            accessibilityLabel={`Share your round at ${round.club}`}
+          >
+            <Text style={styles.shareLabel}>Share</Text>
+          </Pressable>
+        ) : null}
+      </View>
+
+      {canMark && open ? (
+        <View style={styles.attend}>
+          <Text style={styles.attendHint}>
+            Everyone counts as turned up unless you say otherwise. Anyone with a live scorecard from the day can't be marked.
+          </Text>
+          {round.players.map((p) => {
+            const absent = noShow(p.id);
+            return (
+              <View key={p.id} style={styles.attendRow}>
+                <Text style={styles.attendName} numberOfLines={1}>
+                  {p.name}
+                </Text>
+                <Pressable
+                  disabled={busy}
+                  onPress={() => onMark(p.id, p.name, !absent)}
+                  style={[styles.attendBtn, absent ? styles.attendBtnOff : styles.attendBtnOn, busy && styles.dim]}
+                  accessibilityRole="button"
+                  accessibilityLabel={absent ? `${p.name} didn't turn up. Undo` : `${p.name} turned up. Tap if they didn't`}
+                >
+                  <Ionicons name={absent ? "close-circle" : "checkmark-circle"} size={16} color={absent ? colors.surface : colors.green800} />
+                  <Text style={[styles.attendBtnLabel, absent && styles.attendBtnLabelOff]}>{absent ? "Didn't turn up · undo" : "Turned up"}</Text>
+                </Pressable>
+              </View>
+            );
+          })}
+        </View>
+      ) : null}
+
+      {mine ? (
+        <View style={styles.noShow}>
+          <Text style={styles.noShowLabel}>{noShowLine(mine)}</Text>
+          {!mine.disputed && !mine.resolution ? (
+            <Pressable disabled={busy} onPress={onDispute} style={styles.noShowBtn} accessibilityRole="button">
+              <Text style={styles.noShowBtnLabel}>I was there</Text>
+            </Pressable>
+          ) : null}
+        </View>
       ) : null}
     </View>
   );
@@ -1044,7 +1211,32 @@ const styles = StyleSheet.create({
   menuLabelDanger: { color: colors.red600 },
 
   playedBox: { borderRadius: 20, borderWidth: 1.5, borderColor: CARD_BORDER, backgroundColor: colors.surface, overflow: "hidden" },
-  played: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 14, paddingVertical: 12 },
+  playedWrap: { paddingHorizontal: 14, paddingVertical: 12 },
+  played: { flexDirection: "row", alignItems: "center", gap: 12 },
+  trust: { marginTop: 6 },
+  attend: { marginTop: 10, borderRadius: 14, backgroundColor: colors.cream100, padding: 12, gap: 8 },
+  attendHint: { fontFamily: fonts.body, fontSize: 13, color: colors.ink500 },
+  attendRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
+  attendName: { flex: 1, fontFamily: fonts.bodySemi, fontSize: 15, color: colors.ink900 },
+  attendBtn: { flexDirection: "row", alignItems: "center", gap: 5, minHeight: 38, paddingHorizontal: 12, borderRadius: radii.pill },
+  attendBtnOn: { backgroundColor: colors.green100 },
+  attendBtnOff: { backgroundColor: colors.red600 },
+  attendBtnLabel: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.green800 },
+  attendBtnLabelOff: { color: colors.surface },
+  dim: { opacity: 0.5 },
+  noShow: {
+    marginTop: 10,
+    borderRadius: 12,
+    backgroundColor: colors.red100,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  noShowLabel: { flex: 1, fontFamily: fonts.bodySemi, fontSize: 13, color: colors.red600 },
+  noShowBtn: { minHeight: 36, paddingHorizontal: 12, borderRadius: radii.pill, backgroundColor: colors.surface, justifyContent: "center" },
+  noShowBtnLabel: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.red600 },
   playedDivider: { borderTopWidth: 1.5, borderTopColor: "#efe7d5" },
   trophy: { width: 40, height: 40, borderRadius: 12, backgroundColor: colors.ink900, alignItems: "center", justifyContent: "center" },
   playedClub: { fontFamily: fonts.bodyBold, fontSize: 15, color: colors.ink900 },

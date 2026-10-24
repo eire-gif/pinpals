@@ -44,6 +44,7 @@ export async function postAvailability(
     notes: formData.get("notes"),
     visibility: formData.get("visibility"),
     ladiesOnly: formData.get("ladiesOnly"),
+    reliableOnly: formData.get("reliableOnly"),
     // 0186: one checkbox per group, all named groupId.
     groupIds: formData.getAll("groupId"),
   });

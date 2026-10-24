@@ -41,6 +41,9 @@ import {
   type DeletionState,
 } from "@/lib/account";
 import { colors, creamAlpha, fonts, radii, spacing, type } from "@/lib/theme";
+import { TrustBadges } from "@/components/trust-badges";
+import { loadOneTrust, myVerification, NO_TRUST, type Trust, type Verification } from "@/lib/trust";
+import { reliabilityDetail } from "@/lib/reliability";
 
 type Profile = {
   first_name: string | null;
@@ -69,6 +72,9 @@ export default function ProfileScreen() {
   const [indicator, setIndicator] = useState<HandicapIndicator | null>(null);
   const [trips, setTrips] = useState<MyTrip[]>([]);
   const [groups, setGroups] = useState<MyGroups["groups"]>([]);
+  // Trust (0188): your badges, and where your Verified check stands.
+  const [trust, setTrust] = useState<Trust>(NO_TRUST);
+  const [verification, setVerification] = useState<Verification | null>(null);
 
   const load = useCallback(async () => {
     if (!session?.user.id) return;
@@ -103,6 +109,11 @@ export default function ProfileScreen() {
     // Your groups and societies (Oct 2026): societies first, with your
     // role in each. A failure just leaves the section out.
     setGroups(await loadMyGroups(session.user.id).then((r) => r.groups).catch(() => []));
+
+    // Trust (0188). Failures leave the defaults: "New to tee times", not verified.
+    const [t, v] = await Promise.all([loadOneTrust(session.user.id), myVerification(session.user.id).catch(() => null)]);
+    setTrust(t);
+    setVerification(v);
 
     setLoading(false);
   }, [session?.user.id]);
@@ -314,6 +325,26 @@ export default function ProfileScreen() {
             <Ionicons name="chevron-forward" size={18} color={colors.ink500} />
           </Pressable>
         ) : null}
+
+        <View style={styles.trustCard}>
+          <Text style={styles.trustTitle}>Trust</Text>
+          <TrustBadges reliability={trust.reliability} verified={trust.verified} verifiedClub={trust.verifiedClub} />
+          <Text style={styles.trustHint}>Tee times: {reliabilityDetail(trust.reliability)}</Text>
+          {!trust.verified ? (
+            verification?.status === "needs_review" ? (
+              <Text style={styles.trustHint}>Your card is with a person to check. You'll get an alert when it's done.</Text>
+            ) : (
+              <Pressable
+                onPress={() => router.push("/verify")}
+                style={({ pressed }) => [styles.trustButton, pressed && { opacity: 0.85 }]}
+                accessibilityRole="button"
+              >
+                <Ionicons name="shield-checkmark" size={16} color={colors.gold400} />
+                <Text style={styles.trustButtonLabel}>Get the Verified badge</Text>
+              </Pressable>
+            )
+          ) : null}
+        </View>
 
         {trips.length > 0 ? (
           <>
@@ -545,6 +576,28 @@ function NativeLink({
 }
 
 const styles = StyleSheet.create({
+  trustCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.line,
+    padding: spacing.md,
+    gap: 8,
+    marginBottom: spacing.md,
+  },
+  trustTitle: { fontFamily: fonts.bodyBold, fontSize: 13, letterSpacing: 1, color: colors.ink500 },
+  trustHint: { fontFamily: fonts.body, fontSize: type.small, color: colors.ink500 },
+  trustButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    minHeight: 46,
+    borderRadius: radii.pill,
+    backgroundColor: colors.navy900,
+    marginTop: 4,
+  },
+  trustButtonLabel: { fontFamily: fonts.bodyBold, fontSize: 15, color: colors.cream50 },
   fill: { flex: 1, backgroundColor: colors.cream50 },
   scroll: { paddingBottom: spacing.xl },
   content: { padding: spacing.md, gap: spacing.sm + 2 },

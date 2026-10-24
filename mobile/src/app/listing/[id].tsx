@@ -19,6 +19,8 @@ import { Avatar } from "@/components/avatar";
 import { askParentAbout, useAgeAccess } from "@/lib/age";
 import { askParentByAlert, askParentOutcome } from "@/lib/age-rules";
 import { useAuth } from "@/lib/auth";
+import { VerifiedChip } from "@/components/trust-badges";
+import { loadOneTrust } from "@/lib/trust";
 import { SITE_URL } from "@/lib/config";
 import {
   SALE_TYPE_LABELS,
@@ -84,6 +86,8 @@ export default function ListingScreen() {
   const [asked, setAsked] = useState(false);
   const cash = useCashMarketplace();
   const [sellerStats, setSellerStats] = useState<MemberStats>(EMPTY_STATS);
+  // 0188: the seller is a Verified golfer.
+  const [sellerVerified, setSellerVerified] = useState(false);
   // Public questions & offers (0162). Refreshed whenever the screen comes back
   // into view, so an answer posted on the thread screen shows here.
   const [thread, setThread] = useState<ThreadSummary>(EMPTY_THREAD);
@@ -123,6 +127,7 @@ export default function ListingScreen() {
   useEffect(() => {
     if (!cash || !sellerId) return;
     void memberStats(sellerId).then(setSellerStats);
+    void loadOneTrust(sellerId).then((t) => setSellerVerified(t.verified));
   }, [cash, sellerId]);
 
   async function favourite() {
@@ -455,6 +460,7 @@ export default function ListingScreen() {
                   <Text style={styles.sellerMeta} numberOfLines={1}>
                     {listing.seller.homeClub ?? "No club set"}
                   </Text>
+                  {sellerVerified ? <VerifiedChip compact /> : null}
                 </View>
                 {cash ? <Ionicons name="chevron-forward" size={18} color={colors.ink500} /> : null}
               </Pressable>

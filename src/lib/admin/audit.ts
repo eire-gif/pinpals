@@ -323,6 +323,14 @@ export const ADMIN_ACTIONS = [
   "brand_model.updated",
   // 0164: a brand learned from sellers, hidden from the brand lists.
   "brand.updated",
+  // Trust & safety (0188) — /admin/trust. A Verified golfer check a person
+  // had to look at (approved/rejected), a verified badge taken away, and a
+  // disputed tee-time no-show decided (upheld/overturned).
+  "verification.approved",
+  "verification.rejected",
+  "verification.revoked",
+  "attendance.upheld",
+  "attendance.overturned",
 ] as const;
 export type AdminAction = (typeof ADMIN_ACTIONS)[number];
 
@@ -399,6 +407,10 @@ export const AUDIT_TARGET_TYPES = [
   // Brands & models (0163): a marketplace_brands row and a marketplace_models row.
   "brand",
   "brand_model",
+  // Trust & safety (0188): member_verifications rows are keyed by member, so
+  // verification.* targets the "user"; attendance.* targets the
+  // tee_time_attendance row.
+  "tee_time_attendance",
 ] as const;
 export type AuditTargetType = (typeof AUDIT_TARGET_TYPES)[number];
 

@@ -268,6 +268,10 @@ export default async function ListingDetailPage({
     if (!listing.store_id) thread = buildThread(((posts.data ?? []) as ThreadPostRow[]));
   }
   const sellerVerified = isSellerPaymentReady(sellerOnboardingStatus(sellerAccountResult.data ?? null));
+  // 0188: a Verified golfer (membership card checked). Signed-in members only
+  // can read verified_members; for a visitor it's simply not shown.
+  const { data: golferBadge } = await supabase.from("verified_members").select("member_id").eq("member_id", listing.seller_id).maybeSingle();
+  const sellerGolferVerified = !!golferBadge;
   const ratingSummaryRow = ratingSummaryResult.data as SellerRatingSummary | null;
   const ratingSummary = ratingSummaryRow ? { average: ratingSummaryRow.average_rating, count: ratingSummaryRow.review_count } : null;
 
@@ -500,6 +504,7 @@ export default async function ListingDetailPage({
               avatarColor={sellerProfile?.avatar_color ?? null}
               joinedAtIso={sellerProfile?.created_at ?? listing.created_at}
               verified={sellerVerified}
+              golferVerified={sellerGolferVerified}
               rating={ratingSummary}
               record={cash ? sellerRecord : null}
               viewerIsSignedIn={!!user && !browseOnly && !cash}
@@ -585,6 +590,7 @@ export default async function ListingDetailPage({
               avatarColor={sellerProfile?.avatar_color ?? null}
               joinedAtIso={sellerProfile?.created_at ?? listing.created_at}
               verified={sellerVerified}
+              golferVerified={sellerGolferVerified}
               rating={ratingSummary}
               record={cash ? sellerRecord : null}
               viewerIsSignedIn={!!user && !browseOnly && !cash}

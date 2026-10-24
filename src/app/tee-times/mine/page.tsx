@@ -6,6 +6,8 @@ import { ageGate } from "@/components/age/age-gate";
 import TeeTimesTabs from "../tee-times-tabs";
 import TeeTimesPageHeader from "../tee-times-page-header";
 import MyRoundsBoard, { type BoardFilter } from "./my-rounds-board";
+import { loadTrust, type Trust } from "@/lib/trust-server";
+import { toMark, type AttendanceMark, type AttendanceRow } from "@/lib/reliability";
 
 /**
  * My rounds on the website (Oct 2026) — every tee time a member is part
@@ -64,6 +66,28 @@ export default async function MyRoundsPage({
     view = null;
   }
 
+  // Trust (0188): badges on the golfers asking to join, and no-shows on
+  // played rounds (the host's marks, and any against me).
+  let trust: Record<string, Trust> = {};
+  let marks: AttendanceMark[] = [];
+  if (view) {
+    const askers = view.needs.flatMap((n) => (n.kind === "request" ? [n.person.id] : []));
+    const playedIds = view.played.map((p) => p.inviteId);
+    const [trustMap, attendance] = await Promise.all([
+      loadTrust(supabase, askers),
+      playedIds.length > 0
+        ? supabase
+            .from("tee_time_attendance")
+            .select("invite_id, member_id, outcome, disputed_at, resolution")
+            .in("invite_id", playedIds)
+            .overrideTypes<AttendanceRow[]>()
+        : Promise.resolve({ data: [] as AttendanceRow[] }),
+    ]);
+    trust = Object.fromEntries(trustMap);
+    marks = (attendance.data ?? []).map(toMark);
+  }
+  const today = irishNow().toISOString().slice(0, 10);
+
   const needs = view?.needs.length ?? 0;
   const coming = view?.counts.all ?? 0;
 
@@ -78,7 +102,15 @@ export default async function MyRoundsPage({
 
       <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
         {view ? (
-          <MyRoundsBoard view={view} focusId={focus} startFilter={focus !== null ? "all" : show} />
+          <MyRoundsBoard
+            view={view}
+            focusId={focus}
+            startFilter={focus !== null ? "all" : show}
+            trust={trust}
+            marks={marks}
+            me={user.id}
+            today={today}
+          />
         ) : (
           <p className="rounded-2xl bg-red-100 px-5 py-4 text-sm font-semibold text-red-600">
             Couldn&apos;t load your rounds just now. Refresh the page to try again.

@@ -22,11 +22,26 @@ import {
   answerRequest,
   calendarLink,
   deleteRound,
+  disputeNoShow,
+  markNoShow,
   setRoundStatus,
   shareRoundLink,
   withdrawMyRequest,
   type ActionResult,
 } from "./actions";
+import TrustBadges from "@/components/trust-badges";
+import {
+  LATE_CANCEL_WARNING,
+  byReliability,
+  canStillMark,
+  isLateNotice,
+  noShowLine,
+  type AttendanceMark,
+  type Reliability,
+} from "@/lib/reliability";
+
+/** Trust signals for the golfers on this page, by member id (0188). */
+type TrustMap = Record<string, { reliability: Reliability | null; verified: boolean; verifiedClub: string | null }>;
 
 /**
  * The interactive half of /tee-times/mine. Same sections, wording and
@@ -74,10 +89,18 @@ export default function MyRoundsBoard({
   view,
   focusId,
   startFilter,
+  trust = {},
+  marks = [],
+  me,
+  today,
 }: {
   view: MyRoundsView;
   focusId: number | null;
   startFilter: BoardFilter;
+  trust?: TrustMap;
+  marks?: AttendanceMark[];
+  me: string;
+  today: string;
 }) {
   const router = useRouter();
   const [filter, setFilter] = useState<BoardFilter>(startFilter);
@@ -96,6 +119,11 @@ export default function MyRoundsBoard({
   }, [focusId]);
 
   const shown = forFilter(view, filter);
+  // Requests from golfers with the best record first (0188). Offers to me
+  // count as "reliable" so they keep their place at the top.
+  const needs = byReliability(shown.needs, (n) =>
+    n.kind === "request" ? trust[n.person.id]?.reliability : { memberId: "", played: 1, noShows: 0, lateCancels: 0, level: "reliable" }
+  );
 
   function act(key: string, work: () => Promise<ActionResult>, done?: string, after?: (r: ActionResult) => void) {
     setBusyKey(key);
@@ -250,10 +278,11 @@ export default function MyRoundsBoard({
             <span className="h-2 w-2 rounded-full bg-gold-500" />
             Needs your answer · {shown.needs.length}
           </h2>
-          {shown.needs.map((need) => (
+          {needs.map((need) => (
             <NeedCard
               key={`${need.kind}-${need.interestId}`}
               need={need}
+              trust={need.kind === "request" ? trust[need.person.id] : undefined}
               busy={pending && busyKey === `need-${need.interestId}`}
               onYes={() =>
                 need.kind === "request"
@@ -310,7 +339,8 @@ export default function MyRoundsBoard({
                     act(`need-${id}`, () => withdrawMyRequest(id), "Request withdrawn.")
                   );
                 } else {
-                  confirmThen(`${round.role === "playing" ? "Cancel your place" : "Can't make it"}? ${host} will be told so the place can go to someone else.`, () =>
+                  const late = round.role === "playing" && isLateNotice(round.playDate, round.teeTime) ? ` ${LATE_CANCEL_WARNING}` : "";
+                  confirmThen(`${round.role === "playing" ? "Cancel your place" : "Can't make it"}? ${host} will be told so the place can go to someone else.${late}`, () =>
                     act(`need-${id}`, () => answerOffer(id, false), `Done. ${host}'s been told.`)
                   );
                 }
@@ -325,7 +355,27 @@ export default function MyRoundsBoard({
           <h2 id="played-h" className="text-xs font-bold uppercase tracking-widest text-ink-500">Played</h2>
           <ul className="overflow-hidden rounded-[20px] border-[1.5px] border-line bg-surface">
             {shown.played.map((p, i) => (
-              <PlayedRow key={p.inviteId} round={p} first={i === 0} />
+              <PlayedRow
+                key={p.inviteId}
+                round={p}
+                first={i === 0}
+                marks={marks.filter((m) => m.inviteId === p.inviteId)}
+                me={me}
+                today={today}
+                busy={pending && busyKey === `played-${p.inviteId}`}
+                onMark={(memberId, name, noShow) =>
+                  noShow
+                    ? confirmThen(`Mark ${firstName(name)} as not turning up? They'll be told and can dispute it.`, () =>
+                        act(`played-${p.inviteId}`, () => markNoShow(p.inviteId, memberId, true), `${firstName(name)} marked as a no-show.`)
+                      )
+                    : act(`played-${p.inviteId}`, () => markNoShow(p.inviteId, memberId, false), `Done. ${firstName(name)} turned up.`)
+                }
+                onDispute={() => {
+                  const note = window.prompt("What happened? (optional — the PinPals team sees this)") ?? null;
+                  if (note === null) return;
+                  act(`played-${p.inviteId}`, () => disputeNoShow(p.inviteId, note), "Disputed. It won't count while it's checked.");
+                }}
+              />
             ))}
           </ul>
         </section>
@@ -336,7 +386,19 @@ export default function MyRoundsBoard({
 
 // ---------------------------------------------------------------------------
 
-function NeedCard({ need, busy, onYes, onNo }: { need: Need; busy: boolean; onYes: () => void; onNo: () => void }) {
+function NeedCard({
+  need,
+  busy,
+  onYes,
+  onNo,
+  trust,
+}: {
+  need: Need;
+  busy: boolean;
+  onYes: () => void;
+  onNo: () => void;
+  trust?: TrustMap[string];
+}) {
   const who = need.kind === "request" ? need.person : need.host;
   const sub = [who.handicap !== null ? `${who.handicap} hcp` : null, who.homeClub].filter(Boolean).join(" · ");
   const detail =
@@ -354,6 +416,14 @@ function NeedCard({ need, busy, onYes, onNo }: { need: Need; busy: boolean; onYe
         <div className="min-w-0">
           <p className="font-bold text-ink-900">{need.kind === "request" ? `${who.name} asked to join` : `${who.name} has a place for you`}</p>
           {sub && <p className="text-sm text-ink-500">{sub}</p>}
+          {need.kind === "request" && (
+            <TrustBadges
+              className="mt-1.5"
+              reliability={trust?.reliability}
+              verified={trust?.verified ?? false}
+              verifiedClub={trust?.verifiedClub}
+            />
+          )}
         </div>
       </div>
       <div className="mt-3 flex items-center gap-2.5 rounded-xl border-[1.5px] border-[#efe5cc] bg-surface px-3 py-2.5">
@@ -612,25 +682,98 @@ function StatusDot({ tone }: { tone: Tone }) {
   return <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${look[tone]}`} aria-hidden="true" />;
 }
 
-function PlayedRow({ round, first }: { round: PlayedRound; first: boolean }) {
+function PlayedRow({
+  round,
+  first,
+  marks,
+  me,
+  today,
+  busy,
+  onMark,
+  onDispute,
+}: {
+  round: PlayedRound;
+  first: boolean;
+  marks: AttendanceMark[];
+  me: string;
+  today: string;
+  busy: boolean;
+  onMark: (memberId: string, name: string, noShow: boolean) => void;
+  onDispute: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const noShow = (id: string) => marks.some((m) => m.memberId === id && m.outcome === "no_show" && m.resolution !== "overturned");
+  const mine = marks.find((m) => m.memberId === me && m.outcome === "no_show");
+  const canMark = round.role === "hosting" && round.players.length > 0 && canStillMark(round.playDate, today);
+  const missing = round.players.filter((p) => noShow(p.id)).length;
+
   return (
-    <li className={`flex items-center gap-3 px-4 py-3 ${first ? "" : "border-t-[1.5px] border-[#efe7d5]"}`}>
-      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-ink-900 text-gold-400" aria-hidden="true">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M8 21h8" />
-          <path d="M12 17v4" />
-          <path d="M7 4h10v5a5 5 0 0 1-10 0V4z" />
-          <path d="M17 5h3v2a3 3 0 0 1-3 3" />
-          <path d="M7 5H4v2a3 3 0 0 0 3 3" />
-        </svg>
-      </span>
-      <div className="min-w-0 flex-1">
-        <p className="truncate font-bold text-ink-900">{round.club}</p>
-        <p className="truncate text-sm text-ink-500">
-          {shortDate(round.playDate)}
-          {round.withNames.length > 0 ? ` · with ${listNames(round.withNames.map(firstName))}` : ""}
-        </p>
+    <li className={`px-4 py-3 ${first ? "" : "border-t-[1.5px] border-[#efe7d5]"}`}>
+      <div className="flex items-center gap-3">
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-ink-900 text-gold-400" aria-hidden="true">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M8 21h8" />
+            <path d="M12 17v4" />
+            <path d="M7 4h10v5a5 5 0 0 1-10 0V4z" />
+            <path d="M17 5h3v2a3 3 0 0 1-3 3" />
+            <path d="M7 5H4v2a3 3 0 0 0 3 3" />
+          </svg>
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="truncate font-bold text-ink-900">{round.club}</p>
+          <p className="truncate text-sm text-ink-500">
+            {shortDate(round.playDate)}
+            {round.withNames.length > 0 ? ` · with ${listNames(round.withNames.map(firstName))}` : ""}
+          </p>
+        </div>
+        {canMark && (
+          <button
+            onClick={() => setOpen((o) => !o)}
+            className="shrink-0 rounded-full border-[1.5px] border-[#d6c7a6] bg-surface px-3 py-1.5 text-xs font-bold text-green-700 hover:bg-green-100"
+            aria-expanded={open}
+          >
+            {missing > 0 ? `${missing} no-show${missing === 1 ? "" : "s"}` : "Who turned up?"}
+          </button>
+        )}
       </div>
+
+      {canMark && open && (
+        <div className="mt-3 rounded-xl bg-cream-100 p-3">
+          <p className="text-xs text-ink-500 mb-2">
+            Everyone counts as turned up unless you say otherwise. Anyone with a live scorecard from the day can&apos;t be marked.
+          </p>
+          <ul className="space-y-2">
+            {round.players.map((p) => {
+              const absent = noShow(p.id);
+              return (
+                <li key={p.id} className="flex items-center justify-between gap-3">
+                  <span className="text-sm font-semibold text-ink-900">{p.name}</span>
+                  <button
+                    disabled={busy}
+                    onClick={() => onMark(p.id, p.name, !absent)}
+                    className={`rounded-full px-3 py-1.5 text-xs font-bold transition disabled:opacity-50 ${
+                      absent ? "bg-red-600 text-white hover:bg-red-500" : "bg-green-100 text-green-800 hover:bg-green-200"
+                    }`}
+                  >
+                    {absent ? "Didn't turn up · undo" : "Turned up ✓"}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+
+      {mine && (
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl bg-red-100 px-3 py-2">
+          <p className="text-xs font-semibold text-red-600">{noShowLine(mine)}</p>
+          {!mine.disputed && !mine.resolution && (
+            <button disabled={busy} onClick={onDispute} className="rounded-full bg-surface px-3 py-1.5 text-xs font-bold text-red-600 disabled:opacity-50">
+              I was there
+            </button>
+          )}
+        </div>
+      )}
     </li>
   );
 }

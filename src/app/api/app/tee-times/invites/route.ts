@@ -37,6 +37,7 @@ export async function POST(request: Request) {
     notes: body.notes,
     visibility: body.visibility,
     ladiesOnly: body.ladies_only,
+    reliableOnly: body.reliable_only,
     groupIds: body.group_ids,
   } satisfies InviteInput);
 

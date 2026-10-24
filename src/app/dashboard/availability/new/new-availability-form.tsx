@@ -202,6 +202,17 @@ export default function NewAvailabilityForm({ groups = [] }: { groups?: Invitabl
             </span>
           </span>
         </label>
+        {/* 0188: hosts can ask for golfers who turn up. New members can
+            still ask; only a record of missed rounds is turned away. */}
+        <label className="flex items-start gap-2.5 text-sm font-semibold border-t border-line mt-3.5 pt-3.5 px-1 cursor-pointer">
+          <input type="checkbox" name="reliableOnly" className="w-4 h-4 mt-0.5 accent-green-700 shrink-0" />
+          <span>
+            <span className="block">Golfers with a good record only</span>
+            <span className="block text-[13px] font-normal text-ink-500 mt-0.5">
+              Golfers who&apos;ve missed rounds or cancelled late can&apos;t ask to join. New members still can.
+            </span>
+          </span>
+        </label>
       </fieldset>
 
       {state.error && (

@@ -717,6 +717,9 @@ export type Message = {
    *  {removed: true} once the original is gone. */
   reply_to_id?: number | null;
   reply_snapshot?: MessageQuote | null;
+  /** 0188, marketplace chats only: link, pay_first, courier, odd_payment,
+   *  off_app. Shown to the other person as a warning (message-safety.ts). */
+  safety_flags?: string[] | null;
   /** 0130 delete for everyone. `body` is then "This message was deleted". */
   deleted_at?: string | null;
 };

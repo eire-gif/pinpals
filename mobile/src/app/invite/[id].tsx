@@ -45,6 +45,8 @@ import {
   type MyInterest,
 } from "@/lib/tee-time-interest";
 import { colors, creamAlpha, fonts, navyAlpha, radii, spacing, type } from "@/lib/theme";
+import { TrustBadges } from "@/components/trust-badges";
+import { loadOneTrust, NO_TRUST, type Trust } from "@/lib/trust";
 import { AgeGateLoading, NotForUnder18, useAgeGate } from "@/components/not-for-under-18";
 
 function InviteScreenInner() {
@@ -55,6 +57,8 @@ function InviteScreenInner() {
   const memberId = session?.user.id ?? null;
 
   const [invite, setInvite] = useState<Invite | null>(null);
+  // Trust (0188): the host's badges, so you know who you're asking to play with.
+  const [hostTrust, setHostTrust] = useState<Trust>(NO_TRUST);
   const [interest, setInterest] = useState<MyInterest | null>(null);
   // Invited with your group (0186): the host already said yes, so one tap takes the place.
   const [invitation, setInvitation] = useState<GroupInvitation | null>(null);
@@ -101,6 +105,7 @@ function InviteScreenInner() {
       // leaks the existence of private fourballs.
       if (!row) setNotFound(true);
       setInvite(row);
+      if (row) void loadOneTrust(row.member_id).then(setHostTrust);
 
       // Who is already in it. RLS decides whether anything comes back — 0084
       // opens this up on a round still looking for players and closes it
@@ -348,6 +353,18 @@ function InviteScreenInner() {
                 ) : null}
                 {handicapShown ? (
                   <Text style={styles.seatHandicap}>Handicap {invite.host?.handicap}</Text>
+                ) : null}
+                {!isMine ? (
+                  <TrustBadges
+                    style={styles.hostTrust}
+                    reliability={hostTrust.reliability}
+                    verified={hostTrust.verified}
+                    verifiedClub={hostTrust.verifiedClub}
+                    compactVerified
+                  />
+                ) : null}
+                {invite.reliable_only ? (
+                  <Text style={styles.seatSub}>Golfers with a good record only</Text>
                 ) : null}
               </View>
               <Ionicons name="chevron-forward" size={18} color={colors.ink500} />
@@ -762,6 +779,7 @@ const shadow = {
 } as const;
 
 const styles = StyleSheet.create({
+  hostTrust: { marginTop: 6 },
   fill: { flex: 1, backgroundColor: colors.cream50 },
   content: { padding: spacing.md, gap: spacing.md, paddingBottom: spacing.xl },
   centre: {

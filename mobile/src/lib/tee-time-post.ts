@@ -83,6 +83,8 @@ export type NewInvite = {
   notes: string | null;
   visibility: "everyone" | "connections";
   ladiesOnly: boolean;
+  /** 0188: only golfers with a good record of turning up can ask. */
+  reliableOnly?: boolean;
   /** 0186: groups to invite. Their members can take a place in one tap. */
   groupIds?: number[];
 };
@@ -104,6 +106,7 @@ export async function postTeeTime(invite: NewInvite): Promise<{ inviteId: number
       notes: invite.notes,
       visibility: invite.visibility,
       ladies_only: invite.ladiesOnly,
+      reliable_only: invite.reliableOnly ?? false,
       group_ids: invite.groupIds ?? [],
     }
   );

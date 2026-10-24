@@ -164,6 +164,8 @@ export type PlayedRound = {
   when: string;
   role: "hosting" | "playing";
   withNames: string[];
+  /** Hosting only: who was confirmed, so the host can say who turned up (0188). */
+  players: { id: string; name: string }[];
 };
 
 export type MyRoundsView = {
@@ -314,6 +316,7 @@ export function buildMyRounds(input: MyRoundsInput): MyRoundsView {
           when: whenOf(round),
           role: "hosting",
           withNames: confirmed.map(nameOf),
+          players: confirmed.map((r) => ({ id: r.memberId, name: nameOf(r) })),
         });
       }
       continue;
@@ -447,6 +450,7 @@ export function buildMyRounds(input: MyRoundsInput): MyRoundsView {
           when: whenOf(round),
           role: "playing",
           withNames: [round.host.name, ...rows.map(nameOf)],
+          players: [],
         });
       }
       continue;

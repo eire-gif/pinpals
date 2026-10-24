@@ -576,6 +576,19 @@ const EXPECTED: Record<string, Expectation> = {
   "validate_message_content()": { anon: false, authenticated: false },
   "validate_review()": { anon: false, authenticated: false },
 
+  // --- Trust & safety (0188). The badge and the host's/golfer's own actions
+  // --- are callable by members (each checks who is calling inside); the
+  // --- triggers and helpers are internal.
+  "member_reliability(p_members uuid[])": { anon: false, authenticated: true },
+  "mark_tee_time_no_show(p_invite_id bigint, p_member uuid, p_no_show boolean)": { anon: false, authenticated: true },
+  "dispute_tee_time_attendance(p_invite_id bigint, p_note text)": { anon: false, authenticated: true },
+  "tee_time_starts_at(p_invite_id bigint)": { anon: false, authenticated: false },
+  "played_live_that_day(p_invite_id bigint, p_member uuid)": { anon: false, authenticated: false },
+  "record_late_cancel()": { anon: false, authenticated: false },
+  "record_host_late_cancel()": { anon: false, authenticated: false },
+  "enforce_reliable_only()": { anon: false, authenticated: false },
+  "set_message_safety_flags()": { anon: false, authenticated: false },
+
   // --- Competitions (0148): leagues, ladders and opens. Every write a member
   // --- makes goes through these, each checking who is calling inside. The
   // --- sweep, the after-result step and the organiser list are internal.

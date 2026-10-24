@@ -76,6 +76,9 @@ export const NAV_SECTIONS: NavSectionConfig[] = [
       // Junior members (0159): the parent card-check switch. Any staff may
       // look; only admins change it.
       { href: "/admin/age", label: "Junior members" },
+      // Trust & safety (0188): Verified golfer cards the AI wasn't sure
+      // about, and disputed tee-time no-shows.
+      { href: "/admin/trust", label: "Trust checks" },
     ],
   },
   {

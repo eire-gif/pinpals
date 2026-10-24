@@ -26,6 +26,8 @@ import {
   RoundsSection,
 } from "@/components/profile-sections";
 import { useAuth } from "@/lib/auth";
+import { TrustBadges } from "@/components/trust-badges";
+import { loadOneTrust, NO_TRUST, type Trust } from "@/lib/trust";
 import { loadMemberPosts, loadMemberProfile, type FeedPost, type MemberProfile } from "@/lib/feed";
 import { loadMemberCourses, loadMemberRounds } from "@/lib/member-profile";
 import { LoadError } from "@/components/state-message";
@@ -70,6 +72,8 @@ export default function MemberScreen() {
   const { width } = useContentWidth();
 
   const [profile, setProfile] = useState<MemberProfile | null>(null);
+  // Trust (0188): Verified golfer and tee-time reliability.
+  const [trust, setTrust] = useState<Trust>(NO_TRUST);
   const [posts, setPosts] = useState<FeedPost[]>([]);
   const [listings, setListings] = useState<Card[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
@@ -118,6 +122,7 @@ export default function MemberScreen() {
       ]);
       setBlocked(myBlock);
       setProfile(p);
+      void loadOneTrust(id).then(setTrust);
       // A refresh starts every section again; the open one reloads below.
       setSections({});
       setSectionFailed(null);
@@ -338,6 +343,18 @@ export default function MemberScreen() {
             </Pressable>
           ) : null}
           {meta ? <Text style={styles.meta}>{meta}</Text> : null}
+          <TrustBadges
+            style={styles.trustRow}
+            reliability={trust.reliability}
+            verified={trust.verified}
+            verifiedClub={trust.verifiedClub}
+          />
+          {isMe && !trust.verified ? (
+            <Pressable onPress={() => router.push("/verify")} accessibilityRole="button" style={styles.verifyLink}>
+              <Ionicons name="shield-checkmark-outline" size={14} color={colors.green700} />
+              <Text style={styles.verifyLinkLabel}>Get the Verified badge</Text>
+            </Pressable>
+          ) : null}
         </View>
       </View>
 
@@ -552,6 +569,9 @@ export default function MemberScreen() {
 const MEMBER_COVER = require("../../../assets/images/scenes/links-sunset.jpg");
 
 const styles = StyleSheet.create({
+  trustRow: { marginTop: 8 },
+  verifyLink: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 8, alignSelf: "flex-start" },
+  verifyLinkLabel: { fontFamily: fonts.bodyBold, fontSize: 13.5, color: colors.green700 },
   affinity: { marginTop: spacing.md },
   cover: { height: 150, marginHorizontal: -spacing.md, marginTop: -spacing.md, backgroundColor: colors.navy900 },
   identityOnCover: { marginTop: -34, alignItems: "flex-start" },
