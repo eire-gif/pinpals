@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { safeRedirectPath } from "@/lib/safe-redirect";
 
 /**
  * Redeems the single-use token minted by /api/app/web-session and turns it
@@ -27,11 +28,10 @@ export async function GET(request: Request) {
   const tokenHash = url.searchParams.get("token_hash");
   const nextParam = url.searchParams.get("next") ?? "/";
 
-  // Same rule as the minting route. Repeated rather than shared because a
-  // redirect target arriving from the network is the thing being guarded, and
-  // it should be impossible to weaken both ends by editing one file.
-  const next =
-    nextParam.startsWith("/") && !nextParam.startsWith("//") ? nextParam : "/";
+  // The site's strict same-site check. A "starts with / but not //" test let
+  // "/\evil.com" through, which browsers read as https://evil.com (security
+  // review, Oct 2026).
+  const next = safeRedirectPath(nextParam) ?? "/";
 
   if (!tokenHash) {
     return NextResponse.redirect(new URL("/login", url.origin));

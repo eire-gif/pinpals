@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { safeRedirectPath } from "@/lib/safe-redirect";
 
 // Supabase sends confirmation + password-recovery email links here with a
 // `token_hash` + `type`. We exchange the token for a real session, then forward
@@ -14,7 +15,7 @@ export async function GET(request: NextRequest) {
   const code = searchParams.get("code");
   // Only allow same-site relative redirects from `next` (guards against an
   // open-redirect via a tampered link).
-  const destination = next && next.startsWith("/") ? next : "/profile/edit?welcome=1";
+  const destination = safeRedirectPath(next) ?? "/profile/edit?welcome=1";
 
   // Supabase's DEFAULT confirmation email links through Supabase's own
   // verify endpoint, which confirms the address and then lands here with a
