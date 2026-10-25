@@ -28,6 +28,8 @@
 -- Written only through live_round_set_team_handicap. The only drops are
 -- "if exists" guards so the file can be re-run (its own check and trigger).
 --
+-- Applied to production 25 Oct 2026.
+--
 -- Rollback:
 --   drop trigger if exists live_rounds_team_handicap_broadcast on public.live_rounds;
 --   drop function if exists public.live_round_set_team_handicap(bigint, integer);

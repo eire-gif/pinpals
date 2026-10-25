@@ -1,5 +1,7 @@
 # Team handicaps set by hand (Oct 2026, migration 0189)
 
+**Status:** 0189 applied to production 25 Oct 2026 (checked: 4 columns, function granted to authenticated only, trigger in place). PR #348. After merge: `eas update` (JS only).
+
 Asked by Eire, 25 Oct 2026: in a scramble (2s or 4s), foursomes or greensomes — any game where a team or pair plays off one handicap — the organiser can set that team's handicap by hand for one game. By default it's still worked out from each player's index (WHS allowances, as before).
 
 ## Decisions (Eire, 25 Oct 2026)
@@ -36,8 +38,8 @@ Asked by Eire, 25 Oct 2026: in a scramble (2s or 4s), foursomes or greensomes �
 - Website and app tsc clean; website eslint clean on changed files.
 
 ## To ship
-1. Apply `0189_manual_team_handicap.sql` to production **before** the app update (the app now selects `team_handicap_auto`).
-2. Merge; Vercel deploys the website parts.
+1. ~~Apply `0189_manual_team_handicap.sql` to production~~ — done 25 Oct 2026 (it had to go before the app update: the app now selects `team_handicap_auto`).
+2. Merge PR #348; Vercel deploys the website parts.
 3. `git pull origin main`, then `cd mobile && eas update --branch production --platform ios` (JS only, no native build).
 
 ## Not done / later
