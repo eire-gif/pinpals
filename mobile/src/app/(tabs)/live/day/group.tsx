@@ -12,12 +12,13 @@ import { TeeChip } from "@/components/tee-chip";
 import { GroupIcon } from "@/components/group-bits";
 import { CourseSection, useCourseSetup } from "@/components/live-course-section";
 import { StateMessage } from "@/components/state-message";
+import { SetByHandBadge, TeamHandicapSheet } from "@/components/team-handicap-sheet";
 import { useAuth } from "@/lib/auth";
 import { isOn } from "@/lib/features";
 import { draw, honourWishes, indexTotal, swapPlayers, teamSizes, teeGroupSizes, teeTimes, type DrawMode, type DrawPlayer, type DrawWishes, type Seat } from "@/lib/group-draw";
 import { canDrawFrom, loadGroupRoster, loadMyGroups, type Group, type RosterPlayer } from "@/lib/groups-data";
 import type { GroupRole } from "@/lib/groups";
-import { SIDE_COLORS, createFourballDay, createMatchDay, createScrambleDay, setDayLeaderboardHidden } from "@/lib/live-match-days";
+import { SIDE_COLORS, applyHandSetHandicaps, createFourballDay, createMatchDay, createScrambleDay, setDayLeaderboardHidden, type NewScrambleTeam } from "@/lib/live-match-days";
 import {
   FOURSOMES_ALLOWANCE,
   GREENSOMES_ALLOWANCE,
@@ -31,6 +32,7 @@ import {
   shotgunCapacity,
   shotgunStarts,
   startLabel,
+  teamHandicapLabel,
   type FoursomesScoring,
   type MatchFormat,
   type ShotgunStart,
@@ -246,6 +248,10 @@ export default function DrawFromGroup() {
   const autoPlaced = useRef<Set<string>>(new Set());
   const [drawn, setDrawn] = useState<Entrant[][] | null>(null);
   const [picked, setPicked] = useState<Seat | null>(null);
+  // Team / pair handicaps set by hand for this game (0189), keyed by the
+  // team's players — a swap in the draw drops it.
+  const [byHand, setByHand] = useState<Record<string, number>>({});
+  const [handFor, setHandFor] = useState<{ key: string; label: string; names: string[]; chs: number[]; auto: number } | null>(null);
   const [saving, setSaving] = useState(false);
   const [savingFuture, setSavingFuture] = useState(false);
 
@@ -535,6 +541,26 @@ export default function DrawFromGroup() {
     const t = playerTees(e.index, dayTees, own ? teeSetOf(own) : null, adjustTees);
     return { index: e.index, ...t };
   };
+  /** A team's players → its key for a handicap set by hand (0189). */
+  const unitKey = (ps: readonly Entrant[]) => ps.map((p) => p.key).join("|");
+  /** In a drawn group, the teams that play off one handicap — a scramble
+   *  team, or each foursomes / greensomes pair — with the worked-out figure. */
+  const handUnits = (g: Entrant[]) => {
+    const unit = (ps: Entrant[], label: string) => {
+      const ws = ps.map((p) => handicaps(p));
+      if (ws.some((w) => w == null)) return null;
+      const chs = ws.map((w) => w!.courseHandicap + w!.extra);
+      const auto = scramble ? scrambleHandicap(chs).team : greensomes ? greensomesHandicap(chs) : foursomesHandicap(chs);
+      const key = unitKey(ps);
+      return { key, label, names: ps.map((p) => p.name.split(" ")[0] || "Guest"), chs, auto, value: byHand[key] ?? auto };
+    };
+    if (scramble) return g.length === teamSize ? [unit(g, "Team")].filter((u) => u != null) : [];
+    if (!foursomesComp) return [];
+    return [0, 2]
+      .filter((i) => i + 1 < g.length)
+      .map((i) => unit([g[i], g[i + 1]], `${g[i].name.split(" ")[0]} & ${g[i + 1].name.split(" ")[0]}`))
+      .filter((u) => u != null);
+  };
   const ladiesIn = entrants.filter((e) => e.memberId && ratings.get(e.memberId) === "women").length;
 
   // Mixed tees on: start from the ladies' tees, and put the women there.
@@ -638,9 +664,7 @@ export default function DrawFromGroup() {
         );
       } else if (foursomesComp) {
         // Each tee group is two pairs: seats 1 & 2, 3 & 4. One card per pair.
-        id = await createScrambleDay(
-          { ...day, size: 2, driveMinimum: null, foursomes: foursomesComp, greensomes },
-          drawnNow.flatMap((g, gi) =>
+        const pairTeams: NewScrambleTeam[] = drawnNow.flatMap((g, gi) =>
             [0, 2]
               .filter((i) => i < g.length)
               .map((i) => {
@@ -654,6 +678,7 @@ export default function DrawFromGroup() {
                   teeTime: times[gi] || null,
                   start: starts?.[gi] ?? null,
                   teamHandicap: greensomes ? greensomesHandicap(chs) : foursomesHandicap(chs),
+                  setByHand: byHand[unitKey(pair)] ?? null,
                   players: pair.map((p, k) => ({
                     memberId: p.memberId,
                     name: p.name,
@@ -669,13 +694,13 @@ export default function DrawFromGroup() {
                   })),
                 };
               })
-          ),
-          course.holeCard()
+          );
+        id = await createScrambleDay({ ...day, size: 2, driveMinimum: null, foursomes: foursomesComp, greensomes }, pairTeams, course.holeCard());
+        await applyHandSetHandicaps(id, pairTeams).catch(() =>
+          Alert.alert("A pair handicap wasn't set", "The day has started. Open the pair's card from its board, then its Leaderboard tab, and tap Edit by the pair handicap.")
         );
       } else if (scramble) {
-        id = await createScrambleDay(
-          { ...day, size: teamSize, driveMinimum: null },
-          drawnNow.map((team, ti) => {
+        const scrambleTeams: NewScrambleTeam[] = drawnNow.map((team, ti) => {
             const ws = team.map((p) => handicaps(p)!);
             const hcp = scrambleHandicap(ws.map((w) => w.courseHandicap + w.extra));
             return {
@@ -683,6 +708,7 @@ export default function DrawFromGroup() {
               teeTime: times[ti] || null,
               start: starts?.[ti] ?? null,
               teamHandicap: hcp.team,
+              setByHand: byHand[unitKey(team)] ?? null,
               players: team.map((p, i) => ({
                 memberId: p.memberId,
                 name: p.name,
@@ -694,8 +720,10 @@ export default function DrawFromGroup() {
                 teeExtra: ws[i].extra,
               })),
             };
-          }),
-          course.holeCard()
+          });
+        id = await createScrambleDay({ ...day, size: teamSize, driveMinimum: null }, scrambleTeams, course.holeCard());
+        await applyHandSetHandicaps(id, scrambleTeams).catch(() =>
+          Alert.alert("A team handicap wasn't set", "The day has started. Open the team's card from its board, then its Leaderboard tab, and tap Edit by the team handicap.")
         );
       } else {
         id = await createFourballDay(
@@ -1428,6 +1456,28 @@ export default function DrawFromGroup() {
                   </Pressable>
                 );
               })}
+              {(scramble || foursomesComp) && !future && !(outing && !outingDay)
+                ? handUnits(g).map((u) => {
+                    const set = u.value !== u.auto;
+                    return (
+                      <Pressable
+                        key={u.key}
+                        onPress={() => setHandFor({ key: u.key, label: scramble ? `${unitWord} ${gi + 1}` : u.label, names: u.names, chs: u.chs, auto: u.auto })}
+                        style={({ pressed }) => [styles.handRow, set && styles.handRowSet, pressed && { opacity: 0.85 }]}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${scramble ? "Team" : u.label} plays off ${teamHandicapLabel(u.value)}${set ? `, set by hand, worked out ${teamHandicapLabel(u.auto)}` : ""}. Change`}
+                      >
+                        <Text style={styles.handLabel} numberOfLines={1}>
+                          {scramble ? "Team plays off" : `${u.label} play off`}
+                        </Text>
+                        {set ? <SetByHandBadge small /> : null}
+                        <Text style={[styles.meta, { flex: 1, textAlign: "right" }]}>{set ? `was ${teamHandicapLabel(u.auto)}` : ""}</Text>
+                        <Text style={styles.handNumber}>{teamHandicapLabel(u.value)}</Text>
+                        <Ionicons name="pencil" size={16} color={colors.green700} />
+                      </Pressable>
+                    );
+                  })
+                : null}
             </View>
           ))}
         </Section>
@@ -1473,6 +1523,27 @@ export default function DrawFromGroup() {
         </>
         )}
       </ScrollView>
+      {handFor ? (
+        <TeamHandicapSheet
+          open
+          label={handFor.label}
+          kind={scramble ? "scramble" : greensomes ? "greensomes" : "foursomes"}
+          players={handFor.names.map((name, k) => ({ name, courseHandicap: handFor.chs[k] }))}
+          auto={handFor.auto}
+          value={byHand[handFor.key] ?? handFor.auto}
+          onClose={() => setHandFor(null)}
+          onSave={(h) => {
+            const { key, auto } = handFor;
+            setByHand((b) => {
+              const n = { ...b };
+              if (h === auto) delete n[key];
+              else n[key] = h;
+              return n;
+            });
+            setHandFor(null);
+          }}
+        />
+      ) : null}
       <DateSheet open={sheet === "date"} title="Which day?" value={playsOn} onClose={() => setSheet(null)} onChange={setPlaysOn} />
       <TimeSheet open={sheet === "time"} title="First tee" value={firstTee} onClose={() => setSheet(null)} onChange={setFirstTee} />
     </KeyboardAvoidingView>
@@ -1640,6 +1711,10 @@ const styles = StyleSheet.create({
   drawn: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: radii.lg, padding: spacing.sm, gap: 6 },
   drawnTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 4 },
   drawnTitle: { fontFamily: fonts.display, fontSize: 18, color: colors.navy900 },
+  handRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, minHeight: 44, paddingHorizontal: spacing.sm, borderRadius: radii.md, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
+  handRowSet: { borderWidth: 2, borderColor: colors.gold500 },
+  handLabel: { fontFamily: fonts.bodySemi, fontSize: 13, color: colors.ink900, flexShrink: 1 },
+  handNumber: { fontFamily: fonts.display, fontSize: 22, color: colors.navy900 },
   drawnPlayer: { flexDirection: "row", alignItems: "center", gap: spacing.sm, minHeight: 44, paddingHorizontal: spacing.sm, borderRadius: radii.md, backgroundColor: colors.cream50 },
   drawnPlayerOn: { backgroundColor: colors.green700 },
   drawnName: { flex: 1, fontFamily: fonts.bodySemi, fontSize: type.body, color: colors.ink900 },

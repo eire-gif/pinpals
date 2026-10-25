@@ -11,6 +11,7 @@
 
 import { buildResults, DEFAULT_SETTINGS, type Amendment, type ResultEntrant, type Results, type ResultsBasis, type ResultsSettings, type TieRule } from "@/lib/competition-results";
 import type { TvGame } from "@/lib/tv-board";
+import { teamHandicapLabel } from "@/lib/live-scoring";
 
 export type DayKind = "fourballs" | "scramble" | "match";
 
@@ -39,7 +40,8 @@ export function entrantsOf(kind: DayKind, games: readonly TvGame[], certified: R
       out.push({
         key: `r${g.round.id}`,
         name: scr.teamName ?? first.join(" & "),
-        detail: first.join(" · "),
+        // A handicap set by hand (0189) says so, with the worked-out figure — as the app's results do.
+        detail: first.join(" · ") + (scr.teamHandicapAuto != null ? ` · handicap set by hand (worked out ${teamHandicapLabel(scr.teamHandicapAuto)})` : ""),
         memberIds: ordered.map((p) => p.memberId).filter((x): x is string => !!x),
         guest: false,
         handicap: scr.teamHandicap,

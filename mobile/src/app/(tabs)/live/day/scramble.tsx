@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { router } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
@@ -7,11 +7,12 @@ import { Section } from "@/components/form-bits";
 import { CourseSection, useCourseSetup } from "@/components/live-course-section";
 import { ScrambleOptions } from "@/components/scramble-options";
 import { StateMessage } from "@/components/state-message";
+import { SetByHandBadge, TeamHandicapSheet } from "@/components/team-handicap-sheet";
 import { TimeSheet } from "@/components/time-sheet";
 import { useAuth } from "@/lib/auth";
 import { isOn } from "@/lib/features";
-import { createScrambleDay, type NewScrambleTeam } from "@/lib/live-match-days";
-import { courseHandicap, parseIndex, scrambleHandicap, type ScrambleSize } from "@/lib/live-scoring";
+import { applyHandSetHandicaps, createScrambleDay, type NewScrambleTeam } from "@/lib/live-match-days";
+import { courseHandicap, parseIndex, scrambleHandicap, teamHandicapLabel, type ScrambleSize } from "@/lib/live-scoring";
 import { pinPalsToPlayWith } from "@/lib/age";
 import type { Member } from "@/lib/members";
 import { loadMyProfile } from "@/lib/profile";
@@ -31,7 +32,8 @@ import { explainStartError } from "@/lib/open-game-alert";
  */
 
 type Slot = { key: string; memberId: string | null; name: string; indexText: string };
-type DraftTeam = { key: string; name: string; teeTime: string; slots: (Slot | null)[] };
+/** byHand: the team handicap set by hand for this game (0189); null = worked out. */
+type DraftTeam = { key: string; name: string; teeTime: string; slots: (Slot | null)[]; byHand: number | null };
 type Picking = { team: string; index: number } | null;
 
 let seq = 0;
@@ -52,7 +54,8 @@ export default function NewScrambleDay() {
   const [title, setTitle] = useState("");
   const [size, setSize] = useState<ScrambleSize>(4);
   const [driveMinimum, setDriveMinimum] = useState<number | null>(null);
-  const [teams, setTeams] = useState<DraftTeam[]>([{ key: nextKey("t"), name: "", teeTime: "", slots: Array(4).fill(null) }]);
+  const [teams, setTeams] = useState<DraftTeam[]>([{ key: nextKey("t"), name: "", teeTime: "", slots: Array(4).fill(null), byHand: null }]);
+  const [handFor, setHandFor] = useState<string | null>(null);
   const [timeFor, setTimeFor] = useState<string | null>(null);
   const [me, setMe] = useState<{ name: string; index: string } | null>(null);
   const [pals, setPals] = useState<Member[] | null>(null);
@@ -80,7 +83,7 @@ export default function NewScrambleDay() {
   const chooseSize = (s: ScrambleSize) => {
     setSize(s);
     setDriveMinimum(null);
-    setTeams((ts) => ts.map((t) => ({ ...t, slots: [...t.slots.slice(0, s), ...Array(Math.max(0, s - t.slots.length)).fill(null)] })));
+    setTeams((ts) => ts.map((t) => ({ ...t, byHand: null, slots: [...t.slots.slice(0, s), ...Array(Math.max(0, s - t.slots.length)).fill(null)] })));
   };
 
   const used = useMemo(() => {
@@ -94,7 +97,8 @@ export default function NewScrambleDay() {
     updateTeam(p.team, (t) => {
       const slots = [...t.slots];
       slots[p.index] = slot;
-      return { ...t, slots };
+      // A different player: the team's hand-set handicap no longer applies.
+      return { ...t, slots, byHand: null };
     });
   const editSlot = (team: string, index: number, change: Partial<Slot>) =>
     updateTeam(team, (t) => {
@@ -103,7 +107,7 @@ export default function NewScrambleDay() {
       return { ...t, slots };
     });
   const addTeam = () =>
-    setTeams((ts) => [...ts, { key: nextKey("t"), name: "", teeTime: addMinutes(ts[ts.length - 1]?.teeTime ?? "", 10), slots: Array(size).fill(null) }]);
+    setTeams((ts) => [...ts, { key: nextKey("t"), name: "", teeTime: addMinutes(ts[ts.length - 1]?.teeTime ?? "", 10), slots: Array(size).fill(null), byHand: null }]);
 
   const ch = (indexText: string) => {
     const index = parseIndex(indexText);
@@ -134,6 +138,7 @@ export default function NewScrambleDay() {
           name: t.name.trim() || null,
           teeTime: t.teeTime.trim() || null,
           teamHandicap: hcp.team,
+          setByHand: t.byHand,
           players: t.slots.map((s, i) => {
             const w = ch(s!.indexText)!;
             return {
@@ -162,6 +167,9 @@ export default function NewScrambleDay() {
         },
         payload,
         course.holeCard()
+      );
+      await applyHandSetHandicaps(id, payload).catch(() =>
+        Alert.alert("A team handicap wasn't set", "The scramble has started. Open the team's card from the day's board, then its Leaderboard tab, and tap Edit by the team handicap.")
       );
       router.replace({ pathname: "/live/day/[id]", params: { id: String(id), created: "1" } });
     } catch (e) {
@@ -317,13 +325,45 @@ export default function NewScrambleDay() {
                   );
                 })}
 
-                <View style={styles.teamHcp}>
-                  <Text style={styles.meta}>Team plays off</Text>
-                  <Text style={styles.teamHcpNumber}>{hcp ? hcp.team : "–"}</Text>
-                </View>
+                {(() => {
+                  const set = hcp != null && t.byHand != null && t.byHand !== hcp.team;
+                  return (
+                    <Pressable
+                      onPress={() => hcp && setHandFor(t.key)}
+                      disabled={!hcp}
+                      style={({ pressed }) => [styles.teamHcp, set && styles.teamHcpSet, pressed && { opacity: 0.85 }]}
+                      accessibilityRole="button"
+                      accessibilityLabel={hcp ? `Team ${ti + 1} plays off ${teamHandicapLabel(set ? t.byHand! : hcp.team)}${set ? ", set by hand" : ""}. Change` : `Team ${ti + 1} handicap`}
+                    >
+                      <View style={{ flex: 1, gap: 3 }}>
+                        <View style={styles.teamHcpTop}>
+                          <Text style={styles.meta}>Team plays off</Text>
+                          {set ? <SetByHandBadge small /> : null}
+                        </View>
+                        <Text style={styles.meta}>{!hcp ? "Worked out once every player has an index" : set ? `Worked out ${teamHandicapLabel(hcp.team)}` : "Worked out (WHS) · tap to set by hand"}</Text>
+                      </View>
+                      <Text style={styles.teamHcpNumber}>{hcp ? teamHandicapLabel(set ? t.byHand! : hcp.team) : "–"}</Text>
+                      {hcp ? <Ionicons name="pencil" size={18} color={colors.green700} /> : null}
+                    </Pressable>
+                  );
+                })()}
               </View>
             );
           })}
+
+          {teams.some((t) => { const h = teamHcp(t); return h != null && t.byHand != null && t.byHand !== h.team; }) ? (
+            <View style={styles.handSummary}>
+              <Text style={[styles.meta, { flex: 1, color: colors.ink900 }]}>
+                {(() => {
+                  const n = teams.filter((t) => { const h = teamHcp(t); return h != null && t.byHand != null && t.byHand !== h.team; }).length;
+                  return `${n} team${n === 1 ? "" : "s"} set by hand. The rest are worked out.`;
+                })()}
+              </Text>
+              <Pressable onPress={() => setTeams((ts) => ts.map((x) => ({ ...x, byHand: null })))} hitSlop={8} accessibilityRole="button">
+                <Text style={styles.link}>Reset all</Text>
+              </Pressable>
+            </View>
+          ) : null}
 
           {teams.length < 100 ? (
             <Pressable onPress={addTeam} style={styles.addTeam} accessibilityRole="button">
@@ -350,6 +390,27 @@ export default function NewScrambleDay() {
           {saving ? <ActivityIndicator color={colors.cream50} /> : <Text style={styles.startLabel}>Start the scramble</Text>}
         </Pressable>
       </ScrollView>
+      {(() => {
+        const idx = teams.findIndex((x) => x.key === handFor);
+        const cur = idx >= 0 ? teams[idx] : null;
+        const hcp = cur ? teamHcp(cur) : null;
+        if (!cur || !hcp) return null;
+        return (
+          <TeamHandicapSheet
+            open
+            label={cur.name.trim() || `Team ${idx + 1}`}
+            kind="scramble"
+            players={cur.slots.map((sl) => ({ name: sl!.name.trim().split(" ")[0] || "Guest", courseHandicap: ch(sl!.indexText)!.courseHandicap }))}
+            auto={hcp.team}
+            value={cur.byHand ?? hcp.team}
+            onClose={() => setHandFor(null)}
+            onSave={(h) => {
+              updateTeam(cur.key, (x) => ({ ...x, byHand: h === hcp.team ? null : h }));
+              setHandFor(null);
+            }}
+          />
+        );
+      })()}
       {(() => {
         const idx = teams.findIndex((x) => x.key === timeFor);
         const cur = idx >= 0 ? teams[idx] : null;
@@ -398,7 +459,10 @@ const styles = StyleSheet.create({
   playerName: { fontFamily: fonts.bodySemi, fontSize: type.body, color: colors.ink900 },
   nameInput: { minHeight: 36, borderBottomWidth: 1, borderBottomColor: colors.line, fontFamily: fonts.bodySemi, fontSize: type.body, color: colors.ink900 },
   indexInput: { width: 64, minHeight: 44, borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, textAlign: "center", fontFamily: fonts.bodySemi, fontSize: type.body, color: colors.ink900, backgroundColor: colors.cream50 },
-  teamHcp: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: colors.cream100, borderRadius: radii.md, paddingHorizontal: spacing.md, paddingVertical: 6 },
+  teamHcp: { flexDirection: "row", alignItems: "center", gap: spacing.sm, minHeight: 52, backgroundColor: colors.cream100, borderRadius: radii.md, paddingHorizontal: spacing.md, paddingVertical: 6 },
+  teamHcpSet: { borderWidth: 2, borderColor: colors.gold500, backgroundColor: colors.surfaceTint },
+  teamHcpTop: { flexDirection: "row", alignItems: "center", gap: 8 },
+  handSummary: { flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: colors.surfaceTint, borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, padding: spacing.sm },
   teamHcpNumber: { fontFamily: fonts.display, fontSize: 24, color: colors.navy900 },
   addTeam: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, minHeight: 48, borderRadius: radii.lg, borderWidth: 1.5, borderStyle: "dashed", borderColor: colors.line },
   problem: { fontFamily: fonts.bodySemi, fontSize: type.small, color: colors.red600, textAlign: "center" },

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -17,10 +18,11 @@ import { CourseSection, useCourseSetup } from "@/components/live-course-section"
 import { Section } from "@/components/form-bits";
 import { ScrambleOptions } from "@/components/scramble-options";
 import { StateMessage } from "@/components/state-message";
+import { SetByHandBadge, TeamHandicapSheet } from "@/components/team-handicap-sheet";
 import { useAuth } from "@/lib/auth";
 import { isOn } from "@/lib/features";
-import { createLiveRound } from "@/lib/live-rounds";
-import { createMatchDay, createScrambleDay } from "@/lib/live-match-days";
+import { createLiveRound, setTeamHandicap } from "@/lib/live-rounds";
+import { applyHandSetHandicaps, createMatchDay, createScrambleDay } from "@/lib/live-match-days";
 import {
   FOURSOMES_ALLOWANCE,
   LIVE_FORMATS,
@@ -31,6 +33,7 @@ import {
   parseIndex,
   playingHandicap,
   scrambleHandicap,
+  teamHandicapLabel,
   type FoursomesScoring,
   type LiveFormat,
   type ScrambleSize,
@@ -102,6 +105,10 @@ export default function NewLiveRound() {
   // Foursomes (0136): how it's scored.
   const foursomes = format === "foursomes";
   const [scoring, setScoring] = useState<FoursomesScoring | "matchplay">("stableford");
+  // Team handicaps set by hand for this game (0189), keyed by the team's
+  // players — so a change of players drops it, and a new index keeps it.
+  const [byHand, setByHand] = useState<Record<string, number>>({});
+  const [editing, setEditing] = useState<{ key: string; label: string; first: number; size: number; auto: number } | null>(null);
 
   // 0157: one open game per player. If you're already in one — the other
   // player on the tee time started it — say so up front and offer to open it,
@@ -212,6 +219,13 @@ export default function NewLiveRound() {
           return { first: i, handicap: ws.every((w) => w != null) && ws.length === 2 ? foursomesHandicap(ws.map((w) => w!.courseHandicap)) : null };
         })
     : [];
+  const teamKey = (first: number, n: number) =>
+    players
+      .slice(first, first + n)
+      .map((p) => p.key)
+      .join("|");
+  const inForce = (key: string, auto: number) => byHand[key] ?? auto;
+  const handSet = (key: string, auto: number) => byHand[key] != null && byHand[key] !== auto;
   const pairName = (i: number) =>
     players
       .slice(i, i + 2)
@@ -288,20 +302,31 @@ export default function NewLiveRound() {
         [asPlayer(0), asPlayer(1)],
         holeCard
       );
+      await applyByHand(id, teamKey(0, 2), pairs[0].handicap!);
       router.replace({ pathname: "/live/round/[id]", params: { id: String(id) } });
       return;
     }
-    const id = await createScrambleDay(
-      { ...day, size: 2, driveMinimum: null, foursomes: scoring },
-      pairs.map((pr) => ({
-        name: pairName(pr.first),
-        teeTime: null,
-        teamHandicap: pr.handicap!,
-        players: [asPlayer(pr.first), asPlayer(pr.first + 1)],
-      })),
-      holeCard
+    const pairTeams = pairs.map((pr) => ({
+      name: pairName(pr.first),
+      teeTime: null,
+      teamHandicap: pr.handicap!,
+      setByHand: byHand[teamKey(pr.first, 2)] ?? null,
+      players: [asPlayer(pr.first), asPlayer(pr.first + 1)],
+    }));
+    const id = await createScrambleDay({ ...day, size: 2, driveMinimum: null, foursomes: scoring }, pairTeams, holeCard);
+    await applyHandSetHandicaps(id, pairTeams).catch(() =>
+      Alert.alert("A pair handicap wasn't set", "The round has started. Open the pair's card from the day's board, then its Leaderboard tab, and tap Edit by the pair handicap.")
     );
     router.replace({ pathname: "/live/day/[id]", params: { id: String(id), created: "1" } });
+  };
+
+  /** After a round on its own is made: the team handicap set by hand, if any (0189). Never blocks the round. */
+  const applyByHand = async (roundId: number, key: string, auto: number) => {
+    const h = byHand[key];
+    if (h == null || h === auto) return;
+    await setTeamHandicap(roundId, h).catch(() =>
+      Alert.alert("The team handicap wasn't set", "The round has started. On the card's Leaderboard tab, tap Edit by the team handicap.")
+    );
   };
 
   const start = async () => {
@@ -343,6 +368,7 @@ export default function NewLiveRound() {
         })),
         holeCard
       );
+      if (scramble && team) await applyByHand(id, teamKey(0, size), team.team);
       router.replace({ pathname: "/live/round/[id]", params: { id: String(id) } });
     } catch (e) {
       explainStartError(e, "Couldn't start the round");
@@ -498,12 +524,30 @@ export default function NewLiveRound() {
               return (
                 <View key={p.key}>
                 {foursomes && i % 2 === 0 ? (
-                  <View style={[styles.pairHead, i > 0 && styles.playerDivider]}>
-                    <Text style={styles.pairHeadText}>Pair {i / 2 + 1}</Text>
-                    <Text style={styles.pairHeadText}>
-                      {pairs[i / 2]?.handicap != null ? `Plays off ${pairs[i / 2].handicap}` : ""}
-                    </Text>
-                  </View>
+                  (() => {
+                    const auto = pairs[i / 2]?.handicap ?? null;
+                    // A foursomes match plays off the pairs' difference, not a team figure.
+                    const editable = auto != null && i + 1 < players.length && scoring !== "matchplay";
+                    const key = teamKey(i, 2);
+                    return (
+                      <Pressable
+                        onPress={() => editable && setEditing({ key, label: pairName(i) || `Pair ${i / 2 + 1}`, first: i, size: 2, auto: auto! })}
+                        disabled={!editable}
+                        style={[styles.pairHead, i > 0 && styles.playerDivider]}
+                        accessibilityRole={editable ? "button" : undefined}
+                        accessibilityLabel={auto != null ? `Pair ${i / 2 + 1} plays off ${teamHandicapLabel(editable ? inForce(key, auto) : auto)}${editable ? ". Change" : ""}` : `Pair ${i / 2 + 1}`}
+                      >
+                        <Text style={styles.pairHeadText}>Pair {i / 2 + 1}</Text>
+                        {auto != null ? (
+                          <View style={styles.pairHeadRight}>
+                            {editable && handSet(key, auto) ? <SetByHandBadge small /> : null}
+                            <Text style={styles.pairHeadText}>Plays off {teamHandicapLabel(editable ? inForce(key, auto) : auto)}</Text>
+                            {editable ? <Ionicons name="pencil" size={14} color={colors.green700} /> : null}
+                          </View>
+                        ) : null}
+                      </Pressable>
+                    );
+                  })()
                 ) : null}
                 <View style={[styles.player, i > 0 && !(foursomes && i % 2 === 0) && styles.playerDivider]}>
                   <View style={{ flex: 1, gap: 4 }}>
@@ -553,10 +597,42 @@ export default function NewLiveRound() {
             })}
 
             {scramble ? (
-              <View style={[styles.teamRow, styles.playerDivider]}>
-                <Text style={styles.playerName}>Team plays off</Text>
-                <Text style={styles.teamNumber}>{team ? team.team : "–"}</Text>
-              </View>
+              (() => {
+                const key = teamKey(0, size);
+                const set = team ? handSet(key, team.team) : false;
+                return (
+                  <View style={[styles.teamRow, styles.teamRowStack, styles.playerDivider]}>
+                    <View style={styles.teamRowTop}>
+                      <View style={{ flex: 1, gap: 4 }}>
+                        <Text style={styles.playerName}>Team plays off</Text>
+                        {set ? <SetByHandBadge /> : null}
+                      </View>
+                      <Text style={styles.teamNumber}>{team ? teamHandicapLabel(inForce(key, team.team)) : "–"}</Text>
+                      {team ? (
+                        <Pressable
+                          onPress={() => setEditing({ key, label: teamName.trim() || "Your team", first: 0, size, auto: team.team })}
+                          style={({ pressed }) => [styles.editPill, pressed && { opacity: 0.85 }]}
+                          accessibilityRole="button"
+                          accessibilityLabel="Set the team handicap by hand"
+                        >
+                          <Ionicons name="pencil" size={15} color={colors.green700} />
+                          <Text style={styles.editPillText}>Edit</Text>
+                        </Pressable>
+                      ) : null}
+                    </View>
+                    {team && set ? (
+                      <View style={styles.teamRowFoot}>
+                        <Text style={styles.playerMeta}>Worked out from indexes: {teamHandicapLabel(team.team)}</Text>
+                        <Pressable onPress={() => setByHand((b) => { const n = { ...b }; delete n[key]; return n; })} hitSlop={8} accessibilityRole="button">
+                          <Text style={styles.link}>Reset to {teamHandicapLabel(team.team)}</Text>
+                        </Pressable>
+                      </View>
+                    ) : team ? (
+                      <Text style={styles.playerMeta}>Worked out from each player&apos;s index. Tap Edit to set it by hand for this game.</Text>
+                    ) : null}
+                  </View>
+                );
+              })()
             ) : null}
 
             {players.length < (scramble ? size : foursomes ? 4 : 8) ? (
@@ -608,6 +684,30 @@ export default function NewLiveRound() {
           {saving ? <ActivityIndicator color={colors.cream50} /> : <Text style={styles.startLabel}>Tee off</Text>}
         </Pressable>
       </ScrollView>
+      {editing ? (
+        <TeamHandicapSheet
+          open
+          label={editing.label}
+          kind={editing.size === 2 && foursomes ? "foursomes" : "scramble"}
+          players={players.slice(editing.first, editing.first + editing.size).map((p, k) => ({
+            name: p.name.trim().split(" ")[0] || "Guest",
+            courseHandicap: worked[editing.first + k]?.courseHandicap ?? 0,
+          }))}
+          auto={editing.auto}
+          value={inForce(editing.key, editing.auto)}
+          onClose={() => setEditing(null)}
+          onSave={(h) => {
+            const key = editing.key;
+            setByHand((b) => {
+              const n = { ...b };
+              if (h === editing.auto) delete n[key];
+              else n[key] = h;
+              return n;
+            });
+            setEditing(null);
+          }}
+        />
+      ) : null}
     </KeyboardAvoidingView>
   );
 }
@@ -709,6 +809,12 @@ const styles = StyleSheet.create({
   teamRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: spacing.md, backgroundColor: colors.cream100 },
   teamNumber: { fontFamily: fonts.display, fontSize: 26, color: colors.navy900 },
   pairHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: spacing.md, paddingVertical: 6, backgroundColor: colors.cream100 },
+  pairHeadRight: { flexDirection: "row", alignItems: "center", gap: 6 },
+  teamRowStack: { flexDirection: "column", alignItems: "stretch", gap: spacing.sm },
+  teamRowTop: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  teamRowFoot: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.sm, borderTopWidth: 1, borderTopColor: colors.line, borderStyle: "dashed", paddingTop: spacing.sm },
+  editPill: { flexDirection: "row", alignItems: "center", gap: 6, minHeight: 44, paddingHorizontal: spacing.md, borderRadius: radii.pill, borderWidth: 1, borderColor: colors.green700, backgroundColor: colors.surface },
+  editPillText: { fontFamily: fonts.bodyBold, fontSize: 15, color: colors.green700 },
   pairHeadText: { fontFamily: fonts.bodyBold, fontSize: 12, letterSpacing: 0.6, textTransform: "uppercase", color: colors.navy900 },
   problem: { fontFamily: fonts.bodySemi, fontSize: type.small, color: colors.red600, textAlign: "center" },
   start: {

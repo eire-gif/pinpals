@@ -2,8 +2,9 @@ import { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { router } from "expo-router";
 
+import { SetByHandBadge } from "@/components/team-handicap-sheet";
 import type { Match } from "@/lib/live-match-days";
-import { buildBoard, startLabel, toParLabel } from "@/lib/live-scoring";
+import { buildBoard, startLabel, teamHandicapLabel, toParLabel } from "@/lib/live-scoring";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 
 /**
@@ -118,8 +119,15 @@ export function ScrambleBoard({ matches, isMine }: { matches: Match[]; isMine: (
                 </Text>
                 <Text style={styles.members} numberOfLines={1}>
                   {r.m.round.start ? `${startLabel(r.m.round.start)} · ` : ""}
+                  {r.m.round.scramble ? `Plays off ${teamHandicapLabel(r.m.round.scramble.teamHandicap)} · ` : ""}
                   {r.members}
                 </Text>
+                {r.m.round.scramble?.teamHandicapAuto != null ? (
+                  <View style={styles.handMark}>
+                    <SetByHandBadge small />
+                    <Text style={styles.members}>worked out {teamHandicapLabel(r.m.round.scramble.teamHandicapAuto)}</Text>
+                  </View>
+                ) : null}
               </View>
               <Text style={[styles.cell, styles.cNum]}>{r.thru === 0 ? (r.m.round.start ? startLabel(r.m.round.start) : (r.m.round.teeTime ?? "–")) : r.done ? "F" : r.thru}</Text>
               <Text style={[styles.cell, styles.cNum]}>{r.thru ? show(r, other) : "–"}</Text>
@@ -128,6 +136,11 @@ export function ScrambleBoard({ matches, isMine }: { matches: Match[]; isMine: (
           );
         })}
       </View>
+      {rows.some((r) => r.m.round.scramble?.teamHandicapAuto != null) ? (
+        <Text style={styles.foot}>
+          Set by hand: the organiser chose this {pairs ? "pair" : "team"}&apos;s handicap for today. The worked-out figure is beside it.
+        </Text>
+      ) : null}
       <Text style={styles.foot}>
         {by === "points"
           ? `Stableford points, then net against par for the holes played. Tap a ${pairs ? "pair" : "team"} for its card.`
@@ -156,6 +169,7 @@ const styles = StyleSheet.create({
   pos: { fontFamily: fonts.bodyBold, fontSize: type.small, color: colors.ink900 },
   team: { fontFamily: fonts.bodySemi, fontSize: type.body, color: colors.ink900 },
   you: { fontFamily: fonts.bodyBold, fontSize: 12, color: colors.green700 },
+  handMark: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 3 },
   members: { fontFamily: fonts.body, fontSize: 12, color: colors.ink500, marginTop: 1 },
   cell: { fontFamily: fonts.body, fontSize: type.small, color: colors.ink500 },
   big: { fontFamily: fonts.display, fontSize: 22, color: colors.navy900 },

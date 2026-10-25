@@ -793,3 +793,82 @@ export function holesStillToScore(
   }
   return out;
 }
+
+// ---------------------------------------------------------------------------
+// Team handicaps set by hand (0189)
+// ---------------------------------------------------------------------------
+//
+// A team's handicap — scramble, foursomes or greensomes — is worked out from
+// its players' course handicaps (above). The organiser can set it by hand for
+// one game; the worked-out figure is kept beside it, and everywhere the team
+// is shown it reads "set by hand".
+
+/** The figures the app offers: +10 (a strong plus team) to 54. */
+export const TEAM_HANDICAP_MIN = -10;
+export const TEAM_HANDICAP_MAX = 54;
+
+/** "9", "+2" — a plus team handicap is written with a plus, as on a card. */
+export function teamHandicapLabel(handicap: number): string {
+  return handicap < 0 ? `+${Math.abs(handicap)}` : String(handicap);
+}
+
+/** What the organiser typed → a team handicap. "9" → 9, "+2" → -2. Whole numbers only. */
+export function parseTeamHandicap(text: string): number | null {
+  const t = text.trim();
+  if (!/^\+?\d{1,2}$/.test(t)) return null;
+  const n = t.startsWith("+") ? -Number(t.slice(1)) : Number(t);
+  if (Object.is(n, -0)) return 0;
+  return n >= TEAM_HANDICAP_MIN && n <= TEAM_HANDICAP_MAX ? n : null;
+}
+
+/** One step up or down, kept in range. */
+export function stepTeamHandicap(handicap: number, by: 1 | -1): number {
+  return Math.min(TEAM_HANDICAP_MAX, Math.max(TEAM_HANDICAP_MIN, handicap + by));
+}
+
+export type TeamHandicapKind = "scramble" | "foursomes" | "greensomes";
+
+export type TeamHandicapBreakdown = {
+  /** The worked-out team handicap. */
+  team: number;
+  /** Per player, in the order given: their course handicap, its share and the percentage. */
+  rows: { courseHandicap: number; percent: number; share: number }[];
+  /** One line on how it's worked out. */
+  rule: string;
+};
+
+/** How a team's handicap is worked out from its players' course handicaps — shown when setting it by hand. */
+export function teamHandicapBreakdown(kind: TeamHandicapKind, courseHandicaps: readonly number[]): TeamHandicapBreakdown {
+  const r1 = (x: number) => Math.round(x * 10) / 10;
+  if (kind === "scramble") {
+    const size = courseHandicaps.length as ScrambleSize;
+    const weights = SCRAMBLE_WEIGHTS[size];
+    if (!weights) throw new Error("A scramble team is 2 or 4 players");
+    const { team, shares } = scrambleHandicap(courseHandicaps);
+    const rank = courseHandicaps.map((ch, i) => ({ ch, i })).sort((a, b) => a.ch - b.ch || a.i - b.i);
+    const percent = new Array<number>(size).fill(0);
+    rank.forEach(({ i }, k) => (percent[i] = Math.round(weights[k] * 100)));
+    return {
+      team,
+      rows: courseHandicaps.map((ch, i) => ({ courseHandicap: ch, percent: percent[i], share: shares[i] })),
+      rule: `Teams of ${size}: ${weights.map((w) => `${Math.round(w * 100)}%`).join(" / ")} of course handicaps, lowest first, added up and rounded once.`,
+    };
+  }
+  if (courseHandicaps.length !== 2) throw new Error("A pair is two players");
+  if (kind === "foursomes") {
+    return {
+      team: foursomesHandicap(courseHandicaps),
+      rows: courseHandicaps.map((ch) => ({ courseHandicap: ch, percent: 50, share: r1(ch * FOURSOMES_ALLOWANCE) })),
+      rule: "Foursomes: half the pair's combined course handicaps, rounded once.",
+    };
+  }
+  const lowAt = courseHandicaps[0] <= courseHandicaps[1] ? 0 : 1;
+  return {
+    team: greensomesHandicap(courseHandicaps),
+    rows: courseHandicaps.map((ch, i) => {
+      const pct = i === lowAt ? 60 : 40;
+      return { courseHandicap: ch, percent: pct, share: r1((ch * pct) / 100) };
+    }),
+    rule: "Greensomes: 60% of the lower course handicap + 40% of the higher, rounded once.",
+  };
+}
