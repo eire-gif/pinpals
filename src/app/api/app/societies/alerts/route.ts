@@ -1,6 +1,7 @@
 import { authenticateAppRequest, unauthenticated } from "@/lib/app-api";
 import { sendSocietyAlerts } from "@/lib/society-alerts";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 /**
  * POST /api/app/societies/alerts
@@ -17,6 +18,11 @@ export const maxDuration = 30;
 export async function POST(request: Request) {
   const auth = await authenticateAppRequest(request);
   if (!auth) return unauthenticated();
+  // Each call runs a batch with the server's own key, so one member can't
+  // hammer it (security review, Oct 2026). Generous: the app calls it once
+  // per change, and anything held back goes at the next scheduled run.
+  const limit = await checkRateLimit({ action: "society-alerts-flush", identifier: auth.user.id, maxHits: 30, windowSeconds: 60 });
+  if (!limit.allowed) return Response.json({ throttled: true }, { status: 429 });
   const result = await sendSocietyAlerts(createAdminClient(), 200);
   return Response.json(result);
 }

@@ -19,15 +19,32 @@ import { colors, fonts, radii, spacing, type } from "@/lib/theme";
  * to the profile builder; anyone already set up goes Home.
  *
  * Reachable signed out: the auth gate in _layout.tsx lets this screen through.
+ *
+ * Already signed in? Ask first (security review, Oct 2026). Otherwise anyone
+ * could send a member a sign-in link to their OWN account and the app would
+ * silently switch to it — whatever the member did next would land in the
+ * sender's account. Same rule as the website's /auth/switch.
  */
 export default function AuthConfirmScreen() {
   const router = useRouter();
   const { token_hash: tokenHash, type } = useLocalSearchParams<{ token_hash?: string; type?: string }>();
   const [failed, setFailed] = useState(false);
+  // Email of the account this phone is already signed in to, when there is one.
+  const [askAs, setAskAs] = useState<string | null>(null);
+  const [confirmed, setConfirmed] = useState(false);
   const started = useRef(false);
 
   useEffect(() => {
     if (started.current) return;
+    if (!confirmed) {
+      // First pass: is somebody signed in already? Then ask before redeeming.
+      void (async () => {
+        const { data: current } = await supabase.auth.getSession();
+        if (current.session) setAskAs(current.session.user.email ?? "your current account");
+        else setConfirmed(true);
+      })();
+      return;
+    }
     started.current = true;
 
     void (async () => {
@@ -50,12 +67,27 @@ export default function AuthConfirmScreen() {
       }
       router.replace(await routeAfterSignIn(userId));
     })();
-  }, [tokenHash, type, router]);
+  }, [tokenHash, type, router, confirmed]);
 
   return (
     <SafeAreaView style={styles.fill}>
       <View style={styles.centre}>
-        {failed ? (
+        {askAs && !confirmed ? (
+          <View style={styles.card}>
+            <Text style={styles.title}>You&apos;re already signed in</Text>
+            <Text style={styles.body}>
+              This phone is signed in as {askAs}. The link you opened signs in to an account from an email. If you
+              didn&apos;t ask for it yourself just now, stay where you are — someone may be trying to get you to use
+              their account.
+            </Text>
+            <Pressable style={styles.primary} onPress={() => router.replace("/(tabs)")} accessibilityRole="button">
+              <Text style={styles.primaryLabel}>Stay signed in</Text>
+            </Pressable>
+            <Pressable style={styles.secondary} onPress={() => setConfirmed(true)} accessibilityRole="button">
+              <Text style={styles.secondaryLabel}>I asked for this link — continue</Text>
+            </Pressable>
+          </View>
+        ) : failed ? (
           <View style={styles.card}>
             <Text style={styles.title}>That link has expired</Text>
             <Text style={styles.body}>
@@ -92,4 +124,13 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   primaryLabel: { fontFamily: fonts.bodyBold, color: colors.cream50, fontSize: type.body },
+  secondary: {
+    borderWidth: 2,
+    borderColor: colors.green700,
+    borderRadius: radii.pill,
+    minHeight: 50,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  secondaryLabel: { fontFamily: fonts.bodyBold, color: colors.green700, fontSize: type.body },
 });

@@ -18,6 +18,7 @@ const LOGIN_WINDOW_SECONDS = 5 * 60;
 export async function logIn(_prev: LoginState, formData: FormData): Promise<LoginState> {
   const rateLimit = await checkRateLimit({
     action: "login",
+    failClosed: true,
     maxHits: LOGIN_MAX_ATTEMPTS,
     windowSeconds: LOGIN_WINDOW_SECONDS,
   });

@@ -44,6 +44,7 @@ export async function updatePassword(
 
   const rateLimit = await checkRateLimit({
     action: "reset-password",
+    failClosed: true,
     identifier: user.id,
     maxHits: RESET_PASSWORD_MAX_ATTEMPTS,
     windowSeconds: RESET_PASSWORD_WINDOW_SECONDS,

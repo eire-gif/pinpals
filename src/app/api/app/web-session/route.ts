@@ -1,3 +1,4 @@
+import { safeRedirectPath } from "@/lib/safe-redirect";
 import {
   authenticateAppRequest,
   badRequest,
@@ -49,8 +50,7 @@ export const dynamic = "force-dynamic";
  */
 function safeNext(value: unknown): string | null {
   if (typeof value !== "string" || value.length === 0) return "/";
-  if (!value.startsWith("/") || value.startsWith("//")) return null;
-  return value;
+  return safeRedirectPath(value);
 }
 
 export async function POST(request: Request) {
