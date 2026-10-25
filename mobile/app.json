@@ -136,7 +136,8 @@
         "android.permission.ACCESS_FINE_LOCATION",
         "android.permission.RECORD_AUDIO"
       ],
-      "googleServicesFile": "./google-services.json"
+      "googleServicesFile": "./google-services.json",
+      "allowBackup": false
     },
     "plugins": [
       "expo-router",
@@ -206,7 +207,12 @@
       "typedRoutes": true
     },
     "updates": {
-      "url": "https://u.expo.dev/545241c8-de3f-4d9f-9371-bd8a9e09a2d3"
+      "url": "https://u.expo.dev/545241c8-de3f-4d9f-9371-bd8a9e09a2d3",
+      "codeSigningCertificate": "./certs/certificate.pem",
+      "codeSigningMetadata": {
+        "keyid": "main",
+        "alg": "rsa-v1_5-sha256"
+      }
     },
     "runtimeVersion": {
       "policy": "fingerprint"

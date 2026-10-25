@@ -60,3 +60,7 @@ fcm-key.json
 # PinPals for Wear OS: Gradle output
 /wear/build
 /wear/.gradle
+
+# The update-signing CERTIFICATE is public and must be in the repo (app.json
+# points at it). Its private key never is — see .github/workflows/eas-update.yml.
+!certs/certificate.pem
