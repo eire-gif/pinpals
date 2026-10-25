@@ -19,9 +19,10 @@ import { normKey } from "@/lib/sell-flow";
 
 export type BrandActionState = { error?: string; saved?: string };
 
+// No SVG: an SVG can carry script that runs when its public link is opened
+// (security review, Oct 2026). A PNG with a transparent background does the job.
 const LOGO_TYPES: Record<string, string> = {
   "image/png": "png",
-  "image/svg+xml": "svg",
   "image/webp": "webp",
   "image/jpeg": "jpg",
 };

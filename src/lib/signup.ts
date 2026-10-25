@@ -89,6 +89,7 @@ export async function signUpMember(raw: Partial<Record<keyof SignUpInput, unknow
 
   const rateLimit = await checkRateLimit({
     action: "signup",
+    failClosed: true,
     maxHits: SIGNUP_MAX_ATTEMPTS,
     windowSeconds: SIGNUP_WINDOW_SECONDS,
   });

@@ -18,6 +18,7 @@ export async function requestPasswordReset(
 ): Promise<ForgotPasswordState> {
   const rateLimit = await checkRateLimit({
     action: "forgot-password",
+    failClosed: true,
     maxHits: FORGOT_PASSWORD_MAX_ATTEMPTS,
     windowSeconds: FORGOT_PASSWORD_WINDOW_SECONDS,
   });

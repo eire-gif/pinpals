@@ -7,6 +7,31 @@ import { importSummary, sanitiseRows, type ImportOutcome } from "@/lib/society-c
 import { check, consoleAction } from "@/lib/society-console/server-action";
 import { buildSocietyInviteEmail } from "@/lib/society-invite-email";
 import { getSiteUrl } from "@/lib/site-url";
+import { checkRateLimit } from "@/lib/rate-limit";
+
+/**
+ * Emails one account can send through imports and resends, per day, across
+ * all its societies (security review, Oct 2026). Any member can start a
+ * society, so without this the import was a free PinPals-branded mailer.
+ * A big society's first import fits; a second big list waits until tomorrow.
+ */
+const IMPORT_EMAILS_PER_DAY = 500;
+
+async function chargeEmails(userId: string, count: number): Promise<void> {
+  const limit = await checkRateLimit({
+    action: "society-invite-emails",
+    identifier: userId,
+    maxHits: IMPORT_EMAILS_PER_DAY,
+    windowSeconds: 24 * 60 * 60,
+    cost: count,
+    failClosed: true,
+  });
+  if (!limit.allowed) {
+    throw new Error(
+      `That would go over today's limit of ${IMPORT_EMAILS_PER_DAY} invitation emails. Send a shorter list, or try again tomorrow.`
+    );
+  }
+}
 
 /**
  * Import from spreadsheet (0170). The browser reads the file and shows the
@@ -61,6 +86,7 @@ export async function importMembers(_prev: ActionState, form: FormData): Promise
     }
     const rows = sanitiseRows(parsed);
     if (rows.length === 0) throw new Error("Choose a file or paste some email addresses first.");
+    await chargeEmails(ctx.user.id, rows.length);
 
     const { data, error } = await ctx.supabase.rpc("import_group_email_invites", {
       p_group_id: ctx.society.id,
@@ -93,6 +119,7 @@ export async function resendInvites(_prev: ActionState, form: FormData): Promise
       wanted = (data ?? []).map((r) => Number(r.id));
     }
     if (wanted.length === 0) throw new Error("Nobody waiting to resend to.");
+    await chargeEmails(ctx.user.id, wanted.length);
     const { data, error } = await ctx.supabase.rpc("resend_group_email_invites", { p_group_id: ctx.society.id, p_ids: wanted });
     check(error, "Couldn't resend.");
     const rows = (data ?? []) as { invite_id: number; email: string; first_name: string | null; token: string }[];

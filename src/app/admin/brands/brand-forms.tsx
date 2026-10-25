@@ -23,7 +23,7 @@ export function LogoForm({ brandId, hasLogo }: { brandId: string; hasLogo: boole
         <input
           type="file"
           name="logo"
-          accept="image/png,image/svg+xml,image/webp,image/jpeg"
+          accept="image/png,image/webp,image/jpeg"
           required
           className="text-sm file:mr-3 file:rounded-full file:border-0 file:bg-cream-100 file:px-3 file:py-1.5 file:font-semibold"
         />
@@ -42,7 +42,7 @@ export function LogoForm({ brandId, hasLogo }: { brandId: string; hasLogo: boole
       <Note state={state} />
       <Note state={removeState} />
       <p className="text-xs text-ink-500">
-        Use the brand&rsquo;s official logo from its media or press kit. PNG or SVG with a transparent background works best; it&rsquo;s
+        Use the brand&rsquo;s official logo from its media or press kit. A PNG with a transparent background works best; it&rsquo;s
         shown on white, up to 1 MB.
       </p>
     </div>

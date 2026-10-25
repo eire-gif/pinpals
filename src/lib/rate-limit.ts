@@ -40,34 +40,51 @@ export async function resolveClientIp(): Promise<string> {
  * messages, reports); omit it for an unauthenticated flow (login, signup,
  * forgot-password) to rate-limit by client IP instead.
  *
- * Fails OPEN, not closed, on an infrastructure error (the RPC call itself
+ * Fails OPEN by default on an infrastructure error (the RPC call itself
  * failing) — logged so the failure is visible, but a rate-limiter outage
- * must never itself become a way to lock every member out of login or
- * messaging. This mirrors this codebase's existing "a secondary system
- * failing must never break the primary flow" discipline (see
- * respondToOffer()'s own comment on its non-blocking order-write failure).
+ * must never itself become a way to lock every member out of messaging.
+ * This mirrors this codebase's existing "a secondary system failing must
+ * never break the primary flow" discipline (see respondToOffer()'s own
+ * comment on its non-blocking order-write failure).
+ *
+ * `failClosed` reverses that for the password and account flows (login,
+ * signup, forgot/reset password): there, a limiter that's down would let
+ * password guessing run unchecked, and a member asked to try again in a
+ * minute is the lesser harm (security review, Oct 2026).
+ *
+ * `cost` charges more than one hit — e.g. one per email address in a
+ * society import, so the limit counts emails sent rather than clicks (0191).
  */
 export async function checkRateLimit(input: {
   action: string;
   identifier?: string;
   maxHits: number;
   windowSeconds: number;
+  cost?: number;
+  failClosed?: boolean;
 }): Promise<RateLimitResult> {
   const identifier = input.identifier ?? (await resolveClientIp());
   const key = `${input.action}:${identifier}`;
 
   const admin = createAdminClient();
-  const { data, error } = await admin
-    .rpc("check_rate_limit", {
-      p_key: key,
-      p_max_hits: input.maxHits,
-      p_window_seconds: input.windowSeconds,
-    })
-    .single<{ allowed: boolean; retry_after_seconds: number }>();
+  const cost = Math.max(1, Math.floor(input.cost ?? 1));
+  const { data, error } = await (cost > 1
+    ? admin.rpc("check_rate_limit_cost", {
+        p_key: key,
+        p_max_hits: input.maxHits,
+        p_window_seconds: input.windowSeconds,
+        p_cost: cost,
+      })
+    : admin.rpc("check_rate_limit", {
+        p_key: key,
+        p_max_hits: input.maxHits,
+        p_window_seconds: input.windowSeconds,
+      })
+  ).single<{ allowed: boolean; retry_after_seconds: number }>();
 
   if (error || !data) {
     console.error(`Rate limit check failed for "${key}":`, error?.message ?? "no row returned");
-    return { allowed: true };
+    return input.failClosed ? { allowed: false, retryAfterSeconds: 60 } : { allowed: true };
   }
 
   return data.allowed ? { allowed: true } : { allowed: false, retryAfterSeconds: data.retry_after_seconds };
