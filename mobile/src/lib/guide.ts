@@ -841,6 +841,16 @@ export const GUIDES: Guide[] = [
         ],
       },
       {
+        title: "Scramble or pairs? Set a team handicap by hand",
+        body: "In a scramble, foursomes or greensomes, each team or pair plays off one handicap, worked out from everyone's index. Under each group in the draw you'll see Team plays off (or the pair's names). Tap it to see how it's worked out, then use − and + (or type it, +2 for a plus team) and tap Team plays off. It changes this game only.",
+        look: [
+          { style: "outline", label: "Team plays off", icon: "pencil" },
+          { style: "primary", label: "Team plays off 7" },
+          { style: "outline", label: "Use the worked-out 9" },
+        ],
+        tip: "A team set by hand shows a gold Set by hand mark with the worked-out figure beside it — on the card, the leaderboard, the TV and the results — so everyone can see it's fair. Swap a player in the draw and that team goes back to the worked-out figure. Once you've teed off, open the team's card, go to Leaderboard and tap Edit by the team handicap; if scores are in, you're asked first and the team is told.",
+      },
+      {
         title: "Keep the leaderboard secret, if you like",
         body: "Announcing the winners at a dinner? Before you start the day, tick Keep the leaderboard secret. Players then see only their own group's card, not who's winning; you see the whole board, and the TV in the clubhouse stays live. It's shown to everyone the moment you publish the results.",
         look: [{ style: "outline", label: "Keep the leaderboard secret", icon: "eye-off-outline" }],
@@ -1219,7 +1229,7 @@ export const GUIDES: Guide[] = [
           { style: "link", label: "Add a guest" },
           { style: "primary", label: "Tee off" },
         ],
-        tip: "PinPals you add get the card and leaderboard on their own phone. Under 16? Add a PinPal shows your parent and the PinPals your parent has approved; anyone else goes in as a guest.",
+        tip: "PinPals you add get the card and leaderboard on their own phone. Under 16? Add a PinPal shows your parent and the PinPals your parent has approved; anyone else goes in as a guest. A scramble team or foursomes pair plays off one handicap, worked out for you: tap Edit by Team plays off (or the pair's Plays off) to set it by hand for this game.",
       },
       {
         title: "Score each hole",
@@ -2051,6 +2061,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-25", text: "Team handicaps set by hand: in a scramble, foursomes or greensomes, tap a team's or pair's handicap — on Set up a round, a scramble day or under each group in the draw — to set it for this game. It's marked Set by hand, with the worked-out figure beside it, on the card, leaderboard, TV and results. Once you've teed off, open the card's Leaderboard tab and tap Edit; the team is told if scores are in. Play a round together: new step." },
   { on: "2026-10-24", text: "Score a game live: new step, No signal? Keep scoring — scores are saved on your phone and send by themselves when you're back in range; the round and the hole map open with no signal; Complete scorecard waits until every saved score has sent." },
   { on: "2026-10-24", text: "Post a tee time: requests show each golfer's record (Reliable · 18 of 18 rounds, or New to tee times) and Verified golfer badge, best records first; new option Golfers with a good record only; new step, After the round: who turned up. Find a game: dropping out inside 24 hours is a late cancellation, and I was there disputes a no-show." },
   { on: "2026-10-24", text: "Buy and Sell: marketplace chats open with tips for buying and selling safely and Suggest meeting at the club; a message asking for a deposit, a courier, a gift card or with a link in it gets a yellow warning. Sellers can be Verified golfers (Profile → Get the Verified badge)." },

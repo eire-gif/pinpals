@@ -9,7 +9,8 @@ import { ScoreMark, ScoreMarkKey } from "@/components/score-mark";
 import { LoadError, StateMessage } from "@/components/state-message";
 import { useAuth } from "@/lib/auth";
 import { isOn } from "@/lib/features";
-import { SIDE_COLORS, SIDE_TEXT, asMatchPlayers, loadMatchDayHeader, type MatchDay } from "@/lib/live-match-days";
+import { SIDE_COLORS, SIDE_TEXT, asMatchPlayers, isDayOrganiser, loadMatchDayHeader, type MatchDay } from "@/lib/live-match-days";
+import { SetByHandBadge, TeamHandicapSheet } from "@/components/team-handicap-sheet";
 import {
   deleteLiveRound,
   finishLiveRound,
@@ -17,6 +18,7 @@ import {
   loadHighlightAlertsOn,
   saveCourseCard,
   setLiveHole,
+  setTeamHandicap,
   queueHighlight,
   setHighlightAlertsOn,
   subscribeToLiveRound,
@@ -41,6 +43,7 @@ import {
   shotsSoFar,
   stablefordPoints,
   startLabel,
+  teamHandicapLabel,
   teamMatchState,
   toParLabel,
   type CardHole,
@@ -123,6 +126,10 @@ export default function LiveRoundScreen() {
   const [alertsOn, setAlertsOn] = useState<boolean | null>(null);
   const { session } = useAuth();
   const me = session?.user?.id ?? null;
+  // A team handicap set by hand (0189): the day's organiser (or whoever set
+  // up a round on its own) can change it while the round is on.
+  const [dayOrganiser, setDayOrganiser] = useState(false);
+  const [teamSheet, setTeamSheet] = useState(false);
   // My Game (0178): your own stats under your score, if you track them.
   const [trackStats] = useTracking();
   const { gate } = useMembership();
@@ -196,6 +203,17 @@ export default function LiveRoundScreen() {
     }, [load])
   );
   useEffect(() => subscribeToLiveRound(roundId, () => void load()), [roundId, load]);
+  const roundDayId = data?.round.matchDayId ?? null;
+  useEffect(() => {
+    if (roundDayId == null) return;
+    let live = true;
+    void isDayOrganiser(roundDayId)
+      .then((yes) => live && setDayOrganiser(yes))
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [roundDayId]);
   useEffect(() => {
     if (hadWaiting.current && waitingScores === 0) void load();
     hadWaiting.current = waitingScores > 0;
@@ -1456,7 +1474,75 @@ export default function LiveRoundScreen() {
                   ? `Team handicap · ${scr.size}-person scramble`
                   : `Handicaps · ${Math.round(round.allowance * 100)}% allowance`}
             </Text>
-            {scr ? <Text style={styles.playerName}>{teamLabel(data)} plays off {scr.teamHandicap}</Text> : null}
+            {scr ? (
+              (() => {
+                const auto = scr.teamHandicapAuto ?? scr.teamHandicap;
+                const set = scr.teamHandicapAuto != null;
+                const canSet = round.status === "live" && !fromPhone && (round.matchDayId != null ? dayOrganiser : round.createdBy === me);
+                const kind = scr.greensomes ? "greensomes" : scr.foursomes ? "foursomes" : "scramble";
+                const save = async (h: number) => {
+                  setTeamSheet(false);
+                  try {
+                    await setTeamHandicap(round.id, h);
+                    await load();
+                  } catch (e) {
+                    Alert.alert("Couldn't change it", e instanceof Error ? e.message : "Please try again.");
+                  }
+                };
+                return (
+                  <>
+                    <View style={styles.teamHcpRow}>
+                      <View style={{ flex: 1, gap: 4 }}>
+                        <Text style={styles.playerName}>
+                          {teamLabel(data)} plays off {teamHandicapLabel(scr.teamHandicap)}
+                        </Text>
+                        {set ? (
+                          <View style={styles.teamHcpMark}>
+                            <SetByHandBadge small />
+                            <Text style={styles.playerMeta}>Worked out {teamHandicapLabel(auto)}</Text>
+                          </View>
+                        ) : null}
+                      </View>
+                      {canSet ? (
+                        <Pressable
+                          onPress={() => setTeamSheet(true)}
+                          style={({ pressed }) => [styles.teamHcpEdit, pressed && { opacity: 0.85 }]}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Change ${teamLabel(data)}'s handicap`}
+                        >
+                          <Ionicons name="pencil" size={15} color={colors.green700} />
+                          <Text style={styles.teamHcpEditText}>Edit</Text>
+                        </Pressable>
+                      ) : null}
+                    </View>
+                    {canSet ? (
+                      <TeamHandicapSheet
+                        open={teamSheet}
+                        label={teamLabel(data)}
+                        kind={kind}
+                        players={players.map((p) => ({ name: p.name.split(" ")[0] || "Guest", courseHandicap: p.courseHandicap + (p.teeExtra ?? 0) }))}
+                        auto={auto}
+                        value={scr.teamHandicap}
+                        onClose={() => setTeamSheet(false)}
+                        onSave={(h) => {
+                          if (h === scr.teamHandicap) return setTeamSheet(false);
+                          const scored = players.some((p) => (scores.get(p.id)?.size ?? 0) > 0);
+                          if (!scored) return void save(h);
+                          Alert.alert(
+                            `${kind === "scramble" ? "Team" : "Pair"} plays off ${teamHandicapLabel(h)}?`,
+                            "Scores so far are worked out again on the new figure, and the players are told.",
+                            [
+                              { text: "Cancel", style: "cancel" },
+                              { text: "Change it", onPress: () => void save(h) },
+                            ]
+                          );
+                        }}
+                      />
+                    ) : null}
+                  </>
+                );
+              })()
+            ) : null}
             {players.map((p) => (
               <Text key={p.id} style={styles.playerMeta}>
                 {p.name}: index {p.handicapIndex}, course {p.courseHandicap}
@@ -2043,6 +2129,10 @@ const styles = StyleSheet.create({
   pos: { fontFamily: fonts.bodyBold, fontSize: type.small, color: colors.ink900 },
   cell: { fontFamily: fonts.body, fontSize: type.small, color: colors.ink500 },
   big: { fontFamily: fonts.display, fontSize: 22, color: colors.navy900 },
+  teamHcpRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  teamHcpMark: { flexDirection: "row", alignItems: "center", gap: 6 },
+  teamHcpEdit: { flexDirection: "row", alignItems: "center", gap: 6, minHeight: 44, paddingHorizontal: spacing.md, borderRadius: radii.pill, borderWidth: 1, borderColor: colors.green700, backgroundColor: colors.surface },
+  teamHcpEditText: { fontFamily: fonts.bodyBold, fontSize: 15, color: colors.green700 },
   handicaps: { gap: 4, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: radii.lg, padding: spacing.md },
 
   matchLine: { borderTopWidth: 1, borderTopColor: creamAlpha(0.15), paddingTop: spacing.sm, alignItems: "center", gap: 2 },

@@ -6,6 +6,7 @@ import {
   pointsLabel,
   shotsSoFar,
   stablefordPoints,
+  teamHandicapLabel,
   teamMatchState,
   toParLabel,
   type CardHole,
@@ -39,7 +40,15 @@ export type TvRound = {
   status: "live" | "finished";
   courseName: string;
   teeTime: string | null;
-  scramble: { teamName: string | null; teamNumber: number | null; teamHandicap: number; foursomes: "stableford" | "stroke" | null; greensomes?: boolean } | null;
+  scramble: {
+    teamName: string | null;
+    teamNumber: number | null;
+    teamHandicap: number;
+    /** Set by hand (0189): the worked-out figure it replaced. */
+    teamHandicapAuto?: number | null;
+    foursomes: "stableford" | "stroke" | null;
+    greensomes?: boolean;
+  } | null;
 };
 
 export type TvPlayer = {
@@ -269,8 +278,11 @@ export function buildTvPayload(input: { day: TvDay | null; games: TvGame[]; publ
         key: `t${g.round.id}`,
         pos: "",
         name,
-        sub: [...g.players].sort((a, b) => a.position - b.position).map((p) => first(p.name)).join(", "),
-        hcp: String(hcp),
+        // A team handicap set by hand (0189) says so on the screen, with the worked-out figure.
+        sub:
+          [...g.players].sort((a, b) => a.position - b.position).map((p) => first(p.name)).join(", ") +
+          (scr?.teamHandicapAuto != null ? ` · handicap set by hand (worked out ${teamHandicapLabel(scr.teamHandicapAuto)})` : ""),
+        hcp: teamHandicapLabel(hcp),
         on: holeOn(g, thru),
         out: nineLabel(nines.out, onPoints),
         inn: nineHoles ? "–" : nineLabel(nines.inn, onPoints),

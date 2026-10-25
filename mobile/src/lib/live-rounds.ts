@@ -57,8 +57,11 @@ export type ScrambleInfo = {
   size: ScrambleSize;
   teamName: string | null;
   teamNumber: number | null;
-  /** The team's playing handicap (WHS allowances, summed then rounded). */
+  /** The team's playing handicap (WHS allowances, summed then rounded) — or
+   *  the one the organiser set by hand (0189). Everything scores from this. */
   teamHandicap: number;
+  /** Set by hand (0189): the worked-out figure it replaced. Null = worked out. */
+  teamHandicapAuto: number | null;
   driveMinimum: number | null;
   /** Set when the team is a foursomes (Scotch foursomes) pair, 0136: how
    *  it's ranked. The round's format is then this too, not "scramble". */
@@ -110,6 +113,7 @@ type RoundRow = {
   team_name: string | null;
   team_number: number | null;
   team_handicap: number | null;
+  team_handicap_auto?: number | null;
   drive_minimum: number | null;
   foursomes_scoring: FoursomesScoring | null;
   greensomes: boolean | null;
@@ -133,7 +137,7 @@ type PlayerRow = {
 };
 
 export const ROUND_SELECT =
-  "id, created_by, club_id, course_name, tee_name, format, holes, course_rating, slope, par_total, allowance, status, played_on, match_day_id, match_number, match_type, tee_time, scramble_size, team_name, team_number, team_handicap, drive_minimum, foursomes_scoring, greensomes, start_hole, start_letter";
+  "id, created_by, club_id, course_name, tee_name, format, holes, course_rating, slope, par_total, allowance, status, played_on, match_day_id, match_number, match_type, tee_time, scramble_size, team_name, team_number, team_handicap, team_handicap_auto, drive_minimum, foursomes_scoring, greensomes, start_hole, start_letter";
 
 export const toMatchFormat = (t: RoundRow["match_type"]): MatchFormat | null =>
   t == null ? null : t === "singles" ? "matchplay" : t;
@@ -168,6 +172,7 @@ export const toRound = (r: RoundRow): LiveRound => ({
           teamName: r.team_name,
           teamNumber: r.team_number,
           teamHandicap: r.team_handicap ?? 0,
+          teamHandicapAuto: r.team_handicap_auto ?? null,
           driveMinimum: r.drive_minimum,
           foursomes: r.foursomes_scoring ?? null,
           greensomes: !!r.greensomes && r.foursomes_scoring != null,
@@ -365,6 +370,17 @@ export async function createLiveRound(round: NewRound, players: NewPlayer[], car
   // Tell the PinPals in it. Best effort: the round exists either way.
   void postToSite(`/api/app/live/rounds/${id}/notify`, {}).catch(() => undefined);
   return id;
+}
+
+/**
+ * Sets a team's handicap by hand for this game (0189) — the organiser of a
+ * day, or whoever set up a round on its own. Passing the worked-out figure
+ * puts it back. Once scores are in, the team's players are told.
+ */
+export async function setTeamHandicap(roundId: number, handicap: number): Promise<number> {
+  const { data, error } = await supabase.rpc("live_round_set_team_handicap", { p_round_id: roundId, p_handicap: handicap });
+  if (error) throw error;
+  return data as number;
 }
 
 /** strokes null = picked up; clear removes the entry altogether. */

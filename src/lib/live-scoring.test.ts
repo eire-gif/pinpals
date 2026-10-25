@@ -2,6 +2,10 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  parseTeamHandicap,
+  stepTeamHandicap,
+  teamHandicapBreakdown,
+  teamHandicapLabel,
   blankCard,
   buildBoard,
   courseHandicap,
@@ -454,5 +458,44 @@ describe("shotgun starts (0173)", () => {
     expect(startLabel({ hole: 7, letter: "B" })).toBe("7B");
     expect(startLabel({ hole: 7, letter: "A" }, true)).toBe("7");
     expect(startLabel(null)).toBe("");
+  });
+});
+
+describe("team handicaps set by hand (0189)", () => {
+  it("reads and writes plus team handicaps with a plus, whole numbers only", () => {
+    expect(parseTeamHandicap("9")).toBe(9);
+    expect(parseTeamHandicap(" +2 ")).toBe(-2);
+    expect(parseTeamHandicap("0")).toBe(0);
+    expect(parseTeamHandicap("+0")).toBe(0);
+    expect(parseTeamHandicap("9.5")).toBeNull();
+    expect(parseTeamHandicap("55")).toBeNull();
+    expect(parseTeamHandicap("+11")).toBeNull();
+    expect(parseTeamHandicap("")).toBeNull();
+    expect(teamHandicapLabel(-2)).toBe("+2");
+    expect(teamHandicapLabel(9)).toBe("9");
+    expect(stepTeamHandicap(54, 1)).toBe(54);
+    expect(stepTeamHandicap(-10, -1)).toBe(-10);
+    expect(stepTeamHandicap(0, -1)).toBe(-1);
+  });
+
+  it("explains a scramble team's figure, lowest handicap taking the biggest share", () => {
+    const b = teamHandicapBreakdown("scramble", [14, 5, 25, 19]);
+    expect(b.team).toBe(scrambleHandicap([14, 5, 25, 19]).team);
+    expect(b.rows.map((r) => r.percent)).toEqual([20, 25, 10, 15]);
+    expect(b.rows[1]).toEqual({ courseHandicap: 5, percent: 25, share: 1.3 });
+    expect(b.rule).toMatch(/Teams of 4: 25% \/ 20% \/ 15% \/ 10%/);
+    expect(teamHandicapBreakdown("scramble", [9, 20]).rows.map((r) => r.percent)).toEqual([35, 15]);
+  });
+
+  it("explains a foursomes and a greensomes pair", () => {
+    const f = teamHandicapBreakdown("foursomes", [9, 18]);
+    expect(f.team).toBe(foursomesHandicap([9, 18]));
+    expect(f.rows.map((r) => r.share)).toEqual([4.5, 9]);
+    const g = teamHandicapBreakdown("greensomes", [19, 9]);
+    expect(g.team).toBe(13);
+    expect(g.rows).toEqual([
+      { courseHandicap: 19, percent: 40, share: 7.6 },
+      { courseHandicap: 9, percent: 60, share: 5.4 },
+    ]);
   });
 });

@@ -4,6 +4,7 @@ import { postToSite } from "./api";
 import {
   ROUND_SELECT,
   PLAYER_SELECT,
+  setTeamHandicap,
   toPlayer,
   toRound,
   type LiveRound,
@@ -307,9 +308,32 @@ export type NewScrambleTeam = {
   name: string | null;
   teeTime: string | null;
   start?: NewStart;
+  /** The worked-out team handicap. */
   teamHandicap: number;
+  /** Set by hand for this game (0189): sent after the day is made, so the worked-out figure is kept beside it. */
+  setByHand?: number | null;
   players: Omit<NewMatchPlayer, "side">[];
 };
+
+/**
+ * The team handicaps the organiser set by hand on a new scramble or pairs
+ * day (0189), team by team (team N is the Nth team sent). Each one keeps the
+ * worked-out figure beside it. Throws if any couldn't be set; the day itself
+ * is already made.
+ */
+export async function applyHandSetHandicaps(dayId: number, teams: readonly NewScrambleTeam[]): Promise<void> {
+  const wanted = teams
+    .map((t, i) => ({ number: i + 1, h: t.setByHand }))
+    .filter((t): t is { number: number; h: number } => t.h != null && t.h !== teams[t.number - 1].teamHandicap);
+  if (wanted.length === 0) return;
+  const { data, error } = await supabase.from("live_rounds").select("id, team_number").eq("match_day_id", dayId);
+  if (error) throw error;
+  const byNumber = new Map((data ?? []).map((r: { id: number; team_number: number | null }) => [r.team_number, r.id]));
+  for (const t of wanted) {
+    const roundId = byNumber.get(t.number);
+    if (roundId != null) await setTeamHandicap(roundId, t.h);
+  }
+}
 
 export async function createScrambleDay(
   day: Omit<NewMatchDay, "teamNames"> & {

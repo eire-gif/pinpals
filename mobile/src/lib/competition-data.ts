@@ -10,6 +10,7 @@ import {
 } from "./competition-results";
 import type { MatchDayData } from "./live-match-days";
 import { supabase } from "./supabase";
+import { teamHandicapLabel } from "./live-scoring";
 
 /**
  * Competition results (0137): the day's cards turned into entrants for the
@@ -106,7 +107,8 @@ export function entrantsOf(data: MatchDayData, certified: Map<string, boolean>):
       out.push({
         key: `r${m.round.id}`,
         name: scr.teamName ?? first.join(" & "),
-        detail: first.join(" · "),
+        // A handicap set by hand (0189) says so, with the worked-out figure — open and fair.
+        detail: first.join(" · ") + (scr.teamHandicapAuto != null ? ` · handicap set by hand (worked out ${teamHandicapLabel(scr.teamHandicapAuto)})` : ""),
         memberIds: ordered.map((p) => p.memberId).filter((x): x is string => !!x),
         guest: false,
         handicap: scr.teamHandicap,

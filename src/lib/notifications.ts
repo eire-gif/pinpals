@@ -145,6 +145,9 @@ export const NOTIFICATION_TYPES = [
   // birdie or better on it, and the finish. The app only, like highlights.
   "live_follow_started",
   "live_follow_update",
+  // 0189: the organiser set a team's handicap by hand once scores were in —
+  // to the team's players. A notice about this game, like the round ones.
+  "live_team_handicap",
   // Groups (0120). Under feed: they're the social side of PinPals, and a
   // member who wants fewer social alerts silences them together.
   "group_invited",
@@ -219,6 +222,7 @@ export const NOTIFICATION_TYPE_CATEGORY: Record<NotificationType, NotificationCa
   live_match_added: "tee_times",
   live_match_result: "tee_times",
   live_highlight: "tee_times",
+  live_team_handicap: "tee_times",
   live_follow_started: "tee_times",
   live_follow_update: "tee_times",
   group_invited: "feed",

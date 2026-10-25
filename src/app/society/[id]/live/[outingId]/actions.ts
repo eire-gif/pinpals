@@ -3,6 +3,7 @@
 import { after } from "next/server";
 
 import { notifyMatchDayPlayers } from "@/lib/live-match-notifications";
+import { parseTeamHandicap, teamHandicapLabel } from "@/lib/live-scoring";
 import { checkRateLimit } from "@/lib/rate-limit";
 import type { ActionState } from "@/lib/society-console/action-state";
 import type { ConsoleContext } from "@/lib/society-console/access";
@@ -27,6 +28,7 @@ import { normaliseTvCode } from "@/lib/tv-token";
  *   setHidden    set_day_leaderboard_hidden — the event's officers (0174)
  *   connectTv    pairs a clubhouse TV's code to the day, as /api/app/live/tv
  *   fixScores    live_round_set_score — whoever started the day (0104)
+ *   setTeamHandicap  live_round_set_team_handicap — the day's organisers (0189)
  *
  * Nothing a browser sends becomes a player, a handicap or a group: the
  * draw and handicaps are read again here and the day is planned in
@@ -258,5 +260,35 @@ export async function fixScores(_prev: ActionState, form: FormData): Promise<Act
       saved += 1;
     }
     return `${saved} ${saved === 1 ? "score" : "scores"} saved. The players see the change on their phones.`;
+  });
+}
+
+/**
+ * A team's (or pair's) handicap set by hand for this game (0189), or put
+ * back to the worked-out figure ("reset"). The database checks the caller
+ * runs the day and keeps the worked-out figure beside it; once scores are
+ * in, the team's players are told.
+ */
+export async function setTeamHandicap(_prev: ActionState, form: FormData): Promise<ActionState> {
+  return consoleAction(form.get("g"), { area: "events", alerts: false }, async (ctx) => {
+    const day = await dayOf(ctx, form.get("outing"));
+    const round = positiveInt(form.get("round"));
+    if (!round) throw new Error("That card wasn't found.");
+    const { data: r } = await ctx.supabase
+      .from("live_rounds")
+      .select("id, match_day_id, team_handicap, team_handicap_auto")
+      .eq("id", round)
+      .maybeSingle<{ id: number; match_day_id: number | null; team_handicap: number | null; team_handicap_auto: number | null }>();
+    if (!r || r.match_day_id !== day) throw new Error("That card isn't in this round.");
+    if (r.team_handicap == null) throw new Error("Only a team or pair has a team handicap.");
+    const auto = r.team_handicap_auto ?? r.team_handicap;
+    const wanted = form.get("reset") ? auto : parseTeamHandicap(text(form, "handicap", 4) ?? "");
+    if (wanted == null) throw new Error("A team handicap is a whole number, 0 to 54, or + for a plus team (+2).");
+    if (wanted === r.team_handicap) return "No change.";
+    const { error } = await ctx.supabase.rpc("live_round_set_team_handicap", { p_round_id: round, p_handicap: wanted });
+    if (error) throw new Error(error.code === "42501" || error.code === "22023" ? error.message : "It couldn't be saved. Please try again.");
+    return wanted === auto
+      ? `Back to the worked-out ${teamHandicapLabel(auto)}.`
+      : `Plays off ${teamHandicapLabel(wanted)} — set by hand (worked out ${teamHandicapLabel(auto)}). The players see it on their phones.`;
   });
 }

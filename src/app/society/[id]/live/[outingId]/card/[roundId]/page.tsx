@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { HoleStrip, LiveSteps } from "@/components/society-console/live-ui";
 import { liveSteps } from "@/lib/society-console/live-steps";
 import { Card, PageHeader, Pill } from "@/components/society-console/ui";
-import { buildBoard, shotsSoFar, stablefordPoints } from "@/lib/live-scoring";
+import { buildBoard, shotsSoFar, stablefordPoints, teamHandicapLabel } from "@/lib/live-scoring";
 import { requireConsole } from "@/lib/society-console/access";
 import { loadEvent } from "@/lib/society-console/data";
 import { controlRoom } from "@/lib/society-console/live-day";
@@ -11,6 +11,7 @@ import { loadLiveDay } from "@/lib/society-console/live-day-data";
 import { isOutingDay } from "@/lib/society-console/outing-rules";
 import { consoleHref, positiveInt } from "@/lib/society-console/rules";
 import ScoreEditor from "./score-editor";
+import TeamHandicapForm from "./team-handicap-form";
 
 /**
  * One group's (or team's) card from the control room: every hole as
@@ -44,6 +45,8 @@ export default async function GroupCardPage({ params }: { params: Promise<{ id: 
   const board = buildBoard(onPoints ? "stableford" : "stroke", card, scoring.map((p) => ({ id: p.id, name: p.name, playingHandicap: handicapOf(p) })), game.scores);
   const label = scramble ? game.round.scramble?.teamName?.trim() || `Team ${status.number}` : `Group ${status.number}`;
   const canFix = day.mine && game.round.status === "live";
+  // A team handicap set by hand (0189): the worked-out figure it replaced.
+  const handAuto = game.round.scramble?.teamHandicapAuto ?? null;
   const nameOf = (p: (typeof ordered)[number]) => (scramble ? ordered.map((x) => x.name.split(" ")[0]).join(" & ") : p.name);
 
   return (
@@ -101,7 +104,10 @@ export default async function GroupCardPage({ params }: { params: Promise<{ id: 
                   <tr key={p.id} className="border-t border-line">
                     <th scope="row" className="text-left pr-3 py-2 align-top">
                       <span className="block font-semibold text-ink-900 whitespace-nowrap">{nameOf(p)}</span>
-                      <span className="text-xs font-normal text-ink-500">Plays off {handicapOf(p)}</span>
+                      <span className="text-xs font-normal text-ink-500">
+                        Plays off {teamHandicapLabel(handicapOf(p))}
+                        {scramble && handAuto != null ? ` · set by hand (worked out ${teamHandicapLabel(handAuto)})` : ""}
+                      </span>
                     </th>
                     {card.map((h) => {
                       const has = mine?.has(h.hole);
@@ -137,6 +143,32 @@ export default async function GroupCardPage({ params }: { params: Promise<{ id: 
         </div>
         <p className="text-xs text-ink-500 mt-3">• a shot received on the hole · P picked up · · not entered yet</p>
       </Card>
+
+      {scramble && game.round.scramble ? (
+        <Card
+          title={game.round.scramble.foursomes ? "Pair handicap" : "Team handicap"}
+          subtitle="Worked out from each player's index. Set it by hand for this game only — everyone sees it was set by hand, with the worked-out figure beside it."
+        >
+          <div className="flex flex-wrap items-center gap-3 mb-3">
+            <span className="text-3xl font-extrabold text-navy-900 tabular-nums">{teamHandicapLabel(game.round.scramble.teamHandicap)}</span>
+            {handAuto != null ? <Pill tone="gold">Set by hand</Pill> : <Pill tone="grey">Worked out</Pill>}
+            {handAuto != null ? <span className="text-sm text-ink-500">Worked out {teamHandicapLabel(handAuto)}</span> : null}
+          </div>
+          {game.round.status === "live" ? (
+            <TeamHandicapForm
+              groupId={g}
+              outingId={outingId}
+              roundId={game.round.id}
+              current={teamHandicapLabel(game.round.scramble.teamHandicap)}
+              auto={teamHandicapLabel(handAuto ?? game.round.scramble.teamHandicap)}
+              pair={game.round.scramble.foursomes != null}
+              started={(game.scores.get(ordered[0]?.id ?? -1)?.size ?? 0) > 0}
+            />
+          ) : (
+            <p className="text-sm text-ink-500">This card is closed, so its handicap can&apos;t change now.</p>
+          )}
+        </Card>
+      ) : null}
 
       {canFix ? (
         <Card title="Correct a score" subtitle="For a mis-tap on a phone. Once the results are out, correct them there instead — the change shows as Amended.">
