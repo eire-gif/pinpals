@@ -45,16 +45,20 @@ Also found: `Math.floor(x + 0.5)` on doubles can turn an exact .5 into
   stored as the round's `allowance` as before.
 - Guides: new "Check your handicap"; Score a game live steps updated.
 
+## Plus handicaps at .5 (0192)
+R&A Appendix C: a plus handicap moves "up towards zero including rounding"
+(+2.5 → +2). The app's `roundHalfUp` already did; the handicap-indicator SQL
+(`handicap_differentials_of`) used Postgres `round()` (−2.5 → −3). Migration
+0192 changes that one expression to `floor(x + 0.5)`. Test:
+`supabase/tests/rls/plus-half-rounding.test.ts`.
+
 ## Tests
 `live-scoring.test.ts`: all 18 Golf Ireland figures (men's/women's, 18 and
 each nine), 95% rounding-once case, the float trap, and an exact-integer
 reference sweep over every index −10.0…54.0 × 18 tees × 4 allowances.
-`handicap-calculator.test.ts` for the calculator logic. 2,174 unit tests pass.
+`handicap-calculator.test.ts` for the calculator logic. 2,175 unit tests and 1,100 database tests pass; all 192 migrations replay.
 
 ## Open
-- Plus handicaps at exactly .5: JS rounds −2.5 → −2, Postgres `round()` in
-  the handicap-indicator SQL gives −3. The published rules reached don't say
-  which; confirm with Golf Ireland before changing either.
 - Course data: golfapi cards are 18-hole; front/back-nine ratings per tee
   would make 9-hole lookup work everywhere (manual entry covers it now).
 - Mixed-tee par difference is still added after the allowance (unchanged).

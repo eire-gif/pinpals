@@ -130,6 +130,13 @@ describe("live-scoring.ts agrees with Golf Ireland", () => {
     expect(foursomesHandicap([ex(16.6), ex(4.4)])).toBe(Math.floor(0.5 * (ex(16.6) + ex(4.4)) + 0.5));
   });
 
+  it("rounds a plus .5 towards zero (R&A Appendix C)", () => {
+    // +0.5 → 0, +1.5 → +1, +2.5 → +2; an ordinary 2.5 → 3.
+    expect([-0.5, -1.5, -2.5, 2.5].map(roundHalfUp)).toEqual([0, -1, -2, 3]);
+    // A plus playing handicap moves up towards zero: +2.6 course at 95% = −2.47 → +2.
+    expect(playingHandicap(-2.6, 0.95)).toBe(-2);
+  });
+
   it("offers Golf Ireland's singles allowance choices, WHS 95% among them", () => {
     expect(SINGLES_ALLOWANCE_CHOICES).toEqual([1, 0.95, 0.9, 0.85]);
     expect(exactLabel(16.357)).toBe("16.4");
