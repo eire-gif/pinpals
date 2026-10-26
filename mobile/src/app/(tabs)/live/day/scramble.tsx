@@ -112,12 +112,12 @@ export default function NewScrambleDay() {
   const ch = (indexText: string) => {
     const index = parseIndex(indexText);
     if (index == null) return null;
-    return { index, ...courseHandicap(index, { slope: course.slope, courseRating: course.rating, par: course.par }) };
+    return { index, ...courseHandicap(index, { slope: course.slope, courseRating: course.rating, par: course.par, holes: course.holes }) };
   };
   const teamHcp = (t: DraftTeam) => {
     const ws = t.slots.map((s) => (s ? ch(s.indexText) : null));
     if (ws.some((w) => w == null)) return null;
-    return scrambleHandicap(ws.map((w) => w!.courseHandicap));
+    return scrambleHandicap(ws.map((w) => w!.exact));
   };
 
   const problems: string[] = [...course.problems];
@@ -400,7 +400,7 @@ export default function NewScrambleDay() {
             open
             label={cur.name.trim() || `Team ${idx + 1}`}
             kind="scramble"
-            players={cur.slots.map((sl) => ({ name: sl!.name.trim().split(" ")[0] || "Guest", courseHandicap: ch(sl!.indexText)!.courseHandicap }))}
+            players={cur.slots.map((sl) => ({ name: sl!.name.trim().split(" ")[0] || "Guest", courseHandicap: ch(sl!.indexText)!.exact }))}
             auto={hcp.team}
             value={cur.byHand ?? hcp.team}
             onClose={() => setHandFor(null)}

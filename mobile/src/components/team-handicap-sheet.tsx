@@ -7,6 +7,7 @@ import {
   parseTeamHandicap,
   stepTeamHandicap,
   teamHandicapBreakdown,
+  exactLabel,
   teamHandicapLabel,
   TEAM_HANDICAP_MAX,
   type TeamHandicapKind,
@@ -82,7 +83,7 @@ export function TeamHandicapSheet({
               ? breakdown.rows.map((r, i) => (
                   <View key={i} style={styles.row}>
                     <Text style={styles.rowText} numberOfLines={1}>
-                      {players![i].name} · course {teamHandicapLabel(r.courseHandicap)} × {r.percent}%
+                      {players![i].name} · course {exactLabel(r.courseHandicap)} × {r.percent}%
                     </Text>
                     <Text style={styles.rowShare}>{r.share}</Text>
                   </View>

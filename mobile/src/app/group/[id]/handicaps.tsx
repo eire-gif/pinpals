@@ -188,7 +188,7 @@ export default function SocietyHandicapsScreen() {
                   </Text>
                   {ch ? (
                     <Text style={styles.course} numberOfLines={1}>
-                      {`Course ${ch.courseHandicap}${ch.estimated ? "*" : ""} · plays ${playingHandicap(ch.courseHandicap, ALLOWANCE)} (95%)`}
+                      {`Course ${ch.courseHandicap}${ch.estimated ? "*" : ""} · plays ${playingHandicap(ch, ALLOWANCE)} (95%)`}
                     </Text>
                   ) : null}
                 </View>

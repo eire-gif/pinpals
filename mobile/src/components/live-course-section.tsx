@@ -100,6 +100,19 @@ export function useCourseSetup() {
 
   const setHoles = (n: 9 | 18) => {
     setHolesState(n);
+    const picked = cards?.find((c) => c.id === cardId) ?? null;
+    if (picked && picked.holes === n) {
+      // Back to the holes the saved tee was rated over: its own figures.
+      pickCard(picked);
+      return;
+    }
+    if (picked && picked.holes !== n) {
+      // A rating and slope are for the holes they were rated over (WHS
+      // 6.1b): 18-hole figures against par 36 would be out by 40 shots. Ask
+      // for the nine's own, off the card; until then it's estimated.
+      setRatingText("");
+      setSlopeText("");
+    }
     if (n === 9 && parText === "72") setParText("36");
     if (n === 18 && parText === "36") setParText("72");
   };
@@ -112,6 +125,10 @@ export function useCourseSetup() {
   if (!club) problems.push("Pick the course");
   if (ratingText.trim() !== "" && (rating == null || rating < 25 || rating > 85)) problems.push("Course rating looks wrong");
   if (slopeText.trim() !== "" && (slope == null || slope < 55 || slope > 155)) problems.push("Slope must be 55–155");
+  // 9-hole ratings run about 30–40 and 18-hole ones 60–80: one in the
+  // other's place is the commonest way to get a course handicap wrong.
+  if (rating != null && holes === 9 && rating > 50) problems.push("That rating is for 18 holes — enter the 9-hole rating from the card");
+  if (rating != null && holes === 18 && rating < 50) problems.push("That looks like a 9-hole rating — enter the 18-hole one, or pick 9 holes");
 
   /** The card a new round starts from: the saved one, or a blank one. */
   const holeCard = (): CardHole[] => (card && card.holes === holes ? card.card : blankCard(holes));
@@ -180,6 +197,11 @@ export function CourseSection({ setup }: { setup: CourseSetup }) {
             <Chip label="18 holes" selected={s.holes === 18} onPress={() => s.setHoles(18)} />
             <Chip label="9 holes" selected={s.holes === 9} onPress={() => s.setHoles(9)} />
           </ChipGroup>
+          {s.holes === 9 ? (
+            <Text style={styles.nineNote}>
+              9 holes: use the rating, slope and par for the nine you&apos;re playing (front or back, off the card). Handicaps use half each player&apos;s index.
+            </Text>
+          ) : null}
         </Section>
       ) : null}
     </>
@@ -320,6 +342,7 @@ export function Field({
 }
 
 const styles = StyleSheet.create({
+  nineNote: { fontFamily: fonts.body, fontSize: 13, lineHeight: 18, color: colors.green800, backgroundColor: colors.green100, borderRadius: 10, padding: 10, marginTop: 8 },
   card: {
     flexDirection: "row",
     alignItems: "center",

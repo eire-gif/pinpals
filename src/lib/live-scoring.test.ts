@@ -9,6 +9,10 @@ import {
   blankCard,
   buildBoard,
   courseHandicap,
+  exactLabel,
+  nineHoleIndex,
+  roundHalfUp,
+  SINGLES_ALLOWANCE_CHOICES,
   driveCounts,
   driveShortfall,
   foursomesHandicap,
@@ -40,16 +44,111 @@ const card: CardHole[] = SI.map((si, i) => ({ hole: i + 1, par: PAR[i], strokeIn
 const sheet = (rows: Record<number, Record<number, number | null>>) =>
   new Map(Object.entries(rows).map(([id, holes]) => [Number(id), new Map(Object.entries(holes).map(([h, s]) => [Number(h), s]))]));
 
+
+// ---------------------------------------------------------------------------
+// Tie-out against Golf Ireland's own WHS Course Handicap calculator
+// (Golf Ireland app, 26 Oct 2026): The Links Portmarnock, index 15.6, every
+// tee it lists — men's and women's, 18 holes and each nine. If one of these
+// fails, PinPals no longer agrees with Golf Ireland: don't change the
+// expected numbers, find what changed in the sum.
+// ---------------------------------------------------------------------------
+
+const PORTMARNOCK: [tee: string, rating: number, slope: number, par: number, holes: 9 | 18, golfIreland: number][] = [
+  ["Men's Blue", 75.8, 133, 72, 18, 22],
+  ["Men's White", 73.5, 130, 72, 18, 19],
+  ["Men's Green", 71.1, 125, 72, 18, 16],
+  ["Men's Gold", 67.3, 118, 72, 18, 12],
+  ["Women's Green", 77.1, 137, 72, 18, 24],
+  ["Women's Gold", 72.7, 126, 72, 18, 18],
+  ["Men's Blue B9", 38.1, 133, 36, 9, 11],
+  ["Men's Blue F9", 37.7, 133, 36, 9, 11],
+  ["Men's White B9", 36.9, 130, 36, 9, 10],
+  ["Men's White F9", 36.6, 130, 36, 9, 10],
+  ["Men's Green F9", 35.6, 125, 36, 9, 8],
+  ["Men's Green B9", 35.5, 124, 36, 9, 8],
+  ["Men's Gold B9", 33.6, 123, 36, 9, 6],
+  ["Men's Gold F9", 33.7, 113, 36, 9, 6],
+  ["Women's Green B9", 38.6, 137, 36, 9, 12],
+  ["Women's Green F9", 38.5, 137, 36, 9, 12],
+  ["Women's Gold B9", 36.3, 126, 36, 9, 9],
+  ["Women's Gold F9", 36.4, 126, 36, 9, 9],
+];
+
+describe("live-scoring.ts agrees with Golf Ireland", () => {
+  it.each(PORTMARNOCK)("%s: course handicap matches Golf Ireland", (_tee, courseRating, slope, par, holes, golfIreland) => {
+    expect(courseHandicap(15.6, { slope, courseRating, par, holes }).courseHandicap).toBe(golfIreland);
+  });
+
+  it("9 holes uses half the index, to one decimal (Rule 6.1b)", () => {
+    expect([nineHoleIndex(15.6), nineHoleIndex(15.5), nineHoleIndex(15.4), nineHoleIndex(0.1), nineHoleIndex(54)]).toEqual([7.8, 7.8, 7.7, 0.1, 27]);
+    expect(courseHandicap(15.6, { slope: 133, courseRating: 38.1, par: 36, holes: 9 }).indexUsed).toBe(7.8);
+    // Men's Gold F9 is exactly 5.5 → 6 (halves up).
+    expect(courseHandicap(15.6, { slope: 113, courseRating: 33.7, par: 36, holes: 9 }).exact).toBeCloseTo(5.5, 9);
+  });
+
+  it("puts the allowance on the EXACT course handicap and rounds once (Rule 6.2a/1)", () => {
+    // Men's Green: 16.357 × 95% = 15.54 → 16. Rounding first (16 × 95% = 15.2) would give 15.
+    const green = courseHandicap(15.6, { slope: 125, courseRating: 71.1, par: 72 });
+    expect(green.courseHandicap).toBe(16);
+    expect(playingHandicap(green, 0.95)).toBe(16);
+    expect(playingHandicap(green.courseHandicap, 0.95)).toBe(15); // the double rounding this guards against
+    // The other men's tees at 95%: 22.16→21, 19.45→18, 11.59→11.
+    expect(
+      [[75.8, 133], [73.5, 130], [67.3, 118]].map(([cr, sl]) => playingHandicap(courseHandicap(15.6, { slope: sl, courseRating: cr, par: 72 }), 0.95))
+    ).toEqual([21, 18, 11]);
+  });
+
+  it("doesn't let floating point round an exact .5 down", () => {
+    // 0.2 × 113 ÷ 113 + (72.3 − 72) is 0.5 exactly; in doubles it's 0.4999… → must still be 1.
+    expect(courseHandicap(0.2, { slope: 113, courseRating: 72.3, par: 72 }).courseHandicap).toBe(1);
+    expect(roundHalfUp(2.5)).toBe(3);
+    expect(roundHalfUp(0.30000000000000004 + 0.2)).toBe(1);
+    expect(roundHalfUp(2.4999)).toBe(2);
+  });
+
+  it("matches an exact-arithmetic reference across every index, tee and allowance", () => {
+    // Reference in whole numbers (tenths), no floating point at all.
+    let checked = 0;
+    for (let t = -100; t <= 540; t++) {
+      for (const [, cr, slope, par, holes] of PORTMARNOCK) {
+        const idxT = holes === 9 ? Math.floor((t + 1) / 2) : t;
+        const num = idxT * slope + 113 * (Math.round(cr * 10) - 10 * par); // exact CH = num / 1130
+        const ch = courseHandicap(t / 10, { slope, courseRating: cr, par, holes });
+        expect(ch.courseHandicap).toBe(Math.floor((2 * num + 1130) / 2260));
+        for (const pct of [100, 95, 90, 85]) expect(playingHandicap(ch, pct / 100)).toBe(Math.floor((2 * num * pct + 113000) / 226000));
+        checked++;
+      }
+    }
+    expect(checked).toBe(641 * PORTMARNOCK.length);
+  });
+
+  it("team formats round once, from exact course handicaps", () => {
+    const ex = (i: number) => courseHandicap(i, { slope: 130, courseRating: 73.5, par: 72 }).exact;
+    // 15.6 & 8.2 off the whites: 19.447 + 10.934 = 30.381 × 50% = 15.19 → 15.
+    expect(foursomesHandicap([ex(15.6), ex(8.2)])).toBe(15);
+    // Rounded first, 19 + 11 = 30 → 15 too; this pair shows where they differ: 16.6 & 4.4.
+    expect(foursomesHandicap([ex(16.6), ex(4.4)])).toBe(Math.floor(0.5 * (ex(16.6) + ex(4.4)) + 0.5));
+  });
+
+  it("offers Golf Ireland's singles allowance choices, WHS 95% among them", () => {
+    expect(SINGLES_ALLOWANCE_CHOICES).toEqual([1, 0.95, 0.9, 0.85]);
+    expect(exactLabel(16.357)).toBe("16.4");
+    expect(exactLabel(-1.26)).toBe("+1.3");
+    expect(exactLabel(19)).toBe("19");
+  });
+});
+
 describe("live-scoring.ts handicaps", () => {
   it("works out the course handicap the WHS way", () => {
     // 14.2 × 138 ÷ 113 + (73.4 − 72) = 18.74 → 19
-    expect(courseHandicap(14.2, { slope: 138, courseRating: 73.4, par: 72 })).toEqual({ courseHandicap: 19, estimated: false });
+    expect(courseHandicap(14.2, { slope: 138, courseRating: 73.4, par: 72 })).toMatchObject({ courseHandicap: 19, estimated: false, indexUsed: 14.2 });
+    expect(courseHandicap(14.2, { slope: 138, courseRating: 73.4, par: 72 }).exact).toBeCloseTo(18.7416, 4);
     // Portmarnock Red, Blue tees (from the API test): 10.0 × 143 ÷ 113 + 6 = 18.65 → 19
     expect(courseHandicap(10, { slope: 143, courseRating: 78, par: 72 }).courseHandicap).toBe(19);
   });
 
   it("falls back to the index, and says so, when the course has no rating", () => {
-    expect(courseHandicap(14.2, { slope: null, courseRating: null, par: 72 })).toEqual({ courseHandicap: 14, estimated: true });
+    expect(courseHandicap(14.2, { slope: null, courseRating: null, par: 72 })).toEqual({ courseHandicap: 14, exact: 14.2, indexUsed: 14.2, estimated: true });
     expect(courseHandicap(14.5, {}).courseHandicap).toBe(15);
   });
 

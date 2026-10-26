@@ -25,9 +25,9 @@ export type PlayerTees = CourseHandicap & {
 };
 
 /** A player's course handicap off their tees, and the adjustment for the difference in par. */
-export function playerTees(index: number, day: TeeSet, own: TeeSet | null, adjust: boolean): PlayerTees {
+export function playerTees(index: number, day: TeeSet, own: TeeSet | null, adjust: boolean, holes: number | null = 18): PlayerTees {
   const tees = own ?? day;
-  const ch = courseHandicap(index, { slope: tees.slope, courseRating: tees.courseRating, par: tees.par });
+  const ch = courseHandicap(index, { slope: tees.slope, courseRating: tees.courseRating, par: tees.par, holes });
   const extra = own && adjust && own.par != null && day.par != null ? own.par - day.par : 0;
   return { ...ch, teeName: own ? own.name : null, extra };
 }

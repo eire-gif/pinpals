@@ -15,6 +15,7 @@ import { router, useLocalSearchParams, type Href } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { CourseSection, useCourseSetup } from "@/components/live-course-section";
+import { HandicapBreakdownSheet } from "@/components/handicap-breakdown";
 import { Section } from "@/components/form-bits";
 import { ScrambleOptions } from "@/components/scramble-options";
 import { StateMessage } from "@/components/state-message";
@@ -26,6 +27,7 @@ import { applyHandSetHandicaps, createMatchDay, createScrambleDay } from "@/lib/
 import {
   FOURSOMES_ALLOWANCE,
   LIVE_FORMATS,
+  SINGLES_ALLOWANCE_CHOICES,
   courseHandicap,
   formatInfo,
   foursomesHandicap,
@@ -93,6 +95,11 @@ export default function NewLiveRound() {
   const course = useCourseSetup();
   const { club, rating, slope, par, holes } = course;
   const [format, setFormat] = useState<LiveFormat>("stableford");
+  // Golf Ireland lets a group play singles stroke play and Stableford off
+  // 100/95/90/85%; null = the WHS recommendation for the format.
+  const [allowanceChoice, setAllowanceChoice] = useState<number | null>(null);
+  // "How it's worked out" for one player's plays-off figure.
+  const [explain, setExplain] = useState<number | null>(null);
   const [players, setPlayers] = useState<DraftPlayer[]>([]);
   const [pals, setPals] = useState<Member[] | null>(null);
   const [picking, setPicking] = useState(false);
@@ -179,6 +186,8 @@ export default function NewLiveRound() {
   }, [userId]);
 
   const info = formatInfo(format);
+  const singles = format === "stableford" || format === "stroke";
+  const allowance = singles && allowanceChoice != null ? allowanceChoice : info.allowance;
 
   // Plays-off for every row, recomputed as anything above changes.
   const worked = useMemo(
@@ -186,17 +195,17 @@ export default function NewLiveRound() {
       players.map((p) => {
         const index = parseIndex(p.indexText);
         if (index == null) return null;
-        const ch = courseHandicap(index, { slope, courseRating: rating, par });
-        return { index, ...ch, playing: playingHandicap(ch.courseHandicap, info.allowance) };
+        const ch = courseHandicap(index, { slope, courseRating: rating, par, holes });
+        return { index, ...ch, playing: playingHandicap(ch, allowance) };
       }),
-    [players, slope, rating, par, info.allowance]
+    [players, slope, rating, par, holes, allowance]
   );
 
   // A scramble team's handicap: WHS shares of each course handicap, summed
   // then rounded. Only once every player has an index and the team is full.
   const team = useMemo(() => {
     if (!scramble || players.length !== size || worked.some((w) => w == null)) return null;
-    return scrambleHandicap(worked.map((w) => w!.courseHandicap));
+    return scrambleHandicap(worked.map((w) => w!.exact));
   }, [scramble, players.length, size, worked]);
 
   const problems: string[] = [];
@@ -216,7 +225,7 @@ export default function NewLiveRound() {
         .filter((i) => i < players.length)
         .map((i) => {
           const ws = [worked[i], worked[i + 1]];
-          return { first: i, handicap: ws.every((w) => w != null) && ws.length === 2 ? foursomesHandicap(ws.map((w) => w!.courseHandicap)) : null };
+          return { first: i, handicap: ws.every((w) => w != null) && ws.length === 2 ? foursomesHandicap(ws.map((w) => w!.exact)) : null };
         })
     : [];
   const teamKey = (first: number, n: number) =>
@@ -263,7 +272,7 @@ export default function NewLiveRound() {
       name: players[i].name.trim(),
       handicapIndex: worked[i]!.index,
       courseHandicap: worked[i]!.courseHandicap,
-      playingHandicap: playingHandicap(worked[i]!.courseHandicap, FOURSOMES_ALLOWANCE),
+      playingHandicap: playingHandicap(worked[i]!, FOURSOMES_ALLOWANCE),
       estimated: worked[i]!.estimated,
     });
     const day = {
@@ -354,7 +363,7 @@ export default function NewLiveRound() {
           courseRating: rating,
           slope,
           parTotal: par,
-          allowance: scramble ? (size === 4 ? 0.25 : 0.35) : info.allowance,
+          allowance: scramble ? (size === 4 ? 0.25 : 0.35) : allowance,
           scramble: scramble && team ? { size, teamName: teamName.trim() || null, teamHandicap: team.team, driveMinimum } : undefined,
         },
         players.map((p, i) => ({
@@ -425,7 +434,33 @@ export default function NewLiveRound() {
               );
             })}
           </View>
-          {scramble || foursomes ? null : <Text style={styles.hint}>Handicap allowance: {Math.round(info.allowance * 100)}%</Text>}
+          {singles ? (
+            <View style={styles.allowance}>
+              <Text style={styles.allowanceTitle}>Handicap allowance</Text>
+              <View style={styles.allowanceRow}>
+                {SINGLES_ALLOWANCE_CHOICES.map((a) => {
+                  const on = Math.abs(allowance - a) < 1e-9;
+                  return (
+                    <Pressable
+                      key={a}
+                      onPress={() => setAllowanceChoice(a === info.allowance ? null : a)}
+                      style={[styles.allowanceChip, on && styles.allowanceChipOn]}
+                      accessibilityRole="radio"
+                      accessibilityState={{ checked: on }}
+                      accessibilityLabel={`${Math.round(a * 100)}%${a === info.allowance ? ", the WHS recommendation" : ""}`}
+                    >
+                      <Text style={[styles.allowanceChipText, on && styles.allowanceChipTextOn]}>{Math.round(a * 100)}%</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              <Text style={styles.hint}>
+                {allowance === info.allowance ? `${Math.round(info.allowance * 100)}% is the WHS recommendation.` : `Your choice — the WHS recommendation is ${Math.round(info.allowance * 100)}%.`} Golf Ireland lets a club or society choose 100, 95, 90 or 85%.
+              </Text>
+            </View>
+          ) : scramble || foursomes ? null : (
+            <Text style={styles.hint}>Handicap allowance: {Math.round(info.allowance * 100)}%</Text>
+          )}
         </Section>
 
         {foursomes ? (
@@ -582,10 +617,16 @@ export default function NewLiveRound() {
                     maxLength={5}
                     accessibilityLabel={`${p.name || "Guest"}'s handicap index`}
                   />
-                  <View style={styles.playsOff}>
+                  <Pressable
+                    onPress={() => w != null && !scramble && setExplain(i)}
+                    disabled={w == null || scramble}
+                    style={[styles.playsOff, w != null && !scramble && styles.playsOffTap]}
+                    accessibilityRole={w != null && !scramble ? "button" : undefined}
+                    accessibilityLabel={w != null && !scramble ? `${p.name || "Guest"} ${foursomes ? "course handicap" : "plays off"} ${foursomes ? w.courseHandicap : w.playing}. How it's worked out` : undefined}
+                  >
                     <Text style={styles.playsOffNumber}>{scramble ? (team ? team.shares[i] : "–") : foursomes ? (w ? w.courseHandicap : "–") : w ? w.playing : "–"}</Text>
                     <Text style={styles.playsOffLabel}>{scramble ? "share" : foursomes ? "course" : "plays off"}</Text>
-                  </View>
+                  </Pressable>
                   {!p.isMe ? (
                     <Pressable onPress={() => remove(p.key)} hitSlop={10} accessibilityRole="button" accessibilityLabel={`Remove ${p.name || "guest"}`}>
                       <Ionicons name="close-circle" size={22} color={colors.ink500} />
@@ -684,6 +725,14 @@ export default function NewLiveRound() {
           {saving ? <ActivityIndicator color={colors.cream50} /> : <Text style={styles.startLabel}>Tee off</Text>}
         </Pressable>
       </ScrollView>
+      <HandicapBreakdownSheet
+        open={explain != null}
+        onClose={() => setExplain(null)}
+        who={explain != null ? (players[explain]?.isMe ? "You" : players[explain]?.name.trim() || "Guest") : ""}
+        index={explain != null ? worked[explain]?.index ?? null : null}
+        tee={{ name: course.teeName.trim() ? `${course.teeName.trim()} tees` : "These tees", courseRating: rating, slope, par, holes: holes === 9 ? 9 : 18 }}
+        allowance={foursomes ? 1 : allowance}
+      />
       {editing ? (
         <TeamHandicapSheet
           open
@@ -691,7 +740,7 @@ export default function NewLiveRound() {
           kind={editing.size === 2 && foursomes ? "foursomes" : "scramble"}
           players={players.slice(editing.first, editing.first + editing.size).map((p, k) => ({
             name: p.name.trim().split(" ")[0] || "Guest",
-            courseHandicap: worked[editing.first + k]?.courseHandicap ?? 0,
+            courseHandicap: worked[editing.first + k]?.exact ?? 0,
           }))}
           auto={editing.auto}
           value={inForce(editing.key, editing.auto)}
@@ -788,7 +837,15 @@ const styles = StyleSheet.create({
     color: colors.ink900,
     backgroundColor: colors.cream50,
   },
-  playsOff: { width: 52, alignItems: "center" },
+  playsOff: { width: 56, alignItems: "center", paddingVertical: 4, borderRadius: radii.md },
+  playsOffTap: { borderWidth: 1.5, borderStyle: "dashed", borderColor: colors.line },
+  allowance: { gap: 6, marginTop: spacing.sm },
+  allowanceTitle: { fontFamily: fonts.bodyBold, fontSize: 13, letterSpacing: 0.6, textTransform: "uppercase", color: colors.navy900 },
+  allowanceRow: { flexDirection: "row", gap: 6 },
+  allowanceChip: { flex: 1, minHeight: 44, borderRadius: radii.md, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface, alignItems: "center", justifyContent: "center" },
+  allowanceChipOn: { borderWidth: 2, borderColor: colors.navy900, backgroundColor: colors.navy900 },
+  allowanceChipText: { fontFamily: fonts.bodySemi, fontSize: type.body, color: colors.ink900 },
+  allowanceChipTextOn: { fontFamily: fonts.bodyBold, color: colors.cream50 },
   playsOffNumber: { fontFamily: fonts.display, fontSize: 22, color: colors.navy900 },
   playsOffLabel: { fontFamily: fonts.bodyBold, fontSize: 9, letterSpacing: 0.6, textTransform: "uppercase", color: colors.ink500 },
   addRow: { flexDirection: "row", justifyContent: "space-around" },
