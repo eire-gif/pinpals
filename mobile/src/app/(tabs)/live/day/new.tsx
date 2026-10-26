@@ -186,7 +186,7 @@ export default function NewMatchDay() {
   const ch = (indexText: string) => {
     const index = parseIndex(indexText);
     if (index == null) return null;
-    return { index, ...courseHandicap(index, { slope: course.slope, courseRating: course.rating, par: course.par }) };
+    return { index, ...courseHandicap(index, { slope: course.slope, courseRating: course.rating, par: course.par, holes: course.holes }) };
   };
 
   const problems: string[] = [...course.problems];
@@ -215,6 +215,9 @@ export default function NewMatchDay() {
               name: s!.name.trim(),
               handicapIndex: w.index,
               courseHandicap: w.courseHandicap,
+              // Match play works from the whole-number course handicap (Golf
+              // GB&I: four-ball match play uses rounded course handicaps), the
+              // same figure matchCompetitors uses for shots.
               playingHandicap: playingHandicap(w.courseHandicap, formatInfo(m.format).allowance),
               estimated: w.estimated,
               side: (si + 1) as 1 | 2,

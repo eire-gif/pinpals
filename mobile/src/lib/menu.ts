@@ -73,6 +73,9 @@ export const MENU: MenuSection[] = [
       // Game formats (Oct 2026): every way to play, explained — offline,
       // from lib/game-formats.ts (shared with the website's /formats).
       { kind: "native", label: "Game formats", icon: "library-outline", to: "/formats" },
+      // Handicap calculator (Oct 2026): course and playing handicaps off any
+      // tee, the WHS way, tied out against Golf Ireland's own calculator.
+      { kind: "native", label: "Handicap calculator", icon: "calculator-outline", to: "/handicap" },
       // Training (Oct 2026, claude/training.md): lie guides, the Putting
       // Lab, practice plans and a warm-up — offline, from lib/training.ts.
       { kind: "native", label: "Training", icon: "barbell-outline", to: "/train" },

@@ -211,7 +211,7 @@ export function planDay(setup: DaySetup, draw: readonly DrawnGroup[]): DayPlan {
   }
 
   const par = tee.par ?? (card.length ? card.reduce((n, h) => n + h.par, 0) : null);
-  const handicapOf = (index: number) => courseHandicap(index, { slope: tee.slope, courseRating: tee.courseRating, par });
+  const handicapOf = (index: number) => courseHandicap(index, { slope: tee.slope, courseRating: tee.courseRating, par, holes: card.length === 9 ? 9 : 18 });
   const timeOf = (g: DrawnGroup) => (setup.start === "shotgun" ? (setup.shotgunTime ?? g.teeTime) : g.teeTime);
   const startOf = (i: number): RpcStart => (starts?.[i] ? { start_hole: starts[i]!.hole, start_letter: starts[i]!.letter } : {});
   const startText = (i: number) => (starts?.[i] ? startLabel(starts[i]!, !starts.some((s, j) => j !== i && s?.hole === starts![i]!.hole)) : null);
@@ -241,7 +241,7 @@ export function planDay(setup: DaySetup, draw: readonly DrawnGroup[]): DayPlan {
     const hc = g.players.map((p) => handicapOf(p.index ?? 0));
     if (format === "stableford" || format === "stroke") {
       const players = g.players.map((p, i) => {
-        const ph = playingHandicap(hc[i].courseHandicap, SOCIETY_ALLOWANCE);
+        const ph = playingHandicap(hc[i], SOCIETY_ALLOWANCE);
         lines.push({ name: p.name, players: [{ name: p.name, index: p.index ?? 0, courseHandicap: hc[i].courseHandicap, playingHandicap: ph, guest: p.guest }], handicap: ph, estimated: hc[i].estimated });
         return rpcPlayer(p, hc[i].courseHandicap, ph, hc[i].estimated);
       });
@@ -251,11 +251,13 @@ export function planDay(setup: DaySetup, draw: readonly DrawnGroup[]): DayPlan {
         if (at >= g.players.length) continue;
         const pair = g.players.slice(at, at + 2);
         const chs = hc.slice(at, at + 2).map((x) => x.courseHandicap);
+        // The pair's figure comes from the EXACT course handicaps, rounded once (WHS).
+        const exs = hc.slice(at, at + 2).map((x) => x.exact);
         if (pair.length !== 2) continue;
-        const low = Math.min(...chs);
-        const team = format === "greensomes" ? greensomesHandicap(chs) : foursomesHandicap(chs);
-        const phs = chs.map((c, k) =>
-          format === "greensomes" ? playingHandicap(c, c === low && chs.indexOf(low) === k ? GREENSOMES_ALLOWANCE : 0.4) : playingHandicap(c, FOURSOMES_ALLOWANCE)
+        const low = Math.min(...exs);
+        const team = format === "greensomes" ? greensomesHandicap(exs) : foursomesHandicap(exs);
+        const phs = exs.map((c, k) =>
+          format === "greensomes" ? playingHandicap(c, c === low && exs.indexOf(low) === k ? GREENSOMES_ALLOWANCE : 0.4) : playingHandicap(c, FOURSOMES_ALLOWANCE)
         );
         const name = pair.map((p) => first(p.name)).join(" & ");
         const estimated = hc.slice(at, at + 2).some((x) => x.estimated);
@@ -269,7 +271,7 @@ export function planDay(setup: DaySetup, draw: readonly DrawnGroup[]): DayPlan {
       }
     } else {
       const chs = hc.map((x) => x.courseHandicap);
-      const sh = g.players.length === 2 || g.players.length === 4 ? scrambleHandicap(chs) : { team: 0, shares: chs.map(() => 0) };
+      const sh = g.players.length === 2 || g.players.length === 4 ? scrambleHandicap(hc.map((x) => x.exact)) : { team: 0, shares: chs.map(() => 0) };
       lines.push({
         name: g.players.map((p) => first(p.name)).join(", "),
         players: g.players.map((p, k) => ({ name: p.name, index: p.index ?? 0, courseHandicap: chs[k], playingHandicap: Math.round(sh.shares[k]), guest: p.guest })),

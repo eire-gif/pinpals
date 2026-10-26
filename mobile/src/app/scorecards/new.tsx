@@ -104,8 +104,16 @@ export default function ScorecardEditor() {
 
   const index = indexText.trim() ? parseIndex(indexText) : null;
   const parTotal = holes.reduce((n, h) => n + h.par, 0);
-  const ch = index != null ? courseHandicap(index, { slope: tee?.slope ?? null, courseRating: tee?.courseRating ?? null, par: parTotal || null }) : null;
-  const playing = ch ? playingHandicap(ch.courseHandicap, ALLOWANCE) : null;
+  const nine = holes.length === 9;
+  // A tee's rating and slope are for the holes it was rated over: 18-hole
+  // figures on a 9-hole card (or the other way) would be wildly out, so the
+  // handicap falls back to the index, labelled estimated, rather than guess.
+  const fits = tee != null && tee.holes === (nine ? 9 : 18);
+  const ch =
+    index != null
+      ? courseHandicap(index, { slope: fits ? tee.slope : null, courseRating: fits ? tee.courseRating : null, par: parTotal || null, holes: nine ? 9 : 18 })
+      : null;
+  const playing = ch ? playingHandicap(ch, ALLOWANCE) : null;
   const totals = scorecardTotals(holes, playing);
   const shots = shotsOnCard(holes, playing);
 

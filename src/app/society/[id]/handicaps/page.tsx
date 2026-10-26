@@ -208,7 +208,7 @@ export default async function HandicapsPage({ params, searchParams }: { params: 
                       {ch ? (
                         <>
                           {ch.courseHandicap}
-                          {ch.estimated ? "*" : ""} · plays {playingHandicap(ch.courseHandicap, SOCIETY_ALLOWANCE)}
+                          {ch.estimated ? "*" : ""} · plays {playingHandicap(ch, SOCIETY_ALLOWANCE)}
                         </>
                       ) : (
                         "—"

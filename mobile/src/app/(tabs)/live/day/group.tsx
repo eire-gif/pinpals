@@ -538,7 +538,7 @@ export default function DrawFromGroup() {
   const handicaps = (e: Entrant) => {
     if (e.index == null) return null;
     const own = ownCard(e);
-    const t = playerTees(e.index, dayTees, own ? teeSetOf(own) : null, adjustTees);
+    const t = playerTees(e.index, dayTees, own ? teeSetOf(own) : null, adjustTees, course.holes);
     return { index: e.index, ...t };
   };
   /** A team's players → its key for a handicap set by hand (0189). */
@@ -549,7 +549,8 @@ export default function DrawFromGroup() {
     const unit = (ps: Entrant[], label: string) => {
       const ws = ps.map((p) => handicaps(p));
       if (ws.some((w) => w == null)) return null;
-      const chs = ws.map((w) => w!.courseHandicap + w!.extra);
+      // Exact course handicaps: the team figure is rounded once (WHS).
+      const chs = ws.map((w) => w!.exact + w!.extra);
       const auto = scramble ? scrambleHandicap(chs).team : greensomes ? greensomesHandicap(chs) : foursomesHandicap(chs);
       const key = unitKey(ps);
       return { key, label, names: ps.map((p) => p.name.split(" ")[0] || "Guest"), chs, auto, value: byHand[key] ?? auto };
@@ -652,6 +653,7 @@ export default function DrawFromGroup() {
                 name: p.name,
                 handicapIndex: w.index,
                 courseHandicap: w.courseHandicap,
+                // Match play: from the whole-number course handicap (Golf GB&I).
                 playingHandicap: playingHandicap(w.courseHandicap, allowance) + w.extra,
                 estimated: w.estimated,
                 side: sideOf(pi, g.length),
@@ -671,7 +673,7 @@ export default function DrawFromGroup() {
                 const pair = [g[i], g[i + 1]];
                 const ws = pair.map((p) => handicaps(p)!);
                 // Mixed tees: each side gets half its players' adjustments (WHS), through the pair's handicap.
-                const chs = ws.map((w) => w.courseHandicap + w.extra);
+                const chs = ws.map((w) => w.exact + w.extra);
                 const low = Math.min(...chs);
                 return {
                   name: pair.map((p) => p.name.split(" ")[0]).join(" & "),
@@ -702,7 +704,7 @@ export default function DrawFromGroup() {
       } else if (scramble) {
         const scrambleTeams: NewScrambleTeam[] = drawnNow.map((team, ti) => {
             const ws = team.map((p) => handicaps(p)!);
-            const hcp = scrambleHandicap(ws.map((w) => w.courseHandicap + w.extra));
+            const hcp = scrambleHandicap(ws.map((w) => w.exact + w.extra));
             return {
               name: null,
               teeTime: times[ti] || null,
@@ -738,7 +740,7 @@ export default function DrawFromGroup() {
                 name: p.name,
                 handicapIndex: w.index,
                 courseHandicap: w.courseHandicap,
-                playingHandicap: playingHandicap(w.courseHandicap, ALLOWANCE) + w.extra,
+                playingHandicap: playingHandicap(w, ALLOWANCE) + w.extra,
                 estimated: w.estimated,
                 teeName: w.teeName,
                 teeExtra: w.extra,

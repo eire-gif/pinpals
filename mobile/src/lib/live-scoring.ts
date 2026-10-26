@@ -11,8 +11,17 @@
  * worked out here from the card of the course they're playing:
  *
  *   course handicap  = index × slope ÷ 113 + (course rating − par)   (WHS)
- *   playing handicap = course handicap × the format's allowance
+ *                      9 holes: half the index (to one decimal) with the
+ *                      nine's own rating, slope and par (Rule 6.1b)
+ *   playing handicap = the EXACT course handicap × the format's allowance,
+ *                      rounded once (Rule 6.2a/1 — never round, then 95%)
  *   shots on a hole  = handed out by stroke index, hardest hole first
+ *
+ * Tied out against Golf Ireland's own calculator, every tee at The Links
+ * Portmarnock, 9 and 18 holes, men's and women's (live-scoring.test.ts).
+ * Match play keeps working from the whole-number course handicap stored
+ * for each player: Golf GB&I has four-ball match play use rounded course
+ * handicaps, and a singles match plays off the difference at 100%.
  *
  * When a course has no rating or slope on file the course handicap falls
  * back to the index itself (slope 113, rating = par) and the result says
@@ -84,28 +93,68 @@ export function formatInfo(id: LiveFormat): FormatInfo {
 export const MIN_INDEX = -10;
 export const MAX_INDEX = 54;
 
-/** WHS rounds to the nearest whole number, halves up. */
-const roundHalfUp = (n: number): number => Math.floor(n + 0.5);
+/**
+ * WHS rounds to the nearest whole number, halves up. Snapped to a 1e-7 grid
+ * first: every real input is in tenths and the slope a whole number, so two
+ * different handicaps are never closer than about 1e-5 apart, but binary
+ * floating point can land an exact .5 at .4999999… (index 0.2, rating 72.3,
+ * slope 113, par 72 is 0.5 exactly and must give 1).
+ */
+export const roundHalfUp = (n: number): number => Math.floor(Math.round(n * 1e7) / 1e7 + 0.5);
 
 export type CourseHandicap = {
+  /** Rounded, as shown and as used for shots in match play. */
   courseHandicap: number;
+  /** Unrounded — what every allowance is applied to. */
+  exact: number;
+  /** The index the sum used: half the member's index on 9 holes. */
+  indexUsed: number;
   /** True when the course had no rating or slope and the index was used as is. */
   estimated: boolean;
 };
 
-export function courseHandicap(
-  index: number,
-  card: { slope?: number | null; courseRating?: number | null; par?: number | null }
-): CourseHandicap {
-  const { slope, courseRating, par } = card;
-  if (!slope || courseRating == null || par == null) {
-    return { courseHandicap: roundHalfUp(index), estimated: true };
-  }
-  return { courseHandicap: roundHalfUp((index * slope) / 113 + (courseRating - par)), estimated: false };
+/** WHS 6.1b: half the index, rounded to one decimal (15.5 → 7.75 → 7.8). */
+export function nineHoleIndex(index: number): number {
+  const tenths = Math.round(index * 10);
+  return Math.floor((tenths + 1) / 2) / 10;
 }
 
-export function playingHandicap(courseHcp: number, allowance: number): number {
-  return roundHalfUp(courseHcp * allowance);
+export function courseHandicap(
+  index: number,
+  card: { slope?: number | null; courseRating?: number | null; par?: number | null; holes?: number | null }
+): CourseHandicap {
+  const { slope, courseRating, par, holes } = card;
+  const indexUsed = holes === 9 ? nineHoleIndex(index) : index;
+  if (!slope || courseRating == null || par == null) {
+    return { courseHandicap: roundHalfUp(indexUsed), exact: indexUsed, indexUsed, estimated: true };
+  }
+  const exact = (indexUsed * slope) / 113 + (courseRating - par);
+  return { courseHandicap: roundHalfUp(exact), exact, indexUsed, estimated: false };
+}
+
+/**
+ * Playing handicap: the allowance on the exact course handicap, rounded
+ * once. Pass the CourseHandicap itself (or its `exact`) — a rounded course
+ * handicap here is the double rounding WHS warns about, out by a shot
+ * about one time in four at 95%.
+ */
+export function playingHandicap(course: CourseHandicap | number, allowance: number): number {
+  const exact = typeof course === "number" ? course : course.exact;
+  return roundHalfUp(exact * allowance);
+}
+
+/**
+ * Golf Ireland (from 1 April 2025): a club or society may set singles stroke
+ * play and Stableford at 100%, 95% (the WHS recommendation), 90% or 85% of
+ * the course handicap. Elsewhere, 95% is the only choice offered.
+ */
+export const SINGLES_ALLOWANCE_CHOICES: readonly number[] = [1, 0.95, 0.9, 0.85];
+
+/** "19.4", "+1.2", "16" — an exact course handicap to one decimal, whole numbers as they are. */
+export function exactLabel(n: number): string {
+  const r = Math.round(n * 10) / 10;
+  const body = Number.isInteger(r) ? String(Math.abs(r)) : Math.abs(r).toFixed(1);
+  return r < 0 ? `+${body}` : body;
 }
 
 /** What a member typed → an index. "14.2" → 14.2, "+1.5" → -1.5 (a plus
@@ -603,7 +652,8 @@ export type ScrambleHandicap = {
 };
 
 /**
- * A scramble team's handicap from its players' course handicaps.
+ * A scramble team's handicap from its players' course handicaps — pass
+ * the EXACT ones (CourseHandicap.exact) so the shares are rounded once.
  *
  * Lowest course handicap takes the biggest share (a plus handicap is the
  * lowest of all). WHS sums the unrounded shares and rounds once, so
@@ -663,8 +713,8 @@ export type FoursomesScoring = "stableford" | "stroke";
 export const FOURSOMES_ALLOWANCE = 0.5;
 
 /**
- * A foursomes pair's handicap: 50% of the two course handicaps added
- * together, rounded once (WHS) — so 9 + 18 = 27 → 13.5 → 14, not 5 + 9.
+ * A foursomes pair's handicap: 50% of the two (exact) course handicaps
+ * added together, rounded once (WHS) — so 9 + 18 = 27 → 13.5 → 14, not 5 + 9.
  * The same figure in a match and on a leaderboard.
  */
 export function foursomesHandicap(courseHandicaps: readonly number[]): number {

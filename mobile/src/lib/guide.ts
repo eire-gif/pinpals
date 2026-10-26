@@ -51,6 +51,9 @@ import type { Href } from "expo-router";
  *    myGame   → app/my-game.tsx, app/scorecards/index.tsx, app/(tabs)/profile.tsx,
  *               app/scorecards/review/[id].tsx, app/scorecards/[id].tsx,
  *               components/stats-tap-row.tsx, components/live-stats-row.tsx (on the live round)
+ *    handicap → app/handicap.tsx, components/handicap-breakdown.tsx,
+ *               components/course-handicap-card.tsx (on app/course/[id].tsx),
+ *               app/(tabs)/live/new.tsx (Handicap allowance, tap a plays-off figure)
  *    holeMap  → app/hole-map.tsx, components/hole-map-page.ts, components/hole-map-extras.tsx,
  *               app/my-bag.tsx, app/course/[id].tsx
  *    messages → app/(tabs)/inbox.tsx, app/new-chat.tsx, app/new-group.tsx,
@@ -1219,11 +1222,11 @@ export const GUIDES: Guide[] = [
           { icon: "swap-horizontal", label: "Foursomes", blurb: "Scotch foursomes: pairs, alternate shot. Then pick Stableford, Stroke play or Matchplay." },
           { icon: "people", label: "Scramble", blurb: "Teams of 2 or 4, one ball." },
         ],
-        tip: "Foursomes: add two players for one pair, or four for two pairs — 1 & 2 play 3 & 4. The card shows who tees off on each hole.",
+        tip: "Foursomes: add two players for one pair, or four for two pairs — 1 & 2 play 3 & 4. The card shows who tees off on each hole. Stableford and stroke play show Handicap allowance under the format: 95% is the WHS recommendation, and Golf Ireland lets a group play off 100, 95, 90 or 85%. On 9 holes, enter the rating, slope and par for the nine you're playing — handicaps use half each index.",
       },
       {
         title: "Add the players and tee off",
-        body: "You're in already. Tap Add a PinPal for friends on PinPals, or Add a guest for anyone else, and check each handicap index — plays-off is worked out for the course. Tap Tee off.",
+        body: "You're in already. Tap Add a PinPal for friends on PinPals, or Add a guest for anyone else, and check each handicap index — plays-off is worked out for the course. Tap a player's plays-off figure to see how it's worked out. Tap Tee off.",
         look: [
           { style: "link", label: "Add a PinPal" },
           { style: "link", label: "Add a guest" },
@@ -1403,6 +1406,40 @@ export const GUIDES: Guide[] = [
     ],
   },
 
+  {
+    id: "handicap",
+    section: "play",
+    title: "Check your handicap",
+    blurb: "Your course handicap off any tee and what you play off — the Golf Ireland way.",
+    icon: "calculator",
+    tone: "gold",
+    audience: "Everyone",
+    next: "live",
+    steps: [
+      {
+        title: "Open the handicap calculator",
+        body: "In the menu, under Play, tap Handicap calculator. On a course's page, the Your handicap here card shows your course handicap off each tee — tap it to open the calculator for that course.",
+        look: [{ style: "raised", label: "Handicap calculator", icon: "calculator-outline" }],
+        go: { label: "Handicap calculator", to: "/handicap" },
+      },
+      {
+        title: "Course lookup or Enter manually",
+        body: "Course lookup lists every tee saved for the course: pick Men or Women, and 18 holes or 9. Not saved, or playing somewhere else? Tap Enter manually and type the slope, course rating and par off the scorecard.",
+        look: [{ style: "outline", label: "Course lookup" }, { style: "outline", label: "Enter manually" }],
+        tip: "Your index comes from your profile; change it in the box to try another. 9 holes uses half your index, to one decimal, with the nine's own rating, slope and par.",
+      },
+      {
+        title: "Course handicap and plays-off",
+        body: "Each tee shows your Course handicap. Pick the allowance for the competition — 95% for a singles Stableford or medal is the WHS recommendation, and Golf Ireland lets a club or society choose 100, 95, 90 or 85% — and Plays shows what you play off.",
+        look: [{ style: "outline", label: "100%" }, { style: "primary", label: "95%" }, { style: "outline", label: "90%" }, { style: "outline", label: "85%" }],
+      },
+      {
+        title: "See how it's worked out",
+        body: "Tap any tee for every step: index × slope ÷ 113, plus course rating minus par, then the allowance on that exact figure, rounded once. It's the same sum a live round plays off, and it matches Golf Ireland's calculator.",
+        tip: "In Start a Round, tap a player's plays-off figure for the same breakdown.",
+      },
+    ],
+  },
   {
     id: "holeMap",
     section: "play",
@@ -2061,6 +2098,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-26", text: "New guide, Check your handicap: Menu → Play → Handicap calculator, and Your handicap here on a course's page — course handicaps off every tee, men's or women's, 18 or 9 holes, or typed in off the card; pick the allowance; tap a tee for how it's worked out. Score a game live: Handicap allowance under Stableford and stroke play (100/95/90/85%), tap a plays-off figure for the breakdown, and 9 holes asks for the nine's own rating." },
   { on: "2026-10-25", text: "Team handicaps set by hand: in a scramble, foursomes or greensomes, tap a team's or pair's handicap — on Set up a round, a scramble day or under each group in the draw — to set it for this game. It's marked Set by hand, with the worked-out figure beside it, on the card, leaderboard, TV and results. Once you've teed off, open the card's Leaderboard tab and tap Edit; the team is told if scores are in. Play a round together: new step." },
   { on: "2026-10-24", text: "Score a game live: new step, No signal? Keep scoring — scores are saved on your phone and send by themselves when you're back in range; the round and the hole map open with no signal; Complete scorecard waits until every saved score has sent." },
   { on: "2026-10-24", text: "Post a tee time: requests show each golfer's record (Reliable · 18 of 18 rounds, or New to tee times) and Verified golfer badge, best records first; new option Golfers with a good record only; new step, After the round: who turned up. Find a game: dropping out inside 24 hours is a late cancellation, and I was there disputes a no-show." },

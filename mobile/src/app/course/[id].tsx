@@ -5,6 +5,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { Avatar } from "@/components/avatar";
 import { CoursePartnerStrip, useCoursePartner } from "@/components/course-partner";
+import { CourseHandicapCard } from "@/components/course-handicap-card";
 import { STARS_GOLD, StarRow } from "@/components/stars";
 import { TeeTimeCard } from "@/components/tee-time-card";
 import { useAuth } from "@/lib/auth";
@@ -280,6 +281,10 @@ export default function CourseScreen() {
             <Text style={styles.actionPrimaryLabel}>{myReview ? "Edit review" : "Rate & review"}</Text>
           </Pressable>
         </View>
+
+        {/* Your handicap here (Oct 2026): course handicap off each tee, and
+            the way into the handicap calculator for this course. */}
+        <CourseHandicapCard clubId={clubId} />
 
         {/* Google Maps, searched by name rather than dropped as a pin on the
             coordinates: a name search lands on the club's own Google listing,
