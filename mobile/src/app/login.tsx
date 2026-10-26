@@ -11,6 +11,8 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import * as Linking from "expo-linking";
 
 import { useAuth } from "@/lib/auth";
@@ -19,6 +21,7 @@ import { colors, radii, spacing, type } from "@/lib/theme";
 
 export default function LoginScreen() {
   const { signIn } = useAuth();
+  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -39,6 +42,14 @@ export default function LoginScreen() {
 
   return (
     <SafeAreaView style={styles.fill}>
+      <Pressable
+        onPress={() => (router.canGoBack() ? router.back() : router.replace("/welcome"))}
+        style={styles.back}
+        accessibilityRole="button"
+        accessibilityLabel="Back"
+      >
+        <Ionicons name="chevron-back" size={26} color={colors.cream50} />
+      </Pressable>
       <KeyboardAvoidingView
         style={styles.fill}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -102,15 +113,15 @@ export default function LoginScreen() {
               )}
             </Pressable>
 
-            {/* Signing up and resetting a password both send email and both
-                already work well on the site. Sending members there rather
-                than rebuilding two flows natively is deliberate for v1. */}
+            {/* Resetting a password still happens on the site: it is rare,
+                and the reset link lands in a browser anyway. Joining is in
+                the app (signup.tsx) — that one is not rare. */}
             <Pressable
               onPress={() => void Linking.openURL(`${SITE_URL}/forgot-password`)}
             >
               <Text style={styles.link}>Forgot password?</Text>
             </Pressable>
-            <Pressable onPress={() => void Linking.openURL(`${SITE_URL}/signup`)}>
+            <Pressable onPress={() => router.replace("/signup")}>
               <Text style={styles.link}>New here? Create an account</Text>
             </Pressable>
           </View>
@@ -122,6 +133,16 @@ export default function LoginScreen() {
 
 const styles = StyleSheet.create({
   fill: { flex: 1, backgroundColor: colors.navy900 },
+  back: {
+    position: "absolute",
+    top: 56,
+    left: 8,
+    zIndex: 1,
+    width: 44,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   scroll: { flexGrow: 1, justifyContent: "center", padding: spacing.lg },
   wordmark: {
     fontSize: 40,

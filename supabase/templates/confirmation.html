@@ -1,0 +1,22 @@
+<!--
+  Supabase Auth → Email Templates → "Confirm signup".
+  Paste this into the dashboard; Supabase does not read it from the repo.
+
+  It carries BOTH ways to confirm:
+    - the 6-digit code ({{ .Token }}), which the app asks for so a new
+      member never has to leave the app to finish joining;
+    - the link, which website sign-ups click as before.
+  Either one confirms the account; using one invalidates the other.
+
+  Subject: Your PinPals code: {{ .Token }}
+-->
+<div style="font-family: Arial, Helvetica, sans-serif; color: #0e1520; max-width: 480px; margin: 0 auto; padding: 24px;">
+  <h1 style="font-family: Georgia, serif; font-size: 24px; margin: 0 0 12px;">Welcome to PinPals</h1>
+  <p style="font-size: 16px; line-height: 1.5; margin: 0 0 16px;">Joining from the app? Type this code to finish:</p>
+  <p style="font-size: 34px; letter-spacing: 8px; font-weight: bold; margin: 0 0 24px; color: #1f5c2e;">{{ .Token }}</p>
+  <p style="font-size: 16px; line-height: 1.5; margin: 0 0 16px;">Joining on the website? Use this button instead:</p>
+  <p style="margin: 0 0 24px;">
+    <a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email" style="display: inline-block; background: #1f5c2e; color: #f7f3ea; text-decoration: none; font-weight: bold; padding: 12px 20px; border-radius: 10px;">Confirm my email</a>
+  </p>
+  <p style="font-size: 13px; line-height: 1.5; color: #647082; margin: 0;">The code and the link expire in an hour. If you didn't sign up for PinPals, you can ignore this email.</p>
+</div>
