@@ -8,10 +8,11 @@ import {
   Text,
   View,
 } from "react-native";
-import { Stack, router, useFocusEffect } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
-import { ScreenHeader } from "@/components/screen-header";
+import { TONES } from "@/components/live-scoring-card";
+import { TintedHeader } from "@/components/tinted-header";
 import { useAuth } from "@/lib/auth";
 import {
   ONBOARDING_LABELS,
@@ -76,11 +77,8 @@ function PayoutsScreenInner() {
 
   return (
     <View style={styles.fill}>
-      <Stack.Screen options={{ headerTitle: "", headerBackTitle: "Back" }} />
 
-      <ScreenHeader
-        scene="parkland"
-        title="Getting paid"
+      <TintedHeader color={TONES.bronze.card} title="Getting paid"
         subtitle={view ? ONBOARDING_LABELS[view.status] : "Checking with Stripe"}
       />
 

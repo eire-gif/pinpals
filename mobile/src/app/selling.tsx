@@ -11,11 +11,12 @@ import {
   Text,
   View,
 } from "react-native";
-import { Stack, router, useFocusEffect } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { AmountSheet } from "@/components/amount-sheet";
-import { ScreenHeader } from "@/components/screen-header";
+import { TONES } from "@/components/live-scoring-card";
+import { TintedHeader } from "@/components/tinted-header";
 import { useAuth } from "@/lib/auth";
 import {
   ORDER_STATUS_LABELS,
@@ -37,7 +38,6 @@ import {
 import { respondToOffer, type OfferAction } from "@/lib/purchase";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 import { AgeGateLoading, NotForUnder18, useAgeGate } from "@/components/not-for-under-18";
-import { myRoundRight } from "@/components/my-round-pill";
 
 /**
  * My selling — everything you have on sale, are negotiating, or are owed for.
@@ -121,27 +121,20 @@ function SellingScreenInner() {
 
   return (
     <View style={styles.fill}>
-      <Stack.Screen
-        options={{
-          headerTitle: "",
-          headerBackTitle: "Back",
-          ...myRoundRight(() => (
-            <Pressable
-              onPress={() => router.push("/payouts")}
-              hitSlop={12}
-              style={{ paddingHorizontal: spacing.md }}
-              accessibilityLabel="Payouts"
-            >
-              <Ionicons name="wallet-outline" size={23} color={colors.green700} />
-            </Pressable>
-          )),
-        }}
-      />
-
-      <ScreenHeader
-        scene="lakeSunset"
+      <TintedHeader
+        color={TONES.bronze.card}
         title="My selling"
         subtitle={sellingSubtitle(data, loading)}
+        right={() => (
+          <Pressable
+            onPress={() => router.push("/payouts")}
+            hitSlop={12}
+            style={{ paddingHorizontal: spacing.md }}
+            accessibilityLabel="Payouts"
+          >
+            <Ionicons name="wallet-outline" size={23} color={colors.cream50} />
+          </Pressable>
+        )}
       />
 
       <ScrollView

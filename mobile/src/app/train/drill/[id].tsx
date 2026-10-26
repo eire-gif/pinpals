@@ -4,7 +4,8 @@ import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { GoldFrame } from "@/components/format-art";
-import { ScreenHeader } from "@/components/screen-header";
+import { TONES } from "@/components/live-scoring-card";
+import { TintedHeader } from "@/components/tinted-header";
 import { StateMessage } from "@/components/state-message";
 import { Card, FOCUS_LOOK, GhostButton, GoldButton, bits } from "@/components/train-bits";
 import { drillById, isBetter, scoreLabel, type Drill } from "@/lib/training";
@@ -134,8 +135,7 @@ export default function DrillScreen() {
 
   return (
     <View style={bits.fill}>
-      <Stack.Screen options={{ headerTitle: "", headerBackTitle: "Putting Lab" }} />
-      <ScreenHeader scene="lakeSunset" title={drill.name} subtitle="Putting Lab" />
+      <TintedHeader color={TONES.green.card} title={drill.name} subtitle="Putting Lab" />
       <ScrollView contentContainerStyle={bits.body}>
         <GoldFrame tone="navy">
           <View style={styles.heroTop}>

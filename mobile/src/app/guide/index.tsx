@@ -1,8 +1,8 @@
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { Stack, router } from "expo-router";
+import { router } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
-import { ScreenHeader } from "@/components/screen-header";
+import { TintedHeader } from "@/components/tinted-header";
 import { TONES } from "@/components/guide-bits";
 import { AUDIENCES, GUIDES, GUIDE_CHANGES, GUIDE_JOURNEY, SECTIONS, resolveGuide, type Audience, type ResolvedGuide } from "@/lib/guide";
 import { useGuideAudience } from "@/lib/guide-audience";
@@ -60,8 +60,7 @@ export default function GuidesScreen() {
 
   return (
     <View style={styles.fill}>
-      <Stack.Screen options={{ headerTitle: "", headerBackTitle: "Back" }} />
-      <ScreenHeader scene="parkland" title="How-to guides" subtitle="Step by step, with pictures" />
+      <TintedHeader color={colors.navy900} title="How-to guides" subtitle="Step by step, with pictures" />
       <ScrollView contentContainerStyle={styles.body}>
         {/* Who do you play with? */}
         <View style={styles.pickerWrap}>

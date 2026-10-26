@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
-import { Stack } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { GoldFrame } from "@/components/format-art";
-import { ScreenHeader } from "@/components/screen-header";
+import { TONES } from "@/components/live-scoring-card";
+import { TintedHeader } from "@/components/tinted-header";
 import { Card, Chip, bits } from "@/components/train-bits";
 import { PUTTING_ROUTINE, WARM_UPS, WINDY_EXTRA, type WarmUpLength } from "@/lib/training";
 import { colors, fonts } from "@/lib/theme";
@@ -19,8 +19,7 @@ export default function WarmUpScreen() {
 
   return (
     <View style={bits.fill}>
-      <Stack.Screen options={{ headerTitle: "", headerBackTitle: "Training" }} />
-      <ScreenHeader scene="linksSunset" title="Pre-round warm-up" subtitle="Before you head to the first tee" />
+      <TintedHeader color={TONES.green.card} title="Pre-round warm-up" subtitle="Before you head to the first tee" />
       <ScrollView contentContainerStyle={bits.body}>
         <View style={styles.lengths} accessibilityRole="radiogroup" accessibilityLabel="How long you have">
           {LENGTHS.map((l) => (

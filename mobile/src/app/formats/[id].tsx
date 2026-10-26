@@ -3,7 +3,7 @@ import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { FormatArt, GoldFrame, TILE } from "@/components/format-art";
-import { ScreenHeader, type Scene } from "@/components/screen-header";
+import { TintedHeader } from "@/components/tinted-header";
 import { StateMessage } from "@/components/state-message";
 import { categoryOf, formatById, relatedFormats, type FormatCategory } from "@/lib/game-formats";
 import { colors, fonts, radii, spacing } from "@/lib/theme";
@@ -14,14 +14,6 @@ import { colors, fonts, radii, spacing } from "@/lib/theme";
  * Laid out as the approved Stableford / Foursomes / Scramble mock-ups, and
  * every other format follows the same page.
  */
-
-const SCENE: Record<FormatCategory, Scene> = {
-  individual: "ballybunion",
-  matchplay: "oldHead",
-  pairs: "parkland",
-  team: "coastAerial",
-  side: "dunesGold",
-};
 
 const HERO_TONE: Record<FormatCategory, "navy" | "green" | "navy800"> = {
   individual: "navy",
@@ -59,8 +51,7 @@ export default function FormatScreen() {
 
   return (
     <View style={styles.fill}>
-      <Stack.Screen options={{ headerTitle: "", headerBackTitle: "Formats" }} />
-      <ScreenHeader scene={SCENE[format.category]} title={category.title.split(" — ")[0]} subtitle="Game formats" />
+      <TintedHeader color={colors.navy900} title={category.title.split(" — ")[0]} subtitle="Game formats" />
       <ScrollView contentContainerStyle={styles.body}>
         <GoldFrame tone={HERO_TONE[format.category]}>
           <Text style={styles.kicker}>{`${category.label} · ${format.scoring}`.toUpperCase()}</Text>

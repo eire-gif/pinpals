@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
-import { Stack, useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { CourseSearch } from "@/components/course-search";
 import { HandicapBreakdownSheet } from "@/components/handicap-breakdown";
 import { FORM_SCROLL_KEYBOARD } from "@/components/keyboard";
-import { ScreenHeader } from "@/components/screen-header";
+import { TintedHeader } from "@/components/tinted-header";
 import { useAuth } from "@/lib/auth";
 import { placeLabel, type Club } from "@/lib/courses";
 import { calcRow, manualTee, teesFor, type CalcRow, type CalcTee } from "@/lib/handicap-calculator";
@@ -99,9 +99,8 @@ export default function HandicapCalculator() {
 
   return (
     <>
-      <Stack.Screen options={{ headerTitle: "", headerBackTitle: "Back" }} />
       <ScrollView style={styles.fill} contentContainerStyle={styles.page} {...FORM_SCROLL_KEYBOARD}>
-        <ScreenHeader scene="linksDusk" title="Handicap calculator" subtitle="Course and playing handicaps · WHS" />
+        <TintedHeader color={colors.navy900} title="Handicap calculator" subtitle="Course and playing handicaps · WHS" />
 
         <View style={styles.body}>
           <View style={styles.segment} accessibilityRole="tablist">

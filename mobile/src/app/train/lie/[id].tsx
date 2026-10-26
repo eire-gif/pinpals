@@ -3,7 +3,8 @@ import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { GoldFrame } from "@/components/format-art";
-import { ScreenHeader, type Scene } from "@/components/screen-header";
+import { TONES } from "@/components/live-scoring-card";
+import { TintedHeader } from "@/components/tinted-header";
 import { StateMessage } from "@/components/state-message";
 import { LieArtTile } from "@/components/train-art";
 import { Card, LevelPill, bits } from "@/components/train-bits";
@@ -20,7 +21,6 @@ import { useContentWidth } from "@/lib/content-width";
  * left-handed is remembered on the phone and flips every direction.
  */
 
-const SCENE: Record<LieCategory, Scene> = { slopes: "parkland", sand: "dunesGold", rough: "lakeSunset", weather: "linksDusk" };
 const CATEGORY: Record<LieCategory, string> = { slopes: "SLOPES", sand: "SAND", rough: "ROUGH & TROUBLE", weather: "WIND" };
 
 function HandSwitch({ hand, onChange }: { hand: Hand; onChange: (h: Hand) => void }) {
@@ -60,8 +60,7 @@ export default function LieScreen() {
 
   return (
     <View style={bits.fill}>
-      <Stack.Screen options={{ headerTitle: "", headerBackTitle: "Lies" }} />
-      <ScreenHeader scene={SCENE[lie.category]} title={lie.name} subtitle="Shot Coach" />
+      <TintedHeader color={TONES.green.card} title={lie.name} subtitle="Shot Coach" />
       <ScrollView contentContainerStyle={bits.body}>
         <HandSwitch hand={hand} onChange={(x) => void setHand(x)} />
 

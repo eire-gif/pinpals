@@ -3,7 +3,8 @@ import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { GoldFrame } from "@/components/format-art";
-import { ScreenHeader } from "@/components/screen-header";
+import { TONES } from "@/components/live-scoring-card";
+import { TintedHeader } from "@/components/tinted-header";
 import { StateMessage } from "@/components/state-message";
 import { GoldButton, bits } from "@/components/train-bits";
 import { drillById, lieById, nextSession, planById, planSessions, sessionMinutes, type PlanItem } from "@/lib/training";
@@ -61,8 +62,7 @@ export default function PlanScreen() {
 
   return (
     <View style={bits.fill}>
-      <Stack.Screen options={{ headerTitle: "", headerBackTitle: "Training" }} />
-      <ScreenHeader scene="parkland" title={plan.name} subtitle="Practice plan" />
+      <TintedHeader color={TONES.green.card} title={plan.name} subtitle="Practice plan" />
       <ScrollView contentContainerStyle={bits.body}>
         <GoldFrame tone="navy">
           <Text style={styles.kicker}>{plan.shape.toUpperCase()}</Text>

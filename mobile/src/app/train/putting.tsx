@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
-import { Stack, useRouter } from "expo-router";
+import { useRouter } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
-import { ScreenHeader } from "@/components/screen-header";
+import { TONES } from "@/components/live-scoring-card";
+import { TintedHeader } from "@/components/tinted-header";
 import { Card, Chip, DrillRow, GhostButton, bits } from "@/components/train-bits";
 import { DRILLS, DRILL_FOCUS, PUTTING_ROUTINE, scoreLabel, type DrillFocus } from "@/lib/training";
 import { useTraining } from "@/lib/training-store";
@@ -21,8 +22,7 @@ export default function PuttingLabScreen() {
 
   return (
     <View style={bits.fill}>
-      <Stack.Screen options={{ headerTitle: "", headerBackTitle: "Training" }} />
-      <ScreenHeader scene="lakeSunset" title="Putting Lab" subtitle={`${DRILLS.length} drills · speed, line and pressure`} />
+      <TintedHeader color={TONES.green.card} title="Putting Lab" subtitle={`${DRILLS.length} drills · speed, line and pressure`} />
       <ScrollView contentContainerStyle={bits.body}>
         <Card dark>
           <Text style={styles.kicker}>WHERE TO START</Text>

@@ -1,10 +1,11 @@
 import { useMemo, useState } from "react";
 import { ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
-import { Stack, useRouter } from "expo-router";
+import { useRouter } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { FORM_SCROLL_KEYBOARD } from "@/components/keyboard";
-import { ScreenHeader } from "@/components/screen-header";
+import { TONES } from "@/components/live-scoring-card";
+import { TintedHeader } from "@/components/tinted-header";
 import { Chip, LieRow, bits } from "@/components/train-bits";
 import { LIES, LIE_CATEGORIES, liesIn, searchLies, type LieCategory } from "@/lib/training";
 import { useTraining } from "@/lib/training-store";
@@ -26,8 +27,7 @@ export default function LiesScreen() {
 
   return (
     <View style={bits.fill}>
-      <Stack.Screen options={{ headerTitle: "", headerBackTitle: "Training" }} />
-      <ScreenHeader scene="oldHead" title="What's your lie?" subtitle={`Shot Coach · ${LIES.length} lies`} />
+      <TintedHeader color={TONES.green.card} title="What's your lie?" subtitle={`Shot Coach · ${LIES.length} lies`} />
       <ScrollView contentContainerStyle={bits.body} {...FORM_SCROLL_KEYBOARD}>
         <View style={[styles.box, searching && styles.boxOn]}>
           <Ionicons name="search" size={20} color={searching ? colors.navy900 : colors.ink500} />

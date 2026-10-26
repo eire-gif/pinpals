@@ -11,11 +11,12 @@ import {
   View,
   type LayoutChangeEvent,
 } from "react-native";
-import { Tabs, router, useFocusEffect, useLocalSearchParams } from "expo-router";
+import { Tabs, router, useFocusEffect, useIsFocused, useLocalSearchParams } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { Avatar } from "@/components/avatar";
-import { ScreenHeader, useCollapsingHeader } from "@/components/screen-header";
+import { TintedTitle } from "@/components/tinted-header";
+import { StatusBar } from "expo-status-bar";
 import { AgeGateLoading, NotForUnder18, useAgeGate } from "@/components/not-for-under-18";
 import { ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
@@ -82,6 +83,7 @@ const FILTERS: { key: Filter; label: string }[] = [
 ];
 
 function MyRoundsScreenInner() {
+  const focused = useIsFocused();
   const { session } = useAuth();
   const userId = session?.user?.id ?? null;
   const params = useLocalSearchParams<{ invite?: string; show?: string }>();
@@ -111,7 +113,6 @@ function MyRoundsScreenInner() {
     };
   }, []);
 
-  const { scrollY, scrollProps } = useCollapsingHeader();
   const scrollRef = useRef<ScrollView>(null);
   const offsets = useRef<{ needs: number; upcoming: number; cards: Map<number, number> }>({
     needs: 0,
@@ -365,9 +366,15 @@ function MyRoundsScreenInner() {
           (tabs)/_layout.tsx) so the six bottom tabs — Home, Tee Times and
           the rest — stay on screen here. A tab has no back arrow of its
           own, so Back is drawn here. */}
+      {focused ? <StatusBar style="light" /> : null}
       <Tabs.Screen
         options={{
-          headerTitle: "",
+          // Oct 2026: the title up in a navy bar, as on the other Play
+          // screens, so the list starts a photo band's height higher.
+          headerStyle: { backgroundColor: colors.navy900 },
+          headerShadowVisible: false,
+          headerTitleAlign: "center",
+          headerTitle: () => <TintedTitle title="My rounds" subtitle={subtitle} />,
           headerLeft: () => (
             <Pressable
               onPress={() => (router.canGoBack() ? router.back() : router.replace("/"))}
@@ -376,11 +383,10 @@ function MyRoundsScreenInner() {
               accessibilityRole="button"
               accessibilityLabel="Back"
             >
-              <Ionicons name="chevron-back" size={20} color={colors.ink900} />
-              <Text style={styles.backLabel}>Back</Text>
+              <Ionicons name="chevron-back" size={24} color={colors.cream50} />
             </Pressable>
           ),
-          headerRight: () => <MyRoundRow onDark={false} right={(
+          headerRight: () => <MyRoundRow onDark right={(
             <Pressable
               onPress={() => router.push("/post-tee-time")}
               hitSlop={8}
@@ -394,8 +400,6 @@ function MyRoundsScreenInner() {
           )} />,
         }}
       />
-
-      <ScreenHeader scene="linksDusk" title="My rounds" subtitle={subtitle} scrollY={scrollY} />
 
       <View style={styles.tabsWrap}>
         <View style={styles.tabs} accessibilityRole="tablist">
@@ -432,7 +436,6 @@ function MyRoundsScreenInner() {
         </View>
       ) : (
         <ScrollView
-          {...scrollProps}
           ref={scrollRef}
           style={styles.fill}
           contentContainerStyle={styles.content}
@@ -1032,7 +1035,6 @@ const styles = StyleSheet.create({
   },
   postLabel: { fontFamily: fonts.bodyBold, fontSize: type.small, color: colors.ink900 },
   back: { flexDirection: "row", alignItems: "center", gap: 2, paddingHorizontal: spacing.sm, height: 34 },
-  backLabel: { fontFamily: fonts.bodySemi, fontSize: 17, color: colors.ink900 },
 
   tabsWrap: { paddingHorizontal: spacing.md, paddingTop: spacing.sm, paddingBottom: 2 },
   tabs: {

@@ -1,9 +1,10 @@
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { Stack, useRouter } from "expo-router";
+import { useRouter } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { GoldFrame } from "@/components/format-art";
-import { ScreenHeader } from "@/components/screen-header";
+import { TONES } from "@/components/live-scoring-card";
+import { TintedHeader } from "@/components/tinted-header";
 import { LieArtTile } from "@/components/train-art";
 import { DrillRow, GoldButton, SectionHead, bits } from "@/components/train-bits";
 import { type LieCategory, DRILLS, LIES, PLANS, drillById, lieById, nextSession, planById, planSessions, scoreLabel, sessionMinutes } from "@/lib/training";
@@ -34,8 +35,7 @@ export default function TrainScreen() {
 
   return (
     <View style={bits.fill}>
-      <Stack.Screen options={{ headerTitle: "", headerBackTitle: "Back" }} />
-      <ScreenHeader scene="ballybunion" title="Training" subtitle="Lies, putting and practice plans" />
+      <TintedHeader color={TONES.green.card} title="Training" subtitle="Lies, putting and practice plans" />
       <ScrollView contentContainerStyle={bits.body}>
         {/* Today */}
         <GoldFrame tone="navy">

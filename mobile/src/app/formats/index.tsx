@@ -1,11 +1,11 @@
 import { useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
-import { Stack, useRouter } from "expo-router";
+import { useRouter } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { TILE } from "@/components/format-art";
 import { FORM_SCROLL_KEYBOARD } from "@/components/keyboard";
-import { ScreenHeader } from "@/components/screen-header";
+import { TintedHeader } from "@/components/tinted-header";
 import {
   FORMAT_CATEGORIES,
   GAME_FORMATS,
@@ -67,8 +67,7 @@ export default function GameFormatsScreen() {
 
   return (
     <View style={styles.fill}>
-      <Stack.Screen options={{ headerTitle: "", headerBackTitle: "Back" }} />
-      <ScreenHeader scene="parkland" title="Game formats" subtitle={`Every way to play · ${GAME_FORMATS.length} formats`} />
+      <TintedHeader color={colors.navy900} title="Game formats" subtitle={`Every way to play · ${GAME_FORMATS.length} formats`} />
       <ScrollView contentContainerStyle={styles.body} {...FORM_SCROLL_KEYBOARD}>
         <View style={[styles.box, searching && styles.boxOn]}>
           <Ionicons name="search" size={20} color={searching ? colors.navy900 : colors.ink500} />

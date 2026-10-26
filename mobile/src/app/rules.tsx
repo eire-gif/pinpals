@@ -1,10 +1,9 @@
 import { useMemo, useState } from "react";
 import { LayoutAnimation, Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
-import { Stack } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { FORM_SCROLL_KEYBOARD } from "@/components/keyboard";
-import { ScreenHeader } from "@/components/screen-header";
+import { TintedHeader } from "@/components/tinted-header";
 import { RA_RULES_HUB, RULES, RULES_EDITION, SUGGESTED_SEARCHES, officialUrl, searchRules, type RuleEntry } from "@/lib/rules-of-golf";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 
@@ -175,8 +174,7 @@ export default function RulesScreen() {
 
   return (
     <View style={styles.fill}>
-      <Stack.Screen options={{ headerTitle: "", headerBackTitle: "Back" }} />
-      <ScreenHeader scene="linksDusk" title="Rules of Golf" subtitle="Find a rule fast, in plain English" />
+      <TintedHeader color={colors.navy900} title="Rules of Golf" subtitle="Find a rule fast, in plain English" />
       <ScrollView contentContainerStyle={styles.body} {...FORM_SCROLL_KEYBOARD}>
         <View style={[styles.box, searching && styles.boxOn]}>
           <Ionicons name="search" size={20} color={searching ? colors.navy900 : colors.ink500} />

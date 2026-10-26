@@ -47,24 +47,29 @@ export function TintedHeader({
           headerBackTitle: "Back",
           headerBackButtonDisplayMode: "minimal",
           headerTitleAlign: "center",
-          headerTitle: () => (
-            <View style={styles.titleBox} accessibilityRole="header">
-              <Text style={styles.title} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                {title}
-                {accent ? <Text style={styles.accent}> {accent}</Text> : null}
-              </Text>
-              {subtitle ? (
-                <Text style={styles.subtitle} numberOfLines={1}>
-                  {subtitle}
-                </Text>
-              ) : null}
-            </View>
-          ),
+          headerTitle: () => <TintedTitle title={title} accent={accent} subtitle={subtitle} />,
           ...myRoundRight(right, { onDark: true }),
         }}
       />
       {focused ? <StatusBar style="light" /> : null}
     </>
+  );
+}
+
+/** The title block alone — for a screen whose header isn't a Stack's (My rounds sits in the tab group). */
+export function TintedTitle({ title, accent, subtitle }: { title: string; accent?: string; subtitle?: string | null }) {
+  return (
+    <View style={styles.titleBox} accessibilityRole="header">
+      <Text style={styles.title} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+        {title}
+        {accent ? <Text style={styles.accent}> {accent}</Text> : null}
+      </Text>
+      {subtitle ? (
+        <Text style={styles.subtitle} numberOfLines={1}>
+          {subtitle}
+        </Text>
+      ) : null}
+    </View>
   );
 }
 

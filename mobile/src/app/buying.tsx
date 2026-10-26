@@ -11,10 +11,11 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { Stack, router, useFocusEffect } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
-import { ScreenHeader } from "@/components/screen-header";
+import { TONES } from "@/components/live-scoring-card";
+import { TintedHeader } from "@/components/tinted-header";
 import { useAuth } from "@/lib/auth";
 import {
   OFFER_STATUS_LABELS,
@@ -120,11 +121,8 @@ function BuyingScreenInner() {
 
   return (
     <View style={styles.fill}>
-      <Stack.Screen options={{ headerTitle: "", headerBackTitle: "Back" }} />
 
-      <ScreenHeader
-        scene="dunesGold"
-        title="My buying"
+      <TintedHeader color={TONES.bronze.card} title="My buying"
         subtitle={
           loading
             ? "Loading"
