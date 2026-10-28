@@ -3,6 +3,8 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { myMobile } from "@/lib/member-phone";
 import MobileForm from "./mobile-form";
+import { connectProvider } from "@/app/auth/social/actions";
+import { enabledSocialProviders } from "@/lib/auth/social-providers";
 
 export const metadata = { title: "Privacy & security · PinPals" };
 
@@ -11,14 +13,26 @@ export const metadata = { title: "Privacy & security · PinPals" };
  * to go to delete your account. Sharing a mobile with a group is in the app,
  * where groups live.
  */
-export default async function PrivacyPage() {
+export default async function PrivacyPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ linked?: string; link_error?: string }>;
+}) {
+  const { linked, link_error } = await searchParams;
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect("/login?next=/profile/privacy");
 
-  const mobile = await myMobile(supabase, user.id);
+  const [mobile, enabled] = await Promise.all([myMobile(supabase, user.id), enabledSocialProviders()]);
+  // Ways to sign in (Oct 2026): what this account can sign in with, and
+  // Connect for the providers switched on (claude/social-sign-in.md).
+  const has = new Set((user.identities ?? []).map((i) => i.provider));
+  const ways = [
+    { provider: "apple" as const, label: "Apple" },
+    { provider: "google" as const, label: "Google" },
+  ].filter((w) => has.has(w.provider) || enabled.includes(w.provider));
 
   return (
     <div className="max-w-xl mx-auto px-6 py-16 flex flex-col gap-6">
@@ -36,6 +50,51 @@ export default async function PrivacyPage() {
         )}
         <MobileForm current={mobile?.phone ?? null} />
       </section>
+
+      {ways.length > 0 && (
+        <section className="bg-surface rounded-2xl shadow-lg p-7 grid gap-3">
+          <h2 className="font-display font-bold text-xl">Ways to sign in</h2>
+          {linked && (
+            <p role="status" className="rounded-lg bg-green-100 text-green-800 text-sm font-semibold px-3.5 py-2.5">
+              {linked === "apple" ? "Apple" : "Google"} is connected — you can use it to sign in from now on.
+            </p>
+          )}
+          {link_error && (
+            <p role="alert" className="rounded-lg bg-red-100 text-red-600 text-sm px-3.5 py-2.5">
+              Couldn&rsquo;t connect that account. If it already has its own PinPals account, it can&rsquo;t be added to this one.
+            </p>
+          )}
+          <ul className="grid gap-2">
+            {has.has("email") && (
+              <li className="flex items-center justify-between gap-3 py-1.5">
+                <span className="font-bold">Email and password</span>
+                <span className="text-sm font-semibold text-green-700">Connected</span>
+              </li>
+            )}
+            {ways.map((w) => (
+              <li key={w.provider} className="flex items-center justify-between gap-3 py-1.5">
+                <span className="font-bold">{w.label}</span>
+                {has.has(w.provider) ? (
+                  <span className="text-sm font-semibold text-green-700">Connected</span>
+                ) : (
+                  <form action={connectProvider}>
+                    <input type="hidden" name="provider" value={w.provider} />
+                    <button
+                      type="submit"
+                      className="px-4 py-2 rounded-full font-bold text-sm border-[1.5px] border-green-700 text-green-700 hover:bg-green-50 transition"
+                    >
+                      Connect
+                    </button>
+                  </form>
+                )}
+              </li>
+            ))}
+          </ul>
+          <p className="text-[13px] text-ink-500">
+            Connect Google or Apple to sign in with one tap. Each can only be connected to one PinPals account.
+          </p>
+        </section>
+      )}
 
       <section className="bg-surface rounded-2xl shadow-lg p-7 grid gap-3">
         <h2 className="font-display font-bold text-xl">Your data</h2>

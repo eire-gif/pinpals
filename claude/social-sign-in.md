@@ -33,6 +33,15 @@ offer Sign in with Apple. Both go live on iOS together.
 - **Same email = same account.** A member who joined with email and later taps
   Google with that address gets their existing account (Supabase links them).
   Apple's "Hide My Email" gives a relay address, so that's a separate account.
+- **Hid their email by mistake?** Finish joining has "Already have a PinPals
+  account? Use that instead": it removes the new account (only while it's
+  empty — Apple/Google-only, under a week old, still held for a date of
+  birth — and revokes Apple's grant) and goes back to log in
+  (`src/lib/auth/discard-new-account.ts`, `POST /api/app/account/discard-new`).
+- **Connect Apple / Google** to an existing account: Privacy & security →
+  Ways to sign in, in the app (`components/sign-in-methods.tsx`) and on the
+  website (`/profile/privacy`, Google only). Needs **Allow manual linking** on
+  in Supabase → Authentication → Sign In / Providers.
 - **Mobile number, disclaimer/GDPR**: unchanged — collected where they are now.
 - **Deleting the account.** Members without a password confirm on the website
   by having signed in within the last 15 minutes instead of typing a password

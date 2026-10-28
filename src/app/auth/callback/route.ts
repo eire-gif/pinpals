@@ -26,6 +26,12 @@ export async function GET(request: NextRequest) {
   // quietly. Anything else gets the message.
   if (!code) {
     const cancelled = searchParams.get("error") === "access_denied";
+    // Connecting Google to an account (Privacy & security) comes back here
+    // too; a failure — usually "already has its own PinPals account" —
+    // goes back to that page, not to log in.
+    if (safeRedirectPath(searchParams.get("next"))?.startsWith("/profile/privacy")) {
+      return NextResponse.redirect(`${origin}/profile/privacy${cancelled ? "" : "?link_error=1"}`, 303);
+    }
     return NextResponse.redirect(`${origin}/login${cancelled ? "" : "?oauth_error=1"}`, 303);
   }
 

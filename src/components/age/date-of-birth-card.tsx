@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import DateOfBirthFields from "@/components/date-of-birth-fields";
 import { saveDateOfBirth, type DobState } from "./actions";
 import ParentEmailForm from "./parent-email-form";
+import { useExistingAccount } from "@/app/auth/social/actions";
 
 const initialState: DobState = {};
 
@@ -49,6 +50,19 @@ export default function DateOfBirthCard({ welcome = false }: { welcome?: boolean
       >
         {pending ? "Saving…" : welcome ? "Join PinPals" : "Save date of birth"}
       </button>
+      {welcome && (
+        <button
+          type="submit"
+          formAction={useExistingAccount}
+          formNoValidate
+          className="justify-self-start text-sm font-bold text-green-700 hover:text-green-600"
+          onClick={(e) => {
+            if (!confirm("Remove this new, empty account and go back to log in? Log in the way you usually do, then connect Apple or Google from Privacy & security.")) e.preventDefault();
+          }}
+        >
+          Already have a PinPals account? Use that instead
+        </button>
+      )}
     </form>
   );
 }

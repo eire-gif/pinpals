@@ -5,7 +5,7 @@ import { postToSite } from "./api";
 import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "./config";
 import { HAS_APPLE_AUTH, HAS_CRYPTO, HAS_WEB_BROWSER } from "./native-capabilities";
 import { sha256, toHex, utf8 } from "./hmac-sha256";
-import { isPlaceholderName, readRedirectParams } from "./social-sign-in-rules";
+import { isPlaceholderName, linkErrorMessage, readRedirectParams } from "./social-sign-in-rules";
 import { supabase } from "./supabase";
 
 export { isPlaceholderName, joinedWithProvider } from "./social-sign-in-rules";
@@ -130,11 +130,17 @@ function ensureGetRandomValues(): void {
 // Apple
 // ---------------------------------------------------------------------------
 
-export async function signInWithApple(): Promise<SocialResult> {
-  const Apple = require("expo-apple-authentication") as typeof import("expo-apple-authentication");
+type AppleCredential = import("expo-apple-authentication").AppleAuthenticationCredential;
+type AppleSheet =
+  | { ok: true; credential: AppleCredential & { identityToken: string }; rawNonce: string }
+  | { ok: false; cancelled: true }
+  | { ok: false; cancelled: false; error: string };
 
+/** Apple's Face ID sheet. Shared by signing in and connecting Apple to an account. */
+async function appleSheet(): Promise<AppleSheet> {
+  const Apple = require("expo-apple-authentication") as typeof import("expo-apple-authentication");
   const rawNonce = randomHex(32);
-  let credential: import("expo-apple-authentication").AppleAuthenticationCredential;
+  let credential: AppleCredential;
   try {
     credential = await Apple.signInAsync({
       requestedScopes: [Apple.AppleAuthenticationScope.FULL_NAME, Apple.AppleAuthenticationScope.EMAIL],
@@ -146,6 +152,20 @@ export async function signInWithApple(): Promise<SocialResult> {
     return { ok: false, cancelled: false, error: FAILED };
   }
   if (!credential.identityToken) return { ok: false, cancelled: false, error: FAILED };
+  return { ok: true, credential: credential as AppleCredential & { identityToken: string }, rawNonce };
+}
+
+/** Lets the website keep Apple's token, so deleting the account can revoke it. */
+function keepAppleToken(credential: AppleCredential): void {
+  if (credential.authorizationCode) {
+    void postToSite("/api/app/apple/token", { authorizationCode: credential.authorizationCode }).catch(() => undefined);
+  }
+}
+
+export async function signInWithApple(): Promise<SocialResult> {
+  const sheet = await appleSheet();
+  if (!sheet.ok) return sheet;
+  const { credential, rawNonce } = sheet;
 
   const { data, error } = await supabase.auth.signInWithIdToken({
     provider: "apple",
@@ -159,9 +179,7 @@ export async function signInWithApple(): Promise<SocialResult> {
   const first = credential.fullName?.givenName?.trim();
   const last = credential.fullName?.familyName?.trim();
   if (first) await saveNameIfPlaceholder(userId, first, last ?? "").catch(() => undefined);
-  if (credential.authorizationCode) {
-    void postToSite("/api/app/apple/token", { authorizationCode: credential.authorizationCode }).catch(() => undefined);
-  }
+  keepAppleToken(credential);
   return { ok: true, userId };
 }
 
@@ -170,7 +188,6 @@ export async function signInWithApple(): Promise<SocialResult> {
 // ---------------------------------------------------------------------------
 
 export async function signInWithGoogle(): Promise<SocialResult> {
-  const WebBrowser = require("expo-web-browser") as typeof import("expo-web-browser");
   ensureGetRandomValues();
 
   const { data, error } = await supabase.auth.signInWithOAuth({
@@ -184,8 +201,13 @@ export async function signInWithGoogle(): Promise<SocialResult> {
     },
   });
   if (error || !data.url) return { ok: false, cancelled: false, error: FAILED };
+  return googleSheet(data.url);
+}
 
-  const result = await WebBrowser.openAuthSessionAsync(data.url, REDIRECT);
+/** Google's page in the secure browser sheet, then back with a code. */
+async function googleSheet(url: string): Promise<SocialResult> {
+  const WebBrowser = require("expo-web-browser") as typeof import("expo-web-browser");
+  const result = await WebBrowser.openAuthSessionAsync(url, REDIRECT);
   if (result.type !== "success") {
     return result.type === "cancel" || result.type === "dismiss"
       ? { ok: false, cancelled: true }
@@ -244,4 +266,74 @@ export async function saveName(userId: string, first: string, last: string): Pro
     .update({ first_name: first.trim().slice(0, 50), last_name: last.trim().slice(0, 50) })
     .eq("id", userId);
   if (error) throw new Error("Couldn't save your name. Please try again.");
+}
+
+// ---------------------------------------------------------------------------
+// Connecting Apple / Google to an existing account (Profile → Privacy & security)
+// ---------------------------------------------------------------------------
+//
+// Supabase joins an Apple or Google sign-in to an account with the same
+// email by itself. When Apple's "Hide My Email" gives a relay address it
+// can't, so a member links them here instead, while signed in. Needs
+// "Allow manual linking" switched on in Supabase (claude/social-sign-in.md).
+
+export type LinkResult = { ok: true } | { ok: false; cancelled: true } | { ok: false; cancelled: false; error: string };
+
+/** Which ways in this account has: "email", "apple", "google". */
+export async function loadLinkedProviders(): Promise<Set<string>> {
+  const { data } = await supabase.auth.getUserIdentities();
+  return new Set((data?.identities ?? []).map((i) => i.provider));
+}
+
+/** Providers switched on in Supabase and usable on this phone. */
+export async function linkableProviders(): Promise<Record<SocialProvider, boolean>> {
+  const [enabled, apple] = await Promise.all([loadEnabled(), appleUsable()]);
+  return { apple: enabled.apple && apple, google: enabled.google && HAS_WEB_BROWSER && HAS_CRYPTO };
+}
+
+export async function linkApple(): Promise<LinkResult> {
+  const sheet = await appleSheet();
+  if (!sheet.ok) return sheet;
+  const { error } = await supabase.auth.linkIdentity({
+    provider: "apple",
+    token: sheet.credential.identityToken,
+    nonce: sheet.rawNonce,
+  });
+  if (error) return { ok: false, cancelled: false, error: linkErrorMessage("apple", error) };
+  keepAppleToken(sheet.credential);
+  return { ok: true };
+}
+
+export async function linkGoogle(): Promise<LinkResult> {
+  ensureGetRandomValues();
+  const { data, error } = await supabase.auth.linkIdentity({
+    provider: "google",
+    options: { redirectTo: REDIRECT, skipBrowserRedirect: true, queryParams: { prompt: "select_account" } },
+  });
+  if (error || !data?.url) return { ok: false, cancelled: false, error: linkErrorMessage("google", error) };
+  const result = await googleSheet(data.url);
+  if (result.ok) return { ok: true };
+  if (result.cancelled) return result;
+  // Google's errors come back on the link (e.g. already used by another account).
+  return { ok: false, cancelled: false, error: "Couldn't connect Google. If that Google account already has its own PinPals account, it can't be added to this one." };
+}
+
+// ---------------------------------------------------------------------------
+// "I already have an account" (Finish joining)
+// ---------------------------------------------------------------------------
+
+/**
+ * Removes the brand-new Apple/Google account this phone is signed in to —
+ * only while it's still empty and waiting for a date of birth (the website
+ * checks: POST /api/app/account/discard-new) — and signs out, so the member
+ * can log in to the account they already have and connect Apple there.
+ */
+export async function discardNewAccount(): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    await postToSite("/api/app/account/discard-new", {});
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Couldn't do that just now. Please try again." };
+  }
+  await supabase.auth.signOut({ scope: "local" });
+  return { ok: true };
 }

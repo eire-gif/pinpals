@@ -23,3 +23,21 @@ export function readRedirectParams(url: string): URLSearchParams {
   }
   return out;
 }
+
+const PROVIDER_NAME = { apple: "Apple ID", google: "Google account" } as const;
+
+/** What to tell a member when connecting Apple/Google to their account fails. */
+export function linkErrorMessage(
+  provider: "apple" | "google",
+  error: { code?: string; message?: string } | null | undefined,
+): string {
+  const code = error?.code ?? "";
+  const message = (error?.message ?? "").toLowerCase();
+  if (code === "identity_already_exists" || message.includes("already linked") || message.includes("already exists")) {
+    return `That ${PROVIDER_NAME[provider]} already has its own PinPals account, so it can't be added to this one.`;
+  }
+  if (code === "manual_linking_disabled" || message.includes("manual linking")) {
+    return "Connecting accounts isn't switched on yet. Please try again later.";
+  }
+  return `Couldn't connect your ${PROVIDER_NAME[provider]}. Please try again.`;
+}

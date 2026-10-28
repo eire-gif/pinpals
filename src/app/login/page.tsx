@@ -6,11 +6,11 @@ import { safeRedirectPath } from "@/lib/safe-redirect";
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ next?: string; confirmed?: string; confirm_error?: string; oauth_error?: string }>;
+  searchParams: Promise<{ next?: string; confirmed?: string; confirm_error?: string; oauth_error?: string; use_existing?: string }>;
 }) {
   // Anything that isn't a real path on this site is dropped here, so the
   // hidden field below never even carries it.
-  const { next, confirmed, confirm_error, oauth_error } = await searchParams;
+  const { next, confirmed, confirm_error, oauth_error, use_existing } = await searchParams;
   const safeNext = safeRedirectPath(next);
 
   return (
@@ -31,6 +31,10 @@ export default async function LoginPage({
       ) : confirm_error ? (
         <p role="status" className="mb-4 rounded-xl bg-red-100 text-red-600 text-sm font-semibold px-4 py-3 text-center">
           That confirmation link has expired or was already used. Log in — or sign up again to get a fresh link.
+        </p>
+      ) : use_existing ? (
+        <p role="status" className="mb-4 rounded-xl bg-green-100 text-green-800 text-sm font-semibold px-4 py-3 text-center">
+          Done — that new account is gone. Log in the way you usually do, then connect Apple or Google from Profile → Privacy &amp; security.
         </p>
       ) : oauth_error ? (
         <p role="status" className="mb-4 rounded-xl bg-red-100 text-red-600 text-sm font-semibold px-4 py-3 text-center">
