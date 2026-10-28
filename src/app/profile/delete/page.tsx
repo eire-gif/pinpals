@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { deletionStatus, GRACE_DAYS } from "@/lib/account-deletion";
 import DeleteAccountForm from "./delete-account-form";
+import { hasPassword } from "@/lib/auth/social-providers";
 
 export const metadata = { title: "Delete your account · PinPals" };
 
@@ -106,7 +107,7 @@ export default async function DeleteAccountPage() {
               </p>
             </div>
           ) : (
-            <DeleteAccountForm />
+            <DeleteAccountForm needsPassword={hasPassword(user)} />
           )}
         </>
       )}

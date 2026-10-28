@@ -246,6 +246,9 @@ const EXPECTED: Record<string, Expectation> = {
   "mask_junior_surname()": { anon: false, authenticated: false },
   "member_age_from_signup()": { anon: false, authenticated: false },
   "member_age_signup_stash()": { anon: false, authenticated: false },
+  // Sign in with Apple / Google (0193): trigger functions.
+  "member_dob_hold_on_signup()": { anon: false, authenticated: false },
+  "member_dob_hold_release()": { anon: false, authenticated: false },
   "member_birthdates_after()": { anon: false, authenticated: false },
   "member_birthdates_guard()": { anon: false, authenticated: false },
   "guardian_link_card_checked(p_link_id bigint, p_guardian uuid)": { anon: false, authenticated: false },

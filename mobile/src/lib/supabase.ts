@@ -103,6 +103,12 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
     // client parse deep-link URLs looking for auth fragments, which we handle
     // deliberately elsewhere.
     detectSessionInUrl: false,
+    // Sign in with Google (Oct 2026, lib/social-sign-in.ts) comes back to
+    // pinpals://auth-callback. PKCE means that link carries a one-time code
+    // that only this phone can redeem (its half is in SecureStore), never the
+    // session itself — on Android another app can claim a custom scheme.
+    // Nothing else in the app uses a redirect-based sign-in.
+    flowType: "pkce",
   },
 });
 

@@ -13,7 +13,9 @@ const initialState: DeleteAccountState = {};
  * Apple is explicit that deletion must not be made unnecessarily difficult —
  * but this is the one action on the site that cannot be undone.
  */
-export default function DeleteAccountForm() {
+/** needsPassword: false for a member who joined with Apple or Google and
+ *  has no password — they confirm with a recent sign-in instead (actions.ts). */
+export default function DeleteAccountForm({ needsPassword = true }: { needsPassword?: boolean }) {
   const [state, formAction, pending] = useActionState(deleteAccount, initialState);
 
   return (
@@ -21,16 +23,18 @@ export default function DeleteAccountForm() {
       action={formAction}
       className="bg-surface border border-line rounded-2xl p-6 flex flex-col gap-5"
     >
-      <label className="flex flex-col gap-1.5">
-        <span className="font-bold text-sm text-ink-900">Your password</span>
-        <input
-          type="password"
-          name="password"
-          autoComplete="current-password"
-          required
-          className="border border-line rounded-xl px-3.5 py-2.5 text-base bg-cream-50"
-        />
-      </label>
+      {needsPassword ? (
+        <label className="flex flex-col gap-1.5">
+          <span className="font-bold text-sm text-ink-900">Your password</span>
+          <input
+            type="password"
+            name="password"
+            autoComplete="current-password"
+            required
+            className="border border-line rounded-xl px-3.5 py-2.5 text-base bg-cream-50"
+          />
+        </label>
+      ) : null}
 
       <label className="flex flex-col gap-1.5">
         <span className="font-bold text-sm text-ink-900">

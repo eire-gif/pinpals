@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
 import SignUpForm from "./signup-form";
+import SocialSignInButtons from "@/components/auth/social-sign-in-buttons";
 import { AGE_BLOCK_COOKIE } from "./age-block";
 import { UNDER_13_MESSAGE } from "@/lib/junior";
 
@@ -34,6 +35,7 @@ export default async function SignUpPage({ searchParams }: { searchParams: Promi
             <p className="text-center text-ink-900 py-4">{UNDER_13_MESSAGE}</p>
           ) : (
             <>
+              <SocialSignInButtons />
               <SignUpForm defaultEmail={defaultEmail} />
               <p className="text-sm text-ink-500 text-center mt-5">
                 Already on Pinpals?{" "}

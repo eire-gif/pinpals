@@ -18,6 +18,7 @@ import * as SecureStore from "expo-secure-store";
 
 import { BirthDateField } from "@/components/birth-date-field";
 import { KEYBOARD_DISMISS_MODE } from "@/components/keyboard";
+import { SocialSignInButtons } from "@/components/social-sign-in-buttons";
 import { SIGNUP_LOCK_MS, UNDER_13_MESSAGE, looksLikeEmail, signupAge, signupLockedUntil } from "@/lib/age-rules";
 import { isOn } from "@/lib/features";
 import { SITE_URL } from "@/lib/config";
@@ -189,6 +190,10 @@ export default function SignUpScreen() {
           </Text>
 
           <View style={styles.card}>
+            {/* Apple / Google (Oct 2026): one tap, then "Finish joining"
+                asks for the date of birth (app/age/date-of-birth.tsx). */}
+            <SocialSignInButtons onError={setError} />
+
             <View style={styles.row}>
               <View style={[styles.field, styles.half]}>
                 <Text style={styles.label}>First name</Text>
