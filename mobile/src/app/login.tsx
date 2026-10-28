@@ -18,6 +18,7 @@ import { useAuth } from "@/lib/auth";
 import { SITE_URL } from "@/lib/config";
 import { colors, radii, spacing, type, AUTH_COLUMN } from "@/lib/theme";
 import { KEYBOARD_DISMISS_MODE } from "@/components/keyboard";
+import { SocialSignInButtons } from "@/components/social-sign-in-buttons";
 
 export default function LoginScreen() {
   const { signIn } = useAuth();
@@ -56,6 +57,9 @@ export default function LoginScreen() {
           </Text>
 
           <View style={styles.card}>
+            {/* Apple / Google (Oct 2026) — nothing until switched on. */}
+            <SocialSignInButtons onError={setError} />
+
             <View style={styles.field}>
               <Text style={styles.label}>Email</Text>
               <TextInput

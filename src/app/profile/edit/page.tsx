@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { withPrivateDetails } from "@/lib/member-private";
 import type { Profile } from "@/lib/types";
 import EditProfileForm from "./edit-profile-form";
+import DateOfBirthCard from "@/components/age/date-of-birth-card";
 
 export default async function EditProfilePage({
   searchParams,
@@ -33,6 +34,8 @@ export default async function EditProfilePage({
     .eq("user_id", user.id)
     .maybeSingle<{ date_of_birth: string; age_range_visible: boolean }>();
 
+  const placeholderName = profile?.first_name === "New" && profile?.last_name === "Golfer";
+
   return (
     <div className="max-w-xl mx-auto px-6 py-16">
       {welcome && (
@@ -44,11 +47,20 @@ export default async function EditProfilePage({
         <span className="w-5 h-0.5 bg-gold-500 inline-block" /> Your profile
       </span>
       <h1 className="font-display font-bold text-3xl mt-2 mb-7">Set up your game.</h1>
+      {/* Joined with Apple or Google (0193): no date of birth yet, and the
+          account is held until there is one — so it comes first. */}
+      {!birthdate && (
+        <div className="mb-6">
+          <DateOfBirthCard welcome={!!welcome} />
+        </div>
+      )}
       <div className="bg-surface rounded-2xl shadow-lg p-8">
         <EditProfileForm
           defaultValues={{
-            first: profile?.first_name ?? "",
-            last: profile?.last_name ?? "",
+            // "New Golfer" is the stand-in for a provider that sent no name
+            // (0193) — an empty box to fill beats a name to delete.
+            first: placeholderName ? "" : (profile?.first_name ?? ""),
+            last: placeholderName ? "" : (profile?.last_name ?? ""),
             club: profile?.home_club ?? "",
             clubId: profile?.home_club_id ?? null,
             // Falls back to Ireland for a member who joined before countries

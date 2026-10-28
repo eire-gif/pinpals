@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { revokeAppleSignIn } from "@/lib/apple-sign-in";
 import { confirmPlace } from "@/lib/tee-times-operations";
 import {
   notifyInviteCancelled,
@@ -145,6 +146,10 @@ export async function requestAccountDeletion(
   // session, so it has to happen before the ban revokes it.
   await standDownCommitments(supabase, admin, userId);
   await lockAccount(admin, userId);
+  // Sign in with Apple (0193): Apple asks for the grant to be revoked when
+  // the account is deleted (Guideline 5.1.1(v)). Never throws. If a deletion
+  // is undone, the member's next Sign in with Apple grants it afresh.
+  await revokeAppleSignIn(userId);
 
   return {
     ok: true,
@@ -200,6 +205,7 @@ export async function requestAccountDeletionByStaff(
 
   await standDownCommitments(admin, admin, userId, { releaseHeldPlaces: false });
   await lockAccount(admin, userId);
+  await revokeAppleSignIn(userId);
 
   return {
     ok: true,
@@ -497,6 +503,8 @@ async function purgePersonalRows(
     "notification_preferences",
     "notifications",
     "member_birthdates",
+    "member_dob_required",
+    "apple_sign_in_tokens",
     "listing_favourites",
     "post_likes",
     "post_saves",

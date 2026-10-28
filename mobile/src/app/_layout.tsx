@@ -99,7 +99,8 @@ function RootNavigator() {
     // card-link: a shared scorecard (pinpals.ie/c/…) opens for anyone.
     // join: a member's invite link or QR code (Find PinPals, 0118).
     // tee-link: a shared tee time (0132).
-    const signedOutAllowed = onAuthForm || first === "auth-confirm" || first === "card-link" || first === "join" || first === "tee-link";
+    // auth-callback: coming back from Google's sign-in page (lib/social-sign-in.ts).
+    const signedOutAllowed = onAuthForm || first === "auth-confirm" || first === "auth-callback" || first === "card-link" || first === "join" || first === "tee-link";
 
     if (!session && !signedOutAllowed) {
       router.replace("/login");
@@ -278,6 +279,7 @@ function RootNavigator() {
       <Stack.Screen name="login" options={{ headerShown: false, contentStyle: { backgroundColor: colors.navy900 } }} />
       <Stack.Screen name="signup" options={{ headerShown: false, contentStyle: { backgroundColor: colors.navy900 } }} />
       <Stack.Screen name="auth-confirm" options={{ headerShown: false, gestureEnabled: false, contentStyle: { backgroundColor: colors.navy900 } }} />
+      <Stack.Screen name="auth-callback" options={{ headerShown: false, gestureEnabled: false, animation: "none", contentStyle: { backgroundColor: colors.navy900 } }} />
       {/* The profile builder. No swipe-back: going "back" out of step one
           would land on a signed-in screen the member hasn't seen yet. */}
       <Stack.Screen name="onboarding" options={{ headerShown: false, gestureEnabled: false }} />

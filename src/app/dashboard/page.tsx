@@ -278,7 +278,7 @@ export default async function DashboardPage({
 
       {age?.needsDateOfBirth && (
         <div className="mb-6">
-          <DateOfBirthCard />
+          <DateOfBirthCard welcome={age.band === "junior_pending"} />
         </div>
       )}
 

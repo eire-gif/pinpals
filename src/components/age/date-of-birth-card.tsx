@@ -12,7 +12,7 @@ const initialState: DobState = {};
  * once. If it makes them 13–15, the next step is a parent's email, right
  * here — the rest of the site waits on that.
  */
-export default function DateOfBirthCard() {
+export default function DateOfBirthCard({ welcome = false }: { welcome?: boolean }) {
   const [state, formAction, pending] = useActionState(saveDateOfBirth, initialState);
 
   if (state.done && state.needsParent) {
@@ -32,10 +32,13 @@ export default function DateOfBirthCard() {
 
   return (
     <form action={formAction} className="bg-surface border-2 border-gold-500 rounded-2xl p-6 shadow-sm grid gap-3">
-      <h2 className="font-display font-bold text-lg">Add your date of birth</h2>
+      <h2 className="font-display font-bold text-lg">{welcome ? "Finish joining PinPals" : "Add your date of birth"}</h2>
       <p className="text-sm text-ink-500">
-        PinPals now asks every member for their date of birth. It&rsquo;s never shown to anyone, and you
-        can only enter it once — check it before you save.
+        {/* welcome: just joined with Apple or Google (0193), held until this is saved. */}
+        {welcome
+          ? "Just your date of birth and you’re in. Golfers from 13 are welcome, and some parts of PinPals depend on age."
+          : "PinPals now asks every member for their date of birth."}{" "}
+        It&rsquo;s never shown to anyone, and you can only enter it once — check it before you save.
       </p>
       <DateOfBirthFields idPrefix="dob-card" />
       {state.error && <p className="text-sm text-red-600 bg-red-100 rounded-lg px-3.5 py-2.5">{state.error}</p>}
@@ -44,7 +47,7 @@ export default function DateOfBirthCard() {
         disabled={pending}
         className="justify-self-start px-5 py-2.5 rounded-full font-bold text-sm bg-green-700 text-cream-50 hover:bg-green-600 transition disabled:opacity-60"
       >
-        {pending ? "Saving…" : "Save date of birth"}
+        {pending ? "Saving…" : welcome ? "Join PinPals" : "Save date of birth"}
       </button>
     </form>
   );

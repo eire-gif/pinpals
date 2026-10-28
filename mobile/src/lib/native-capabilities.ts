@@ -32,3 +32,14 @@ export const HAS_SPEECH = requireOptionalNativeModule("ExpoSpeechRecognition") !
 export const HAS_TASK_MANAGER = requireOptionalNativeModule("ExpoTaskManager") != null;
 
 export const voiceScoringEnabled = (): boolean => FEATURES.voiceScoring && HAS_SPEECH;
+
+/**
+ * Sign in with Apple and Google (Oct 2026, lib/social-sign-in.ts). Apple's
+ * native sheet (expo-apple-authentication), the secure browser sheet Google
+ * signs in through (expo-web-browser) and secure random numbers
+ * (expo-crypto) arrived in the build after 1.0.0's TestFlight builds; older
+ * binaries keep email and password only.
+ */
+export const HAS_APPLE_AUTH = requireOptionalNativeModule("ExpoAppleAuthentication") != null;
+export const HAS_WEB_BROWSER = requireOptionalNativeModule("ExpoWebBrowser") != null;
+export const HAS_CRYPTO = requireOptionalNativeModule("ExpoCrypto") != null;

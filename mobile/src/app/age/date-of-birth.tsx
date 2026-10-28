@@ -1,5 +1,16 @@
-import { useState } from "react";
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -8,6 +19,9 @@ import { BirthDateField, birthdayLabel } from "@/components/birth-date-field";
 import { setMyDateOfBirth } from "@/lib/age";
 import { gateFor } from "@/lib/age-rules";
 import { useAuth } from "@/lib/auth";
+import { routeAfterSignIn } from "@/lib/signup-code";
+import { isPlaceholderName, joinedWithProvider, saveName } from "@/lib/social-sign-in";
+import { supabase } from "@/lib/supabase";
 import { colors, fonts, radii, spacing, type, AUTH_COLUMN } from "@/lib/theme";
 
 /**
@@ -22,15 +36,39 @@ import { colors, fonts, radii, spacing, type, AUTH_COLUMN } from "@/lib/theme";
  * Under 13 is refused by the database (the guard trigger's own wording is
  * shown). A 13–15 year old lands on the waiting screen next, to add a
  * parent.
+ *
+ * FINISH JOINING (Oct 2026). A member who has just joined with Apple or
+ * Google lands here too: their account exists but has no date of birth, and
+ * the database holds it until it does (0193). For them the screen says
+ * "Finish joining", asks for a name as well when Apple didn't share one
+ * (the profile still says "New Golfer"), and goes on to the profile builder.
  */
 export default function DateOfBirthScreen() {
-  const { signOut } = useAuth();
+  const { signOut, session } = useAuth();
+  const userId = session?.user.id ?? null;
+  const joining = joinedWithProvider(session?.user);
   const [dob, setDob] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [needsName, setNeedsName] = useState(false);
+  const [first, setFirst] = useState("");
+  const [last, setLast] = useState("");
+
+  useEffect(() => {
+    if (!joining || !userId) return;
+    void supabase
+      .from("profiles")
+      .select("first_name, last_name")
+      .eq("id", userId)
+      .maybeSingle<{ first_name: string; last_name: string }>()
+      .then(({ data }) => setNeedsName(!!data && isPlaceholderName(data.first_name, data.last_name)));
+  }, [joining, userId]);
+
+  const nameMissing = needsName && (!first.trim() || !last.trim());
+  const blocked = !dob || saving || nameMissing;
 
   const save = () => {
-    if (!dob || saving) return;
+    if (blocked) return;
     // The date can't be changed afterwards, so it's read back first.
     Alert.alert("Is this right?", `${birthdayLabel(dob)}. You won't be able to change it afterwards.`, [
       { text: "Change it", style: "cancel" },
@@ -39,9 +77,12 @@ export default function DateOfBirthScreen() {
         onPress: () => {
           setSaving(true);
           setError(null);
-          setMyDateOfBirth(dob)
-            .then((access) => {
-              router.replace(gateFor(access) === "waiting" ? "/age/waiting" : "/(tabs)");
+          (needsName && userId ? saveName(userId, first, last) : Promise.resolve())
+            .then(() => setMyDateOfBirth(dob))
+            .then(async (access) => {
+              if (gateFor(access) === "waiting") router.replace("/age/waiting");
+              else if (joining && userId) router.replace(await routeAfterSignIn(userId));
+              else router.replace("/(tabs)");
             })
             .catch((e: unknown) => {
               setError(e instanceof Error ? e.message : "Couldn't save that. Please try again.");
@@ -54,18 +95,32 @@ export default function DateOfBirthScreen() {
 
   return (
     <SafeAreaView style={styles.fill}>
-      <ScrollView contentContainerStyle={styles.scroll}>
+      <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         <View style={styles.eyebrowRow}>
           <View style={styles.rule} />
-          <Text style={styles.eyebrow}>One quick thing</Text>
+          <Text style={styles.eyebrow}>{joining ? "Welcome to PinPals" : "One quick thing"}</Text>
         </View>
-        <Text style={styles.title}>Add your date of birth</Text>
+        <Text style={styles.title}>{joining ? "Finish joining" : "Add your date of birth"}</Text>
         <Text style={styles.tagline}>
-          PinPals is now open to golfers from 13, and some parts of it depend on age. We need your date of birth to
-          keep everyone in the right place.
+          {joining
+            ? `${needsName ? "Your name and date of birth" : "Just your date of birth"} and you're in. Golfers from 13 are welcome, and some parts of PinPals depend on age.`
+            : "PinPals is now open to golfers from 13, and some parts of it depend on age. We need your date of birth to keep everyone in the right place."}
         </Text>
 
         <View style={styles.card}>
+          {needsName ? (
+            <View style={styles.nameRow}>
+              <View style={styles.nameField}>
+                <Text style={styles.label}>First name</Text>
+                <TextInput style={styles.input} value={first} onChangeText={setFirst} autoComplete="given-name" textContentType="givenName" maxLength={50} />
+              </View>
+              <View style={styles.nameField}>
+                <Text style={styles.label}>Last name</Text>
+                <TextInput style={styles.input} value={last} onChangeText={setLast} autoComplete="family-name" textContentType="familyName" maxLength={50} />
+              </View>
+            </View>
+          ) : null}
           <BirthDateField value={dob} onChange={setDob} />
           <View style={styles.noteRow}>
             <Ionicons name="lock-closed-outline" size={16} color={colors.ink500} />
@@ -82,13 +137,17 @@ export default function DateOfBirthScreen() {
           ) : null}
 
           <Pressable
-            style={[styles.primary, (!dob || saving) && styles.primaryDisabled]}
+            style={[styles.primary, blocked && styles.primaryDisabled]}
             onPress={save}
-            disabled={!dob || saving}
+            disabled={blocked}
             accessibilityRole="button"
-            accessibilityState={{ disabled: !dob || saving }}
+            accessibilityState={{ disabled: blocked }}
           >
-            {saving ? <ActivityIndicator color={colors.cream50} /> : <Text style={styles.primaryLabel}>Save and carry on</Text>}
+            {saving ? (
+              <ActivityIndicator color={colors.cream50} />
+            ) : (
+              <Text style={styles.primaryLabel}>{joining ? "Join PinPals" : "Save and carry on"}</Text>
+            )}
           </Pressable>
 
           <Pressable style={styles.linkRow} onPress={() => void signOut()} accessibilityRole="button">
@@ -96,6 +155,7 @@ export default function DateOfBirthScreen() {
           </Pressable>
         </View>
       </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -109,6 +169,20 @@ const styles = StyleSheet.create({
   title: { fontFamily: fonts.display, fontSize: 30, lineHeight: 36, color: colors.cream50, marginTop: spacing.sm },
   tagline: { fontFamily: fonts.body, fontSize: type.body, lineHeight: 22, color: colors.cream100, marginTop: spacing.sm, marginBottom: spacing.lg },
   card: { backgroundColor: colors.cream50, borderRadius: radii.lg, padding: spacing.lg, gap: spacing.md },
+  nameRow: { flexDirection: "row", gap: spacing.sm },
+  nameField: { flex: 1, gap: 6 },
+  label: { fontFamily: fonts.bodyBold, fontSize: type.label, color: colors.ink900 },
+  input: {
+    borderWidth: 1.5,
+    borderColor: colors.line,
+    borderRadius: radii.sm,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontFamily: fonts.body,
+    fontSize: type.body,
+    color: colors.ink900,
+    backgroundColor: colors.surface,
+  },
   noteRow: { flexDirection: "row", gap: spacing.sm, alignItems: "flex-start" },
   note: { flex: 1, fontFamily: fonts.body, fontSize: 12.5, lineHeight: 18, color: colors.ink500 },
   errorBox: { backgroundColor: colors.red100, borderRadius: radii.sm, paddingHorizontal: 14, paddingVertical: 10 },

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requestAccountDeletion } from "@/lib/account-deletion";
+import { hasPassword, signedInRecently } from "@/lib/auth/social-providers";
 
 export type DeleteAccountState = { error?: string };
 
@@ -34,23 +35,35 @@ export async function deleteAccount(
   if (confirm !== "DELETE") {
     return { error: "Type DELETE in the box to confirm." };
   }
-  if (!password) {
+
+  // Joined with Apple or Google (Oct 2026): there's no password to ask for,
+  // so the proof is a fresh sign-in with that account instead.
+  if (!hasPassword(user)) {
+    if (!signedInRecently(user)) {
+      return {
+        error:
+          "For your security, log out and sign in again with Apple or Google, then come straight back here to delete your account.",
+      };
+    }
+  } else if (!password) {
     return { error: "Enter your password to confirm it's you." };
   }
-  if (!user.email) {
-    return { error: "This account has no email address — please contact support." };
-  }
+  if (hasPassword(user)) {
+    if (!user.email) {
+      return { error: "This account has no email address — please contact support." };
+    }
 
-  // Re-authentication. A valid session says somebody has this browser; it
-  // does not say they know the password, and this is not an action to take on
-  // the word of a cookie.
-  const { error: authError } = await supabase.auth.signInWithPassword({
-    email: user.email,
-    password,
-  });
+    // Re-authentication. A valid session says somebody has this browser; it
+    // does not say they know the password, and this is not an action to take on
+    // the word of a cookie.
+    const { error: authError } = await supabase.auth.signInWithPassword({
+      email: user.email,
+      password,
+    });
 
-  if (authError) {
-    return { error: "That password doesn't match." };
+    if (authError) {
+      return { error: "That password doesn't match." };
+    }
   }
 
   const result = await requestAccountDeletion(supabase, user.id);
