@@ -45,6 +45,9 @@ create table if not exists auth.users (
 -- Supabase sets this when the address is confirmed (0170 joins emailed
 -- society invitations on it).
 alter table auth.users add column if not exists email_confirmed_at timestamptz;
+-- Supabase records the sign-in provider here ({"provider": "apple"|"google"|"email"});
+-- 0193 holds new Apple/Google accounts until a date of birth is saved.
+alter table auth.users add column if not exists raw_app_meta_data jsonb not null default '{}'::jsonb;
 
 -- The real Supabase auth.uid() reads a GUC PostgREST sets per-request from the
 -- caller's JWT `sub` claim. Replicated the same way here so a test can
