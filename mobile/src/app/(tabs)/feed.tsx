@@ -15,7 +15,8 @@ import { router, useFocusEffect, useIsFocused } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
-import { Avatar } from "@/components/avatar";
+import { LiveCircles } from "@/components/live-circles";
+import { ResultsCard } from "@/components/results-card";
 import { WithInvite } from "@/components/pinpals";
 import { INVITE_EVERY, inviteAfter } from "@/lib/invite-slots";
 import { PostCard, postCardWidth } from "@/components/post-card";
@@ -25,13 +26,14 @@ import { adsOf, feedAdFor, feedAdSlot } from "@/lib/ads-rules";
 import { useAds, useHiddenAds } from "@/lib/ads";
 import { useAuth } from "@/lib/auth";
 import { loadFeed, type FeedEntry, type FeedPost } from "@/lib/feed";
-import { openPostType } from "@/lib/post-compose";
-import { POST_TYPE_INFO, type PostType } from "@/lib/post-details";
 import { FEED_SCOPES, FEED_SCOPE_LABELS, type FeedScope } from "@/lib/feed-rules";
 import { priceLine } from "@/lib/marketplace";
 import { supabase } from "@/lib/supabase";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 import { usePostActions } from "@/lib/use-post-actions";
+import { useMyRound } from "@/lib/my-round";
+import { loadLiveCircles, setCheer, setDayCommentLike, type DayComment, type FeedResult } from "@/lib/social-live";
+import { orderCircles, type LiveCircle } from "@/lib/social-live-rules";
 import { AgeGateLoading, NotForUnder18, useAgeGate } from "@/components/not-for-under-18";
 
 /**
@@ -56,6 +58,10 @@ function FeedScreenInner() {
   const cardWidth = postCardWidth(width);
 
   const [scope, setScope] = useState<FeedScope>("all");
+  const [noGroups, setNoGroups] = useState(false);
+  // The circles across the top (claude/social-live.md): never hold up the feed.
+  const myRound = useMyRound();
+  const [circles, setCircles] = useState<LiveCircle[]>([]);
   const [entries, setEntries] = useState<FeedEntry[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [noConnections, setNoConnections] = useState(false);
@@ -79,6 +85,7 @@ function FeedScreenInner() {
       setEntries(page.entries);
       setCursor(page.cursor);
       setNoConnections(page.noConnections);
+      setNoGroups(page.noGroups === true);
     } catch (err) {
       if (mine === token.current) setError(err instanceof Error ? err.message : "Couldn't load posts.");
     } finally {
@@ -93,6 +100,19 @@ function FeedScreenInner() {
     setLoading(true);
     void load();
   }, [load]);
+
+  const myRoundId = myRound?.id ?? null;
+  const loadCircles = useCallback(() => {
+    if (!userId) return;
+    loadLiveCircles(myRoundId)
+      .then(setCircles)
+      .catch(() => setCircles([]));
+  }, [userId, myRoundId]);
+  useFocusEffect(
+    useCallback(() => {
+      loadCircles();
+    }, [loadCircles])
+  );
 
   // Coming back from posting, or from a post where you commented, should
   // show it. A focus refresh is cheaper than threading callbacks through
@@ -166,88 +186,85 @@ function FeedScreenInner() {
   }, []);
   const actions = usePostActions({ update, remove, reload: load, afterBlock });
 
+  // Results cards: Great Shot and comment hearts, shown at once, put back if
+  // the save fails.
+  const updateResult = useCallback((dayId: number, change: (r: FeedResult) => FeedResult) => {
+    setEntries((prev) => prev.map((e) => (e.kind === "results" && e.item.dayId === dayId ? { kind: "results", item: change(e.item) } : e)));
+  }, []);
+  const cheer = useCallback(
+    (r: FeedResult) => {
+      if (!userId) return;
+      const on = !r.cheers.mine;
+      const flip = (to: boolean) => (x: FeedResult) => ({ ...x, cheers: { mine: to, count: Math.max(0, x.cheers.count + (to ? 1 : -1)) } });
+      updateResult(r.dayId, flip(on));
+      setCheer(r.dayId, userId, on).catch(() => updateResult(r.dayId, flip(!on)));
+    },
+    [userId, updateResult]
+  );
+  const likeResultComment = useCallback(
+    (r: FeedResult, c: DayComment) => {
+      if (!userId) return;
+      const on = !c.likedByMe;
+      const flip = (to: boolean) => (x: FeedResult) => ({
+        ...x,
+        comments: x.comments.map((y) => (y.id === c.id ? { ...y, likedByMe: to, likeCount: Math.max(0, y.likeCount + (to ? 1 : -1)) } : y)),
+      });
+      updateResult(r.dayId, flip(on));
+      setDayCommentLike(c.id, userId, on).catch(() => updateResult(r.dayId, flip(!on)));
+    },
+    [userId, updateResult]
+  );
+
+  const shownCircles = orderCircles([
+    { kind: "post" },
+    ...(myRound ? [{ kind: "mine" as const, roundId: myRound.id, hole: myRound.hole }] : []),
+    ...circles,
+  ]);
+
   // Sponsored posts (0139): after the 4th post, then every 12th. Empty — and
   // so nothing drawn — unless advertising is on (lib/ads.ts).
   const allAds = useAds();
   const hiddenAds = useHiddenAds();
   const feedAds = adsOf(allAds, "feed", hiddenAds);
 
+  // Instagram's circles and tabs in a white band across the top; the posts
+  // below on the cream (canvas "PinPals Social — style options", row D).
   const header = (
     <View>
-      <RecapPrompt userId={userId} style={styles.recap} />
-      <View style={styles.compose}>
-        <View style={styles.composeTop}>
-          <Pressable
-            onPress={() => router.push("/compose")}
-            style={styles.composeMain}
-            accessibilityRole="button"
-            accessibilityLabel="Create a post"
-          >
-            <Avatar url={me?.avatarUrl} color={me?.avatarColor} name={me?.name} size={40} />
-            <View style={styles.composeText}>
-              <Text style={styles.composeTitle}>How did the round go?</Text>
-              <Text style={styles.composePrompt} numberOfLines={1}>
-                Share the view, the card, the fourball
-              </Text>
-            </View>
-          </Pressable>
-          <Pressable
-            onPress={() => openPostType("photo")}
-            style={styles.composeCamera}
-            accessibilityRole="button"
-            accessibilityLabel="Share photos"
-          >
-            <Ionicons name="camera-outline" size={20} color={colors.cream50} />
-          </Pressable>
-        </View>
-        {/* Straight to the four kinds members post most; the rest are a tap
-            on the prompt away (compose.tsx). */}
-        <View style={styles.quick}>
-          {QUICK_TYPES.map(({ type: t, label }) => (
+      <View style={styles.band}>
+        <LiveCircles circles={shownCircles} me={me} />
+        <View style={styles.scopes}>
+          <View style={styles.tabs} accessibilityRole="tablist" accessibilityLabel="Social">
+            {FEED_SCOPES.map((s) => {
+              const active = s === scope;
+              return (
+                <Pressable
+                  key={s}
+                  onPress={() => setScope(s)}
+                  style={[styles.tab, active && styles.tabActive]}
+                  accessibilityRole="tab"
+                  accessibilityState={{ selected: active }}
+                >
+                  <Text style={[styles.tabLabel, active && styles.tabLabelActive]}>{FEED_SCOPE_LABELS[s]}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+          {userId && (
             <Pressable
-              key={t}
-              onPress={() => openPostType(t)}
-              style={({ pressed }) => [styles.quickChip, pressed && styles.quickChipPressed]}
-              accessibilityRole="button"
-              accessibilityLabel={POST_TYPE_INFO[t].title}
+              onPress={() => router.push({ pathname: "/member/[id]", params: { id: userId } })}
+              style={styles.myPosts}
+              accessibilityRole="link"
+              accessibilityLabel="My posts"
+              hitSlop={6}
             >
-              <Ionicons name={POST_TYPE_INFO[t].icon as keyof typeof Ionicons.glyphMap} size={15} color={colors.green700} />
-              <Text style={styles.quickLabel}>{label}</Text>
+              <Ionicons name="person-circle-outline" size={18} color={colors.green700} />
+              <Text style={styles.myPostsLabel}>My posts</Text>
             </Pressable>
-          ))}
+          )}
         </View>
       </View>
-
-      <View style={styles.scopes}>
-        <View style={styles.segment} accessibilityRole="tablist" accessibilityLabel="Social">
-          {FEED_SCOPES.map((s) => {
-            const active = s === scope;
-            return (
-              <Pressable
-                key={s}
-                onPress={() => setScope(s)}
-                style={[styles.segmentItem, active && styles.segmentItemActive]}
-                accessibilityRole="tab"
-                accessibilityState={{ selected: active }}
-              >
-                <Text style={[styles.segmentLabel, active && styles.segmentLabelActive]}>{FEED_SCOPE_LABELS[s]}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
-        {userId && (
-          <Pressable
-            onPress={() => router.push({ pathname: "/member/[id]", params: { id: userId } })}
-            style={styles.myPosts}
-            accessibilityRole="link"
-            accessibilityLabel="My posts"
-            hitSlop={6}
-          >
-            <Ionicons name="person-circle-outline" size={18} color={colors.green700} />
-            <Text style={styles.myPostsLabel}>My posts</Text>
-          </Pressable>
-        )}
-      </View>
+      <RecapPrompt userId={userId} style={styles.recap} />
     </View>
   );
 
@@ -265,7 +282,7 @@ function FeedScreenInner() {
       ) : (
         <FlatList
           data={entries}
-          keyExtractor={(e) => `${e.kind}-${e.item.id}`}
+          keyExtractor={(e) => (e.kind === "results" ? `results-${e.item.dayId}` : `${e.kind}-${e.item.id}`)}
           ListHeaderComponent={header}
           contentContainerStyle={styles.list}
           ItemSeparatorComponent={() => <View style={{ height: spacing.md }} />}
@@ -275,6 +292,7 @@ function FeedScreenInner() {
               onRefresh={() => {
                 setRefreshing(true);
                 void load();
+                loadCircles();
               }}
               tintColor={colors.green700}
             />
@@ -285,6 +303,13 @@ function FeedScreenInner() {
           ListEmptyComponent={
             error ? (
               <Text style={styles.error}>{error}</Text>
+            ) : noGroups && scope === "groups" ? (
+              <Empty
+                title="No groups yet"
+                body="Groups shows posts and results from your Golf Buddies, trips and societies. Start one, or ask to join your society."
+                cta="Groups & Societies"
+                onPress={() => router.push("/groups")}
+              />
             ) : noConnections ? (
               <Empty
                 title="Nobody to follow yet"
@@ -312,10 +337,14 @@ function FeedScreenInner() {
               title="Golf's better with your fourball"
               body="Invite the friends you play with — their rounds land here too."
             >
-            {item.kind === "post" ? (
+            {item.kind === "results" ? (
+              <ResultsCard result={item.item} onCheer={cheer} onLikeComment={likeResultComment} me={me} />
+            ) : item.kind === "post" ? (
               <PostCard
                 post={item.item}
                 width={cardWidth}
+                onLikeComment={actions.likeComment}
+                me={me}
                 onLike={actions.like}
                 onReact={actions.react}
                 onShare={actions.share}
@@ -406,13 +435,6 @@ function SkeletonCard() {
   );
 }
 
-/** The quick chips under the feed's prompt, as in the mockup. */
-const QUICK_TYPES: { type: PostType; label: string }[] = [
-  { type: "photo", label: "Photo" },
-  { type: "round", label: "Round" },
-  { type: "hole", label: "Hole" },
-  { type: "shot", label: "Shot" },
-];
 
 function Empty({ title, body, cta, onPress }: { title: string; body: string; cta: string; onPress: () => void }) {
   return (
@@ -439,70 +461,29 @@ const lift = {
 const styles = StyleSheet.create({
   fill: { flex: 1, backgroundColor: colors.cream50 },
   list: { padding: spacing.md, paddingBottom: spacing.xl * 2 },
-  compose: {
+  // Full width across the top of the list: undo the list's padding.
+  band: {
     backgroundColor: colors.surface,
-    borderRadius: radii.lg,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.line,
-    paddingTop: spacing.sm + 4,
-    paddingHorizontal: spacing.md - 2,
-    ...lift,
+    marginHorizontal: -spacing.md,
+    marginTop: -spacing.md,
+    marginBottom: spacing.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.line,
   },
   // Only applied when the prompt renders (it's null with nothing to offer).
   recap: { marginBottom: spacing.md },
-  composeTop: { flexDirection: "row", alignItems: "center", gap: spacing.sm + 4 },
-  composeMain: { flex: 1, flexDirection: "row", alignItems: "center", gap: spacing.sm + 4, minHeight: 44 },
-  quick: {
+  scopes: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: spacing.sm + 2,
+    alignItems: "center",
+    paddingHorizontal: spacing.md,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.line,
-    paddingVertical: spacing.xs,
   },
-  quickChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    minHeight: 40,
-    paddingHorizontal: spacing.sm,
-    borderRadius: radii.sm,
-  },
-  quickChipPressed: { backgroundColor: colors.surfaceTint },
-  quickLabel: { fontFamily: fonts.bodySemi, fontSize: 13, color: colors.ink900 },
-  composeText: { flex: 1, minWidth: 0 },
-  composeTitle: { fontFamily: fonts.display, fontSize: 17, color: colors.ink900 },
-  composePrompt: { fontFamily: fonts.body, fontSize: 13, color: colors.ink500, marginTop: 1 },
-  composeCamera: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: colors.green700,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  scopes: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginTop: spacing.md, marginBottom: spacing.md },
-  // A segmented control rather than two loose chips: it is one choice
-  // between two views of the same list, and should look like one.
-  segment: {
-    flex: 1,
-    flexDirection: "row",
-    backgroundColor: colors.cream100,
-    borderRadius: radii.pill,
-    padding: 3,
-  },
-  segmentItem: {
-    flex: 1,
-    alignItems: "center",
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.sm - 1,
-    borderRadius: radii.pill,
-    minHeight: 38,
-    justifyContent: "center",
-  },
-  segmentItemActive: { backgroundColor: colors.navy900 },
-  segmentLabel: { fontFamily: fonts.bodySemi, fontSize: 13.5, color: colors.ink500 },
-  segmentLabelActive: { color: colors.cream50 },
+  tabs: { flex: 1, flexDirection: "row", gap: spacing.lg - 2 },
+  tab: { minHeight: 44, justifyContent: "center", borderBottomWidth: 2.5, borderBottomColor: "transparent" },
+  tabActive: { borderBottomColor: colors.navy900 },
+  tabLabel: { fontFamily: fonts.bodySemi, fontSize: 15, color: colors.ink500 },
+  tabLabelActive: { fontFamily: fonts.bodyBold, color: colors.ink900 },
   myPosts: {
     flexDirection: "row",
     alignItems: "center",

@@ -634,6 +634,12 @@ const EXPECTED: Record<string, Expectation> = {
   "live_day_is_organiser(p_day_id bigint)": { anon: false, authenticated: true },
   "set_day_leaderboard_hidden(p_day_id bigint, p_hidden boolean)": { anon: false, authenticated: true },
   "competition_results_reveal()": { anon: false, authenticated: false },
+  // 0194: Social — a day's group can watch it; comments, likes and Great Shots on a day.
+  "live_match_day_group(p_day_id bigint)": { anon: false, authenticated: false },
+  "set_match_day_group(p_day_id bigint, p_group_id bigint)": { anon: false, authenticated: true },
+  "live_day_comment_rate()": { anon: false, authenticated: false },
+  "live_day_comment_like_count()": { anon: false, authenticated: false },
+  "live_day_comment_pin(p_comment_id bigint, p_pin boolean)": { anon: false, authenticated: true },
 };
 
 type ActualRow = { signature: string; anon: boolean; authenticated: boolean };

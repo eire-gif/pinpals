@@ -35,12 +35,16 @@ export const POST_VISIBILITY_SHORT: Record<PostVisibility, string> = {
  *
  * The website still says "All PinPals" / "My connections" (src/lib/feed.ts).
  */
-export const FEED_SCOPES = ["all", "connections"] as const;
+export const FEED_SCOPES = ["all", "connections", "groups"] as const;
 export type FeedScope = (typeof FEED_SCOPES)[number];
 
+/** Groups (Oct 2026, claude/social-live.md): posts by everyone in your Golf
+ *  Buddies, trips and societies, and those groups' results. App only for now;
+ *  the website keeps its two. */
 export const FEED_SCOPE_LABELS: Record<FeedScope, string> = {
   all: "For You",
   connections: "Following",
+  groups: "Groups",
 };
 
 export const MAX_POST_PHOTOS = 6;

@@ -18,6 +18,7 @@ import {
 import { router } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
+import { CommentPreview } from "@/components/comment-preview";
 import { AchievementCard } from "@/components/achievement-card";
 import { Avatar } from "@/components/avatar";
 import { coursePhoto } from "@/components/course-photos";
@@ -81,6 +82,8 @@ export function PostCard({
   onSave,
   onMenu,
   currentMemberId,
+  onLikeComment,
+  me,
 }: {
   post: FeedPost;
   /** The card's content width (see postCardWidth). */
@@ -102,6 +105,11 @@ export function PostCard({
   /** Set on a member's own page: tapping that member's name does nothing
    *  there, rather than stacking a second copy of the page you're on. */
   currentMemberId?: string;
+  /** Oct 2026 (claude/social-live.md): with this, the card shows its top
+   *  two comments under the buttons, each with a heart, and Add a comment. */
+  onLikeComment?: (comment: FeedComment) => void;
+  /** Whose face goes beside "Add a comment…". */
+  me?: { name: string; avatarUrl: string | null; avatarColor: string | null } | null;
 }) {
   const hasPhotos = post.photos.length > 0;
   const limit = hasPhotos ? LONG_POST : LONG_TEXT_ONLY;
@@ -234,6 +242,31 @@ export function PostCard({
           accessibilityLabel={post.savedByMe ? "Saved. Remove from saved" : "Save post"}
         />
       </View>
+
+      {onLikeComment ? (
+        <CommentPreview
+          comments={post.comments
+            .filter((c) => c.parentId == null)
+            .slice(0, 2)
+            .map((c) => ({
+              id: c.id,
+              name: c.author.name,
+              avatarUrl: c.author.avatarUrl,
+              avatarColor: c.author.avatarColor,
+              body: c.body,
+              createdAt: c.createdAt,
+              likeCount: c.likeCount,
+              liked: c.likedByMe,
+            }))}
+          total={post.commentCount}
+          onLike={(pc) => {
+            const comment = post.comments.find((c) => c.id === pc.id);
+            if (comment) onLikeComment(comment);
+          }}
+          onOpen={() => onComment(post)}
+          me={me}
+        />
+      ) : null}
 
       <View style={styles.foot} />
 

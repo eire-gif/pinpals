@@ -104,8 +104,8 @@ describe("previewComments", () => {
 
 describe("feed tabs", () => {
   it("are For You then Following, over the unchanged scope values", () => {
-    expect(FEED_SCOPES.map((s) => FEED_SCOPE_LABELS[s])).toEqual(["For You", "Following"]);
-    expect([...FEED_SCOPES]).toEqual(["all", "connections"]);
+    expect(FEED_SCOPES.map((s) => FEED_SCOPE_LABELS[s])).toEqual(["For You", "Following", "Groups"]);
+    expect([...FEED_SCOPES]).toEqual(["all", "connections", "groups"]);
   });
 });
 

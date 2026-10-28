@@ -9,6 +9,7 @@ import { GroupIcon, RoleBadge, SectionTitle, membersLabel } from "@/components/g
 import { useAgeAccess } from "@/lib/age";
 import { GroupPastResults } from "@/components/group-past-results";
 import { GroupChatCard } from "@/components/group-chat-card";
+import { GroupLive } from "@/components/group-live";
 import { AddMembersDropdown } from "@/components/group-add-members";
 import { TONES } from "@/components/live-scoring-card";
 import { TintedHeader } from "@/components/tinted-header";
@@ -452,6 +453,10 @@ export default function GroupScreen() {
                 </Text>
               </View>
             ) : null}
+
+            {/* Oct 2026 (claude/social-live.md): a LIVE banner while one of the
+                group's days is on, and the latest results with their comments. */}
+            {isOn("liveScoring") ? <GroupLive groupId={groupId} social={ageAllows("social")} me={null} /> : null}
 
             {/* The group's chat (0181), first thing on the page: it opens with
                 the group and everyone who joins is in it. Not for under 18s. */}

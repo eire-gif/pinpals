@@ -9,6 +9,8 @@ import {
 } from "./api";
 import { placeLabel } from "./courses";
 import { searchListings, EMPTY_FILTERS, type Card } from "./marketplace";
+import { groupMateIds, loadFeedResults, type FeedResult } from "./social-live";
+import { placeByDate } from "./social-live-rules";
 import { supabase } from "./supabase";
 import {
   FEED_LISTINGS_PER_PAGE,
@@ -134,12 +136,18 @@ export type FeedPost = {
   reactors: { me: boolean; other: string | null };
 };
 
-export type FeedEntry = { kind: "post"; item: FeedPost } | { kind: "listing"; item: Card };
+export type FeedEntry =
+  | { kind: "post"; item: FeedPost }
+  | { kind: "listing"; item: Card }
+  /** A society's published results (Oct 2026, social-live.ts). */
+  | { kind: "results"; item: FeedResult };
 
 export type FeedPage = {
   entries: FeedEntry[];
   cursor: string | null;
   noConnections: boolean;
+  /** Groups tab, and the member isn't in any group yet. */
+  noGroups?: boolean;
 };
 
 type ProfileEmbed = {
@@ -729,6 +737,11 @@ export async function loadFeed(viewerId: string, scope: FeedScope, before: strin
     if (connected.length === 0) return { entries: [], cursor: null, noConnections: true };
     authors = [viewerId, ...connected];
   }
+  if (scope === "groups") {
+    const mates = await groupMateIds(viewerId);
+    if (mates.length === 0) return { entries: [], cursor: null, noConnections: false, noGroups: true };
+    authors = mates;
+  }
 
   const postsQuery = (select: string) => {
     let query = supabase
@@ -763,13 +776,47 @@ export async function loadFeed(viewerId: string, scope: FeedScope, before: strin
   const rows = (data ?? []) as PostRow[];
   const hasMore = rows.length > FEED_PAGE_SIZE;
   const page = hasMore ? rows.slice(0, FEED_PAGE_SIZE) : rows;
-  const posts = await hydrate(viewerId, page, PREVIEW_COMMENTS);
+  // Society results sit among the posts by date (For You and Groups): those
+  // between this page's oldest post and the previous page's cursor.
+  const resultsPromise =
+    scope === "connections"
+      ? Promise.resolve([] as FeedResult[])
+      : loadFeedResults(viewerId, hasMore ? page[page.length - 1].created_at : null, before).catch(() => [] as FeedResult[]);
+  const [posts, results] = await Promise.all([hydrate(viewerId, page, PREVIEW_COMMENTS), resultsPromise]);
+  const withResults = placeByDate(posts, results, (p) => p.createdAt, (r) => r.publishedAt, true).map(
+    (e): FeedEntry => (e.kind === "post" ? { kind: "post", item: e.item } : { kind: "results", item: e.item })
+  );
 
   return {
-    entries: interleave(posts, listings, hasMore),
+    entries: interleaveEntries(withResults, listings, hasMore),
     cursor: hasMore ? page[page.length - 1].created_at : null,
     noConnections: false,
   };
+}
+
+/** interleave() places listings among posts; results ride along with the post after them. */
+function interleaveEntries(entries: FeedEntry[], listings: Card[], hasMore: boolean): FeedEntry[] {
+  const posts = entries.filter((e): e is { kind: "post"; item: FeedPost } => e.kind === "post").map((e) => e.item);
+  const placed = interleave(posts, listings, hasMore);
+  if (!entries.some((e) => e.kind === "results")) return placed;
+  // Each run of results goes just before the post it preceded.
+  const before = new Map<number, FeedEntry[]>();
+  const trailing: FeedEntry[] = [];
+  let run: FeedEntry[] = [];
+  for (const e of entries) {
+    if (e.kind === "results") run.push(e);
+    else if (e.kind === "post") {
+      if (run.length) before.set(e.item.id, run);
+      run = [];
+    }
+  }
+  trailing.push(...run);
+  const out: FeedEntry[] = [];
+  for (const e of placed) {
+    if (e.kind === "post") out.push(...(before.get(e.item.id) ?? []));
+    out.push(e);
+  }
+  return [...out, ...trailing];
 }
 
 /**
