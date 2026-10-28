@@ -8,9 +8,9 @@ import DateOfBirthCard from "@/components/age/date-of-birth-card";
 export default async function EditProfilePage({
   searchParams,
 }: {
-  searchParams: Promise<{ welcome?: string }>;
+  searchParams: Promise<{ welcome?: string; discard_error?: string }>;
 }) {
-  const { welcome } = await searchParams;
+  const { welcome, discard_error } = await searchParams;
   const supabase = await createClient();
   const {
     data: { user },
@@ -49,6 +49,11 @@ export default async function EditProfilePage({
       <h1 className="font-display font-bold text-3xl mt-2 mb-7">Set up your game.</h1>
       {/* Joined with Apple or Google (0193): no date of birth yet, and the
           account is held until there is one — so it comes first. */}
+      {discard_error && (
+        <p role="alert" className="mb-4 rounded-xl bg-red-100 text-red-600 text-sm font-semibold px-4 py-3">
+          This account can&rsquo;t be removed here. To delete it, use Delete account in your profile.
+        </p>
+      )}
       {!birthdate && (
         <div className="mb-6">
           <DateOfBirthCard welcome={!!welcome} />

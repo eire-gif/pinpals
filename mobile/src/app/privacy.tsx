@@ -4,6 +4,7 @@ import { Stack, router } from "expo-router";
 import * as Linking from "expo-linking";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
+import { SignInMethods } from "@/components/sign-in-methods";
 import { useAgeAccess } from "@/lib/age";
 import { isUnder16, maskEmail, parentStatusLine } from "@/lib/age-rules";
 import { useAuth } from "@/lib/auth";
@@ -19,6 +20,8 @@ import { colors, fonts, radii, spacing, type } from "@/lib/theme";
  *   - Your mobile: add it, then share it with the people who run your
  *     groups — group by group, off until you turn it on. (No text-message
  *     check: texts cost money per message.)
+ *   - Ways to sign in: email, Apple, Google — connect Apple or Google to
+ *     this account (components/sign-in-methods.tsx).
  *   - Download my data: everything PinPals holds about you, as a file
  *     (opens the website signed in, which downloads it).
  *
@@ -254,6 +257,9 @@ export default function PrivacyScreen() {
             </View>
           </>
         ) : null}
+
+        {/* ============ Ways to sign in (Oct 2026): connect Apple / Google ============ */}
+        <SignInMethods />
 
         {/* ============ Your data ============ */}
         <Text style={styles.heading}>Your data</Text>

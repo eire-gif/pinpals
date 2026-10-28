@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 
-import { isPlaceholderName, joinedWithProvider, readRedirectParams } from "./social-sign-in-rules";
+import { isPlaceholderName, joinedWithProvider, linkErrorMessage, readRedirectParams } from "./social-sign-in-rules";
 
 describe("Sign in with Apple / Google rules", () => {
   it("spots the New Golfer stand-in and nothing else", () => {
@@ -22,5 +22,12 @@ describe("Sign in with Apple / Google rules", () => {
     const p = readRedirectParams("pinpals://auth-callback#error=access_denied&error_description=x");
     expect(p.get("error")).toBe("access_denied");
     expect(readRedirectParams("pinpals://auth-callback").get("code")).toBeNull();
+  });
+
+  it("explains why connecting Apple or Google failed", () => {
+    expect(linkErrorMessage("apple", { code: "identity_already_exists" })).toMatch(/Apple ID already has its own PinPals account/);
+    expect(linkErrorMessage("google", { message: "Identity is already linked to another user" })).toMatch(/Google account already/);
+    expect(linkErrorMessage("google", { code: "manual_linking_disabled" })).toMatch(/isn't switched on/);
+    expect(linkErrorMessage("apple", null)).toBe("Couldn't connect your Apple ID. Please try again.");
   });
 });

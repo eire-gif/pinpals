@@ -20,7 +20,7 @@ import { setMyDateOfBirth } from "@/lib/age";
 import { gateFor } from "@/lib/age-rules";
 import { useAuth } from "@/lib/auth";
 import { routeAfterSignIn } from "@/lib/signup-code";
-import { isPlaceholderName, joinedWithProvider, saveName } from "@/lib/social-sign-in";
+import { discardNewAccount, isPlaceholderName, joinedWithProvider, saveName } from "@/lib/social-sign-in";
 import { supabase } from "@/lib/supabase";
 import { colors, fonts, radii, spacing, type, AUTH_COLUMN } from "@/lib/theme";
 
@@ -66,6 +66,36 @@ export default function DateOfBirthScreen() {
 
   const nameMissing = needsName && (!first.trim() || !last.trim());
   const blocked = !dob || saving || nameMissing;
+
+  // Joined with Apple/Google by mistake — they already have an account
+  // (Apple's "Hide My Email" means PinPals couldn't tell). Remove this empty
+  // one and go back to log in, where they can use their usual details and
+  // connect Apple from Privacy & security.
+  const useExisting = () => {
+    Alert.alert(
+      "Use your existing account?",
+      "We'll remove this new, empty account and take you back to log in. Log in the way you usually do, then go to Profile → Privacy & security → Ways to sign in to connect Apple or Google.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Remove and log in",
+          style: "destructive",
+          onPress: () => {
+            setSaving(true);
+            setError(null);
+            void discardNewAccount().then((r) => {
+              if (r.ok) {
+                router.replace("/login");
+              } else {
+                setError(r.error);
+                setSaving(false);
+              }
+            });
+          },
+        },
+      ],
+    );
+  };
 
   const save = () => {
     if (blocked) return;
@@ -150,6 +180,11 @@ export default function DateOfBirthScreen() {
             )}
           </Pressable>
 
+          {joining ? (
+            <Pressable style={styles.linkRow} onPress={useExisting} disabled={saving} accessibilityRole="button">
+              <Text style={styles.link}>Already have a PinPals account? Use that instead</Text>
+            </Pressable>
+          ) : null}
           <Pressable style={styles.linkRow} onPress={() => void signOut()} accessibilityRole="button">
             <Text style={styles.link}>Log out</Text>
           </Pressable>
@@ -191,5 +226,5 @@ const styles = StyleSheet.create({
   primaryDisabled: { opacity: 0.6 },
   primaryLabel: { fontFamily: fonts.bodyBold, color: colors.cream50, fontSize: type.body },
   linkRow: { minHeight: 44, alignItems: "center", justifyContent: "center" },
-  link: { fontFamily: fonts.bodyBold, color: colors.green700, fontSize: type.small },
+  link: { fontFamily: fonts.bodyBold, color: colors.green700, fontSize: type.small, textAlign: "center" },
 });
