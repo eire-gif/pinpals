@@ -38,6 +38,7 @@ import {
   type ShotgunStart,
 } from "@/lib/live-scoring";
 import { irishToday, isOutingDay, outingDateLabel } from "@/lib/outing-rules";
+import { setMatchDayGroup } from "@/lib/social-live";
 import { addOutingGuest, linkOutingMatchDay, loadClub, loadDrawWishes, loadOuting, publishOutingDraw, saveOuting, setOutingEntry, updateOutingGuest, type DrawSeat, type OutingPage } from "@/lib/outings";
 import { loadItineraryItem, setItemPeople, type ItineraryItem } from "@/lib/itinerary";
 import { linkItemMatchDay } from "@/lib/championships";
@@ -756,6 +757,11 @@ export default function DrawFromGroup() {
         await setDayLeaderboardHidden(id, true).catch(() =>
           Alert.alert("The leaderboard isn't hidden yet", "Open the day and tap Keep the leaderboard secret.")
         );
+      }
+      if (groupId != null) {
+        // The day belongs to the group (0194), so members who aren't playing
+        // can watch it from Social. Never blocks the day itself.
+        await setMatchDayGroup(id, groupId).catch(() => undefined);
       }
       if (outing) {
         // The final draw becomes the outing's tee times, and the outing

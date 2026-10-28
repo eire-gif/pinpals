@@ -62,6 +62,8 @@ const FULL_SCREEN = [
   "card-link",
   "tee-link",
   "+native-intent",
+  // Social's full-screen live view (claude/social-live.md)
+  "social-live",
   // Marketplace
   "listing",
   "listing-offers",

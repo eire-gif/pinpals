@@ -305,6 +305,8 @@ function RootNavigator() {
           collapsed and the conversation has a screen of its own. Set here,
           not in the screen — iOS can't change presentation after a push. */}
       <Stack.Screen name="comments/[id]" options={{ presentation: "modal", title: "Comments" }} />
+      {/* Social's full-screen live view of a day (claude/social-live.md): its own top bar over the photo. */}
+      <Stack.Screen name="social-live/[id]" options={{ headerShown: false, contentStyle: { backgroundColor: colors.navy900 } }} />
       {/* Share a post (phase 6): a sheet like Comments. */}
       <Stack.Screen name="share/[id]" options={{ presentation: "modal", title: "Share post" }} />
       {/* Who reacted (Oct 2026): a sheet like Comments and Share. */}

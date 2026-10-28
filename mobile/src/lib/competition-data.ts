@@ -205,7 +205,16 @@ export async function loadGroupResults(groupId: number, userId?: string | null):
     .limit(30)
     .overrideTypes<{ match_day_id: number; version: number; published_at: string; results: Results }[]>();
   if (error) throw error;
-  return (data ?? []).map((r) => {
+  return (data ?? []).map((r) => groupResultFrom(r, userId));
+}
+
+/** One published results row as a GroupResult — the group's Results page,
+ *  and the results cards on Social (social-live.ts). */
+export function groupResultFrom(
+  r: { match_day_id: number; version: number; published_at: string; results: Results },
+  userId?: string | null
+): GroupResult {
+  {
     const res = r.results;
     const divisionLabels = new Set(res.divisions.map((d) => d.label));
     const first = res.divisions[0]?.ranking.rows ?? [];
@@ -256,7 +265,7 @@ export async function loadGroupResults(groupId: number, userId?: string | null):
           return { label: p.label, name: plain ? `${w.name} (${w.detail!.split(" · ").join(" & ")})` : w.name, score: w.score };
         }),
     };
-  });
+  }
 }
 
 export async function publishResults(dayId: number, results: Results): Promise<{ version: number; shareToken: string }> {

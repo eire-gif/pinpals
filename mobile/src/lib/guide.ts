@@ -68,7 +68,7 @@ import type { Href } from "expo-router";
  *    buy      → app/(tabs)/marketplace/index.tsx, app/marketplace-search.tsx,
  *               app/listing/[id].tsx, app/listing-offers/[id].tsx,
  *               app/seller/[id].tsx, app/feedback/[id].tsx
- *    social   → app/(tabs)/feed.tsx, app/compose.tsx, app/new-post.tsx,
+ *    social   → app/(tabs)/feed.tsx, app/social-live/[id].tsx, components/live-circles.tsx, app/compose.tsx, app/new-post.tsx,
  *               app/comments/[id].tsx, app/share/[id].tsx, app/rate-course.tsx,
  *               app/reactions/[id].tsx, app/share-to-feed/[id].tsx
  *    parentApproval → app/signup.tsx, app/age/waiting.tsx, app/age/date-of-birth.tsx,
@@ -1951,10 +1951,10 @@ export const GUIDES: Guide[] = [
     steps: [
       {
         title: "Start a post",
-        body: "On Home, tap How was golf today? — or Photo, My round or Review under it. On the Social tab, tap ⊕ at the top.",
+        body: "On Home, tap How was golf today? — or Photo, My round or Review under it. On the Social tab, tap Post (your photo with a +) at the start of the circles, or ⊕ at the top.",
         look: [
           { style: "field", label: "How was golf today?", icon: "chatbubble-outline" },
-          { style: "outline", label: "Photo", icon: "camera-outline" },
+          { style: "outline", label: "Post", icon: "add-circle-outline" },
           { style: "outline", label: "My round", icon: "trophy-outline" },
         ],
         go: { label: "Social", to: "/feed" },
@@ -1980,11 +1980,23 @@ export const GUIDES: Guide[] = [
       },
       {
         title: "React and comment",
-        body: "Tap the golf ball on a post for Great Shot, or hold it for On Fire, Nice Round, Amazing and Unlucky. Tap your reaction again to take it away. Comment — type @ to mention someone.",
+        body: "Tap the golf ball on a post for Great Shot, or hold it for On Fire, Nice Round, Amazing and Unlucky. Tap your reaction again to take it away. The top comments show under each post — tap the heart beside one to like it, Reply to answer, or Add a comment. Type @ to mention someone.",
         look: [
           { style: "outline", label: "Great Shot", icon: "golf" },
-          { style: "outline", label: "Comment", icon: "chatbubble-outline" },
+          { style: "outline", label: "Like", icon: "heart-outline" },
+          { style: "field", label: "Add a comment…", icon: "chatbubble-outline" },
         ],
+      },
+      {
+        title: "Watch your group live",
+        body: "The circles across the top of Social show what's on now. A red LIVE circle is one of your groups' days: tap it for the leaderboard over the course photo, a gold banner when someone makes a birdie, Great Shot, and comments you can like and reply to. Green LIVE is your own round or a card someone shared with you; gold is results just published. Groups, beside For You and Following, shows posts and results from your groups.",
+        look: [
+          { style: "outline", label: "LIVE", icon: "radio-button-on" },
+          { style: "outline", label: "Great Shot", icon: "flag" },
+          { style: "outline", label: "Groups", icon: "people-outline" },
+        ],
+        go: { label: "Social", to: "/feed" },
+        tip: "Your group's members can watch a day without playing in it — unless the organiser keeps the leaderboard secret until the prize-giving.",
       },
       {
         title: "See who reacted",
@@ -2098,6 +2110,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-28", text: "Social has a new look: circles across the top show what's on now — tap Post to share, a red LIVE circle to watch one of your groups' days full screen (leaderboard, birdie banner, Great Shot and comments with likes), green for your round or a card shared with you, gold for new results. A Groups tab sits beside For You and Following, society results appear in the feed with their comments, and the top comments show under every post with a heart to like them. A group's page shows a LIVE banner while its day is on. Share on Social: Start a post and React and comment are updated, and there's a new step, Watch your group live." },
   { on: "2026-10-26", text: "New guide, Check your handicap: Menu → Play → Handicap calculator, and Your handicap here on a course's page — course handicaps off every tee, men's or women's, 18 or 9 holes, or typed in off the card; pick the allowance; tap a tee for how it's worked out. Score a game live: Handicap allowance under Stableford and stroke play (100/95/90/85%), tap a plays-off figure for the breakdown, and 9 holes asks for the nine's own rating." },
   { on: "2026-10-25", text: "Team handicaps set by hand: in a scramble, foursomes or greensomes, tap a team's or pair's handicap — on Set up a round, a scramble day or under each group in the draw — to set it for this game. It's marked Set by hand, with the worked-out figure beside it, on the card, leaderboard, TV and results. Once you've teed off, open the card's Leaderboard tab and tap Edit; the team is told if scores are in. Play a round together: new step." },
   { on: "2026-10-24", text: "Score a game live: new step, No signal? Keep scoring — scores are saved on your phone and send by themselves when you're back in range; the round and the hole map open with no signal; Complete scorecard waits until every saved score has sent." },
