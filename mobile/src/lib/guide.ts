@@ -55,7 +55,8 @@ import type { Href } from "expo-router";
  *               components/course-handicap-card.tsx (on app/course/[id].tsx),
  *               app/(tabs)/live/new.tsx (Handicap allowance, tap a plays-off figure)
  *    holeMap  → app/hole-map.tsx, components/hole-map-page.ts, components/hole-map-extras.tsx,
- *               app/my-bag.tsx, app/course/[id].tsx
+ *               app/my-bag.tsx, app/course/[id].tsx,
+ *               app/(tabs)/live/preview.tsx, app/(tabs)/live/index.tsx (Preview a Course)
  *    messages → app/(tabs)/inbox.tsx, app/new-chat.tsx, app/new-group.tsx,
  *               app/conversation/[id].tsx, components/group-chat-bits.tsx,
  *               app/chat-settings/[id].tsx
@@ -1451,13 +1452,24 @@ export const GUIDES: Guide[] = [
     steps: [
       {
         title: "Open the hole map",
-        body: "On a course's page, tap a hole number under Hole by hole. In a live round, tap the gold Yardage & shot map button under the hole number. The satellite view turns so the tee is at the bottom and the green at the top.",
+        body: "On a course's page, tap a hole number under Hole by hole. In a live round, tap the gold Yardage & shot map button under the hole number. Or, before you play, use Preview a Course on Live scoring. The satellite view turns so the tee is at the bottom and the green at the top.",
         look: [
           { style: "outline", label: "1" },
           { style: "outline", label: "2" },
           { style: "primary", label: "Yardage & shot map", icon: "navigate" },
         ],
         art: "holeOverview",
+      },
+      {
+        title: "Preview a course before you play",
+        body: "On Live scoring, tap the teal Preview a Course button and pick your home club, search, or choose one near you. It opens on the 1st hole's satellite map. Swipe or use the arrows to walk the course, or tap the squares button for the Course summary — the tees, par, rating and slope, out and in — and Go to any hole. When you're ready, Start your round here opens Set up a round with the course and tees already filled in.",
+        path: [{ icon: "podium-outline", label: "Live scoring" }, { icon: "map", label: "Preview a Course" }],
+        look: [
+          { style: "primary", label: "Start your round here", icon: "flag" },
+          { style: "outline", label: "Course summary", icon: "grid" },
+        ],
+        go: { label: "Preview a Course", to: "/live/preview" },
+        tip: "Preview a Course is open even while you're in a live round — looking round a course doesn't start a game.",
       },
       {
         title: "Read your numbers",
@@ -2110,6 +2122,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-29", text: "Use the hole map: new step, Preview a course before you play — Live scoring has a teal Preview a Course button. Pick a course and it opens on the 1st hole's satellite map, with a Course summary (tees, par, rating, out and in), Go to any hole, and Start your round here into Set up a round with the course and tees filled in. Without a round, par and index on the hole map now come from the course's saved card." },
   { on: "2026-10-28", text: "Social has a new look: circles across the top show what's on now — tap Post to share, a red LIVE circle to watch one of your groups' days full screen (leaderboard, birdie banner, Great Shot and comments with likes), green for your round or a card shared with you, gold for new results. A Groups tab sits beside For You and Following, society results appear in the feed with their comments, and the top comments show under every post with a heart to like them. A group's page shows a LIVE banner while its day is on. Share on Social: Start a post and React and comment are updated, and there's a new step, Watch your group live." },
   { on: "2026-10-26", text: "New guide, Check your handicap: Menu → Play → Handicap calculator, and Your handicap here on a course's page — course handicaps off every tee, men's or women's, 18 or 9 holes, or typed in off the card; pick the allowance; tap a tee for how it's worked out. Score a game live: Handicap allowance under Stableford and stroke play (100/95/90/85%), tap a plays-off figure for the breakdown, and 9 holes asks for the nine's own rating." },
   { on: "2026-10-25", text: "Team handicaps set by hand: in a scramble, foursomes or greensomes, tap a team's or pair's handicap — on Set up a round, a scramble day or under each group in the draw — to set it for this game. It's marked Set by hand, with the worked-out figure beside it, on the card, leaderboard, TV and results. Once you've teed off, open the card's Leaderboard tab and tap Edit; the team is told if scores are in. Play a round together: new step." },

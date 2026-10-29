@@ -202,6 +202,22 @@ export default function LiveScoringHub() {
           locked={locked}
           onPress={start("/live/new")}
         />
+        {/* Course Preview (Oct 2026): look round a course hole by hole on
+            the satellite map before playing it. Not a round, so it stays
+            open while one is in play. */}
+        {isOn("shotMaps") ? (
+          <RaisedCard
+            inset={false}
+            marginTop={0}
+            tone="teal"
+            icon="map"
+            kicker="Course preview"
+            title="Preview a Course"
+            subtitle="Walk every hole on the map before you tee off"
+            a11y="Preview a course. Pick a course and it opens on the first hole's satellite map, with the course summary, every hole, and a button to start your round there."
+            onPress={() => router.push("/live/preview")}
+          />
+        ) : null}
         {/* Groups (0121): draw a crew or society into tee groups or teams. */}
         {isOn("groups") ? (
           <RaisedCard

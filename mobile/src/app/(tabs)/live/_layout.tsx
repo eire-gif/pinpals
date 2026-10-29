@@ -53,6 +53,29 @@ export default function LiveLayout() {
           ...myRoundRight(null, { onDark: true }),
         }}
       />
+      {/* Course Preview (Oct 2026): the hub's teal button carries its colour on. */}
+      <Stack.Screen
+        name="preview"
+        options={{
+          title: "Course preview",
+          headerStyle: { backgroundColor: TONES.teal.card },
+          headerTintColor: colors.cream50,
+          headerShadowVisible: false,
+          headerTitleAlign: "center",
+          headerTitle: () => (
+            <View style={{ alignItems: "center" }} accessibilityRole="header">
+              <Text style={{ fontFamily: fonts.display, fontSize: 22, lineHeight: 26, color: colors.cream50 }} numberOfLines={1}>
+                Course Preview
+              </Text>
+              <Text style={{ fontFamily: fonts.bodyBold, fontSize: 9.5, letterSpacing: 1.6, textTransform: "uppercase", color: colors.gold400 }}>
+                Pick a course
+              </Text>
+            </View>
+          ),
+          ...headerButtons({ left: <BackPill onDark /> }),
+          ...myRoundRight(null, { onDark: true }),
+        }}
+      />
       <Stack.Screen name="new" options={{ title: "Set up a round" }} />
       <Stack.Screen name="round/[id]" options={{ title: "Scoring" }} />
       <Stack.Screen name="day/new" options={{ title: "Set up a match day" }} />

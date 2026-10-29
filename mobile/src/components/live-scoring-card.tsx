@@ -28,7 +28,7 @@ const RAISED = "#18375f";
  * colour, all with the same gold rim, so they can be told apart at a glance —
  * navy for a round, green for groups and societies, claret for match days.
  */
-export type RaisedTone = "navy" | "green" | "claret" | "bronze";
+export type RaisedTone = "navy" | "green" | "claret" | "bronze" | "teal";
 /** Exported so the page each Home button opens can wear the same colour (Oct 2026). */
 export const TONES: Record<RaisedTone, { card: string; disc: string; chevron: string; sheen: string }> = {
   navy: { card: colors.navy900, disc: colors.navy800, chevron: RAISED, sheen: "rgba(24,58,104,0.55)" },
@@ -36,6 +36,8 @@ export const TONES: Record<RaisedTone, { card: string; disc: string; chevron: st
   claret: { card: "#3a121c", disc: "#55202c", chevron: "#6a2836", sheen: "rgba(112,42,58,0.5)" },
   // Oct 2026: Home's Marketplace button — the same gold rim on a dark bronze.
   bronze: { card: "#3a2a0e", disc: "#54401a", chevron: "#6a5122", sheen: "rgba(122,92,36,0.5)" },
+  // Oct 2026: the live hub's Course Preview — deep sea teal, the same gold rim.
+  teal: { card: "#0e3138", disc: "#164750", chevron: "#1e5a65", sheen: "rgba(32,96,108,0.55)" },
 };
 
 export function LiveScoringCard() {
