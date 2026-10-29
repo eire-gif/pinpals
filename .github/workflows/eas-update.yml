@@ -10,6 +10,13 @@
 # (expo.dev → Account settings → Access tokens; GitHub → Settings → Secrets
 # and variables → Actions → New repository secret).
 #
+# Updates are SIGNED (security review, Oct 2026): phones built with
+# mobile/certs/certificate.pem only accept updates signed with its private
+# key, so nobody holding just the Expo token can push code to members' phones.
+# Save the private key (private-key.pem) as the repo secret
+# EXPO_UPDATES_PRIVATE_KEY — the whole file, BEGIN/END lines included.
+# Publishing from a Codespace: add  --private-key-path <path to the key>.
+#
 # Only for JavaScript changes. A new native module needs a new build, not an
 # update — eas update refuses to ship to phones whose runtime doesn't match.
 
@@ -50,6 +57,15 @@ jobs:
             exit 1
           fi
 
+      - name: Check for the update-signing key
+        env:
+          EXPO_UPDATES_PRIVATE_KEY: ${{ secrets.EXPO_UPDATES_PRIVATE_KEY }}
+        run: |
+          if [ -z "$EXPO_UPDATES_PRIVATE_KEY" ]; then
+            echo "::error::Add the update-signing private key as the repository secret EXPO_UPDATES_PRIVATE_KEY first (see the top of this file)."
+            exit 1
+          fi
+
       - name: Check out main
         uses: actions/checkout@v4
         with:
@@ -83,16 +99,24 @@ jobs:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
 
+      - name: Write the signing key (never committed; removed when the job ends)
+        working-directory: mobile
+        env:
+          EXPO_UPDATES_PRIVATE_KEY: ${{ secrets.EXPO_UPDATES_PRIVATE_KEY }}
+        run: |
+          umask 077
+          printf '%s\n' "$EXPO_UPDATES_PRIVATE_KEY" > "$RUNNER_TEMP/update-private-key.pem"
+
       - name: Publish to iPhone
         if: inputs.platform != 'android'
         working-directory: mobile
-        run: eas update --branch production --platform ios --message "$MESSAGE" --non-interactive
+        run: eas update --branch production --platform ios --message "$MESSAGE" --private-key-path "$RUNNER_TEMP/update-private-key.pem" --non-interactive
         env:
           MESSAGE: ${{ inputs.message }}
 
       - name: Publish to Android
         if: inputs.platform != 'ios'
         working-directory: mobile
-        run: eas update --branch production --platform android --message "$MESSAGE" --non-interactive
+        run: eas update --branch production --platform android --message "$MESSAGE" --private-key-path "$RUNNER_TEMP/update-private-key.pem" --non-interactive
         env:
           MESSAGE: ${{ inputs.message }}
