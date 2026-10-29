@@ -53,7 +53,9 @@ import { isNetworkError } from "@/lib/score-queue-rules";
 import { isSuperAdmin } from "@/lib/admin";
 import { osmLayoutPoints, outlinesNear, type OsmFeature } from "@/lib/osm-course";
 import { loadCourseShapes } from "@/lib/osm-fetch";
-import { loadLiveRound, subscribeToLiveRound, type LiveRoundData } from "@/lib/live-rounds";
+import { loadCourseCards, loadLiveRound, subscribeToLiveRound, type CourseCard, type LiveRoundData } from "@/lib/live-rounds";
+import { defaultCard } from "@/components/live-course-section";
+import { placeLabel } from "@/lib/courses";
 import { loadCourse, type CourseDetail } from "@/lib/onboarding";
 import { colors, creamAlpha, fonts, radii, spacing, type } from "@/lib/theme";
 import { assistFor, competitionLine, loadRoundIsCompetition, manualCompetition, setManualCompetition } from "@/lib/competition-mode";
@@ -70,6 +72,13 @@ import { playOrder } from "@/lib/live-scoring";
  *     each shot was played from, for whichever player is selected;
  *   - from a course page (no roundId): look round a course before playing
  *     it — distances from the tee, or from the member if they're on it.
+ *   - from Live Scoring's Course Preview (no roundId, `preview=1`, Oct 2026):
+ *     the same, opening on hole 1, plus a course summary sheet (tees, par,
+ *     rating, every hole one tap away) and "Start your round here" into
+ *     round set-up with the course and tees filled in.
+ *
+ * Without a round, par and index come from the course's saved card
+ * (course_cards), White tees first as in round set-up.
  *
  * Works on a hole with no geometry yet (most courses until imported): the
  * map opens on the club, and a tap still measures from the member. Every
@@ -110,11 +119,12 @@ const AUTO_PAUSE_MANUAL_MS = 15000;
 const AUTO_PAUSE_WHOLE_MS = 30000;
 
 export default function HoleMapScreen() {
-  const params = useLocalSearchParams<{ clubId: string; hole?: string; roundId?: string; layoutId?: string; shot?: string; shotClub?: string }>();
+  const params = useLocalSearchParams<{ clubId: string; hole?: string; roundId?: string; layoutId?: string; shot?: string; shotClub?: string; preview?: string }>();
   const clubId = Number(params.clubId);
   // "Yardages brought to you by …" (0139): in the sheet, under the numbers.
   const partner = useCoursePartner(clubId);
   const roundId = params.roundId ? Number(params.roundId) : null;
+  const preview = params.preview === "1" && roundId == null;
   const insets = useSafeAreaInsets();
   const { session } = useAuth();
   const me = session?.user?.id ?? null;
@@ -122,6 +132,26 @@ export default function HoleMapScreen() {
 
   const [course, setCourse] = useState<CourseDetail | null>(null);
   const [layouts, setLayouts] = useState<CourseLayout[] | undefined>(undefined);
+  // Without a round: the course's saved cards, for par and index (and the
+  // preview's tees). Null until loaded; [] if there are none.
+  const [teeCards, setTeeCards] = useState<CourseCard[] | null>(null);
+  const [teeCardId, setTeeCardId] = useState<number | null>(null);
+  const [summaryOpen, setSummaryOpen] = useState(false);
+  useEffect(() => {
+    if (roundId != null || !Number.isFinite(clubId)) return;
+    let on = true;
+    void loadCourseCards(clubId)
+      .then((got) => {
+        if (!on) return;
+        setTeeCards(got);
+        setTeeCardId(defaultCard(got)?.id ?? null);
+      })
+      .catch(() => on && setTeeCards([]));
+    return () => {
+      on = false;
+    };
+  }, [clubId, roundId]);
+  const teeCard = teeCards?.find((c) => c.id === teeCardId) ?? null;
   // OpenStreetMap shapes for the course: drawn on the map, and the hole
   // geometry wherever golfapi.io has none. Null until loaded; [] if none.
   const [shapes, setShapes] = useState<OsmFeature[] | null>(null);
@@ -373,7 +403,7 @@ export default function HoleMapScreen() {
 
   // ---- What's on this hole ----
   const layout = layouts?.find((l) => l.id === layoutId) ?? layouts?.[0] ?? null;
-  const holeCount = round?.card.length ?? layout?.holes ?? 18;
+  const holeCount = round?.card.length ?? layout?.holes ?? teeCard?.holes ?? 18;
   const clubAt = course?.latitude != null && course.longitude != null ? { lat: course.latitude, lng: course.longitude } : null;
   const osmPoints = useMemo(() => (shapes && shapes.length ? osmLayoutPoints(shapes, clubAt) : []), [shapes, clubAt?.lat, clubAt?.lng]); // eslint-disable-line react-hooks/exhaustive-deps
   // golfapi.io's points when the hole has them; OpenStreetMap's otherwise.
@@ -433,7 +463,7 @@ export default function HoleMapScreen() {
   const zone = geo.greenCentre ? pinZone(geo, geo.greenCentre) : "middle";
   const fromOsm = !holeGeometry(layout?.points ?? [], hole).mapped && geo.mapped;
   const origin = measuringFrom(geo, fix);
-  const card = round?.card.find((c) => c.hole === hole) ?? null;
+  const card = round ? (round.card.find((c) => c.hole === hole) ?? null) : (teeCard?.card.find((c) => c.hole === hole) ?? null);
   const myShots = playerId != null ? (shots.get(shotKey(playerId, hole)) ?? []) : [];
   // Each mark is where a ball finished; shot 1 starts on the tee (hole-geo).
   const ends = useMemo(() => shotEnds(myShots, geo.mapped ? geo : null), [myShots, geo]);
@@ -805,6 +835,9 @@ export default function HoleMapScreen() {
         : locState === "denied"
           ? "Location is off for PinPals"
           : "Waiting for your position";
+  // Course Preview: into round set-up with this course and tees filled in.
+  const startHere = () =>
+    router.push({ pathname: "/live/new", params: { clubId: String(clubId), ...(teeCard ? { tee: teeCard.teeName } : {}) } });
   const holeMeta = [
     card ? `Par ${card.par}` : null,
     card?.strokeIndex != null ? `SI ${card.strokeIndex}` : null,
@@ -1024,7 +1057,35 @@ export default function HoleMapScreen() {
 
         <YardagesSponsor ad={partner} />
 
-        {canMark || hasDetails ? (
+        {preview ? (
+          <View style={styles.actionRow}>
+            <Pressable
+              onPress={startHere}
+              style={({ pressed }) => [styles.markButton, pressed && styles.pressed]}
+              accessibilityRole="button"
+              accessibilityLabel={`Start your round here, at ${course?.name ?? "this course"}${teeCard ? `, ${teeCard.teeName} tees` : ""}`}
+            >
+              <Ionicons name="flag" size={18} color={colors.navy900} />
+              <Text style={styles.markLabel}>Start your round here</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => setSummaryOpen(true)}
+              style={({ pressed }) => [styles.roundButton, pressed && styles.pressed]}
+              accessibilityRole="button"
+              accessibilityLabel="Course summary and every hole"
+            >
+              <Ionicons name="grid" size={18} color={colors.cream50} />
+            </Pressable>
+            <Pressable
+              onPress={() => setDetailsOpen(true)}
+              style={({ pressed }) => [styles.roundButton, pressed && styles.pressed]}
+              accessibilityRole="button"
+              accessibilityLabel="Hazards and more"
+            >
+              <Ionicons name="list" size={18} color={colors.cream50} />
+            </Pressable>
+          </View>
+        ) : canMark || hasDetails ? (
           <View style={styles.actionRow}>
             {canMark ? (
               <Pressable
@@ -1064,6 +1125,29 @@ export default function HoleMapScreen() {
           </View>
         ) : null}
       </Animated.View>
+
+      {preview ? (
+        <CourseSummarySheet
+          open={summaryOpen}
+          onClose={() => setSummaryOpen(false)}
+          bottom={insets.bottom}
+          name={course?.name ?? "This course"}
+          place={course ? placeLabel(course) : null}
+          cards={teeCards}
+          card={teeCard}
+          onTee={setTeeCardId}
+          holeCount={holeCount}
+          hole={hole}
+          onHole={(h) => {
+            setHole(h);
+            setSummaryOpen(false);
+          }}
+          onStart={() => {
+            setSummaryOpen(false);
+            startHere();
+          }}
+        />
+      ) : null}
 
       <Modal visible={detailsOpen} transparent animationType="slide" onRequestClose={() => setDetailsOpen(false)}>
         <Pressable style={styles.backdrop} onPress={() => setDetailsOpen(false)} accessibilityRole="button" accessibilityLabel="Close" />
@@ -1177,6 +1261,123 @@ function Yardage({ label, value, big = false, flag }: { label: string; value: st
         <Text style={styles.yardageLabel}>{label}</Text>
       </View>
       <Text style={[styles.yardageValue, big && styles.yardageBig]}>{value}</Text>
+    </View>
+  );
+}
+
+/**
+ * Course Preview's summary (Oct 2026): the course, its tees, par and rating,
+ * and every hole one tap away — over the map, so the map stays the screen.
+ */
+function CourseSummarySheet({
+  open,
+  onClose,
+  bottom,
+  name,
+  place,
+  cards,
+  card,
+  onTee,
+  holeCount,
+  hole,
+  onHole,
+  onStart,
+}: {
+  open: boolean;
+  onClose: () => void;
+  bottom: number;
+  name: string;
+  place: string | null;
+  cards: CourseCard[] | null;
+  card: CourseCard | null;
+  onTee: (id: number) => void;
+  holeCount: number;
+  hole: number;
+  onHole: (h: number) => void;
+  onStart: () => void;
+}) {
+  const holes = Array.from({ length: holeCount }, (_, i) => i + 1);
+  const parOf = (h: number) => card?.card.find((c) => c.hole === h)?.par ?? null;
+  const parTotal = card ? (card.parTotal ?? card.card.reduce((n, h) => n + h.par, 0)) : null;
+  const nineSum = (from: number, to: number) => (card ? card.card.filter((c) => c.hole >= from && c.hole <= to).reduce((n, c) => n + c.par, 0) : null);
+  const rows = holeCount > 9 ? [holes.slice(0, 9), holes.slice(9)] : [holes];
+  return (
+    <Modal visible={open} transparent animationType="slide" onRequestClose={onClose}>
+      <Pressable style={styles.backdrop} onPress={onClose} accessibilityRole="button" accessibilityLabel="Close" />
+      <View style={[styles.details, styles.summary, { paddingBottom: bottom + spacing.md }]}>
+        <View style={styles.grabber} />
+        <ScrollView contentContainerStyle={styles.detailsContent}>
+          <Text style={styles.blockTitle}>Course summary</Text>
+          <Text style={styles.summaryName} accessibilityRole="header">
+            {name}
+          </Text>
+          {place ? <Text style={styles.muted}>{place}</Text> : null}
+
+          {cards && cards.length > 1 ? (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
+              {cards.map((c) => (
+                <Chip key={c.id} label={`${c.teeName} tees`} on={c.id === card?.id} onPress={() => onTee(c.id)} />
+              ))}
+            </ScrollView>
+          ) : null}
+
+          <View style={styles.summaryStats}>
+            <SummaryStat label="Par" value={parTotal != null ? String(parTotal) : "–"} />
+            <SummaryStat label="Holes" value={String(holeCount)} />
+            {card?.courseRating != null || card?.slope != null ? (
+              <SummaryStat label="Rating / Slope" value={`${card?.courseRating ?? "–"} / ${card?.slope ?? "–"}`} wide />
+            ) : null}
+          </View>
+          {card && holeCount > 9 ? (
+            <View style={styles.summaryNines}>
+              <Text style={styles.summaryNine}>{`Out · par ${nineSum(1, 9)}`}</Text>
+              <Text style={styles.summaryNine}>{`In · par ${nineSum(10, 18)}`}</Text>
+            </View>
+          ) : null}
+          {cards != null && card == null ? (
+            <Text style={styles.muted}>No card on file for this course yet: par and index show here once a round has saved one.</Text>
+          ) : null}
+
+          <View style={styles.block}>
+            <Text style={styles.blockTitle}>Go to any hole</Text>
+            {rows.map((row, r) => (
+              <View key={r} style={styles.holeGrid}>
+                {row.map((h) => {
+                  const on = h === hole;
+                  const par = parOf(h);
+                  return (
+                    <Pressable
+                      key={h}
+                      onPress={() => onHole(h)}
+                      style={({ pressed }) => [styles.holeCell, on && styles.holeCellOn, pressed && styles.pressed]}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: on }}
+                      accessibilityLabel={`Hole ${h}${par != null ? `, par ${par}` : ""}`}
+                    >
+                      <Text style={[styles.holeCellNo, on && styles.holeCellNoOn]}>{h}</Text>
+                      {par != null ? <Text style={[styles.holeCellPar, on && styles.holeCellParOn]}>{`P${par}`}</Text> : null}
+                    </Pressable>
+                  );
+                })}
+              </View>
+            ))}
+          </View>
+
+          <Pressable onPress={onStart} style={({ pressed }) => [styles.markButton, styles.summaryStart, pressed && styles.pressed]} accessibilityRole="button">
+            <Ionicons name="flag" size={18} color={colors.navy900} />
+            <Text style={styles.markLabel}>Start your round here</Text>
+          </Pressable>
+        </ScrollView>
+      </View>
+    </Modal>
+  );
+}
+
+function SummaryStat({ label, value, wide = false }: { label: string; value: string; wide?: boolean }) {
+  return (
+    <View style={[styles.summaryStat, wide && { flex: 1.6 }]} accessible accessibilityLabel={`${label}, ${value}`}>
+      <Text style={styles.summaryStatLabel}>{label}</Text>
+      <Text style={styles.summaryStatValue}>{value}</Text>
     </View>
   );
 }
@@ -1384,6 +1585,22 @@ const styles = StyleSheet.create({
   compSwitchText: { flex: 1, fontFamily: fonts.body, fontSize: 14, color: colors.cream50 },
   fixLink: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.gold400, marginLeft: spacing.sm },
 
+  summary: { maxHeight: "86%" },
+  summaryName: { fontFamily: fonts.display, fontSize: 26, lineHeight: 31, color: colors.cream50 },
+  summaryStats: { flexDirection: "row", gap: spacing.sm },
+  summaryStat: { flex: 1, backgroundColor: creamAlpha(0.08), borderRadius: radii.md, paddingVertical: 10, paddingHorizontal: 12 },
+  summaryStatLabel: { fontFamily: fonts.bodyBold, fontSize: 11, letterSpacing: 1.2, textTransform: "uppercase", color: creamAlpha(0.7) },
+  summaryStatValue: { fontFamily: fonts.bodyBold, fontSize: 22, color: colors.cream50, marginTop: 4 },
+  summaryNines: { flexDirection: "row", gap: spacing.sm },
+  summaryNine: { flex: 1, fontFamily: fonts.bodySemi, fontSize: 15, color: colors.cream50, backgroundColor: creamAlpha(0.06), borderRadius: radii.md, paddingVertical: 10, paddingHorizontal: 12, overflow: "hidden" },
+  holeGrid: { flexDirection: "row", gap: 4 },
+  holeCell: { flex: 1, minHeight: 48, borderRadius: 10, borderWidth: 1, borderColor: creamAlpha(0.3), alignItems: "center", justifyContent: "center" },
+  holeCellOn: { backgroundColor: colors.gold400, borderColor: colors.gold400 },
+  holeCellNo: { fontFamily: fonts.bodyBold, fontSize: 17, color: colors.cream50 },
+  holeCellNoOn: { color: colors.navy900 },
+  holeCellPar: { fontFamily: fonts.bodySemi, fontSize: 10, color: creamAlpha(0.7) },
+  holeCellParOn: { color: colors.navy900 },
+  summaryStart: { flex: 0, marginTop: spacing.xs },
   actionRow: { flexDirection: "row", gap: spacing.sm, marginTop: 4 },
   markButton: { flex: 1, minHeight: 48, borderRadius: radii.pill, backgroundColor: colors.gold400, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm },
   markLabel: { fontFamily: fonts.bodyBold, fontSize: 15, color: colors.navy900 },

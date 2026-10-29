@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -164,6 +164,31 @@ export default function NewLiveRound() {
       live = false;
     };
   }, [teeTime, userId, setClub]);
+
+  // From Course Preview (Oct 2026): the course, and the tees they were
+  // looking at, already filled in. Still changeable like any other.
+  const { clubId: fromPreview, tee: previewTee } = useLocalSearchParams<{ clubId?: string; tee?: string }>();
+  useEffect(() => {
+    const id = Number.parseInt(String(fromPreview ?? ""), 10);
+    if (!Number.isFinite(id)) return;
+    let live = true;
+    void loadClub(id)
+      .then((club) => {
+        if (club && live) setClub(club);
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [fromPreview, setClub]);
+  const pickCard = course.pickCard;
+  const previewTeeApplied = useRef(false);
+  useEffect(() => {
+    if (previewTeeApplied.current || !previewTee || !course.cards) return;
+    previewTeeApplied.current = true;
+    const match = course.cards.find((c) => c.teeName === previewTee);
+    if (match) pickCard(match);
+  }, [previewTee, course.cards, pickCard]);
 
   const toggleMate = (m: TeeMate) =>
     setPlayers((ps) =>
