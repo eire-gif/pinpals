@@ -58,11 +58,46 @@ const PROVINCE_OF: Record<string, Province> = {
 
 export const PROVINCES: readonly Province[] = ["Leinster", "Munster", "Connacht", "Ulster"];
 
+/**
+ * Roughly the middle of each county in the Republic. The directory has no
+ * county for Irish clubs (region is empty for all of them, Oct 2026), so a
+ * club with no region is placed in the county whose middle is nearest to it.
+ */
+const COUNTY_MIDDLES: [string, number, number][] = [
+  ["Carlow", 52.72, -6.83], ["Dublin", 53.38, -6.25], ["Kildare", 53.17, -6.78], ["Kilkenny", 52.58, -7.22],
+  ["Laois", 52.98, -7.4], ["Longford", 53.73, -7.72], ["Louth", 53.92, -6.48], ["Meath", 53.62, -6.68],
+  ["Offaly", 53.18, -7.7], ["Westmeath", 53.52, -7.42], ["Wexford", 52.48, -6.58], ["Wicklow", 52.98, -6.38],
+  ["Clare", 52.85, -8.98], ["Cork", 51.95, -8.75], ["Kerry", 52.12, -9.68], ["Limerick", 52.5, -8.75],
+  ["Tipperary", 52.65, -7.95], ["Waterford", 52.2, -7.6],
+  ["Galway", 53.35, -8.75], ["Leitrim", 54.12, -8.0], ["Mayo", 53.9, -9.35], ["Roscommon", 53.75, -8.25], ["Sligo", 54.15, -8.6],
+  ["Cavan", 53.98, -7.3], ["Donegal", 54.92, -7.95], ["Monaghan", 54.15, -6.95],
+];
+
+/** The county a point in the Republic is nearest the middle of. */
+export function nearestCounty(lat: number, lng: number): string {
+  let best = COUNTY_MIDDLES[0]![0];
+  let bestD = Infinity;
+  for (const [name, la, lo] of COUNTY_MIDDLES) {
+    // A degree of longitude is about 0.6 of a degree of latitude at 53°N.
+    const d = (lat - la) ** 2 + ((lng - lo) * 0.6) ** 2;
+    if (d < bestD) {
+      bestD = d;
+      best = name;
+    }
+  }
+  return best;
+}
+
 /** The province an Irish club is in (all of Northern Ireland is Ulster), or null. */
-export function provinceOf(club: Pick<PassportClub, "country" | "region">): Province | null {
+export function provinceOf(club: Pick<PassportClub, "country" | "region"> & Partial<Pick<PassportClub, "latitude" | "longitude">>): Province | null {
   if (club.country === "northern-ireland") return "Ulster";
-  if (club.country !== "ireland" || !club.region) return null;
-  return PROVINCE_OF[club.region.replace(/^(Co\.?|County)\s+/i, "").trim()] ?? null;
+  if (club.country !== "ireland") return null;
+  if (club.region) {
+    const p = PROVINCE_OF[club.region.replace(/^(Co\.?|County)\s+/i, "").trim()];
+    if (p) return p;
+  }
+  if (club.latitude != null && club.longitude != null) return PROVINCE_OF[nearestCounty(club.latitude, club.longitude)] ?? null;
+  return null;
 }
 
 /** Courses played in each province. */

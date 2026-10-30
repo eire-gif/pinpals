@@ -28,7 +28,7 @@ const WebView = RNWebView as unknown as ForwardRefExoticComponent<WebViewProps &
 
 export type PassportMapHandle = { show: (view: MapView) => void };
 
-type Props = { pins: MapPin[]; view: MapView; onSelect: (id: number | null) => void; height: number };
+type Props = { pins: MapPin[]; view: MapView; onSelect: (id: number | null) => void; height?: number };
 
 export const PassportMap = forwardRef<PassportMapHandle, Props>(function PassportMap({ pins, view, onSelect, height }, ref) {
   const [source, setSource] = useState<TileSource | null>(null);
@@ -69,7 +69,7 @@ export const PassportMap = forwardRef<PassportMapHandle, Props>(function Passpor
   };
 
   return (
-    <View style={[styles.box, { height }]} accessibilityRole="image" accessibilityLabel={`Satellite map with ${pins.length} courses marked`}>
+    <View style={[styles.box, height != null ? { height } : { flex: 1 }]} accessibilityRole="image" accessibilityLabel={`Satellite map with ${pins.length} courses marked`}>
       {html ? (
         <WebView
           ref={web}
