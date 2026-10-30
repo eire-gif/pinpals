@@ -11,25 +11,24 @@ import { isOn } from "@/lib/features";
 import { loadLiveRound, subscribeToLiveRound, type LiveRoundData } from "@/lib/live-rounds";
 import {
   MAX_STAKE_CENTS,
+  NO_EXTRA,
   NO_STAKES,
   STAKE_PICKS,
-  balances,
   euros,
   exposure,
   matchLine,
   parseEuros,
   pointsLabel,
   settle,
-  sideGames,
   sideGamesBlocked,
-  sidePoints,
   sixesPairs,
   waitingToAgree,
   type SideGame,
   type SideGamesConfig,
   type SideMode,
 } from "@/lib/side-games";
-import { agreeToSideGames, loadSideGames, markSidePaid, paidKey, saveSideGames, type SideGamesState } from "@/lib/side-games-data";
+import { agreeToSideGames, loadSideGames, markSidePaid, paidKey, pickForWolf, saveSideGames, type SideGamesState } from "@/lib/side-games-data";
+import { betLine, extraExposure, sideSummary, wolfOn, wolfToPick, type SideSummary } from "@/lib/side-games-extra";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 
 /**
@@ -171,26 +170,54 @@ function SetUp({
     sixes: euros(initial?.stakes.sixes || startStake).replace("€", ""),
   });
   const [busy, setBusy] = useState(false);
+  // Skins, Wolf and Nassau (0201).
+  const x0 = initial?.extra ?? NO_EXTRA;
+  const [skinsOn, setSkinsOn] = useState(x0.skins != null);
+  const [skinsMode, setSkinsMode] = useState<"carry" | "void">(x0.skins ?? "carry");
+  const [wolfOnGame, setWolfOnGame] = useState(x0.wolf && four);
+  const [nassauOn, setNassauOn] = useState(x0.nassau);
+  const [xAmounts, setXAmounts] = useState({
+    skins: euros(x0.stakes.skins || 100).replace("€", ""),
+    wolf: euros(x0.stakes.wolf || 100).replace("€", ""),
+    nassau: euros(x0.stakes.nassau || 500).replace("€", ""),
+  });
 
   useEffect(() => {
-    if (!four) setPairs(false);
+    if (!four) {
+      setPairs(false);
+      setWolfOnGame(false);
+    }
   }, [four]);
 
   const one = parseEuros(amount);
   const stakes = perGame
     ? { front: parseEuros(each.front), back: parseEuros(each.back), overall: parseEuros(each.overall), sixes: parseEuros(each.sixes) }
     : { front: one, back: one, overall: one, sixes: one };
-  const stakesOk = mode !== "money" || Object.values(stakes).every((v) => v != null);
+  const oldOn = front || back || overall || sixesOn;
+  const xStakes = { skins: parseEuros(xAmounts.skins), wolf: parseEuros(xAmounts.wolf), nassau: parseEuros(xAmounts.nassau) };
+  const xOk = mode !== "money" || ((!skinsOn || xStakes.skins != null) && (!wolfOnGame || xStakes.wolf != null) && (!nassauOn || xStakes.nassau != null));
+  const stakesOk = (mode !== "money" || !oldOn || Object.values(stakes).every((v) => v != null)) && xOk;
   const config: SideGamesConfig = {
     bestFront: front,
     bestBack: back,
     bestOverall: overall,
     sixes: sixesOn ? (pairs && four ? "pairs" : "individual") : null,
     mode,
-    stakes: mode === "money" && stakesOk ? (stakes as SideGamesConfig["stakes"]) : { ...NO_STAKES },
+    stakes: mode === "money" && stakesOk && oldOn ? (stakes as SideGamesConfig["stakes"]) : { ...NO_STAKES },
+    extra: {
+      skins: skinsOn ? skinsMode : null,
+      wolf: wolfOnGame && four,
+      nassau: nassauOn,
+      stakes:
+        mode === "money" && xOk
+          ? { skins: skinsOn ? (xStakes.skins ?? 0) : 0, wolf: wolfOnGame ? (xStakes.wolf ?? 0) : 0, nassau: nassauOn ? (xStakes.nassau ?? 0) : 0 }
+          : { ...NO_EXTRA.stakes },
+    },
   };
-  const anyGame = front || back || overall || sixesOn;
-  const risk = exposure(config, playerIds.length);
+  const anyGame = oldOn || skinsOn || (wolfOnGame && four) || nassauOn;
+  const base = exposure(config, playerIds.length);
+  const more = extraExposure({ skins: skinsOn, wolf: wolfOnGame && four, nassau: nassauOn, stakes: config.extra!.stakes }, playerIds.length);
+  const risk = { maxLoss: base.maxLoss + more.maxLoss, maxWin: base.maxWin + more.maxWin };
   const rotations = sixesPairs(playerIds);
   const nameOf = (id: number) => playerNames[playerIds.indexOf(id)]?.split(" ")[0] ?? "";
 
@@ -205,7 +232,7 @@ function SetUp({
       Alert.alert("Pick a game", "Switch on at least one side game.");
       return;
     }
-    if (mode === "money" && (!stakesOk || Object.values(config.stakes).every((v) => v === 0))) {
+    if (mode === "money" && (!stakesOk || [...Object.values(config.stakes), ...Object.values(config.extra!.stakes)].every((v) => v === 0))) {
       Alert.alert("Put in an amount", "Type how much each game is worth — up to €500.");
       return;
     }
@@ -289,6 +316,51 @@ function SetUp({
         ) : null}
       </View>
 
+      <View style={[styles.card, skinsOn && styles.cardGold]}>
+        <View style={styles.switchRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.gameTitle}>Skins</Text>
+            <Text style={styles.gameSub}>Win a hole outright on points and it&apos;s your skin</Text>
+          </View>
+          <Switch value={skinsOn} onValueChange={setSkinsOn} trackColor={{ true: colors.green700, false: "#cfc6b4" }} accessibilityLabel="Skins" />
+        </View>
+        {skinsOn ? (
+          <>
+            <Segment
+              options={[
+                { id: "carry", label: "Ties carry over" },
+                { id: "void", label: "Ties void" },
+              ]}
+              value={skinsMode}
+              onChange={(v) => setSkinsMode(v === "void" ? "void" : "carry")}
+            />
+            <Text style={styles.hint}>{skinsMode === "carry" ? "A tied hole's skin goes on to the next — they can build up." : "A tied hole's skin is lost."}</Text>
+          </>
+        ) : null}
+      </View>
+
+      <View style={[styles.card, wolfOnGame && four && styles.cardGold]}>
+        <View style={styles.switchRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.gameTitle}>Wolf</Text>
+            <Text style={styles.gameSub}>{four ? "Each hole's Wolf picks a partner after the drives — or goes it alone for double" : "Wolf needs exactly four players"}</Text>
+          </View>
+          <Switch value={wolfOnGame && four} onValueChange={setWolfOnGame} disabled={!four} trackColor={{ true: colors.green700, false: "#cfc6b4" }} accessibilityLabel="Wolf" />
+        </View>
+        {wolfOnGame && four ? <Text style={styles.hint}>{`Wolf order: ${playerIds.map((id) => nameOf(id)).join(", ")} — round and round. Better ball, two v two; Lone Wolf is one v three.`}</Text> : null}
+      </View>
+
+      <View style={[styles.card, nassauOn && styles.cardGold]}>
+        <View style={styles.switchRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.gameTitle}>Nassau</Text>
+            <Text style={styles.gameSub}>{playerIds.length > 2 ? "Each of you against each other: front 9, back 9 and the 18" : "Front 9, back 9 and the 18 — three bets"}</Text>
+          </View>
+          <Switch value={nassauOn} onValueChange={setNassauOn} trackColor={{ true: colors.green700, false: "#cfc6b4" }} accessibilityLabel="Nassau" />
+        </View>
+        {nassauOn ? <Text style={styles.hint}>Go two down in a bet and a press starts by itself — a new bet to the end of that nine.</Text> : null}
+      </View>
+
       <Text style={styles.label}>PLAYING FOR</Text>
       <Segment
         options={[
@@ -302,8 +374,8 @@ function SetUp({
 
       {mode === "money" ? (
         <View style={styles.card}>
-          <Text style={styles.gameTitle}>Amount per game</Text>
-          {!perGame ? (
+          {oldOn ? <Text style={styles.gameTitle}>Amount per game</Text> : null}
+          {!oldOn ? null : !perGame ? (
             <>
               <View style={styles.stepper}>
                 <Pressable onPress={() => step(-100)} style={styles.stepBtn} accessibilityRole="button" accessibilityLabel="Less">
@@ -371,9 +443,39 @@ function SetUp({
                 ))}
             </View>
           )}
-          <Pressable onPress={() => setPerGame((v) => !v)} accessibilityRole="button" style={{ paddingVertical: 6 }}>
-            <Text style={styles.link}>{perGame ? "Same amount for every game" : "Set a different amount per game"}</Text>
-          </Pressable>
+          {oldOn ? (
+            <Pressable onPress={() => setPerGame((v) => !v)} accessibilityRole="button" style={{ paddingVertical: 6 }}>
+              <Text style={styles.link}>{perGame ? "Same amount for every game" : "Set a different amount per game"}</Text>
+            </Pressable>
+          ) : null}
+          {skinsOn || (wolfOnGame && four) || nassauOn ? (
+            <View style={{ gap: 8 }}>
+              {([
+                ["skins", "A skin", skinsOn],
+                ["wolf", "A Wolf point", wolfOnGame && four],
+                ["nassau", "A Nassau bet", nassauOn],
+              ] as const)
+                .filter(([, , on]) => on)
+                .map(([k, label]) => (
+                  <View key={k} style={styles.eachRow}>
+                    <Text style={styles.eachLabel}>{label}</Text>
+                    <View style={styles.eachBox}>
+                      <Text style={styles.eachEuro}>€</Text>
+                      <TextInput
+                        value={xAmounts[k]}
+                        onChangeText={(t) => setXAmounts((prev) => ({ ...prev, [k]: t }))}
+                        keyboardType="decimal-pad"
+                        style={styles.eachInput}
+                        accessibilityLabel={`${label} in euro`}
+                        maxLength={6}
+                        selectTextOnFocus
+                      />
+                    </View>
+                  </View>
+                ))}
+              {!xOk ? <Text style={styles.warn}>Type each amount up to €500, like 1 or 0.50.</Text> : null}
+            </View>
+          ) : null}
           {stakesOk ? (
             <View style={styles.risk}>
               <Text style={styles.riskText}>
@@ -469,7 +571,8 @@ function Standings({
   const live = round.status === "live";
   const players = useMemo(() => [...data.players].sort((a, b) => a.position - b.position), [data.players]);
   const ids = players.map((p) => p.id);
-  const games = useMemo(() => sideGames(config, data.card, players, data.scores), [config, data.card, players, data.scores]);
+  const summaryNow = useMemo(() => sideSummary(config, data.card, players, data.scores, side.wolfPicks, true), [config, data.card, players, data.scores, side.wolfPicks]);
+  const games = summaryNow.games;
   const nameOf = (id: number) => {
     const p = players.find((x) => x.id === id);
     if (!p) return "";
@@ -482,11 +585,24 @@ function Standings({
   const iNeedToAgree = money && me != null && waiting.includes(me);
   const [busy, setBusy] = useState<string | null>(null);
 
-  const allFinal = games.every((g) => g.status === "final");
+  const allFinal = summaryNow.allFinal;
   const settled = !live || allFinal;
-  const bal = balances(games, ids, !settled);
-  const payments = settle(balances(games, ids));
-  const pts = sidePoints(games, ids);
+  const final = sideSummary(config, data.card, players, data.scores, side.wolfPicks, false);
+  const bal = settled ? final.money : summaryNow.money;
+  const payments = settle(final.money);
+  const pts = summaryNow.points;
+  const [picking, setPicking] = useState(false);
+  const pick = async (hole: number, partner: number | null) => {
+    setPicking(true);
+    try {
+      await pickForWolf(round.id, hole, partner);
+      reload();
+    } catch (e) {
+      Alert.alert("Couldn't save the Wolf's pick", e instanceof Error ? e.message : "Please try again.");
+    } finally {
+      setPicking(false);
+    }
+  };
 
   const agree = async (yes: boolean) => {
     setBusy("agree");
@@ -521,7 +637,7 @@ function Standings({
   };
 
   const shareResults = () => {
-    const lines = games.map((g) => `${g.label}: ${winnerLine(g, nameOf)}`);
+    const lines = [...games.map((g) => `${g.label}: ${winnerLine(g, nameOf)}`), ...extraLines(summaryNow, nameOf)];
     const totals = money
       ? players.map((p) => `${p.name.split(" ")[0]} ${euros(bal.get(p.id) ?? 0, true)}`).join(" · ")
       : config.mode === "points"
@@ -549,7 +665,7 @@ function Standings({
           <Text style={styles.gameTitle}>{iNeedToAgree ? `Are you in for ${stakeLine(config)}?` : "Waiting for everyone to say they're in"}</Text>
           <Text style={styles.gameSub}>
             {iNeedToAgree
-              ? `Most you can lose: ${euros(exposure(config, players.length).maxLoss)}. Until everyone's in, the games are played for bragging rights.`
+              ? `Most you can lose: ${euros(exposure(config, players.length).maxLoss + extraExposure({ skins: config.extra?.skins != null, wolf: !!config.extra?.wolf, nassau: !!config.extra?.nassau, stakes: (config.extra ?? NO_EXTRA).stakes }, players.length).maxLoss)}. Until everyone's in, the games are played for bragging rights.`
               : `Still to say: ${players.filter((p) => p.memberId && waiting.includes(p.memberId)).map((p) => p.name.split(" ")[0]).join(", ")}. Until then it's for bragging rights.`}
           </Text>
           {iNeedToAgree && !minor ? (
@@ -562,7 +678,7 @@ function Standings({
         <View style={styles.youNow}>
           <View style={{ flex: 1 }}>
             <Text style={styles.youEyebrow}>YOU RIGHT NOW</Text>
-            <Text style={styles.youLine}>{leadLine(games, mine.id)}</Text>
+            <Text style={styles.youLine}>{games.length ? leadLine(games, mine.id) : "Skins, Wolf and Nassau as they stand"}</Text>
           </View>
           <View style={{ alignItems: "flex-end" }}>
             <Text style={styles.youAmount}>{euros(bal.get(mine.id) ?? 0, true)}</Text>
@@ -571,16 +687,32 @@ function Standings({
         </View>
       ) : null}
 
+      {!settled && summaryNow.wolf ? (
+        <WolfPickCard
+          summary={summaryNow}
+          ids={ids}
+          nameOf={nameOf}
+          busy={picking}
+          canPick={starter || mine != null}
+          onPick={(hole, partner) => void pick(hole, partner)}
+        />
+      ) : null}
+
       {!settled ? (
-        games.map((g) => <GameCard key={g.id} game={g} nameOf={nameOf} mine={mine?.id ?? null} />)
+        <>
+          {games.map((g) => (
+            <GameCard key={g.id} game={g} nameOf={nameOf} mine={mine?.id ?? null} />
+          ))}
+          <ExtraCards summary={summaryNow} players={ids} nameOf={nameOf} mine={mine?.id ?? null} />
+        </>
       ) : (
         <>
           <Text style={styles.label}>WHO WON WHAT</Text>
           <View style={styles.card}>
-            {games.map((g, i) => (
-              <View key={g.id} style={[styles.resultRow, i < games.length - 1 && styles.rowLine]}>
-                <Text style={styles.resultGame}>{g.label}</Text>
-                <Text style={styles.resultWho}>{winnerLine(g, nameOf)}</Text>
+            {[...games.map((g) => ({ id: g.id, label: g.label, who: winnerLine(g, nameOf) })), ...extraResults(final, nameOf)].map((row, i, all) => (
+              <View key={row.id} style={[styles.resultRow, i < all.length - 1 && styles.rowLine]}>
+                <Text style={styles.resultGame}>{row.label}</Text>
+                <Text style={styles.resultWho}>{row.who}</Text>
               </View>
             ))}
           </View>
@@ -737,6 +869,132 @@ function GameCard({ game, nameOf, mine }: { game: SideGame; nameOf: (id: number)
   );
 }
 
+/** Wolf (0201): whose turn it is, and their pick — a partner or Lone Wolf. */
+function WolfPickCard({
+  summary,
+  ids,
+  nameOf,
+  busy,
+  canPick,
+  onPick,
+}: {
+  summary: SideSummary;
+  ids: number[];
+  nameOf: (id: number) => string;
+  busy: boolean;
+  canPick: boolean;
+  onPick: (hole: number, partner: number | null) => void;
+}) {
+  const w = summary.wolf!;
+  const next = wolfToPick(w.holes);
+  if (!next) return null;
+  const wolfName = nameOf(next.wolf);
+  return (
+    <View style={[styles.card, styles.cardGold]}>
+      <Text style={styles.bannerEyebrowDark}>{`HOLE ${next.hole} · THE WOLF`}</Text>
+      <Text style={styles.gameTitle}>{wolfName === "You" ? "You're the Wolf" : `${wolfName}'s the Wolf`}</Text>
+      <Text style={styles.gameSub}>After the drives, take a partner — or go it alone for double.</Text>
+      {canPick ? (
+        <>
+          {ids
+            .filter((id) => id !== next.wolf)
+            .map((id) => (
+              <Pressable key={id} style={styles.outlineBtn} disabled={busy} onPress={() => onPick(next.hole, id)} accessibilityRole="button">
+                <Text style={styles.outlineBtnText}>{`Take ${nameOf(id) === "You" ? "you" : nameOf(id)}`}</Text>
+              </Pressable>
+            ))}
+          <Pressable style={styles.navyBtn} disabled={busy} onPress={() => onPick(next.hole, null)} accessibilityRole="button">
+            {busy ? <ActivityIndicator color={colors.cream50} /> : <Text style={styles.navyBtnText}>Lone Wolf — double or nothing</Text>}
+          </Pressable>
+        </>
+      ) : null}
+      <Text style={styles.hint}>{`Next Wolves: ${[1, 2, 3].map((k) => (next.hole + k <= 18 ? nameOf(wolfOn(next.hole + k, ids)) : null)).filter(Boolean).join(", ") || "that's the last"}`}</Text>
+    </View>
+  );
+}
+
+/** Skins, Wolf and Nassau while the round is on. */
+function ExtraCards({ summary, players, nameOf, mine }: { summary: SideSummary; players: number[]; nameOf: (id: number) => string; mine: number | null }) {
+  const { skins, wolf, nassau } = summary;
+  const sorted = (m: ReadonlyMap<number, number>) => [...players].sort((a, b) => (m.get(b) ?? 0) - (m.get(a) ?? 0));
+  return (
+    <>
+      {skins ? (
+        <View style={styles.card}>
+          <View style={styles.cardHead}>
+            <Text style={[styles.gameTitle, { flex: 1 }]}>Skins</Text>
+            {skins.riding > 1 ? <Text style={[styles.chip, styles.chipLive]}>{`${skins.riding} ON THE NEXT`}</Text> : null}
+          </View>
+          {sorted(skins.won).map((id) => (
+            <View key={id} style={styles.standRow}>
+              <View style={[styles.dot, { backgroundColor: (skins.won.get(id) ?? 0) > 0 ? colors.gold500 : "#cfc6b4" }]} />
+              <Text style={[styles.standName, id === mine && { fontFamily: fonts.bodyBold }]}>{nameOf(id)}</Text>
+              <Text style={styles.standPts}>{`${skins.won.get(id) ?? 0}`}</Text>
+            </View>
+          ))}
+        </View>
+      ) : null}
+      {wolf ? (
+        <View style={styles.card}>
+          <Text style={styles.gameTitle}>Wolf points</Text>
+          {sorted(wolf.points).map((id) => (
+            <View key={id} style={styles.standRow}>
+              <View style={[styles.dot, { backgroundColor: (wolf.points.get(id) ?? 0) > 0 ? colors.gold500 : "#cfc6b4" }]} />
+              <Text style={[styles.standName, id === mine && { fontFamily: fonts.bodyBold }]}>{nameOf(id)}</Text>
+              <Text style={styles.standPts}>{signed(wolf.points.get(id) ?? 0)}</Text>
+            </View>
+          ))}
+        </View>
+      ) : null}
+      {nassau ? (
+        <View style={styles.card}>
+          <Text style={styles.gameTitle}>Nassau</Text>
+          {nassau.bets
+            .filter((b) => mine == null || b.a === mine || b.b === mine)
+            .map((b, i) => {
+              const forA = mine == null || b.a === mine;
+              const other = forA ? b.b : b.a;
+              return (
+                <View key={i} style={styles.mini}>
+                  <Text style={styles.miniText}>
+                    <Text style={{ fontFamily: fonts.bodyBold }}>{mine == null ? `${nameOf(b.a)} v ${nameOf(b.b)}` : `v ${nameOf(other)}`}</Text>
+                    {` · ${b.label}`}
+                  </Text>
+                  <Text style={styles.miniResult}>{betLine(b, forA)}</Text>
+                </View>
+              );
+            })}
+        </View>
+      ) : null}
+    </>
+  );
+}
+
+const signed = (n: number) => (n > 0 ? `+${n}` : n < 0 ? `−${-n}` : "0");
+
+function extraResults(s: SideSummary, nameOf: (id: number) => string): { id: string; label: string; who: string }[] {
+  const out: { id: string; label: string; who: string }[] = [];
+  if (s.skins) {
+    const won = [...s.skins.won].filter(([, n]) => n > 0).sort((a, b) => b[1] - a[1]);
+    out.push({ id: "skins", label: "Skins", who: won.length ? won.map(([id, n]) => `${nameOf(id)} ${n}`).join(" · ") : "None won" });
+  }
+  if (s.wolf) {
+    const top = [...s.wolf.points].sort((a, b) => b[1] - a[1])[0];
+    out.push({ id: "wolf", label: "Wolf", who: top && top[1] > 0 ? `${nameOf(top[0])} ${signed(top[1])}` : "All square" });
+  }
+  if (s.nassau) {
+    const won = new Map<number, number>();
+    for (const b of s.nassau.bets) if (b.done && b.winner != null) won.set(b.winner, (won.get(b.winner) ?? 0) + 1);
+    const top = [...won].sort((a, b) => b[1] - a[1])[0];
+    out.push({ id: "nassau", label: "Nassau", who: top ? `${nameOf(top[0])} · ${top[1]} bet${top[1] === 1 ? "" : "s"}` : "All halved" });
+  }
+  return out;
+}
+
+function extraLines(s: SideSummary, nameOf: (id: number) => string): string[] {
+  return extraResults(s, nameOf).map((r) => `${r.label}: ${r.who}`);
+}
+
 function matchSummary(g: SideGame, nameOf: (id: number) => string): string {
   const m = g.match!;
   if (m.result === "halved") return "Halved";
@@ -767,15 +1025,29 @@ function leadLine(games: readonly SideGame[], me: number): string {
 }
 
 function stakeLine(c: SideGamesConfig): string {
+  const x = c.extra ?? NO_EXTRA;
   const on = [c.bestFront && c.stakes.front, c.bestBack && c.stakes.back, c.bestOverall && c.stakes.overall, c.sixes && c.stakes.sixes].filter(
-    (x): x is number => typeof x === "number"
+    (v): v is number => typeof v === "number"
   );
+  if (on.length === 0) {
+    const parts = [x.skins ? `${euros(x.stakes.skins)} a skin` : null, x.wolf ? `${euros(x.stakes.wolf)} a Wolf point` : null, x.nassau ? `${euros(x.stakes.nassau)} a Nassau bet` : null].filter(Boolean);
+    return parts.join(", ") || "the money games";
+  }
   const same = new Set(on).size === 1;
   return same ? `${euros(on[0] ?? 0)} a game` : "the money games";
 }
 
 function modeLine(c: SideGamesConfig): string {
-  const names = [c.sixes ? (c.sixes === "pairs" ? "Sixes in pairs" : "Sixes") : null, c.bestFront ? "Front 9" : null, c.bestBack ? "Back 9" : null, c.bestOverall ? "Overall" : null]
+  const x = c.extra ?? NO_EXTRA;
+  const names = [
+    c.sixes ? (c.sixes === "pairs" ? "Sixes in pairs" : "Sixes") : null,
+    c.bestFront ? "Front 9" : null,
+    c.bestBack ? "Back 9" : null,
+    c.bestOverall ? "Overall" : null,
+    x.skins ? "Skins" : null,
+    x.wolf ? "Wolf" : null,
+    x.nassau ? "Nassau" : null,
+  ]
     .filter(Boolean)
     .join(", ");
   const mode = c.mode === "money" ? stakeLine(c) : c.mode === "points" ? "for points" : "for bragging rights";
@@ -795,6 +1067,7 @@ const styles = StyleSheet.create({
   banner: { backgroundColor: colors.navy800, borderRadius: radii.lg, padding: spacing.md, gap: 4, borderWidth: 2, borderColor: "#c9a24a" },
   bannerEyebrow: { fontFamily: fonts.bodyBold, fontSize: 11.5, letterSpacing: 1.8, color: colors.gold400 },
   bannerTitle: { fontFamily: fonts.display, fontSize: 24, color: colors.cream50 },
+  bannerEyebrowDark: { fontFamily: fonts.bodyBold, fontSize: 11.5, letterSpacing: 1.8, color: "#8a6a24" },
   bannerBody: { fontFamily: fonts.body, fontSize: 15, lineHeight: 21, color: "#d9d2c2" },
   edit: { position: "absolute", top: 12, right: 12, flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 8, borderRadius: radii.pill, borderWidth: 1, borderColor: "rgba(232,196,107,0.5)" },
   editText: { fontFamily: fonts.bodyBold, fontSize: 14, color: colors.gold400 },

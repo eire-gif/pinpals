@@ -32,7 +32,22 @@ export type SideGamesConfig = {
   mode: SideMode;
   /** Cents per game, money mode only. */
   stakes: { front: number; back: number; overall: number; sixes: number };
+  /** Skins, Wolf and Nassau (0201). Absent = none of them. */
+  extra?: ExtraGames;
 };
+
+/** Skins, Wolf and Nassau (0201): scored in side-games-extra.ts. Amounts are a skin, a Wolf point and a Nassau bet. */
+export type ExtraGames = {
+  skins: "carry" | "void" | null;
+  wolf: boolean;
+  nassau: boolean;
+  stakes: { skins: number; wolf: number; nassau: number };
+};
+
+export const NO_EXTRA: ExtraGames = { skins: null, wolf: false, nassau: false, stakes: { skins: 0, wolf: 0, nassau: 0 } };
+
+/** Any of Skins, Wolf or Nassau on. */
+export const hasExtra = (c: Pick<SideGamesConfig, "extra">): boolean => !!c.extra && (c.extra.skins != null || c.extra.wolf || c.extra.nassau);
 
 export const NO_STAKES = { front: 0, back: 0, overall: 0, sixes: 0 } as const;
 

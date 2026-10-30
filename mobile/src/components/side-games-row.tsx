@@ -5,7 +5,8 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 
 import type { CardHole, ScoreSheet } from "@/lib/live-scoring";
 import type { LiveRoundPlayer } from "@/lib/live-rounds";
-import { balances, euros, sideGames, type SideGamesConfig } from "@/lib/side-games";
+import { euros, type SideGamesConfig } from "@/lib/side-games";
+import { sideSummary } from "@/lib/side-games-extra";
 import { loadSideGames } from "@/lib/side-games-data";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 
@@ -33,12 +34,14 @@ export function SideGamesRow({
   scores: ScoreSheet;
 }) {
   const [config, setConfig] = useState<SideGamesConfig | null | undefined>(undefined);
+  const [picks, setPicks] = useState<Map<number, number | null>>(new Map());
   const [agreed, setAgreed] = useState<Set<string>>(new Set());
 
   const load = useCallback(() => {
     loadSideGames(roundId)
       .then((s) => {
         setConfig(s.config);
+        setPicks(s.wolfPicks);
         setAgreed(s.agreed);
       })
       .catch(() => setConfig(null));
@@ -52,19 +55,21 @@ export function SideGamesRow({
   if (!config && !(live && canSetUp)) return null;
 
   const ordered = [...players].sort((a, b) => a.position - b.position);
-  let sub = "Best Front 9, Back 9 and Sixes, alongside the main game";
+  let sub = "Skins, Wolf, Nassau, Sixes and more, alongside the main game";
   if (config) {
-    const games = sideGames(config, card, ordered, scores);
+    const summary = sideSummary(config, card, ordered, scores, picks, live);
+    const games = summary.games;
     const mine = ordered.find((p) => p.memberId === me);
     const waiting = config.mode === "money" && me != null && mine != null && !agreed.has(me);
     if (waiting) {
       sub = "Tap to say you're in for the money games";
     } else if (config.mode === "money" && mine) {
-      const cents = balances(games, ordered.map((p) => p.id), live).get(mine.id) ?? 0;
+      const cents = summary.money.get(mine.id) ?? 0;
       sub = cents === 0 ? (live ? "All square so far" : "You finished level") : `${euros(cents, true)}${live ? " if it ended now" : " · tap to settle up"}`;
     } else {
       const leading = games.filter((g) => mine && g.winners.includes(mine.id)).length;
-      sub = leading > 0 ? `You ${live ? "lead" : "won"} ${leading} of ${games.length}` : `${games.length} game${games.length === 1 ? "" : "s"} running`;
+      const count = games.length + (summary.skins ? 1 : 0) + (summary.wolf ? 1 : 0) + (summary.nassau ? 1 : 0);
+      sub = leading > 0 ? `You ${live ? "lead" : "won"} ${leading} of ${games.length}` : `${count} game${count === 1 ? "" : "s"} running`;
     }
   }
 
