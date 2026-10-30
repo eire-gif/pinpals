@@ -308,3 +308,71 @@ describe("who can read them", () => {
     });
   });
 });
+
+// 0201 — Skins, Wolf and Nassau.
+describe("skins, wolf and nassau", () => {
+  const extra = (x: object = {}) =>
+    JSON.stringify({ skins: "carry", wolf: true, nassau: true, mode: "money", stake_skins: 100, stake_wolf: 100, stake_nassau: 500, ...x });
+  const PICK = "select public.live_round_wolf_pick($1, $2::smallint, $3)";
+
+  it("are set up on their own, with their own amounts; a change clears the agreements", async () => {
+    await withRole("authenticated", ME, async (c) => {
+      await setUp(c);
+      const round = await createRound(c);
+      await c.query(SET, [round, extra()]);
+      const { rows } = await c.query("select skins, wolf, nassau, stake_skins, stake_wolf, stake_nassau, best_front from public.live_round_side_games where round_id = $1", [round]);
+      expect(rows[0]).toEqual({ skins: "carry", wolf: true, nassau: true, stake_skins: 100, stake_wolf: 100, stake_nassau: 500, best_front: false });
+      await as(c, PAL);
+      await c.query(AGREE, [round, true]);
+      expect(await agreements(c, round)).toHaveLength(2);
+      await as(c, ME);
+      await c.query(SET, [round, extra({ stake_skins: 200 })]);
+      expect(await agreements(c, round)).toEqual([ME]);
+      await c.query(SET, [round, extra({ skins: "void" })]);
+      expect(await agreements(c, round)).toEqual([ME]);
+      // Not for money: amounts aren't kept.
+      await c.query(SET, [round, extra({ mode: "points" })]);
+      expect((await c.query("select stake_skins, stake_wolf, stake_nassau from public.live_round_side_games where round_id = $1", [round])).rows[0]).toEqual({ stake_skins: 0, stake_wolf: 0, stake_nassau: 0 });
+    });
+  });
+
+  it("wolf needs four players; skins ties carry or are void", async () => {
+    await withRole("authenticated", ME, async (c) => {
+      await setUp(c);
+      const three = await createRound(c, [p(ME, "Eire"), p(PAL, "Ciarán"), p(null, "Darragh")]);
+      await rejects(c, SET, [three, extra({ nassau: false, skins: null })], /Wolf needs exactly four players/);
+      await c.query(SET, [three, extra({ wolf: false })]);
+      await rejects(c, SET, [three, extra({ wolf: false, skins: "double" })], /carry over or are void/);
+    });
+  });
+
+  it("the Wolf's pick: any player or the starter, while live; the Wolf comes round in playing order", async () => {
+    await withRole("authenticated", ME, async (c) => {
+      await setUp(c);
+      const round = await createRound(c);
+      const ids = await playerIds(c, round);
+      await rejects(c, PICK, [round, 1, ids[1]], /Wolf isn't being played/);
+      await c.query(SET, [round, extra({ mode: "pride" })]);
+      // Hole 1: the first player is the Wolf and takes the third.
+      await c.query(PICK, [round, 1, ids[2]]);
+      // Hole 6: the second player's turn; a player in the round picks Lone Wolf.
+      await as(c, PAL);
+      await c.query(PICK, [round, 6, null]);
+      await rejects(c, PICK, [round, 6, ids[1]], /other three/);
+      await rejects(c, PICK, [round, 19, null], /Which hole/);
+      const picks = (await c.query("select hole, wolf_player_id, partner_player_id from public.live_round_wolf_picks where round_id = $1 order by hole", [round])).rows;
+      expect(picks).toEqual([
+        { hole: 1, wolf_player_id: ids[0], partner_player_id: ids[2] },
+        { hole: 6, wolf_player_id: ids[1], partner_player_id: null },
+      ]);
+      await as(c, STRANGER);
+      await rejects(c, PICK, [round, 2, null], /Only the players/);
+      expect((await c.query("select 1 from public.live_round_wolf_picks where round_id = $1", [round])).rows).toHaveLength(0);
+      await rejects(c, "insert into public.live_round_wolf_picks (round_id, hole, wolf_player_id) values ($1, 3, $2)", [round, ids[0]], /permission denied/);
+      // Wolf off: the picks go.
+      await as(c, ME);
+      await c.query(SET, [round, extra({ mode: "pride", wolf: false })]);
+      expect((await c.query("select 1 from public.live_round_wolf_picks where round_id = $1", [round])).rows).toHaveLength(0);
+    });
+  });
+});

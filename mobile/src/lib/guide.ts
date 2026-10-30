@@ -50,7 +50,7 @@ import type { Href } from "expo-router";
  *               app/(tabs)/live/day/[id].tsx (Show on TV),
  *               app/(tabs)/live/share/[id].tsx, components/share-live-row.tsx,
  *               app/(tabs)/live/follow/[id].tsx (Share live / Following),
- *               app/(tabs)/live/side/[id].tsx, components/side-games-row.tsx (Side games)
+ *               app/(tabs)/live/side/[id].tsx, components/side-games-row.tsx (Side games: Skins, Wolf, Nassau too)
  *    passport → app/passport.tsx, app/passport-list.tsx, components/passport-map.tsx,
  *               app/course/board/[id].tsx, app/course/champions/[id].tsx, app/course/[id].tsx,
  *               app/privacy.tsx (Course leaderboards), app/wrapped.tsx, app/(tabs)/profile.tsx,
@@ -1392,14 +1392,23 @@ export const GUIDES: Guide[] = [
       },
       {
         title: "Add side games",
-        body: "Whoever started the round can add side games that run alongside the main score: Best Front 9, Best Back 9, Best Overall, and Sixes — three 6-hole games, on your own or in pairs that rotate so you partner everyone once. On the scorecard, tap Add side games, switch on the ones you play, then pick Bragging, Points or Money and the amount per game.",
+        body: "Whoever started the round can add side games that run alongside the main score: Best Front 9, Best Back 9, Best Overall, Sixes (three 6-hole games, on your own or in pairs that rotate so you partner everyone once), Skins (ties carry over or are void), Wolf and Nassau (front, back and the 18 against each other, with automatic presses at two down). On the scorecard, tap Add side games, switch on the ones you play, then pick Bragging, Points or Money and the amounts.",
         look: [
-          { style: "raised", label: "Add side games", icon: "trophy", subtitle: "Best Front 9, Back 9 and Sixes, alongside the main game" },
+          { style: "raised", label: "Add side games", icon: "trophy", subtitle: "Skins, Wolf, Nassau, Sixes and more, alongside the main game" },
           { style: "outline", label: "Pairs" },
           { style: "field", label: "Amount per game  €5" },
           { style: "primary", label: "Start side games" },
         ],
-        tip: "Everything is scored on Stableford points off each player's own handicap. They need an 18-hole round where everyone plays their own ball; Sixes in pairs needs four players. Money isn't offered to anyone under 18.",
+        tip: "Everything is scored on Stableford points off each player's own handicap. They need an 18-hole round where everyone plays their own ball; Sixes in pairs and Wolf need four players. Money isn't offered to anyone under 18.",
+      },
+      {
+        title: "Play Wolf",
+        body: "With Wolf on, the side games screen shows whose turn it is: the Wolf, in playing order, round and round. After the drives tap Take and a partner — better ball, two v two — or Lone Wolf, one against the other three for double. Anyone in the group can tap it for the Wolf.",
+        look: [
+          { style: "outline", label: "Take Ciarán" },
+          { style: "primary", label: "Lone Wolf — double or nothing" },
+        ],
+        tip: "A hole only counts once the Wolf's pick is in. Wolf points are shown as you go; in Money each point is the amount you set.",
       },
       {
         title: "Say you're in, and settle up",
@@ -2289,6 +2298,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-30", text: "Score a game live: side games now include Skins (ties carry over or are void), Wolf (take a partner or go Lone Wolf) and Nassau (front, back and the 18 against each other, with automatic presses). New step, Play Wolf." },
   { on: "2026-10-30", text: "Your passport, rivals, leaderboards and year: new step, Your rivals — your record against everyone you've played against (Profile → Your rivals), the head to head with each of them, and Send the record to a guest." },
   { on: "2026-10-30", text: "New guide, Play the trip as a Ryder Cup: on a trip's Itinerary, Play it as a Ryder Cup — two teams (captains pick, balanced by handicap or a random draw), a session for each round in fourballs, foursomes, greensomes or singles, secret lineups from each captain, Start the session, and one running points total with what each team needs." },
   { on: "2026-10-30", text: "Score a game live: if you're already in a live game, Set up a round shows it at the top with Continue, Finish, and Delete when you started it — the same as the Live scoring card." },
