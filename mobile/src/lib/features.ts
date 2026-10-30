@@ -96,6 +96,10 @@ export const FEATURES = {
    *  a binary with the card (LiveBoardLiveActivity.swift); an older binary
    *  ignores it. Off: just the scoring card, as before. */
   lockScreenBoard: true,
+  /** Side games (claude/side-games.md, needs 0196): Best Front 9 / Back 9 /
+   *  Overall and Sixes alongside a round, with settle-up. Off hides the
+   *  round screen's Side games row; the screen says "on its way". */
+  sideGames: true,
 
   // ---- Gates (unfinished, off) ----
   /** Shared rounds (phase 9): model only — see claude/shared-round-model.md. */

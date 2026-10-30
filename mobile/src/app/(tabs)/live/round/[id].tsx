@@ -57,6 +57,7 @@ import { shareText } from "@/lib/scorecard-math";
 import { saveScorecardPhoto } from "@/lib/scorecard-photo";
 import { liveGameShareText } from "@/lib/live-share";
 import { ShareLiveRow } from "@/components/share-live-row";
+import { SideGamesRow } from "@/components/side-games-row";
 import { ShareOnSocialRow } from "@/components/share-on-social-row";
 import { SITE_URL } from "@/lib/config";
 import { useLiveRefresh } from "@/lib/use-live-refresh";
@@ -745,9 +746,16 @@ export default function LiveRoundScreen() {
   // Share on Social (0195): a round outside a day, by anyone playing in it
   // (a day's rounds are shared with the day, by its organiser).
   const canShareSocial = live && round.matchDayId == null && (iPlay || round.createdBy === me);
+  // Side games (0196): whoever started the round sets them up; everyone sees
+  // where they stand. The row hides itself when there's nothing to show.
+  const sideGamesOn = isOn("sideGames") && round.holes === 18 && round.matchDayId == null && scr == null && players.length >= 2;
+  const sideGamesRow = sideGamesOn ? (
+    <SideGamesRow roundId={round.id} live={live} canSetUp={round.createdBy === me} me={me} card={card} players={players} scores={scores} />
+  ) : null;
   const shareLiveRow =
-    canShareLive || canShareSocial ? (
+    canShareLive || canShareSocial || (sideGamesOn && live) ? (
       <View style={{ gap: spacing.sm }}>
+        {live ? sideGamesRow : null}
         {canShareLive ? <ShareLiveRow roundId={round.id} organiser={dayHeader?.createdBy === me} guestOnly={!iPlay} /> : null}
         {canShareSocial ? <ShareOnSocialRow thread={{ roundId: round.id }} what="round" /> : null}
       </View>
@@ -1636,6 +1644,9 @@ export default function LiveRoundScreen() {
               <Text style={styles.nextLabel}>{finishLabel}</Text>
             </Pressable>
           ) : null}
+
+          {/* After the round: settle up the side games (0196). */}
+          {!live ? sideGamesRow : null}
 
           {/* After the round (Find PinPals, mock-up 5): connect with the
               fourball, send a guest their scorecard. */}

@@ -204,6 +204,11 @@ const EXPECTED: Record<string, Expectation> = {
   "live_match_day_delete(p_day_id bigint)": { anon: false, authenticated: true },
   "live_round_set_drive(p_round_id bigint, p_hole smallint, p_position smallint)": { anon: false, authenticated: true },
   "live_round_set_team_handicap(p_round_id bigint, p_handicap integer)": { anon: false, authenticated: true },
+  // 0196 side games
+  "live_round_set_side_games(p_round_id bigint, p_games jsonb)": { anon: false, authenticated: true },
+  "live_round_side_games_agree(p_round_id bigint, p_agree boolean)": { anon: false, authenticated: true },
+  "live_round_side_game_paid(p_round_id bigint, p_from bigint, p_to bigint, p_amount_cents integer, p_paid boolean)": { anon: false, authenticated: true },
+  "live_round_side_games_error(p_round_id bigint, p_me uuid)": { anon: false, authenticated: false },
   "live_scramble_day_create(p_day jsonb, p_teams jsonb, p_card jsonb)": { anon: false, authenticated: true },
   // 0137 competition results. Each checks the caller organised the day
   // (or, for card status, is in it) itself.
