@@ -118,6 +118,10 @@ export const FEATURES = {
    *  running points total. Off hides the itinerary's Cup card; the screens
    *  say "on its way". */
   tripCup: true,
+  /** The trip kitty (claude/trip-kitty.md, needs 0202): who paid what on a
+   *  trip, split between whom, balances and settle-up. Off hides the
+   *  itinerary's Kitty card; the screens say "on its way". */
+  tripKitty: true,
   /** Rivalries (claude/rivalries.md, no migration): your head-to-head record
    *  with everyone you've played against, from finished live rounds. Off
    *  hides the Profile entry; the screens say "on its way". */
