@@ -4,7 +4,7 @@
 formats across days, and a running points total." Mock-ups approved on the
 canvas *PinPals Ryder Cup Mode* (5 boards), then "build it".
 
-**Status:** branch `ryder-cup-mode`. Migration 0200 is additive (no drops).
+**Status:** PR #363 (branch `ryder-cup-mode`). Migration 0200 is additive (no drops) and was **applied to production 30 Oct 2026** (checked: RLS on all four tables, signed-in read only on three, lineups unreadable directly, no anon access, the ten functions signed-in only).
 App only (Expo, `eas update`; no native module). Feature flag `tripCup`.
 
 ## How it works
