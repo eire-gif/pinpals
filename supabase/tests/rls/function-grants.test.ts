@@ -214,6 +214,10 @@ const EXPECTED: Record<string, Expectation> = {
   "my_guest_invite_stats()": { anon: false, authenticated: true },
   // 0196 side games
   "live_round_set_side_games(p_round_id bigint, p_games jsonb)": { anon: false, authenticated: true },
+  "trip_kitty_save(p_outing_id bigint, p_id bigint, p jsonb)": { anon: false, authenticated: true },
+  "trip_kitty_delete(p_id bigint)": { anon: false, authenticated: true },
+  "trip_kitty_pay(p_outing_id bigint, p_from uuid, p_to uuid, p_amount_cents integer)": { anon: false, authenticated: true },
+  "trip_kitty_unpay(p_payment_id bigint)": { anon: false, authenticated: true },
   "live_round_wolf_pick(p_round_id bigint, p_hole smallint, p_partner bigint)": { anon: false, authenticated: true },
   "trip_cup_member(p_cup_id bigint, p_user_id uuid)": { anon: false, authenticated: true },
   "trip_cup_officer(p_cup_id bigint, p_user_id uuid)": { anon: false, authenticated: true },

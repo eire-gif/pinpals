@@ -35,6 +35,8 @@ import { myRoundRight } from "@/components/my-round-pill";
 import { setTripChampionship, tripChampionship, type Championship } from "@/lib/championships";
 import { isOn } from "@/lib/features";
 import { loadTripCup, type Cup } from "@/lib/trip-cup";
+import { kittySpent } from "@/lib/kitty";
+import { kittyEuros } from "@/lib/kitty-rules";
 
 /**
  * A trip's itinerary (0126) — one screen for everyone in the society.
@@ -64,6 +66,8 @@ export default function ItineraryScreen() {
   const [champBusy, setChampBusy] = useState(false);
   /** Ryder Cup mode (0200). */
   const [cup, setCup] = useState<Cup | null>(null);
+  /** The trip kitty (0202): what's been spent, or null before 0202. */
+  const [kitty, setKitty] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     if (!userId) return;
@@ -71,6 +75,7 @@ export default function ItineraryScreen() {
       const [o, list, g, c] = await Promise.all([loadOuting(outingId), loadItinerary(outingId), loadGroupPage(groupId, userId), tripChampionship(outingId).catch(() => null)]);
       setChamp(c);
       setCup(isOn("tripCup") ? await loadTripCup(outingId).catch(() => null) : null);
+      setKitty(isOn("tripKitty") ? await kittySpent(outingId) : null);
       setPage(o);
       setItems(sortItems(list));
       // Whoever runs events: owner, captain, secretary, and since 0144 the
@@ -266,6 +271,23 @@ export default function ItineraryScreen() {
             <View style={{ flex: 1 }}>
               <Text style={styles.boardTitle}>{cup?.status === "open" ? `The Cup · ${cup.teamNames[0]} v ${cup.teamNames[1]}` : "Play it as a Ryder Cup"}</Text>
               <Text style={styles.boardMeta}>{cup?.status === "open" ? "Teams, sessions and the running score" : "Two teams, a format each round, one points total"}</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={colors.gold400} />
+          </Pressable>
+        ) : null}
+
+        {/* The trip kitty (0202) */}
+        {!cancelled && isOn("tripKitty") && kitty != null ? (
+          <Pressable
+            style={[styles.board, styles.boardOpen]}
+            onPress={() => router.push({ pathname: "/group/[id]/kitty/[outingId]", params: { id: String(groupId), outingId: String(outingId) } })}
+            accessibilityRole="button"
+            accessibilityLabel="Open the trip kitty"
+          >
+            <Ionicons name="wallet-outline" size={22} color={colors.gold400} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.boardTitle}>{kitty > 0 ? `The kitty · ${kittyEuros(kitty)} spent` : "The kitty"}</Text>
+              <Text style={styles.boardMeta}>{kitty > 0 ? "Who paid what, and settle up" : "Paid for something for the group? Add it and split it"}</Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color={colors.gold400} />
           </Pressable>

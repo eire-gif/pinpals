@@ -34,7 +34,7 @@ import type { Href } from "expo-router";
  *    join     → app/groups/find.tsx, app/groups/index.tsx, app/group/[id]/index.tsx
  *    event    → app/group/[id]/events.tsx, app/group/[id]/outing/new.tsx,
  *               app/group/[id]/outing/[outingId].tsx, components/outing-pay-card.tsx,
- *               app/group/[id]/itinerary/*
+ *               app/group/[id]/itinerary/*, app/group/[id]/kitty/* (The kitty)
  *    round    → app/(tabs)/live/day/group.tsx, app/(tabs)/live/round/[id].tsx,
  *               app/scorecards/certify/[id].tsx
  *    results  → app/(tabs)/live/day/[id].tsx, components/results-entry.tsx,
@@ -603,6 +603,17 @@ export const GUIDES: Guide[] = [
         look: [{ style: "outline", label: "Itinerary · build and edit", icon: "map-outline" }],
         tip: "Skip this for a day out.",
         as: { trip: { tip: "Each round on the itinerary has its own groups and tee times." } },
+      },
+      {
+        title: "Keep the trip kitty",
+        body: "On the trip's Itinerary, tap The kitty. Paid for green fees, taxis or dinner for the group? Tap + Add what you paid: what it was, how much, who paid and who it's split between — everyone going, or just some of you. The kitty shows what's been spent and whether you're owed or owe; Settle up lists the fewest payments that square everyone, each with Mark as paid.",
+        only: ["trip", "society", "friends"],
+        look: [
+          { style: "outline", label: "The kitty", icon: "wallet-outline" },
+          { style: "primary", label: "+ Add what you paid" },
+          { style: "outline", label: "Settle up" },
+        ],
+        tip: "Pay each other by Revolut, bank or cash — PinPals keeps the tally, never the money. Only for overnight and abroad trips.",
       },
       {
         title: "Add guests",
@@ -2298,6 +2309,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-30", text: "Run an event / plan the trip: new step, Keep the trip kitty — on a trip's Itinerary, The kitty: add what you paid and who it's split between, see what's spent and what you're owed, and Settle up with the fewest payments." },
   { on: "2026-10-30", text: "Score a game live: side games now include Skins (ties carry over or are void), Wolf (take a partner or go Lone Wolf) and Nassau (front, back and the 18 against each other, with automatic presses). New step, Play Wolf." },
   { on: "2026-10-30", text: "Your passport, rivals, leaderboards and year: new step, Your rivals — your record against everyone you've played against (Profile → Your rivals), the head to head with each of them, and Send the record to a guest." },
   { on: "2026-10-30", text: "New guide, Play the trip as a Ryder Cup: on a trip's Itinerary, Play it as a Ryder Cup — two teams (captains pick, balanced by handicap or a random draw), a session for each round in fourballs, foursomes, greensomes or singles, secret lineups from each captain, Start the session, and one running points total with what each team needs." },
