@@ -43,6 +43,7 @@ import {
 } from "@/lib/new-gear";
 import { loadMyProfile } from "@/lib/profile";
 import { supabase } from "@/lib/supabase";
+import { isOn } from "@/lib/features";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 import { coursesNear } from "@/lib/courses";
 import { decorateCards, kmLabel, loadAtClubs, loadFresh, shortClub } from "@/lib/used-gear";
@@ -359,6 +360,14 @@ export default function MarketplaceScreen() {
         </View>
       </View>
 
+      {isOn("wantedAds") && mode === "used" ? (
+        <Pressable onPress={() => router.push("/wanted")} style={styles.wantedRow} accessibilityRole="button">
+          <Ionicons name="search-outline" size={18} color={colors.navy800} />
+          <Text style={styles.wantedText}>Can&apos;t find it? Post a wanted ad</Text>
+          <Ionicons name="chevron-forward" size={16} color={colors.ink500} />
+        </Pressable>
+      ) : null}
+
       {mode === "used" && understood && (understood.chips.length > 0 || understood.corrections.length > 0) ? (
         <View style={styles.understood}>
           <Ionicons name="sparkles" size={14} color="#8a6a1f" />
@@ -606,6 +615,8 @@ function ChipButton({ label, on, onPress }: { label: string; on: boolean; onPres
 const LIP = "#9c7a2c";
 
 const styles = StyleSheet.create({
+  wantedRow: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 44, marginHorizontal: spacing.md, marginTop: spacing.sm, paddingHorizontal: 12, borderRadius: radii.md, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
+  wantedText: { flex: 1, fontFamily: fonts.bodyBold, fontSize: type.small, color: colors.navy800 },
   fill: { flex: 1, backgroundColor: colors.cream50 },
   list: { paddingBottom: spacing.lg, gap: spacing.md },
   column: { gap: 12, paddingHorizontal: spacing.md },

@@ -118,6 +118,10 @@ export const FEATURES = {
    *  running points total. Off hides the itinerary's Cup card; the screens
    *  say "on its way". */
   tripCup: true,
+  /** Wanted ads (claude/wanted-ads.md, needs 0203): post what you're looking
+   *  for; listings that fit tell you; sellers see who's looking. Off hides
+   *  the marketplace's Wanted card and the listing's matches. */
+  wantedAds: true,
   /** The trip kitty (claude/trip-kitty.md, needs 0202): who paid what on a
    *  trip, split between whom, balances and settle-up. Off hides the
    *  itinerary's Kitty card; the screens say "on its way". */
