@@ -44,6 +44,8 @@ export default function PassportScreen() {
   const [failed, setFailed] = useState(false);
   const [view, setView] = useState<MapView>("ireland");
   const [selected, setSelected] = useState<number | null>(null);
+  // Map only (Oct 30): the details below hide so the map has the whole screen.
+  const [mapOnly, setMapOnly] = useState(false);
   const map = useRef<PassportMapHandle | null>(null);
 
   const load = useCallback(async () => {
@@ -116,9 +118,11 @@ export default function PassportScreen() {
   return (
     <>
       {header}
-      <ScrollView contentContainerStyle={{ paddingBottom: spacing.xl * 2 }}>
-        <View>
-          <PassportMap ref={map} pins={pins} view={view} onSelect={setSelected} height={400} />
+      {/* The map sits OUTSIDE the scrolling details (30 Oct): dragging the
+          map used to drag the whole page with it. */}
+      <View style={mapOnly ? { flex: 1 } : { height: 360 }}>
+        <View style={{ flex: 1 }}>
+          <PassportMap ref={map} pins={pins} view={view} onSelect={setSelected} />
           <View style={styles.chips} accessibilityRole="radiogroup">
             {(["ireland", "europe", "world"] as const).map((v) => (
               <Pressable
@@ -132,6 +136,15 @@ export default function PassportScreen() {
               </Pressable>
             ))}
           </View>
+          <Pressable
+            onPress={() => setMapOnly((v) => !v)}
+            style={styles.expand}
+            accessibilityRole="button"
+            accessibilityLabel={mapOnly ? "Show the details" : "Map only"}
+          >
+            <Ionicons name={mapOnly ? "contract" : "expand"} size={18} color={colors.navy900} />
+            <Text style={styles.expandText}>{mapOnly ? "Details" : "Map only"}</Text>
+          </Pressable>
           {pick ? (
             <Pressable
               onPress={() => router.push(`/course/${pick.id}`)}
@@ -161,6 +174,10 @@ export default function PassportScreen() {
           ) : null}
         </View>
 
+      </View>
+
+      {mapOnly ? null : (
+      <ScrollView contentContainerStyle={{ paddingBottom: spacing.xl * 2 }}>
         <View style={styles.body}>
           <View style={styles.legend}>
             <Legend dot={styles.dotPlayed} label="Played" />
@@ -250,6 +267,7 @@ export default function PassportScreen() {
           ) : null}
         </View>
       </ScrollView>
+      )}
     </>
   );
 }
@@ -264,6 +282,8 @@ function Legend({ dot, label }: { dot: object; label: string }) {
 }
 
 const styles = StyleSheet.create({
+  expand: { position: "absolute", top: 12, right: 12, minHeight: 40, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, borderRadius: radii.pill, backgroundColor: "rgba(255,255,255,0.94)" },
+  expandText: { fontFamily: fonts.bodyBold, fontSize: 15, color: colors.navy900 },
   chips: { position: "absolute", top: 12, left: 12, flexDirection: "row", gap: 6 },
   chip: { minHeight: 40, paddingHorizontal: 14, borderRadius: radii.pill, backgroundColor: "rgba(255,255,255,0.94)", justifyContent: "center" },
   chipOn: { backgroundColor: colors.navy900 },

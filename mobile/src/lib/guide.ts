@@ -1370,7 +1370,7 @@ export const GUIDES: Guide[] = [
     steps: [
       {
         title: "Open your Course Passport",
-        body: "On your Profile, under Golf, tap Course Passport. A gold star marks every course you've played — from your scorecards and the courses you've ticked as played. Ireland, Europe and World zoom the map; tap a star for the course.",
+        body: "On your Profile, under Golf, tap Course Passport. A gold star marks every course you've played — from your scorecards and the courses you've ticked as played. Ireland, Europe and World zoom the map; tap a star for the course. Map only, top right, hides everything under the map so you can move around it freely — Details brings it back.",
         path: [{ icon: "person-circle-outline", label: "Profile" }, { icon: "earth-outline", label: "Course Passport" }],
         look: [{ style: "outline", label: "Ireland" }, { style: "outline", label: "Europe" }, { style: "outline", label: "World" }],
         go: { label: "Course Passport", to: "/passport" },
@@ -2202,6 +2202,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-30", text: "Your passport, leaderboards and year: the Course Passport map has a Map only button (top right) that hides the details underneath; Details brings them back." },
   { on: "2026-10-30", text: "Score a game live: two new steps, Add side games (Best Front 9, Back 9, Overall and Sixes, alone or in rotating pairs, for bragging rights, points or money with your own amount) and Say you're in, and settle up (I'm in, live standings, the fewest payments and Mark as paid). New guide, Your passport, leaderboards and year: the Course Passport map and bucket lists, each course's weekly leaderboard with the Course Legend and hole champions, My year in golf, and sending a guest their scorecard." },
   { on: "2026-10-30", text: "Share on Social: new step, Share a round live with everyone — turn on Share live on PinPals Social (the organiser on a day's leaderboard, or a player on their own scorecard) and all of PinPals can watch on Social, give Great Shots and comment. Players in a day now see its red LIVE circle on Social too." },
   { on: "2026-10-29", text: "Use the hole map: new step, Preview a course before you play — Live scoring has a teal Preview a Course button. Pick a course and it opens on the 1st hole's satellite map, with a Course summary (tees, par, rating, out and in), Go to any hole, and Start your round here into Set up a round with the course and tees filled in. Without a round, par and index on the hole map now come from the course's saved card." },

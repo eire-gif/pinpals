@@ -28,6 +28,20 @@ describe("provinces", () => {
     expect(provinceOf(club(9, "X", "ireland", "Co. Kerry"))).toBe("Munster");
     expect(provinceOf(valderrama)).toBeNull();
   });
+
+  it("with no county on file, by where the course is", () => {
+    const at = (lat: number, lng: number) => provinceOf({ country: "ireland", region: null, latitude: lat, longitude: lng });
+    expect(at(53.43, -6.13)).toBe("Leinster"); // Portmarnock
+    expect(at(52.93, -9.35)).toBe("Munster"); // Lahinch
+    expect(at(52.51, -9.67)).toBe("Munster"); // Ballybunion
+    expect(at(51.6, -8.53)).toBe("Munster"); // Old Head
+    expect(at(54.21, -9.1)).toBe("Connacht"); // Enniscrone
+    expect(at(54.3, -8.57)).toBe("Connacht"); // County Sligo
+    expect(at(53.3, -9.05)).toBe("Connacht"); // Galway
+    expect(at(55.1, -7.5)).toBe("Ulster"); // Ballyliffin
+    expect(at(52.85, -6.04)).toBe("Leinster"); // The European Club
+    expect(provinceOf({ country: "ireland", region: null, latitude: null, longitude: null })).toBeNull();
+  });
 });
 
 describe("stamps", () => {
