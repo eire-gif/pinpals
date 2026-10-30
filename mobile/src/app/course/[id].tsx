@@ -321,6 +321,25 @@ export default function CourseScreen() {
           </Text>
         </View>
 
+        {/* Course leaderboards (0197): this week's board, Course Legend, hole champions. */}
+        {isOn("courseBoards") ? (
+          <Pressable
+            onPress={() => router.push({ pathname: "/course/board/[id]", params: { id: String(clubId), name: course.name } })}
+            style={({ pressed }) => [styles.boardRow, pressed && styles.pressed]}
+            accessibilityRole="button"
+            accessibilityLabel="This week's leaderboard"
+          >
+            <View style={styles.boardIcon}>
+              <Ionicons name="podium" size={20} color={colors.gold400} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.boardTitle}>This week&apos;s leaderboard</Text>
+              <Text style={styles.boardSub}>Course Legend and hole champions too</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.gold400} />
+          </Pressable>
+        ) : null}
+
         {/* Hole by hole (0108): satellite maps with GPS yardages. */}
         {isOn("shotMaps") ? (
           <>
@@ -532,6 +551,10 @@ function ReviewCard({ review, mine = false, onReport }: { review: CourseReviewRo
 }
 
 const styles = StyleSheet.create({
+  boardRow: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: colors.navy900, borderRadius: radii.lg, paddingHorizontal: spacing.md, paddingVertical: 14, marginTop: spacing.md },
+  boardIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: "rgba(232,196,107,0.16)", alignItems: "center", justifyContent: "center" },
+  boardTitle: { fontFamily: fonts.bodyBold, fontSize: 17, color: colors.cream50 },
+  boardSub: { fontFamily: fonts.body, fontSize: 14, color: "#c9d3e0" },
   fill: { flex: 1, backgroundColor: colors.cream50 },
   content: { paddingBottom: spacing.xl },
   spinner: { marginTop: spacing.xl },

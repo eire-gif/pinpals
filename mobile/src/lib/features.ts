@@ -100,6 +100,11 @@ export const FEATURES = {
    *  Overall and Sixes alongside a round, with settle-up. Off hides the
    *  round screen's Side games row; the screen says "on its way". */
   sideGames: true,
+  /** Course leaderboards (claude/course-boards.md, needs 0197): this week's
+   *  board, Course Legend and hole champions on a course page, and the
+   *  "Course leaderboards" switch in Privacy. Off hides the course page's
+   *  Leaderboard row; the screens say "on its way". */
+  courseBoards: true,
 
   // ---- Gates (unfinished, off) ----
   /** Shared rounds (phase 9): model only — see claude/shared-round-model.md. */
