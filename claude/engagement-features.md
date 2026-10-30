@@ -149,3 +149,17 @@ year**; GUIDE_CHANGES 30 Oct.
 
 Website + app unit tests 2,228 passing; RLS suite 1,137 passing on a fresh
 local replay (0001–0198); app `tsc` clean. Not yet seen on a phone.
+
+## Fix, 30 Oct 2026 — 0199 and the MY ROUND pill
+
+0196 gave live_round_side_game_payments and live_round_side_game_agreements
+composite primary keys made of foreign keys. PostgREST read them as
+many-to-many junctions, so every `live_round_players → live_rounds` embed
+(the MY ROUND pill, match days, competition results) became ambiguous
+(PGRST201) and the pill silently vanished. 0199 gives both tables an identity
+primary key and keeps the old keys as unique constraints. Applied to
+production 30 Oct. Lesson: never give a new table a primary key made only of
+foreign keys to two different tables.
+
+Also: Set up a round's "You're already in a live game" banner now has
+Continue, Finish, and Delete (when you started it), like the Live scoring card.
