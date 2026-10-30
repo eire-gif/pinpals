@@ -7,17 +7,19 @@ side-game apps), build the five approved ideas — mock-ups on the canvas
 amount the group types in; the passport is a world map with stars, on Apple
 Maps, satellite.
 
-**Status:** branch `engagement-features`. Migrations **0196, 0197, 0198**
-(not yet applied to production). App changes ship with `eas update` — no
+**Status:** branch `engagement-features` (PR #360). Migrations **0196, 0197,
+0198 applied to production 30 Oct 2026** (each `{"success":true}`; checked
+after: RLS on the four new tables, signed-in users read-only on them, no anon
+access, function grants as registered, the three realtime triggers, and the
+claim now saves the card; the security advisor shows nothing new beyond the
+usual "signed-in users can call this function"). App changes ship with `eas update` — no
 native module is added (`react-native-webview` and `expo-image-manipulator`
 are already in the binary). The Wrapped picture and the claim page need
 Vercel to deploy `main`.
 
 ## To ship
 
-1. Apply `0196_side_games.sql`, `0197_course_boards.sql`,
-   `0198_claim_your_card.sql` to production, in order (no `drop` statements,
-   so the Supabase tool takes each in one go).
+1. ~~Apply 0196, 0197, 0198 to production~~ done 30 Oct 2026.
 2. Merge the PR; let Vercel deploy (the app calls `/api/app/wrapped/share`,
    and the picture is `/w/<token>/photo`).
 3. Codespace: `git pull origin main`, `cd mobile`, `eas update`.
