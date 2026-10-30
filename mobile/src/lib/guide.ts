@@ -54,7 +54,8 @@ import type { Href } from "expo-router";
  *    passport → app/passport.tsx, app/passport-list.tsx, components/passport-map.tsx,
  *               app/course/board/[id].tsx, app/course/champions/[id].tsx, app/course/[id].tsx,
  *               app/privacy.tsx (Course leaderboards), app/wrapped.tsx, app/(tabs)/profile.tsx,
- *               components/fourball-connect.tsx (Send a guest their scorecard)
+ *               components/fourball-connect.tsx (Send a guest their scorecard),
+ *               app/rivals/index.tsx, app/rivals/[key].tsx (Your rivals)
  *    compete  → app/compete/index.tsx, app/compete/[id].tsx, app/compete/match/[id].tsx,
  *               app/compete/new.tsx, app/compete/opens.tsx, app/compete/share-open.tsx
  *    myGame   → app/my-game.tsx, app/scorecards/index.tsx, app/(tabs)/profile.tsx,
@@ -1440,7 +1441,7 @@ export const GUIDES: Guide[] = [
   {
     id: "passport",
     section: "play",
-    title: "Your passport, leaderboards and year",
+    title: "Your passport, rivals, leaderboards and year",
     blurb: "Every course you've played on a satellite map, each course's weekly leaderboard, and your year in golf.",
     icon: "earth",
     tone: "navy",
@@ -1472,6 +1473,14 @@ export const GUIDES: Guide[] = [
         look: [{ style: "primary", label: "Share to Instagram story" }],
         go: { label: "My year in golf", to: "/wrapped" },
         tip: "It's built from your saved scorecards, so the more rounds you score on PinPals, the better your year looks. In January it shows the year just gone.",
+      },
+      {
+        title: "Your rivals",
+        body: "On your Profile, tap Your rivals: your record this season against everyone you've played against, your biggest rivalry on top with your last five. Tap anyone for the head to head — this season or all time, each of your best wins and every round against each other. A guest you keep playing gets Send them the record.",
+        path: [{ icon: "person-circle-outline", label: "Profile" }, { icon: "flash-outline", label: "Your rivals" }],
+        look: [{ style: "outline", label: "All time" }, { style: "primary", label: "Rematch — post a tee time" }],
+        go: { label: "Your rivals", to: "/rivals" },
+        tip: "Nothing to enter: a finished live round counts when you played against each other — a match, opposite sides of a fourball, or your own balls in the same group, net off your handicaps. Rounds as partners don't.",
       },
       {
         title: "Send a guest their scorecard",
@@ -2280,6 +2289,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-30", text: "Your passport, rivals, leaderboards and year: new step, Your rivals — your record against everyone you've played against (Profile → Your rivals), the head to head with each of them, and Send the record to a guest." },
   { on: "2026-10-30", text: "New guide, Play the trip as a Ryder Cup: on a trip's Itinerary, Play it as a Ryder Cup — two teams (captains pick, balanced by handicap or a random draw), a session for each round in fourballs, foursomes, greensomes or singles, secret lineups from each captain, Start the session, and one running points total with what each team needs." },
   { on: "2026-10-30", text: "Score a game live: if you're already in a live game, Set up a round shows it at the top with Continue, Finish, and Delete when you started it — the same as the Live scoring card." },
   { on: "2026-10-30", text: "Your passport, leaderboards and year: the Course Passport map has a Map only button (top right) that hides the details underneath; Details brings them back." },
