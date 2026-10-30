@@ -426,6 +426,7 @@ export default function ProfileScreen() {
           ) : null}
           <NativeLink icon="document-text-outline" label="My scorecards" to="/scorecards" />
           {isOn("coursePassport") ? <NativeLink icon="earth-outline" label="Course Passport" to="/passport" /> : null}
+          {isOn("wrapped") ? <NativeLink icon="sparkles-outline" label="My year in golf" to="/wrapped" /> : null}
           <NativeLink icon="stats-chart-outline" label="My Game" to="/my-game" />
           <NativeLink icon="briefcase-outline" label="My bag" to="/my-bag" />
           <NativeLink icon="flag-outline" label="Courses & favourites" to="/courses" last />

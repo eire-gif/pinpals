@@ -109,6 +109,10 @@ export const FEATURES = {
    *  map of courses played, badges and bucket lists. Off hides the Profile
    *  and menu entries; the screens say "on its way". */
   coursePassport: true,
+  /** PinPals Wrapped (claude/wrapped.md, no migration; the share picture needs
+   *  the website's /w/[token]/photo): your year in golf as story cards. Off
+   *  hides the Profile and menu entries; the screen says "on its way". */
+  wrapped: true,
 
   // ---- Gates (unfinished, off) ----
   /** Shared rounds (phase 9): model only — see claude/shared-round-model.md. */

@@ -70,6 +70,7 @@ export const MENU: MenuSection[] = [
       { kind: "native", label: "My scorecards", icon: "document-text-outline", to: "/scorecards", feature: "scorecards" },
       // Course Passport (Oct 2026): every course played on a satellite map.
       { kind: "native", label: "Course Passport", icon: "earth-outline", to: "/passport", feature: "coursePassport" },
+      { kind: "native", label: "My year in golf", icon: "sparkles-outline", to: "/wrapped", feature: "wrapped" },
       // Competitions (0148): matchplay leagues, ladders and opens.
       { kind: "native", label: "Competitions", icon: "trophy-outline", to: "/compete", feature: "competitions" },
       // Game formats (Oct 2026): every way to play, explained — offline,

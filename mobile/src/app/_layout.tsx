@@ -294,6 +294,8 @@ function RootNavigator() {
       {/* Course Passport: titles in a coloured bar (TintedHeader). */}
       <Stack.Screen name="passport" options={{ title: "Course Passport", headerBackTitle: "Back" }} />
       <Stack.Screen name="passport-list" options={{ title: "Bucket list", headerBackTitle: "Back" }} />
+      {/* PinPals Wrapped: full-screen story cards, no header. */}
+      <Stack.Screen name="wrapped" options={{ headerShown: false, presentation: "fullScreenModal" }} />
       <Stack.Screen name="rate-course" options={{ title: "Rate a course", headerBackTitle: "Back" }} />
       <Stack.Screen name="my-bag" options={{ title: "My bag", headerBackTitle: "Back" }} />
       {/* Memberships (0156): navy screens, gated by the `memberships` flag. */}
