@@ -118,6 +118,10 @@ export const FEATURES = {
    *  running points total. Off hides the itinerary's Cup card; the screens
    *  say "on its way". */
   tripCup: true,
+  /** Rivalries (claude/rivalries.md, no migration): your head-to-head record
+   *  with everyone you've played against, from finished live rounds. Off
+   *  hides the Profile entry; the screens say "on its way". */
+  rivalries: true,
 
   // ---- Gates (unfinished, off) ----
   /** Shared rounds (phase 9): model only — see claude/shared-round-model.md. */
