@@ -19,15 +19,15 @@ import { supabase } from "./supabase";
 // Circles
 // ---------------------------------------------------------------------------
 
-type DayRow = { id: number; title: string; created_by: string | null; group_id: number | null; played_on: string };
+type DayRow = { id: number; title: string; created_by: string | null; group_id: number | null; played_on: string; public_on_social: boolean };
 type GroupRow = { id: number; name: string; kind: string; logo_url: string | null };
 
 /** The days going on now that this member may watch, other than one they're playing in. */
-async function liveDays(playingRoundId: number | null): Promise<LiveCircle[]> {
+async function liveDays(): Promise<LiveCircle[]> {
   const today = irishToday();
   const { data: days } = await supabase
     .from("live_match_days")
-    .select("id, title, created_by, group_id, played_on")
+    .select("id, title, created_by, group_id, played_on, public_on_social")
     .gte("played_on", today)
     .order("played_on", { ascending: false })
     .limit(30)
@@ -44,17 +44,18 @@ async function liveDays(playingRoundId: number | null): Promise<LiveCircle[]> {
     supabase.from("society_outings").select("group_id, match_day_id").in("match_day_id", ids).overrideTypes<{ group_id: number; match_day_id: number }[]>(),
   ]);
   const live = new Set((rounds ?? []).filter((r) => r.status === "live").map((r) => r.match_day_id));
-  const mine = new Set((rounds ?? []).filter((r) => r.id === playingRoundId).map((r) => r.match_day_id));
   const playing = new Map<number, number>();
   for (const r of rounds ?? []) playing.set(r.match_day_id, (playing.get(r.match_day_id) ?? 0) + (r.live_round_players?.[0]?.count ?? 0));
   const outingGroup = new Map((outings ?? []).map((o) => [o.match_day_id, o.group_id]));
 
-  const shown = (days ?? []).filter((d) => live.has(d.id) && !mine.has(d.id));
+  // Players see their own day's circle too (30 Oct 2026): the leaderboard
+  // and comments are theirs as much as anyone's.
+  const shown = (days ?? []).filter((d) => live.has(d.id));
   const groupIds = [...new Set(shown.map((d) => d.group_id ?? outingGroup.get(d.id)).filter((g): g is number => g != null))];
   const groups = await loadGroups(groupIds);
   return shown.map((d) => {
     const g = groups.get(d.group_id ?? outingGroup.get(d.id) ?? -1) ?? null;
-    return { kind: "day", dayId: d.id, title: d.title, groupName: g?.name ?? null, logoUrl: g?.logo_url ?? null, playing: playing.get(d.id) ?? 0 };
+    return { kind: "day", dayId: d.id, title: d.title, groupName: g?.name ?? null, logoUrl: g?.logo_url ?? null, playing: playing.get(d.id) ?? 0, shared: d.public_on_social };
   });
 }
 
@@ -90,8 +91,9 @@ async function freshResults(): Promise<LiveCircle[]> {
  */
 export async function loadLiveCircles(playingRoundId: number | null): Promise<LiveCircle[]> {
   if (!isOn("liveScoring")) return [];
-  const [days, follows, results] = await Promise.all([
-    liveDays(playingRoundId).catch(() => [] as LiveCircle[]),
+  const [days, rounds, follows, results] = await Promise.all([
+    liveDays().catch(() => [] as LiveCircle[]),
+    sharedRounds(playingRoundId).catch(() => [] as LiveCircle[]),
     isOn("liveFollow")
       ? loadFollowing()
           .then((items) =>
@@ -110,7 +112,50 @@ export async function loadLiveCircles(playingRoundId: number | null): Promise<Li
       : Promise.resolve([] as LiveCircle[]),
     freshResults().catch(() => [] as LiveCircle[]),
   ]);
-  return [...days, ...follows, ...results];
+  return [...days, ...rounds, ...follows, ...results];
+}
+
+/**
+ * Rounds (outside a day) shared on Social (0195) and still live today — by
+ * anyone; RLS returns only shared ones besides the member's own. The
+ * member's own round is the green "Your round" circle already.
+ */
+async function sharedRounds(playingRoundId: number | null): Promise<LiveCircle[]> {
+  const today = irishToday();
+  const { data } = await supabase
+    .from("live_rounds")
+    .select("id, course_name, created_by, live_round_players(name, position)")
+    .eq("public_on_social", true)
+    .is("match_day_id", null)
+    .eq("status", "live")
+    .gte("played_on", today)
+    .order("id", { ascending: false })
+    .limit(12)
+    .overrideTypes<{ id: number; course_name: string; created_by: string | null; live_round_players: { name: string; position: number }[] }[]>();
+  return (data ?? [])
+    .filter((r) => r.id !== playingRoundId)
+    .map((r) => {
+      const names = [...(r.live_round_players ?? [])].sort((a, b) => a.position - b.position).map((p) => p.name.split(" ")[0]);
+      return { kind: "round" as const, roundId: r.id, name: names[0] ?? "A round", others: Math.max(0, names.length - 1), courseName: r.course_name };
+    });
+}
+
+/** Share a day (organiser) or a round outside a day (a player in it) on Social (0195). */
+export async function setSharedOnSocial(thread: Thread, on: boolean): Promise<void> {
+  const { error } =
+    "dayId" in thread
+      ? await supabase.rpc("set_match_day_public", { p_day_id: thread.dayId, p_public: on })
+      : await supabase.rpc("set_live_round_public", { p_round_id: thread.roundId, p_public: on });
+  if (error) throw new Error(error.message);
+}
+
+/** Is it shared on Social? Read on its own so nothing else depends on the column. */
+export async function loadSharedOnSocial(thread: Thread): Promise<boolean> {
+  const { data } =
+    "dayId" in thread
+      ? await supabase.from("live_match_days").select("public_on_social").eq("id", thread.dayId).maybeSingle<{ public_on_social: boolean }>()
+      : await supabase.from("live_rounds").select("public_on_social").eq("id", thread.roundId).maybeSingle<{ public_on_social: boolean }>();
+  return data?.public_on_social === true;
 }
 
 /** A day of the given group going on now, for the LIVE banner on its page. */
@@ -149,6 +194,14 @@ export async function setMatchDayGroup(dayId: number, groupId: number): Promise<
 // Comments with likes, and Great Shots, on a day
 // ---------------------------------------------------------------------------
 
+/** Comments and Great Shots hang off a day, or a shared round outside a day (0195). A bare number is a day. */
+export type Thread = { dayId: number } | { roundId: number };
+const threadOf = (t: Thread | number): Thread => (typeof t === "number" ? { dayId: t } : t);
+const keyOf = (t: Thread | number): ["match_day_id" | "round_id", number] => {
+  const th = threadOf(t);
+  return "dayId" in th ? ["match_day_id", th.dayId] : ["round_id", th.roundId];
+};
+
 export type DayComment = {
   id: number;
   author: { id: string; name: string; avatarUrl: string | null; avatarColor: string | null };
@@ -175,7 +228,7 @@ const COMMENT_SELECT =
 
 /** The newest comments on a day (oldest of them first, as a chat reads), the pinned one, and how many there are. */
 export async function loadDayComments(
-  dayId: number,
+  thread: Thread | number,
   viewerId: string,
   limit = 40
 ): Promise<{ comments: DayComment[]; pinned: DayComment | null; count: number }> {
@@ -183,11 +236,11 @@ export async function loadDayComments(
     supabase
       .from("live_day_comments")
       .select(COMMENT_SELECT)
-      .eq("match_day_id", dayId)
+      .eq(...keyOf(thread))
       .order("created_at", { ascending: false })
       .limit(limit)
       .overrideTypes<CommentRow[]>(),
-    supabase.from("live_day_comments").select("id", { count: "exact", head: true }).eq("match_day_id", dayId),
+    supabase.from("live_day_comments").select("id", { count: "exact", head: true }).eq(...keyOf(thread)),
   ]);
   if (error) throw new Error("Couldn't load the comments.");
   const rows = [...(data ?? [])];
@@ -196,7 +249,7 @@ export async function loadDayComments(
     const { data: pin } = await supabase
       .from("live_day_comments")
       .select(COMMENT_SELECT)
-      .eq("match_day_id", dayId)
+      .eq(...keyOf(thread))
       .not("pinned_at", "is", null)
       .limit(1)
       .overrideTypes<CommentRow[]>();
@@ -237,11 +290,12 @@ export async function loadDayCommentPreview(dayId: number, viewerId: string): Pr
   return { comments: top, count };
 }
 
-export async function addDayComment(dayId: number, body: string): Promise<void> {
+export async function addDayComment(thread: Thread | number, body: string): Promise<void> {
   const text = body.trim();
   if (!text) return;
   if (text.length > 300) throw new Error("Please keep a comment under 300 characters.");
-  const { error } = await supabase.from("live_day_comments").insert({ match_day_id: dayId, body: text });
+  const [col, id] = keyOf(thread);
+  const { error } = await supabase.from("live_day_comments").insert(col === "match_day_id" ? { match_day_id: id, body: text } : { round_id: id, body: text });
   if (error) throw new Error(error.code === "P0001" || error.code === "42501" ? error.message : "Couldn't post that. Please try again.");
 }
 
@@ -264,17 +318,19 @@ export async function pinDayComment(commentId: number, pin: boolean): Promise<vo
   if (error) throw new Error(error.message);
 }
 
-export async function loadCheers(dayId: number, viewerId: string): Promise<{ count: number; mine: boolean }> {
+export async function loadCheers(thread: Thread | number, viewerId: string): Promise<{ count: number; mine: boolean }> {
   const [{ count }, { data }] = await Promise.all([
-    supabase.from("live_day_cheers").select("member_id", { count: "exact", head: true }).eq("match_day_id", dayId),
-    supabase.from("live_day_cheers").select("member_id").eq("match_day_id", dayId).eq("member_id", viewerId).maybeSingle(),
+    supabase.from("live_day_cheers").select("member_id", { count: "exact", head: true }).eq(...keyOf(thread)),
+    supabase.from("live_day_cheers").select("member_id").eq(...keyOf(thread)).eq("member_id", viewerId).maybeSingle(),
   ]);
   return { count: count ?? 0, mine: data != null };
 }
 
-export async function setCheer(dayId: number, viewerId: string, on: boolean): Promise<void> {
+export async function setCheer(thread: Thread | number, viewerId: string, on: boolean): Promise<void> {
   const table = supabase.from("live_day_cheers");
-  const { error } = on ? await table.insert({ match_day_id: dayId }) : await table.delete().eq("match_day_id", dayId).eq("member_id", viewerId);
+  const [col, id] = keyOf(thread);
+  const row: Record<string, number> = { [col]: id };
+  const { error } = on ? await table.insert(row as never) : await table.delete().eq(col, id).eq("member_id", viewerId);
   if (error && error.code !== "23505") throw new Error("Couldn't save that. Please try again.");
 }
 

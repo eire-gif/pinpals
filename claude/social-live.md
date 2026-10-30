@@ -59,3 +59,32 @@ build: nothing adds a native module, `app.json` untouched — ships with
   alerts; comments could be noisy on a 130-player day).
 - Viewer counts ("142 watching") from the mock-up: not tracked.
 - The website's feed doesn't show the Groups tab or results cards yet.
+
+## 30 Oct 2026 — Share live on PinPals Social (0195)
+
+**Asked (Eire, 30 Oct):** an option to share a round with everyone on PinPals
+Social. Decided: society/group days (the organiser) **and** a player's own
+round; **off unless switched on**.
+
+- **Switch** `components/share-on-social-row.tsx` — "Share live on PinPals
+  Social", with a confirm that says names and scores will be public. On the
+  day's leaderboard (`live/day/[id].tsx`, organiser/committee, while live and
+  not secret) and on a round's scorecard under Share live
+  (`live/round/[id].tsx`, a round outside a day, anyone playing or its starter).
+- **Database 0195:** `public_on_social` on `live_match_days` and
+  `live_rounds`; `set_match_day_public` (organiser), `set_live_round_public`
+  (a player; not a round inside a day). Refused while the leaderboard is
+  secret or a member under 18 is playing. `can_view_match_day` /
+  `can_view_live_round` + "shared, and the viewer is 18+". A shared day that
+  is later made secret disappears again.
+- **Comments, likes and Great Shots on a round too:** `round_id` on
+  `live_day_comments` and `live_day_cheers` (exactly one of day/round);
+  `can_view_live_thread(day, round)`. A round's starter can pin/delete.
+- **Social:** shared days show as red LIVE circles to everyone (RLS returns
+  them); shared rounds as red circles "Ciarán +3 · Lahinch" →
+  `/social-live/<round id>?round=1`. **Players now see their own day's red
+  circle** too (it was hidden from them).
+- Tests: `social-live.test.ts` +5 (1118 RLS total), rules test, guide step
+  "Share a round live with everyone".
+- Known: a matchplay round shared on its own shows on the Stableford board
+  in the live view; its own scorecard (Cards) has the match.

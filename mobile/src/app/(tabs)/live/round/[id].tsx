@@ -57,6 +57,7 @@ import { shareText } from "@/lib/scorecard-math";
 import { saveScorecardPhoto } from "@/lib/scorecard-photo";
 import { liveGameShareText } from "@/lib/live-share";
 import { ShareLiveRow } from "@/components/share-live-row";
+import { ShareOnSocialRow } from "@/components/share-on-social-row";
 import { SITE_URL } from "@/lib/config";
 import { useLiveRefresh } from "@/lib/use-live-refresh";
 import { goHome } from "@/lib/go-home";
@@ -741,7 +742,16 @@ export default function LiveRoundScreen() {
       pathname: "/live/share/[id]",
       params: dayHeader?.createdBy === me ? { id: String(round.id), org: "1" } : { id: String(round.id) },
     });
-  const shareLiveRow = canShareLive ? <ShareLiveRow roundId={round.id} organiser={dayHeader?.createdBy === me} guestOnly={!iPlay} /> : null;
+  // Share on Social (0195): a round outside a day, by anyone playing in it
+  // (a day's rounds are shared with the day, by its organiser).
+  const canShareSocial = live && round.matchDayId == null && (iPlay || round.createdBy === me);
+  const shareLiveRow =
+    canShareLive || canShareSocial ? (
+      <View style={{ gap: spacing.sm }}>
+        {canShareLive ? <ShareLiveRow roundId={round.id} organiser={dayHeader?.createdBy === me} guestOnly={!iPlay} /> : null}
+        {canShareSocial ? <ShareOnSocialRow thread={{ roundId: round.id }} what="round" /> : null}
+      </View>
+    ) : null;
   const shareGame = async () => {
     const text = liveGameShareText({
       courseName: round.courseName,

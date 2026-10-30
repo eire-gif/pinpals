@@ -36,7 +36,7 @@ export function LiveCircles({
 }
 
 const keyOf = (c: LiveCircle) =>
-  c.kind === "post" ? "post" : c.kind === "mine" ? `mine-${c.roundId}` : c.kind === "day" ? `day-${c.dayId}` : c.kind === "follow" ? `f-${c.followId}` : `r-${c.dayId}`;
+  c.kind === "post" ? "post" : c.kind === "mine" ? `mine-${c.roundId}` : c.kind === "day" ? `day-${c.dayId}` : c.kind === "follow" ? `f-${c.followId}` : c.kind === "round" ? `round-${c.roundId}` : `r-${c.dayId}`;
 
 function open(c: LiveCircle) {
   switch (c.kind) {
@@ -52,6 +52,9 @@ function open(c: LiveCircle) {
     case "follow":
       router.push({ pathname: "/live/follow/[id]", params: { id: String(c.followId) } });
       return;
+    case "round":
+      router.push({ pathname: "/social-live/[id]", params: { id: String(c.roundId), round: "1" } });
+      return;
     case "results":
       router.push({ pathname: "/live/day/results/[id]", params: { id: String(c.dayId) } });
       return;
@@ -59,8 +62,8 @@ function open(c: LiveCircle) {
 }
 
 function Circle({ circle: c, me }: { circle: LiveCircle; me: { name: string; avatarUrl: string | null; avatarColor: string | null } | null }) {
-  const ring = c.kind === "day" ? colors.red600 : c.kind === "results" ? colors.gold500 : c.kind === "post" ? "transparent" : colors.green600;
-  const tag = c.kind === "day" || c.kind === "mine" || c.kind === "follow" ? "LIVE" : null;
+  const ring = c.kind === "day" || c.kind === "round" ? colors.red600 : c.kind === "results" ? colors.gold500 : c.kind === "post" ? "transparent" : colors.green600;
+  const tag = c.kind === "day" || c.kind === "round" || c.kind === "mine" || c.kind === "follow" ? "LIVE" : null;
   const name =
     c.kind === "post"
       ? "Post"
@@ -70,6 +73,8 @@ function Circle({ circle: c, me }: { circle: LiveCircle; me: { name: string; ava
           ? c.title
           : c.kind === "follow"
             ? c.name
+            : c.kind === "round"
+              ? c.others > 0 ? `${c.name} +${c.others}` : c.name
             : (c.groupName ?? "Results");
   const detail = c.kind === "post" ? null : circleDetail(c);
   const label =
@@ -91,7 +96,7 @@ function Circle({ circle: c, me }: { circle: LiveCircle; me: { name: string; ava
           </View>
         )}
         {tag && (
-          <View style={[styles.tag, { backgroundColor: c.kind === "day" ? colors.red600 : colors.green600 }]}>
+          <View style={[styles.tag, { backgroundColor: c.kind === "day" || c.kind === "round" ? colors.red600 : colors.green600 }]}>
             <Text style={styles.tagText}>{tag}</Text>
           </View>
         )}
@@ -100,7 +105,7 @@ function Circle({ circle: c, me }: { circle: LiveCircle; me: { name: string; ava
         {name}
       </Text>
       {detail ? (
-        <Text style={[styles.detail, { color: c.kind === "day" ? colors.red600 : c.kind === "results" ? GOLD_TEXT : colors.green700 }]} numberOfLines={1}>
+        <Text style={[styles.detail, { color: c.kind === "day" || c.kind === "round" ? colors.red600 : c.kind === "results" ? GOLD_TEXT : colors.green700 }]} numberOfLines={1}>
           {detail}
         </Text>
       ) : null}

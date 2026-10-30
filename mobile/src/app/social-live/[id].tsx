@@ -25,7 +25,8 @@ import { teamRows } from "@/components/scramble-board";
 import { useAgeGate } from "@/components/not-for-under-18";
 import { useAuth } from "@/lib/auth";
 import { ago } from "@/lib/feed-rules";
-import { loadMatchDay, type MatchDayData } from "@/lib/live-match-days";
+import { loadMatchDay, type Match, type MatchDayData } from "@/lib/live-match-days";
+import { loadLiveRound, type LiveRoundData } from "@/lib/live-rounds";
 import { toParLabel } from "@/lib/live-scoring";
 import {
   addDayComment,
@@ -36,6 +37,7 @@ import {
   setCheer,
   setDayCommentLike,
   type DayComment,
+  type Thread,
 } from "@/lib/social-live";
 import {
   fourballRows,
@@ -65,8 +67,11 @@ const SHOWN_ROWS = 5;
 const REFRESH_MS = 15_000;
 
 export default function SocialLiveScreen() {
-  const { id, focus } = useLocalSearchParams<{ id: string; focus?: string }>();
+  const { id, focus, round: roundParam } = useLocalSearchParams<{ id: string; focus?: string; round?: string }>();
+  // A day (the usual), or a round outside a day shared on Social (0195): ?round=1.
+  const isRound = roundParam === "1";
   const dayId = Number(id);
+  const thread: Thread = isRound ? { roundId: dayId } : { dayId };
   const { session } = useAuth();
   const userId = session?.user?.id ?? null;
   const insets = useSafeAreaInsets();
@@ -93,16 +98,17 @@ export default function SocialLiveScreen() {
 
   const loadComments = useCallback(async () => {
     if (!userId || !social) return;
-    const [c, ch] = await Promise.all([loadDayComments(dayId, userId), loadCheers(dayId, userId)]);
+    const [c, ch] = await Promise.all([loadDayComments(thread, userId), loadCheers(thread, userId)]);
     setComments(c.comments);
     setPinned(c.pinned);
     setCount(c.count);
     setCheers(ch);
-  }, [dayId, userId, social]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dayId, isRound, userId, social]);
 
   const load = useCallback(async () => {
     try {
-      const d = await loadMatchDay(dayId);
+      const d = isRound ? asDay(await loadLiveRound(dayId)) : await loadMatchDay(dayId);
       setData(d);
       if (d) {
         const board = boardOf(d);
@@ -122,7 +128,7 @@ export default function SocialLiveScreen() {
       setData((prev) => (prev === undefined ? null : prev));
     }
     await loadComments().catch(() => undefined);
-  }, [dayId, loadComments]);
+  }, [dayId, isRound, userId, loadComments]);
 
   useFocusEffect(
     useCallback(() => {
@@ -133,8 +139,12 @@ export default function SocialLiveScreen() {
 
   useEffect(() => {
     if (!userId) return;
+    if (isRound) return; // a round's starter: set from the data below
     void supabase.rpc("live_day_is_organiser", { p_day_id: dayId }).then(({ data: o }) => setOrganiser(o === true));
-  }, [dayId, userId]);
+  }, [dayId, isRound, userId]);
+  useEffect(() => {
+    if (isRound && data) setOrganiser(data.day.createdBy != null && data.day.createdBy === userId);
+  }, [isRound, data, userId]);
 
   // The birdie banner: in, six seconds, out.
   useEffect(() => {
@@ -156,7 +166,7 @@ export default function SocialLiveScreen() {
     if (!text || sending) return;
     setSending(true);
     try {
-      await addDayComment(dayId, text);
+      await addDayComment(thread, text);
       setDraft("");
       await loadComments();
       setTimeout(() => list.current?.scrollToEnd({ animated: true }), 100);
@@ -171,7 +181,7 @@ export default function SocialLiveScreen() {
     if (!userId) return;
     const on = !cheers.mine;
     setCheers((c) => ({ mine: on, count: Math.max(0, c.count + (on ? 1 : -1)) }));
-    setCheer(dayId, userId, on).catch(() => setCheers((c) => ({ mine: !on, count: Math.max(0, c.count + (on ? -1 : 1)) })));
+    setCheer(thread, userId, on).catch(() => setCheers((c) => ({ mine: !on, count: Math.max(0, c.count + (on ? -1 : 1)) })));
   }
 
   function toggleLike(c: DayComment) {
@@ -229,6 +239,10 @@ export default function SocialLiveScreen() {
   }
 
   const { day } = data;
+  const openCards = () =>
+    isRound
+      ? router.push({ pathname: "/live/round/[id]", params: { id: String(dayId) } })
+      : router.push({ pathname: "/live/day/[id]", params: { id: String(day.id) } });
   const board = boardOf(data);
   const playing = data.matches.reduce((n, m) => n + m.players.length, 0);
 
@@ -300,7 +314,7 @@ export default function SocialLiveScreen() {
             </Text>
           )}
           <Pressable
-            onPress={() => router.push({ pathname: "/live/day/[id]", params: { id: String(day.id) } })}
+            onPress={openCards}
             style={styles.boardMore}
             accessibilityRole="link"
           >
@@ -345,7 +359,7 @@ export default function SocialLiveScreen() {
               </Pressable>
             ) : null}
             <Pressable
-              onPress={() => router.push({ pathname: "/live/day/[id]", params: { id: String(day.id) } })}
+              onPress={openCards}
               style={styles.railButton}
               accessibilityRole="button"
               accessibilityLabel="Leaderboard and cards"
@@ -421,6 +435,36 @@ function CommentRow({
       </Pressable>
     </Pressable>
   );
+}
+
+/**
+ * A shared round outside a day, in a day's shape: one "group" — so the same
+ * board, birdie banner and layout serve both. Its title is who's playing.
+ */
+function asDay(r: LiveRoundData | null): MatchDayData | null {
+  if (!r) return null;
+  const names = [...r.players].sort((a, b) => a.position - b.position).map((p) => p.name.split(" ")[0]);
+  const title = names.length <= 2 ? names.join(" & ") : `${names.slice(0, 2).join(", ")} & ${names.length - 2} more`;
+  const match = { round: r.round, players: r.players, card: r.card, scores: r.scores, format: r.round.matchFormat ?? "matchplay", state: null } as unknown as Match;
+  return {
+    day: {
+      id: r.round.id,
+      createdBy: r.round.createdBy,
+      title: title || "Live round",
+      clubId: r.round.clubId,
+      courseName: r.round.courseName,
+      teeName: r.round.teeName,
+      holes: r.round.holes,
+      playedOn: r.round.playedOn,
+      teamNames: null,
+      kind: r.round.scramble ? "scramble" : "fourballs",
+      foursomes: r.round.scramble?.foursomes ?? null,
+      greensomes: r.round.scramble?.greensomes ?? false,
+      leaderboardHidden: false,
+    },
+    matches: [match],
+    totals: { final: [0, 0], projected: [0, 0], finishedCount: r.round.status === "finished" ? 1 : 0 },
+  };
 }
 
 /** The day's board in the live view's shape: players for a society day, teams for a scramble. */

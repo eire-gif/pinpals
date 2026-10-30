@@ -2011,6 +2011,15 @@ export const GUIDES: Guide[] = [
         tip: "Your group's members can watch a day without playing in it — unless the organiser keeps the leaderboard secret until the prize-giving.",
       },
       {
+        title: "Share a round live with everyone",
+        body: "To let all of PinPals watch, turn on Share live on PinPals Social. For a society or group day, the organiser finds it on the day's leaderboard; for your own round, it's on your scorecard under Share live. Everyone on PinPals then sees a red LIVE circle on Social and can watch, give a Great Shot and comment. Turn it off at any time.",
+        look: [
+          { style: "outline", label: "Share live on PinPals Social", icon: "globe-outline" },
+          { style: "outline", label: "LIVE", icon: "radio-button-on" },
+        ],
+        tip: "It's off unless you turn it on. A secret leaderboard can't be shared, and nor can a game with a member under 18 playing.",
+      },
+      {
         title: "See who reacted",
         body: "Under a post, tap the reactions — \"Seán Byrne and 11 others\" — to see everyone who reacted and how. Tap a reaction to see just those. Message your PinPals from the list, or tap Add PinPal for anyone else. Shares shows who shared it to their feed.",
         look: [
@@ -2122,6 +2131,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-30", text: "Share on Social: new step, Share a round live with everyone — turn on Share live on PinPals Social (the organiser on a day's leaderboard, or a player on their own scorecard) and all of PinPals can watch on Social, give Great Shots and comment. Players in a day now see its red LIVE circle on Social too." },
   { on: "2026-10-29", text: "Use the hole map: new step, Preview a course before you play — Live scoring has a teal Preview a Course button. Pick a course and it opens on the 1st hole's satellite map, with a Course summary (tees, par, rating, out and in), Go to any hole, and Start your round here into Set up a round with the course and tees filled in. Without a round, par and index on the hole map now come from the course's saved card." },
   { on: "2026-10-28", text: "Social has a new look: circles across the top show what's on now — tap Post to share, a red LIVE circle to watch one of your groups' days full screen (leaderboard, birdie banner, Great Shot and comments with likes), green for your round or a card shared with you, gold for new results. A Groups tab sits beside For You and Following, society results appear in the feed with their comments, and the top comments show under every post with a heart to like them. A group's page shows a LIVE banner while its day is on. Share on Social: Start a post and React and comment are updated, and there's a new step, Watch your group live." },
   { on: "2026-10-26", text: "New guide, Check your handicap: Menu → Play → Handicap calculator, and Your handicap here on a course's page — course handicaps off every tee, men's or women's, 18 or 9 holes, or typed in off the card; pick the allowance; tap a tee for how it's worked out. Score a game live: Handicap allowance under Stableford and stroke play (100/95/90/85%), tap a plays-off figure for the breakdown, and 9 holes asks for the nine's own rating." },
