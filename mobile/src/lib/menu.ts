@@ -68,6 +68,8 @@ export const MENU: MenuSection[] = [
       // do I put my score" is the question, not "find me a game".
       { kind: "native", label: "Live scoring", icon: "podium-outline", to: "/live", feature: "liveScoring" },
       { kind: "native", label: "My scorecards", icon: "document-text-outline", to: "/scorecards", feature: "scorecards" },
+      // Course Passport (Oct 2026): every course played on a satellite map.
+      { kind: "native", label: "Course Passport", icon: "earth-outline", to: "/passport", feature: "coursePassport" },
       // Competitions (0148): matchplay leagues, ladders and opens.
       { kind: "native", label: "Competitions", icon: "trophy-outline", to: "/compete", feature: "competitions" },
       // Game formats (Oct 2026): every way to play, explained — offline,

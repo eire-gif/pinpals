@@ -105,6 +105,10 @@ export const FEATURES = {
    *  "Course leaderboards" switch in Privacy. Off hides the course page's
    *  Leaderboard row; the screens say "on its way". */
   courseBoards: true,
+  /** Course Passport (claude/course-passport.md, no migration): the satellite
+   *  map of courses played, badges and bucket lists. Off hides the Profile
+   *  and menu entries; the screens say "on its way". */
+  coursePassport: true,
 
   // ---- Gates (unfinished, off) ----
   /** Shared rounds (phase 9): model only — see claude/shared-round-model.md. */
