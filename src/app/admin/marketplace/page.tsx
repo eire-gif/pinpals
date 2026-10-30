@@ -16,6 +16,7 @@ import MessagesTab from "./messages-tab";
 import AuditTab from "./audit-tab";
 import RevenueTab from "./revenue-tab";
 import ShopsTab from "./shops-tab";
+import ProsTab from "./pros-tab";
 import PromotionsTab from "./promotions-tab";
 import RetailTab from "./retail-tab";
 
@@ -53,6 +54,7 @@ export type MarketplaceTabKey =
   | "messages"
   | "revenue"
   | "shops"
+  | "pros"
   | "promotions"
   | "retail"
   | "audit";
@@ -71,6 +73,8 @@ const TABS: { key: MarketplaceTabKey; label: string; roles?: readonly StaffRole[
   // money views and finance-only.
   { key: "revenue", label: "Revenue", roles: FINANCE_ROLES },
   { key: "shops", label: "Pro shops" },
+  // Book a pro (0204): any staff may look; approving re-checks FINANCE_ROLES.
+  { key: "pros", label: "Pros" },
   { key: "promotions", label: "Promotions", roles: FINANCE_ROLES },
   { key: "retail", label: "Retail & ads", roles: FINANCE_ROLES },
   { key: "audit", label: "Audit log", roles: ["super_admin"] },
@@ -122,6 +126,7 @@ export default async function AdminMarketplacePage({
       {tab === "messages" && <MessagesTab />}
       {tab === "revenue" && <RevenueTab searchParams={params} />}
       {tab === "shops" && <ShopsTab />}
+      {tab === "pros" && <ProsTab />}
       {tab === "promotions" && <PromotionsTab searchParams={params} />}
       {tab === "retail" && <RetailTab />}
       {tab === "audit" && <AuditTab />}

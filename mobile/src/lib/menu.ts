@@ -94,6 +94,15 @@ export const MENU: MenuSection[] = [
     ],
   },
   {
+    // Book a pro (0204): PGA pros, teaching pros and club fitters.
+    title: "Lessons",
+    items: [
+      { kind: "native", label: "Book a pro", icon: "school-outline", to: "/pros", feature: "bookAPro", age: "buy" },
+      { kind: "native", label: "My lessons", icon: "calendar-number-outline", to: "/lessons", feature: "bookAPro", age: "buy" },
+      { kind: "native", label: "Teach on PinPals", icon: "ribbon-outline", to: "/teach", feature: "bookAPro", age: "sell" },
+    ],
+  },
+  {
     title: "Members",
     items: [
       // The feed (0088) has its own tab; it is here too because the menu is

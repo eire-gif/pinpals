@@ -80,6 +80,8 @@ const EXACT: Record<string, string> = {
   "/members": "/members",
   "/courses": "/courses",
   "/compete": "/compete",
+  // Book a pro (0204): "you've been paid", approvals.
+  "/pros/me": "/teach",
 };
 
 /**
@@ -143,6 +145,9 @@ const PATTERNS: { match: RegExp; to: (id: string, id2: string) => string }[] = [
   // it, so a member who tapped "this order needs paying" arrives somewhere
   // that says so and can still pay, one tap further on.
   { match: /^\/dashboard\/orders\/(\d+)(?:\/checkout)?$/, to: (id) => `/order/${id}` },
+  // Book a pro (0204): a booking, a cancellation, a refund — the lesson.
+  { match: /^\/lessons\/(\d+)$/, to: (id) => `/lesson/${id}` },
+  { match: /^\/dashboard\/lessons\/(\d+)$/, to: (id) => `/lesson/${id}` },
 ];
 
 /**

@@ -477,3 +477,68 @@ async function toggleActive(
   revalidatePath(PAGE);
   return { success: true };
 }
+
+// ---------------------------------------------------------------------------
+// Book a pro (0204)
+// ---------------------------------------------------------------------------
+
+type ProRow = { id: number; member_id: string; status: string; club: string };
+
+async function reviewPro(formData: FormData, approve: boolean): Promise<GrowthActionState> {
+  const actor = await financeActor();
+  const proId = readId(formData, "proId");
+  if (!proId) return { error: "Missing pro." };
+  const reasonResult = readReason(formData, !approve);
+  if ("error" in reasonResult) return { error: reasonResult.error };
+  const { reason } = reasonResult;
+
+  const admin = createAdminClient();
+  const { data: pro } = await admin.from("pros").select("id, member_id, status, club").eq("id", proId).maybeSingle<ProRow>();
+  if (!pro) return { error: "Pro not found." };
+  const to = approve ? "approved" : "declined";
+  if (pro.status === to) {
+    revalidatePath(PAGE);
+    return { success: true };
+  }
+  if (pro.status !== "pending") return { error: `This pro is ${pro.status} — refresh and try again.` };
+
+  const nowIso = new Date().toISOString();
+  const { data: updated, error } = await admin
+    .from("pros")
+    .update({ status: to, decline_reason: approve ? null : reason, reviewed_by: actor.id, reviewed_at: nowIso, updated_at: nowIso })
+    .eq("id", proId)
+    .eq("status", "pending")
+    .select("id")
+    .maybeSingle();
+  const action = approve ? "pro.approve" : "pro.decline";
+  if (error) {
+    await audit(actor, action, "pro", proId, { reason, outcome: "failure", metadata: { error: error.message } });
+    return { error: "Couldn't update the pro — try again." };
+  }
+  if (!updated) {
+    revalidatePath(PAGE);
+    return { error: "This pro changed while you were looking — refresh and try again." };
+  }
+  await audit(actor, action, "pro", proId, { reason, metadata: { club: pro.club } });
+  await notifyUser(admin, {
+    userId: pro.member_id,
+    type: "seller_action_required",
+    title: approve ? "You're live on Book a pro" : "Your Book a pro application",
+    body: approve
+      ? "PinPals has approved you. Golfers can now find you and book. Make sure your hours and lessons are set."
+      : `PinPals couldn't approve it this time: ${reason}. You can change it and send it again.`,
+    href: "/pros/me",
+    data: { proId },
+    dedupeKey: `pro:${proId}:${to}:${nowIso}`,
+  });
+  revalidatePath(PAGE);
+  return { success: true };
+}
+
+export async function approvePro(_prev: GrowthActionState, formData: FormData): Promise<GrowthActionState> {
+  return reviewPro(formData, true);
+}
+
+export async function declinePro(_prev: GrowthActionState, formData: FormData): Promise<GrowthActionState> {
+  return reviewPro(formData, false);
+}

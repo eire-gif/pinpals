@@ -6,6 +6,7 @@ import { checkRateLimit, rateLimitMessage } from "@/lib/rate-limit";
 import { PAYMENTS_OFF_MESSAGE, marketplacePaymentsEnabled } from "@/lib/marketplace-settings";
 import { linkConversationToOrder } from "@/lib/conversations-server";
 import { releaseDueOrders } from "@/lib/marketplace-release";
+import { sweepLessons } from "@/lib/lessons-server";
 import { DEFAULT_CHECKOUT_WINDOW_MINUTES, MIN_OFFER_AMOUNT_CENTS, centsToEur, eurToCents } from "@/lib/marketplace";
 import type { DeliveryOption, Offer, Order } from "@/lib/types";
 
@@ -68,6 +69,8 @@ export async function sweepMarketplace(): Promise<void> {
   // Buyer Protection (0114): pay sellers whose held money is now due.
   // Best effort — a Stripe hiccup leaves the order held for the next sweep.
   await releaseDueOrders(admin).catch((e) => console.error("releaseDueOrders failed:", e));
+  // Book a pro (0204): lapsed holds, refunds to retry, pros to pay.
+  await sweepLessons(admin).catch((e) => console.error("sweepLessons failed:", e));
 }
 
 // ===========================================================================

@@ -91,6 +91,9 @@ export const ADMIN_ACTIONS = [
   "store.suspend",
   "store.reinstate",
   "store.commission_changed",
+  // Book a pro (0204): approving or declining a pro's application.
+  "pro.approve",
+  "pro.decline",
   "promotion.cancelled",
   "affiliate.created",
   "affiliate.updated",
@@ -352,6 +355,8 @@ export const AUDIT_TARGET_TYPES = [
   // affiliate.* and banner.* above — rows in stores, listing_promotions,
   // affiliate_products and marketplace_banners respectively.
   "store",
+  // Book a pro (0204): a row in pros.
+  "pro",
   "listing_promotion",
   "affiliate_product",
   "marketplace_banner",
