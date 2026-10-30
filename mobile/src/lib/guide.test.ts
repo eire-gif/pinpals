@@ -66,7 +66,10 @@ describe("how-to guides", () => {
         if (!r || r.section !== "groups") continue;
         for (const s of r.steps) {
           const text = [s.title, s.body, s.who, s.tip, ...(s.look ?? []).map((l) => l.label)].filter(Boolean).join(" ");
-          expect(text, `${g.id} for ${a}: ${s.title}`).not.toMatch(societyOnly);
+          // The Cup (0200) has team captains for every kind of group — a
+          // Ryder Cup's, not a society's officer — so only that word is let through there.
+          const checked = g.id === "cup" ? text.replace(/captains?('s)?/gi, "") : text;
+          expect(checked, `${g.id} for ${a}: ${s.title}`).not.toMatch(societyOnly);
         }
       }
     }

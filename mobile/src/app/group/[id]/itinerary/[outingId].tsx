@@ -33,6 +33,8 @@ import { officeAreas } from "@/lib/groups";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 import { myRoundRight } from "@/components/my-round-pill";
 import { setTripChampionship, tripChampionship, type Championship } from "@/lib/championships";
+import { isOn } from "@/lib/features";
+import { loadTripCup, type Cup } from "@/lib/trip-cup";
 
 /**
  * A trip's itinerary (0126) — one screen for everyone in the society.
@@ -60,12 +62,15 @@ export default function ItineraryScreen() {
   /** "Run a leaderboard across the trip" (0187). */
   const [champ, setChamp] = useState<Championship | null>(null);
   const [champBusy, setChampBusy] = useState(false);
+  /** Ryder Cup mode (0200). */
+  const [cup, setCup] = useState<Cup | null>(null);
 
   const load = useCallback(async () => {
     if (!userId) return;
     try {
       const [o, list, g, c] = await Promise.all([loadOuting(outingId), loadItinerary(outingId), loadGroupPage(groupId, userId), tripChampionship(outingId).catch(() => null)]);
       setChamp(c);
+      setCup(isOn("tripCup") ? await loadTripCup(outingId).catch(() => null) : null);
       setPage(o);
       setItems(sortItems(list));
       // Whoever runs events: owner, captain, secretary, and since 0144 the
@@ -247,6 +252,23 @@ export default function ItineraryScreen() {
               </View>
             ) : null}
           </View>
+        ) : null}
+
+        {/* Ryder Cup mode (0200) */}
+        {!cancelled && isOn("tripCup") && (cup?.status === "open" || officer) ? (
+          <Pressable
+            style={[styles.board, styles.boardOpen]}
+            onPress={() => router.push({ pathname: "/group/[id]/cup/[outingId]", params: { id: String(groupId), outingId: String(outingId) } })}
+            accessibilityRole="button"
+            accessibilityLabel={cup?.status === "open" ? "Open the Cup" : "Play the trip as a Ryder Cup"}
+          >
+            <Ionicons name="trophy-outline" size={22} color={colors.gold400} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.boardTitle}>{cup?.status === "open" ? `The Cup · ${cup.teamNames[0]} v ${cup.teamNames[1]}` : "Play it as a Ryder Cup"}</Text>
+              <Text style={styles.boardMeta}>{cup?.status === "open" ? "Teams, sessions and the running score" : "Two teams, a format each round, one points total"}</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={colors.gold400} />
+          </Pressable>
         ) : null}
 
         {/* You */}

@@ -42,6 +42,8 @@ import { setMatchDayGroup } from "@/lib/social-live";
 import { addOutingGuest, linkOutingMatchDay, loadClub, loadDrawWishes, loadOuting, publishOutingDraw, saveOuting, setOutingEntry, updateOutingGuest, type DrawSeat, type OutingPage } from "@/lib/outings";
 import { loadItineraryItem, setItemPeople, type ItineraryItem } from "@/lib/itinerary";
 import { linkItemMatchDay } from "@/lib/championships";
+import { linkCupSession, loadCupPage, loadLineups } from "@/lib/trip-cup";
+import { defaultLineup, pairUp, type CupFormat } from "@/lib/trip-cup-rules";
 import type { PlayFormat } from "@/lib/itinerary-rules";
 import { clockLabel } from "@/lib/tee-time-post";
 import { cardForRatings, extraLabel, ladiesTees, playerTees, type TeeSet } from "@/lib/mixed-tees";
@@ -195,13 +197,41 @@ function formatFromTrip(f: PlayFormat | null): Format {
   return "stableford";
 }
 
+/**
+ * A Cup session's matches (0200): each team's lineup when its captain has
+ * sent one, otherwise the team in the order given; match n is team 1's nth
+ * against team 2's nth, team 1 on side 1. Only players ticked can play.
+ */
+function cupDraw(
+  format: CupFormat,
+  members: readonly { id: string; team: 1 | 2 }[],
+  lineups: readonly { team: 1 | 2; pairs: string[][] | null }[],
+  people: readonly RosterPlayer[],
+): Entrant[][] {
+  const here = new Map(people.map((p) => [p.id, p]));
+  const order = (t: 1 | 2): string[][] => {
+    const sent = lineups.find((l) => l.team === t)?.pairs ?? null;
+    const usable = sent && sent.every((m) => m.every((id) => here.has(id))) ? sent : null;
+    return usable ?? defaultLineup(members.filter((m) => m.team === t && here.has(m.id)).map((m) => m.id), format);
+  };
+  const entrant = (id: string): Entrant => {
+    const p = here.get(id)!;
+    const indexText = p.index != null ? indexLabel(p.index) : "";
+    return { key: `m:${p.id}`, memberId: p.id, name: p.name, indexText, index: parseIndex(indexText) };
+  };
+  return pairUp(order(1), order(2)).map((m) => [...m.one.map(entrant), ...m.two.map(entrant)]);
+}
+
 let seq = 0;
 const nextKey = () => `g${++seq}`;
 
 export default function DrawFromGroup() {
-  const { group: groupParam, outing: outingParam, round: roundParam } = useLocalSearchParams<{ group?: string; outing?: string; round?: string }>();
+  const { group: groupParam, outing: outingParam, round: roundParam, cup: cupParam, session: sessionParam } = useLocalSearchParams<{ group?: string; outing?: string; round?: string; cup?: string; session?: string }>();
   const outingId = outingParam ? Number(outingParam) : null;
   const roundId = roundParam ? Number(roundParam) : null;
+  /** Ryder Cup mode (0200): a session of a trip's Cup — its format, teams and lineups are set. */
+  const cupSessionId = cupParam && sessionParam ? Number(sessionParam) : null;
+  const [cup, setCup] = useState<{ names: [string, string]; teamOf: Map<string, 1 | 2>; slot: 1 | 2 } | null>(null);
   const [tripRound, setTripRound] = useState<ItineraryItem | null>(null);
   const [outing, setOuting] = useState<OutingPage | null>(null);
   const [publishing, setPublishing] = useState(false);
@@ -310,6 +340,7 @@ export default function DrawFromGroup() {
             const club = await loadClub(round.clubId);
             if (club) course.setClub(club);
           }
+          if (cupSessionId) await applyCup(round.outingId, cupSessionId, people);
           return;
         }
         if (page && page.outing.groupId === groupId) {
@@ -377,6 +408,27 @@ export default function DrawFromGroup() {
     // course.setClub is a state setter: stable.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [groupId, groupKind, groupName, userId, outingId, roundId]);
+
+  /**
+   * A Cup session: the session's format, the Cup's team names, everyone on a
+   * team ticked, and the matches made from the captains' lineups (or each
+   * team in order) — team 1 always side 1.
+   */
+  async function applyCup(outingIdForCup: number, sessionIdForCup: number, people: RosterPlayer[]) {
+    const [cupPage, lineups] = await Promise.all([loadCupPage(outingIdForCup).catch(() => null), loadLineups(sessionIdForCup).catch(() => [])]);
+    const sess = cupPage?.sessions.find((x) => x.id === sessionIdForCup);
+    if (!cupPage || !sess) return;
+    const names = cupPage.cup.teamNames;
+    setCup({ names, teamOf: new Map(cupPage.members.map((m) => [m.id, m.team])), slot: sess.slot });
+    setFormat(sess.format as Format);
+    setTeamsOn(true);
+    setTeamNames([names[0], names[1]]);
+    setTitle(`${cupPage.tripTitle} — ${sess.format === "singles" ? "Singles" : sess.format === "fourball" ? "Fourballs" : sess.format === "foursomes" ? "Foursomes" : "Greensomes"}${sess.slot === 2 ? " (afternoon)" : ""}`);
+    const label = (p: RosterPlayer) => (p.index != null ? indexLabel(p.index) : "");
+    const onTeams = people.filter((p) => cupPage.members.some((m) => m.id === p.id));
+    setTicked(new Map(onTeams.map((p) => [p.id, label(p)])));
+    setDrawn(cupDraw(sess.format, cupPage.members, lineups, onTeams));
+  }
 
   useEffect(() => {
     setRatings(new Map());
@@ -467,6 +519,18 @@ export default function DrawFromGroup() {
 
   const makeDraw = () => {
     setPicked(null);
+    if (cup && cupSessionId && tripRound) {
+      // A Cup session's matches come from the lineups, never a mixed draw.
+      void loadCupPage(tripRound.outingId)
+        .then(async (cp) => {
+          const sess = cp?.sessions.find((x) => x.id === cupSessionId);
+          if (!cp || !sess || !roster) return;
+          const lineups = await loadLineups(cupSessionId).catch(() => []);
+          setDrawn(cupDraw(sess.format, cp.members, lineups, roster.filter((p) => ticked.has(p.id))));
+        })
+        .catch(() => undefined);
+      return;
+    }
     let groupsNow = draw(entrants, sizing.sizes, mode);
     setWishNote(null);
     // Plain tee groups for an event: honour requests and avoid repeat pairings.
@@ -613,6 +677,9 @@ export default function DrawFromGroup() {
   // A draw saved for tee groups (an event, a trip round) doesn't fit matches of another size.
   else if (matchFormat && drawnNow.some((g) => g.length !== teamSize)) problems.push(`Draw again — ${matchFormat === "matchplay" ? "singles are two to a match" : "pairs matches are four to a match"}`);
   else if (foursomesComp && drawnNow.some((g) => g.length % 2 !== 0)) problems.push(`Draw again — ${greensomes ? "greensomes" : "foursomes"} groups are two pairs`);
+  if (cup && drawnNow && matchFormat && drawnNow.some((g) => g.some((p, pi) => !p.memberId || cup.teamOf.get(p.memberId) !== sideOf(pi, g.length)))) {
+    problems.push(`Each match is ${cup.names[0]} v ${cup.names[1]} — swap players within a team`);
+  }
 
   const start = async (startAnyway = false) => {
     if (problems.length > 0 || !drawnNow || !course.club) return;
@@ -769,7 +836,7 @@ export default function DrawFromGroup() {
         await publishDraw(drawnNow).catch(() => undefined);
         await linkOutingMatchDay(outing.outing.id, id).catch(() => undefined);
       }
-      if (tripRound) {
+      if (tripRound && cup?.slot !== 2) {
         // The groups as played go back on the itinerary. Guests aren't on
         // the trip, so they stay off it. Never blocks the round.
         await setItemPeople(
@@ -777,7 +844,12 @@ export default function DrawFromGroup() {
           drawnNow.flatMap((g, gi) => g.filter((p) => p.memberId).map((p) => ({ memberId: p.memberId as string, slot: gi + 1 })))
         ).catch(() => undefined);
       }
-      if (tripRound) {
+      if (tripRound && cupSessionId) {
+        // A Cup session (0200): the Cup counts it; a morning session's day is the round's too.
+        await linkCupSession(cupSessionId, id).catch(() =>
+          Alert.alert("The session isn't on the Cup yet", "The matches have started. Ask whoever runs the trip to try starting the session again from the Cup.")
+        );
+      } else if (tripRound) {
         // The round remembers its live day (0187), so a trip's leaderboard counts it.
         await linkItemMatchDay(tripRound.id, id).catch(() => undefined);
       }
@@ -1232,6 +1304,7 @@ export default function DrawFromGroup() {
               return (
                 <Pressable
                   key={f.id}
+                  disabled={!!cup}
                   onPress={() => {
                     invalidate();
                     setFormat(f.id);
@@ -1253,6 +1326,7 @@ export default function DrawFromGroup() {
               return (
                 <Pressable
                   key={f.id}
+                  disabled={!!cup}
                   onPress={() => {
                     invalidate();
                     setFormat(f.id);
@@ -1271,7 +1345,7 @@ export default function DrawFromGroup() {
             <>
               <View style={styles.teamToggle}>
                 <Text style={styles.teamToggleText}>Keep a team score</Text>
-                <Switch value={teamsOn} onValueChange={setTeamsOn} trackColor={{ true: colors.green600 }} />
+                <Switch value={teamsOn} onValueChange={setTeamsOn} disabled={!!cup} trackColor={{ true: colors.green600 }} />
               </View>
               {teamsOn ? (
                 <View style={styles.row}>
@@ -1281,6 +1355,7 @@ export default function DrawFromGroup() {
                       <TextInput
                         value={teamNames[i]}
                         onChangeText={(t) => setTeamNames((n) => (i === 0 ? [t, n[1]] : [n[0], t]))}
+                        editable={!cup}
                         style={styles.teamInput}
                         maxLength={30}
                         accessibilityLabel={`Team ${i + 1} name`}

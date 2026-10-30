@@ -113,6 +113,11 @@ export const FEATURES = {
    *  the website's /w/[token]/photo): your year in golf as story cards. Off
    *  hides the Profile and menu entries; the screen says "on its way". */
   wrapped: true,
+  /** Ryder Cup mode for trips (claude/ryder-cup-mode.md, needs 0200): two
+   *  teams over an overnight or abroad trip, a format for each round and one
+   *  running points total. Off hides the itinerary's Cup card; the screens
+   *  say "on its way". */
+  tripCup: true,
 
   // ---- Gates (unfinished, off) ----
   /** Shared rounds (phase 9): model only — see claude/shared-round-model.md. */
