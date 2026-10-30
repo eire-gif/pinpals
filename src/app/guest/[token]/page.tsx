@@ -38,6 +38,8 @@ export default async function GuestCardPage({ params }: { params: Promise<{ toke
       : Promise.resolve({ data: null }),
     (await createClient()).auth.getUser(),
   ]);
+  // 0196: were side games played on this round? (Shown as something waiting for them.)
+  const { data: side } = await admin.from("live_round_side_games").select("round_id").eq("round_id", invite.round_id).maybeSingle();
   if (!round || !player) notFound();
 
   const card: CardHole[] = (holes ?? []).map((h) => ({ hole: h.hole, par: h.par, strokeIndex: h.stroke_index }));
@@ -92,6 +94,12 @@ export default async function GuestCardPage({ params }: { params: Promise<{ toke
                 <th className="text-left py-1 pr-2">Score</th>
                 {half.map((r) => <td key={r.hole}>{r.strokes ?? "–"}</td>)}
               </tr>
+              {round.format === "stableford" && totalPoints != null ? (
+                <tr className="text-green-700 font-bold text-xs">
+                  <th className="text-left font-semibold py-1 pr-2">Points</th>
+                  {half.map((r) => <td key={r.hole}>{r.points ?? "–"}</td>)}
+                </tr>
+              ) : null}
             </tbody>
           </table>
         ))}
@@ -107,6 +115,15 @@ export default async function GuestCardPage({ params }: { params: Promise<{ toke
               Join PinPals and it&rsquo;s saved to your profile{inviter?.first_name ? `, and you're connected with ${inviter.first_name}` : ""}. Free, and it takes a minute.
             </p>
             <ClaimForm token={token} signedIn={!!auth.data.user} />
+            <div className="mt-6 border-t border-cream-100 pt-5">
+              <p className="text-xs font-extrabold tracking-widest uppercase text-navy-900">Also waiting for you</p>
+              <ul className="mt-3 grid gap-2 text-sm text-navy-900">
+                {side ? <li className="flex gap-2"><span className="text-green-700 font-bold">✓</span> Your side-game results from the round</li> : null}
+                {inviter?.first_name ? <li className="flex gap-2"><span className="text-green-700 font-bold">✓</span> Connected with {inviter.first_name} — play again in a tap</li> : null}
+                <li className="flex gap-2"><span className="text-green-700 font-bold">✓</span> {round.course_name} stamped in your Course Passport</li>
+                <li className="flex gap-2"><span className="text-green-700 font-bold">✓</span> The round in your scorecards and on the course leaderboard</li>
+              </ul>
+            </div>
           </>
         )}
       </div>

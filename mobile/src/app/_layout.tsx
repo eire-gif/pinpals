@@ -288,6 +288,14 @@ function RootNavigator() {
       <Stack.Screen name="age/waiting" options={{ headerShown: false, gestureEnabled: false, contentStyle: { backgroundColor: colors.navy900 } }} />
       <Stack.Screen name="course/[id]" options={{ title: "Course", headerBackTitle: "Back" }} />
       <Stack.Screen name="course/review" options={{ presentation: "modal", title: "Rate & review" }} />
+      {/* Course leaderboards (0197): their titles go up in a coloured bar (TintedHeader). */}
+      <Stack.Screen name="course/board/[id]" options={{ title: "Leaderboard", headerBackTitle: "Back" }} />
+      <Stack.Screen name="course/champions/[id]" options={{ title: "Hole Champions", headerBackTitle: "Back" }} />
+      {/* Course Passport: titles in a coloured bar (TintedHeader). */}
+      <Stack.Screen name="passport" options={{ title: "Course Passport", headerBackTitle: "Back" }} />
+      <Stack.Screen name="passport-list" options={{ title: "Bucket list", headerBackTitle: "Back" }} />
+      {/* PinPals Wrapped: full-screen story cards, no header. */}
+      <Stack.Screen name="wrapped" options={{ headerShown: false, presentation: "fullScreenModal" }} />
       <Stack.Screen name="rate-course" options={{ title: "Rate a course", headerBackTitle: "Back" }} />
       <Stack.Screen name="my-bag" options={{ title: "My bag", headerBackTitle: "Back" }} />
       {/* Memberships (0156): navy screens, gated by the `memberships` flag. */}

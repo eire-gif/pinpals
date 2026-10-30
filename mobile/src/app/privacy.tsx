@@ -8,6 +8,8 @@ import { SignInMethods } from "@/components/sign-in-methods";
 import { useAgeAccess } from "@/lib/age";
 import { isUnder16, maskEmail, parentStatusLine } from "@/lib/age-rules";
 import { useAuth } from "@/lib/auth";
+import { loadBoardsHidden, setBoardsHidden } from "@/lib/course-boards";
+import { isOn } from "@/lib/features";
 import { loadMyGroups } from "@/lib/groups-data";
 import { loadMyMobile, loadMyShares, removeMyMobile, saveMyMobile, setShare, type MyMobile } from "@/lib/mobile-number";
 import { formatPhone, normalisePhone } from "@/lib/phone";
@@ -48,6 +50,26 @@ export default function PrivacyScreen() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
+  // Course leaderboards (0197): on unless switched off.
+  const [onBoards, setOnBoards] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    if (!userId || !isOn("courseBoards")) return;
+    loadBoardsHidden(userId)
+      .then((hidden) => setOnBoards(!hidden))
+      .catch(() => setOnBoards(null));
+  }, [userId]);
+
+  const toggleBoards = async (on: boolean) => {
+    const before = onBoards;
+    setOnBoards(on);
+    try {
+      await setBoardsHidden(!on);
+    } catch {
+      setOnBoards(before);
+      Alert.alert("Couldn't save that", "Please try again.");
+    }
+  };
 
   const load = useCallback(async () => {
     if (!userId) return;
@@ -254,6 +276,29 @@ export default function PrivacyScreen() {
                   </View>
                 ))
               )}
+            </View>
+          </>
+        ) : null}
+
+        {/* ============ Course leaderboards (0197) ============ */}
+        {isOn("courseBoards") && onBoards != null ? (
+          <>
+            <Text style={styles.heading}>Course leaderboards</Text>
+            <View style={styles.card}>
+              <View style={styles.shareRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.groupName}>Show my rounds on course leaderboards</Text>
+                  <Text style={styles.small}>
+                    Your best round each week, the Course Legend and hole champions: your name, score and the day — never the card. Cards set to Only me never show.
+                  </Text>
+                </View>
+                <Switch
+                  value={onBoards}
+                  onValueChange={(v) => void toggleBoards(v)}
+                  trackColor={{ true: colors.green600, false: colors.line }}
+                  accessibilityLabel="Show my rounds on course leaderboards"
+                />
+              </View>
             </View>
           </>
         ) : null}

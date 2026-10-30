@@ -96,6 +96,23 @@ export const FEATURES = {
    *  a binary with the card (LiveBoardLiveActivity.swift); an older binary
    *  ignores it. Off: just the scoring card, as before. */
   lockScreenBoard: true,
+  /** Side games (claude/side-games.md, needs 0196): Best Front 9 / Back 9 /
+   *  Overall and Sixes alongside a round, with settle-up. Off hides the
+   *  round screen's Side games row; the screen says "on its way". */
+  sideGames: true,
+  /** Course leaderboards (claude/course-boards.md, needs 0197): this week's
+   *  board, Course Legend and hole champions on a course page, and the
+   *  "Course leaderboards" switch in Privacy. Off hides the course page's
+   *  Leaderboard row; the screens say "on its way". */
+  courseBoards: true,
+  /** Course Passport (claude/course-passport.md, no migration): the satellite
+   *  map of courses played, badges and bucket lists. Off hides the Profile
+   *  and menu entries; the screens say "on its way". */
+  coursePassport: true,
+  /** PinPals Wrapped (claude/wrapped.md, no migration; the share picture needs
+   *  the website's /w/[token]/photo): your year in golf as story cards. Off
+   *  hides the Profile and menu entries; the screen says "on its way". */
+  wrapped: true,
 
   // ---- Gates (unfinished, off) ----
   /** Shared rounds (phase 9): model only — see claude/shared-round-model.md. */

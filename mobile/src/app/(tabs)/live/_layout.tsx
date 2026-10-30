@@ -91,6 +91,8 @@ export default function LiveLayout() {
       {/* Follow my round (0158). Opened from a "follow along" notification
           it can be first: draw a back. */}
       <Stack.Screen name="share/[id]" options={{ title: "Share live" }} />
+      {/* Side games (0196). Opened from a round's card: always draw a back. */}
+      <Stack.Screen name="side/[id]" options={{ title: "Side games", ...headerButtons({ left: <BackPill /> }) }} />
       <Stack.Screen name="follow/[id]" options={{ title: "Following", ...headerButtons({ left: <BackPill /> }) }} />
     </Stack>
   );

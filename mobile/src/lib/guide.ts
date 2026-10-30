@@ -45,7 +45,12 @@ import type { Href } from "expo-router";
  *               app/invite/[id].tsx (Start live scoring), app/(tabs)/live/tv.tsx,
  *               app/(tabs)/live/day/[id].tsx (Show on TV),
  *               app/(tabs)/live/share/[id].tsx, components/share-live-row.tsx,
- *               app/(tabs)/live/follow/[id].tsx (Share live / Following)
+ *               app/(tabs)/live/follow/[id].tsx (Share live / Following),
+ *               app/(tabs)/live/side/[id].tsx, components/side-games-row.tsx (Side games)
+ *    passport → app/passport.tsx, app/passport-list.tsx, components/passport-map.tsx,
+ *               app/course/board/[id].tsx, app/course/champions/[id].tsx, app/course/[id].tsx,
+ *               app/privacy.tsx (Course leaderboards), app/wrapped.tsx, app/(tabs)/profile.tsx,
+ *               components/fourball-connect.tsx (Send a guest their scorecard)
  *    compete  → app/compete/index.tsx, app/compete/[id].tsx, app/compete/match/[id].tsx,
  *               app/compete/new.tsx, app/compete/opens.tsx, app/compete/share-open.tsx
  *    myGame   → app/my-game.tsx, app/scorecards/index.tsx, app/(tabs)/profile.tsx,
@@ -1307,6 +1312,27 @@ export const GUIDES: Guide[] = [
         tip: "Any card in Menu → My scorecards does the same: tap Send, then Photo of the card. On Android, use that one — the picture opens as a download and lands in your gallery.",
       },
       {
+        title: "Add side games",
+        body: "Whoever started the round can add side games that run alongside the main score: Best Front 9, Best Back 9, Best Overall, and Sixes — three 6-hole games, on your own or in pairs that rotate so you partner everyone once. On the scorecard, tap Add side games, switch on the ones you play, then pick Bragging, Points or Money and the amount per game.",
+        look: [
+          { style: "raised", label: "Add side games", icon: "trophy", subtitle: "Best Front 9, Back 9 and Sixes, alongside the main game" },
+          { style: "outline", label: "Pairs" },
+          { style: "field", label: "Amount per game  €5" },
+          { style: "primary", label: "Start side games" },
+        ],
+        tip: "Everything is scored on Stableford points off each player's own handicap. They need an 18-hole round where everyone plays their own ball; Sixes in pairs needs four players. Money isn't offered to anyone under 18.",
+      },
+      {
+        title: "Say you're in, and settle up",
+        body: "Playing for money, everyone on PinPals in the round taps I'm in on their own phone — until they do, it's for bragging rights. Side games on the scorecard shows each game live and what you'd win if it ended now. At the end it's Settle up: who won what, everyone's total, and the fewest payments to square it. Tick Mark as paid as each one's done.",
+        look: [
+          { style: "primary", label: "I'm in" },
+          { style: "outline", label: "Mark as paid" },
+          { style: "outline", label: "Send a reminder" },
+        ],
+        tip: "PinPals only keeps the tally — pay each other by Revolut or cash. Change the games or the amount and everyone says I'm in again.",
+      },
+      {
         title: "Let family or a friend follow along",
         body: "Someone at home who'd love to watch — a parent, a friend at work? While you're playing, tap Share live on the scorecard. Share a link texts them a page that updates hole by hole — no app needed. Or tick PinPals and tap Share: it opens in their app and on their Home Screen widget, and they hear about birdies and the finish.",
         look: [
@@ -1329,6 +1355,51 @@ export const GUIDES: Guide[] = [
         as: {
           society: { tip: "On the day's leaderboard, tap Show on TV — every group is on one board. No TV browser? Tap Share the TV link instead and open it on a laptop, or an iPad with AirPlay." },
         },
+      },
+    ],
+  },
+
+  {
+    id: "passport",
+    section: "play",
+    title: "Your passport, leaderboards and year",
+    blurb: "Every course you've played on a satellite map, each course's weekly leaderboard, and your year in golf.",
+    icon: "earth",
+    tone: "navy",
+    audience: "Everyone",
+    steps: [
+      {
+        title: "Open your Course Passport",
+        body: "On your Profile, under Golf, tap Course Passport. A gold star marks every course you've played — from your scorecards and the courses you've ticked as played. Ireland, Europe and World zoom the map; tap a star for the course.",
+        path: [{ icon: "person-circle-outline", label: "Profile" }, { icon: "earth-outline", label: "Course Passport" }],
+        look: [{ style: "outline", label: "Ireland" }, { style: "outline", label: "Europe" }, { style: "outline", label: "World" }],
+        go: { label: "Course Passport", to: "/passport" },
+        tip: "Close stars group into a navy circle with a number — tap it to zoom in. Your newest course is white with a gold ring.",
+      },
+      {
+        title: "Badges and bucket lists",
+        body: "Under the map: badges (All 4 Provinces, course milestones, the Links Trail, Played Abroad), your courses by province, and your bucket lists. The Irish Links Trail is twelve of the island's great links; My bucket list is the courses you've saved. Played ones tick off with the date.",
+        look: [{ style: "raised", label: "Irish Links Trail · 5 of 12", icon: "list", tone: "claret", kicker: "Bucket list" }],
+      },
+      {
+        title: "This week's leaderboard at a course",
+        body: "Open any course and tap This week's leaderboard: everyone's best round there this week, Monday to Sunday, by Stableford, net or gross. Below it is the Course Legend — whoever's played there most in 90 days — and Hole champions, the best net score on each hole this month.",
+        look: [{ style: "raised", label: "This week's leaderboard", icon: "podium", subtitle: "Course Legend and hole champions too" }],
+        tip: "Every round you save goes on by itself — your name, score and the day, never the card. Cards set to Only me never show. Turn it off in Profile → Privacy & security → Course leaderboards.",
+      },
+      {
+        title: "Your year in golf",
+        body: "On your Profile, tap My year in golf: your rounds, best round, birdies, new courses, handicap change, partner of the year and what kind of golfer you were — as story cards. Tap the right side for the next one. The last has Share to Instagram story.",
+        path: [{ icon: "person-circle-outline", label: "Profile" }, { icon: "sparkles-outline", label: "My year in golf" }],
+        look: [{ style: "primary", label: "Share to Instagram story" }],
+        go: { label: "My year in golf", to: "/wrapped" },
+        tip: "It's built from your saved scorecards, so the more rounds you score on PinPals, the better your year looks. In January it shows the year just gone.",
+      },
+      {
+        title: "Send a guest their scorecard",
+        body: "Played with someone not on PinPals? After the round, under Your fourball, tap WhatsApp or Text message beside their name. They get their card; joining keeps the round in their scorecards and passport, and connects you.",
+        look: [{ style: "primary", label: "WhatsApp" }, { style: "outline", label: "Text message" }],
+        tip: "Your fourball shows how many golfers have joined from the cards you've sent.",
       },
     ],
   },
@@ -2131,6 +2202,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-30", text: "Score a game live: two new steps, Add side games (Best Front 9, Back 9, Overall and Sixes, alone or in rotating pairs, for bragging rights, points or money with your own amount) and Say you're in, and settle up (I'm in, live standings, the fewest payments and Mark as paid). New guide, Your passport, leaderboards and year: the Course Passport map and bucket lists, each course's weekly leaderboard with the Course Legend and hole champions, My year in golf, and sending a guest their scorecard." },
   { on: "2026-10-30", text: "Share on Social: new step, Share a round live with everyone — turn on Share live on PinPals Social (the organiser on a day's leaderboard, or a player on their own scorecard) and all of PinPals can watch on Social, give Great Shots and comment. Players in a day now see its red LIVE circle on Social too." },
   { on: "2026-10-29", text: "Use the hole map: new step, Preview a course before you play — Live scoring has a teal Preview a Course button. Pick a course and it opens on the 1st hole's satellite map, with a Course summary (tees, par, rating, out and in), Go to any hole, and Start your round here into Set up a round with the course and tees filled in. Without a round, par and index on the hole map now come from the course's saved card." },
   { on: "2026-10-28", text: "Social has a new look: circles across the top show what's on now — tap Post to share, a red LIVE circle to watch one of your groups' days full screen (leaderboard, birdie banner, Great Shot and comments with likes), green for your round or a card shared with you, gold for new results. A Groups tab sits beside For You and Following, society results appear in the feed with their comments, and the top comments show under every post with a heart to like them. A group's page shows a LIVE banner while its day is on. Share on Social: Start a post and React and comment are updated, and there's a new step, Watch your group live." },

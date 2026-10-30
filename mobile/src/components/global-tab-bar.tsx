@@ -64,6 +64,8 @@ const FULL_SCREEN = [
   "+native-intent",
   // Social's full-screen live view (claude/social-live.md)
   "social-live",
+  // PinPals Wrapped: full-screen story cards (claude/wrapped.md)
+  "wrapped",
   // Marketplace
   "listing",
   "listing-offers",
