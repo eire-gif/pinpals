@@ -97,7 +97,7 @@ const PROMPTS: Record<PostKind | "photo", string> = {
  * no member can read.
  */
 function NewPostScreenInner() {
-  const params = useLocalSearchParams<{ type?: string; recap?: string; scorecard?: string }>();
+  const params = useLocalSearchParams<{ type?: string; recap?: string; scorecard?: string; camera?: string }>();
   const { session } = useAuth();
   const userId = session?.user?.id ?? null;
   // ?recap=<tee time id>: a round recap of a played tee time (phase 7).
@@ -308,6 +308,15 @@ function NewPostScreenInner() {
     },
     [photos.length, upload, video, startVideo]
   );
+
+  // ?camera=1 — the camera on Chats, "Share on Social" (Oct 2026): the
+  // camera opens with the post, once.
+  const cameraAsked = useRef(false);
+  useEffect(() => {
+    if (params.camera !== "1" || cameraAsked.current) return;
+    cameraAsked.current = true;
+    void pick("camera");
+  }, [params.camera, pick]);
 
   function removeVideo() {
     if (video?.path) void discardVideo(video.path);

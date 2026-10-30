@@ -76,6 +76,7 @@ import { irishToday } from "@/lib/outing-rules";
 import { myRoundRight } from "@/components/my-round-pill";
 import { SAFETY_TIPS, SAFETY_TIPS_TITLE, meetAtClubMessage, meetAtClubMessageForSeller, safetyWarning } from "@/lib/message-safety";
 import { supabase } from "@/lib/supabase";
+import { loadDraft, saveDraft } from "@/lib/chat-drafts";
 
 /** A row in the chat: a message, or one of the group's events (0181). */
 type Row = { kind: "message"; item: Message } | { kind: "card"; item: GroupEventCard };
@@ -115,6 +116,35 @@ function ConversationScreenInner() {
   const [error, setError] = useState<string | null>(null);
 
   const [draft, setDraft] = useState(typeof params.draft === "string" ? params.draft.slice(0, 500) : "");
+  // Unsent words survive leaving the chat, and show as "Draft:" in Chats
+  // (Oct 2026). Words handed in by the route (Make offer) win over a stored
+  // draft; nothing is saved until the stored one has been read, so opening a
+  // chat can't wipe it.
+  const draftReady = useRef(false);
+  useEffect(() => {
+    if (!Number.isFinite(conversationId)) return;
+    draftReady.current = false;
+    let live = true;
+    void loadDraft(conversationId).then((stored) => {
+      if (!live) return;
+      if (stored && typeof params.draft !== "string") setDraft((now) => (now ? now : stored));
+      draftReady.current = true;
+    });
+    return () => {
+      live = false;
+    };
+  }, [conversationId, params.draft]);
+  useEffect(() => {
+    if (!draftReady.current || !Number.isFinite(conversationId)) return;
+    const t = setTimeout(() => void saveDraft(conversationId, draft), 400);
+    return () => clearTimeout(t);
+  }, [draft, conversationId]);
+  // Leaving inside the 400ms still keeps the last few letters.
+  const draftNow = useRef(draft);
+  draftNow.current = draft;
+  useEffect(() => () => {
+    if (draftReady.current && Number.isFinite(conversationId)) void saveDraft(conversationId, draftNow.current);
+  }, [conversationId]);
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const [emojiOpen, setEmojiOpen] = useState(false);

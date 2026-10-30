@@ -80,6 +80,9 @@ export type InboxRow = {
   memberCount: number | null;
   lastMessageAt: string | null;
   listingTitle: string | null;
+  /** About a listing you're selling (true) or one you asked about (false).
+   *  Null when the thread isn't about a listing. */
+  sellingIt: boolean | null;
   unreadCount: number;
   /**
    * The latest message, for the row's preview line. Null when the thread is
@@ -221,7 +224,11 @@ const titleOf = (row: ConversationRow, userId: string): string =>
  * own-rows-only SELECT policy keyed on membership, and the old filter would
  * have missed every group, whose pair columns are null.
  */
-export async function listInbox(userId: string): Promise<InboxRow[]> {
+export async function listInbox(
+  userId: string,
+  /** "archived": only the threads you've hidden (the Archived row, Oct 2026). */
+  which: "active" | "archived" = "active"
+): Promise<InboxRow[]> {
   const [conversations, unread] = await Promise.all([
     supabase
       .from("conversations")
@@ -240,7 +247,7 @@ export async function listInbox(userId: string): Promise<InboxRow[]> {
       []).map((row) => [row.conversation_id, Number(row.unread_count)])
   );
 
-  const visible = (conversations.data ?? []).filter((row) => !archivedForMe(row, userId));
+  const visible = (conversations.data ?? []).filter((row) => archivedForMe(row, userId) === (which === "archived"));
   const previews = await latestMessages(visible.map((row) => row.id));
 
   return visible
@@ -258,6 +265,7 @@ export async function listInbox(userId: string): Promise<InboxRow[]> {
         memberCount: row.kind === "group" ? membersOf(row).length : null,
         lastMessageAt: row.last_message_at,
         listingTitle: row.listing?.title ?? null,
+        sellingIt: row.listing ? row.listing.seller_id === userId : null,
         unreadCount: counts.get(row.id) ?? 0,
         lastMessage: (() => {
           const m = previews.get(row.id);
@@ -703,6 +711,19 @@ export async function hideConversation(
   await supabase
     .from("conversation_members")
     .update({ archived_at: new Date().toISOString() })
+    .eq("conversation_id", conversationId)
+    .eq("member_id", userId);
+}
+
+/** Puts a hidden thread back in your list — the Archived screen's Unarchive.
+ *  Your own member row only, like hideConversation(). */
+export async function unhideConversation(
+  conversationId: number,
+  userId: string
+): Promise<void> {
+  await supabase
+    .from("conversation_members")
+    .update({ archived_at: null })
     .eq("conversation_id", conversationId)
     .eq("member_id", userId);
 }

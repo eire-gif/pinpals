@@ -1904,25 +1904,28 @@ export const GUIDES: Guide[] = [
     audience: "18 and over",
     steps: [
       {
-        title: "Open your Inbox",
-        body: "Tap the Inbox tab. Chats and Alerts sit at the top — tap either to see just that. Under them, Groups shows just your group and trip chats.",
+        title: "Open Chats",
+        body: "Tap the Chats tab. Your chats are one list, newest first, with a number on any you haven't read. The row of filters scrolls sideways: Unread, Chat, Buddies & trips (your group and trip chats) and Marketplace. Alerts are behind the bell at the top.",
         look: [
-          { style: "tile", label: "Chats", icon: "chatbubbles-outline" },
-          { style: "tile", label: "Alerts", icon: "notifications-outline" },
-          { style: "outline", label: "Groups" },
+          { style: "outline", label: "Unread" },
+          { style: "outline", label: "Buddies & trips" },
+          { style: "outline", label: "Alerts", icon: "notifications-outline" },
         ],
-        go: { label: "Inbox", to: "/inbox" },
-        tip: "Under 18? Your Inbox shows your alerts only — chats open at 18.",
+        go: { label: "Chats", to: "/inbox" },
+        tip: "An alert that needs an answer — a place offered to you, or someone asking to join your round — sits at the top of your chats until you answer it. Under 18? Chats shows your alerts only — chats open at 18.",
       },
       {
         title: "Start a chat",
-        body: "Tap the pencil at the top of the Inbox and pick someone. If you've chatted before, it opens that chat.",
-        look: [{ style: "outline", label: "New message", icon: "create-outline" }],
-        tip: "You can message your connections. Chats about a listing or a tee time start from that listing or round.",
+        body: "Tap the green + at the top of Chats, then New chat, and pick someone. If you've chatted before, it opens that chat. The same + starts a Golf Buddies group, a golf trip, a tee time or something to sell.",
+        look: [
+          { style: "primary", label: "+", icon: "add" },
+          { style: "outline", label: "New chat", icon: "chatbubble-outline" },
+        ],
+        tip: "You can message your connections. Chats about a listing or a tee time start from that listing or round. Words you type and don't send are kept, and show as Draft in your list.",
       },
       {
         title: "Start a group chat",
-        body: "Tap the pencil, then New group. Name it, pick at least two people, and tap Start group. Up to 20 can be in it.",
+        body: "Tap the green +, then New chat, then New group. Name it, pick at least two people, and tap Start group. Up to 20 can be in it.",
         look: [
           { style: "outline", label: "New group", icon: "people-outline" },
           { style: "primary", label: "Start group" },
@@ -1967,10 +1970,11 @@ export const GUIDES: Guide[] = [
       },
       {
         title: "Delete or tidy up",
-        body: "Hold a message and tap Delete. For 48 hours you can Delete for everyone; after that, Delete for me. To clear a chat from your Inbox, swipe it left and tap Hide — it comes back if they write again.",
+        body: "Hold a message and tap Delete. For 48 hours you can Delete for everyone; after that, Delete for me. To clear a chat from your list, swipe it left and tap Archive — it's kept under Archived at the top of Chats, and comes back on its own if they write again. In Archived, swipe it left and tap Unarchive to bring it back yourself.",
         look: [
           { style: "link", label: "Delete for everyone" },
-          { style: "outline", label: "Hide" },
+          { style: "outline", label: "Archive", icon: "archive-outline" },
+          { style: "outline", label: "Unarchive" },
         ],
       },
     ],
@@ -2043,13 +2047,13 @@ export const GUIDES: Guide[] = [
       },
       {
         title: "Answer questions and offers",
-        body: "Under your ad, Questions & offers is public — everyone sees the same thing. Tap Answer on a question, and Accept, Counter or Decline on an offer. Private chats about the item are in Messages, on the Marketplace filter (Messages in the Marketplace's bottom menu takes you there).",
+        body: "Under your ad, Questions & offers is public — everyone sees the same thing. Tap Answer on a question, and Accept, Counter or Decline on an offer. Private chats about the item are in Chats, on the Marketplace filter (Messages in the Marketplace's bottom menu takes you there).",
         look: [
           { style: "tile", label: "€230 offered · Open", icon: "pricetag-outline" },
           { style: "primary", label: "Accept" },
           { style: "outline", label: "Counter" },
         ],
-        go: { label: "Messages", to: "/inbox" },
+        go: { label: "Chats", to: "/inbox" },
       },
       {
         title: "Meet up and get paid",
@@ -2449,6 +2453,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-30", text: "Inbox is now Chats: one flat list of your chats with a sideways row of filters (Unread, Chat, Buddies & trips, Marketplace). Alerts moved to the bell at the top; anything that needs your answer stays at the top of the list. The green + starts a chat, a Golf Buddies group, a golf trip, a tee time, a listing or a wanted ad; the camera takes a photo for Social or to sell. Swipe a chat to Archive it; unsent words show as Draft. Chat with your PinPals is updated." },
   { on: "2026-10-30", text: "New guides, Book a lesson with a pro (Menu › Book a pro: find a pro, pick a time, Hold it and pay, cancel) and Teach on PinPals (apply as a PGA pro, teaching pro or fitter, what you offer, your hours, getting paid, your diary)." },
   { on: "2026-10-30", text: "Buy gear safely: new step, Post a wanted ad — say what you're after and anything listed that fits comes to you. Sell your gear: new step, See who's looking for it — golfers whose wanted ad your listing fits, with Send them your ad." },
   { on: "2026-10-30", text: "Run an event / plan the trip: new step, Keep the trip kitty — on a trip's Itinerary, The kitty: add what you paid and who it's split between, see what's spent and what you're owed, and Settle up with the fewest payments." },

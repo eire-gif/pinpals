@@ -5,6 +5,7 @@ import {
   Pressable,
   SectionList,
   RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -44,7 +45,8 @@ import {
   type InboxRowItem,
 } from "@/lib/inbox";
 import { ApiError } from "@/lib/api";
-import { hideConversation, inboxTime } from "@/lib/messages";
+import { hideConversation, inboxTime, listInbox, unhideConversation } from "@/lib/messages";
+import { loadDrafts } from "@/lib/chat-drafts";
 import { groupsForConversations, myAlertsFor, nextEvents, type ChatGroup, type GroupEventCard } from "@/lib/group-chat";
 import { eventWhen, groupTag, tripCountdown, type ChatAlertLevel } from "@/lib/group-chat-rules";
 import { irishToday } from "@/lib/outing-rules";
@@ -94,6 +96,12 @@ export default function InboxScreen() {
    *  the inbox never waits on it. */
   const [groupInfo, setGroupInfo] = useState<Map<number, GroupRowInfo>>(new Map());
 
+  /** Unsent words per chat, read from the phone (chat-drafts.ts). */
+  const [drafts, setDrafts] = useState<Map<number, string>>(new Map());
+  /** The Archived list (Oct 2026): null while closed. */
+  const [archived, setArchived] = useState<InboxConversation[] | null>(null);
+  const [archivedCount, setArchivedCount] = useState(0);
+
   const [query, setQuery] = useState("");
   const [hits, setHits] = useState<InboxMessageHit[]>([]);
   const [searching, setSearching] = useState(false);
@@ -112,6 +120,10 @@ export default function InboxScreen() {
       setItems(loaded.items);
       setCounts(loaded.counts);
       void loadGroupInfo(loaded.items, userId).then(setGroupInfo).catch(() => undefined);
+      void loadDrafts().then(setDrafts).catch(() => undefined);
+      void listInbox(userId, "archived")
+        .then((rows) => setArchivedCount(rows.length))
+        .catch(() => undefined);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -309,6 +321,7 @@ export default function InboxScreen() {
           messages: Math.max(0, prev.messages - item.unreadCount),
         }));
       }
+      setArchivedCount((n) => n + 1);
       await hideConversation(item.id, userId);
     }
   }
@@ -316,9 +329,7 @@ export default function InboxScreen() {
   /**
    * Sections, not one long list.
    *
-   * Under Messages, threads group the way a messaging app groups them: group
-   * chats first (they are the busiest and the easiest to lose), then this
-   * week's conversations, then older ones. Everywhere else rows group by day —
+   * Chats are one flat list, newest first (Oct 2026). Alerts group by day —
    * Today, Yesterday, This week, Earlier — because an alert is about when
    * something happened. A search drops the grouping entirely: results are
    * ranked answers, and splitting them by date makes the right one harder
@@ -333,52 +344,66 @@ export default function InboxScreen() {
       return convs.length ? [{ key: "groups", title: "", data: convs, fresh: convs.filter(isUnread).length }] : [];
     }
 
-    if (filter === "messages") {
+    // Chat, Marketplace (Oct 2026): one flat list, newest first, the
+    // WhatsApp way — the row itself says whether it's a group or an item.
+    if (filter === "messages" || filter === "marketplace") {
       const convs = visible.filter((r): r is InboxConversation => r.kind === "conversation");
-      const groups = convs.filter((c) => c.conversationKind === "group");
-      const direct = convs.filter((c) => c.conversationKind !== "group");
-      const recent = direct.filter((c) => dayBucket(c.at) !== "earlier");
-      const older = direct.filter((c) => dayBucket(c.at) === "earlier");
+      return convs.length ? [{ key: filter, title: "", data: convs, fresh: 0 }] : [];
+    }
+
+    // All (Oct 2026, after WhatsApp): chats only. Alerts moved to the bell
+    // at the top — except one that still wants an answer (a place offered,
+    // a request to your round, your group's invite), which sits above the
+    // chats until it's answered, so nothing with a clock on it gets missed.
+    if (filter === "all") {
+      const asks = visible.filter((r): r is InboxAlert => r.kind === "alert" && needsAnswer(r));
+      const convs = visible.filter((r): r is InboxConversation => r.kind === "conversation");
       const out: InboxSection[] = [];
-      if (groups.length) out.push({ key: "groups", title: "Group chats", data: groups, fresh: groups.filter(isUnread).length });
-      if (recent.length) out.push({ key: "recent", title: "Recent chats", data: recent, fresh: recent.filter(isUnread).length });
-      if (older.length) out.push({ key: "older", title: "Older chats", data: older, fresh: older.filter(isUnread).length });
+      if (asks.length) out.push({ key: "asks", title: "Needs your answer", data: asks, fresh: asks.filter(isUnread).length });
+      if (convs.length) out.push({ key: "chats", title: asks.length ? "Chats" : "", data: convs, fresh: 0 });
       return out;
     }
 
-    // All (Oct 2026): chats first — the few most recent, with a way to the
-    // rest — then alerts by day. A chat is a person waiting on you; an
-    // alert is something that happened.
-    const head: InboxSection[] = [];
-    let rest = visible;
-    if (filter === "all") {
-      const convs = visible.filter((r): r is InboxConversation => r.kind === "conversation");
-      if (convs.length) {
-        head.push({
-          key: "chats",
-          title: "Chats",
-          data: convs.slice(0, ALL_CHATS_SHOWN),
-          fresh: convs.filter(isUnread).length,
-          more: Math.max(0, convs.length - ALL_CHATS_SHOWN),
-        });
-      }
-      rest = visible.filter((r) => r.kind !== "conversation");
-    }
-
     const order: DayBucket[] = ["today", "yesterday", "week", "earlier"];
-    return head.concat(order
+    return order
       .map((bucket) => {
-        const data = rest.filter((r) => dayBucket(r.at) === bucket);
+        const data = visible.filter((r) => dayBucket(r.at) === bucket);
         const fresh = data.filter((r) => r.kind !== "message" && isUnread(r)).length;
-        return {
-          key: bucket,
-          title: filter === "all" && head.length ? `Alerts · ${DAY_BUCKET_LABELS[bucket]}` : DAY_BUCKET_LABELS[bucket],
-          data,
-          fresh,
-        };
+        return { key: bucket, title: DAY_BUCKET_LABELS[bucket], data, fresh };
       })
-      .filter((section) => section.data.length > 0));
+      .filter((section) => section.data.length > 0);
   }, [visible, filter, searchingNow]);
+
+  /** Unread chats under each chip — the number beside its name. */
+  const chipCounts = useMemo(() => {
+    const out: Partial<Record<InboxFilter, number>> = {};
+    for (const name of INBOX_FILTERS) {
+      if (name === "all") continue;
+      out[name] = items.filter((i) => matchesInboxFilter(i, name) && isUnread(i)).length;
+    }
+    return out;
+  }, [items]);
+  const unreadChats = items.filter((i) => i.kind === "conversation" && isUnread(i)).length;
+
+  async function openArchived() {
+    if (!userId) return;
+    setArchived([]);
+    try {
+      const rows = await listInbox(userId, "archived");
+      setArchived(rows.map((row) => ({ ...row, kind: "conversation" as const, at: row.lastMessageAt ?? new Date(0).toISOString() })));
+      setArchivedCount(rows.length);
+    } catch {
+      setArchived(null);
+    }
+  }
+
+  async function unarchive(row: InboxConversation) {
+    if (!userId) return;
+    setArchived((prev) => (prev ? prev.filter((r) => r.id !== row.id) : prev));
+    setArchivedCount((n) => Math.max(0, n - 1));
+    await unhideConversation(row.id, userId);
+    void load();
+  }
 
   if (loading) {
     return (
@@ -388,93 +413,147 @@ export default function InboxScreen() {
     );
   }
 
+  // The Archived list: its own simple screen inside the tab, Back to Chats.
+  if (archived) {
+    return (
+      <View style={styles.fill}>
+        <View style={styles.titleRow}>
+          <Pressable onPress={() => setArchived(null)} hitSlop={10} style={styles.backRow} accessibilityRole="button" accessibilityLabel="Back to chats">
+            <Ionicons name="chevron-back" size={22} color={colors.green700} />
+            <Text style={styles.backLabel}>Chats</Text>
+          </Pressable>
+        </View>
+        <Text style={styles.bigTitle} accessibilityRole="header">Archived</Text>
+        <Text style={styles.archivedNote}>
+          Chats you&apos;ve swiped away. One comes back on its own when someone writes in it.
+        </Text>
+        <SectionList
+          sections={archived.length ? [{ key: "archived", title: "", data: archived as InboxRowItem[], fresh: 0 }] : []}
+          keyExtractor={(item) => `${item.kind}-${item.id}`}
+          contentContainerStyle={styles.list}
+          stickySectionHeadersEnabled={false}
+          ListEmptyComponent={
+            <View style={styles.empty}>
+              <Ionicons name="archive-outline" size={44} color={colors.ink500} />
+              <Text style={styles.emptyTitle}>Nothing archived</Text>
+              <Text style={styles.emptyBody}>Swipe a chat left and tap Archive to tidy it away here.</Text>
+            </View>
+          }
+          renderItem={({ item }) =>
+            item.kind === "conversation" ? (
+              <ReanimatedSwipeable
+                friction={2}
+                rightThreshold={44}
+                overshootRight={false}
+                renderRightActions={() => (
+                  <Pressable style={styles.swipe} onPress={() => void unarchive(item)} accessibilityRole="button" accessibilityLabel="Unarchive this chat">
+                    <Ionicons name="arrow-undo-outline" size={19} color={colors.cream50} />
+                    <Text style={styles.swipeLabel}>Unarchive</Text>
+                  </Pressable>
+                )}
+              >
+                <ConversationRow
+                  row={item}
+                  info={groupInfo.get(item.id) ?? null}
+                  draft={null}
+                  onPress={() => router.push(`/conversation/${item.id}`)}
+                />
+              </ReanimatedSwipeable>
+            ) : null
+          }
+        />
+      </View>
+    );
+  }
+
+  const chipLabel = (name: InboxFilter) => INBOX_FILTER_LABELS[name];
+
   return (
     <View style={styles.fill}>
-      {/* Oct 2026: a navy summary under the navy header — what's waiting, in
-          two tiles that double as shortcuts to Chat and Alerts — with search
-          on it. Searching narrows by what a row SAYS, the chips below by what
-          it IS. */}
-      <View style={styles.hero}>
-        <View style={styles.tiles}>
-          {(
-            [
-              { key: "messages", label: "Chats", icon: "chatbubbles", n: counts.messages },
-              { key: "alerts", label: "Alerts", icon: "notifications", n: counts.alerts },
-            ] as const
-          ).filter((t) => chat || t.key === "alerts").map((t) => {
-            const on = filter === t.key;
-            return (
-              <Pressable
-                key={t.key}
-                onPress={() => setFilter(on ? "all" : t.key)}
-                style={({ pressed }) => [styles.tile, on && styles.tileOn, pressed && { opacity: 0.85 }]}
-                accessibilityRole="button"
-                accessibilityState={{ selected: on }}
-                accessibilityLabel={`${t.label}, ${t.n} unread`}
-              >
-                <View style={[styles.tileIcon, on && styles.tileIconOn]}>
-                  <Ionicons name={t.icon} size={18} color={on ? colors.navy900 : colors.gold400} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.tileLabel, on && styles.tileLabelOn]}>{t.label}</Text>
-                  <Text style={[styles.tileCount, on && styles.tileCountOn]}>
-                    {t.n > 0 ? `${t.n > 99 ? "99+" : t.n} unread` : "All caught up"}
-                  </Text>
-                </View>
-              </Pressable>
-            );
-          })}
-        </View>
+      {/* Oct 2026, after WhatsApp: a big title, one search, one row of chips
+          that scrolls sideways, and the chats as a flat list. Alerts are
+          behind the bell at the top (components/chats-header.tsx). */}
+      <View style={styles.titleRow}>
+        <Text style={[styles.bigTitle, styles.bigTitleInRow]} accessibilityRole="header">
+          {filter === "alerts" ? "Alerts" : "Chats"}
+        </Text>
+        {total > 0 && !searchingNow ? (
+          <Pressable
+            onPress={() => void clearAll()}
+            disabled={clearing}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Mark everything as read"
+          >
+            <Text style={[styles.clear, clearing && styles.clearOff]}>
+              {clearing ? "Marking…" : "Mark all read"}
+            </Text>
+          </Pressable>
+        ) : null}
+      </View>
+
       <View style={styles.searchWrap}>
         <Ionicons name="search" size={20} color={colors.ink500} />
         <TextInput
           style={styles.search}
           value={query}
           onChangeText={setQuery}
-          placeholder="Search messages and alerts"
+          placeholder={chat ? "Search chats and alerts" : "Search alerts"}
           placeholderTextColor={colors.ink500}
           autoCorrect={false}
           autoCapitalize="none"
           returnKeyType="search"
           clearButtonMode="while-editing"
-          accessibilityLabel="Search messages and alerts"
+          accessibilityLabel="Search chats and alerts"
         />
         {searching ? <ActivityIndicator size="small" color={colors.ink500} /> : null}
       </View>
-      </View>
 
-      <View style={styles.chips}>
-        {INBOX_FILTERS.filter(() => chat).map((name) => {
-          const active = filter === name;
-          return (
-            <Pressable
-              key={name}
-              onPress={() => setFilter(name)}
-              style={[styles.chip, active && styles.chipOn]}
-              accessibilityRole="button"
-              accessibilityState={{ selected: active }}
-            >
-              <Text style={[styles.chipLabel, active && styles.chipLabelOn]}>
-                {INBOX_FILTER_LABELS[name]}
-              </Text>
-            </Pressable>
-          );
-        })}
-
-        {/* A toggle rather than a fourth filter: it composes with the other
-            three (Alerts + Unread is a question people ask). The dot is what
-            says it is a different sort of control. */}
-        <Pressable
-          onPress={() => setUnreadOnly((on) => !on)}
-          style={[styles.chip, styles.chipUnread, unreadOnly && styles.chipOn]}
-          accessibilityRole="button"
-          accessibilityState={{ selected: unreadOnly }}
-          accessibilityLabel={unreadOnly ? "Showing unread only" : "Show unread only"}
+      {chat ? (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.chipScroll}
+          contentContainerStyle={styles.chips}
         >
-          <View style={[styles.chipDot, unreadOnly && styles.chipDotOn]} />
-          <Text style={[styles.chipLabel, unreadOnly && styles.chipLabelOn]}>Unread</Text>
-        </Pressable>
-      </View>
+          {INBOX_FILTERS.flatMap((name) => {
+            const chips: React.ReactNode[] = [];
+            const active = filter === name;
+            const n = chipCounts[name] ?? 0;
+            chips.push(
+              <Pressable
+                key={name}
+                onPress={() => setFilter(name)}
+                style={[styles.chip, active && styles.chipOn]}
+                accessibilityRole="button"
+                accessibilityState={{ selected: active }}
+                accessibilityLabel={n > 0 ? `${chipLabel(name)}, ${n} unread` : chipLabel(name)}
+              >
+                <Text style={[styles.chipLabel, active && styles.chipLabelOn]}>{chipLabel(name)}</Text>
+                {n > 0 ? <Text style={[styles.chipCount, active && styles.chipLabelOn]}>{n > 99 ? "99+" : n}</Text> : null}
+              </Pressable>
+            );
+            // Unread sits straight after All, as on WhatsApp — still a toggle,
+            // so it narrows whichever chip is chosen.
+            if (name === "all") {
+              chips.push(
+                <Pressable
+                  key="unread"
+                  onPress={() => setUnreadOnly((on) => !on)}
+                  style={[styles.chip, unreadOnly && styles.chipOn]}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: unreadOnly }}
+                  accessibilityLabel={unreadOnly ? "Showing unread only" : "Show unread only"}
+                >
+                  <Text style={[styles.chipLabel, unreadOnly && styles.chipLabelOn]}>Unread</Text>
+                  {unreadChats > 0 ? <Text style={[styles.chipCount, unreadOnly && styles.chipLabelOn]}>{unreadChats > 99 ? "99+" : unreadChats}</Text> : null}
+                </Pressable>
+              );
+            }
+            return chips;
+          })}
+        </ScrollView>
+      ) : null}
 
       <SectionList keyboardDismissMode={KEYBOARD_DISMISS_MODE}
         sections={sections}
@@ -492,22 +571,23 @@ export default function InboxScreen() {
           />
         }
         ListHeaderComponent={
-          // Shown only when there is something to clear. A button that does
-          // nothing teaches people it is safe to ignore.
-          total > 0 && !searchingNow ? (
-            <View style={styles.markRow}>
-              <Pressable
-                onPress={() => void clearAll()}
-                disabled={clearing}
-                hitSlop={8}
-                accessibilityRole="button"
-                accessibilityLabel="Mark everything as read"
-              >
-                <Text style={[styles.clear, clearing && styles.clearOff]}>
-                  {clearing ? "Marking…" : "Mark all read"}
-                </Text>
-              </Pressable>
-            </View>
+          // Archived, at the top of the chats as on WhatsApp — only once
+          // there is something in it.
+          chat && archivedCount > 0 && !searchingNow && (filter === "all" || filter === "messages") ? (
+            <Pressable
+              onPress={() => void openArchived()}
+              style={({ pressed }) => [styles.archivedRow, pressed && styles.rowPressed]}
+              accessibilityRole="button"
+              accessibilityLabel={`Archived, ${archivedCount} chats`}
+            >
+              <View style={styles.archivedIcon}>
+                <Ionicons name="archive-outline" size={22} color={colors.ink500} />
+              </View>
+              <View style={styles.archivedBody}>
+                <Text style={styles.archivedLabel}>Archived</Text>
+                <Text style={styles.archivedCount}>{archivedCount}</Text>
+              </View>
+            </Pressable>
           ) : null
         }
         renderSectionHeader={({ section }) =>
@@ -524,18 +604,6 @@ export default function InboxScreen() {
         }
         ListEmptyComponent={
           <Empty filter={filter} query={searchingNow ? query : ""} unreadOnly={unreadOnly} />
-        }
-        renderSectionFooter={({ section }) =>
-          section.more ? (
-            <Pressable
-              onPress={() => setFilter("messages")}
-              style={({ pressed }) => [styles.moreChats, pressed && { opacity: 0.7 }]}
-              accessibilityRole="button"
-            >
-              <Text style={styles.moreChatsLabel}>See all chats ({section.more + ALL_CHATS_SHOWN})</Text>
-              <Ionicons name="chevron-forward" size={16} color={colors.green700} />
-            </Pressable>
-          ) : null
         }
         renderItem={({ item }) => {
           // A search hit is a view onto a message, not a row that belongs to
@@ -555,6 +623,7 @@ export default function InboxScreen() {
                 <ConversationRow
                   row={item}
                   info={groupInfo.get(item.id) ?? null}
+                  draft={drafts.get(item.id) ?? null}
                   onPress={() => router.push(`/conversation/${item.id}`)}
                 />
               ) : (
@@ -566,6 +635,13 @@ export default function InboxScreen() {
       />
     </View>
   );
+}
+
+/** An alert that still wants an answer on its row — pinned above the chats. */
+function needsAnswer(row: InboxAlert): boolean {
+  if (row.settled) return false;
+  if (row.type === "tee_time_group_invited") return row.takeInviteId != null;
+  return (row.type === "tee_time_interest_received" || row.type === "tee_time_place_offered") && row.interestId !== null;
 }
 
 type GroupRowInfo = { group: ChatGroup | null; next: GroupEventCard | null; alerts: ChatAlertLevel };
@@ -600,10 +676,7 @@ function groupContext(row: InboxConversation, info: GroupRowInfo | null): string
   return `${g?.memberCount ?? row.memberCount ?? 0} ${g ? "members" : "people"}`;
 }
 
-type InboxSection = { key: string; title: string; data: InboxRowItem[]; fresh: number; more?: number };
-
-/** How many chats "All" shows above the alerts before "See all chats". */
-const ALL_CHATS_SHOWN = 5;
+type InboxSection = { key: string; title: string; data: InboxRowItem[]; fresh: number };
 
 /**
  * The row, with an action behind it.
@@ -629,17 +702,17 @@ function SwipeRow({
       overshootRight={false}
       renderRightActions={() => (
         <Pressable
-          style={[styles.swipe, destructive && styles.swipeDelete]}
+          style={[styles.swipe, destructive ? styles.swipeDelete : styles.swipeFlat]}
           onPress={onRemove}
           accessibilityRole="button"
-          accessibilityLabel={destructive ? "Delete this alert" : "Hide this conversation"}
+          accessibilityLabel={destructive ? "Delete this alert" : "Archive this chat"}
         >
           <Ionicons
-            name={destructive ? "trash-outline" : "eye-off-outline"}
+            name={destructive ? "trash-outline" : "archive-outline"}
             size={19}
             color={colors.cream50}
           />
-          <Text style={styles.swipeLabel}>{destructive ? "Delete" : "Hide"}</Text>
+          <Text style={styles.swipeLabel}>{destructive ? "Delete" : "Archive"}</Text>
         </Pressable>
       )}
     >
@@ -672,11 +745,14 @@ function previewLine(row: InboxConversation): string {
 function ConversationRow({
   row,
   info,
+  draft,
   onPress,
 }: {
   row: InboxConversation;
   /** Group chats only (0181). */
   info: GroupRowInfo | null;
+  /** Unsent words saved on this phone (chat-drafts.ts). */
+  draft: string | null;
   onPress: () => void;
 }) {
   const unread = row.unreadCount > 0;
@@ -684,45 +760,51 @@ function ConversationRow({
   const kind = info?.group?.kind ?? null;
   const tag = kind ? groupTag(kind) : null;
   const muted = info?.alerts === "none";
+  // A chat about a listing (Oct 2026): the item is the face of the row, and
+  // the line under it says who it's with and which side you're on.
+  const listing = !group && row.listingTitle !== null;
+  // Shown the WhatsApp way: only while nothing newer is waiting to be read.
+  const showDraft = !!draft && !unread;
+  const preview = showDraft ? draft!.replace(/\s+/g, " ").trim() : previewLine(row);
 
   return (
     <Pressable
-      style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
+      style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={`${row.otherName}${unread ? `, ${row.unreadCount} unread` : ""}. ${previewLine(row)}`}
+      accessibilityLabel={`${listing ? row.listingTitle : row.otherName}${unread ? `, ${row.unreadCount} unread` : ""}${muted ? ", muted" : ""}. ${showDraft ? "Draft: " : ""}${preview}`}
     >
-      <View>
-        {/* A group has no single face, so it gets a glyph rather than one
-            member's avatar — which would look like a chat with that person. */}
-        {group ? (
-          // A trip is navy with a gold plane; Golf Buddies green; a chat
-          // built by hand keeps the plain circle.
-          <View style={[styles.iconCircle, styles.groupCircle, kind === "trip" && styles.tripSquare, kind === "crew" && styles.crewSquare]}>
-            <Ionicons
-              name={kind === "trip" ? "airplane" : "people"}
-              size={kind === "trip" ? 22 : 24}
-              color={kind === "trip" ? colors.gold400 : kind === "crew" ? colors.cream50 : colors.green700}
-            />
-          </View>
-        ) : (
-          <Avatar url={row.otherAvatarUrl} color={row.otherAvatarColor} name={row.otherName} size={50} />
-        )}
-        {unread ? <View style={[styles.cornerDot, { backgroundColor: colors.green600 }]} /> : null}
-      </View>
+      {/* A group has no single face, so it gets a glyph rather than one
+          member's avatar — which would look like a chat with that person. */}
+      {group ? (
+        // A trip is navy with a gold plane; Golf Buddies green; a chat
+        // built by hand keeps the plain circle.
+        <View style={[styles.iconCircle, styles.groupCircle, kind === "trip" && styles.tripSquare, kind === "crew" && styles.crewSquare]}>
+          <Ionicons
+            name={kind === "trip" ? "airplane" : "people"}
+            size={kind === "trip" ? 22 : 24}
+            color={kind === "trip" ? colors.gold400 : kind === "crew" ? colors.cream50 : colors.green700}
+          />
+        </View>
+      ) : listing ? (
+        <View style={[styles.iconCircle, styles.itemSquare]}>
+          <Ionicons name="pricetag" size={22} color="#7a5a12" />
+        </View>
+      ) : (
+        <Avatar url={row.otherAvatarUrl} color={row.otherAvatarColor} name={row.otherName} size={52} />
+      )}
 
-      <View style={styles.cardBody}>
+      <View style={styles.rowBody}>
         <View style={styles.cardTop}>
-          <View style={styles.titleRow}>
+          <View style={styles.titleLine}>
             <Text style={[styles.title, styles.titleShrink, unread && styles.titleUnread]} numberOfLines={1}>
-              {row.otherName}
+              {listing ? row.listingTitle : row.otherName}
             </Text>
             {tag ? (
               <View style={[styles.tag, kind === "trip" ? styles.tagTrip : styles.tagCrew]}>
                 <Text style={[styles.tagText, kind === "trip" ? styles.tagTextTrip : styles.tagTextCrew]}>{tag}</Text>
               </View>
             ) : null}
-            {muted ? <Ionicons name="notifications-off-outline" size={14} color={colors.ink500} accessibilityLabel="Muted" /> : null}
           </View>
           <Text style={[styles.time, unread && styles.timeUnread]}>{inboxTime(row.lastMessageAt)}</Text>
         </View>
@@ -730,9 +812,13 @@ function ConversationRow({
           <Text style={[styles.subtle, info?.next || (kind === "trip" && info?.group?.startsOn) ? styles.subtleNext : null]} numberOfLines={1}>
             {groupContext(row, info)}
           </Text>
+        ) : listing ? (
+          <Text style={[styles.subtle, styles.subtleItem]} numberOfLines={1}>
+            {row.sellingIt ? "Selling" : "Buying"} · {row.otherName}
+          </Text>
         ) : null}
         <View style={styles.previewRow}>
-          {row.lastMessage?.mine && !row.lastMessage.deleted ? (
+          {!showDraft && row.lastMessage?.mine && !row.lastMessage.deleted ? (
             <Ionicons
               name={row.lastMessage.seen ? "checkmark-done" : "checkmark"}
               size={16}
@@ -741,21 +827,21 @@ function ConversationRow({
             />
           ) : null}
           <Text
-            style={[styles.preview, styles.previewFlex, unread && styles.previewUnread, row.lastMessage?.deleted && styles.previewGone]}
+            style={[styles.preview, styles.previewFlex, unread && styles.previewUnread, !showDraft && row.lastMessage?.deleted && styles.previewGone]}
             numberOfLines={1}
           >
-            {previewLine(row)}
+            {showDraft ? <Text style={styles.draftLabel}>Draft: </Text> : null}
+            {preview}
           </Text>
+          {unread ? (
+            <View style={styles.badge}>
+              <Text style={styles.badgeLabel}>{row.unreadCount > 99 ? "99+" : row.unreadCount}</Text>
+            </View>
+          ) : muted ? (
+            <Ionicons name="notifications-off-outline" size={17} color={colors.ink500} accessibilityLabel="Muted" />
+          ) : null}
         </View>
       </View>
-
-      {unread ? (
-        <View style={styles.badge}>
-          <Text style={styles.badgeLabel}>{row.unreadCount > 99 ? "99+" : row.unreadCount}</Text>
-        </View>
-      ) : (
-        <Ionicons name="chevron-forward" size={18} color={colors.ink500} />
-      )}
     </Pressable>
   );
 }
@@ -1011,7 +1097,7 @@ function Empty({
       ? {
           icon: "chatbubbles-outline" as const,
           title: "No chats yet",
-          body: "Start a chat with the pencil at the top, or message someone from a listing, a tee time or their profile.",
+          body: "Start a chat with the green + at the top, or message someone from a listing, a tee time or their profile.",
         }
       : filter === "alerts"
         ? {
@@ -1020,9 +1106,9 @@ function Empty({
             body: "Offers, tee-time replies, likes and comments all land here.",
           }
         : {
-            icon: "mail-outline" as const,
-            title: "Nothing here yet",
-            body: "Messages from other members and alerts about your listings and tee times both arrive in this one list.",
+            icon: "chatbubbles-outline" as const,
+            title: "No chats yet",
+            body: "Start one with the green + at the top. Alerts about your listings and tee times are behind the bell.",
           };
 
   return (
@@ -1038,66 +1124,85 @@ const styles = StyleSheet.create({
   fill: { flex: 1, backgroundColor: colors.cream50 },
   centre: { flex: 1, alignItems: "center", justifyContent: "center" },
 
-  hero: {
-    backgroundColor: colors.navy900,
-    paddingHorizontal: spacing.md,
-    paddingTop: 4,
-    paddingBottom: spacing.md,
-    gap: 12,
-    borderBottomLeftRadius: 22,
-    borderBottomRightRadius: 22,
-  },
-  tiles: { flexDirection: "row", gap: 10 },
-  tile: {
-    flex: 1,
+  titleRow: {
     flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    padding: 12,
-    borderRadius: radii.lg,
-    backgroundColor: "rgba(247,243,234,0.08)",
-    borderWidth: 1,
-    borderColor: "rgba(247,243,234,0.14)",
+    alignItems: "flex-end",
+    justifyContent: "space-between",
+    paddingHorizontal: spacing.md,
+    paddingTop: 2,
   },
-  tileOn: { backgroundColor: colors.gold400, borderColor: colors.gold400 },
-  tileIcon: { width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(232,196,107,0.16)" },
-  tileIconOn: { backgroundColor: "rgba(12,32,56,0.12)" },
-  tileLabel: { fontFamily: fonts.bodyBold, fontSize: 15.5, color: colors.cream50 },
-  tileLabelOn: { color: colors.navy900 },
-  tileCount: { fontFamily: fonts.body, fontSize: 12.5, color: "rgba(247,243,234,0.7)" },
-  tileCountOn: { color: colors.navy800 },
+  bigTitle: { fontFamily: fonts.display, fontSize: 34, lineHeight: 40, color: colors.ink900, paddingHorizontal: spacing.md, marginBottom: 10 },
+  bigTitleInRow: { paddingHorizontal: 0 },
+  backRow: { flexDirection: "row", alignItems: "center", minHeight: 44 },
+  backLabel: { fontFamily: fonts.bodySemi, fontSize: 16, color: colors.green700 },
+  archivedNote: { fontFamily: fonts.body, fontSize: 14.5, color: colors.ink500, paddingHorizontal: spacing.md, marginBottom: 6 },
   searchWrap: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
+    marginHorizontal: spacing.md,
     paddingHorizontal: 16,
-    minHeight: 48,
+    minHeight: 46,
     borderRadius: radii.pill,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.cream100,
   },
   // 16pt floor — iOS zooms the screen when a smaller input takes focus.
-  search: { flex: 1, height: 48, fontFamily: fonts.body, fontSize: type.body, color: colors.ink900 },
+  search: { flex: 1, height: 46, fontFamily: fonts.body, fontSize: type.body, color: colors.ink900 },
 
-  chips: { flexDirection: "row", flexWrap: "wrap", gap: 8, paddingHorizontal: spacing.md, paddingTop: 12 },
+  // One row that scrolls sideways — never wraps onto a second line.
+  chipScroll: { flexGrow: 0, marginTop: 12 },
+  chips: { flexDirection: "row", gap: 8, paddingHorizontal: spacing.md, paddingBottom: 4 },
   chip: {
-    minHeight: 40,
-    justifyContent: "center",
-    paddingHorizontal: 16,
+    minHeight: 38,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 14,
     borderRadius: radii.pill,
     borderWidth: 1,
     borderColor: colors.line,
     backgroundColor: colors.surface,
   },
   chipOn: { backgroundColor: colors.green700, borderColor: colors.green700 },
-  chipUnread: { flexDirection: "row", alignItems: "center", gap: 7 },
-  chipDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.green600 },
-  chipDotOn: { backgroundColor: colors.cream50 },
   chipLabel: { fontFamily: fonts.bodySemi, fontSize: 15, color: colors.ink900 },
   chipLabelOn: { color: colors.cream50 },
+  chipCount: { fontFamily: fonts.bodyBold, fontSize: 14, color: colors.green700 },
+
+  archivedRow: { flexDirection: "row", alignItems: "center", gap: 14, minHeight: 52 },
+  archivedIcon: { width: 52, alignItems: "center" },
+  archivedBody: {
+    flex: 1,
+    minHeight: 52,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.line,
+  },
+  archivedLabel: { fontFamily: fonts.bodySemi, fontSize: 16, color: colors.ink900 },
+  archivedCount: { fontFamily: fonts.bodySemi, fontSize: 14, color: colors.ink500 },
+
+  // A chat (Oct 2026): flat on the page, a hairline under the words only.
+  row: { flexDirection: "row", alignItems: "center", gap: 14, backgroundColor: colors.cream50 },
+  rowPressed: { backgroundColor: colors.cream100 },
+  rowBody: {
+    flex: 1,
+    minWidth: 0,
+    minHeight: 78,
+    justifyContent: "center",
+    gap: 2,
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.line,
+  },
+  titleLine: { flex: 1, flexDirection: "row", alignItems: "center", gap: 6, minWidth: 0 },
+  itemSquare: { borderRadius: 14, backgroundColor: "#f5e6c2" },
+  subtleItem: { color: "#7a5a12", fontFamily: fonts.bodySemi },
+  draftLabel: { fontFamily: fonts.bodySemi, color: colors.green700 },
+  swipeFlat: { marginBottom: 0, borderRadius: 0 },
 
   list: { paddingHorizontal: spacing.md, paddingBottom: spacing.xl, flexGrow: 1 },
-  markRow: { alignItems: "flex-end", paddingTop: 10 },
-  clear: { fontFamily: fonts.bodyBold, fontSize: type.small, color: colors.green700 },
+  clear: { fontFamily: fonts.bodyBold, fontSize: type.small, color: colors.green700, paddingBottom: 14 },
   clearOff: { color: colors.ink500 },
 
   sectionHead: {
@@ -1147,16 +1252,15 @@ const styles = StyleSheet.create({
   moreChatsLabel: { fontFamily: fonts.bodyBold, fontSize: 14.5, color: colors.green700 },
 
   iconCircle: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     alignItems: "center",
     justifyContent: "center",
   },
   groupCircle: { backgroundColor: colors.green100 },
   tripSquare: { borderRadius: 14, backgroundColor: colors.navy900 },
   crewSquare: { borderRadius: 14, backgroundColor: colors.green700 },
-  titleRow: { flex: 1, flexDirection: "row", alignItems: "center", gap: 6, minWidth: 0 },
   titleShrink: { flex: 0, flexShrink: 1 },
   tag: { borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
   tagTrip: { backgroundColor: "#f5e6c2" },

@@ -131,7 +131,7 @@ function NewListingScreenInner() {
   const userId = session?.user?.id ?? null;
   const cash = useCashMarketplace();
   // From the finder's "Sell yours": the club type, brand and model already picked.
-  const params = useLocalSearchParams<{ category?: string; brand?: string; model?: string }>();
+  const params = useLocalSearchParams<{ category?: string; brand?: string; model?: string; camera?: string }>();
   const startTile = params.category ? tileFor(params.category) : undefined;
   const scroll = useRef<ScrollView>(null);
 
@@ -325,6 +325,15 @@ function NewListingScreenInner() {
     },
     [add, photos.length]
   );
+
+  // ?camera=1 — the camera on Chats, "Sell it" (Oct 2026): the camera
+  // opens as the listing does, once.
+  const cameraAsked = useRef(false);
+  useEffect(() => {
+    if (params.camera !== "1" || cameraAsked.current) return;
+    cameraAsked.current = true;
+    void capture("camera");
+  }, [params.camera, capture]);
 
   const pick = () =>
     Alert.alert("Add a photo", undefined, [
