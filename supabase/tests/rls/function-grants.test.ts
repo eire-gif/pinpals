@@ -210,6 +210,8 @@ const EXPECTED: Record<string, Expectation> = {
   "course_legend(p_club_id bigint)": { anon: false, authenticated: true },
   "course_hole_champions(p_club_id bigint, p_month date)": { anon: false, authenticated: true },
   "course_board_holes(p_club_id bigint, p_from date, p_to date)": { anon: false, authenticated: false },
+  // 0198 claim your card
+  "my_guest_invite_stats()": { anon: false, authenticated: true },
   // 0196 side games
   "live_round_set_side_games(p_round_id bigint, p_games jsonb)": { anon: false, authenticated: true },
   "live_round_side_games_agree(p_round_id bigint, p_agree boolean)": { anon: false, authenticated: true },

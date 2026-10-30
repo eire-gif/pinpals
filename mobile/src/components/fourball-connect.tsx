@@ -23,6 +23,8 @@ export function FourballConnect({ me, courseName, players }: { me: string; cours
   const [status, setStatus] = useState<Map<string, Status>>(new Map());
   const [invited, setInvited] = useState<Set<number>>(new Set());
   const [busy, setBusy] = useState<string | number | null>(null);
+  // 0198: how many golfers have joined from the cards this member has sent.
+  const [stats, setStats] = useState<{ sent: number; joined: number } | null>(null);
 
   useEffect(() => {
     let live = true;
@@ -43,6 +45,9 @@ export function FourballConnect({ me, courseName, players }: { me: string; cours
       }
       setStatus(map);
       setInvited(new Set(played.filter((p) => p.invited).map((p) => p.playerId)));
+      const { data: st } = await supabase.rpc("my_guest_invite_stats");
+      const row = (Array.isArray(st) ? st[0] : st) as { sent?: number; joined?: number } | null;
+      if (live && row && typeof row.sent === "number") setStats({ sent: row.sent, joined: row.joined ?? 0 });
     })();
     return () => {
       live = false;
@@ -143,6 +148,16 @@ export function FourballConnect({ me, courseName, players }: { me: string; cours
         );
       })}
 
+      {guests.length > 0 && stats && stats.sent > 0 ? (
+        <View style={styles.joined}>
+          <Ionicons name="star-outline" size={22} color="#8a6a24" />
+          <Text style={styles.joinedText}>
+            <Text style={{ fontWeight: "800" }}>{stats.joined === 1 ? "1 golfer has" : `${stats.joined} golfers have`} joined</Text>
+            {` from the ${stats.sent === 1 ? "card" : `${stats.sent} cards`} you've sent. Every card sent brings another golfer onto PinPals.`}
+          </Text>
+        </View>
+      ) : null}
+
       <Pressable onPress={() => router.push("/post-tee-time")} style={styles.again} accessibilityRole="button">
         <Ionicons name="calendar-outline" size={22} color={colors.navy900} />
         <View style={{ flex: 1 }}>
@@ -195,6 +210,8 @@ const styles = StyleSheet.create({
   sendRow: { flexDirection: "row", gap: 10, alignItems: "flex-start" },
   outline: { flex: 1, height: 47, borderRadius: 22, borderWidth: 1.5, borderColor: colors.gold400, alignItems: "center", justifyContent: "center" },
   outlineText: { fontSize: 14, fontWeight: "800", color: colors.gold400 },
+  joined: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#fbf3df", borderRadius: 18, borderWidth: 1.5, borderStyle: "dashed", borderColor: "#c9a24a", paddingVertical: 12, paddingHorizontal: 14 },
+  joinedText: { flex: 1, fontFamily: fonts.body, fontSize: 14, lineHeight: 19, color: colors.navy900 },
   again: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: colors.surface, borderRadius: 18, paddingVertical: 14, paddingHorizontal: 16, ...shadow },
   againTitle: { fontSize: 14, fontWeight: "800", color: colors.navy900 },
   againBody: { fontFamily: fonts.body, fontSize: 12.5, color: colors.ink500 },
