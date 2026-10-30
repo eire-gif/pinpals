@@ -135,7 +135,7 @@ export type InboxFilter = (typeof INBOX_FILTERS)[number];
 export const INBOX_FILTER_LABELS: Record<InboxFilter, string> = {
   all: "All",
   // Golf Buddies and trip chats (0181), and any group chat built by hand.
-  groups: "Groups",
+  groups: "Buddies & trips",
   // "Chat" for member-to-member conversations (Oct 2026): it says people
   // talking, where "Messages" read as anything the app sends you.
   messages: "Chat",

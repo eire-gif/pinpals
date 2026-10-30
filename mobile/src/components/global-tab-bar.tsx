@@ -36,7 +36,7 @@ const TABS: Tab[] = [
   { key: "teeTimes", label: "Tee Times", icon: "golf-outline", href: "/tee-times" },
   { key: "marketplace", label: "Marketplace", icon: "pricetags-outline", href: "/marketplace" },
   { key: "social", label: "Social", icon: "images-outline", href: "/feed" },
-  { key: "inbox", label: "Inbox", icon: "mail-outline", href: "/inbox" },
+  { key: "inbox", label: "Chats", icon: "chatbubbles-outline", href: "/inbox" },
   { key: "profile", label: "Profile", icon: "person-outline", href: "/profile" },
 ];
 

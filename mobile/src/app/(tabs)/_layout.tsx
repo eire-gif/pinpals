@@ -5,6 +5,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { AppMenu, MenuButton } from "@/components/app-menu";
 import { MyRoundRow } from "@/components/my-round-pill";
+import { ChatsHeaderButtons } from "@/components/chats-header";
 import { useAgeAccess } from "@/lib/age";
 import { useAuth } from "@/lib/auth";
 import { colors, contentColumn, fonts, spacing, headerTitleStyle } from "@/lib/theme";
@@ -262,37 +263,27 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="inbox"
         options={{
-          title: "Inbox",
-          // Oct 2026: navy, running into the navy summary at the top of the
-          // screen — the chat screens share it.
-          headerStyle: { backgroundColor: colors.navy900 },
-          headerTintColor: colors.cream50,
+          // "Chats" (Oct 2026, after WhatsApp): what members call it. The
+          // route stays /inbox so every link and alert into it still works.
+          title: "Chats",
+          // Cream, no title in the bar: the screen draws a big "Chats" under
+          // it, and the bar carries Alerts, the camera and a green +.
+          headerTitle: "",
+          headerStyle: { backgroundColor: colors.cream50 },
+          headerTintColor: colors.ink900,
           headerShadowVisible: false,
-          // Starting a conversation had no entry point at all: a thread only
-          // existed if you found the person in the directory or on your
-          // connections screen and pressed Message there. Every messaging app
-          // anyone has used puts a compose button here, top right, and the
-          // absence of one reads as "you cannot start one from the inbox".
-          // Under 18: no chats, so no compose button; under 16: no PinPals.
-          headerRight: () => <MyRoundRow onDark={true} right={(
-            <View style={{ flexDirection: "row", alignItems: "center" }}>
-              {connections ? <ConnectionsButton tint={colors.cream50} /> : null}
-              {chat ? <Pressable
-                onPress={() => router.push("/new-chat")}
-                hitSlop={12}
-                style={{ paddingLeft: spacing.sm, paddingRight: spacing.md }}
-                accessibilityRole="button"
-                accessibilityLabel="Start a new conversation"
-              >
-                <Ionicons name="create-outline" size={24} color={colors.gold400} />
-              </Pressable> : null}
-            </View>
+          // Under 18: no chats, so no + for one; under 16: no PinPals.
+          headerRight: () => <MyRoundRow onDark={false} right={(
+            <ChatsHeaderButtons
+              alerts={unread.alerts}
+              can={{ chat, social, sell: allows("sell"), teeTimes, createGroups: allows("createGroups") }}
+            />
           )} />,
           tabBarBadge:
             unread.total > 0 ? (unread.total > 99 ? "99+" : unread.total) : undefined,
           tabBarBadgeStyle: { backgroundColor: colors.red600 },
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="mail-outline" size={size} color={color} />
+            <Ionicons name="chatbubbles-outline" size={size} color={color} />
           ),
         }}
       />
