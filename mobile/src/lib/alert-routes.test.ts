@@ -231,6 +231,9 @@ describe("every native destination is a screen that exists", () => {
     "/tee-times/1",
     "/dashboard/orders/1",
     "/dashboard/orders/1/checkout",
+    "/lessons/1",
+    "/dashboard/lessons/1",
+    "/pros/me",
   ];
 
   for (const href of destinations) {

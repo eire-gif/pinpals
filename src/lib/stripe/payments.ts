@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getStripeClient } from "./client";
 import { syncConnectedAccountFromStripe } from "./connect";
 import { activatePromotion, promotionIdFrom } from "@/lib/promotions-server";
+import { confirmLessonPayment, isLessonPayment, lessonIdFrom } from "@/lib/lessons-server";
 import { mapStripeRefundStatus } from "./refunds";
 import { orderPayoutStatusForPayout, reconcilePayoutTransfers, upsertPayout } from "./payouts";
 import { notifyUser } from "@/lib/notifications-server";
@@ -209,6 +210,19 @@ async function handlePaymentIntentSucceeded(
     return;
   }
 
+  // A lesson with a pro (0204): no order; the pro is paid after the lesson.
+  const lessonId = lessonIdFrom(paymentIntent);
+  if (lessonId !== null) {
+    const result = await confirmLessonPayment(admin, lessonId, paymentIntent);
+    await markWebhookEventTerminal(admin, {
+      eventRowId: ledgerRowId,
+      status: result.ok ? "processed" : "failed",
+      error: result.ok ? null : result.reason,
+      relatedOrderId: null,
+    });
+    return;
+  }
+
   const order = await findOrderByPaymentReference(admin, paymentIntent.id);
   if (!order) {
     await markWebhookEventTerminal(admin, {
@@ -284,7 +298,8 @@ async function handlePaymentIntentFailed(
   paymentIntent: Stripe.PaymentIntent
 ): Promise<void> {
   // A promotion that wasn't paid stays pending; nothing to undo (0115).
-  if (promotionIdFrom(paymentIntent) !== null) {
+  // Nor a lesson (0204): its hold simply lapses.
+  if (promotionIdFrom(paymentIntent) !== null || lessonIdFrom(paymentIntent) !== null) {
     await markWebhookEventTerminal(admin, { eventRowId: ledgerRowId, status: "ignored", error: null, relatedOrderId: null });
     return;
   }
@@ -343,7 +358,8 @@ async function handlePaymentIntentCanceled(
   paymentIntent: Stripe.PaymentIntent
 ): Promise<void> {
   // A promotion that wasn't paid stays pending; nothing to undo (0115).
-  if (promotionIdFrom(paymentIntent) !== null) {
+  // Nor a lesson (0204): its hold simply lapses.
+  if (promotionIdFrom(paymentIntent) !== null || lessonIdFrom(paymentIntent) !== null) {
     await markWebhookEventTerminal(admin, { eventRowId: ledgerRowId, status: "ignored", error: null, relatedOrderId: null });
     return;
   }
@@ -382,6 +398,11 @@ async function handleChargeRefunded(admin: SupabaseClient, ledgerRowId: number, 
 
   const order = await findOrderByPaymentReference(admin, paymentIntentId);
   if (!order) {
+    // A lesson's refund (0204) is recorded when it's made (src/lib/lessons-server.ts).
+    if (await isLessonPayment(admin, paymentIntentId)) {
+      await markWebhookEventTerminal(admin, { eventRowId: ledgerRowId, status: "ignored", error: null, relatedOrderId: null });
+      return;
+    }
     await markWebhookEventTerminal(admin, {
       eventRowId: ledgerRowId,
       status: "failed",
@@ -453,7 +474,7 @@ async function handleChargeSucceeded(admin: SupabaseClient, ledgerRowId: number,
   if (!order) {
     // A promotion's charge (0115) has no order and needs nothing doing —
     // payment_intent.succeeded activates it.
-    if (await isPromotionPayment(admin, paymentIntentId)) {
+    if ((await isPromotionPayment(admin, paymentIntentId)) || (await isLessonPayment(admin, paymentIntentId))) {
       await markWebhookEventTerminal(admin, { eventRowId: ledgerRowId, status: "ignored", error: null, relatedOrderId: null });
       return;
     }

@@ -83,6 +83,10 @@ import type { Href } from "expo-router";
  *    social   → app/(tabs)/feed.tsx, app/social-live/[id].tsx, components/live-circles.tsx, app/compose.tsx, app/new-post.tsx,
  *               app/comments/[id].tsx, app/share/[id].tsx, app/rate-course.tsx,
  *               app/reactions/[id].tsx, app/share-to-feed/[id].tsx
+ *    lesson   → app/pros/index.tsx, app/pros/[id].tsx, app/pros/book/[serviceId].tsx,
+ *               app/lesson/[id].tsx, app/lessons.tsx, src/app/dashboard/lessons/[id] (the pay page)
+ *    teach    → app/teach/index.tsx, app/teach/apply.tsx, app/teach/services.tsx,
+ *               app/teach/hours.tsx, app/payouts.tsx, app/lesson/[id].tsx
  *    parentApproval → app/signup.tsx, app/age/waiting.tsx, app/age/date-of-birth.tsx,
  *               app/privacy.tsx (My parent), app/listing/[id].tsx (Ask a parent)
  *
@@ -2300,6 +2304,125 @@ export const GUIDES: Guide[] = [
       },
     ],
   },
+  {
+    id: "lesson",
+    section: "play",
+    title: "Book a lesson with a pro",
+    blurb: "Find a PGA pro, teaching pro or club fitter near you, pick a time and pay in the app.",
+    icon: "school",
+    tone: "green",
+    audience: "Everyone 18+",
+    steps: [
+      {
+        title: "Find a pro",
+        body: "Open the menu and, under Lessons, tap Book a pro. Pros in your county come first. Search by name, club or county, or tap Lessons, Playing lessons or Club fitting. Each card shows what they offer and their lowest price.",
+        path: [MENU, { icon: "school-outline", label: "Book a pro" }],
+        look: [
+          { style: "field", label: "Pro, club or county", icon: "search" },
+          { style: "outline", label: "Playing lessons" },
+        ],
+        go: { label: "Book a pro", to: "/pros" },
+        tip: "Every pro is checked by PinPals first: PGA members by their PGA number, teaching pros and fitters by their qualification.",
+      },
+      {
+        title: "Read their page",
+        body: "Tap a pro to see their bio, when they're next free, everything they offer with its length and price, and their cancellation terms. Tap what you'd like, or Book a lesson.",
+        look: [
+          { style: "primary", label: "Book a lesson" },
+          { style: "outline", label: "Lesson · 60 min · €80" },
+        ],
+      },
+      {
+        title: "Pick a time",
+        body: "Tap what you'd like to work on — Driver, Irons, Short game and so on — then a day (the dots show how many times are free) and a time. Add a note for the pro if you like, then tap Hold it and pay.",
+        look: [
+          { style: "tile", label: "TUE 3", icon: "calendar-outline" },
+          { style: "outline", label: "11:30" },
+          { style: "primary", label: "Hold it and pay", icon: "lock-closed" },
+        ],
+        tip: "The time is held for you for 15 minutes while you pay.",
+      },
+      {
+        title: "Pay",
+        body: "A payment page opens in the app: tap Pay and book, put in your card, and confirm. The price is the pro's price — nothing is added on top. Then go back to the app: your lesson shows You're booked in.",
+        look: [{ style: "primary", label: "Pay €80 and book" }],
+        tip: "Closed it by mistake? Open My lessons and tap Finish paying, while the time is still held.",
+      },
+      {
+        title: "Your lesson",
+        body: "Menu › My lessons lists what's coming up. Tap one for the ticket: when, where, how long to go, and when free cancellation ends. Message the pro, or Tell the crew.",
+        path: [MENU, { icon: "calendar-number-outline", label: "My lessons" }],
+        look: [
+          { style: "outline", label: "Message", icon: "chatbubble-ellipses-outline" },
+          { style: "outline", label: "Tell the crew", icon: "share-outline" },
+        ],
+        go: { label: "My lessons", to: "/lessons" },
+      },
+      {
+        title: "Cancelling",
+        body: "On the lesson, tap Need to cancel?. It tells you before you confirm whether you get your money back: in full if you're inside the pro's free cancellation time, nothing after it. If the pro cancels, you always get everything back.",
+        look: [
+          { style: "link", label: "Need to cancel?" },
+          { style: "primary", label: "Cancel lesson" },
+        ],
+      },
+    ],
+    next: "teach",
+  },
+  {
+    id: "teach",
+    section: "play",
+    title: "Teach on PinPals",
+    blurb: "For PGA pros, teaching pros and club fitters: list your lessons and get booked and paid.",
+    icon: "ribbon",
+    tone: "navy",
+    audience: "Pros and fitters",
+    steps: [
+      {
+        title: "Apply",
+        body: "Open the menu and, under Lessons, tap Teach on PinPals, then Apply to teach. Choose PGA professional, Teaching pro or Club fitter. A PGA pro gives their PGA membership number; anyone else gives their qualification and who it's from. Add where you teach, your county and a short bio golfers will read, and pick your cancellation terms: 24 hours, 48 hours or No refunds. Tap Send for approval.",
+        path: [MENU, { icon: "ribbon-outline", label: "Teach on PinPals" }],
+        look: [
+          { style: "primary", label: "Apply to teach" },
+          { style: "outline", label: "PGA professional" },
+          { style: "field", label: "A short bio" },
+          { style: "primary", label: "Send for approval" },
+        ],
+        go: { label: "Teach on PinPals", to: "/teach" },
+        who: "Pros and fitters, 18 or over",
+        tip: "PinPals checks your PGA number or qualification, then tells you when you're live. Changing either later sends it back to be checked.",
+      },
+      {
+        title: "Say what you offer",
+        body: "Tap What you offer, then + Add a lesson, playing lesson or fitting: its name, a line of detail, how long and the price. It shows what you get after PinPals' 10%. Up to 12.",
+        look: [{ style: "primary", label: "+ Add a lesson, playing lesson or fitting" }],
+        go: { label: "What you offer", to: "/teach/services" },
+      },
+      {
+        title: "Set your hours",
+        body: "Tap Your hours and time off. Switch on the days you teach and set the start and end with − and +. Tap + Block off a day for a day away. Golfers only see free times inside your hours, at least two hours ahead. Tap Save hours.",
+        look: [
+          { style: "outline", label: "+ Block off a day" },
+          { style: "primary", label: "Save hours" },
+        ],
+        go: { label: "Your hours", to: "/teach/hours" },
+      },
+      {
+        title: "Get paid",
+        body: "Tap Getting paid and set up Stripe, the same as selling on the marketplace. Golfers can't pay you until it's done. PinPals keeps 10% of each lesson and sends the rest to your bank once the lesson's time has passed.",
+        look: [{ style: "outline", label: "Getting paid", icon: "card-outline" }],
+        go: { label: "Getting paid", to: "/payouts" },
+      },
+      {
+        title: "Your diary",
+        body: "Teach on PinPals shows what's booked, day by day — who, what they want to work on and their note — and what's coming to you. Tap a lesson to message the golfer or cancel it (they get everything back). Pause new bookings when you're away; lessons already booked stay booked.",
+        look: [
+          { style: "outline", label: "See your page", icon: "eye-outline" },
+          { style: "outline", label: "Pause new bookings" },
+        ],
+      },
+    ],
+  },
 ];
 
 /** The big picture on the guides page, for each kind of group. */
@@ -2326,6 +2449,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-30", text: "New guides, Book a lesson with a pro (Menu › Book a pro: find a pro, pick a time, Hold it and pay, cancel) and Teach on PinPals (apply as a PGA pro, teaching pro or fitter, what you offer, your hours, getting paid, your diary)." },
   { on: "2026-10-30", text: "Buy gear safely: new step, Post a wanted ad — say what you're after and anything listed that fits comes to you. Sell your gear: new step, See who's looking for it — golfers whose wanted ad your listing fits, with Send them your ad." },
   { on: "2026-10-30", text: "Run an event / plan the trip: new step, Keep the trip kitty — on a trip's Itinerary, The kitty: add what you paid and who it's split between, see what's spent and what you're owed, and Settle up with the fewest payments." },
   { on: "2026-10-30", text: "Score a game live: side games now include Skins (ties carry over or are void), Wolf (take a partner or go Lone Wolf) and Nassau (front, back and the 18 against each other, with automatic presses). New step, Play Wolf." },

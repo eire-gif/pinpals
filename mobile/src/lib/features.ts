@@ -130,6 +130,10 @@ export const FEATURES = {
    *  with everyone you've played against, from finished live rounds. Off
    *  hides the Profile entry; the screens say "on its way". */
   rivalries: true,
+  /** Book a pro (claude/book-a-pro.md, needs 0204): PGA pros, teaching pros
+   *  and club fitters list lessons; members book a time and pay; PinPals
+   *  keeps 10%. Off hides the menu entries; the screens say "on its way". */
+  bookAPro: true,
 
   // ---- Gates (unfinished, off) ----
   /** Shared rounds (phase 9): model only — see claude/shared-round-model.md. */
