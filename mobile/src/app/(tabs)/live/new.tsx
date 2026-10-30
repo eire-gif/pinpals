@@ -22,7 +22,8 @@ import { StateMessage } from "@/components/state-message";
 import { SetByHandBadge, TeamHandicapSheet } from "@/components/team-handicap-sheet";
 import { useAuth } from "@/lib/auth";
 import { isOn } from "@/lib/features";
-import { createLiveRound, setTeamHandicap } from "@/lib/live-rounds";
+import { createLiveRound, deleteLiveRound, setTeamHandicap } from "@/lib/live-rounds";
+import { supabase } from "@/lib/supabase";
 import { applyHandSetHandicaps, createMatchDay, createScrambleDay } from "@/lib/live-match-days";
 import {
   FOURSOMES_ALLOWANCE,
@@ -120,16 +121,51 @@ export default function NewLiveRound() {
   // 0157: one open game per player. If you're already in one — the other
   // player on the tee time started it — say so up front and offer to open it,
   // rather than let you set up a second game that will be refused.
+  // Like the Live Scoring card: Continue, Finish, and Delete when you started
+  // it (not a match day's round — those go from the day).
   const [openGame, setOpenGame] = useState<MyOpenGame | null>(null);
+  const [openMine, setOpenMine] = useState(false);
   useEffect(() => {
     let live = true;
-    void myOpenGame().then((g) => {
-      if (live) setOpenGame(g);
+    void myOpenGame().then(async (g) => {
+      if (!live) return;
+      setOpenGame(g);
+      if (g?.kind !== "round") return;
+      const { data } = await supabase.from("live_rounds").select("created_by, match_day_id").eq("id", g.roundId).maybeSingle<{ created_by: string | null; match_day_id: number | null }>();
+      if (live) setOpenMine(data != null && data.created_by != null && data.created_by === session?.user?.id && data.match_day_id == null);
     });
     return () => {
       live = false;
     };
-  }, []);
+  }, [session?.user?.id]);
+
+  const continueOpen = () => openGame && router.replace(openGamePath(openGame) as Href);
+  const finishOpen = () =>
+    openGame && router.replace({ pathname: "/live/round/[id]", params: { id: String(openGame.roundId), finish: "1" } });
+  const deleteOpen = () => {
+    if (!openGame) return;
+    const g = openGame;
+    Alert.alert(
+      "Delete this round?",
+      `${g.courseName}: the card and every score go for everyone in it, even though it's still in play. This can't be undone.`,
+      [
+        { text: "Keep it", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await deleteLiveRound(g.roundId);
+              setOpenGame(null);
+              setOpenMine(false);
+            } catch (e) {
+              Alert.alert("Couldn't delete it", e instanceof Error ? e.message : "Please try again.");
+            }
+          },
+        },
+      ]
+    );
+  };
 
   // From a tee time: who was on it, so they can be ticked in or out.
   const { teeTime } = useLocalSearchParams<{ teeTime?: string }>();
@@ -421,21 +457,32 @@ export default function NewLiveRound() {
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined} keyboardVerticalOffset={90}>
       <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
         {openGame ? (
-          <Pressable
-            style={[styles.card, styles.openGame]}
-            onPress={() => router.replace(openGamePath(openGame) as Href)}
-            accessibilityRole="button"
-            accessibilityLabel="Open the game you're already in"
-          >
-            <Ionicons name="podium" size={22} color={colors.green700} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.cardTitle}>You&apos;re already in a live game</Text>
-              <Text style={styles.cardMeta}>
-                {openGame.startedBy ? `${openGame.startedBy} started it` : "It's started"} at {openGame.courseName}. Open it — a second game can&apos;t be started with the same players.
-              </Text>
+          <View style={[styles.card, styles.openGame]}>
+            <View style={{ flexDirection: "row", gap: spacing.sm, alignItems: "center" }}>
+              <Ionicons name="podium" size={22} color={colors.green700} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.cardTitle}>You&apos;re already in a live game</Text>
+                <Text style={styles.cardMeta}>
+                  {openMine ? "You started it" : openGame.startedBy ? `${openGame.startedBy} started it` : "It's started"} at {openGame.courseName}. A second game can&apos;t be started with the same players.
+                </Text>
+              </View>
             </View>
-            <Text style={styles.link}>Open</Text>
-          </Pressable>
+            <View style={styles.openActions}>
+              <Pressable style={[styles.openBtn, styles.openBtnMain]} onPress={continueOpen} accessibilityRole="button" accessibilityLabel="Continue the game you're in">
+                <Text style={styles.openBtnMainText}>Continue</Text>
+              </Pressable>
+              {openGame.kind === "round" ? (
+                <Pressable style={styles.openBtn} onPress={finishOpen} accessibilityRole="button" accessibilityLabel="Finish the round">
+                  <Text style={styles.openBtnText}>Finish</Text>
+                </Pressable>
+              ) : null}
+              {openMine ? (
+                <Pressable style={styles.openBtn} onPress={deleteOpen} accessibilityRole="button" accessibilityLabel={`Delete the round at ${openGame.courseName}`}>
+                  <Text style={[styles.openBtnText, { color: colors.red600 }]}>Delete</Text>
+                </Pressable>
+              ) : null}
+            </View>
+          </View>
         ) : null}
 
         <CourseSection setup={course} />
@@ -801,7 +848,12 @@ const styles = StyleSheet.create({
   cardTitle: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.ink900 },
   cardMeta: { fontFamily: fonts.body, fontSize: 13, color: colors.ink500, marginTop: 2 },
   link: { fontFamily: fonts.bodyBold, fontSize: type.small, color: colors.green700 },
-  openGame: { borderColor: colors.green700, backgroundColor: colors.green100 },
+  openGame: { flexDirection: "column", alignItems: "stretch", gap: 0, borderColor: colors.green700, backgroundColor: colors.green100 },
+  openActions: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.md },
+  openBtn: { flex: 1, alignItems: "center", paddingVertical: 10, borderRadius: radii.md, borderWidth: 1, borderColor: colors.green700, backgroundColor: "#fff" },
+  openBtnMain: { backgroundColor: colors.green700 },
+  openBtnText: { fontFamily: fonts.bodyBold, fontSize: type.small, color: colors.green700 },
+  openBtnMainText: { fontFamily: fonts.bodyBold, fontSize: type.small, color: "#fff" },
   hint: { fontFamily: fonts.body, fontSize: 13, color: colors.ink500 },
   fields: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   field: { flexBasis: "22%", flexGrow: 1, gap: 4 },

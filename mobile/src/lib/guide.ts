@@ -1193,7 +1193,7 @@ export const GUIDES: Guide[] = [
         body: "On Home, tap the big Start a Round button. On the day of a tee time, buddies round or society outing, the card at the top of Home has Start your round here too. It's in the menu as well.",
         look: [{ style: "raised", label: "Start a Round", icon: "flag", kicker: "Live scoring", subtitle: "Score with your group, watch the leaderboard move" }],
         go: { label: "Live scoring", to: "/live" },
-        tip: "Playing a tee time? Only one of you needs to start: open it and tap Start live scoring — everyone on it is added and gets an alert that opens the game. If someone already started it, the button says Open the live game. A player can only be in one game at a time.",
+        tip: "Playing a tee time? Only one of you needs to start: open it and tap Start live scoring — everyone on it is added and gets an alert that opens the game. If someone already started it, the button says Open the live game. A player can only be in one game at a time: if you're already in one, Set up a round shows it at the top with Continue, Finish, and Delete if you started it.",
       },
       {
         title: "Already in a live round?",
@@ -2202,6 +2202,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-30", text: "Score a game live: if you're already in a live game, Set up a round shows it at the top with Continue, Finish, and Delete when you started it — the same as the Live scoring card." },
   { on: "2026-10-30", text: "Your passport, leaderboards and year: the Course Passport map has a Map only button (top right) that hides the details underneath; Details brings them back." },
   { on: "2026-10-30", text: "Score a game live: two new steps, Add side games (Best Front 9, Back 9, Overall and Sixes, alone or in rotating pairs, for bragging rights, points or money with your own amount) and Say you're in, and settle up (I'm in, live standings, the fewest payments and Mark as paid). New guide, Your passport, leaderboards and year: the Course Passport map and bucket lists, each course's weekly leaderboard with the Course Legend and hole champions, My year in golf, and sending a guest their scorecard." },
   { on: "2026-10-30", text: "Share on Social: new step, Share a round live with everyone — turn on Share live on PinPals Social (the organiser on a day's leaderboard, or a player on their own scorecard) and all of PinPals can watch on Social, give Great Shots and comment. Players in a day now see its red LIVE circle on Social too." },
