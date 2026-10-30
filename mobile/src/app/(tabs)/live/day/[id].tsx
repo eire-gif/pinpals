@@ -6,6 +6,7 @@ import { Stack, router, useFocusEffect, useLocalSearchParams } from "expo-router
 import { DayBoard } from "@/components/day-board";
 import { ResultsEntry } from "@/components/results-entry";
 import { ScrambleBoard } from "@/components/scramble-board";
+import { ShareOnSocialRow } from "@/components/share-on-social-row";
 import { LoadError, StateMessage } from "@/components/state-message";
 import { TwoPane } from "@/components/two-pane";
 import { FULL_WIDTH_CONTENT, pageColumn, useWideLayout } from "@/lib/content-width";
@@ -273,6 +274,10 @@ export default function MatchDayBoard() {
           <Ionicons name="eye-off-outline" size={18} color={colors.green700} />
           <Text style={styles.calendarLabel}>Keep the leaderboard secret</Text>
         </Pressable>
+      ) : null}
+
+      {(runs || isOrganiser) && anyLive && !day.leaderboardHidden ? (
+        <ShareOnSocialRow thread={{ dayId: day.id }} what="day" />
       ) : null}
 
       <ResultsEntry data={data} me={me} />

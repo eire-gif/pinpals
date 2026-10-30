@@ -22,15 +22,17 @@ export type LiveCircle =
   /** The round you're playing now (the MY ROUND pill's). */
   | { kind: "mine"; roundId: number; hole: number }
   /** A day your group is playing now: opens the full-screen live view. */
-  | { kind: "day"; dayId: number; title: string; groupName: string | null; logoUrl: string | null; playing: number }
+  | { kind: "day"; dayId: number; title: string; groupName: string | null; logoUrl: string | null; playing: number; shared?: boolean }
+  /** Someone's own round, shared on Social (0195): opens the live view. */
+  | { kind: "round"; roundId: number; name: string; others: number; courseName: string }
   /** A card someone shared with you (Follow my round, 0158). */
   | { kind: "follow"; followId: number; name: string; detail: string }
   /** Results your group published in the last two days. */
   | { kind: "results"; dayId: number; groupId: number; groupName: string; title: string };
 
-/** Mine first, then live days (busiest first), cards shared with you, then results. */
+/** Mine first, then live days (busiest first), shared rounds, cards shared with you, then results. */
 export function orderCircles(circles: readonly LiveCircle[]): LiveCircle[] {
-  const rank = (c: LiveCircle) => ({ post: 0, mine: 1, day: 2, follow: 3, results: 4 })[c.kind];
+  const rank = (c: LiveCircle) => ({ post: 0, mine: 1, day: 2, round: 3, follow: 4, results: 5 })[c.kind];
   return [...circles].sort((a, b) => {
     const r = rank(a) - rank(b);
     if (r !== 0) return r;
@@ -62,6 +64,8 @@ export function circleDetail(c: LiveCircle): string {
       return `${c.playing} playing`;
     case "follow":
       return c.detail;
+    case "round":
+      return c.courseName;
     case "results":
       return "Results in";
   }

@@ -640,6 +640,11 @@ const EXPECTED: Record<string, Expectation> = {
   "live_day_comment_rate()": { anon: false, authenticated: false },
   "live_day_comment_like_count()": { anon: false, authenticated: false },
   "live_day_comment_pin(p_comment_id bigint, p_pin boolean)": { anon: false, authenticated: true },
+  // 0195: share a live day or round on Social.
+  "live_has_minor(p_day_id bigint, p_round_id bigint)": { anon: false, authenticated: false },
+  "set_match_day_public(p_day_id bigint, p_public boolean)": { anon: false, authenticated: true },
+  "set_live_round_public(p_round_id bigint, p_public boolean)": { anon: false, authenticated: true },
+  "can_view_live_thread(p_day_id bigint, p_round_id bigint)": { anon: false, authenticated: true },
 };
 
 type ActualRow = { signature: string; anon: boolean; authenticated: boolean };

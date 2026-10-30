@@ -246,3 +246,104 @@ describe("Great Shots on a day", () => {
     });
   });
 });
+
+// 0195: share a live day or a round with everyone on PinPals Social.
+describe("sharing on Social (0195)", () => {
+  const ownRound = async (c: PoolClient) => {
+    await as(c, PLAYER);
+    const { rows } = await c.query<{ id: string }>("select public.live_round_create($1::jsonb, $2::jsonb, $3::jsonb) as id", [
+      JSON.stringify({ course_name: "Portmarnock", format: "stableford", holes: 18, allowance: 0.95 }),
+      JSON.stringify([p(PLAYER, "Paul")]),
+      card,
+    ]);
+    return rows[0].id;
+  };
+  const yearsAgo = (n: number) => `${new Date().getFullYear() - n}-01-01`;
+
+  it("the organiser shares a day; any adult member can then watch and comment", async () => {
+    await withRole("authenticated", ORGANISER, async (c) => {
+      const { day } = await societyDay(c);
+      await as(c, STRANGER);
+      expect(await sees(c, day)).toEqual({ day: 0, rounds: 0 });
+      await as(c, PLAYER);
+      await rejects(c, "select public.set_match_day_public($1, true)", [day], /Only the organiser/);
+      await as(c, ORGANISER);
+      await c.query("select public.set_match_day_public($1, true)", [day]);
+      await as(c, STRANGER);
+      expect(await sees(c, day)).toEqual({ day: 1, rounds: 1 });
+      await comment(c, day, "Great to watch");
+      await c.query("insert into public.live_day_cheers (match_day_id) values ($1)", [day]);
+      // A direct write to the switch is refused.
+      await rejects(c, "update public.live_match_days set public_on_social = false where id = $1", [day]);
+      // Unshared: gone again.
+      await as(c, ORGANISER);
+      await c.query("select public.set_match_day_public($1, false)", [day]);
+      await as(c, STRANGER);
+      expect(await sees(c, day)).toEqual({ day: 0, rounds: 0 });
+    });
+  });
+
+  it("never a secret leaderboard", async () => {
+    await withRole("authenticated", ORGANISER, async (c) => {
+      const { day } = await societyDay(c);
+      await c.query("select public.set_match_day_public($1, true)", [day]);
+      await c.query("select public.set_day_leaderboard_hidden($1, true)", [day]);
+      await as(c, STRANGER);
+      expect(await sees(c, day)).toEqual({ day: 0, rounds: 0 });
+      await as(c, ORGANISER);
+      await c.query("select public.set_match_day_public($1, false)", [day]);
+      await rejects(c, "select public.set_match_day_public($1, true)", [day], /secret/);
+    });
+  });
+
+  it("not to a viewer under 18, and not while a member under 18 is playing", async () => {
+    await withRole("authenticated", ORGANISER, async (c) => {
+      const setDob = (u: string, years: number) =>
+        asService(c, () =>
+          c.query("insert into public.member_birthdates (user_id, date_of_birth) values ($1, $2) on conflict (user_id) do update set date_of_birth = excluded.date_of_birth", [u, yearsAgo(years)]),
+        );
+      const { day } = await societyDay(c);
+      await setDob(STRANGER, 15);
+      await as(c, ORGANISER);
+      await c.query("select public.set_match_day_public($1, true)", [day]);
+      await as(c, STRANGER);
+      expect(await sees(c, day)).toEqual({ day: 0, rounds: 0 });
+      await as(c, ORGANISER);
+      await c.query("select public.set_match_day_public($1, false)", [day]);
+      await setDob(PLAYER, 15);
+      await as(c, ORGANISER);
+      await rejects(c, "select public.set_match_day_public($1, true)", [day], /under 18/);
+    });
+  });
+
+  it("a player shares their own round, with its own comments and Great Shots; a round in a day can't be shared alone", async () => {
+    await withRole("authenticated", PLAYER, async (c) => {
+      const round = await ownRound(c);
+      await as(c, STRANGER);
+      expect((await c.query("select 1 from public.live_rounds where id = $1", [round])).rowCount).toBe(0);
+      await rejects(c, "select public.set_live_round_public($1, true)", [round], /Only someone playing/);
+      await as(c, PLAYER);
+      await c.query("select public.set_live_round_public($1, true)", [round]);
+      await as(c, STRANGER);
+      expect((await c.query("select 1 from public.live_rounds where id = $1", [round])).rowCount).toBe(1);
+      expect((await c.query("select 1 from public.live_round_players where round_id = $1", [round])).rowCount).toBe(1);
+      const id = (await c.query<{ id: string }>("insert into public.live_day_comments (round_id, body) values ($1, 'Go on!') returning id", [round])).rows[0].id;
+      await c.query("insert into public.live_day_cheers (round_id) values ($1)", [round]);
+      await rejects(c, "insert into public.live_day_cheers (round_id) values ($1)", [round]);
+      await as(c, PLAYER);
+      await c.query("insert into public.live_day_comment_likes (comment_id) values ($1)", [id]);
+      await c.query("select public.live_day_comment_pin($1, true)", [id]);
+      // Neither key: refused.
+      await rejects(c, "insert into public.live_day_comments (body) values ('nowhere')", []);
+    });
+  });
+
+  it("a round inside a day is shared with the day, not on its own", async () => {
+    await withRole("authenticated", ORGANISER, async (c) => {
+      const { day } = await societyDay(c);
+      const r = await asService(c, () => c.query<{ id: string }>("select id from public.live_rounds where match_day_id = $1", [day]));
+      await as(c, PLAYER);
+      await rejects(c, "select public.set_live_round_public($1, true)", [r.rows[0].id], /part of a day/);
+    });
+  });
+});

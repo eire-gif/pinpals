@@ -40,9 +40,11 @@ describe("circles", () => {
       { kind: "follow", followId: 5, name: "Conor", detail: "H7" },
       { kind: "day", dayId: 3, title: "Big", groupName: null, logoUrl: null, playing: 36 },
       { kind: "mine", roundId: 1, hole: 3 },
+      { kind: "round", roundId: 8, name: "Ciarán", others: 3, courseName: "Lahinch" },
       { kind: "post" },
     ];
-    expect(orderCircles(circles).map((c) => (c.kind === "day" ? c.title : c.kind))).toEqual(["post", "mine", "Big", "Small", "follow", "results"]);
+    expect(orderCircles(circles).map((c) => (c.kind === "day" ? c.title : c.kind))).toEqual(["post", "mine", "Big", "Small", "round", "follow", "results"]);
+    expect(circleDetail({ kind: "round", roundId: 8, name: "Ciarán", others: 3, courseName: "Lahinch" })).toBe("Lahinch");
   });
 
   it("initials and the line under each", () => {
