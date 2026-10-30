@@ -75,10 +75,11 @@ import type { Href } from "expo-router";
  *    sell     → app/new-listing.tsx, app/listing/[id].tsx, app/mark-sold/[id].tsx,
  *               app/feedback/[id].tsx, app/(tabs)/marketplace/my-ads.tsx,
  *               app/(tabs)/marketplace/chats.tsx, app/(tabs)/marketplace/_layout.tsx,
- *               app/listing-offers/[id].tsx, app/(tabs)/inbox.tsx (Marketplace filter)
+ *               app/listing-offers/[id].tsx, app/(tabs)/inbox.tsx (Marketplace filter),
+ *               components/wanted-matches.tsx (See who's looking for it)
  *    buy      → app/(tabs)/marketplace/index.tsx, app/marketplace-search.tsx,
  *               app/listing/[id].tsx, app/listing-offers/[id].tsx,
- *               app/seller/[id].tsx, app/feedback/[id].tsx
+ *               app/seller/[id].tsx, app/feedback/[id].tsx, app/wanted/index.tsx, app/wanted/new.tsx (Wanted)
  *    social   → app/(tabs)/feed.tsx, app/social-live/[id].tsx, components/live-circles.tsx, app/compose.tsx, app/new-post.tsx,
  *               app/comments/[id].tsx, app/share/[id].tsx, app/rate-course.tsx,
  *               app/reactions/[id].tsx, app/share-to-feed/[id].tsx
@@ -2031,6 +2032,12 @@ export const GUIDES: Guide[] = [
         ],
       },
       {
+        title: "See who's looking for it",
+        body: "Once your ad is live, open it: if golfers have a wanted ad it fits, you'll see who — those it fits have already been told; the Close ones are a little over their price. Tap Send them your ad to let them know.",
+        look: [{ style: "primary", label: "Send Eire your ad" }],
+        tip: "On the Marketplace, Can't find it? Post a wanted ad also shows what golfers near you are looking for — got one in the garage? List it.",
+      },
+      {
         title: "Answer questions and offers",
         body: "Under your ad, Questions & offers is public — everyone sees the same thing. Tap Answer on a question, and Accept, Counter or Decline on an offer. Private chats about the item are in Messages, on the Marketplace filter (Messages in the Marketplace's bottom menu takes you there).",
         look: [
@@ -2084,6 +2091,16 @@ export const GUIDES: Guide[] = [
           { style: "outline", label: "Filters", icon: "options-outline" },
         ],
         go: { label: "Marketplace", to: "/marketplace" },
+      },
+      {
+        title: "Post a wanted ad",
+        body: "Can't find it? On the Marketplace tap Can't find it? Post a wanted ad: what it is, anything in particular, the shaft and hand for clubs, your price and your county (or anywhere). It shows what's listed right now that could fit. Post it, and anything listed later that fits comes straight to you as an alert.",
+        look: [
+          { style: "outline", label: "Can't find it? Post a wanted ad", icon: "search-outline" },
+          { style: "primary", label: "Post my wanted ad" },
+        ],
+        go: { label: "Wanted", to: "/wanted" },
+        tip: "It stays up for 30 days with your first name and county; change it or take it down any time from Wanted.",
       },
       {
         title: "Find it by club, brand and model",
@@ -2309,6 +2326,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-30", text: "Buy gear safely: new step, Post a wanted ad — say what you're after and anything listed that fits comes to you. Sell your gear: new step, See who's looking for it — golfers whose wanted ad your listing fits, with Send them your ad." },
   { on: "2026-10-30", text: "Run an event / plan the trip: new step, Keep the trip kitty — on a trip's Itinerary, The kitty: add what you paid and who it's split between, see what's spent and what you're owed, and Settle up with the fewest payments." },
   { on: "2026-10-30", text: "Score a game live: side games now include Skins (ties carry over or are void), Wolf (take a partner or go Lone Wolf) and Nassau (front, back and the 18 against each other, with automatic presses). New step, Play Wolf." },
   { on: "2026-10-30", text: "Your passport, rivals, leaderboards and year: new step, Your rivals — your record against everyone you've played against (Profile → Your rivals), the head to head with each of them, and Send the record to a guest." },

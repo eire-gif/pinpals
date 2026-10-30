@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { WantedMatches } from "@/components/wanted-matches";
 import {
   ActivityIndicator,
   Alert,
@@ -528,6 +529,7 @@ export default function ListingScreen() {
                 onChanged={load}
                 onEdit={openOnSite}
               />
+              {listing.status === "active" && !shop ? <WantedMatches listingId={listing.id} /> : null}
             </>
           ) : userId && !canBuy ? (
             // Junior members (0159): browse only — a parent buys.
