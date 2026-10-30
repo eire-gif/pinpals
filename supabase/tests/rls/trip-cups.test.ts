@@ -111,7 +111,7 @@ describe("the Cup", () => {
       const id = await cupWithCaptains(c, t);
       await rejects(c, "update public.trip_cups set holders = 1 where id = $1", [id]);
       await rejects(c, "insert into public.trip_cup_players (cup_id, member_id, team) values ($1, $2, 1)", [id, MEMBER]);
-      await rejects(c, "select * from public.trip_cup_lineups");
+      await rejects(c, "select * from public.trip_cup_lineups", []);
     });
   });
 });
