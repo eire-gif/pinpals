@@ -24,6 +24,10 @@ import type { Href } from "expo-router";
  *    championship → app/group/[id]/championship/new.tsx, app/group/[id]/championship/[cid].tsx,
  *               app/group/[id]/events.tsx, app/group/[id]/outing/new.tsx,
  *               app/group/[id]/itinerary/[outingId].tsx (Run a leaderboard across the trip)
+ *    cup      → app/group/[id]/itinerary/[outingId].tsx (Play it as a Ryder Cup / The Cup),
+ *               app/group/[id]/cup/[outingId].tsx, app/group/[id]/cup/teams/[outingId].tsx,
+ *               app/group/[id]/cup/sessions/[outingId].tsx, app/group/[id]/cup/session/[sessionId].tsx,
+ *               app/(tabs)/live/day/group.tsx (Start the session)
  *    enter    → app/group/[id]/events.tsx, app/group/[id]/outing/[outingId].tsx,
  *               app/group/[id]/outing/request.tsx, app/group/[id]/membership.tsx,
  *               app/group/[id]/noticeboard.tsx
@@ -638,6 +642,80 @@ export const GUIDES: Guide[] = [
           { style: "primary", label: "Publish tee times" },
         ],
         tip: "The next guide, Play a round together, walks through the draw.",
+      },
+    ],
+  },
+
+  {
+    id: "cup",
+    section: "groups",
+    title: "Play the trip as a Ryder Cup",
+    blurb: "Two teams for the whole trip, a format each round, one running points total.",
+    icon: "trophy",
+    tone: "navy",
+    audience: "The trip's organiser and captains",
+    as: {
+      friends: { blurb: "Your buddies' trip away, two teams, one Cup.", audience: "Whoever started the group, and the captains" },
+      society: { audience: "Captain or secretary, and the team captains" },
+    },
+    next: "round",
+    steps: [
+      {
+        title: "Start the Cup",
+        body: "Open the trip's Itinerary and tap Play it as a Ryder Cup. Name the two teams, say who holds the Cup (they keep it on a tie), choose how the teams are picked, and tap Start the Cup.",
+        path: [MENU, GROUPS, MY_GROUPS, YOUR_GROUP, EVENTS],
+        look: [
+          { style: "outline", label: "Itinerary", icon: "map-outline" },
+          { style: "outline", label: "Play it as a Ryder Cup", icon: "trophy-outline" },
+          { style: "primary", label: "Start the Cup" },
+        ],
+        who: "The trip's organiser",
+        as: { society: { who: "Captain or secretary" }, friends: { who: "Whoever started the group" } },
+      },
+      {
+        title: "Make the teams",
+        body: "On the Cup, tap Teams, then Make the teams. Put each player on a team — or tap Balance by handicap or Random draw — and tap the star to name each team's captain. With Captains pick, the two captains then take turns on their own phones: Your pick, then Pick.",
+        look: [
+          { style: "outline", label: "Teams" },
+          { style: "outline", label: "Balance by handicap" },
+          { style: "primary", label: "Pick" },
+        ],
+      },
+      {
+        title: "Plan the sessions",
+        body: "Tap Sessions. Each round on the itinerary is a session: pick Fourballs, Foursomes, Greensomes or Singles, and add an afternoon session on a 36-hole day. Every match is a point, and the green box says how many win the Cup.",
+        look: [
+          { style: "outline", label: "Sessions" },
+          { style: "outline", label: "+ Add an afternoon session (36 holes)" },
+          { style: "primary", label: "Save the sessions" },
+        ],
+        who: "The trip's organiser",
+        as: { society: { who: "Captain or secretary" }, friends: { who: "Whoever started the group" } },
+      },
+      {
+        title: "Captains send their lineups",
+        body: "Open a session from the Cup. Each captain puts their team in order with the arrows — match 1 first, in pairs for fourballs and foursomes — and taps Send the lineup. Secret pairings keep each side's order hidden until both are in.",
+        look: [{ style: "primary", label: "Send the lineup" }],
+        who: "Each team's captain",
+      },
+      {
+        title: "Start the session",
+        body: "On the day, open the session and tap Start the session. The matches are made from the two lineups, team against team; check the course and tees, then start the matches. Everyone scores their match as usual.",
+        look: [
+          { style: "primary", label: "Start the session" },
+          { style: "primary", label: "Start the round" },
+        ],
+        who: "The trip's organiser",
+        as: { society: { who: "Captain or secretary" }, friends: { who: "Whoever started the group" } },
+        tip: "You can still swap players within a team in the draw before teeing off — never across the teams.",
+      },
+      {
+        title: "Follow the Cup",
+        body: "The Cup shows the running score, what each team needs, the session on the course now with every match, and If it stays like this. When it's won or kept, it says so at the top — tap Share to send the result to the group.",
+        look: [
+          { style: "outline", label: "The Cup", icon: "trophy-outline" },
+          { style: "primary", label: "Share" },
+        ],
       },
     ],
   },
@@ -2202,6 +2280,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-30", text: "New guide, Play the trip as a Ryder Cup: on a trip's Itinerary, Play it as a Ryder Cup — two teams (captains pick, balanced by handicap or a random draw), a session for each round in fourballs, foursomes, greensomes or singles, secret lineups from each captain, Start the session, and one running points total with what each team needs." },
   { on: "2026-10-30", text: "Score a game live: if you're already in a live game, Set up a round shows it at the top with Continue, Finish, and Delete when you started it — the same as the Live scoring card." },
   { on: "2026-10-30", text: "Your passport, leaderboards and year: the Course Passport map has a Map only button (top right) that hides the details underneath; Details brings them back." },
   { on: "2026-10-30", text: "Score a game live: two new steps, Add side games (Best Front 9, Back 9, Overall and Sixes, alone or in rotating pairs, for bragging rights, points or money with your own amount) and Say you're in, and settle up (I'm in, live standings, the fewest payments and Mark as paid). New guide, Your passport, leaderboards and year: the Course Passport map and bucket lists, each course's weekly leaderboard with the Course Legend and hole champions, My year in golf, and sending a guest their scorecard." },
