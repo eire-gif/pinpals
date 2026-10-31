@@ -81,6 +81,10 @@ const PRICE_BANDS: { label: string; min: number | null; max: number | null }[] =
   { label: "€300+", min: 30000, max: null },
 ];
 
+/** A quick pick (Near me, At my club…) — moved in here from the Browse page
+ *  (Oct 2026 mock-ups) so the page above starts at the adverts. */
+export type QuickPick = { key: string; label: string; icon: keyof typeof Ionicons.glyphMap };
+
 const BRANDS_SEARCH_FROM = 10;
 const COUNTIES_SHOWN = 12;
 export function MarketplaceFilters({
@@ -88,13 +92,21 @@ export function MarketplaceFilters({
   filters,
   onClose,
   onApply,
+  quick,
+  onWanted,
 }: {
   open: boolean;
   filters: Filters;
   onClose: () => void;
-  onApply: (next: Filters) => void;
+  /** `picks` is the quick picks on when Show results was tapped. */
+  onApply: (next: Filters, picks: string[]) => void;
+  /** Quick picks shown first, and which are on now. Part of the draft, like everything else. */
+  quick?: { options: QuickPick[]; on: string[] };
+  /** "Can't find it? Post a wanted ad", at the foot of the sheet. */
+  onWanted?: () => void;
 }) {
   const [draft, setDraft] = useState<Filters>(filters);
+  const [picks, setPicks] = useState<string[]>(quick?.on ?? []);
   const [brands, setBrands] = useState<Brand[]>([]);
   const [country, setCountry] = useState("ireland");
   const [counties, setCounties] = useState<string[]>([]);
@@ -107,7 +119,12 @@ export function MarketplaceFilters({
   // Re-seed each time it opens: a sheet that remembers a draft the member
   // abandoned is a sheet that lies about the list behind it.
   useEffect(() => {
-    if (open) setDraft(filters);
+    if (open) {
+      setDraft(filters);
+      setPicks(quick?.on ?? []);
+    }
+    // quick.on is a fresh array each render; `open` is what re-seeds it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, filters]);
 
   useEffect(() => {
@@ -155,7 +172,8 @@ export function MarketplaceFilters({
     ? SUBCATEGORIES[draft.category as keyof typeof SUBCATEGORIES] ?? []
     : [];
 
-  const count = activeFilterCount(draft);
+  const count = activeFilterCount(draft) + picks.length;
+  const togglePick = (key: string) => setPicks((prev) => (prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]));
 
   const shownBrands = brandQuery.trim()
     ? brands.filter((b) => b.label.toLowerCase().includes(brandQuery.trim().toLowerCase()) || draft.brands.includes(b.id))
@@ -179,6 +197,16 @@ export function MarketplaceFilters({
         </View>
 
         <ScrollView keyboardDismissMode={KEYBOARD_DISMISS_MODE} contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
+          {quick && quick.options.length ? (
+            <Card icon="flash-outline" title="Quick picks" onClear={picks.length ? () => setPicks([]) : undefined}>
+              <View style={styles.options}>
+                {quick.options.map((q) => (
+                  <OptionCard key={q.key} icon={q.icon} label={q.label} on={picks.includes(q.key)} onPress={() => togglePick(q.key)} />
+                ))}
+              </View>
+            </Card>
+          ) : null}
+
           <Card icon="swap-vertical" title="Sort by">
             <View style={styles.segments}>
               {MARKETPLACE_SORTS.map((value) => {
@@ -355,6 +383,19 @@ export function MarketplaceFilters({
               </>
             ) : null}
           </Card>
+
+          {onWanted ? (
+            <Pressable onPress={onWanted} style={({ pressed }) => [styles.wanted, pressed && { opacity: 0.88 }]} accessibilityRole="button">
+              <View style={styles.wantedIcon}>
+                <Ionicons name="search" size={20} color={colors.navy900} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.wantedTitle}>Can&apos;t find it? Post a wanted ad</Text>
+                <Text style={styles.wantedBody}>Golfers with one to sell get told</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={colors.navy900} />
+            </Pressable>
+          ) : null}
         </ScrollView>
 
         <View style={styles.foot}>
@@ -362,13 +403,14 @@ export function MarketplaceFilters({
             style={({ pressed }) => [styles.clear, pressed && { opacity: 0.8 }]}
             onPress={() => {
               setDraft({ ...draft, ...CLEARED });
+              setPicks([]);
               setPriceKey((k) => k + 1);
             }}
             accessibilityRole="button"
           >
             <Text style={styles.clearLabel}>Clear all</Text>
           </Pressable>
-          <Pressable style={({ pressed }) => [styles.apply, pressed && { opacity: 0.9 }]} onPress={() => onApply(draft)} accessibilityRole="button">
+          <Pressable style={({ pressed }) => [styles.apply, pressed && { opacity: 0.9 }]} onPress={() => onApply(draft, picks)} accessibilityRole="button">
             <Ionicons name="search" size={18} color={colors.cream50} />
             <Text style={styles.applyLabel}>Show results</Text>
             {count > 0 ? (
@@ -528,6 +570,10 @@ const styles = StyleSheet.create({
   search: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 12, height: 42, borderRadius: radii.pill, backgroundColor: colors.cream50 },
   searchInput: { flex: 1, fontFamily: fonts.body, fontSize: type.body, color: colors.ink900 },
 
+  wanted: { flexDirection: "row", alignItems: "center", gap: 12, minHeight: 64, padding: 14, borderRadius: radii.lg, backgroundColor: colors.cream100 },
+  wantedIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.surface, alignItems: "center", justifyContent: "center" },
+  wantedTitle: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.navy900 },
+  wantedBody: { fontFamily: fonts.body, fontSize: 13, color: colors.ink500, marginTop: 1 },
   options: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   option: { width: "48.5%", flexGrow: 1, flexDirection: "row", alignItems: "center", gap: 10, padding: 10, borderRadius: radii.md + 2, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
   optionOn: { backgroundColor: colors.green700, borderColor: colors.green700 },

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 import { Tabs, router } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
@@ -13,7 +13,11 @@ import { MyRoundRow } from "@/components/my-round-pill";
 
 /**
  * The marketplace has its own bottom menu (Oct 2026, approved mock-up 8),
- * the way Adverts and DoneDeal do: Home · Browse · Sell · Chats · My ads.
+ * the way Adverts and DoneDeal do: Home · Market · Sell · Messages · My ads.
+ *
+ * Oct 31 2026: Browse is now Market. It is always the way back to the
+ * marketplace's home — tapping it again (or the Marketplace title) clears any
+ * search, filters and picks and goes back to the top.
  *
  * The app's main tab bar is hidden while you're in here (the parent's
  * Marketplace tab sets `tabBarStyle: none`), and Home — first, where people
@@ -74,7 +78,6 @@ export default function MarketplaceLayout() {
         <Tabs.Screen
           name="index"
           options={{
-            title: "Browse",
             // Oct 2026: "Marketplace" sits up in the bar itself, on the same
             // navy as the search band beneath it, so the band below only
             // holds search and the Used / New switch and the adverts start
@@ -85,17 +88,29 @@ export default function MarketplaceLayout() {
             headerLeft: () => <MenuButton onPress={() => setMenuOpen(true)} color={colors.cream50} />,
             headerRight: () => <MyRoundRow onDark />,
             headerTitle: () => (
-              <View style={{ alignItems: "center" }} accessibilityRole="header">
+              <Pressable
+                onPress={() => router.navigate({ pathname: "/marketplace", params: { reset: String(Date.now()) } })}
+                style={{ alignItems: "center" }}
+                accessibilityRole="header"
+                accessibilityHint="Back to the marketplace home"
+              >
                 <Text style={{ fontFamily: fonts.display, fontSize: 22, lineHeight: 26, color: colors.cream50 }} numberOfLines={1}>
                   Marketplace
                 </Text>
                 <Text style={{ fontFamily: fonts.bodyBold, fontSize: 9.5, letterSpacing: 1.6, textTransform: "uppercase", color: colors.gold400 }}>
                   Golfer to golfer
                 </Text>
-              </View>
+              </Pressable>
             ),
-            tabBarIcon: ({ color, size, focused }) => <Ionicons name={focused ? "search" : "search-outline"} size={size} color={color} />,
+            title: "Market",
+            tabBarIcon: ({ color, size, focused }) => <Ionicons name={focused ? "storefront" : "storefront-outline"} size={size} color={color} />,
           }}
+          listeners={({ navigation }) => ({
+            tabPress: () => {
+              // Already on it, perhaps deep in a search: back to the marketplace home.
+              if (navigation.isFocused()) router.setParams({ reset: String(Date.now()) });
+            },
+          })}
         />
         <Tabs.Screen
           name="sell"
