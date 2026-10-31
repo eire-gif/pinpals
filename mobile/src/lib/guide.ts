@@ -2043,7 +2043,7 @@ export const GUIDES: Guide[] = [
         title: "See who's looking for it",
         body: "Once your ad is live, open it: if golfers have a wanted ad it fits, you'll see who — those it fits have already been told; the Close ones are a little over their price. Tap Send them your ad to let them know.",
         look: [{ style: "primary", label: "Send Eire your ad" }],
-        tip: "On the Marketplace, Can't find it? Post a wanted ad also shows what golfers near you are looking for — got one in the garage? List it.",
+        tip: "In the Marketplace's Filters, Can't find it? Post a wanted ad also shows what golfers near you are looking for — got one in the garage? List it.",
       },
       {
         title: "Answer questions and offers",
@@ -2092,18 +2092,20 @@ export const GUIDES: Guide[] = [
     steps: [
       {
         title: "Browse used gear",
-        body: "Tap the Marketplace tab — it has its own bottom menu, with Home on the left to get back. Tap the search box and type it how you'd say it — “ping irons under 400 near me” — and it shows what it understood, fixes spelling and lists matches as you type. Or tap Near me, At my club or Left-handed.",
+        body: "Tap the Marketplace tab — it has its own bottom menu, with Home on the left to get back to the app and Market to get back to the marketplace's front page from anywhere in it. Pick Used or New from shops at the top, then tap the search box and type it how you'd say it — “ping irons under 400 near me” — and it shows what it understood, fixes spelling and lists matches as you type. Near me, At my club, Under €100 and Left-handed are under Filters, as Quick picks.",
         look: [
           { style: "field", label: "tm qi10 driver under 300", icon: "search" },
           { style: "outline", label: "Used" },
           { style: "outline", label: "Filters", icon: "options-outline" },
+          { style: "outline", label: "Market", icon: "storefront-outline" },
         ],
         go: { label: "Marketplace", to: "/marketplace" },
       },
       {
         title: "Post a wanted ad",
-        body: "Can't find it? On the Marketplace tap Can't find it? Post a wanted ad: what it is, anything in particular, the shaft and hand for clubs, your price and your county (or anywhere). It shows what's listed right now that could fit. Post it, and anything listed later that fits comes straight to you as an alert.",
+        body: "Can't find it? On the Marketplace tap Filters, then Can't find it? Post a wanted ad at the bottom: what it is, anything in particular, the shaft and hand for clubs, your price and your county (or anywhere). It shows what's listed right now that could fit. Post it, and anything listed later that fits comes straight to you as an alert.",
         look: [
+          { style: "outline", label: "Filters", icon: "options-outline" },
           { style: "outline", label: "Can't find it? Post a wanted ad", icon: "search-outline" },
           { style: "primary", label: "Post my wanted ad" },
         ],
@@ -2112,12 +2114,12 @@ export const GUIDES: Guide[] = [
       },
       {
         title: "Find it by club, brand and model",
-        body: "Under the chips, pick in three steps: 1 Club (Drivers, Putters, Bags…), 2 Brand, then 3 Model — each with how many are for sale. The listings are always below and narrow as you pick; skip any step. Tap a finished step to go back to it. Top picks, at the top of the listings, are adverts sellers paid to show first — each says PREMIUM.",
+        body: "Under search, pick in three steps: tap 1 Club and the choices drop open (Drivers, Putters, Bags…), then 2 Brand, then 3 Model — each with how many are for sale. Tap the open step again, or the ✕, to fold them away. The adverts are always below and narrow as you pick; skip any step. Tap a finished step to go back to it. Featured, above the adverts, are ones sellers paid to show first — each says PREMIUM.",
         look: [
           { style: "outline", label: "1 Club · Drivers" },
           { style: "outline", label: "2 Brand · PING" },
           { style: "primary", label: "3 Model · G430" },
-          { style: "tile", label: "Top picks", icon: "arrow-up" },
+          { style: "tile", label: "Featured · PREMIUM", icon: "star" },
         ],
         go: { label: "Marketplace", to: "/marketplace" },
       },
@@ -2453,6 +2455,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-31", text: "The Marketplace is simpler: brown only in the top bar, Used | New above the search box, and Near me, At my club, Under €100, Left-handed and Can't find it? Post a wanted ad moved into Filters. Club · Brand · Model are bigger and drop open only when tapped; paid adverts show as Featured (PREMIUM), two across. Browse is now Market — tap it, or the Marketplace title, to get back to the front page. Buy gear safely is updated." },
   { on: "2026-10-31", text: "Chats has a navy band with gold-ringed buttons, gold unread counts and chips that no longer cut off. Tapping a group chat's name now opens Group info (it replaces Chat settings): your role, Start round, Events, Invite, the next outing, members with handicaps and roles, photos, results, alerts and Leave. On an event, the organiser's buttons are now an even grid, with Cancel outing on its own below. Chat with your PinPals is updated." },
   { on: "2026-10-30", text: "Inbox is now Chats: one flat list of your chats with a sideways row of filters (Unread, Chat, Buddies & trips, Marketplace). Alerts moved to the bell at the top; anything that needs your answer stays at the top of the list. The green + starts a chat, a Golf Buddies group, a golf trip, a tee time, a listing or a wanted ad; the camera takes a photo for Social or to sell. Swipe a chat to Archive it; unsent words show as Draft. Chat with your PinPals is updated." },
   { on: "2026-10-30", text: "New guides, Book a lesson with a pro (Menu › Book a pro: find a pro, pick a time, Hold it and pay, cancel) and Teach on PinPals (apply as a PGA pro, teaching pro or fitter, what you offer, your hours, getting paid, your diary)." },

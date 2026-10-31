@@ -46,11 +46,24 @@ import { supabase } from "@/lib/supabase";
 import { isOn } from "@/lib/features";
 import { colors, fonts, radii, spacing, type } from "@/lib/theme";
 import { coursesNear } from "@/lib/courses";
-import { decorateCards, kmLabel, loadAtClubs, loadFresh, shortClub } from "@/lib/used-gear";
+import { decorateCards, kmLabel, loadAtClubs, shortClub } from "@/lib/used-gear";
+import type { QuickPick } from "@/components/marketplace-filters";
 import { useCashMarketplace } from "@/lib/marketplace-cash";
 
 /**
- * The marketplace's Browse tab (Oct 2026 redesign, approved mock-ups 1 and 2).
+ * The marketplace's home — the Market tab (Oct 2026 redesign, approved mock-ups 1 and 2;
+ * simplified 31 Oct 2026, approved mock-up "Marketplace simplified").
+ *
+ * 31 Oct: brown only in the bar at the top; Used | New, then search, on cream
+ * beneath it. The quick picks (Near me, At my club, Under €100, Left-handed)
+ * and "Can't find it? Post a wanted ad" moved into the filter sheet, and show
+ * here only as removable chips while one is on. Club · Brand · Model keep
+ * their choices folded away until tapped (gear-finder.tsx), Top picks are a
+ * "Featured" two-across grid, and the adverts follow straight on — no
+ * sideways rails. Tapping Market again, or the title, comes back here clean.
+ *
+ * What follows is the original note; the chips and rails it mentions are the
+ * ones moved above.
  * The marketplace has its own bottom menu — see ./_layout.tsx.
  *
  * New Gear | Used Gear at the top, over a photograph.
@@ -71,7 +84,6 @@ import { useCashMarketplace } from "@/lib/marketplace-cash";
  * (search_marketplace_listings), which lists used gear only since 0116.
  */
 
-const RAIL_CARD = 158;
 const NEAR_KM = 25;
 
 type Mode = "used" | "new";
@@ -91,7 +103,7 @@ export default function MarketplaceScreen() {
   // Smart search (mock-up 2): the search screen hands back the words; they're
   // read here into filters, so a search typed on Browse and one typed there
   // behave the same.
-  const params = useLocalSearchParams<{ search?: string; at?: string }>();
+  const params = useLocalSearchParams<{ search?: string; at?: string; reset?: string }>();
   const [understood, setUnderstood] = useState<SmartSearch | null>(null);
   const [searchWords, setSearchWords] = useState("");
   // The bar above is navy now, so the clock and battery go light while Browse is in front.
@@ -126,13 +138,21 @@ export default function MarketplaceScreen() {
     };
   }, [params.search, params.at]);
 
+  // Tapping Market (or the title) while already here: back to the marketplace home.
+  useEffect(() => {
+    if (!params.reset) return;
+    clearSearch();
+    setMode("used");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.reset]);
+
   function clearSearch() {
     setSearchWords("");
     setUnderstood(null);
     setQuery("");
     setFilters(EMPTY_FILTERS);
     setChips(new Set());
-    router.setParams({ search: undefined, at: undefined });
+    router.setParams({ search: undefined, at: undefined, reset: undefined });
   }
 
   // Where "near" is: the member's position if shared, else their club.
@@ -144,8 +164,6 @@ export default function MarketplaceScreen() {
   const [cursor, setCursor] = useState<Cursor | null>(null);
   const [topPicks, setTopPicks] = useState<Card[]>([]);
   const [refreshKey, setRefreshKey] = useState(0);
-  const [atClub, setAtClub] = useState<Card[]>([]);
-  const [fresh, setFresh] = useState<Card[]>([]);
   // New gear
   const [banner, setBanner] = useState<Banner | null>(null);
   const [stores, setStores] = useState<Store[]>([]);
@@ -210,22 +228,18 @@ export default function MarketplaceScreen() {
         return;
       }
 
-      const [page, f, c, fr, ub] = await Promise.all([
+      const [page, f, ub] = await Promise.all([
         searchListings(effective, null, userId),
         loadTopPicks(effective, userId),
-        browsing && me.clubId ? loadAtClubs([me.clubId], userId, 10) : Promise.resolve([]),
-        browsing ? loadFresh(userId) : Promise.resolve([]),
         browsing ? loadBanner("used_gear") : Promise.resolve(null),
       ]);
       // A Top pick is never shown twice (0163).
       const pageCards = withoutTopPicks(chips.has("left") ? page.cards.filter((x) => x.dexterity === "Left-handed") : page.cards, f);
-      const [grid, picksD, clubD, freshD] = await Promise.all([decorateCards(pageCards, here), decorateCards(f, here), decorateCards(c, here), decorateCards(fr, here)]);
+      const [grid, picksD] = await Promise.all([decorateCards(pageCards, here), decorateCards(f, here)]);
       if (mine !== token.current) return;
       setCards(grid);
       setCursor(page.cursor);
       setTopPicks(picksD);
-      setAtClub(clubD);
-      setFresh(freshD);
       setBanner(ub);
     } catch (err) {
       if (mine === token.current) setError(err instanceof Error ? err.message : "Couldn't load the marketplace.");
@@ -237,7 +251,7 @@ export default function MarketplaceScreen() {
     }
     // location.request is stable; `here` covers the position itself.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, effective, chips, browsing, userId, me.clubId, here]);
+  }, [mode, effective, chips, browsing, userId, here]);
 
   useEffect(() => {
     const timer = setTimeout(() => void load(), query ? 300 : 0);
@@ -273,8 +287,6 @@ export default function MarketplaceScreen() {
     const flip = (list: Card[]) => list.map((c) => (c.id === card.id ? { ...c, isFavourited: next } : c));
     setCards(flip);
     setTopPicks(flip);
-    setAtClub(flip);
-    setFresh(flip);
     setShopItems(flip);
     await setFavourite(card.id, userId, next);
   }
@@ -290,6 +302,14 @@ export default function MarketplaceScreen() {
 
   const open = (card: Card) => router.push(`/listing/${card.id}`);
   const activeCount = activeFilterCount(filters);
+  const filterCount = activeCount + chips.size;
+  // In the filter sheet now (Oct 31), not along the page.
+  const quickPicks: QuickPick[] = [
+    { key: "near", label: here ? `Near me · ${NEAR_KM} km` : "Near me", icon: "navigate-outline" },
+    ...(me.clubId ? [{ key: "club", label: "At my club", icon: "flag-outline" } as QuickPick] : []),
+    { key: "under100", label: "Under €100", icon: "pricetag-outline" },
+    { key: "left", label: "Left-handed", icon: "hand-left-outline" },
+  ];
 
   // Sponsored banner (0115): New Gear's own, or Used Gear's while browsing.
   const bannerCard = banner ? (
@@ -310,7 +330,26 @@ export default function MarketplaceScreen() {
       {focused ? <StatusBar style="light" /> : null}
       {/* The "Marketplace" title lives in the navy bar above (_layout.tsx),
           so the band starts straight at search (Oct 2026). */}
-      <View style={[styles.head, { paddingTop: 4 }]}>
+      {/* Oct 31: the brown stops at the title bar (_layout.tsx). Used | New
+          first, then search, on the page's own cream. */}
+      <View style={styles.head}>
+        <View style={styles.switch} accessibilityRole="tablist">
+          {(["used", "new"] as const).map((m) => (
+            <Pressable
+              key={m}
+              onPress={() => {
+                if (m === mode) return;
+                setLoading(true);
+                setMode(m);
+              }}
+              style={[styles.switchItem, mode === m && styles.switchOn]}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: mode === m }}
+            >
+              <Text style={[styles.switchText, mode === m && styles.switchTextOn]}>{m === "new" ? "New from shops" : "Used"}</Text>
+            </Pressable>
+          ))}
+        </View>
 
         {mode === "used" ? (
           <View style={styles.searchRow}>
@@ -330,43 +369,17 @@ export default function MarketplaceScreen() {
                 </Pressable>
               ) : null}
             </Pressable>
-            <Pressable onPress={() => setFiltersOpen(true)} style={styles.filterButton} accessibilityRole="button" accessibilityLabel={activeCount ? `Filters, ${activeCount} applied` : "Filters"}>
-              <Ionicons name="options-outline" size={21} color={colors.cream50} />
-              {activeCount ? (
+            <Pressable onPress={() => setFiltersOpen(true)} style={styles.filterButton} accessibilityRole="button" accessibilityLabel={filterCount ? `Filters, ${filterCount} on` : "Filters"}>
+              <Ionicons name="options-outline" size={22} color={colors.navy900} />
+              {filterCount ? (
                 <View style={styles.filterBadge}>
-                  <Text style={styles.filterBadgeText}>{activeCount}</Text>
+                  <Text style={styles.filterBadgeText}>{filterCount}</Text>
                 </View>
               ) : null}
             </Pressable>
           </View>
         ) : null}
-
-        <View style={styles.switch} accessibilityRole="tablist">
-          {(["used", "new"] as const).map((m) => (
-            <Pressable
-              key={m}
-              onPress={() => {
-                if (m === mode) return;
-                setLoading(true);
-                setMode(m);
-              }}
-              style={[styles.switchItem, mode === m && styles.switchOn]}
-              accessibilityRole="tab"
-              accessibilityState={{ selected: mode === m }}
-            >
-              <Text style={[styles.switchText, mode === m && styles.switchTextOn]}>{m === "new" ? "New from shops" : "Used"}</Text>
-            </Pressable>
-          ))}
-        </View>
       </View>
-
-      {isOn("wantedAds") && mode === "used" ? (
-        <Pressable onPress={() => router.push("/wanted")} style={styles.wantedRow} accessibilityRole="button">
-          <Ionicons name="search-outline" size={18} color={colors.navy800} />
-          <Text style={styles.wantedText}>Can&apos;t find it? Post a wanted ad</Text>
-          <Ionicons name="chevron-forward" size={16} color={colors.ink500} />
-        </Pressable>
-      ) : null}
 
       {mode === "used" && understood && (understood.chips.length > 0 || understood.corrections.length > 0) ? (
         <View style={styles.understood}>
@@ -380,12 +393,15 @@ export default function MarketplaceScreen() {
 
       {mode === "used" ? (
         <>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
-            <ChipButton label={here ? `Near me · ${NEAR_KM} km` : "Near me"} on={chips.has("near")} onPress={() => toggleChip("near")} />
-            {me.clubId ? <ChipButton label="At my club" on={chips.has("club")} onPress={() => toggleChip("club")} /> : null}
-            <ChipButton label="Under €100" on={chips.has("under100")} onPress={() => toggleChip("under100")} />
-            <ChipButton label="Left-handed" on={chips.has("left")} onPress={() => toggleChip("left")} />
-          </ScrollView>
+          {chips.size > 0 ? (
+            <View style={styles.chips}>
+              {quickPicks
+                .filter((q) => chips.has(q.key as Chip))
+                .map((q) => (
+                  <ChipButton key={q.key} label={q.label} onPress={() => toggleChip(q.key as Chip)} />
+                ))}
+            </View>
+          ) : null}
 
           {browsing ? bannerCard : null}
 
@@ -398,16 +414,12 @@ export default function MarketplaceScreen() {
                   setFilters((prev) => ({ ...prev, ...patch, subcategory: patch.subcategory ?? (patch.category !== prev.category ? "" : prev.subcategory) }));
                 }}
               />
-              <TopPicksRail cards={topPicks} onOpen={open} onFavourite={userId ? favourite : undefined} />
+              <FeaturedGrid cards={topPicks} onOpen={open} onFavourite={userId ? favourite : undefined} />
             </>
           )}
 
           {browsing ? (
-            <>
-              <Rail title={me.clubName ? `Collect at ${me.clubName}` : "At your club"} cards={atClub} onOpen={open} onFavourite={userId ? favourite : undefined} onSeeAll={() => toggleChip("club")} />
-              <Rail title="Fresh today" cards={fresh} onOpen={open} onFavourite={userId ? favourite : undefined} />
-              <SectionHead title="All used gear" />
-            </>
+            <SectionHead title="Latest adverts" />
           ) : (
             <SectionHead title={chips.has("near") ? `Within ${NEAR_KM} km` : chips.has("club") ? `Collect at ${me.clubName ?? "your club"}` : "All matching listings"} />
           )}
@@ -545,10 +557,22 @@ export default function MarketplaceScreen() {
         open={filtersOpen}
         filters={filters}
         onClose={() => setFiltersOpen(false)}
-        onApply={(next) => {
+        quick={mode === "used" ? { options: quickPicks, on: [...chips] } : undefined}
+        onWanted={
+          isOn("wantedAds") && mode === "used"
+            ? () => {
+                setFiltersOpen(false);
+                router.push("/wanted");
+              }
+            : undefined
+        }
+        onApply={(next, picks) => {
           // A model belongs to one brand in one category (0163).
           const sameModel = next.category === filters.category && next.brands.join() === filters.brands.join();
           setFilters({ ...next, model: sameModel ? next.model : "" });
+          const on = new Set(picks as Chip[]);
+          if (on.has("near") && !chips.has("near") && !here) void location.request();
+          setChips(on);
           setFiltersOpen(false);
         }}
       />
@@ -569,45 +593,39 @@ function SectionHead({ title, onSeeAll }: { title: string; onSeeAll?: () => void
   );
 }
 
-function Rail({ title, cards, onOpen, onFavourite, onSeeAll }: { title: string; cards: Card[]; onOpen: (c: Card) => void; onFavourite?: (c: Card) => void; onSeeAll?: () => void }) {
+/**
+ * Top picks (0163) as "Featured": paid adverts for what's picked, each with
+ * its PREMIUM badge, two across like the adverts under them (Oct 31 2026).
+ * An even number, so the grid stays square; a lone one stands on its own.
+ */
+function FeaturedGrid({ cards, onOpen, onFavourite }: { cards: Card[]; onOpen: (c: Card) => void; onFavourite?: (c: Card) => void }) {
   if (cards.length === 0) return null;
+  const shown = cards.length === 1 ? cards : cards.slice(0, cards.length - (cards.length % 2));
   return (
-    <View>
-      <SectionHead title={title} onSeeAll={onSeeAll} />
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.rail}>
-        {cards.map((c) => (
-          <GearCard key={c.id} card={c} width={RAIL_CARD} onPress={() => onOpen(c)} onFavourite={onFavourite ? () => onFavourite(c) : undefined} />
-        ))}
-      </ScrollView>
-    </View>
-  );
-}
-
-/** Top picks (0163): paid adverts for what's picked, each with a PREMIUM badge. */
-function TopPicksRail({ cards, onOpen, onFavourite }: { cards: Card[]; onOpen: (c: Card) => void; onFavourite?: (c: Card) => void }) {
-  if (cards.length === 0) return null;
-  return (
-    <View style={styles.topPicks}>
-      <View style={styles.topPicksHead}>
-        <Ionicons name="arrow-up" size={14} color="#b6862a" />
-        <Text style={styles.topPicksTitle}>{TOP_PICKS.title.toUpperCase()}</Text>
-        <Text style={styles.topPicksNote} numberOfLines={1}>
-          {TOP_PICKS.note}
-        </Text>
+    <View style={styles.featured}>
+      <View style={styles.featuredHead}>
+        <Text style={styles.sectionTitle}>Featured</Text>
+        <View style={styles.premiumTag}>
+          <Ionicons name="star" size={11} color={colors.gold400} />
+          <Text style={styles.premiumTagText}>{TOP_PICKS.badge}</Text>
+        </View>
       </View>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.rail}>
-        {cards.map((c) => (
-          <GearCard key={c.id} card={c} width={RAIL_CARD} onPress={() => onOpen(c)} onFavourite={onFavourite ? () => onFavourite(c) : undefined} />
+      <Text style={styles.featuredNote}>{TOP_PICKS.note}</Text>
+      <View style={styles.featuredGrid}>
+        {shown.map((c) => (
+          <GearCard key={c.id} card={c} onPress={() => onOpen(c)} onFavourite={onFavourite ? () => onFavourite(c) : undefined} />
         ))}
-      </ScrollView>
+      </View>
     </View>
   );
 }
 
-function ChipButton({ label, on, onPress }: { label: string; on: boolean; onPress: () => void }) {
+/** A quick pick that's on, shown above the adverts; tap to take it off. */
+function ChipButton({ label, onPress }: { label: string; onPress: () => void }) {
   return (
-    <Pressable onPress={onPress} style={[styles.chip, on && styles.chipOn]} accessibilityRole="button" accessibilityState={{ selected: on }}>
-      <Text style={[styles.chipText, on && styles.chipTextOn]}>{label}</Text>
+    <Pressable onPress={onPress} style={[styles.chip, styles.chipOn]} accessibilityRole="button" accessibilityLabel={`${label}. Tap to remove.`}>
+      <Text style={[styles.chipText, styles.chipTextOn]}>{label}</Text>
+      <Ionicons name="close" size={16} color={colors.cream50} />
     </Pressable>
   );
 }
@@ -615,34 +633,32 @@ function ChipButton({ label, on, onPress }: { label: string; on: boolean; onPres
 const LIP = "#9c7a2c";
 
 const styles = StyleSheet.create({
-  wantedRow: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 44, marginHorizontal: spacing.md, marginTop: spacing.sm, paddingHorizontal: 12, borderRadius: radii.md, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
-  wantedText: { flex: 1, fontFamily: fonts.bodyBold, fontSize: type.small, color: colors.navy800 },
   fill: { flex: 1, backgroundColor: colors.cream50 },
   list: { paddingBottom: spacing.lg, gap: spacing.md },
   column: { gap: 12, paddingHorizontal: spacing.md },
 
-  head: { backgroundColor: TONES.bronze.card, paddingHorizontal: spacing.md, paddingBottom: spacing.sm + 4, gap: 10 },
+  head: { backgroundColor: colors.cream50, paddingHorizontal: spacing.md, paddingTop: 12, paddingBottom: 12, gap: 10, borderBottomWidth: 1, borderBottomColor: colors.line },
   searchRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  searchPill: { flex: 1, flexDirection: "row", alignItems: "center", gap: 10, height: 50, paddingHorizontal: 14, borderRadius: 14, backgroundColor: colors.cream50 },
+  searchPill: { flex: 1, flexDirection: "row", alignItems: "center", gap: 10, height: 52, paddingHorizontal: 16, borderRadius: 26, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
   searchPillText: { flex: 1, fontFamily: fonts.body, fontSize: 15, color: colors.ink500 },
   searchPillTyped: { fontFamily: fonts.bodySemi, color: colors.ink900 },
   searchClear: { width: 28, height: 28, borderRadius: 14, backgroundColor: colors.cream100, alignItems: "center", justifyContent: "center" },
-  filterButton: { width: 50, height: 50, borderRadius: 14, borderWidth: 1, borderColor: "rgba(247,243,234,0.3)", alignItems: "center", justifyContent: "center" },
-  filterBadge: { position: "absolute", top: 6, right: 6, minWidth: 17, height: 17, borderRadius: 9, backgroundColor: colors.gold400, alignItems: "center", justifyContent: "center", paddingHorizontal: 3 },
-  filterBadgeText: { fontFamily: fonts.bodyBold, fontSize: 10, color: colors.navy900 },
-  switch: { flexDirection: "row", padding: 4, borderRadius: radii.pill, backgroundColor: "rgba(247,243,234,0.1)" },
-  switchItem: { flex: 1, minHeight: 38, borderRadius: radii.pill, alignItems: "center", justifyContent: "center" },
+  filterButton: { width: 52, height: 52, borderRadius: 26, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface, alignItems: "center", justifyContent: "center" },
+  filterBadge: { position: "absolute", top: -3, right: -3, minWidth: 20, height: 20, borderRadius: 10, backgroundColor: colors.gold500, alignItems: "center", justifyContent: "center", paddingHorizontal: 3 },
+  filterBadgeText: { fontFamily: fonts.bodyBold, fontSize: 11.5, color: colors.navy900 },
+  switch: { flexDirection: "row", padding: 4, borderRadius: radii.pill, backgroundColor: colors.cream100 },
+  switchItem: { flex: 1, minHeight: 46, borderRadius: radii.pill, alignItems: "center", justifyContent: "center" },
   switchOn: { backgroundColor: colors.gold500 },
-  switchText: { fontFamily: fonts.bodySemi, fontSize: 14.5, color: colors.cream50 },
+  switchText: { fontFamily: fonts.bodySemi, fontSize: 16.5, color: colors.navy900 },
   switchTextOn: { fontFamily: fonts.bodyBold, color: colors.navy900 },
   understood: { flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: spacing.md, marginTop: spacing.md, paddingHorizontal: 12, paddingVertical: 10, borderRadius: radii.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
   understoodText: { flex: 1, fontFamily: fonts.bodySemi, fontSize: 13, color: colors.green800 },
 
 
-  chips: { gap: 8, paddingHorizontal: spacing.md, paddingTop: spacing.md },
-  chip: { minHeight: 36, paddingHorizontal: 14, borderRadius: radii.pill, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface, justifyContent: "center" },
+  chips: { flexDirection: "row", flexWrap: "wrap", gap: 8, paddingHorizontal: spacing.md, paddingTop: spacing.md },
+  chip: { flexDirection: "row", alignItems: "center", gap: 6, minHeight: 44, paddingHorizontal: 16, borderRadius: radii.pill, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface, justifyContent: "center" },
   chipOn: { backgroundColor: colors.navy900, borderColor: colors.navy900 },
-  chipText: { fontFamily: fonts.bodySemi, fontSize: 13.5, color: colors.ink900 },
+  chipText: { fontFamily: fonts.bodySemi, fontSize: 15, color: colors.ink900 },
   chipTextOn: { color: colors.cream50 },
 
   sectionHead: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", paddingHorizontal: spacing.md, marginTop: spacing.lg, marginBottom: 10 },
@@ -652,10 +668,12 @@ const styles = StyleSheet.create({
 
 
   rail: { gap: 12, paddingHorizontal: spacing.md },
-  topPicks: { marginTop: spacing.md, paddingVertical: 12, backgroundColor: "#fbf3df", borderTopWidth: 1, borderBottomWidth: 1, borderColor: "#ecd9a8", gap: 10 },
-  topPicksHead: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: spacing.md },
-  topPicksTitle: { fontFamily: fonts.bodyBold, fontSize: 12, letterSpacing: 1.2, color: "#8a6a1f" },
-  topPicksNote: { flex: 1, fontFamily: fonts.body, fontSize: 12, color: "#8a6a1f" },
+  featured: { marginTop: spacing.lg, gap: 6 },
+  featuredHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: spacing.md },
+  featuredNote: { fontFamily: fonts.body, fontSize: 13, color: colors.ink500, paddingHorizontal: spacing.md },
+  featuredGrid: { flexDirection: "row", flexWrap: "wrap", gap: 12, paddingHorizontal: spacing.md, marginTop: 6 },
+  premiumTag: { flexDirection: "row", alignItems: "center", gap: 4, height: 28, paddingHorizontal: 10, borderRadius: 14, backgroundColor: TONES.bronze.card },
+  premiumTagText: { fontFamily: fonts.bodyBold, fontSize: 12, letterSpacing: 1.2, color: colors.gold400 },
 
   bannerOuter: { marginHorizontal: spacing.md, marginTop: spacing.md, borderRadius: 20, backgroundColor: LIP, paddingBottom: 3, shadowColor: colors.navy900, shadowOpacity: 0.25, shadowRadius: 8, shadowOffset: { width: 0, height: 5 } },
   banner: { flexDirection: "row", alignItems: "center", gap: 10, borderRadius: 20, borderWidth: 1.5, borderColor: colors.gold500, backgroundColor: colors.navy900, padding: spacing.md },
