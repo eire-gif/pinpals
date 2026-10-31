@@ -1934,7 +1934,7 @@ export const GUIDES: Guide[] = [
       },
       {
         title: "Your group and trip chats",
-        body: "Every Golf Buddies group and golf trip has its own chat, made with the group. Everyone who joins is in it and sees everything said so far. The next round is pinned at the top with I'm in, the group's rounds and events appear in the chat as cards, and + adds a photo — or, for whoever runs events, a new round. Tap the name at the top for the group's page.",
+        body: "Every Golf Buddies group and golf trip has its own chat, made with the group. Everyone who joins is in it and sees everything said so far. The next round is pinned at the top with I'm in, the group's rounds and events appear in the chat as cards, and + adds a photo — or, for whoever runs events, a new round. Tap the name at the top for Group info: your role, Start round, Events, Invite, the next outing, members with handicaps, photos and results — and the group's page one tap on.",
         look: [
           { style: "primary", label: "I'm in" },
           { style: "outline", label: "Add to the chat", icon: "add" },
@@ -1943,7 +1943,7 @@ export const GUIDES: Guide[] = [
       },
       {
         title: "Choose your alerts",
-        body: "In a group chat, tap ••• at the top for Chat settings. Everything alerts you for every message. Rounds & @me only when someone @mentions you (type @ and their first name) or replies to you — new rounds, events and payments still come through. Muted, none at all.",
+        body: "In a group chat, tap the name or ••• at the top for Group info, then Settings. Everything alerts you for every message. Rounds & @me only when someone @mentions you (type @ and their first name) or replies to you — new rounds, events and payments still come through. Muted, none at all.",
         look: [
           { style: "outline", label: "Everything" },
           { style: "outline", label: "Rounds & @me" },
@@ -2453,6 +2453,7 @@ export const GUIDE_JOURNEY: Record<Audience, { guide: string; icon: Icon; label:
  * updated, so members who read it before can see what's different.
  */
 export const GUIDE_CHANGES: { on: string; text: string }[] = [
+  { on: "2026-10-31", text: "Chats has a navy band with gold-ringed buttons, gold unread counts and chips that no longer cut off. Tapping a group chat's name now opens Group info (it replaces Chat settings): your role, Start round, Events, Invite, the next outing, members with handicaps and roles, photos, results, alerts and Leave. On an event, the organiser's buttons are now an even grid, with Cancel outing on its own below. Chat with your PinPals is updated." },
   { on: "2026-10-30", text: "Inbox is now Chats: one flat list of your chats with a sideways row of filters (Unread, Chat, Buddies & trips, Marketplace). Alerts moved to the bell at the top; anything that needs your answer stays at the top of the list. The green + starts a chat, a Golf Buddies group, a golf trip, a tee time, a listing or a wanted ad; the camera takes a photo for Social or to sell. Swipe a chat to Archive it; unsent words show as Draft. Chat with your PinPals is updated." },
   { on: "2026-10-30", text: "New guides, Book a lesson with a pro (Menu › Book a pro: find a pro, pick a time, Hold it and pay, cancel) and Teach on PinPals (apply as a PGA pro, teaching pro or fitter, what you offer, your hours, getting paid, your diary)." },
   { on: "2026-10-30", text: "Buy gear safely: new step, Post a wanted ad — say what you're after and anything listed that fits comes to you. Sell your gear: new step, See who's looking for it — golfers whose wanted ad your listing fits, with Send them your ad." },

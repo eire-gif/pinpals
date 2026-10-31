@@ -722,57 +722,42 @@ export default function OutingScreen() {
             {requests.length || waiting.length ? (
               <Text style={styles.officerHint}>{[requests.length ? `${requests.length} asking for a place` : null, waiting.length ? `${waiting.length} on the waiting list` : null].filter(Boolean).join(" · ")} — below.</Text>
             ) : null}
-            <View style={styles.officerRow}>
-              <Pressable
-                style={styles.small}
-                onPress={() => router.push({ pathname: "/group/[id]/message", params: { id: String(groupId), audience: "entrants", outing: String(outingId) } } as never)}
-                accessibilityRole="button"
-              >
-                <Ionicons name="paper-plane-outline" size={16} color={colors.navy900} />
-                <Text style={styles.smallText}>Message entrants</Text>
+            {(() => {
+              // Even 2-across tiles (Oct 2026): the old pill row wrapped
+              // unevenly. An odd last tile takes the full width so the grid
+              // still squares off; Cancel outing sits on its own below.
+              const tiles: { key: string; label: string; icon: keyof typeof Ionicons.glyphMap; onPress: () => void; expanded?: boolean }[] = [
+                { key: "msg", label: "Message entrants", icon: "paper-plane-outline", onPress: () => router.push({ pathname: "/group/[id]/message", params: { id: String(groupId), audience: "entrants", outing: String(outingId) } } as never) },
+                ...(!started ? [{ key: "edit", label: "Edit outing", icon: "create-outline" as const, onPress: () => router.push({ pathname: "/group/[id]/outing/new", params: { id: String(groupId), edit: String(outingId) } }) }] : []),
+                ...(!started ? [{ key: "add", label: "Add members", icon: "person-add-outline" as const, onPress: () => setAdding((v) => !v), expanded: adding }] : []),
+                ...(!started ? [{ key: "guest", label: "Add a guest", icon: "person-outline" as const, onPress: () => setGuestForm((f) => (f ? null : { id: null, name: "", index: "" })), expanded: guestForm !== null }] : []),
+                ...(kind === "society" ? [{ key: "sheet", label: "Booking sheet", icon: "download-outline" as const, onPress: () => router.push({ pathname: "/group/[id]/exports", params: { id: String(groupId) } } as never) }] : []),
+              ];
+              return (
+                <View style={styles.tileGrid}>
+                  {tiles.map((t, i) => (
+                    <Pressable
+                      key={t.key}
+                      style={({ pressed }) => [styles.tile, i === tiles.length - 1 && tiles.length % 2 === 1 && styles.tileWide, pressed && { opacity: 0.8 }]}
+                      onPress={t.onPress}
+                      accessibilityRole="button"
+                      accessibilityState={t.expanded === undefined ? undefined : { expanded: t.expanded }}
+                    >
+                      <View style={styles.tileIcon}>
+                        <Ionicons name={t.icon} size={19} color={colors.green700} />
+                      </View>
+                      <Text style={styles.tileText} numberOfLines={1} adjustsFontSizeToFit>{t.label}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              );
+            })()}
+            {!started ? (
+              <Pressable style={({ pressed }) => [styles.cancelWide, pressed && { opacity: 0.8 }]} onPress={cancelIt} accessibilityRole="button">
+                <Ionicons name="close-circle-outline" size={19} color={colors.red600} />
+                <Text style={styles.cancelWideText}>Cancel outing</Text>
               </Pressable>
-              {kind === "society" ? (
-                <Pressable style={styles.small} onPress={() => router.push({ pathname: "/group/[id]/exports", params: { id: String(groupId) } } as never)} accessibilityRole="button">
-                  <Ionicons name="download-outline" size={16} color={colors.navy900} />
-                  <Text style={styles.smallText}>Booking sheet</Text>
-                </Pressable>
-              ) : null}
-            </View>
-            <View style={styles.officerRow}>
-              {!started ? (
-                <Pressable
-                  style={styles.small}
-                  onPress={() => router.push({ pathname: "/group/[id]/outing/new", params: { id: String(groupId), edit: String(outingId) } })}
-                  accessibilityRole="button"
-                >
-                  <Ionicons name="create-outline" size={16} color={colors.navy900} />
-                  <Text style={styles.smallText}>Edit</Text>
-                </Pressable>
-              ) : null}
-              {!started ? (
-                <Pressable style={styles.small} onPress={() => setAdding((v) => !v)} accessibilityRole="button" accessibilityState={{ expanded: adding }}>
-                  <Ionicons name="person-add-outline" size={16} color={colors.navy900} />
-                  <Text style={styles.smallText}>Add members</Text>
-                </Pressable>
-              ) : null}
-              {!started ? (
-                <Pressable
-                  style={styles.small}
-                  onPress={() => setGuestForm((f) => (f ? null : { id: null, name: "", index: "" }))}
-                  accessibilityRole="button"
-                  accessibilityState={{ expanded: guestForm !== null }}
-                >
-                  <Ionicons name="person-outline" size={16} color={colors.navy900} />
-                  <Text style={styles.smallText}>Add a guest</Text>
-                </Pressable>
-              ) : null}
-              {!started ? (
-                <Pressable style={styles.small} onPress={cancelIt} accessibilityRole="button">
-                  <Ionicons name="close-circle-outline" size={16} color={colors.red600} />
-                  <Text style={[styles.smallText, { color: colors.red600 }]}>Cancel outing</Text>
-                </Pressable>
-              ) : null}
-            </View>
+            ) : null}
             {guestForm ? (
               <View style={styles.guestForm}>
                 <Text style={styles.guestFormTitle}>{guestForm.id == null ? "Add a guest" : "Change the guest"}</Text>
@@ -936,8 +921,15 @@ const styles = StyleSheet.create({
   payText: { flex: 1, fontFamily: fonts.bodySemi, fontSize: type.small, color: colors.ink900 },
   officer: { gap: spacing.sm, padding: spacing.md, borderRadius: radii.lg, borderWidth: 1, borderColor: colors.gold400, backgroundColor: "#fbf3df" },
   officerTitle: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.ink900 },
-  officerHint: { fontFamily: fonts.body, fontSize: 13, color: colors.ink900 },
+  officerHint: { fontFamily: fonts.body, fontSize: 15, lineHeight: 21, color: colors.ink900 },
   officerRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
+  tileGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", rowGap: 10 },
+  tile: { width: "48.5%", minHeight: 78, borderRadius: 16, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.surface, alignItems: "center", justifyContent: "center", gap: 6, paddingHorizontal: 8 },
+  tileWide: { width: "100%" },
+  tileIcon: { width: 34, height: 34, borderRadius: 17, backgroundColor: colors.green100, alignItems: "center", justifyContent: "center" },
+  tileText: { fontFamily: fonts.bodyBold, fontSize: 16, color: colors.navy900 },
+  cancelWide: { flexDirection: "row", gap: 8, minHeight: 48, borderRadius: radii.pill, borderWidth: 1.5, borderColor: "#e7c3b8", alignItems: "center", justifyContent: "center", marginTop: 2 },
+  cancelWideText: { fontFamily: fonts.bodyBold, fontSize: 16, color: colors.red600 },
   small: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, height: 36, borderRadius: radii.pill, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
   smallText: { fontFamily: fonts.bodySemi, fontSize: 13, color: colors.navy900 },
   addRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },

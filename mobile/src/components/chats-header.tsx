@@ -27,7 +27,9 @@ export type ChatsCan = {
   createGroups: boolean;
 };
 
-export function ChatsHeaderButtons({ alerts, can }: { alerts: number; can: ChatsCan }) {
+export function ChatsHeaderButtons({ alerts, can, onDark = false }: { alerts: number; can: ChatsCan; onDark?: boolean }) {
+  const ink = onDark ? colors.cream50 : colors.ink900;
+  const round = [styles.round, onDark && styles.roundDark];
   const [open, setOpen] = useState(false);
 
   const camera = () => {
@@ -47,30 +49,30 @@ export function ChatsHeaderButtons({ alerts, can }: { alerts: number; can: Chats
       <Pressable
         onPress={() => router.setParams({ filter: "alerts", at: String(Date.now()) })}
         hitSlop={6}
-        style={styles.round}
+        style={round}
         accessibilityRole="button"
         accessibilityLabel={alerts > 0 ? `Alerts, ${alerts} new` : "Alerts"}
       >
-        <Ionicons name="notifications-outline" size={21} color={colors.ink900} />
+        <Ionicons name="notifications-outline" size={21} color={ink} />
         {alerts > 0 ? (
-          <View style={styles.count}>
+          <View style={[styles.count, onDark && { borderColor: colors.navy900 }]}>
             <Text style={styles.countLabel}>{alerts > 99 ? "99+" : alerts}</Text>
           </View>
         ) : null}
       </Pressable>
       {can.social || can.sell ? (
-        <Pressable onPress={camera} hitSlop={6} style={styles.round} accessibilityRole="button" accessibilityLabel="Camera">
-          <Ionicons name="camera-outline" size={22} color={colors.ink900} />
+        <Pressable onPress={camera} hitSlop={6} style={round} accessibilityRole="button" accessibilityLabel="Camera">
+          <Ionicons name="camera-outline" size={22} color={ink} />
         </Pressable>
       ) : null}
       <Pressable
         onPress={() => setOpen(true)}
         hitSlop={6}
-        style={[styles.round, styles.plus]}
+        style={[styles.round, onDark ? styles.plusDark : styles.plus]}
         accessibilityRole="button"
         accessibilityLabel="Start a chat, group, tee time or listing"
       >
-        <Ionicons name="add" size={26} color={colors.cream50} />
+        <Ionicons name="add" size={26} color={onDark ? colors.navy900 : colors.cream50} />
       </Pressable>
       <StartSheet open={open} onClose={() => setOpen(false)} can={can} />
     </View>
@@ -140,6 +142,10 @@ const styles = StyleSheet.create({
     borderColor: colors.line,
   },
   plus: { backgroundColor: colors.green700, borderColor: colors.green700 },
+  // On the navy Chats band: see-through buttons in a thin gold ring, and a
+  // cream + so the one thing that starts something still stands out.
+  roundDark: { backgroundColor: "rgba(255,255,255,0.10)", borderColor: colors.gold500, borderWidth: 1.5 },
+  plusDark: { backgroundColor: colors.cream50, borderColor: colors.cream50 },
   count: {
     position: "absolute",
     top: -5,
@@ -148,7 +154,7 @@ const styles = StyleSheet.create({
     height: 18,
     paddingHorizontal: 4,
     borderRadius: 9,
-    backgroundColor: colors.gold400,
+    backgroundColor: colors.gold500,
     borderWidth: 1.5,
     borderColor: colors.cream50,
     alignItems: "center",
