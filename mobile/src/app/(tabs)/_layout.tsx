@@ -269,12 +269,17 @@ export default function TabsLayout() {
           // Cream, no title in the bar: the screen draws a big "Chats" under
           // it, and the bar carries Alerts, the camera and a green +.
           headerTitle: "",
-          headerStyle: { backgroundColor: colors.cream50 },
-          headerTintColor: colors.ink900,
+          // Option B (31 Oct 2026): a navy band runs from the bar down
+          // behind the title and search (inbox.tsx), so Chats doesn't look
+          // like WhatsApp; the round buttons carry a thin gold ring.
+          headerStyle: { backgroundColor: colors.navy900 },
+          headerTintColor: colors.cream50,
           headerShadowVisible: false,
+          headerLeft: () => <MenuButton onPress={() => setMenuOpen(true)} color={colors.cream50} />,
           // Under 18: no chats, so no + for one; under 16: no PinPals.
-          headerRight: () => <MyRoundRow onDark={false} right={(
+          headerRight: () => <MyRoundRow onDark right={(
             <ChatsHeaderButtons
+              onDark
               alerts={unread.alerts}
               can={{ chat, social, sell: allows("sell"), teeTimes, createGroups: allows("createGroups") }}
             />

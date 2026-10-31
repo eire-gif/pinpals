@@ -649,8 +649,10 @@ function ConversationScreenInner() {
 
   const subtitle = typingText ?? (chatGroup ? groupLine(chatGroup, today) : isGroup ? `${header?.members.length ?? 0} members` : null);
 
+  // Tapping the name opens Group info (31 Oct 2026), as on WhatsApp — the
+  // group's page is one tap on from there.
   const openGroup = () => {
-    if (chatGroup) router.push({ pathname: "/group/[id]", params: { id: String(chatGroup.id) } });
+    if (isGroup) router.push({ pathname: "/chat-settings/[id]", params: { id: String(conversationId) } });
   };
 
   /** The + sheet: a photo for everyone; events for whoever runs them. */
@@ -691,9 +693,9 @@ function ConversationScreenInner() {
             <Pressable
               style={styles.headTitle}
               onPress={openGroup}
-              disabled={!chatGroup}
-              accessibilityRole={chatGroup ? "button" : undefined}
-              accessibilityLabel={chatGroup ? `${chatGroup.name}. Open the group's page` : undefined}
+              disabled={!isGroup}
+              accessibilityRole={isGroup ? "button" : undefined}
+              accessibilityLabel={isGroup ? `${header?.otherName ?? "Group"}. Open group info` : undefined}
             >
               {isGroup ? (
                 <View style={[styles.headGroup, chatGroup?.kind === "crew" && styles.headCrew, chatGroup?.kind === "trip" && styles.headTrip]}>
@@ -726,7 +728,7 @@ function ConversationScreenInner() {
                   hitSlop={8}
                   style={styles.headMore}
                   accessibilityRole="button"
-                  accessibilityLabel="Chat settings"
+                  accessibilityLabel="Group info"
                 >
                   <Ionicons name="ellipsis-horizontal" size={22} color={colors.cream50} />
                 </Pressable>

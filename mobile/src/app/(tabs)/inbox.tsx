@@ -11,8 +11,9 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { router, useFocusEffect, useLocalSearchParams, type Href } from "expo-router";
+import { router, useFocusEffect, useIsFocused, useLocalSearchParams, type Href } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { StatusBar } from "expo-status-bar";
 import ReanimatedSwipeable from "react-native-gesture-handler/ReanimatedSwipeable";
 
 import { Avatar } from "@/components/avatar";
@@ -72,6 +73,8 @@ import { KEYBOARD_DISMISS_MODE } from "@/components/keyboard";
 export default function InboxScreen() {
   const { session } = useAuth();
   const userId = session?.user?.id ?? null;
+  // Light status bar only while Chats is on screen (tabs stay mounted).
+  const focused = useIsFocused();
 
   const [items, setItems] = useState<InboxItem[]>([]);
   const [counts, setCounts] = useState<InboxCounts>({ messages: 0, alerts: 0 });
@@ -467,14 +470,20 @@ export default function InboxScreen() {
   }
 
   const chipLabel = (name: InboxFilter) => INBOX_FILTER_LABELS[name];
+  // A small dot in each chat type's colour, matching the row tags.
+  const chipDot: Partial<Record<InboxFilter, string>> = { groups: colors.gold500, messages: colors.green600, marketplace: "#3d6fa8" };
 
   return (
     <View style={styles.fill}>
       {/* Oct 2026, after WhatsApp: a big title, one search, one row of chips
           that scrolls sideways, and the chats as a flat list. Alerts are
           behind the bell at the top (components/chats-header.tsx). */}
+      {focused ? <StatusBar style="light" /> : null}
+      {/* Option B (31 Oct 2026): the navy band carries on from the bar
+          behind the title and search, so the screen is ours, not WhatsApp's. */}
+      <View style={styles.band}>
       <View style={styles.titleRow}>
-        <Text style={[styles.bigTitle, styles.bigTitleInRow]} accessibilityRole="header">
+        <Text style={[styles.bigTitle, styles.bigTitleInRow, styles.bigTitleOnBand]} accessibilityRole="header">
           {filter === "alerts" ? "Alerts" : "Chats"}
         </Text>
         {total > 0 && !searchingNow ? (
@@ -485,7 +494,7 @@ export default function InboxScreen() {
             accessibilityRole="button"
             accessibilityLabel="Mark everything as read"
           >
-            <Text style={[styles.clear, clearing && styles.clearOff]}>
+            <Text style={[styles.clear, styles.clearOnBand, clearing && styles.clearOff]}>
               {clearing ? "Marking…" : "Mark all read"}
             </Text>
           </Pressable>
@@ -508,6 +517,7 @@ export default function InboxScreen() {
         />
         {searching ? <ActivityIndicator size="small" color={colors.ink500} /> : null}
       </View>
+      </View>
 
       {chat ? (
         <ScrollView
@@ -529,8 +539,9 @@ export default function InboxScreen() {
                 accessibilityState={{ selected: active }}
                 accessibilityLabel={n > 0 ? `${chipLabel(name)}, ${n} unread` : chipLabel(name)}
               >
+                {chipDot[name] ? <View style={[styles.chipDot, { backgroundColor: chipDot[name] }]} /> : null}
                 <Text style={[styles.chipLabel, active && styles.chipLabelOn]}>{chipLabel(name)}</Text>
-                {n > 0 ? <Text style={[styles.chipCount, active && styles.chipLabelOn]}>{n > 99 ? "99+" : n}</Text> : null}
+                {n > 0 ? <View style={styles.chipCount}><Text style={styles.chipCountLabel}>{n > 99 ? "99+" : n}</Text></View> : null}
               </Pressable>
             );
             // Unread sits straight after All, as on WhatsApp — still a toggle,
@@ -546,7 +557,7 @@ export default function InboxScreen() {
                   accessibilityLabel={unreadOnly ? "Showing unread only" : "Show unread only"}
                 >
                   <Text style={[styles.chipLabel, unreadOnly && styles.chipLabelOn]}>Unread</Text>
-                  {unreadChats > 0 ? <Text style={[styles.chipCount, unreadOnly && styles.chipLabelOn]}>{unreadChats > 99 ? "99+" : unreadChats}</Text> : null}
+                  {unreadChats > 0 ? <View style={styles.chipCount}><Text style={styles.chipCountLabel}>{unreadChats > 99 ? "99+" : unreadChats}</Text></View> : null}
                 </Pressable>
               );
             }
@@ -1133,6 +1144,9 @@ const styles = StyleSheet.create({
   },
   bigTitle: { fontFamily: fonts.display, fontSize: 34, lineHeight: 40, color: colors.ink900, paddingHorizontal: spacing.md, marginBottom: 10 },
   bigTitleInRow: { paddingHorizontal: 0 },
+  band: { backgroundColor: colors.navy900, paddingBottom: 16, borderBottomLeftRadius: 24, borderBottomRightRadius: 24 },
+  bigTitleOnBand: { color: colors.cream50 },
+  clearOnBand: { color: colors.gold400 },
   backRow: { flexDirection: "row", alignItems: "center", minHeight: 44 },
   backLabel: { fontFamily: fonts.bodySemi, fontSize: 16, color: colors.green700 },
   archivedNote: { fontFamily: fonts.body, fontSize: 14.5, color: colors.ink500, paddingHorizontal: spacing.md, marginBottom: 6 },
@@ -1144,16 +1158,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     minHeight: 46,
     borderRadius: radii.pill,
-    backgroundColor: colors.cream100,
+    backgroundColor: colors.cream50,
   },
   // 16pt floor — iOS zooms the screen when a smaller input takes focus.
   search: { flex: 1, height: 46, fontFamily: fonts.body, fontSize: type.body, color: colors.ink900 },
 
   // One row that scrolls sideways — never wraps onto a second line.
-  chipScroll: { flexGrow: 0, marginTop: 12 },
-  chips: { flexDirection: "row", gap: 8, paddingHorizontal: spacing.md, paddingBottom: 4 },
+  // flexShrink 0 + vertical padding: the row was being squeezed by the list
+  // below and the chips' bottoms cut off (31 Oct 2026).
+  chipScroll: { flexGrow: 0, flexShrink: 0, marginTop: 6 },
+  chips: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: spacing.md, paddingVertical: 8 },
   chip: {
-    minHeight: 38,
+    height: 40,
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
@@ -1163,10 +1179,12 @@ const styles = StyleSheet.create({
     borderColor: colors.line,
     backgroundColor: colors.surface,
   },
-  chipOn: { backgroundColor: colors.green700, borderColor: colors.green700 },
+  chipOn: { backgroundColor: colors.navy900, borderColor: colors.navy900 },
+  chipDot: { width: 9, height: 9, borderRadius: 4.5 },
   chipLabel: { fontFamily: fonts.bodySemi, fontSize: 15, color: colors.ink900 },
   chipLabelOn: { color: colors.cream50 },
-  chipCount: { fontFamily: fonts.bodyBold, fontSize: 14, color: colors.green700 },
+  chipCount: { minWidth: 20, height: 20, paddingHorizontal: 5, borderRadius: 10, backgroundColor: colors.gold500, alignItems: "center", justifyContent: "center" },
+  chipCountLabel: { fontFamily: fonts.bodyBold, fontSize: 12, lineHeight: 15, color: colors.navy900 },
 
   archivedRow: { flexDirection: "row", alignItems: "center", gap: 14, minHeight: 52 },
   archivedIcon: { width: 52, alignItems: "center" },
@@ -1241,7 +1259,7 @@ const styles = StyleSheet.create({
   title: { flex: 1, fontFamily: fonts.bodySemi, fontSize: 16, color: colors.ink900 },
   titleUnread: { fontFamily: fonts.bodyBold },
   time: { fontFamily: fonts.body, fontSize: 13, color: colors.ink500, marginTop: 2 },
-  timeUnread: { fontFamily: fonts.bodySemi, color: colors.green700 },
+  timeUnread: { fontFamily: fonts.bodyBold, color: "#8a6614" },
   subtle: { fontFamily: fonts.body, fontSize: 13, color: colors.ink500 },
   preview: { fontFamily: fonts.body, fontSize: 14.5, lineHeight: 20, color: "#4c5667" },
   previewUnread: { color: colors.ink900, fontFamily: fonts.bodySemi },
@@ -1285,11 +1303,11 @@ const styles = StyleSheet.create({
     height: 24,
     paddingHorizontal: 7,
     borderRadius: radii.pill,
-    backgroundColor: colors.green700,
+    backgroundColor: colors.gold500,
     alignItems: "center",
     justifyContent: "center",
   },
-  badgeLabel: { fontFamily: fonts.bodyBold, fontSize: 12, color: colors.cream50 },
+  badgeLabel: { fontFamily: fonts.bodyBold, fontSize: 12, color: colors.navy900 },
 
   inlineActions: { flexDirection: "row", gap: 10, paddingLeft: 62 },
   inlineBtn: {
